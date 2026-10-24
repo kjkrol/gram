@@ -115,7 +115,8 @@ a frame's cost or to allocations is judged on the same demos the same way, befor
    files (`ScreenWidth  = 2560`), `PROBE_SEED` fixes its seed, `GRAM_FULLSCREEN=1` starts full.
 2. `run_demo.sh run <work dir> <seconds> <log>` runs it under `timeout` with the environment
    given: `GODEBUG=gctrace=1 GRAM_FPS_LOG=1` for 60 s at 60 FPS (vsync on) for the collector
-   and a frame's tick, drawing and presenting; `GRAM_FPS_LOG=1 GRAM_VSYNC=off` for 35 s for the
+   and a frame's tick (the simulation and the publishing), barrier, drawing, presenting and
+   waiting (for the GPU's next image); `GRAM_FPS_LOG=1 GRAM_VSYNC=off` for 35 s for the
    frame rate; `GOGC=200` the same for the knob. Exit 124 is the timeout, as meant.
 3. `gcstats.sh <log>` sums the gctrace lines (cycles a second, live and peak heap, the goal,
    the cumulative CPU share); `fpsstats.sh <log> [skip]` the medians of the per-second lines

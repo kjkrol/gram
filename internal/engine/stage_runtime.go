@@ -21,6 +21,7 @@ type stageRuntime struct {
 	publishers   []plugin.Publisher            // the tracked values' and the sources'
 	scenes       map[string][]plugin.Publisher // each scene's drawers'
 	publishing   []plugin.Publisher            // those of a frame
+	pacers       []plugin.Paced                // the tracked values paced on the barrier
 	prepared     bool                          // its first frame readied (Engine.prepare)
 	firsts       int                           // its first frames logged
 }
@@ -100,6 +101,7 @@ func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, erro
 		sceneDrawers: sceneDrawers,
 		publishers:   publishersOf(host.tracked, ctx.draws, nil),
 		scenes:       scenes,
+		pacers:       pacersOf(host.tracked),
 	}, nil
 }
 
@@ -152,6 +154,17 @@ func (r *stageRuntime) swap() {
 		p.Swap()
 	}
 	r.publishing = r.publishing[:0]
+}
+
+// pacersOf are the Paced among the tracked values, in their order
+func pacersOf(tracked []any) []plugin.Paced {
+	var out []plugin.Paced
+	for _, v := range tracked {
+		if p, ok := v.(plugin.Paced); ok {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // holds reports whether ps holds p itself

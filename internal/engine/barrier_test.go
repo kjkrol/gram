@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -82,5 +83,38 @@ func TestEngine_LaysTheScenesShownOnTheBarrierBeforeTheyAreDrawn(t *testing.T) {
 	if want := []string{"main laid 320x200", "main"}; !slices.Equal(drawn, want) {
 		t.Errorf("a frame went %v, want %v: the shown scene laid on the barrier, then drawn, the "+
 			"hidden one neither", drawn, want)
+	}
+}
+
+// a plugin noting the times it is paced with
+type pacedPlugin struct {
+	stubPlugin
+	paced []plugin.FrameTimes
+}
+
+func (p *pacedPlugin) Pace(t plugin.FrameTimes) { p.paced = append(p.paced, t) }
+
+func TestEngine_PacesThePacedOnTheBarrierWithTheLastFramesTimesOnce(t *testing.T) {
+	paced := &pacedPlugin{stubPlugin: stubPlugin{name: "test.paced"}}
+	st := stage.New("meadow").
+		Plugins(func(made *plugin.Made) { made.Add(paced) }).
+		Scenes(func() []game.Scene { return []game.Scene{notedScene{"main", new([]string)}} }).
+		Update(func(goke.RunCtx, time.Duration) {})
+	e := NewEngine(oneStageGame{stage: st})
+	if err := e.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	e.current.prepared = true
+	e.barrier(100, 100)
+	if len(paced.paced) != 0 {
+		t.Fatalf("before any frame was timed it was paced with %v, want nothing", paced.paced)
+	}
+	frame := plugin.FrameTimes{Frame: 20 * time.Millisecond, Simulate: 4 * time.Millisecond,
+		Draw: 9 * time.Millisecond}
+	e.last, e.timed = frame, true
+	e.barrier(100, 100)
+	e.barrier(100, 100)
+	if len(paced.paced) != 1 || paced.paced[0] != frame {
+		t.Errorf("a frame timed, two barriers paced it with %v, want its times once", paced.paced)
 	}
 }
