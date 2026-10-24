@@ -104,7 +104,10 @@ func TestViews_OverAFlatWorldOnTheGPU(t *testing.T) {
 	screen.ClearDepth(depth)
 	v.look(cam, observer{X: 40, Y: 128, Eye: 2, Reach: 200, Half: math.Pi / 6, Color: unitColor(DefaultCone.Color)})
 	v.look(cam, observer{X: 240, Y: 40, Eye: 2, Reach: 60, Half: math.Pi / 6, Color: unitColor(DefaultCone.Color)})
-	v.draw(render.Target{Screen: screen, Depth: depth}, cam, nil, wall{}, 256, 256, 4, [2]bool{true, true}, 0, DefaultShadow)
+	var walled coverCopy
+	walled.update(nil, wall{}, 256, 256, 4, [2]bool{true, true})
+	v.draw(render.Target{Screen: screen, Depth: depth}, cam, nil, &walled, 256, 256, 4,
+		[2]bool{true, true}, 0, DefaultShadow)
 	pix := make([]byte, 4*256*256)
 	screen.ReadPixels(pix)
 	at := func(x, y int) int { i := 4 * (y*256 + x); return int(pix[i]) + int(pix[i+1]) + int(pix[i+2]) }
@@ -159,33 +162,62 @@ func TestViews_AnEyeLookingUpVeilsNoGround(t *testing.T) {
 	}
 }
 
+// counted is a cover over everything, τ tau, counting its walks
 type counted struct {
 	version uint64
+	tau     float64
 	walks   int
 }
 
 func (c *counted) Walk(
-	_, _ geom.Vec, _ float64, _ world.Layers, _ func(near, far, bottom, top, tau float64) bool,
+	_, _ geom.Vec, length float64, _ world.Layers,
+	visit func(near, far, bottom, top, tau float64) bool,
 ) {
 	c.walks++
+	if c.tau > 0 {
+		visit(0, length, 0, 10, c.tau)
+	}
 }
 func (c *counted) Version() uint64 { return c.version }
 
-func TestViews_CopyKeepsTheGroundTillTheCoverChanges(t *testing.T) {
-	v := newViews()
-	cover := &counted{}
-	v.copy(nil, cover, 64, 64, 4, [2]bool{true, true})
-	if v.ny == 0 || cover.walks != v.ny {
-		t.Fatalf("%d walks over %d rows, want one a row", cover.walks, v.ny)
+func TestCoverCopy_IsWalkedAgainOnlyWhenTheCoverChanges(t *testing.T) {
+	var c coverCopy
+	cover := &counted{version: 1}
+	wrap := [2]bool{true, true}
+	c.update(nil, cover, 64, 64, 4, wrap)
+	if c.ny == 0 || cover.walks != c.ny {
+		t.Fatalf("%d walks over %d rows, want one a row", cover.walks, c.ny)
 	}
-	v.copy(nil, cover, 64, 64, 4, [2]bool{true, true})
-	if cover.walks != v.ny {
-		t.Errorf("%d walks after a second copy of the same cover, want %d: the first kept",
-			cover.walks, v.ny)
+	c.update(nil, cover, 64, 64, 4, wrap)
+	if cover.walks != c.ny {
+		t.Errorf("%d walks after a second publish of the same cover, want %d: the first kept",
+			cover.walks, c.ny)
 	}
 	cover.version++
-	v.copy(nil, cover, 64, 64, 4, [2]bool{true, true})
-	if cover.walks != 2*v.ny {
-		t.Errorf("%d walks after the cover changed, want %d: copied anew", cover.walks, 2*v.ny)
+	c.update(nil, cover, 64, 64, 4, wrap)
+	if cover.walks != 2*c.ny {
+		t.Errorf("%d walks after the cover changed, want %d: walked anew", cover.walks, 2*c.ny)
+	}
+}
+
+func TestViews_DrawTheCoverAsPublished(t *testing.T) {
+	var c coverCopy
+	cover := &counted{version: 1, tau: 0.5}
+	wrap := [2]bool{true, true}
+	c.update(nil, cover, 64, 64, 4, wrap)
+	cover.version, cover.tau = 2, 0
+	walks := cover.walks
+	v := newViews()
+	v.copy(nil, &c, 64, 64, 4, wrap)
+	if cover.walks != walks {
+		t.Errorf("drawing walked the cover %d times, want none: it draws the copy published",
+			cover.walks-walks)
+	}
+	if got := v.pix[2]; got != 128 {
+		t.Errorf("the ground's copy holds τ %d, want 128: the cover as it was published", got)
+	}
+	v.copy(nil, &c, 64, 64, 4, wrap)
+	if got := v.pix[2]; got != 128 {
+		t.Errorf("drawn again, the ground's copy holds τ %d, want 128", got)
 	}
 }

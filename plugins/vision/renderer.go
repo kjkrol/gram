@@ -123,7 +123,6 @@ type Renderer struct {
 	onGPU   bool
 	placed  bool // the views drawn on the GPU have their place this frame
 	coverOf func() ground.Cover
-	cover   ground.Cover
 	bend    float64
 	custom  bool
 	wrap    [2]bool
@@ -135,11 +134,12 @@ type Renderer struct {
 }
 
 // observed is what the Renderer draws: every observer in some camera's sight whose view is drawn,
-// and the outlines of those with one
+// the outlines of those with one, and the cover their views are held back by
 type observed struct {
 	hidden   bool
 	all      []watcher
 	outlines []SightOutline
+	cover    coverCopy
 }
 
 // watcher is an observer: where it stands and looks, its sprite where it has one, its outline
@@ -261,7 +261,33 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
 	if !r.onGPU {
 		return
 	}
-	r.gpu.draw(t, cam, r.ground, r.cover, r.worldW, r.worldH, r.step, r.wrap, r.bend, r.shadow)
+	r.gpu.draw(t, cam, r.ground, &r.drawn.Front().cover, r.worldW, r.worldH, r.step, r.wrap,
+		r.bend, r.shadow)
+}
+
+// stepOf is how far apart the views sample ground and its cover: the renderer's own step, else
+// the ground's
+func (r *Renderer) stepOf(ground ground.Heights) float32 {
+	if r.groundStep > 0 {
+		return r.groundStep
+	}
+	if ground != nil {
+		return float32(ground.Step())
+	}
+	return levelStep
+}
+
+// publishCover walks the cover into c as it stands, where it changed
+func (r *Renderer) publishCover(c *coverCopy) {
+	var g ground.Heights
+	if r.groundOf != nil {
+		g = r.groundOf()
+	}
+	var cover ground.Cover
+	if r.coverOf != nil {
+		cover = r.coverOf()
+	}
+	c.update(g, cover, r.worldW, r.worldH, r.stepOf(g), r.wrap)
 }
 
 func (r *Renderer) settle(cursor *goke.Cursor) {
@@ -274,8 +300,8 @@ func (r *Renderer) settle(cursor *goke.Cursor) {
 	}
 }
 
-// Publish takes every observer some camera sees whose view is drawn, for the frame drawn next;
-// none while hidden.
+// Publish takes every observer some camera sees whose view is drawn, and the cover where any is,
+// for the frame drawn next; none while hidden.
 func (r *Renderer) Publish() {
 	b := r.drawn.Back()
 	b.hidden, b.all, b.outlines = r.hidden, b.all[:0], b.outlines[:0]
@@ -306,6 +332,9 @@ func (r *Renderer) Publish() {
 			b.all = append(b.all, e)
 		}
 	}
+	if len(b.all) > 0 {
+		r.publishCover(&b.cover)
+	}
 }
 
 // Swap has what was published last drawn.
@@ -324,16 +353,7 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		if r.groundOf != nil {
 			r.ground = r.groundOf()
 		}
-		if r.coverOf != nil {
-			r.cover = r.coverOf()
-		}
-		r.step = levelStep
-		if r.ground != nil {
-			r.step = float32(r.ground.Step())
-		}
-		if r.groundStep > 0 {
-			r.step = r.groundStep
-		}
+		r.step = r.stepOf(r.ground)
 	}
 	_, rays := cam.(camera.Rays)
 	r.onGPU = rays && !r.custom
