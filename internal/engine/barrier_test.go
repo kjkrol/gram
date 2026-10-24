@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 // a scene whose drawer notes its name as it is drawn
@@ -116,5 +117,29 @@ func TestEngine_PacesThePacedOnTheBarrierWithTheLastFramesTimesOnce(t *testing.T
 	e.barrier(100, 100)
 	if len(paced.paced) != 1 || paced.paced[0] != frame {
 		t.Errorf("a frame timed, two barriers paced it with %v, want its times once", paced.paced)
+	}
+}
+
+func TestEngine_ReadiesAStageBeforeTheBarrierLaysItsScenes(t *testing.T) {
+	gputest.Need(t)
+	var drawn []string
+	st := stage.New("meadow").
+		Scenes(func() []game.Scene {
+			return []game.Scene{layingScene{notedScene{"main", &drawn}}}
+		}).
+		Update(func(goke.RunCtx, time.Duration) {})
+	e := NewEngine(oneStageGame{stage: st})
+	if err := e.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	e.window = render.NewImage(320, 200)
+	defer e.window.Deallocate()
+	if !e.barrier(320, 200) {
+		t.Fatal("the stage's first barrier readied nothing")
+	}
+	e.Draw(nil)
+	if want := []string{"main", "main laid 320x200", "main"}; !slices.Equal(drawn, want) {
+		t.Errorf("the first frame went %v, want %v: the frame readying the stage drawn before "+
+			"the barrier lays the scene for the frame drawn", drawn, want)
 	}
 }

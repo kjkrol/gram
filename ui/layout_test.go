@@ -189,6 +189,17 @@ func TestImage_FillingTheScreenDrawsStraightOntoIt(t *testing.T) {
 	}
 }
 
+func TestImage_OverhangingTheScreenIsLaidAtTheScreensSizeItIsDrawnAt(t *testing.T) {
+	big := &straight{}
+	s := NewScene("main", Center(Image(big)).Size(1600, 1000))
+	s.Drawers()
+	s.Lay(screen)
+	if w, h := size(screen); big.w != int(w) || big.h != int(h) {
+		t.Errorf("drawn straight onto a %vx%v screen it overhangs, it is laid %dx%d, want the "+
+			"screen's size", w, h, big.w, big.h)
+	}
+}
+
 func TestSplit_AFixedPartCountsItsPixelsInWhatTheSplitNeeds(t *testing.T) {
 	table := Columns(Fixed(10, Blank()), Fit(Label("key")), Fixed(20, Blank()), Fit(Label("label")))
 	kw, _ := Label("key").needs()

@@ -167,8 +167,14 @@ type picture struct {
 // glassed is a picture's source drawing on the glass over it, last of all (render.Feed)
 type glassed interface{ DrawGlass(dst *render.Image) }
 
+// place sizes the source to its box, or to the screen it is drawn straight onto
 func (p *picture) place(e *Element, box geom.AABB) {
 	w, h := size(box)
+	if _, ok := p.src.(direct); ok && e.mask == nil && e.d != nil {
+		if sw, sh := size(e.d.scene.laid); sw > 0 && sh > 0 && covers(box, e.d.scene.laid) {
+			w, h = sw, sh
+		}
+	}
 	p.src.Resize(int(math.Round(w)), int(math.Round(h)))
 }
 
@@ -206,8 +212,16 @@ func (*picture) needs(*Element) (w, h float64) { return 0, 0 }
 
 func fills(box geom.AABB, dst *render.Image) bool {
 	b := dst.Bounds()
-	return math.Round(box.TopLeft.X) <= float64(b.Min.X) && math.Round(box.TopLeft.Y) <= float64(b.Min.Y) &&
-		math.Round(box.BottomRight.X) >= float64(b.Max.X) && math.Round(box.BottomRight.Y) >= float64(b.Max.Y)
+	return covers(box, geom.NewAABB(geom.NewVec(float64(b.Min.X), float64(b.Min.Y)),
+		geom.NewVec(float64(b.Max.X), float64(b.Max.Y))))
+}
+
+// covers reports whether box, rounded to pixels, covers the whole of screen
+func covers(box, screen geom.AABB) bool {
+	return math.Round(box.TopLeft.X) <= screen.TopLeft.X &&
+		math.Round(box.TopLeft.Y) <= screen.TopLeft.Y &&
+		math.Round(box.BottomRight.X) >= screen.BottomRight.X &&
+		math.Round(box.BottomRight.Y) >= screen.BottomRight.Y
 }
 
 // Window is a panel with a title over its elements, one under another, each as large as it needs.

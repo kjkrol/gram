@@ -277,27 +277,27 @@ func (e *Engine) pace() {
 var logRates = os.Getenv("GRAM_FPS_LOG") != ""
 
 // barrier is the frame's step where nothing ticks and nothing draws: what was published swapped
-// in to be drawn, the last frame's times paced, the scenes shown laid out over a screen w by h
-// (their cameras copied for drawing), and a stage entered readied before its first frame,
-// reporting whether it was
+// in to be drawn, the last frame's times paced, a stage entered readied before its first frame,
+// and the scenes shown laid out over a screen w by h (their cameras copied for drawing),
+// reporting whether the stage was readied
 func (e *Engine) barrier(w, h int) (readied bool) {
 	e.current.swap()
 	e.order = append(e.order[:0], e.current.stage.Stack().Composition().Order()...)
 	e.pace()
-	if e.pendingSwitch == "" {
-		for _, name := range e.order {
-			for _, d := range e.current.sceneDrawers[name] {
-				if l, ok := d.(game.Laying); ok {
-					l.Lay(w, h)
-				}
+	if e.pendingSwitch != "" {
+		return false
+	}
+	if readied = !e.current.prepared; readied {
+		e.prepare()
+	}
+	for _, name := range e.order {
+		for _, d := range e.current.sceneDrawers[name] {
+			if l, ok := d.(game.Laying); ok {
+				l.Lay(w, h)
 			}
 		}
 	}
-	if e.current.prepared || e.pendingSwitch != "" {
-		return false
-	}
-	e.prepare()
-	return true
+	return readied
 }
 
 // prepare readies a stage entered for its first frame: every shader compiled, what waits on the
