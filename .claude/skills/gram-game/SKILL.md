@@ -109,7 +109,7 @@ theme's `Bold`), `Title` (its `Large`, Go Bold at 20), `Image` (a picture; a sou
 `DrawGlass(dst)`, as a `render.Feed` with a `render.Glass` source, draws on it last of all,
 over whatever lies over the picture), `Window`, `LabelOf`/`ButtonOf`/
 `WindowOf`/`HeadingOf` (their words read off a `ui.Text` once a frame, as the scene's drawer — a
-`plugin.Publisher` — publishes after the ticks, the frame laid, drawn and clicked as published; `ui.Of[T]` reads a component of the pinned
+`plugin.Publisher` — publishes after the ticks, only while the scene is shown, the frame laid, drawn and clicked as published; `ui.Of[T]` reads a component of the pinned
 entity, `ui.While(on, text)` says text while `on()`; a Text saying nothing leaves the element out), `Button(label, cmds...)` (the scene's own
 `ui.Show`/`Hide`/`Toggle{Name}`, or any command through `Issue`; no callbacks into the game),
 `Blank`, `Drawer(renderer)`, `Scroll(el)` (an element taller than its box, scrolled by its bar or

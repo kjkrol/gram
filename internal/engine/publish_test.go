@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/internal/engine"
@@ -67,5 +68,47 @@ func TestEngine_AFramePublishesThenSwapsOnceForEveryPublisher(t *testing.T) {
 	}
 	if got := *src.drawn.Front(); got != 3 {
 		t.Errorf("after two frames the source draws what it published %d calls in, want 3", got)
+	}
+}
+
+// a scene of one drawer publishing what it draws
+type hudScene struct{ d *publishingDrawer }
+
+type publishingDrawer struct{ publishing }
+
+func (*publishingDrawer) Draw(*render.Image) {}
+
+func (hudScene) Name() string                                                      { return "hud" }
+func (hudScene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
+func (hudScene) Focusable() bool                                                   { return false }
+
+func (s hudScene) Drawers() []render.Renderer { return []render.Renderer{s.d} }
+
+func TestEngine_AScenesDrawerPublishesOnlyWhileTheSceneIsShown(t *testing.T) {
+	d := &publishingDrawer{}
+	st := stage.New("meadow").
+		World(testWorldConfig()).
+		Scenes(func() []game.Scene {
+			return []game.Scene{ui.NewScene("main", ui.Blank()), hudScene{d}}
+		}).
+		Shows("main").
+		Update(func(goke.RunCtx, time.Duration) {})
+	eng := engine.NewEngine(oneStageGame{stage: st})
+	if err := eng.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if err := eng.Frame(); err != nil {
+		t.Fatalf("Frame: %v", err)
+	}
+	if len(d.calls) != 0 {
+		t.Fatalf("the hidden scene's drawer was called %v, want nothing", d.calls)
+	}
+	st.Stack().Composition().Show("hud")
+	if err := eng.Frame(); err != nil {
+		t.Fatalf("Frame: %v", err)
+	}
+	if want := []string{"publish", "swap"}; len(d.calls) != 2 || d.calls[0] != want[0] ||
+		d.calls[1] != want[1] {
+		t.Errorf("shown, its drawer was called %v, want %v", d.calls, want)
 	}
 }

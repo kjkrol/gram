@@ -51,7 +51,6 @@ type reading struct {
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Restorer = (*Plugin)(nil)
-var _ plugin.Publisher = (*Plugin)(nil)
 var _ game.Scenic = (*Plugin)(nil)
 
 // Mode is what the panel shows: the basics, the frame rate, the ticks a second, where a frame's
@@ -168,17 +167,17 @@ func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
 // Restore takes the Settings loaded.
 func (p *Plugin) Restore() { p.kept.Restore() }
 
-// Publish reads the panel's lines off the game, the reporters' too, four times a second and as
-// the mode changes.
-func (p *Plugin) Publish() {
+// publish reads the panel's lines off the game, the reporters' too, four times a second and as
+// the mode changes
+func (p *Plugin) publish() {
 	if p.due() {
 		p.readInto(p.readings.Back())
 		p.fresh = true
 	}
 }
 
-// Swap has the lines read last drawn.
-func (p *Plugin) Swap() {
+// swap has the lines read last drawn
+func (p *Plugin) swap() {
 	if p.fresh {
 		p.readings.Swap()
 		p.fresh, p.swapped = false, true

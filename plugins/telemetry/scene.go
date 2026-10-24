@@ -138,6 +138,7 @@ type panel struct {
 
 var _ game.Scene = (*panel)(nil)
 var _ render.Renderer = (*panel)(nil)
+var _ plugin.Publisher = (*panel)(nil)
 
 func newPanel(p *Plugin) *panel {
 	s := &panel{p: p}
@@ -168,6 +169,13 @@ func (s *panel) build() {
 		s.entries = append(s.entries, entryOf(said, s.font))
 	}
 }
+
+// Publish reads the lines off the game, after the ticks, while the panel is shown: its scene
+// publishes it.
+func (s *panel) Publish() { s.p.publish() }
+
+// Swap has the lines read last drawn.
+func (s *panel) Swap() { s.p.swap() }
 
 func (s *panel) fonts() {
 	if s.font == nil {

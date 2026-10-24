@@ -1210,11 +1210,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`plugin.Keep`, `Restorer`). The panel draws itself (a `ui.Drawer` of the scene, top-left):
   the labels bold, a value beside its label or under it indented, a line wider than
   `panelWrap` (260 px) wrapped with its rest indented, the plate as wide as the lines have run
-  since the mode changed, so a panel back to the basics shrinks. The plugin is a
-  `plugin.Publisher` (2026-10-24): the lines and the reporters are read after the ticks, four
-  times a second and as the mode changes, into labels and values; the panel only wraps the last
-  reading, as it changes, and draws it (a reporter runs on the ticks' side; the topography's
-  cares are handed over as it swaps). A many-valued line is a value of several lines, each under the
+  since the mode changed, so a panel back to the basics shrinks. The panel is a
+  `plugin.Publisher` (2026-10-24) its scene publishes while shown: the lines and the reporters
+  are read after the ticks, four times a second and as the mode changes, into labels and
+  values; the panel only wraps the last reading, as it changes, and draws it (a reporter runs on
+  the ticks' side; the topography's cares are handed over as it swaps). A many-valued line is a value of several lines, each under the
   label indented as Frame's: the light's `sun 0.71` / `lamps 1` / `shadows of 1`, the sky's
   `Daylight` (was "Light"), the cameras' `Picture` (the profile, the pixels, the layers or
   the figures sharp, the following), the topography's `Ground` (the reach, a care a line:

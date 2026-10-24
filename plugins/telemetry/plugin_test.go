@@ -196,18 +196,20 @@ func TestPlugin_ThePanelShowsTheLinesAsPublished(t *testing.T) {
 		return strconv.Itoa(reads)
 	})
 	p.Write().SetMode(telemetry.Extended)
-	p.Publish()
-	p.Swap()
+	// its scene's drawer publishes it
+	scene := p.Scenes()[0].Drawers()[0].(plugin.Publisher)
+	scene.Publish()
+	scene.Swap()
 	if got := text(p); got != "Reads: 1" {
 		t.Fatalf("published, the panel says %q, want its line read once", got)
 	}
 	telemetry.Refresh(p, 0)
-	p.Publish()
+	scene.Publish()
 	if got := text(p); got != "Reads: 1" || reads != 2 {
 		t.Errorf("read again, not yet swapped, the panel says %q, the line read %d times; want "+
 			"the first reading drawn, the line read twice", got, reads)
 	}
-	p.Swap()
+	scene.Swap()
 	text(p)
 	if got := text(p); got != "Reads: 2" || reads != 2 {
 		t.Errorf("swapped, the panel says %q, the line read %d times; want the second reading, "+

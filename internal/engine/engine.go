@@ -276,7 +276,7 @@ func (e *Engine) Frame() error {
 	}
 	if e.pendingSwitch == "" {
 		began := time.Now()
-		e.current.publish()
+		e.current.publish(e.current.stage.Stack().Composition().Order())
 		e.spent.publish += time.Since(began)
 	}
 	return nil

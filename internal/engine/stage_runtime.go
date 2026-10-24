@@ -18,9 +18,11 @@ type stageRuntime struct {
 	world        *world.Plugin
 	carrier      *command.Carrier
 	sceneDrawers map[string][]render.Renderer
-	publishers   []plugin.Publisher
-	prepared     bool // its first frame readied (Engine.prepare)
-	firsts       int  // its first frames logged
+	publishers   []plugin.Publisher            // the tracked values' and the sources'
+	scenes       map[string][]plugin.Publisher // each scene's drawers'
+	publishing   []plugin.Publisher            // those of a frame
+	prepared     bool                          // its first frame readied (Engine.prepare)
+	firsts       int                           // its first frames logged
 }
 
 func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, error) {
@@ -74,9 +76,10 @@ func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, erro
 		}
 	}
 	sceneDrawers := make(map[string][]render.Renderer)
-	var drawn []any // the scenes' drawers in their order
+	scenes := make(map[string][]plugin.Publisher)
 	for _, sc := range stage.Stack().All() {
 		drawers := sc.Drawers()
+		var drawn []any
 		for _, l := range drawers {
 			if b, ok := l.(plugin.Bound); ok {
 				host.registerBound(b)
@@ -84,6 +87,7 @@ func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, erro
 			drawn = append(drawn, l)
 		}
 		sceneDrawers[sc.Name()] = drawers
+		scenes[sc.Name()] = publishersOf(nil, nil, drawn)
 	}
 
 	host.flushPendingSetup()
@@ -94,7 +98,8 @@ func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, erro
 		world:        ctx.world,
 		carrier:      carrier,
 		sceneDrawers: sceneDrawers,
-		publishers:   publishersOf(host.tracked, ctx.draws, drawn),
+		publishers:   publishersOf(host.tracked, ctx.draws, nil),
+		scenes:       scenes,
 	}, nil
 }
 
@@ -124,14 +129,37 @@ func publishersOf(tracked []any, sources []render.Source, drawers []any) []plugi
 	return out
 }
 
-// publish has every Publisher publish, then swap
-func (r *stageRuntime) publish() {
-	for _, p := range r.publishers {
+// publish has every Publisher of the stage and of the scenes shown publish, then swap: a hidden
+// scene's drawers read nothing
+func (r *stageRuntime) publish(shown []string) {
+	now := append(r.publishing[:0], r.publishers...)
+	for _, name := range shown {
+		for _, p := range r.scenes[name] {
+			if !holds(now, p) {
+				now = append(now, p)
+			}
+		}
+	}
+	r.publishing = now
+	for _, p := range now {
 		p.Publish()
 	}
-	for _, p := range r.publishers {
+	for _, p := range now {
 		p.Swap()
 	}
+}
+
+// holds reports whether ps holds p itself
+func holds(ps []plugin.Publisher, p plugin.Publisher) bool {
+	if !reflect.TypeOf(p).Comparable() {
+		return false
+	}
+	for _, q := range ps {
+		if q == p {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *stageRuntime) drawScene(screen *render.Image, sc game.Scene) {
