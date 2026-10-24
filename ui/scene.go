@@ -34,6 +34,7 @@ type Scene struct {
 	field   geom.AABB // the dropdown's box
 	held    *Element  // a slider dragged
 	laid    geom.AABB // the screen the scene was last laid over
+	fresh   bool      // a tree put in since its drawing last published
 }
 
 var _ game.Scene = (*Scene)(nil)
@@ -84,10 +85,11 @@ func (s *Scene) bind() {
 func (s *Scene) Focusable() bool { return true }
 
 // Replace puts screen in place of the scene's tree, for one built afresh each time it is shown
-// (a listing): dressed in the theme at once, drawn from the next frame. What Drawers binds once —
-// pictures, screen renderers, pinned elements, texts read off components — must not be in it.
+// (a listing): dressed in the theme at once, drawn from the next frame, published by the barrier
+// at the latest. What Drawers binds once — pictures, screen renderers, pinned elements, texts read
+// off components — must not be in it.
 func (s *Scene) Replace(screen *Element) {
-	s.root = screen
+	s.root, s.fresh = screen, true
 	s.overlay, s.held = nil, nil
 	s.dress()
 	s.note()
@@ -290,6 +292,7 @@ func (d *drawing) Publish() {
 		l.looker.LookAt(l.id)
 	}
 	d.looks = d.looks[:0]
+	d.scene.fresh = false
 	b := d.published.Back()
 	b.reset()
 	root := d.scene.root
@@ -419,8 +422,13 @@ func (d *drawing) Init(si *goke.SysInit) {
 	}
 }
 
-// Lay lays the scene out over a screen w by h, for the frame drawn next (game.Laying).
+// Lay lays the scene out over a screen w by h, for the frame drawn next (game.Laying): a tree
+// put in since the frame was published published first, as nothing ticks.
 func (d *drawing) Lay(w, h int) {
+	if d.scene.fresh {
+		d.Publish()
+		d.Swap()
+	}
 	d.scene.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(float64(w), float64(h))))
 	d.laid = true
 }

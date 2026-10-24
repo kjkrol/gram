@@ -143,3 +143,44 @@ func TestEngine_ReadiesAStageBeforeTheBarrierLaysItsScenes(t *testing.T) {
 			"the barrier lays the scene for the frame drawn", drawn, want)
 	}
 }
+
+// a scene whose drawer notes being published, swapped and drawn
+type publishingScene struct{ notedScene }
+
+func (s publishingScene) Drawers() []render.Renderer { return []render.Renderer{s} }
+
+func (s publishingScene) Publish() { *s.drawn = append(*s.drawn, s.name+" published") }
+
+func (s publishingScene) Swap() { *s.drawn = append(*s.drawn, s.name+" swapped") }
+
+func TestEngine_PublishesOnTheBarrierTheScenesShownSinceTheFrameWasPublished(t *testing.T) {
+	var noted []string
+	st := stage.New("meadow").
+		Scenes(func() []game.Scene {
+			return []game.Scene{publishingScene{notedScene{"main", &noted}},
+				publishingScene{notedScene{"hud", &noted}}}
+		}).
+		Update(func(goke.RunCtx, time.Duration) {})
+	e := NewEngine(oneStageGame{stage: st})
+	if err := e.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	e.current.prepared = true
+	e.publish()
+	st.Stack().Composition().Show("hud")
+	e.barrier(100, 100)
+	e.Draw(nil)
+	want := []string{"main published", "main swapped", "hud published", "hud swapped", "main",
+		"hud"}
+	if !slices.Equal(noted, want) {
+		t.Errorf("a scene shown after the publish, the frame went %v, want %v", noted, want)
+	}
+	noted = nil
+	e.publish()
+	e.barrier(100, 100)
+	want = []string{"main published", "hud published", "main swapped", "hud swapped"}
+	if !slices.Equal(noted, want) {
+		t.Errorf("the next frame went %v, want %v: both published once, as the frame is", noted,
+			want)
+	}
+}

@@ -105,3 +105,23 @@ func TestScene_DrawsAsTheBarrierLaidIt(t *testing.T) {
 			got)
 	}
 }
+
+func TestScene_ATreePutInAfterThePublishIsPublishedAsTheBarrierLaysIt(t *testing.T) {
+	s := NewScene("main", TopLeft(Label("old")))
+	d := drawingOf(s)
+	frame(d)
+	words := &changing{words: "put in"}
+	text := LabelOf(words)
+	s.Replace(TopLeft(text))
+	d.Lay(200, 100)
+	words.words = "ticked"
+	if got := wordsOf(text); got != "put in" {
+		t.Errorf("put in after the publish and laid, the label says %q, want %q: read on the "+
+			"barrier, not as it is drawn", got, "put in")
+	}
+	frame(d)
+	d.Lay(200, 100)
+	if got := wordsOf(text); got != "ticked" {
+		t.Errorf("published again, the label says %q, want %q", got, "ticked")
+	}
+}

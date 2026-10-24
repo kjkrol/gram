@@ -2,6 +2,7 @@ package engine
 
 import (
 	"reflect"
+	"slices"
 	"time"
 
 	"github.com/kjkrol/ceremony/command"
@@ -21,6 +22,8 @@ type stageRuntime struct {
 	publishers   []plugin.Publisher            // the tracked values' and the sources'
 	scenes       map[string][]plugin.Publisher // each scene's drawers'
 	publishing   []plugin.Publisher            // those of a frame
+	read         []string                      // the scenes whose drawers the frame's publish read
+	unswapped    bool                          // the frame's publish not swapped in yet
 	pacers       []plugin.Paced                // the tracked values paced on the barrier
 	prepared     bool                          // its first frame readied (Engine.prepare)
 	firsts       int                           // its first frames logged
@@ -142,7 +145,7 @@ func (r *stageRuntime) publish(shown []string) {
 			}
 		}
 	}
-	r.publishing = now
+	r.publishing, r.read, r.unswapped = now, append(r.read[:0], shown...), true
 	for _, p := range now {
 		p.Publish()
 	}
@@ -150,10 +153,32 @@ func (r *stageRuntime) publish(shown []string) {
 
 // swap has what the last publish read drawn; nothing without one
 func (r *stageRuntime) swap() {
+	if !r.unswapped {
+		return
+	}
+	r.unswapped = false
 	for _, p := range r.publishing {
 		p.Swap()
 	}
-	r.publishing = r.publishing[:0]
+}
+
+// publishShown publishes and swaps at once, on the barrier, the drawers of the scenes shown that
+// the frame's publish did not read: none is drawn unread
+func (r *stageRuntime) publishShown(shown []string) {
+	for _, name := range shown {
+		if slices.Contains(r.read, name) {
+			continue
+		}
+		r.read = append(r.read, name)
+		for _, p := range r.scenes[name] {
+			if holds(r.publishing, p) {
+				continue
+			}
+			p.Publish()
+			p.Swap()
+			r.publishing = append(r.publishing, p)
+		}
+	}
 }
 
 // pacersOf are the Paced among the tracked values, in their order
