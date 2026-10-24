@@ -108,14 +108,15 @@ wraps its element — `ui.BottomMiddle(el).Size(w, h).Margin(px)`, nine of them.
 theme's `Bold`), `Title` (its `Large`, Go Bold at 20), `Image` (a picture; a source with
 `DrawGlass(dst)`, as a `render.Feed` with a `render.Glass` source, draws on it last of all,
 over whatever lies over the picture), `Window`, `LabelOf`/`ButtonOf`/
-`WindowOf`/`HeadingOf` (their words read off a `ui.Text` every frame; `ui.Of[T]` reads a component of the pinned
+`WindowOf`/`HeadingOf` (their words read off a `ui.Text` once a frame, as the scene's drawer — a
+`plugin.Publisher` — publishes after the ticks, the frame laid, drawn and clicked as published; `ui.Of[T]` reads a component of the pinned
 entity, `ui.While(on, text)` says text while `on()`; a Text saying nothing leaves the element out), `Button(label, cmds...)` (the scene's own
 `ui.Show`/`Hide`/`Toggle{Name}`, or any command through `Issue`; no callbacks into the game),
 `Blank`, `Drawer(renderer)`, `Scroll(el)` (an element taller than its box, scrolled by its bar or
 the wheel, its content clipped to the box); the controls `Checkbox(label, get, set)`, `Slider(min, max, step,
 get, set)` (dragged till the button is let go, the wheel over it a step; `Size` its length),
 `Dropdown(options, get, set)` (its options opened over everything, in the scene's overlay; a
-click outside or Esc closes them, `Scene.Unfolded`) — each `get` read every frame, each `set`
+click outside or Esc closes them, `Scene.Unfolded`) — each `get` read once a frame as the scene publishes, each `set`
 building the command for the new value, given like a button's; they read no entity. Any
 element takes `Fill`, `Border`, `Padding`, `Named`, `Hidden`,
 `Modal`, `Masked(ui.Circle | ui.Polygon(...))`, `Fraction(w, h)` (an axis 0 following the

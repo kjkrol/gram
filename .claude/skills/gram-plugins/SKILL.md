@@ -450,7 +450,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `celestial.MoonFace` with the phase's shade, lit on the right waxing), `Weather()` (the name,
   the temperature, the wind; absent without a running climate; it reads through a drawer of
   its own, so it goes in the tree a scene is made with) and `Bar()` (the three on one panel for
-  `ui.TopMiddle`), `*ui.Element`s the scene places; the old `HUD()` renderers are gone.
+  `ui.TopMiddle`), `*ui.Element`s the scene places; the old `HUD()` renderers are gone. Their
+  words are read once a frame as the scene publishes, kept (`framed`) till the clock moves or
+  the weather's name changes; the moon icon shows the phase the atmosphere published.
   `Reporter()` lists the daylight, the clouds and their shadows alone: the time, the season,
   the moon and the weather are the widgets' (a game without them adds
   `Calendar().Reporter()` and `Climate().Reporter()`). The settings screen's atmosphere section
@@ -898,7 +900,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   settles after every Sync of the interface too) and replays every block after it as many times
   as the tempo says (`Clock.Replay`; a plan written by hand, a test or a bench, does the same); `Clock.Behind` lowers a tempo above 1 after 30 slow frames.
   `clock.Phase` tags on the clock's entity, `Clock.In(phase)`, `Clock.Entity()`, `Reporter()`,
-  `HUD()`, `Shown` (game time run on past the last tick by the real time held toward the next;
+  `HUD()` (a `ui.Drawer` and a `plugin.Publisher`, its line read after the ticks), `Shown` (game time run on past the last tick by the real time held toward the next;
   `Clock.Pending`). Rules of a `clock.Moment{Last, Now}` fire every step (`clock.Every(period,
   offset)`, `clock.At(t)`; by clock time, never again after a load), about the clock's entity.
 - **`selection`** — a `Select` command (ids, or a world box, additive or not) sets the
@@ -1208,7 +1210,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`plugin.Keep`, `Restorer`). The panel draws itself (a `ui.Drawer` of the scene, top-left):
   the labels bold, a value beside its label or under it indented, a line wider than
   `panelWrap` (260 px) wrapped with its rest indented, the plate as wide as the lines have run
-  since the mode changed (`stale` on `SetMode`), so a panel back to the basics shrinks. A many-valued line is a value of several lines, each under the
+  since the mode changed, so a panel back to the basics shrinks. The plugin is a
+  `plugin.Publisher` (2026-10-24): the lines and the reporters are read after the ticks, four
+  times a second and as the mode changes, into labels and values; the panel only wraps the last
+  reading, as it changes, and draws it (a reporter runs on the ticks' side; the topography's
+  cares are handed over as it swaps). A many-valued line is a value of several lines, each under the
   label indented as Frame's: the light's `sun 0.71` / `lamps 1` / `shadows of 1`, the sky's
   `Daylight` (was "Light"), the cameras' `Picture` (the profile, the pixels, the layers or
   the figures sharp, the following), the topography's `Ground` (the reach, a care a line:
@@ -1225,7 +1231,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   the players' handlers, `RunPlan` after the cameras'. `For(cam, issuer) *ui.Element` is a
   camera's minimap for the scene to place and dress (`ui.TopRight(...).Size(220, 220)`,
   `.Masked(ui.Circle)`, `.Fill`, `.Border`). **Its picture is its own, not the Stage's**: a
-  `lens` (an inner `camera.Camera` straight down, over `cam`'s `Focus`, turned so `camera.Headed`
+  `lens` (an inner `camera.Camera` straight down, aimed as drawn: the ticks say where it is to
+  look, published with the marks, the picture aimed and the compass turned as published; over `cam`'s `Focus`, turned so `camera.Headed`
   `Ahead` runs up when turning, `min(w, h) / (2·Reach)` pixels a unit, the shorter way round a
   torus; neither in the cameras' list — no anchor, not saved — nor in `ctx.Draws`) and a
   composer of three sources: the ground (`Ground.Miniature() (img, perUnit)`, drawn opaque with

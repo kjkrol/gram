@@ -85,6 +85,19 @@
   budget's lever write the Settings alone. New: `backdrop.Values.Heavens`, for a sky part's Feed.
 - Breaking: `board.Atmosphere` and `topography.Atmosphere` ask for `DrawnAir()` (were `Air()`);
   `atmosphere.Read` gives both, `Air` the live weather.
+- The screen is drawn as published too. A ui scene's drawer is a `plugin.Publisher`: once a frame,
+  after the ticks, it reads where its pinned elements' entities stand and whether each picture
+  shows them, every `ui.Text`'s words (a pinned label's for each of its entities), every
+  checkbox's and slider's value and which elements are hidden, and the frame is laid, drawn and
+  clicked as that says; an element put in since reads them as it is laid. A Text is read once
+  a frame where it was read four to seven times; `GoToIt` moves the camera at the publish after
+  the frame that laid it. A `ui.Drawer` that is a Publisher is published with its scene.
+- The telemetry's lines and reporters are read after the ticks, four times a second and as the
+  mode changes; the panel only wraps the last reading and draws it. The topography's cares are
+  handed to its reporter as it swaps. The clock's HUD reads its line after the ticks; the moon
+  icon shows the phase the atmosphere published; a minimap is aimed, and its compass turned, as
+  published with its marks.
+- Fixed: the HUD's weather said the weather of before one set while the clock stood.
 
 **The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
 - No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an
