@@ -181,7 +181,13 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   root keeps the `Plugin`, the `Board` (`Plugin.Board()`: `At(x, y)`, `Kind`, `KindAt`, `KindFor`,
   `Bare`, `Set`, `SetAll`, `Way`, `SetWay`, `Along`, `DecksOver`, `Reaches`, `Fenced`, `Lane`,
   `CellFor`, `LevelFor`, `CellVersion`, `Changes`, `Version`, `Touch`,
-  `Shape`, `Built`, `States`), the `Layout`, the `Map` contract, `NewUnits`, `NewEntities`, `Lay`
+  `Shape`, `Built`, `States`), the `Layout`, the `Map` contract, `NewUnits`, `NewEntities`, `Lay`;
+  what draws reads the cells **as published** (2026-10-24): the plugin publishes them once a
+  frame (`drawn.go`: two buffers, each brought up to the board where a cell's version differs,
+  a cell 32 bytes, its kinds and way interned), read through `board.Read.Drawn()` (a
+  `board.Drawn`: `look.Board` + `Way`, `States`, `Version`; the live board before any publish)
+  and `Read.DrawnHeights()` (the Map's `DrawnHeights`, the topography's frame relief); the
+  renderer publishes its grid's toggles (`look.Renderer.Publish`, `drawn()`)
   (`level.go`), `Spawn[R]`, `Each[R]`, `Sides`, `Shape`. Public subpackages: **`board/cell`**
   (`cell.ID`, `cell.Kind`, `cell.Kinds` through `board.Plugin.CellKinds()`, `cell.Domain` —
   `Land`, `Water`, `Air`, a game's own bits — `cell.Plot`, `cell.Ground`, `cell.Way`/`Links`,
@@ -347,8 +353,13 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   Depends on `world`, `motion` and `collision`.
 - **`topography`** — a map in relief: `topography.NewPlugin(world, board, light, Config{Shaping,
   Climbing})`, made right after the world, the light and the board (so a world with heights);
-  refuses a wrapping world; hands the light its relief (`light.Plugin.OverRelief`) for the
-  shadows to fall on. It is the cameras' `cameras.Cage` (`Free(x, y, z)`: over the ground, over the
+  refuses a wrapping world; hands the light its relief (`light.Plugin.OverRelief`, the heights as
+  they stand for the bake, the frame's under the live shadows). It publishes its relief once a
+  frame (`relief.CopyInto`, the heights copied as their version moves), its settings and the
+  board's grid (2026-10-24); the terrain (`drawnGround`, `terrain.Config.Drawn`), the care's
+  lines, the painter (`painter.Board`, a func for the relief), the hexes (`drawnMap`) and the
+  billboards draw from them; the terrain encodes the heights as it composes, so the frame's
+  `GroundSpan` is theirs. It is the cameras' `cameras.Cage` (`Free(x, y, z)`: over the ground, over the
   kind on its cell to its `Height`, out of a deck's slab; `Span()` the relief's extent; `Grain`
   near decks — a game hands it as `cameras.Config.Cage`), sets the world's Look
   (`billboards.Look`), the board's Map (`look.Nothing`: the ground is drawn on the GPU) and the

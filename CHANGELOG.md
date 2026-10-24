@@ -65,6 +65,17 @@
   `world.Read.Lighting`, `look.Renderer.WithLighting` (now `WithLights`). `light.Distant`,
   `Lamp`, `Umbra`, `Beam`, `Casting` and `ShadowPolicy` are render's; a shadow is of what stands
   from an altitude up a height.
+- The ground is drawn as published too. The board publishes its cells once a frame, each of two
+  buffers brought up to the board where a cell's version differs from the one it holds (a cell
+  32 bytes, its kinds and way interned), and its renderer its grid's toggles; the topography its
+  relief, a copy of the heights as their version moves, and its settings. What draws reads them:
+  the board's tiles and covers, the painter, the kinds' shade, the terrain, the care's lines,
+  the hexes, the billboards, the light's live shadows, the routes and the views
+  (`board.Read.Drawn`, a `board.Drawn`; `board.Read.DrawnHeights`;
+  `routes.Renderer.WithDrawnHeights`), and the sectors' view its bands, the cameras' zones and
+  layers their settings. The terrain hands the frame the span of the heights it draws, a frame
+  late after the relief changed before; the board's miniature is drawn anew as the sun's light on
+  it changes visibly, never before; a sector's tints go to the GPU only as one changes.
 
 **The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
 - No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an
