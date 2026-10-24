@@ -83,10 +83,10 @@ func (s *renderer) Publish() {
 		b.shown = s.clock()
 	}
 	s.seeing = s.seeing[:0]
+	if b.views == nil {
+		b.views = map[camera.Camera]*view.View{}
+	}
 	for cam, v := range s.views() {
-		if b.views == nil {
-			b.views = map[camera.Camera]*view.View{}
-		}
 		c := b.views[cam]
 		if c == nil {
 			c = &view.View{}
