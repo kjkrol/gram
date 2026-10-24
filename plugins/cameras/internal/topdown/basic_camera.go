@@ -30,6 +30,8 @@ type basicCamera struct {
 	sharp     bool
 	// the frame while a part of it is drawn, to come back to
 	cropped *frame
+	// its copy for the frame drawn, or the camera it is a copy of
+	copy, origin *basicCamera
 }
 
 type frame struct {
@@ -63,6 +65,33 @@ var _ contract.Resolved = (*basicCamera)(nil)
 var _ contract.Layered = (*basicCamera)(nil)
 var _ contract.Cropping = (*basicCamera)(nil)
 var _ contract.Figured = (*basicCamera)(nil)
+var _ contract.Snapped = (*basicCamera)(nil)
+
+// Snap takes the camera's copy for the frame drawn next.
+func (c *basicCamera) Snap() {
+	if c.copy == nil {
+		c.copy = &basicCamera{}
+	}
+	d := c.copy
+	layers := d.layers
+	*d = *c
+	d.layers = append(layers[:0], c.layers...)
+	d.cropped, d.copy, d.origin = nil, nil, c
+}
+
+func (c *basicCamera) Drawn() contract.Camera {
+	if c.copy == nil {
+		return c
+	}
+	return c.copy
+}
+
+func (c *basicCamera) Origin() contract.Camera {
+	if c.origin == nil {
+		return c
+	}
+	return c.origin
+}
 
 // Detail is how far the camera sees and how finely.
 func (c *basicCamera) Detail() contract.Detail { return c.detail }

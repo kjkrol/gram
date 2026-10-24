@@ -40,6 +40,9 @@ type orthoCamera struct {
 	solid func(x, y, z float32) (float32, bool)
 	// the frame while a part of it is drawn, to come back to
 	cropped *orthoFrame
+	// a copy's extent, as it stood when the copy was taken
+	still     bool
+	low, high float32
 }
 
 type orthoFrame struct {
@@ -294,10 +297,21 @@ func (c *orthoCamera) rect(x0, y0, x1, y1, z0, z1 float32) (minX, minY, maxX, ma
 }
 
 func (c *orthoCamera) layer() (low, high float32) {
-	if c.extent != nil {
+	switch {
+	case c.still:
+		low, high = c.low, c.high
+	case c.extent != nil:
 		low, high = c.extent()
 	}
 	return low, high + c.Headroom
+}
+
+// copyInto has dst draw as c does now, its extent still and the cage read no more
+func (c *orthoCamera) copyInto(dst *orthoCamera) {
+	*dst = *c
+	low, high := c.layer()
+	dst.still, dst.low, dst.high = true, low, high-c.Headroom
+	dst.extent, dst.ground, dst.fine, dst.solid, dst.cropped = nil, nil, nil, nil, nil
 }
 
 func (c *orthoCamera) Visible(box contract.AABB) bool {
