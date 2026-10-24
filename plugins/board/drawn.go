@@ -108,6 +108,17 @@ func (d *drawn) front() *drawnCells {
 	return d.buf.Front()
 }
 
+// Drawn is the board as the frame drawn reads it: a look.Board, and each cell's way, the markers of
+// the effects on it and the count of the changes to the kinds' looks.
+type Drawn interface {
+	look.Board
+	Way(c cell.ID) cell.Way
+	States(c cell.ID) tag.Tags[effect.States]
+	Version() uint64
+}
+
+var _ Drawn = drawnBoard{}
+
 // drawnBoard is the board as the frame drawn reads it (look.Board, draw.Ways): the cells as last
 // published, the live board before any was.
 type drawnBoard struct {

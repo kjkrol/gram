@@ -26,7 +26,7 @@ type testMap struct {
 
 func (m testMap) Look() look.Look         { return m.look }
 func (m testMap) Dressing() look.Dressing { return m.d }
-func (m testMap) Heights() ground.Heights { return m.d.relief }
+func (m testMap) Heights() ground.Heights { return m.d.ground() }
 func (m testMap) Top(c cell.ID) (corners [4]float32, level float32) {
 	t := m.d.topOf(c)
 	return t.z, t.alt
@@ -47,6 +47,9 @@ func newBoard(g grid.Grid) (*board.BoardRead, *board.BoardWrite) {
 	writes[brd] = w
 	return brd, w
 }
+
+// fixed is r for every frame
+func fixed(r *relief.Relief) func() *relief.Relief { return func() *relief.Relief { return r } }
 
 func reliefFor(brd *board.BoardRead) *relief.Relief {
 	r, ok := reliefs[brd]
@@ -148,7 +151,7 @@ func TestBake_RunningWaterRunsDownItsSlopeAndNotIntoItsBanks(t *testing.T) {
 		SpriteID: 2}, Style{Shine: 1}))
 	// falling 0.4 southward, the banks rising half as fast away from the stream
 	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 40 - 0.4*p.Y + 0.5*math.Abs(p.X-48) })
-	d := New(brd, reliefFor(brd), true, st)
+	d := New(brd, fixed(reliefFor(brd)), true, st)
 	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 2: blue}), 32)
 	south := 0.5 + 10*math.Sqrt(0.4)/(2*water.FlowSpan)
 	if f := b.waterAt(water.FlowLayer, 49, 49); !close(f, color.RGBA{128,
@@ -176,7 +179,7 @@ func TestBake_AWayStraightAcrossIsOneBandFromSideToSide(t *testing.T) {
 	west, east := cell.Links(1<<2), cell.Links(1<<3)
 	brdW.SetWay(g.At(1, 1), cell.Way{Kind: stream, Width: 8, Links: west | east})
 	brdW.SetWay(g.At(0, 1), cell.Way{Kind: stream, Width: 16, Links: east})
-	d := New(brd, reliefFor(brd), true, st)
+	d := New(brd, fixed(reliefFor(brd)), true, st)
 	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 2: blue}), 32)
 	// 12 wide on the west side, the mean of 8 and 16; 8 on the east
 	for _, c := range []struct {
@@ -201,7 +204,7 @@ func TestBake_AWayTurningCurvesRoundTheMiddle(t *testing.T) {
 	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
 	brdW.SetWay(g.At(1, 1), cell.Way{Kind: cell.Kind{Allows: cell.Land, SpriteID: 2}, Width: 8,
 		Links: 1<<2 | 1<<1}) // west and south
-	d := New(brd, reliefFor(brd), false, map[cell.Name]Style{})
+	d := New(brd, fixed(reliefFor(brd)), false, map[cell.Name]Style{})
 	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 2: brown}), 32)
 	for _, c := range []struct {
 		x, y float32
@@ -228,7 +231,7 @@ func TestBake_AWayFadingOutShowsLessAndRunsOnTheWayItFades(t *testing.T) {
 	brdW.SetWay(g.At(0, 0), cell.Way{Kind: river, Width: 8, Links: east})
 	brdW.SetWay(g.At(1, 0), cell.Way{Kind: river, Width: 8, Links: west | east, Fade: 0.5})
 	brdW.SetWay(g.At(2, 0), cell.Way{Kind: river, Width: 8, Links: west, Fade: 0.75})
-	d := New(brd, reliefFor(brd), true, st)
+	d := New(brd, fixed(reliefFor(brd)), true, st)
 	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 2: blue}), 32)
 	if got := b.albedoAt(17, 17); !close(got, blue, 2) {
 		t.Errorf("the way not fading is %v, want its own %v", got, blue)
@@ -254,7 +257,7 @@ func TestBake_AWayRunsSlantwiseToTheCornerAndEndsSquareAcrossItself(t *testing.T
 	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
 	brdW.SetWay(g.At(1, 1), cell.Way{Kind: cell.Kind{Allows: cell.Land, SpriteID: 2}, Width: 4,
 		Links: 1 << 7}) // south-east
-	d := New(brd, reliefFor(brd), false, map[cell.Name]Style{})
+	d := New(brd, fixed(reliefFor(brd)), false, map[cell.Name]Style{})
 	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 2: brown}), 32)
 	for _, c := range []struct {
 		x, y float32
@@ -280,7 +283,7 @@ func TestBake_BlendsWeighTheNeighboursGroundsAtTheTilesPoints(t *testing.T) {
 	brdW.SetAll(earth)
 	brdW.Set(g.At(2, 1), sand)
 	atlas := solids(map[render.SpriteID]color.RGBA{1: green, 2: sandy, 3: blue})
-	d := New(brd, reliefFor(brd), true, st)
+	d := New(brd, fixed(reliefFor(brd)), true, st)
 	b := bakedOf(t, d, atlas, 32)
 	if got := b.albedoAt(63, 47); !between(got, green, sandy) {
 		t.Errorf("by the sand the earth is %v, want the sand running in", got)
@@ -306,7 +309,7 @@ func TestBake_ByTheSeaTheLandIsLaidOverTheSeaUnderIt(t *testing.T) {
 		Style{Under: true})
 	brdW.SetAll(earth)
 	brdW.Set(g.At(0, 1), sea)
-	d := New(brd, reliefFor(brd), false, st)
+	d := New(brd, fixed(reliefFor(brd)), false, st)
 	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 4: blue}), 32)
 	if d.Base(g.At(1, 1), 1) != sea.SpriteID || d.Base(g.At(2, 1), 1) != earth.SpriteID {
 		t.Errorf("bases %v by the sea, %v away from it; want the sea and the earth",
@@ -348,7 +351,7 @@ func TestPainter_OverlaysTheStillWaterGlintingOnAHexBoard(t *testing.T) {
 		brd, brdW := newBoard(g)
 		brdW.SetAll(sea)
 		brdW.Set(g.At(0, 0), land)
-		d := New(brd, reliefFor(brd), true, st)
+		d := New(brd, fixed(reliefFor(brd)), true, st)
 		d.Above()
 		m, red, ok := d.Overlay(g.At(1, 1))
 		shape, _ := brd.Shape()
@@ -374,7 +377,7 @@ func TestTile_AShinyCellShines(t *testing.T) {
 	brdW.Set(sea, styled(st, cell.Kind{Name: cell.Named("k14"), Cost: 1, Allows: cell.Water},
 		Style{Shine: 0.8}))
 	for _, heights := range []bool{true, false} {
-		d := New(brd, reliefFor(brd), heights, st)
+		d := New(brd, fixed(reliefFor(brd)), heights, st)
 		d.Above()
 		s, ok := d.cellTile(sea).Shine()
 		if ok != heights || heights && math.Abs(float64(s-0.8)) > 1e-6 {
@@ -397,7 +400,7 @@ func TestShores_LieTheWayOfTheNearestCellThatDoesNotShine(t *testing.T) {
 	for y := range uint32(4) {
 		brdW.Set(g.At(0, y), cell.Kind{Cost: 1, Allows: cell.Land}) // a coast along x = 32
 	}
-	d := New(brd, reliefFor(brd), true, st)
+	d := New(brd, fixed(reliefFor(brd)), true, st)
 	img, reach, _ := d.Shores(nil)
 	if reach != 96 || img.Bounds().Dx() != 11 || img.Bounds().Dy() != 5 {
 		t.Fatalf("the shores are %v reaching %v, want 11 by 5 corners reaching 3 cells", img.Bounds(),
@@ -462,7 +465,7 @@ func TestBake_AWayTurnsIntoTheKindItMixesWith(t *testing.T) {
 	brdW.SetWay(g.At(0, 1), cell.Way{Kind: stream, Width: 8, Links: east, Mix: 0})
 	brdW.SetWay(g.At(1, 1), cell.Way{Kind: stream, Width: 8, Links: west | east, Mix: 0.5})
 	brdW.SetWay(g.At(2, 1), cell.Way{Kind: stream, Width: 8, Links: west, Mix: 1})
-	d := New(brd, reliefFor(brd), false, st)
+	d := New(brd, fixed(reliefFor(brd)), false, st)
 	d.kinds = kindsOf{sea, stream}
 	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 3: brown, 7: blue}), 32)
 	half := color.RGBA{(brown.R + blue.R) / 2, (brown.G + blue.G) / 2, (brown.B + blue.B) / 2, 255}
@@ -495,7 +498,7 @@ func TestBake_AWayRunsOnUnderTheWaterItRunsInto(t *testing.T) {
 	north, south := cell.Links(1<<0), cell.Links(1<<1)
 	brdW.SetWay(g.At(1, 0), cell.Way{Kind: stream, Width: 8, Links: south})
 	brdW.SetWay(g.At(1, 1), cell.Way{Kind: stream, Width: 8, Links: north | south})
-	d := New(brd, reliefFor(brd), false, st)
+	d := New(brd, fixed(reliefFor(brd)), false, st)
 	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 4: blue, 5: brown}), 32)
 	if got := b.albedoAt(49, 49); !close(got, brown, 2) {
 		t.Errorf("the way well ashore is %v, want %v", got, brown)
@@ -523,7 +526,7 @@ func TestPainter_TheAlbedoIsPaintedAnewOnlyAsTheBoardChanges(t *testing.T) {
 	brdW.Set(g.At(0, 0), sea)
 	brdW.SetWay(g.At(2, 2), cell.Way{Kind: road, Width: 8, Links: cell.Links(1<<0 | 1<<1)})
 	atlas := solids(map[render.SpriteID]color.RGBA{1: green, 2: blue, 3: brown})
-	d := New(brd, reliefFor(brd), false, st)
+	d := New(brd, fixed(reliefFor(brd)), false, st)
 	img, _, px, _ := d.Surface(atlas)
 	if img == nil || px != 16 || img.Bounds().Dx() != 64 || img.Bounds().Dy() != 64 {
 		t.Fatalf("the albedo is %v pixels a cell, want 16 on a 64 by 64 sheet", px)
@@ -567,7 +570,7 @@ func TestPainter_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
 		brdW.SetWay(g.At(2, y), cell.Way{Kind: river, Width: 8, Links: cell.Links(1<<0 | 1<<1)})
 	}
 	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 40 - p.Y/4 }) // falling south
-	d := New(brd, reliefFor(brd), true, st)
+	d := New(brd, fixed(reliefFor(brd)), true, st)
 	_, sheet, _, wpx := d.Surface(solids(map[render.SpriteID]color.RGBA{1: green, 2: blue,
 		3: brown}))
 	if sheet == nil || wpx != 16 || sheet.Bounds().Dx() != 128 || sheet.Bounds().Dy() != 128 {
@@ -604,7 +607,7 @@ func TestPainter_TheWetCellsAreTheWaterAndTheCellsBesideIt(t *testing.T) {
 	for y := uint32(2); y < 5; y++ {
 		brdW.SetWay(at(6, y), cell.Way{Kind: river, Width: 8, Links: cell.Links(1<<0 | 1<<1)})
 	}
-	d := New(brd, reliefFor(brd), true, st)
+	d := New(brd, fixed(reliefFor(brd)), true, st)
 	d.Surface(sheetAtlas{render.NewImage(24, 8)})
 	wet, v := d.Wet()
 	if len(wet) != 8*6 || v == 0 {
@@ -636,7 +639,7 @@ func TestShores_FollowTheShineNotTheRelief(t *testing.T) {
 		Style{Under: true, Shine: 0.9})
 	brdW.SetAll(sea)
 	brdW.Set(g.At(4, 4), land)
-	d := New(brd, reliefFor(brd), true, st)
+	d := New(brd, fixed(reliefFor(brd)), true, st)
 	corner := func(x, y int) color.RGBA {
 		img, _, _ := d.Shores(nil)
 		pix := make([]byte, 4*11*9)

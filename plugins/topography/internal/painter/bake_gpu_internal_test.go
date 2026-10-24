@@ -71,7 +71,7 @@ func bakedBoard(t *testing.T) (*Painter, *board.BoardWrite, render.AtlasSource, 
 		atlas.Add(id, 16, sprite(c))
 	}
 	atlas.Close()
-	d := New(brd, reliefFor(brd), true, st)
+	d := New(brd, fixed(reliefFor(brd)), true, st)
 	d.kinds = kindsOf{grass, sand, rock, sea, brook}
 	return d, brdW, atlas, g
 }
@@ -222,7 +222,7 @@ func wayBoard(t *testing.T, g grid.Grid) (*Painter, *board.BoardWrite, render.At
 		atlas.Add(id, 16, sprite(c))
 	}
 	atlas.Close()
-	d := New(brd, reliefFor(brd), true, st)
+	d := New(brd, fixed(reliefFor(brd)), true, st)
 	d.kinds = kindsOf{grass, sea, road, river}
 	return d, brdW, atlas
 }
@@ -337,7 +337,7 @@ func island(tb testing.TB) (*Painter, *board.BoardWrite, render.AtlasSource, gri
 	for _, k := range kinds {
 		colours[k.SpriteID] = color.RGBA{uint8(40 * k.SpriteID), 150, 80, 255}
 	}
-	d := New(brd, reliefFor(brd), true, st)
+	d := New(brd, fixed(reliefFor(brd)), true, st)
 	return d, brdW, solids(colours), g
 }
 

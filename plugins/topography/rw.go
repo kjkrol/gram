@@ -93,9 +93,6 @@ func (w *Write) SetHaze(on bool) {
 	if p.ground != nil {
 		p.ground.Haze(on)
 	}
-	if p.hexes != nil {
-		p.hexes.Haze(on)
-	}
 }
 
 // SetCare has the ground within rings sectors of the one under the middle of the screen (and of

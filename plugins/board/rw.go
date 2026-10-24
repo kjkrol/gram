@@ -23,6 +23,10 @@ func (r *Read) Fork() *Read { return &Read{p: r.p, board: r.board.Fork()} }
 // Board reads the board: its grid and its terrain.
 func (r *Read) Board() *BoardRead { return r.board }
 
+// Drawn is the board as the frame drawn reads it: its cells as last published, the live board
+// before any was.
+func (r *Read) Drawn() Drawn { return r.p.board.drawnBoard() }
+
 // World is the world the board lies over: its registers, for a figure defined over the board.
 func (r *Read) World() *world.Plugin { return r.p.worldPlugin }
 

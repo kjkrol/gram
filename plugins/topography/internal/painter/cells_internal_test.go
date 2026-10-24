@@ -32,7 +32,7 @@ func TestCells_HoldWhatTheBakeReadsOfEachCell(t *testing.T) {
 		atlas.Add(id, 8, render.Solid(color.RGBA{A: 255}))
 	}
 	atlas.Close()
-	d := New(brd, reliefFor(brd), true, st)
+	d := New(brd, fixed(reliefFor(brd)), true, st)
 	d.kinds = kindsOf{land, sea, river}
 	if !d.refresh(atlas) || d.refresh(atlas) {
 		t.Fatal("the cells laid at first and again unchanged, want laid once")

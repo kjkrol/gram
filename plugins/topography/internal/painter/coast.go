@@ -47,7 +47,7 @@ func (l *Painter) Shores(atlas render.AtlasSource) (*render.Image, float32, uint
 			c.shining[i], changed = now, true
 		}
 	}
-	cols, rows, _, _, _ := l.relief.Lattice()
+	cols, rows, _, _, _ := l.ground().Lattice()
 	if c.img == nil || c.img.Bounds().Dx() != cols || c.img.Bounds().Dy() != rows {
 		c.img, changed = render.NewImage(cols, rows), true
 	}

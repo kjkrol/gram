@@ -58,12 +58,13 @@ var _ render.Direct = (*Ground)(nil)
 type Ground struct {
 	world   *world.Plugin
 	board   *board.Plugin
-	m       board.MapRead
-	relief  *relief.Relief
+	cellsOf look.Board // the board's cells as the frame drawn holds them
+	m       look.Map
+	ground  func() *relief.Relief
+	drawn   func() (hazed bool, grid look.RenderState)
 	sky     Sky
 	painter *painter.Painter
 	grid    grid.Grid
-	hazed   bool
 	size    float32 // from a cell's centre to its corner
 	tiles   *look.Renderer
 	at      [2]uint64
@@ -80,23 +81,21 @@ type Ground struct {
 	pixel   any // the top's Pixel, a []float32 of one
 }
 
-// New is the ground of b's hex board in the relief r over w, the cells standing as m says,
-// under sky, the ways across their tops drawn by p.
-func New(w *world.Plugin, b *board.Plugin, m board.MapRead, r *relief.Relief, sky Sky,
+// New is the ground of b's hex board over w, as the frame drawn holds it: the cells cells, standing
+// as m says on the relief ground gives, hazed and gridded as drawn says, under sky, the ways
+// across their tops drawn by p.
+func New(w *world.Plugin, b *board.Plugin, cells look.Board, m look.Map,
+	ground func() *relief.Relief, drawn func() (hazed bool, grid look.RenderState), sky Sky,
 	p *painter.Painter) *Ground {
-	brd := b.Read(0).Board()
-	h := &Ground{world: w, board: b, m: m, relief: r, sky: sky, painter: p, grid: brd.Grid,
-		size: float32(brd.CellSpan()), own: map[string]any{}, uv: map[string]any{},
-		pixel: []float32{0}}
+	h := &Ground{world: w, board: b, cellsOf: cells, m: m, ground: ground, drawn: drawn, sky: sky,
+		painter: p, grid: cells, size: float32(b.Read(0).Board().CellSpan()),
+		own: map[string]any{}, uv: map[string]any{}, pixel: []float32{0}}
 	h.opts = render.DrawMeshOptions{WriteDepth: true, Vertices: prismVertices, Uniforms: map[string]any{}}
 	return h
 }
 
 // Compose has the ground drawn Direct, in the opaque pass.
 func (*Ground) Compose(f *render.Frame, _ camera.Camera) { f.DrawOpaque() }
-
-// Haze says whether the air hazes the prisms through any camera; off, they are drawn clear.
-func (h *Ground) Haze(on bool) { h.hazed = on }
 
 // Draw draws the ground into the target through cam, under the frame's uniforms u.
 func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
@@ -136,7 +135,8 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	line, width := h.gridOf(cam)
 	h.set("GridLine", line[:]...)
 	h.set("GridWidth", width)
-	seeing, up, way := h.sky.Air().Seen(cam, h.hazed)
+	hazed, _ := h.drawn()
+	seeing, up, way := h.sky.Air().Seen(cam, hazed)
 	h.set("Visibility", seeing)
 	h.set("HazeUp", up)
 	h.set("HazeWay", way[:]...)
@@ -201,15 +201,14 @@ func (h *Ground) refresh() bool {
 	if atlas == nil {
 		return false
 	}
-	brd := h.board.Read(0).Board()
-	at := [2]uint64{brd.Changes() + 1, h.relief.Version() + 1}
+	at := [2]uint64{h.cellsOf.Changes() + 1, h.ground().Version() + 1}
 	if h.tiles != nil && at == h.at {
 		return true
 	}
 	if h.tiles == nil {
 		space := h.world.Res.Config.Space
 		ww, wh := float32(space.Width), float32(space.Height)
-		h.tiles = look.NewRenderer(brd, atlas, h.m, space)
+		h.tiles = look.NewRenderer(h.cellsOf, atlas, h.m, space)
 		h.px = min(topPx, maxTop/ww, maxTop/wh)
 		h.top = render.NewImage(int(math.Ceil(float64(ww*h.px))), int(math.Ceil(float64(wh*h.px))))
 	}
@@ -231,13 +230,13 @@ func (h *Ground) drawTop(u render.Uniforms) {
 // the cells' instances, sector after sector where the world has them
 func (h *Ground) lay() {
 	h.cells = h.cells[:0]
-	low, _ := h.relief.Extent()
+	low, _ := h.ground().Extent()
 	across := h.edges()
 	add := func(c cell.ID) {
 		centre := h.grid.CellCenter(c)
 		top, _ := h.m.Top(c)
 		h.cells = append(h.cells, float32(centre.X), float32(centre.Y), top[0],
-			float32(takesOf(h.board.Read(0).Board().Kind(c).Takes)))
+			float32(takesOf(h.cellsOf.Kind(c).Takes)))
 		for _, i := range across {
 			n, ok := h.grid.Toward(c, i)
 			lowest := float32(min(low, 0))
@@ -286,7 +285,8 @@ func (h *Ground) edges() [6]int {
 // gridOf is the board's grid's line through cam, premultiplied, and its width; 0 wide where the
 // grid is hidden or its cells too small to show it
 func (h *Ground) gridOf(cam camera.Camera) (line [4]float32, width float32) {
-	line, width, shown := h.board.Res.Render.Grid()
+	_, drawnGrid := h.drawn()
+	line, width, shown := drawnGrid.Grid()
 	if !shown || h.size*cam.Zoom() < look.MinGridCell {
 		return line, 0
 	}

@@ -77,6 +77,7 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	boardPlugin *board.Plugin
 	board       *board.BoardRead // the board's main read
+	drawnBoard  board.Drawn      // the board as the frame drawn holds it
 	light       *light.Plugin
 	relief      *irelief.Relief
 	painter     *ipainter.Painter
@@ -120,6 +121,7 @@ var _ plugin.Publisher = (*Plugin)(nil)
 type drawnTopography struct {
 	relief   irelief.Relief
 	settings Settings
+	grid     look.RenderState // the board's
 }
 
 // Publish hands the frame drawn next the relief as it stands, its heights copied as they change,
@@ -128,6 +130,10 @@ func (p *Plugin) Publish() {
 	b := p.drawn.Back()
 	p.relief.CopyInto(&b.relief)
 	b.settings = p.Res.Settings
+	b.grid = look.RenderState{}
+	if r := p.boardPlugin.Res.Render; r != nil {
+		b.grid = *r
+	}
 }
 
 // Swap has the relief and the settings published last drawn.
@@ -150,6 +156,28 @@ func (p *Plugin) drawnSettings() Settings {
 		return p.Res.Settings
 	}
 	return p.drawn.Front().settings
+}
+
+// drawnGrid is the board's grid as the frame drawn holds it
+func (p *Plugin) drawnGrid() look.RenderState {
+	if !p.swapped {
+		if r := p.boardPlugin.Res.Render; r != nil {
+			return *r
+		}
+		return look.RenderState{}
+	}
+	return p.drawn.Front().grid
+}
+
+// drawnMap is the board's cells standing on the relief as the frame drawn holds them
+type drawnMap struct{ p *Plugin }
+
+func (m drawnMap) Look() look.Look         { return m.p.Look() }
+func (m drawnMap) Heights() ground.Heights { return m.p.drawnRelief() }
+func (m drawnMap) Dressing() look.Dressing { return m.p.painter }
+
+func (m drawnMap) Top(c cell.ID) (corners [4]float32, level float32) {
+	return m.p.drawnRelief().Top(c, m.p.drawnBoard.Kind(c).Height)
 }
 
 // drawnGround is the relief the terrain draws, the frame's
@@ -183,9 +211,10 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 	}
 	brd := boardPlugin.Read(0).Board()
 	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, board: brd,
-		light:    lightPlugin,
-		sky:      stillSky{sight: air.Sight(worldPlugin.Read(0).Scale())},
-		climbing: cfg.Climbing}
+		drawnBoard: boardPlugin.Read(0).Drawn(),
+		light:      lightPlugin,
+		sky:        stillSky{sight: air.Sight(worldPlugin.Read(0).Scale())},
+		climbing:   cfg.Climbing}
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.read, p.write = Read{p: p}, Write{p: p}
 	p.reads = []*Read{&p.read}
@@ -200,7 +229,8 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 	}
 	p.relief = irelief.New(brd, boardPlugin.Write().Board().Touch)
 	p.shaper = &shaper{relief: p.relief, cfg: shaping}
-	p.painter = ipainter.New(brd, p.relief, true, map[cell.Name]painter.Style{}).WithKinds(boardPlugin.Read(0).CellKinds())
+	p.painter = ipainter.New(p.drawnBoard, p.drawnRelief, true, map[cell.Name]painter.Style{}).
+		WithKinds(boardPlugin.Read(0).CellKinds())
 	boardPlugin.WithMap(p)
 	if _, _, _, _, square := p.relief.Lattice(); square {
 		p.ground = terrain.New(drawnGround{p}, boardSurface{p}, liveSky{p}, terrain.Config{
@@ -214,7 +244,9 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 		p.careView = &careView{p}
 		p.write.SetCare(cfg.Care)
 	} else {
-		p.hexes = hexes.New(worldPlugin, boardPlugin, brd.Map(), p.relief, liveSky{p}, p.painter)
+		p.hexes = hexes.New(worldPlugin, boardPlugin, p.drawnBoard, drawnMap{p}, p.drawnRelief,
+			func() (bool, look.RenderState) { return p.drawnSettings().Haze, p.drawnGrid() },
+			liveSky{p}, p.painter)
 	}
 	p.look = billboards.New(worldPlugin.Read(0).FlatLook(), liveSky{p},
 		func() (*irelief.Relief, bool) { return p.drawnRelief(), p.drawnSettings().Haze })
@@ -241,7 +273,8 @@ func (s boardSurface) Surface() terrain.Painted {
 	}
 	out.Shores, out.Reach, out.Coast = d.Shores(s.p.boardPlugin.Read(0).Atlas())
 	out.Takes, out.Sway, out.Styled = s.p.takes()
-	if line, width, shown := s.p.boardPlugin.Res.Render.Grid(); shown {
+	grid := s.p.drawnGrid()
+	if line, width, shown := grid.Grid(); shown {
 		out.Grid, out.GridLine, out.GridWidth = look.MinGridCell, line, width
 	}
 	return out
@@ -250,7 +283,7 @@ func (s boardSurface) Surface() terrain.Painted {
 // the shade every cell takes and how much it sways, by cell row by row, read anew as the kinds
 // change, with the board's count of those changes
 func (p *Plugin) takes() ([]render.Taking, []float32, uint64) {
-	brd := p.board
+	brd := p.drawnBoard
 	if v := brd.Version() + 1; p.takesAt != v {
 		p.takesAt = v
 		p.taking, p.swaying = p.taking[:0], p.swaying[:0]

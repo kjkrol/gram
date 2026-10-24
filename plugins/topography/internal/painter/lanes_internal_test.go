@@ -72,7 +72,7 @@ func TestPainter_DrawsAHexBoardsTopsOnTheGPU(t *testing.T) {
 	w, h := int(space.Width*px), int(space.Height*px)
 	u := render.UniformsOf(map[string]any{"Pixel": []float32{1.0 / px}, "Clock": []float32{1.3},
 		"Toward": []float32{0, 0, 1}})
-	d := New(brd, reliefFor(brd), true, st)
+	d := New(brd, fixed(reliefFor(brd)), true, st)
 	d.kinds = kindsOf{land, meadow, sea, river, road}
 	top := render.NewImage(w, h)
 	d.Above()
