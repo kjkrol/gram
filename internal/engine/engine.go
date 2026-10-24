@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"log"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/gogpu/gogpu"
@@ -77,22 +78,36 @@ func NewEngine(g game.Game) *Engine {
 	}
 	adapter := &DesktopAdapter{}
 	controller := NewDefaultController(adapter, inputs)
+	serial := os.Getenv("GRAM_SERIAL") != ""
 	e := &Engine{
 		adapter:           adapter,
 		game:              g,
 		props:             props,
 		inputs:            inputs,
 		tps:               tps,
-		pool:              parallel.New(props.Workers),
+		pool:              parallel.New(workers(props.Workers, serial)),
 		step:              time.Second / time.Duration(targetTPS),
 		timeTracker:       newTracker(),
 		controller:        controller,
 		transitionOverlay: render.SolidBackground{Color: color.RGBA{A: 255}},
-		serial:            os.Getenv("GRAM_SERIAL") != "",
+		serial:            serial,
 		simulated:         make(chan time.Duration, 1),
 	}
 	controller.SetHandler(HandlerFn(e.dispatchEvents))
 	return e
+}
+
+// workers is how many goroutines the game's pool has: as many as asked, else as many as there are
+// CPUs, one left to the drawing where the ticks run while a frame is drawn
+func workers(asked int, serial bool) int {
+	if asked > 0 {
+		return asked
+	}
+	n := runtime.GOMAXPROCS(0)
+	if !serial {
+		n--
+	}
+	return max(n, 1)
 }
 
 // TPS returns the engine's measured-ticks-per-second counter.

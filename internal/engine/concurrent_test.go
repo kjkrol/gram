@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"runtime"
 	"slices"
 	"testing"
 	"time"
@@ -147,5 +148,18 @@ func TestEngine_EndsAfterTheBarrierQuitAsTheNextFrameTakesItsInput(t *testing.T)
 	if e.running || sc.ticks != 2 {
 		t.Errorf("ended with a simulation running %v after %d ticks, want none after 2", e.running,
 			sc.ticks)
+	}
+}
+
+func TestWorkers_LeaveOneToTheDrawingWhereTheTicksRunApart(t *testing.T) {
+	n := runtime.GOMAXPROCS(0)
+	for _, c := range []struct {
+		asked  int
+		serial bool
+		want   int
+	}{{0, false, max(n-1, 1)}, {0, true, n}, {3, false, 3}, {3, true, 3}} {
+		if got := workers(c.asked, c.serial); got != c.want {
+			t.Errorf("asked %d, serial %v: %d workers, want %d", c.asked, c.serial, got, c.want)
+		}
 	}
 }

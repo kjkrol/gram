@@ -14,6 +14,7 @@ type Props struct {
 	// the game runs in.
 	Saves string
 	// Workers is how many goroutines share the work a plugin splits, the game's own among them: 0
-	// as many as there are CPUs, 1 none.
+	// as many as there are CPUs, one left to the drawing where the ticks run while a frame is
+	// drawn; 1 none.
 	Workers int
 }
