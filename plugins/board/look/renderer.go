@@ -72,8 +72,11 @@ type Renderer struct {
 	cellH  float64
 	square bool
 	state  RenderState
-	shaded map[cell.Name]render.MaterialID
-	tops   []cellTop
+	// the toggles as the frame drawn holds them, the live ones before any was published
+	states    render.Buffered[RenderState]
+	published bool
+	shaded    map[cell.Name]render.MaterialID
+	tops      []cellTop
 
 	space   world.SpaceCfg // zero for none: nothing drawn
 	dress   Dressing       // this frame's, nil for none
@@ -88,10 +91,8 @@ type cellTop struct {
 	sway   float32
 	height float32
 	sprite render.SpriteID
-	z      [4]float32 // the corners as drawn, what stands on the cell included
-	alt    float32    // the ground's level
-	ver    uint64     // one more than the cell's version when read; 0 not read yet
-	seen   uint64     // the board's count of changes when last found as it was
+	ver    uint64 // one more than the cell's version when read; 0 not read yet
+	seen   uint64 // the board's count of changes when last found as it was
 }
 
 // MinGridCell is how many pixels a cell must span on screen for the grid to be drawn over it.
@@ -119,6 +120,23 @@ func (l *Renderer) SetAtlas(atlas render.AtlasSource) {
 
 // State is the renderer's live toggles.
 func (l *Renderer) State() *RenderState { return &l.state }
+
+// Publish hands the frame drawn next the toggles as they stand.
+func (l *Renderer) Publish() { *l.states.Back() = l.state }
+
+// Swap has the toggles published last drawn.
+func (l *Renderer) Swap() {
+	l.states.Swap()
+	l.published = true
+}
+
+// drawn is the toggles the frame drawn holds
+func (l *Renderer) drawn() *RenderState {
+	if !l.published {
+		return &l.state
+	}
+	return l.states.Front()
+}
 
 // Shade is the per-pixel looks the board's Atlas declared, by the kind's name. A shaded kind
 // takes no part in blending.
@@ -163,7 +181,7 @@ func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 }
 
 func (l *Renderer) gridDrawn(cam camera.Camera) bool {
-	_, _, shown := l.state.Grid()
+	_, _, shown := l.drawn().Grid()
 	return shown && float32(min(l.cellW, l.cellH))*cam.Zoom() >= MinGridCell
 }
 
@@ -177,7 +195,7 @@ func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	}
 	if t.Pass == render.SeeThrough {
 		if l.gridDrawn(cam) {
-			l.grid.draw(t, cam, u, l.board, &l.state, l.space.Edges.WrapsX(),
+			l.grid.draw(t, cam, u, l.board, l.drawn(), l.space.Edges.WrapsX(),
 				l.space.Edges.WrapsY(), &l.sectors)
 		}
 		return
@@ -274,7 +292,6 @@ func (l *Renderer) topOf(c cell.ID) *cellTop {
 	}
 	kind := l.board.Bare(c)
 	t.sway, t.height, t.sprite, t.ver = float32(kind.Sway), float32(kind.Height), kind.SpriteID, v
-	t.z, t.alt = l.mapping.Top(c)
 	return t
 }
 

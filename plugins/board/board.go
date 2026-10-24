@@ -24,6 +24,7 @@ type board struct {
 	mapping Map
 	read    BoardRead
 	write   BoardWrite
+	drawn   *drawn
 }
 
 // NewBoard is a board over g with no plugin, every cell of the zero kind until it is set: what
@@ -37,12 +38,16 @@ func newBoard(g grid.Grid) *board {
 	b := &board{Grid: g, cells: terrain.New(g)}
 	b.read = BoardRead{Grid: g, b: b, cells: b.cells.Read()}
 	b.write.b = b
-	b.mapping = newSimpleMap(&b.read)
+	b.drawn = newDrawn(b)
+	b.mapping = newSimpleMap(b.drawnBoard())
 	b.field = field.New(g, b.read.cells, b.read.altitude)
 	b.read.cover = b.field
 	b.cells.Notify(b.field.Veil, b.field.Veils)
 	return b
 }
+
+// drawnBoard is the board as the frame drawn reads it.
+func (b *board) drawnBoard() drawnBoard { return drawnBoard{Grid: b.Grid, d: b.drawn} }
 
 // BoardRead reads a board, its grid and its terrain, on one goroutine at a time: the main one's
 // through the board's own queries, a Fork's through queries of its own.
