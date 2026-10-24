@@ -128,6 +128,14 @@ collision's pair sweep tests a crowded cell four boxes at a time, finding the sa
     in by `Replace` as the scene is laid out, the drawers of a scene shown since.
   - `world.Read.ViewFor` reads only the frame's Views once one was published: a camera the
     frame holds none of has no View, no longer the one the ticks keep.
+- The next frame is ticked while a frame is drawn: its ticks and publishing run on a goroutine of
+  their own, started as the barrier ends; the next barrier waits for them, swaps what they
+  published in and takes the frame's input there, so what the input does is shown a frame later.
+  A stage's first frame, the frame a stage switch shows its overlay in and every frame with
+  `GRAM_SERIAL` set run as before. The game's pool is one short of the CPUs then, the drawing's
+  thread left a core (`Props.Workers` says otherwise). `GRAM_FPS_LOG` notes how long a frame
+  awaited its ticks. A minimap hidden still publishes where it looks, for its compass; a ui
+  picture is drawn straight onto a target only at the size it was laid out at.
 
 **The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
 - No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an

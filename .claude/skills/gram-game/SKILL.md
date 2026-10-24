@@ -245,7 +245,11 @@ scratchpad and run it from its directory under `timeout 5s`, exit 124 alive, gre
 ## Game / persistence
 
 `internal/engine.Engine` owns the window's loop (every frame `Update`, `Draw` into an image the
-size of the screen, `Present`) and drives one active `Stage` at a time, calling `game.Stages()`
+size of the screen, `Present`; since 2026-10-24 the next frame's ticks and publishing run on a
+goroutine of their own while a frame is drawn, the barrier between taking the input — shown a
+frame later — and laying the scenes out; a stage's first frame, a switch's and every frame with
+`GRAM_SERIAL` set run serially; the game's pool is then one short of the CPUs unless
+`Props.Workers` says) and drives one active `Stage` at a time, calling `game.Stages()`
 whenever it resolves a name. Its `Persistence()` (`Save`/`Load`/`List`) is bound to the active
 Stage's ECS; a tracked `plugin.Serializable`/`PostLoader` is included automatically; saved
 resources are matched by name (`Name()`, or the Go type name), so a save survives plugins being
