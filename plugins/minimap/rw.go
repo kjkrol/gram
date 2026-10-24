@@ -34,13 +34,9 @@ func (w *Write) Show(on bool) {
 // SetTurning has the minimaps turn with their cameras, or keep north up (Settings.Turning).
 func (w *Write) SetTurning(on bool) { w.p.Res.Settings.Turning = on }
 
-// SetReach has the minimaps show reach round their cameras; past the world's last band panics.
+// SetReach has the minimaps show reach round their cameras, from the frame drawn after the next
+// publish; past the world's last band panics.
 func (w *Write) SetReach(reach float64) {
-	p := w.p
-	checkReach(p.w, reach)
-	p.cfg.Reach = reach
-	for _, m := range p.maps {
-		m.lens.reach = reach
-		m.lens.fit()
-	}
+	checkReach(w.p.w, reach)
+	w.p.cfg.Reach = reach
 }

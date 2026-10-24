@@ -450,3 +450,59 @@ func TestMarks_ArePublishedOnceARedrawAtMost(t *testing.T) {
 		}
 	}
 }
+
+// the minimap of a camera 200 by 100 over (500, 500), reaching 200, laid out 200 by 200
+func outlined() (*minimap, camera.Camera) {
+	w := flatWorld(nil)
+	p := NewPlugin(w, nil, Config{Reach: 200})
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
+	cam.SetViewport(200, 100)
+	cam.CenterOn(500, 500, 0)
+	p.For(cam, command.Nobody)
+	m := p.maps[0]
+	m.lens.SetViewport(200, 200)
+	p.RunPlan(nil, 0)
+	return m, cam
+}
+
+// spans is where m's outline lies on the minimap
+func spans(m *minimap) (x0, x1, y0, y1 float32) {
+	var f render.Frame
+	f.Reset(m.lens)
+	(&outlineView{m: m}).Compose(&f, m.lens)
+	var xs, ys []float32
+	f.Each(func(_ render.At, v []render.Vertex) {
+		for _, p := range v {
+			xs = append(xs, p.DstX)
+			ys = append(ys, p.DstY)
+		}
+	})
+	return minOf(xs), maxOf(xs), minOf(ys), maxOf(ys)
+}
+
+func TestOutline_IsDrawnAsPublished(t *testing.T) {
+	m, cam := outlined()
+	m.marks.publish(time.Now())
+	m.marks.swap()
+	before0, before1, _, _ := spans(m)
+	cam.CenterOn(300, 300, 0)
+	if x0, x1, _, _ := spans(m); x0 != before0 || x1 != before1 {
+		t.Errorf("the camera moved after the publish, the outline spans x %v..%v, want %v..%v "+
+			"as published", x0, x1, before0, before1)
+	}
+	m.marks.publish(time.Now().Add(redraw))
+	m.marks.swap()
+	if x0, _, _, _ := spans(m); x0 == before0 {
+		t.Error("published again, the outline stays where the camera was")
+	}
+}
+
+func TestMinimap_CoversWhereTheTicksHaveItLookNotWhereItIsDrawn(t *testing.T) {
+	m, _ := outlined()
+	want := m.covered()
+	m.lens.aim(100, 100, 1, 0)
+	if got := m.covered(); got != want {
+		t.Errorf("the lens drawn aimed elsewhere, the minimap covers %v, want %v: where the "+
+			"ticks have it look", got, want)
+	}
+}

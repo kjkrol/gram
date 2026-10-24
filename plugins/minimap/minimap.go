@@ -60,11 +60,43 @@ func (m *minimap) shown() aim {
 	return m.at
 }
 
-// covered is the world round the minimap where the ticks have it look
+// covered is the world round the minimap where the ticks have it look and as far as they have it
+// reach, at the size the barrier laid it out at; the lens drawn is not read
 func (m *minimap) covered() camera.AABB {
-	l := *m.lens
+	l := lens{world: m.lens.world, wrapX: m.lens.wrapX, wrapY: m.lens.wrapY, reach: m.p.cfg.Reach,
+		w: m.lens.w, h: m.lens.h}
+	l.fit()
 	l.aim(m.at.cx, m.at.cy, m.at.ax, m.at.ay)
 	return l.covered()
+}
+
+// aimLens has the lens drawn look and reach as last published, as the ticks have it before any was
+func (m *minimap) aimLens() {
+	at, reach := m.at, m.p.cfg.Reach
+	if f := m.marks.drawn.Front(); f.version > 0 {
+		at, reach = f.at, f.reach
+	}
+	m.lens.aim(at.cx, at.cy, at.ax, at.ay)
+	if m.lens.reach != reach {
+		m.lens.reach = reach
+		m.lens.fit()
+	}
+}
+
+// outline is the ground under the corners of the camera's screen, false for a screen of no size
+// or no camera
+func (m *minimap) outline(dst *[4][2]float32) bool {
+	if m.of == nil {
+		return false
+	}
+	w, h := m.of.Viewport()
+	if w == 0 || h == 0 {
+		return false
+	}
+	for k, s := range [4][2]float32{{0, 0}, {w, 0}, {w, h}, {0, h}} {
+		dst[k][0], dst[k][1] = m.ground(s[0], s[1])
+	}
+	return true
 }
 
 func (m *minimap) middle() (float32, float32) {
@@ -99,8 +131,7 @@ func (p *paced) Resize(w, h int) {
 
 func (p *paced) Draw() *render.Image {
 	if v := p.marks.drawn.Front().version; p.last == nil || v != p.version {
-		at := p.marks.m.shown()
-		p.marks.m.lens.aim(at.cx, at.cy, at.ax, at.ay)
+		p.marks.m.aimLens()
 		p.last, p.version = p.Feed.Draw(), v
 	}
 	return p.last
@@ -192,12 +223,15 @@ type marksView struct {
 	fresh bool // published since the last swap
 }
 
-// dots are the marks round a minimap where they stand and where it looks, as of the version-th
-// publish
+// dots are the marks round a minimap where they stand, where it looks and how far, and the ground
+// under its camera's screen's corners, as of the version-th publish
 type dots struct {
-	all     []dot
-	at      aim
-	version uint64
+	all      []dot
+	at       aim
+	reach    float64
+	outline  [4][2]float32
+	outlined bool
+	version  uint64
 }
 
 type dot struct {
@@ -216,7 +250,8 @@ func (v *marksView) publish(now time.Time) {
 	}
 	v.due, v.fresh = now.Add(redraw), true
 	b := v.drawn.Back()
-	b.all, b.at, b.version = b.all[:0], v.m.at, v.drawn.Front().version+1
+	b.all, b.at, b.reach, b.version = b.all[:0], v.m.at, v.m.p.cfg.Reach, v.drawn.Front().version+1
+	b.outlined = v.m.outline(&b.outline)
 	styles := v.m.p.w.Read(0).Styles()
 	if styles == nil {
 		return
@@ -288,20 +323,25 @@ type knownMark struct {
 	ok, known bool
 }
 
-// outlineView draws what the minimap's camera shows of the ground
+// outlineView draws what the minimap's camera shows of the ground, as published
 type outlineView struct {
 	m       *minimap
+	ground  [4][2]float32
 	corners [4][2]float32
 }
 
 func (o *outlineView) Compose(f *render.Frame, _ camera.Camera) {
-	w, h := o.m.of.Viewport()
-	if w == 0 || h == 0 {
+	d := o.m.marks.drawn.Front()
+	ground, ok := d.outline, d.outlined
+	if d.version == 0 {
+		ok = o.m.outline(&o.ground)
+		ground = o.ground
+	}
+	if !ok {
 		return
 	}
-	for k, s := range [4][2]float32{{0, 0}, {w, 0}, {w, h}, {0, h}} {
-		x, y := o.m.ground(s[0], s[1])
-		o.corners[k][0], o.corners[k][1] = o.m.lens.Project(x, y, 0)
+	for k, g := range ground {
+		o.corners[k][0], o.corners[k][1] = o.m.lens.Project(g[0], g[1], 0)
 	}
 	for k := range o.corners {
 		a, b := o.corners[k], o.corners[(k+1)%len(o.corners)]
@@ -323,7 +363,7 @@ func (m *minimap) ground(sx, sy float32) (float32, float32) {
 	cx, cy := m.middle()
 	dx, dy := float64(x-cx), float64(y-cy)
 	n := math.Hypot(dx, dy)
-	if far := 2 * m.lens.reach; n > far {
+	if far := 2 * m.p.cfg.Reach; n > far {
 		dx, dy = dx*far/n, dy*far/n
 	}
 	return cx + float32(dx), cy + float32(dy)
