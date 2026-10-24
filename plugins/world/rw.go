@@ -51,8 +51,14 @@ func (r *Read) HasHeights() bool { return r.p.Res.Config.Heights }
 // Scale is how many metres a world unit spans.
 func (r *Read) Scale() Scale { return r.p.Res.Config.Scale }
 
-// Lighting is what lights the world's entities, nil for white light.
-func (r *Read) Lighting() Lighting { return r.p.renderer.lighting }
+// Lights are the lights the frame drawn is lit by, the light plugin's; nil without one, or before
+// a frame was published.
+func (r *Read) Lights() *render.Lights {
+	if r.p.lights == nil {
+		return nil
+	}
+	return r.p.lights()
+}
 
 // Look is how the world's entities lie on the screen.
 func (r *Read) Look() Look { return r.p.look }
@@ -172,9 +178,13 @@ func (w *Write) NewView(cam camera.Camera) *view.View {
 // SetLook has the world's entities drawn, picked and outlined by look, a view plugin's.
 func (w *Write) SetLook(look Look) { w.p.look = look }
 
-// SetLighting has the world's entities lit by l, the light plugin's; without one they are drawn
-// in white light. Before Install.
+// SetLighting has the world's entities marked by l as they are published, the light plugin's.
+// Before Install.
 func (w *Write) SetLighting(l Lighting) { w.p.renderer.lighting = l }
+
+// SetLights has the world's picture lit by the lights lights gives (render.Composer.Light), the
+// light plugin's; without them it is drawn in white light. Before Install.
+func (w *Write) SetLights(lights func() *render.Lights) { w.p.lights = lights }
 
 // SetAtlas takes atlas as the world's looks for the entity renderer, applying what a *Atlas
 // declared; its Close calls it. A foreign render.AtlasSource is given by hand.

@@ -90,8 +90,9 @@
 // entity is laid on the screen by the world's [Look] ([Read.Look], [Write.SetLook]), flat
 // from above unless a view plugin sets its own; a [DirectLook] draws the sprites itself on the
 // GPU, a [LyingLook] lays some flat, an [UprightLook] stands some true, a [FoggyLook] fades one
-// into the fog before a camera's sight. Each is lit as the [Lighting] says, the light plugin's
-// ([Write.SetLighting]), in white light without one. In a sector a camera sees coarsely an entity
+// into the fog before a camera's sight. Each is marked by the [Lighting], the light plugin's
+// ([Write.SetLighting]), and lit as the frame says (render.Frame.Lit) by the lights the picture
+// is given ([Write.SetLights], [Read.Lights]), in white light without them. In a sector a camera sees coarsely an entity
 // is drawn plainly: no edges, flat where it would stand. [Plugin.WithFog] is the fog's colour in a
 // world without an atmosphere. The entities are published once a frame, after its ticks: the
 // looks' rules settle every one some camera sees, the Lighting marks it, each camera's view is

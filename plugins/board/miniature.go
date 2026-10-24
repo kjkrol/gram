@@ -47,11 +47,8 @@ func (w *Write) Miniature() (img *render.Image, perUnit float32) {
 	u := render.UniformsOf(map[string]any{"Pixel": []float32{1 / m.px}})
 	// in the sun's light on level ground as it stands, the lamps' left out
 	light := render.Light{1, 1, 1}
-	if l := p.worldPlugin.Read(0).Lighting(); l != nil {
-		lit := l.At(0, 0, 0)
-		for k := range light {
-			light[k] = lit.Light[k] - lit.Lamps[k]
-		}
+	if l := p.worldPlugin.Read(0).Lights(); l != nil {
+		light = l.Sun.Light(0, 0, 1)
 	}
 	m.tiles.Whole(m.img, m.px, light, u)
 	m.at = brd.Changes() + 1

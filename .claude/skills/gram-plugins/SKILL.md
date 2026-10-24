@@ -139,28 +139,33 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`Shining × Source`), `Plugin.Lamps()`, `White` the sun of a world without one. `light.Shadow{Cast,
   Take}` is every entity's knob (`KindTemplates`: `Patch` taking all; the board's standing
   template `Baked`): `Casting` `Patch`/`Silhouette`/`Baked`/`NoShadow`, `render.Taking` bits
-  `TakesRelief|TakesBlocks|TakesClouds|TakesLamps` (zero all, `render.Shines` none). The plugin is
-  a `render.Direct`: its `Begin` (called by the world's renderer, `world.Lighting`) hands the
-  frame the distant light's uniforms (`internal/distant`'s `light.wgsl`: `lightWay`, `U.LightWay`,
-  `U.LightStrength`, `U.LightColor`, `U.AmbientColor`, `U.Ambience`) and the `MaxLamps` 8 lamps
-  nearest the camera (`lamps.wgsl`: `lampLightAt(p)`, `U.LampCount`, `Lamp{k}At/Color`); `Mark`
-  keeps an entity's `Shadow` as it is published (`Cast` low byte, `Take` high), `Of(mark, …)`
-  lights it (`render.Illumination{Light, Lamps, Direct, Takes}`) and gathers its live shadow
-  through the `ShadowPolicy` (`WithShadowPolicy`, by the distance from the eye): the sun's
-  (`Sun.ShadowOf`/`SilhouetteOf`, an `Umbra`, the sprite's shape flipped to the side it faces)
-  and on level ground the `Casting()` lamps' (`Lamp.ShadowOf`; `Config.LampShadows` nearest the
-  camera, `LampShadows{Count}` off and on, `SetLampShadows`, `Res.Settings.LampShadows`); `Compose` plans the bake and
-  `Draw` runs it in the opaque pass before the ground is drawn (`internal/bake`: the relief's
-  shade from the frame's `GroundHeights` over a `Relief` the topography gives with `OverRelief` —
-  `groundDrawnAt`, triangle-split as the mesh is drawn — a strip a frame as the sun turns, the
-  whole at a leap or as the heights or the blocks change, each band fading from its last bake,
-  `shade.wgsl`; then every `Baked` entity a block, `blocks.wgsl`, `Darkest`, a deck's pieces
-  joined, over level ground 256 cells a side under the world's space without a relief — so a flat
-  board gets its towers' and bridges' shadows; `CoarseShadows{On}` half as fine
-  (`Res.Settings.Coarse`, the baker's flag re-applied in `Restore`); nothing to bake
-  over a hex relief or without a sun; a bake before the frame holds the heights plans the whole
-  anew), and lays the casts after the ground over its depth (`internal/cast`, `cast.wgsl`, the
-  rect each covers from the relief's extent, `f.ReadGround`, at `OnGround(castLift)` 0.05 under
+  `TakesRelief|TakesBlocks|TakesClouds|TakesLamps` (zero all, `render.Shines` none). **The plugin
+  declares and publishes; render lights** (2026-10-24): it is a `plugin.Publisher` of
+  `render.Lights` once a frame (sun, lamps, `LampShadows`, `Coarse`, policy, the `Baked` blocks
+  scanned once a frame with `Exclude[sector.Off]`, the ground they bake over — the relief's lattice
+  by its version, or level ground 256 cells a side while a block stands — and the relief's
+  `GroundAt` for the live shadows), handed through `world.Write.SetLights` to the world's
+  composer (`render.Composer.Light`; `world.Read.Lights()` for what draws: the board's miniature,
+  the topography's billboards, the reporter). `world.Lighting` is the simulation's side alone:
+  `Join` and `Mark(cur, i) render.Shadowing`. The composer (`render/internal/compose/lighting.go`)
+  at the start of each part hands the frame the sun's uniforms (`lightWay`, `U.LightWay`,
+  `U.LightStrength`, `U.LightColor`, `U.AmbientColor`, `U.Ambience`, render's library
+  `light.wgsl`) and the `MaxLamps` 8 lamps nearest the camera (`lampLightAt(p)`, `U.LampCount`,
+  `Lamp{k}At/Color`) — the ground of a sharp-figures frame lit by them too — and plans the bake,
+  drawn first of the opaque pass; `render.Frame.Lit(x, y, z, take)` lights what a source draws
+  (`render.Illumination{Light, Lamps, Direct, Takes}`), `Frame.Cast(box, alt, height, Shadowing,
+  atlas, sprite)` declares a live shadow, laid once every source of the part has composed, through
+  the `ShadowPolicy` by the distance from the eye: the sun's (`Distant.ShadowOf`/`SilhouetteOf`,
+  an `Umbra`, the sprite's shape flipped to the side it faces) and on level ground the
+  `LampShadows` nearest lamps' (`Lamp.ShadowOf`). The bake (`compose/bake.go`): the relief's shade
+  from the frame's `GroundHeights` — `groundDrawnAt`, triangle-split as the mesh is drawn — a strip
+  a frame as the sun turns, the whole at a leap or as the heights or the blocks change, each band
+  fading from its last bake, `bake_shade.wgsl`; then every block, `bake_blocks.wgsl`, `Darkest`, a
+  deck's pieces joined, so a flat board gets its towers' and bridges' shadows; `CoarseShadows{On}`
+  half as fine (`Res.Settings.Coarse`); nothing to bake over a hex relief or without a sun; a bake
+  before the frame holds the heights plans the whole anew. The casts (`compose/cast.go`,
+  `cast.wgsl`, the rect each covers from the relief's extent, `f.ReadGround`, at
+  `OnGround(castLift)` 0.05 under
   the grid). A ground draws itself in what the frame holds: `render.GroundShade`, `lightWay`,
   `lampLightAt` (the terrain's `mesh.wgsl`, the hexes', the board's tiles, `look/tiles.go`). Tests:
   `plugin_test.go`, `shadows_test.go`, `internal/bake` (GPU: strips, blocks, level ground, reach,
@@ -316,7 +321,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   Terrain is never an entity in the space: the board's field (`internal/field`) is collision's
   `collision.Field` (`Solid`, `Overhang`), handed over by `Plugin.WithCollision`, and sight's
   `ground.Cover` (`Plugin.Cover`); both read the cell entities whenever asked. A flat board is lit
-  by the light plugin (`look.Renderer.WithLighting(world.Lighting)`) and drawn on the GPU out of
+  by the light plugin (`look.Renderer.WithLights(world.Read.Lights)`) and drawn on the GPU out of
   its tile map (`look/tiles.go`, 2026-10-23): an image of its cells, a 2×2 block a cell (sprite,
   shade taken, flags, the way's sprite and links, covers, width, fade, sway, height, material),
   and one of the sheet's rectangles; a changed cell (`CellVersion`) rewritten with its

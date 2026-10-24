@@ -238,9 +238,12 @@ Decisions the user has made; they are not up for revisiting in passing.
   strength, ambient, colours), lamps, and what each thing casts and takes (`light.Shadow`, a
   cell's `cell.Kind.Takes`); what shines is a `light.Source` on an entity. The sun is the
   atmosphere's: its sky writes the sun of the hour into the `light.Shining` beside its own
-  entity's Source; a scene without a sky sets a `WithDistant` light. The light bakes the
-  ground's shade and lays the live shadows; a ground draws itself in the frame's light, shade and
-  lamps (`render.GroundShade`, `lightWay`, `lampLightAt`), never working light out of its own.
+  entity's Source; a scene without a sky sets a `WithDistant` light. The light declares and
+  publishes (`render.Lights` once a frame); **render lights** (2026-10-24): the composer picks a
+  camera's lamps, lights what the sources draw (`render.Frame.Lit`), lays the shadows they say
+  cast (`Frame.Cast`) once they have all composed, and bakes the ground's shade; a ground draws
+  itself in the frame's light, shade and lamps (`render.GroundShade`, `lightWay`, `lampLightAt`),
+  never working light out of its own.
 - **What is drawn over what is Z's alone**, never a layer, the order of adding or the order a
   plugin registers in: every piece of the world lies at a height (`render.At`; what lies on a
   surface at a small lift over it — a route's goal, a cell held, a bridge in hand — a figure at

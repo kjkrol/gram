@@ -86,9 +86,6 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	lies, _ := look.(LyingLook)
 	uprights, _ := look.(UprightLook)
 	foggy, _ := look.(FoggyLook)
-	if s.lighting != nil {
-		s.lighting.Begin(f, cam)
-	}
 	figs := s.figures.Front()
 	v := figs.views[cam]
 	lowest, any := render.Nearest, false
@@ -110,10 +107,9 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			foggy.Fog(v.Fog(mid.X, mid.Y))
 		}
 		layers := figs.layers[e.from : e.from+int32(e.n)]
-		lit := render.WhiteLight
-		if s.lighting != nil {
-			lit = s.lighting.Of(e.mark, box, z, layers[0].Appearance)
-		}
+		lit := f.Lit(float32(box.TopLeft.X+box.Size.X/2), float32(box.TopLeft.Y+box.Size.Y/2),
+			e.alt, e.shadow.Take)
+		f.Cast(box.AABB, z.Altitude, z.Height, e.shadow, s.atlas, layers[0].SpriteID)
 		for _, l := range layers {
 			if m, ok := s.shaded[l.SpriteID]; ok {
 				s.material(f, cam, e, at, m, l.progress)

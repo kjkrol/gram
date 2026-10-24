@@ -125,7 +125,7 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	p.keepBridges()
 	p.renderer = look.NewRenderer(&brd.read, nil, brd.read.Map(), worldPlugin.Res.Config.Space).
 		WithSeen(worldPlugin.Read(0).ViewFor).
-		WithLighting(worldPlugin.Read(0).Lighting)
+		WithLights(worldPlugin.Read(0).Lights)
 	p.holdsView = p.newHoldsView()
 	return p
 }

@@ -53,17 +53,13 @@ type UprightLook interface {
 		a render.Appearance, lit render.Illumination)
 }
 
-// Lighting is what lights the world's entities, a plugin's (Plugin.SetLighting). As they are
-// published it joins its columns to the renderer's query and marks the row i of the chunk at
-// cur; as they are drawn it is readied for each frame through a camera and says the light on
-// each by its mark, standing in box as z says, its first layer settled as a.
+// Lighting is what the world asks of the light as it publishes its entities, a plugin's
+// (Write.SetLighting): it joins its columns to the renderer's query and says how the row i of
+// the chunk at cur casts its shadow and which shade it takes. The frame lights them as drawn
+// (render.Frame.Lit, Cast).
 type Lighting interface {
 	Join(qb *goke.QueryBuilder)
-	Mark(cur *goke.Cursor, i int) uint16
-	Begin(f *render.Frame, cam camera.Camera)
-	Of(mark uint16, box plane.AABB, z Z, a render.Appearance) render.Illumination
-	// At is the light on the ground at the world point, taking every shade.
-	At(x, y, z float32) render.Illumination
+	Mark(cur *goke.Cursor, i int) render.Shadowing
 }
 
 // FoggyLook is a Look turning what it lays next into the fog by amount, 0 clear to 1 all fog: how

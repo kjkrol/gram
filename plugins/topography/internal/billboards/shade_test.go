@@ -94,6 +94,9 @@ func TestSprites_StandDarkerInTheReliefsShadow(t *testing.T) {
 		fig := &standing{look: w.Read(0).Look().(world.DirectLook), relief: p.Write().Relief(), at: at,
 			atlas: &magenta{}, lit: render.Illumination{Light: render.Light{1, 1, 1}, Takes: takes}}
 		c := render.NewComposer(append([]render.Source{sunning{}}, append(drawn, fig)...)...)
+		l.Publish()
+		l.Swap()
+		c.Light(w.Read(0).Lights)
 		screen := render.NewImage(320, 240)
 		var pix []byte
 		for range 3 { // the first frame readies the ground, the next bake its shade and show it

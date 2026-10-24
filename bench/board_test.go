@@ -76,7 +76,8 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 }
 
 // Benchmark_Board_Shadows plans the shade of a 96x64 board of hills, warm and anew after the
-// sun has moved: the light's part of composing a frame, the bake itself the GPU's.
+// sun has moved: the light's publishing and the composer's lighting of a frame, the bake itself
+// the GPU's.
 func Benchmark_Board_Shadows(b *testing.B) {
 	const w, h, size = 96, 64, 32
 	ctx := newHeadless()
@@ -107,7 +108,8 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
 	cam := ctx.camera(cameras.Config{Turn: true, Tilt: true, Cell: size, Cage: topo.Read(0)},
 		cameras.FromAbove, 0, 0)
-	var f render.Frame
+	lit := render.NewComposer()
+	lit.Light(ctx.world.Read(0).Lights)
 	for _, sc := range []struct {
 		name  string
 		moved bool
@@ -118,8 +120,8 @@ func Benchmark_Board_Shadows(b *testing.B) {
 					sun.Dir[0] = -sun.Dir[0]
 					l.WithDistant(sun)
 				}
-				f.Reset(cam)
-				l.Compose(&f, cam)
+				ctx.publish()
+				lit.DrawWorld(nil, cam)
 			}
 		})
 	}

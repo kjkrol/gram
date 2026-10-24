@@ -1,7 +1,6 @@
 package light_test
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/internal/parallel"
@@ -90,6 +90,27 @@ func litWorld(t *testing.T, cfg light.Config, define func(w *world.Plugin, p *li
 	return w, p, func() { ctx.ecs.Tick(time.Second / 60) }
 }
 
+// lightsOf publishes the light as the last tick left it: the lights of the frame drawn next
+func lightsOf(w *world.Plugin, p *light.Plugin) *render.Lights {
+	p.Publish()
+	p.Swap()
+	return w.Read(0).Lights()
+}
+
+// litAt is the light a frame through cam, lit as the last tick left the light, gives what stands
+// at (x, y, z) taking take
+func litAt(w *world.Plugin, p *light.Plugin, cam camera.Camera, x, y, z float32,
+	take render.Taking) render.Illumination {
+	lightsOf(w, p)
+	var lit render.Illumination
+	c := render.NewComposer(source(func(f *render.Frame) { lit = f.Lit(x, y, z, take) }))
+	c.Light(w.Read(0).Lights)
+	c.DrawWorld(nil, cam)
+	return lit
+}
+
+func whole() camera.Camera { return cameratest.NewFromSpace(1000, 1000, 0) }
+
 func lampKind(w *world.Plugin, name string, src light.Source) kind.Of[spot] {
 	kind.Define[spot](w.Kinds(), name, kind.Spec{
 		comp.Load(func(s spot) world.Position {
@@ -102,13 +123,13 @@ func lampKind(w *world.Plugin, name string, src light.Source) kind.Of[spot] {
 }
 
 func TestPlugin_WithoutASunLightsEverythingWhiteAndCastsNoShadow(t *testing.T) {
-	_, p, tick := litWorld(t, light.Config{}, nil)
+	w, p, tick := litWorld(t, light.Config{}, nil)
 	tick()
-	lit := p.Read(0).At(500, 500, 0)
+	lit := litAt(w, p, whole(), 500, 500, 0, 0)
 	if lit.Light != (render.Light{1, 1, 1}) || lit.Takes != render.TakesAll {
 		t.Errorf("the ground is lit %+v, want white, taking all", lit)
 	}
-	if _, ok := p.Read(0).Distant().ShadowOf(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(4, 4)),
+	if _, ok := lightsOf(w, p).Sun.ShadowOf(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(4, 4)),
 		0, 0, nil); ok {
 		t.Error("a world without a sun casts a shadow")
 	}
@@ -123,7 +144,7 @@ func TestPlugin_ShinesTheScenesSunAndAnEffectOnItTurnsItsSource(t *testing.T) {
 	})
 	p.WithDistant(light.Distant{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3})
 	tick()
-	if got := p.Read(0).At(10, 10, 0).Light[0]; !near(got, 0.9) {
+	if got := litAt(w, p, whole(), 10, 10, 0, 0).Light[0]; !near(got, 0.9) {
 		t.Errorf("under the scene's sun the ground is lit %v, want 0.9", got)
 	}
 	if !w.Write().Carrier().Put(command.Nobody, ceremony.Put(eclipse).On(p)) {
@@ -164,22 +185,21 @@ func TestPlugin_RefusesTwoDistantLights(t *testing.T) {
 }
 
 func TestPlugin_LampsLightWhatLiesInTheirReachFadingWithTheDistance(t *testing.T) {
-	_, p, tick := litWorld(t, light.Config{}, func(w *world.Plugin, p *light.Plugin) {
+	w, p, tick := litWorld(t, light.Config{}, func(w *world.Plugin, p *light.Plugin) {
 		torch := lampKind(w, "torch", light.Source{Color: render.Light{1, 0.5, 0}, Strength: 2,
 			Reach: 100})
 		w.Write().Seed(torch.Entry(spot{500, 500}))
 	})
 	p.WithDistant(light.Distant{Dir: [3]float32{0, 0, 1}, Ambient: 0.5})
 	tick()
-	p.Write().Begin(&render.Frame{}, cameratest.NewFromSpace(1000, 1000, 0))
-	if lit := p.Read(0).At(500, 500, 0); !near(lit.Lamps[0], 2) || !near(lit.Lamps[1], 1) ||
-		!near(lit.Light[0], 2.5) {
+	if lit := litAt(w, p, whole(), 500, 500, 0, 0); !near(lit.Lamps[0], 2) ||
+		!near(lit.Lamps[1], 1) || !near(lit.Light[0], 2.5) {
 		t.Errorf("at the torch the light is %+v, want the sky's 0.5 and the torch's 2, 1, 0", lit)
 	}
-	if lit := p.Read(0).At(550, 500, 0); !near(lit.Lamps[0], 0.5) {
+	if lit := litAt(w, p, whole(), 550, 500, 0, 0); !near(lit.Lamps[0], 0.5) {
 		t.Errorf("halfway to the torch's reach its light is %v, want a quarter of 2", lit.Lamps)
 	}
-	if lit := p.Read(0).At(650, 500, 0); lit.Lamps != (render.Light{}) {
+	if lit := litAt(w, p, whole(), 650, 500, 0, 0); lit.Lamps != (render.Light{}) {
 		t.Errorf("past the torch's reach its light is %v, want none", lit.Lamps)
 	}
 	if n := len(p.Read(0).Lamps()); n != 1 {
@@ -187,22 +207,8 @@ func TestPlugin_LampsLightWhatLiesInTheirReachFadingWithTheDistance(t *testing.T
 	}
 }
 
-func TestLamps_UniformNamesAreTheDeclaredOnes(t *testing.T) {
-	declared := map[string]int{}
-	for _, u := range render.SharedUniforms() {
-		declared[u.Name] = u.Size
-	}
-	for k, names := range light.LampNames {
-		at, colour := fmt.Sprintf("Lamp%dAt", k), fmt.Sprintf("Lamp%dColor", k)
-		if names != [2]string{at, colour} || declared[at] != 4 || declared[colour] != 3 {
-			t.Errorf("lamp %d goes to the frame as %v, declared as %d and %d floats; "+
-				"want %s of 4 and %s of 3", k, names, declared[at], declared[colour], at, colour)
-		}
-	}
-}
-
-func TestPlugin_BeginPicksTheLampsNearestTheCameraAndHandsTheFrameThem(t *testing.T) {
-	_, p, tick := litWorld(t, light.Config{LampShadows: 2}, func(w *world.Plugin, p *light.Plugin) {
+func TestPlugin_LightsTheFrameByTheLampsNearestTheCamera(t *testing.T) {
+	w, p, tick := litWorld(t, light.Config{LampShadows: 2}, func(w *world.Plugin, p *light.Plugin) {
 		torch := lampKind(w, "torch", light.Source{Strength: 1, Reach: 50})
 		var entries []kind.Entry
 		for i := range 10 {
@@ -214,7 +220,9 @@ func TestPlugin_BeginPicksTheLampsNearestTheCameraAndHandsTheFrameThem(t *testin
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	cam.SetViewport(200, 200)
 	cam.CenterOn(900, 500, 0)
-	c := render.NewComposer(source(func(f *render.Frame) { p.Write().Begin(f, cam) }))
+	lit := lightsOf(w, p)
+	c := render.NewComposer(source(func(*render.Frame) {}))
+	c.Light(w.Read(0).Lights)
 	c.DrawWorld(nil, cam)
 	got := c.Uniforms()
 	if got["LampCount"][0] != light.MaxLamps || got["Lamp0At"][0] != 860 ||
@@ -223,12 +231,13 @@ func TestPlugin_BeginPicksTheLampsNearestTheCameraAndHandsTheFrameThem(t *testin
 			"want 8 nearest 900: 860, 770 .. 230", got["LampCount"], got["Lamp0At"],
 			got["Lamp1At"], got["Lamp7At"])
 	}
-	if cast := p.Read(0).Casting(); len(cast) != 2 || cast[0].X != 860 {
-		t.Errorf("casting %v, want the two nearest", cast)
+	if len(lit.Lamps) != 10 || lit.LampShadows != 2 {
+		t.Errorf("%d lamps published, %d casting, want the ten, the two nearest casting",
+			len(lit.Lamps), lit.LampShadows)
 	}
 }
 
-func TestPlugin_OfTakesWhatTheEntitysShadowSays(t *testing.T) {
+func TestPlugin_MarksEachEntityAsItsShadowSaysAndTheFrameLightsItSo(t *testing.T) {
 	var lantern, plain kind.Of[spot]
 	var base goke.Comp[world.Base]
 	var q *goke.Query
@@ -238,8 +247,7 @@ func TestPlugin_OfTakesWhatTheEntitysShadowSays(t *testing.T) {
 		light.Lighting(p).Join(qb)
 		q = qb.Build()
 	}}
-	var tick func()
-	_, _, tick = litWorld(t, light.Config{}, func(w *world.Plugin, pl *light.Plugin) {
+	w, _, tick := litWorld(t, light.Config{}, func(w *world.Plugin, pl *light.Plugin) {
 		p = pl
 		lantern = lampKind(w, "lantern", light.Source{Strength: 1, Reach: 100})
 		kind.Define[spot](w.Kinds(), "plain", kind.Spec{
@@ -254,15 +262,17 @@ func TestPlugin_OfTakesWhatTheEntitysShadowSays(t *testing.T) {
 	}, joined)
 	p.WithDistant(light.Distant{Dir: [3]float32{0, 0, 1}, Ambient: 0.5})
 	tick()
-	p.Write().Begin(&render.Frame{}, cameratest.NewFromSpace(1000, 1000, 0))
 	seen := 0
 	for q.All(); q.Next(); {
 		cur := q.Cursor()
 		for i := range cur.IDs {
 			box := base.Slice(cur)[i].Pos.AABB
-			lit := p.Write().Of(light.Lighting(p).Mark(cur, i), box, world.Z{}, render.Appearance{})
+			mark := light.Lighting(p).Mark(cur, i)
+			lit := litAt(w, p, whole(), float32(box.TopLeft.X+box.Size.X/2),
+				float32(box.TopLeft.Y+box.Size.Y/2), 0, mark.Take)
 			if box.TopLeft.Y == 520 { // the plain one
-				if lit.Takes != 0 || lit.Lamps != (render.Light{}) || lit.Light != (render.Light{1, 1, 1}) {
+				if mark.Cast != light.NoShadow || lit.Takes != 0 || lit.Lamps != (render.Light{}) ||
+					lit.Light != (render.Light{1, 1, 1}) {
 					t.Errorf("what shines is lit %+v, want white, taking nothing", lit)
 				}
 			} else if lit.Takes != render.TakesAll || !near(lit.Lamps[0], 1) {

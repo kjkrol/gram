@@ -1,16 +1,18 @@
-// Package light is the light over a world: a distant light (the sun) and the lamps, what they
-// light and what shade each thing takes, the shadows baked into the ground and those laid over
-// it.
+// Package light declares the light over a world: a distant light (the sun) and the lamps, how
+// each thing casts its shadow and what shade it takes. It publishes them once a frame
+// (render.Lights); render lights the frame by them.
 //
 // # Plugin
 //
 // [NewPlugin] makes the light over a world ([Config]: how many lamps nearest a camera cast
 // shadows). A game makes it after motion and before the board and the topography, which draw
 // by it, and runs it after the world ([Plugin.RunPlan]). From then on the world's entities are
-// lit by it (world.Lighting), the ground's shade is its to bake and the live shadows its to lay.
-// Its state is read through [Plugin.Read], the same on every goroutine: the sources as the
-// clock's Replay left them, taken as each Replay ends (clock.Clock.Replayed). It is changed
-// through [Plugin.Write], the game's goroutine's, which readies it for each picture too.
+// marked by it as they are published (world.Lighting) and the world's picture is lit by what it
+// publishes ([Plugin.Publish]: the sun and the lamps, how it is set, the blocks the ground bakes
+// the shadows of, the ground under them; world.Read.Lights for what draws). Its state is read
+// through [Plugin.Read], the same on every goroutine: the sources as the clock's Replay left them,
+// taken as each Replay ends (clock.Clock.Replayed). It is changed through [Plugin.Write], the
+// game's goroutine's.
 //
 // # Sources
 //
@@ -30,23 +32,21 @@
 // (render.Taking), all unless it says. A kind declaring none casts a Patch taking all; what the
 // board stands is Baked. The shade of the ground — the relief's shadows over a [Relief] the
 // topography gives ([Plugin.OverRelief]), level ground without one, and the Baked blocks' on
-// either — is baked on the GPU as the sun moves, a strip a frame, and handed to every frame
-// (render.GroundShade) for whoever draws the ground and what stands on it to read; [CoarseShadows]
-// bakes it half as fine. The live shadows are laid over whatever ground the frame drew, read
-// off its depth, as a [ShadowPolicy] turns them by the distance from the eye
-// ([Plugin.WithShadowPolicy]): the distant light's everywhere, and on level ground the lamps'
-// too, from the
-// lamps nearest the camera, as many as the Config says or none ([LampShadows]).
+// either — is baked by render on the GPU as the sun moves, a strip a frame, and handed to every
+// frame (render.GroundShade) for whoever draws the ground and what stands on it to read;
+// [CoarseShadows] bakes it half as fine. render lays the live shadows over whatever ground the
+// frame drew, read off its depth, as a [ShadowPolicy] turns them by the distance from the eye
+// ([Plugin.WithShadowPolicy]): the distant light's everywhere, and on level ground the lamps' too,
+// from the lamps nearest the camera, as many as the Config says or none ([LampShadows]).
 //
 // # Light on things
 //
-// [Distant] is a distant light as the shaders and the CPU take it ([Distant.Light],
-// [Distant.Shaded], a [Beam] ready to light many, [Distant.Frame] the uniforms,
-// [Distant.ShadowOf] and [Distant.SilhouetteOf] where a shadow lies, an [Umbra]); [Lamp] a lamp
-// in the world ([Lamp.ShadowOf]). The lamps
-// nearest a camera, [MaxLamps] at most, light its picture: the entities through the world's
-// renderer, the ground through the shaders' lampLightAt. [Read.Reporter] is the light's line on
-// the telemetry panel.
+// [Distant] is a distant light as the shaders and the CPU take it, render's (render.Distant:
+// Light, Shaded, a [Beam] ready to light many, Frame the uniforms, ShadowOf and SilhouetteOf
+// where a shadow lies, an [Umbra]); [Lamp] a lamp in the world. The lamps nearest a camera,
+// [MaxLamps] at most, light its picture: the entities as render.Frame.Lit says, the ground
+// through the shaders' lampLightAt. [Read.Reporter] is the light's line on the telemetry panel,
+// as the frame drawn is lit.
 //
 // # Vocabulary
 //

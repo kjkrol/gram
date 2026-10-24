@@ -31,6 +31,8 @@ type headless struct {
 	tps     game.TPS
 	drawn   []render.Source
 	looks   []func()
+	// what publishes, found at the first publish
+	publishers []plugin.Publisher
 }
 
 var _ game.Initializer = (*headless)(nil)
@@ -147,18 +149,32 @@ func (c *headless) bound() []goke.System {
 	return out
 }
 
-// publish has the sources drawn publish, then swap, as the engine does once a frame.
+// publish has the publishers among what is tracked and drawn publish, then swap, as the engine
+// does once a frame.
 func (c *headless) publish() {
-	for _, s := range c.drawn {
-		if p, ok := s.(plugin.Publisher); ok {
-			p.Publish()
+	if c.publishers == nil {
+		seen := map[any]bool{}
+		for _, v := range append(append([]any(nil), c.tracked...), sources(c.drawn)...) {
+			if p, ok := v.(plugin.Publisher); ok && !seen[v] {
+				seen[v] = true
+				c.publishers = append(c.publishers, p)
+			}
 		}
 	}
-	for _, s := range c.drawn {
-		if p, ok := s.(plugin.Publisher); ok {
-			p.Swap()
-		}
+	for _, p := range c.publishers {
+		p.Publish()
 	}
+	for _, p := range c.publishers {
+		p.Swap()
+	}
+}
+
+func sources(s []render.Source) []any {
+	out := make([]any, len(s))
+	for i, v := range s {
+		out[i] = v
+	}
+	return out
 }
 
 // Drawn is what the installed plugins draw, for the world's picture.

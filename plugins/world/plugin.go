@@ -52,6 +52,7 @@ type Plugin struct {
 	styles   *render.Styles
 	ctx      plugin.Installer
 	picture  *render.Composer
+	lights   func() *render.Lights
 	read     Read
 	reads    parallel.Reads[*Read]
 	write    Write
@@ -212,6 +213,7 @@ func (p *Plugin) dress() {
 		panic("world: a picture is made of what the Stage's plugins draw, and none was told")
 	}
 	p.picture = render.NewComposer(d.Drawn()...)
+	p.picture.Light(p.lights)
 }
 
 // RunPlan runs the world's tick. Call it from Stage.Update before whatever reads the world's

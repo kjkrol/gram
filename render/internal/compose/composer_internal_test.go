@@ -566,9 +566,9 @@ func TestComposer_ADirectDrawsWhereItAskedAndOnlyThere(t *testing.T) {
 	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) { calls++ }
 	c.compose(topDown(), wholePart)
 	c.render(nil, false, 0)
-	if len(c.sources) != 7 || len(c.directs) != 7 {
-		t.Fatalf("%d sources, %d directs, want the nil layer left out", len(c.sources),
-			len(c.directs))
+	if len(c.sources) != 7 || len(c.directs) != 8 {
+		t.Fatalf("%d sources, %d directs, want the nil layer left out, the light's own last",
+			len(c.sources), len(c.directs))
 	}
 	if got := ground.drawn; len(got) != 1 || got[0] != 0 || ground.passes[0] != Opaque {
 		t.Errorf("the ground drew after %v calls in %v, want once before all, in the opaque pass",

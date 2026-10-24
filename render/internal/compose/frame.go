@@ -5,6 +5,7 @@ import (
 	"math"
 	"slices"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render/internal/gfx"
 	"github.com/kjkrol/gram/render/internal/light"
@@ -61,6 +62,7 @@ type Frame struct {
 	overs    int     // the pieces lying over the figures
 	source   int32   // the source composing, one more than its index; 0 none
 	opaque   []int32 // the sources drawing in the opaque pass, one more than their index
+	lighting *lighting
 }
 
 type uniform struct {
@@ -81,7 +83,29 @@ func (f *Frame) Len() int { return f.count }
 func (f *Frame) Reset(cam camera.Camera) {
 	f.cam, f.items, f.verts, f.order, f.count = cam, f.items[:0], f.verts[:0], f.order[:0], 0
 	f.uniforms, f.ground, f.opaque, f.overs = f.uniforms[:0], false, f.opaque[:0], 0
-	f.images = f.images[:0]
+	f.images, f.lighting = f.images[:0], nil
+}
+
+// Lit is the light on what stands at (x, y, z) taking take (zero: every shade, Shines: none), as
+// the composer's lights say through the frame's camera; white light taking every shade without
+// them.
+func (f *Frame) Lit(x, y, z float32, take Taking) light.Illumination {
+	if f.lighting == nil {
+		return light.Illumination{Light: Light{1, 1, 1}, Takes: TakesAll}
+	}
+	return f.lighting.on(x, y, z, taken(take))
+}
+
+// Cast has what stands in box from alt up height cast its live shadow as s says, in the shape of
+// atlas's sprite for a Silhouette, laid on the ground once the frame's sources have composed;
+// nothing without the composer's lights, nor for what is Baked or casts none.
+func (f *Frame) Cast(box geom.AABB, alt, height float64, s light.Shadowing, atlas AtlasSource,
+	sprite SpriteID) {
+	if f.lighting == nil || s.Cast == light.Baked || s.Cast == light.NoShadow {
+		return
+	}
+	f.lighting.casters = append(f.lighting.casters, caster{box: box, alt: alt, height: height,
+		cast: s.Cast, atlas: atlas, sprite: sprite})
 }
 
 // DrawOpaque has the composing Direct draw in the opaque pass, the ground's: tested against the

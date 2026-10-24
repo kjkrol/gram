@@ -35,6 +35,16 @@ const (
 	NoShadow   = light.NoShadow
 )
 
+// Lights are a scene's lights for a frame, which a Composer lights its frames by
+// (Composer.Light; light.Lights).
+type Lights = light.Lights
+
+// Block is a solid whose shadow the ground bakes (light.Block).
+type Block = light.Block
+
+// Lattice is the ground a shade is baked over (light.Lattice).
+type Lattice = light.Lattice
+
 // Shadowing is how a thing casts its shadow and which shade it takes (light.Shadowing).
 type Shadowing = light.Shadowing
 

@@ -3,10 +3,7 @@ package light
 import (
 	"fmt"
 
-	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -38,23 +35,24 @@ func (r *Read) ShadowsAdaptive() bool { return r.p.Res.Settings.AdaptiveShadows 
 // LampShadows is how many lamps nearest a picture's camera cast shadows.
 func (r *Read) LampShadows() int { return r.p.Res.Settings.LampShadows }
 
-// Reporter is the light's part of the telemetry panel: the distant light's strength, the lamps
-// and how many cast shadows.
+// Reporter is the light's part of the telemetry panel, as the frame drawn is lit: the distant
+// light's strength, the lamps and how many cast shadows.
 func (r *Read) Reporter() render.Reporter { return reporter{r.p} }
 
 type reporter struct{ p *Plugin }
 
 func (r reporter) Report(line func(label, value string)) {
-	line("Light", fmt.Sprintf("sun %.2f\nlamps %d\nshadows of %d", r.p.distant.Strength,
-		len(r.p.lamps), min(len(r.p.lamps), r.p.Res.Settings.LampShadows)))
+	var lit render.Lights
+	if l := r.p.drawn(); l != nil {
+		lit = *l
+	}
+	line("Light", fmt.Sprintf("sun %.2f\nlamps %d\nshadows of %d", lit.Sun.Strength,
+		len(lit.Lamps), min(len(lit.Lamps), lit.LampShadows)))
 }
 
 // SetCoarseShadows has the shadows baked half as fine a side, a quarter of the GPU's work, or
 // fine again (Settings.Coarse).
-func (w *Write) SetCoarseShadows(on bool) {
-	w.p.Res.Settings.Coarse = on
-	w.p.baker.Coarse(on)
-}
+func (w *Write) SetCoarseShadows(on bool) { w.p.Res.Settings.Coarse = on }
 
 // AdaptShadows has the shadows follow the cameras' frame budget, or not
 // (Settings.AdaptiveShadows).
@@ -95,25 +93,15 @@ func (w *Write) Finer() bool {
 	return true
 }
 
-// lighting is the light as the world lights its entities by it
+// lighting is what the world asks of the light as it publishes its entities
 type lighting struct{ p *Plugin }
 
 func (l lighting) Join(qb *goke.QueryBuilder) { qb.Optional(&l.p.shadow) }
 
-func (l lighting) Begin(f *render.Frame, cam camera.Camera) { l.p.write.Begin(f, cam) }
-
-// Mark is the entity's Shadow, its Cast in the low byte and its Take in the high; a Patch taking
-// all, 0, for none.
-func (l lighting) Mark(cur *goke.Cursor, i int) uint16 {
+// Mark is the entity's Shadow; a Patch taking all for none.
+func (l lighting) Mark(cur *goke.Cursor, i int) render.Shadowing {
 	if s := l.p.shadow.Slice(cur); s != nil {
-		return uint16(s[i].Cast) | uint16(s[i].Take)<<8
+		return render.Shadowing{Cast: s[i].Cast, Take: s[i].Take}
 	}
-	return 0
+	return render.Shadowing{}
 }
-
-func (l lighting) Of(mark uint16, box plane.AABB, z world.Z,
-	a render.Appearance) render.Illumination {
-	return l.p.write.Of(mark, box, z, a)
-}
-
-func (l lighting) At(x, y, z float32) render.Illumination { return l.p.read.At(x, y, z) }

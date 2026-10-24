@@ -27,7 +27,7 @@ type figures struct {
 
 // figure is an entity drawn, in float32: its box's corners, size and how far it runs past the
 // world's far edges, its heading and speed, its Z, its layers figures.layers[from:from+n], its
-// Lie figures.lies[lie-1] (0 for none), its mark the Lighting's
+// Lie figures.lies[lie-1] (0 for none), its shadow as the Lighting says
 type figure struct {
 	id                   uid.UID64
 	x0, y0, x1, y1, w, h float32
@@ -35,7 +35,8 @@ type figure struct {
 	dx, dy, speed        float32
 	alt, height, step    float32
 	from, lie            int32
-	n, mark              uint16
+	n                    uint16
+	shadow               render.Shadowing
 }
 
 // the box of e as the Look takes it
@@ -138,7 +139,7 @@ func (s *renderer) publish(b *figures, cur *goke.Cursor) {
 		e.w, e.h, e.ox, e.oy = float32(box.Size.X), float32(box.Size.Y),
 			float32(box.Overhang.X), float32(box.Overhang.Y)
 		e.dx, e.dy, e.speed = float32(vel.Dir.X), float32(vel.Dir.Y), float32(vel.Value)
-		e.alt, e.height, e.step, e.lie, e.mark = 0, 0, 0, 0, 0
+		e.alt, e.height, e.step, e.lie, e.shadow = 0, 0, 0, 0, render.Shadowing{}
 		if zs != nil {
 			e.alt, e.height, e.step = float32(zs[i].Altitude), float32(zs[i].Height),
 				float32(zs[i].Step)
@@ -148,7 +149,7 @@ func (s *renderer) publish(b *figures, cur *goke.Cursor) {
 			e.lie = int32(len(b.lies))
 		}
 		if s.lighting != nil {
-			e.mark = s.lighting.Mark(cur, i)
+			e.shadow = s.lighting.Mark(cur, i)
 		}
 		e.from = int32(len(b.layers))
 		if !ruled {

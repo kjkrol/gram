@@ -201,14 +201,14 @@ func (p *Plugin) takes() ([]render.Taking, []float32, uint64) {
 	return p.taking, p.swaying, brd.Version()
 }
 
-// the sun the light plugin shines, and the weather the atmosphere gives, as they stand
+// the sun the frame drawn is lit by, the light plugin's, and the weather the atmosphere gives
 type liveSky struct{ p *Plugin }
 
 func (s liveSky) Distant() light.Distant {
-	if s.p.light == nil {
-		return light.White
+	if l := s.p.worldPlugin.Read(0).Lights(); l != nil {
+		return l.Sun
 	}
-	return s.p.light.Read(0).Distant()
+	return light.White
 }
 func (s liveSky) Air() air.Weather { return s.p.sky.Air() }
 

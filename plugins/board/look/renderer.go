@@ -66,14 +66,14 @@ type Renderer struct {
 	sees  func(camera.Camera) *view.View
 	sight *view.View
 	// what lights the tiles, nil for white light
-	lighting func() world.Lighting
-	atlas    render.AtlasSource
-	cellW    float64
-	cellH    float64
-	square   bool
-	state    RenderState
-	shaded   map[cell.Name]render.MaterialID
-	tops     []cellTop
+	lights func() *render.Lights
+	atlas  render.AtlasSource
+	cellW  float64
+	cellH  float64
+	square bool
+	state  RenderState
+	shaded map[cell.Name]render.MaterialID
+	tops   []cellTop
 
 	space   world.SpaceCfg // zero for none: nothing drawn
 	dress   Dressing       // this frame's, nil for none
@@ -241,17 +241,17 @@ func (l *Renderer) Animated() bool { return l.tiles.shaded > 0 || l.tiles.overla
 // how high over the board Whole looks down from
 const wholeEye = 1 << 16
 
-// the Lighting as it stands, nil for none
-func (l *Renderer) lit() world.Lighting {
-	if l.lighting == nil {
+// the lights as they stand, nil for none
+func (l *Renderer) lit() *render.Lights {
+	if l.lights == nil {
 		return nil
 	}
-	return l.lighting()
+	return l.lights()
 }
 
-// WithLighting has the tiles lit as lighting says, the light plugin's.
-func (l *Renderer) WithLighting(lighting func() world.Lighting) *Renderer {
-	l.lighting = lighting
+// WithLights has the tiles lit by the lights lights gives, the light plugin's.
+func (l *Renderer) WithLights(lights func() *render.Lights) *Renderer {
+	l.lights = lights
 	return l
 }
 
