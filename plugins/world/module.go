@@ -2,11 +2,12 @@ package world
 
 import (
 	"fmt"
-	cgoke "github.com/kjkrol/ceremony/goke"
 	"log"
 	"math"
 	"math/bits"
 	"time"
+
+	cgoke "github.com/kjkrol/ceremony/goke"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/ceremony"
@@ -40,7 +41,7 @@ type module struct {
 
 	kinds *Kinds
 
-	drawing render.Rules
+	drawing Rules
 
 	indexer *indexer
 

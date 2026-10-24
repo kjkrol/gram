@@ -3,14 +3,13 @@ package backdrop
 import (
 	"testing"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 func TestBackdrop_DrawsTheSkyOnTheGPU(t *testing.T) {
@@ -106,7 +105,6 @@ func TestBackdrop_DrawsTheLayersFlatOrHeapedOrNone(t *testing.T) {
 // ground standing as high as Span everywhere, handed to the frame
 type standing struct{ render.GroundHeights }
 
-func (standing) Init(*goke.SysInit)                         {}
 func (s standing) Compose(f *render.Frame, _ camera.Camera) { f.GroundHeights(s.GroundHeights) }
 
 func TestBackdrop_LeavesTheHeapsBeforeTheGroundToAnother(t *testing.T) {

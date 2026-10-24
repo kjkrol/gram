@@ -27,6 +27,8 @@ type viewCamera struct {
 	layers    []contract.Layer
 	layout    contract.Layout
 	sharp     bool
+	// its copy for the frame drawn, or the camera it is a copy of
+	copy, origin *viewCamera
 }
 
 // form names how a stick camera is saved, so a save of another shape is refused at its first
@@ -59,6 +61,40 @@ var _ contract.Resolved = (*viewCamera)(nil)
 var _ contract.Layered = (*viewCamera)(nil)
 var _ contract.Cropping = (*viewCamera)(nil)
 var _ contract.Figured = (*viewCamera)(nil)
+var _ contract.Snapped = (*viewCamera)(nil)
+
+// Snap takes the camera's copy for the frame drawn next: its own sticks, the one looked through
+// its own.
+func (c *viewCamera) Snap() {
+	if c.copy == nil {
+		c.copy = &viewCamera{ortho: &orthoCamera{}, persp: &perspCamera{}}
+	}
+	d := c.copy
+	ortho, persp, layers := d.ortho, d.persp, d.layers
+	*d = *c
+	d.ortho, d.persp, d.layers = ortho, persp, append(layers[:0], c.layers...)
+	c.ortho.copyInto(d.ortho)
+	c.persp.copyInto(d.persp)
+	d.cur = d.ortho
+	if c.cur == contract.Camera(c.persp) {
+		d.cur = d.persp
+	}
+	d.copy, d.origin = nil, c
+}
+
+func (c *viewCamera) Drawn() contract.Camera {
+	if c.copy == nil {
+		return c
+	}
+	return c.copy
+}
+
+func (c *viewCamera) Origin() contract.Camera {
+	if c.origin == nil {
+		return c
+	}
+	return c.origin
+}
 
 // Detail is how far the camera sees and how finely.
 func (c *viewCamera) Detail() contract.Detail { return c.detail }

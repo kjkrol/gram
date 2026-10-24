@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
 	"github.com/kjkrol/gram/plugins/board/look"
@@ -40,6 +41,8 @@ func TestHolds_ShowsAndHidesTheCellsHeld(t *testing.T) {
 	cam := cameratest.NewFromSpace(6*boardtest.CellSize, 16*boardtest.CellSize, 0)
 	var lying []render.At
 	lines := func() int {
+		view.(plugin.Publisher).Publish()
+		view.(plugin.Publisher).Swap()
 		var f render.Frame
 		f.Reset(cam)
 		view.Compose(&f, cam)

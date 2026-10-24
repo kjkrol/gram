@@ -74,7 +74,7 @@ func (s *Scene) wire(cursor geom.Vec) {
 	under := topmost(within, cursor, nil).hit
 	var visit func(e *Element)
 	visit = func(e *Element) {
-		if e.hidden {
+		if e.shut() {
 			return
 		}
 		if p, ok := e.content.(*picture); ok && p.input != nil {
@@ -199,7 +199,7 @@ func (s *Scene) wheel(modal *Element, p geom.Vec, delta float64) {
 
 // scrollAt is the innermost Scroll under p, nil for none
 func scrollAt(e *Element, p geom.Vec) *Element {
-	if e.hidden || e.absent() {
+	if e.shut() || e.absent() {
 		return nil
 	}
 	var found *Element
@@ -292,7 +292,7 @@ type target struct {
 }
 
 func topmost(e *Element, p geom.Vec, in *Element) target {
-	if e.hidden {
+	if e.shut() {
 		return target{}
 	}
 	if e.pin == nil {

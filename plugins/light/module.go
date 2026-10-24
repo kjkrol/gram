@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/plugins/world/sector"
 )
 
 var _ goke.Module = (*module)(nil)
@@ -37,8 +38,9 @@ func (s *ownSun) Init(si *goke.SysInit) {
 	s.q = si.NewQueryBuilder(&s.shining).Build()
 	p.sources = si.NewQueryBuilder(&p.source).Optional(&p.shining).Optional(&p.base).
 		Optional(&p.z).Build()
+	// what lies beyond every band of the sectors is baked by no ground
 	p.blocks = si.NewQueryBuilder(&p.blockBase, &p.blockZ, &p.blockOf).Optional(&p.blockLie).
-		Build()
+		Exclude(goke.Exclude[sector.Off]()).Build()
 }
 
 func (s *ownSun) Update(*goke.CmdBuf, time.Duration) {

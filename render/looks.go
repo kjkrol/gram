@@ -9,6 +9,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/kjkrol/ceremony/effect"
 	xdraw "golang.org/x/image/draw"
 )
 
@@ -271,3 +272,19 @@ func Dot(radius float32, c color.RGBA) SpriteDrawer {
 		dst.FillCircle(float32(size)/2, float32(size)/2, radius, c)
 	}
 }
+
+// Appearance is the sprite an entity is drawn from and how much it bends in the wind, 0 not at
+// all, 1 as far as the wind blows it.
+type Appearance struct {
+	SpriteID SpriteID
+	Sway     float32
+	// Angle turns the look about the middle of the entity's box, in degrees, 0 east, against the
+	// clock with the screen's y growing down. The box stays axis-aligned: content past the circle
+	// inscribed in it swings outside the box as the sprite turns.
+	Angle float32
+}
+
+// Knob: an effect may turn it (effect.Knob).
+func (Appearance) Knob() {}
+
+var _ effect.Knob = Appearance{}

@@ -68,6 +68,9 @@ type Plugin struct {
 	aloft        *aloft.Renderer // the low clouds: the high ones from above would veil the map
 	shadows      CloudShadows
 	kept         *plugin.Kept[Settings]
+	published    render.Buffered[drawnSky]
+	live         drawnSky // drawn before any was published
+	swapped      bool
 
 	Res   Resources
 	read  Read
@@ -78,6 +81,7 @@ var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ plugin.Tunable = (*Plugin)(nil)
 var _ plugin.Restorer = (*Plugin)(nil)
+var _ plugin.Publisher = (*Plugin)(nil)
 
 // NewPlugin puts the atmosphere of cfg over worldPlugin, its sun shone through lightPlugin's
 // mechanism: the atmosphere's own entity carries the sun's Source and its Shining of the hour.
@@ -91,7 +95,7 @@ func NewPlugin(worldPlugin *world.Plugin, lightPlugin *light.Plugin, cfg Config)
 	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, light: lightPlugin, calendar: cal,
 		climate: clim, sky: sky.New(cal, cfg.Sky, clim.Zone().Latitude)}
 	p.read.p, p.write.p = p, p
-	p.aloft = aloft.New(p.read.Air, air.Low)
+	p.aloft = aloft.New(p.drawnAir, air.Low)
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.write.ShowClouds(AllBodies)
 	p.CastClouds(CloudShadows{Ground: true, Figures: true, High: true})
@@ -202,13 +206,12 @@ func (p *Plugin) rung() int {
 	return 0
 }
 
+// skyClouds is how the sky shows the clouds as drawn
 func (p *Plugin) skyClouds() backdrop.Clouds {
-	low := p.Res.Settings.Clouds == LowBodies || p.Res.Settings.Clouds == AllBodies
-	return backdrop.Clouds{
-		Hidden: p.Res.Settings.Clouds == ShadowsAlone,
-		Bodies: [2]bool{low, p.Res.Settings.Clouds == AllBodies},
-		Before: low,
-	}
+	look := p.drawn().settings.Clouds
+	low := look == LowBodies || look == AllBodies
+	return backdrop.Clouds{Hidden: look == ShadowsAlone, Bodies: [2]bool{low, look == AllBodies},
+		Before: low}
 }
 
 // Over has the low clouds hang over brd's ground, their bands fitted to its relief: from its low
@@ -266,14 +269,10 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	if p.weathering != nil {
 		ctx.Hosts(p.weathering.Rules())
 	}
-	shown := func() (stars, moon bool) {
-		r := p.read.Running()
-		return r.Stars, r.Moon
-	}
-	p.vault = backdrop.New(p.worldPlugin.Res.Config.Space, p.read.Sun, p.read.Air).
-		WithHeavens(p.read.Heavens).
-		WithShown(shown).WithClouds(p.skyClouds)
-	ctx.Draws(p.vault, p.aloft, precipitation.NewDrops(p.read.Sun, p.read.Air))
+	p.vault = backdrop.New(p.worldPlugin.Res.Config.Space, p.drawnSun, p.drawnAir).
+		WithHeavens(p.drawnHeavens).
+		WithShown(p.drawnShown).WithClouds(p.skyClouds)
+	ctx.Draws(p.vault, lowClouds{p.aloft, p}, precipitation.NewDrops(p.drawnSun, p.drawnAir))
 	ctx.Looks(p.dress)
 	return nil
 }
@@ -358,8 +357,6 @@ type reporters []render.Reporter
 
 type cloudsReport struct{ p *Plugin }
 
-func (cloudsReport) Init(*goke.SysInit) {}
-
 func (r cloudsReport) Report(line func(label, value string)) {
 	look := r.p.Res.Settings.Clouds.String()
 	if w := r.p.read.Air(); !w.OneLayer && w.Relief[1] > 0 {
@@ -406,7 +403,9 @@ func (s *shining) Update(*goke.CmdBuf, time.Duration) {
 
 func (rs reporters) Init(si *goke.SysInit) {
 	for _, r := range rs {
-		r.Init(si)
+		if b, ok := r.(plugin.Bound); ok {
+			b.Init(si)
+		}
 	}
 }
 

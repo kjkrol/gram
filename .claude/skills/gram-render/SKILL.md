@@ -14,12 +14,21 @@ materials and the frame's images registered, sealed at the first shader), `gfx` 
 text), `feed` (`Feed`, `Picture`, `Laid`), `compose` (`Frame`, `At`, `Source`, `Direct`, `Target`,
 the light and shade, `Composer`, `compose.wgsl`) and `instanced` (`Sprites`). A type an internal
 package needs is defined there and named in `render` by an alias with a one-line comment; `render`
-defines the rest (`Drawer`, `Renderer`, `Reporter`, `Surface`, `Illumination`, `Even`, `Lit`,
+defines the rest (`Renderer`, `Reporter`, `Surface`, `Illumination`, `Even`, `Lit`,
 `Box`, `ProjectCorners`, the looks, `Appearance` and its rules, the frame's statistics). The
 internal packages reach into each other through exported functions, never methods
 (`gfx.GPU(img)`, `gfx.Program(s)`, `gfx.PlaceDepth`), so no alias shows them; their tests never
 import `render` (a cycle) and keep the few helpers they need (`even`, `solid`) as their own. The
-device is `internal/gpu`; a test that draws readies it with `gputest.Need(t)`.
+device is `render/internal/gpu`, the engine reaching it through `render.UseDevice`, `Windowed`,
+`Present` and `Submit`; a test that draws readies it with `gputest.Need(t)` (`render/gputest`).
+`render` and `ui` are meant to leave gram one day as a module of their own (`kjkrol/uxgpu`):
+they import nothing more of gram than they do now. A stage is readied before its first frame
+(`Engine.prepare`: `render.Prepare` compiles every shader made, does the deferred fills and puts
+textures written before the device on it; then a frame drawn and thrown away), so nothing is
+compiled or baked in a frame shown; `GRAM_FPS_LOG=1` logs it. A program's SPIR-V is kept on
+disk (`render/internal/gpu/spirv.go`, `os.UserCacheDir()/gram/shaders`, named by the WGSL and
+naga's version, `GRAM_SHADER_CACHE`) and handed to wgpu instead of the WGSL, which spares naga's
+translation and wgpu's second parse of it.
 
 ## Atlases and looks
 
@@ -34,7 +43,7 @@ is a
 SpriteDrawer drawn once, or a `MaterialID` worked out per pixel every frame (one `Frame.Material`
 quad in the box; `Custom` = {middle, half a side, heading in radians}, `Red` = speed in own lengths
 a second up to 1, `World` the box), or `render.Phases`/`Loops` — `.Under(effect, look)` the look
-while the effect's marker is on (a twin slot swapped in by `render.Swap(twins, mark.In)`;
+while the effect's marker is on (a twin slot swapped in by `world.Swap(twins, mark.In)`;
 `render.Phased(n, draw)`: n frames along the effect's course, never for an effect without `Lasts`;
 `render.Loops{N, Period, Draw}`: frames by the clock; a material under an effect reads how far it
 has run as its `fraction`; on one entity under two effects the look declared later wins),
@@ -64,11 +73,14 @@ effect among them — `Kinds().NewSprite()` and the board's panic past that (a b
 
 The world of a Stage is one `render.Composer`, `world.Plugin.Picture()`, over the
 `render.Source`s its plugins gave `ctx.Draws` (2026-10-15, stage 3: no `Renderer()`, no
-`picture()` in a demo, `Composer.Init` once however many scenes show it; `render.Layer` is
-`render.Drawer`, `Scene.Layers` `Drawers`, `ui.Layer` `ui.Drawer`). The one other composer is a
-minimap's (`plugins/minimap`): its own three sources, none in `ctx.Draws`, through an inner
-camera of its own, drawn anew at most 30 times a second (a `render.Surface` returning its last
-image in between; `ui.Image` lays it out every frame, so a resize alone forces a redraw).
+`picture()` in a demo; the engine readies each source drawn that is a `plugin.Bound`, once,
+however many scenes show it; a source that is a `plugin.Publisher` publishes once a frame after
+its ticks and swaps a `render.Buffered` before the frame is drawn: the world's entities are, the
+rules run once for every camera's sight together, each camera's `view.View` copied
+(`CopyInto`), the drawing reading the front alone, 2026-10-23). The one other composer is a minimap's (`plugins/minimap`): its own
+three sources, none in `ctx.Draws`, its marks readied through a Setup provider, through an inner
+camera of its own, drawn anew as its marks are published, at most 30 times a second (a
+`render.Surface` returning its last image in between; `ui.Image` lays it out every frame, so a resize alone forces a redraw).
 `Image.StrokePolygon` is one draw however many sides (a round element's border). A demo that makes a plugin
 draws all it draws: selection and routes in bullet, platformer and split-screen, holds (the board's "Cells held" setting)
 in every demo with a board. **What is drawn over what is Z's alone (2026-10-15), never a layer
@@ -95,7 +107,10 @@ drops, the selection, collision's boxes, the cameras' layers; the cameras' zones
 screen is painted, onto the picture's part of it, so the HUD never covers them, 2026-10-20), and the composer is
 `render.Laid` (2026-10-20, stage U, in place of `Grounded`): `Lay(cam, apart)` composes every
 source (the ground's alone when apart) once, in cam's pixels, the feed having cropped the camera
-to the whole frame at every pixel (`Crop(camera.Window{W, H}, 1)`, exact, `Cropped()` false);
+to the whole frame at every pixel (`Crop(camera.Window{W, H}, 1)`, exact, `Cropped()` false) —
+the camera's copy (`camera.Snapped`, 2026-10-24, E5): a feed takes it as it is laid out on the
+barrier (`Feed.Resize`) and draws, crops and places pins through it alone, the camera the ticks
+move never cropped; what is keyed by a camera is looked up by `camera.OriginOf(cam)`;
 `DrawLayer(layer, cam, at, hole)` draws what was composed into `layer`, the camera cropped to the
 frame's window `at`, leaving out the frame's window `hole` where the frame has a ground (R2,
 2026-10-20: a layer but the innermost is handed the next one's window inset by `LayerFeather`
@@ -245,7 +260,7 @@ draw `rgb·(1 − a·e) + line·e`, e a line `Width` pixels wide fading over a p
 
 What each renderer draws is a look of an entity under a state, not of the plugin: navigation the
 routes and goals of an entity's `MoveOrder`; vision the cone of an entity's `Sight` (`WithStyle`,
-`WithShadow`; `WithViews(render.Show(…))` picks whose); selection the outline of the `Selected`
+`WithShadow`; `WithViews(world.Show(…))` picks whose); selection the outline of the `Selected`
 tag through `world.Look.Footprint` plus the marquee, a player's gesture; bridges the bridge in
 hand, a future entity drawn from its deck's slot; collision the boxes; the board the cells held,
 its flat ground laid on the GPU out of an image of its cells and lit per pixel by the frame's

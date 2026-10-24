@@ -3,44 +3,22 @@ package light
 import (
 	"fmt"
 	"math"
-	"slices"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/light/internal/bake"
-	"github.com/kjkrol/gram/plugins/light/internal/cast"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
 // MaxLamps is how many lamps at most light a picture: the nearest its camera.
-const MaxLamps = 8
-
-// the lamps' uniforms declared, and the names each lamp's place and colour go to the frame by
-var lampUniforms, lampNames = func() ([]render.Uniform, [MaxLamps][2]string) {
-	u := []render.Uniform{{Name: "LampCount", Size: 1}}
-	var names [MaxLamps][2]string
-	for k := range MaxLamps {
-		names[k] = [2]string{fmt.Sprintf("Lamp%dAt", k), fmt.Sprintf("Lamp%dColor", k)}
-		u = append(u, render.Uniform{Name: names[k][0], Size: 4},
-			render.Uniform{Name: names[k][1], Size: 3})
-	}
-	return u, names
-}()
-
-var _ = render.RegisterMaterials(render.Files(shaders, "shaders/lamps.wgsl"), lampUniforms)
-
-// how far over the ground the live shadows lie among what lies on it: under the board's grid
-const castLift = 0.05
+const MaxLamps = render.MaxLamps
 
 // cells a side the shade of level ground is baked in, without a relief to say
 const flatCells = 256
@@ -61,8 +39,9 @@ type Relief interface {
 }
 
 // ShadowPolicy is how an entity casts its live shadow at distance world units from the eye (0
-// through a camera without one), its Shadow declaring declared: Patch, Silhouette or NoShadow.
-type ShadowPolicy func(declared Casting, distance float32) Casting
+// through a camera without one), its Shadow declaring declared: Patch, Silhouette or NoShadow
+// (render.ShadowPolicy).
+type ShadowPolicy = render.ShadowPolicy
 
 // Plugin is the light over a world: a Distant light some entity shines with (the sun), and the
 // lamps, the Sources that reach; what lights the entities and the ground, and what shade each
@@ -81,7 +60,6 @@ type Plugin struct {
 	distantOf uid.UID64
 	lit       bool // a distant light shines, distantOf's
 	lamps     []Lamp
-	near      []Lamp // the lamps lighting the picture begun, nearest its camera first
 	shadow    goke.OptComp[Shadow]
 
 	policy ShadowPolicy
@@ -95,20 +73,17 @@ type Plugin struct {
 
 	relief    Relief
 	reliefAt  uint64 // one more than the relief's version the lattice holds; 0 none
-	lat       bake.Lattice
-	baker     *bake.Baker
-	caster    cast.Caster
+	lat       render.Lattice
+	groundAt  func(x, y float32) float32 // ground, bound once
 	blocks    *goke.Query
 	blockBase goke.Comp[world.Base]
 	blockZ    goke.Comp[world.Z]
 	blockOf   goke.Comp[Shadow]
 	blockLie  goke.OptComp[world.Lie]
-	found     []bake.Block
-	// the picture begun: its camera's eye, if any, its way across, and the casts gathered for it
-	eye   [3]float32
-	eyed  bool
-	right [2]float32
-	casts []float32
+
+	lights  render.Buffered[render.Lights]
+	swapped bool                  // a frame's light published
+	drawnFn func() *render.Lights // drawn, bound once
 
 	coarses      command.Queue[CoarseShadows]
 	adapts       command.Queue[AdaptShadows]
@@ -123,19 +98,21 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ plugin.Tunable = (*Plugin)(nil)
 var _ plugin.Restorer = (*Plugin)(nil)
 var _ plugin.KindTemplater = (*Plugin)(nil)
+var _ plugin.Publisher = (*Plugin)(nil)
 var _ world.Lighting = lighting{}
-var _ render.Direct = (*Plugin)(nil)
 
 // NewPlugin makes the light over w as cfg says: the world's entities are lit by it from then on.
 // Make it before the board and the topography, which draw by it.
 func NewPlugin(w *world.Plugin, cfg Config) *Plugin {
-	p := &Plugin{w: w, cfg: cfg, distant: White, baker: bake.New()}
+	p := &Plugin{w: w, cfg: cfg, distant: White}
 	p.read.p, p.write.p = p, p
+	p.groundAt, p.drawnFn = p.ground, p.drawn
 	p.Res.Settings.LampShadows = cfg.LampShadows
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(w, p, comp.Const(Source{Strength: 1, Ambient: 1}),
 		comp.Const(Shining{}))
 	w.Write().SetLighting(lighting{p})
+	w.Write().SetLights(p.drawnFn)
 	return p
 }
 
@@ -181,13 +158,11 @@ func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
 // Restore takes the Settings loaded and bakes as they say.
 func (p *Plugin) Restore() {
 	p.kept.Restore()
-	p.baker.Coarse(p.Res.Settings.Coarse)
 }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{p: p}
 	ctx.UseModule(p.module)
-	ctx.Draws(p)
 	p.w.Write().Clock().Replayed(p.refresh)
 	return nil
 }
@@ -256,222 +231,56 @@ func shone(sun Distant, s Source) Distant {
 	return sun
 }
 
-// Init is nothing: the plugin's queries are its module's.
-func (p *Plugin) Init(*goke.SysInit) {}
-
-// Begin readies the light for a picture through cam: the distant light's uniforms, and the
-// lamps nearest the camera, MaxLamps at most, theirs.
-func (w *Write) Begin(f *render.Frame, cam camera.Camera) {
-	p := w.p
-	if !f.Uniformed("LightWay") {
-		p.distant.Frame(f)
-	}
-	p.casts = p.casts[:0]
-	p.eyed, p.right = false, [2]float32{1, 0}
-	if e, ok := cam.(camera.Eyed); ok {
-		var x, y, z float32
-		if x, y, z, p.eyed = e.Eye(); p.eyed {
-			p.eye = [3]float32{x, y, z}
-		}
-	}
-	if r, ok := cam.(camera.Rays); ok {
-		if field, ok := r.Rays(); ok {
-			right := field.DX
-			if field.DDX != ([3]float32{}) || field.DDY != ([3]float32{}) {
-				right = field.DDX
-			}
-			p.right = [2]float32{right[0], right[1]}
-		}
-	}
-	x, y, ok := camera.Viewpoint(cam)
-	if !ok {
-		b := cam.Bounds()
-		x, y = float32(b.TopLeft.X+b.BottomRight.X)/2, float32(b.TopLeft.Y+b.BottomRight.Y)/2
-	}
-	p.near = append(p.near[:0], p.lamps...)
-	slices.SortFunc(p.near, func(a, b Lamp) int {
-		da := (a.X-x)*(a.X-x) + (a.Y-y)*(a.Y-y)
-		db := (b.X-x)*(b.X-x) + (b.Y-y)*(b.Y-y)
-		switch {
-		case da < db:
-			return -1
-		case da > db:
-			return 1
-		}
-		return 0
-	})
-	if len(p.near) > MaxLamps {
-		p.near = p.near[:MaxLamps]
-	}
-	f.Uniform("LampCount", float32(len(p.near)))
-	for k, l := range p.near {
-		f.Uniform(lampNames[k][0], l.X, l.Y, l.Z, l.Reach)
-		f.Uniform(lampNames[k][1], l.Color[0], l.Color[1], l.Color[2])
-	}
-}
-
-// Casting are the lamps of the picture begun that cast shadows: the nearest its camera, as many
-// as LampShadows says.
-func (r *Read) Casting() []Lamp {
-	return r.p.near[:min(len(r.p.near), r.p.Res.Settings.LampShadows)]
-}
-
-// Of is the light on the entity i of the chunk at cur, standing in box as z says and drawn as a,
-// taking what its Shadow says; the entity's live shadow is gathered for the picture begun.
-func (w *Write) Of(cur *goke.Cursor, i int, box plane.AABB, z world.Z,
-	a render.Appearance) render.Illumination {
-	p := w.p
-	takes, casting := render.TakesAll, Patch
-	if s := p.shadow.Slice(cur); s != nil {
-		takes, casting = taken(s[i].Take), s[i].Cast
-	}
-	p.cast(box.AABB, z, a, casting)
-	return p.on(float32(box.TopLeft.X+box.Size.X/2), float32(box.TopLeft.Y+box.Size.Y/2),
-		float32(z.Altitude), takes)
-}
-
-// At is the light on the ground at the world point, taking every shade.
-func (r *Read) At(x, y, z float32) render.Illumination { return r.p.on(x, y, z, render.TakesAll) }
-
-func (p *Plugin) on(x, y, z float32, takes render.Taking) render.Illumination {
-	if takes == 0 { // shines: drawn as it is
-		return render.Illumination{Light: render.Light{1, 1, 1}}
-	}
-	beam := p.distant.Beam()
-	lit := render.Illumination{Light: beam.Shaded(0, 0, 1, 1), Takes: takes}
-	if sum := lit.Light[0] + lit.Light[1] + lit.Light[2]; sum > 0 {
-		sky := beam.Shaded(0, 0, 1, 0)
-		lit.Direct = 1 - (sky[0]+sky[1]+sky[2])/sum
-	}
-	if takes&render.TakesLamps == 0 {
-		return lit
-	}
-	for _, l := range p.near {
-		if c, ok := l.light(x, y, z); ok {
-			for k := range lit.Lamps {
-				lit.Lamps[k] += c[k]
-			}
-		}
-	}
-	if sum := lit.Light[0] + lit.Light[1] + lit.Light[2]; sum > 0 {
-		lit.Direct *= sum / (sum + lit.Lamps[0] + lit.Lamps[1] + lit.Lamps[2])
-	}
-	for k := range lit.Light {
-		lit.Light[k] += lit.Lamps[k]
-	}
-	return lit
-}
-
-// cast gathers the live shadow of what stands in box as z says, drawn as a, cast as declared
-// says through the policy: the distant light's, and on level ground the casting lamps' too
-func (p *Plugin) cast(box geom.AABB, z world.Z, a render.Appearance, declared Casting) {
-	if declared == Baked || declared == NoShadow {
-		return
-	}
-	casting := declared
-	if p.policy != nil {
-		casting = p.policy(declared, p.distance(box, z))
-	}
-	if casting == Baked || casting == NoShadow {
-		return
-	}
-	shape := casting == Silhouette
-	if u, ok := p.distant.ShadowOf(box, z, p.groundAt()); ok {
-		if shape {
-			u, _ = p.distant.SilhouetteOf(box, z, p.groundAt())
-		}
-		p.gather(u, a, shape)
+// Publish hands the frame drawn next the light as it stands: the distant light and the lamps,
+// how it is set, the blocks the ground bakes the shadows of, the ground they are baked over and
+// the relief under the live shadows.
+func (p *Plugin) Publish() {
+	b := p.lights.Back()
+	b.Sun, b.Lamps = p.distant, append(b.Lamps[:0], p.lamps...)
+	b.LampShadows, b.Coarse, b.Policy = p.Res.Settings.LampShadows, p.Res.Settings.Coarse, p.policy
+	b.Blocks = p.standing(b.Blocks[:0])
+	b.Ground, b.GroundAt = render.Lattice{}, nil
+	if lat, ok := p.lattice(len(b.Blocks) > 0); ok {
+		b.Ground = lat
 	}
 	if p.relief != nil {
-		return
-	}
-	for _, l := range p.read.Casting() {
-		if u, ok := l.ShadowOf(box, z, shape); ok {
-			p.gather(u, a, shape)
-		}
+		b.GroundAt = p.groundAt
 	}
 }
 
-// gather adds the cast u, in the shape of the sprite a where shape says, seen from the side the
-// sprite faces: its left on the left of the eye's way across
-func (p *Plugin) gather(u Umbra, a render.Appearance, shape bool) {
-	var u0, v0, u1, v1 float32
-	if atlas := p.w.Read(0).Atlas(); shape && atlas != nil {
-		u0, v0, u1, v1 = atlas.UV(a.SpriteID)
-		if -u.UY*p.right[0]+u.UX*p.right[1] < 0 {
-			u0, u1 = u1, u0
-		}
-	}
-	p.casts = append(p.casts, u.X, u.Y, u.UX, u.UY, u.Along, u.Wide, u.Fade, u.Veil,
-		u0, v0, u1, v1)
+// Swap has the light published last drawn.
+func (p *Plugin) Swap() {
+	p.lights.Swap()
+	p.swapped = true
 }
 
-// the ground under a point, nil for level ground
-func (p *Plugin) groundAt() func(x, y float32) float32 {
-	if p.relief == nil {
+// drawn is the light the frame drawn is lit by, nil before any was published
+func (p *Plugin) drawn() *render.Lights {
+	if !p.swapped {
 		return nil
 	}
-	return func(x, y float32) float32 {
-		return float32(p.relief.GroundAt(geom.NewVec(float64(x), float64(y))))
-	}
+	return p.lights.Front()
 }
 
-// how far from the eye the box's middle stands, 0 through a camera without one
-func (p *Plugin) distance(box geom.AABB, z world.Z) float32 {
-	if !p.eyed {
-		return 0
-	}
-	dx := float32(box.TopLeft.X+box.BottomRight.X)/2 - p.eye[0]
-	dy := float32(box.TopLeft.Y+box.BottomRight.Y)/2 - p.eye[1]
-	dz := float32(z.Altitude) - p.eye[2]
-	return sqrt32(dx*dx + dy*dy + dz*dz)
-}
-
-// Compose plans the shade baked this frame and hands the frame it (render.GroundShade), the bake
-// drawn in the opaque pass before the ground reads it, and lays the live shadows gathered for the
-// picture over the ground's depth.
-func (p *Plugin) Compose(f *render.Frame, _ camera.Camera) {
-	blocks := p.standing()
-	if lat, ok := p.lattice(len(blocks) > 0); ok {
-		if shade, shown := p.baker.Plan(lat, p.distant.Dir, blocks); shown {
-			f.GroundShade(shade)
-		}
-		if p.baker.Pending() {
-			f.DrawOpaque()
-		}
-	} else {
-		p.baker.Drop()
-	}
-	if len(p.casts) > 0 {
-		f.ReadGround()
-		f.DrawAt(f.OnGround(castLift))
-	}
-}
-
-// Draw bakes the shade planned in the opaque pass, and lays the casts after the ground is drawn.
-func (p *Plugin) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
-	switch t.Pass {
-	case render.Opaque:
-		p.baker.Bake(u)
-	case render.SeeThrough:
-		p.caster.Draw(t, cam, p.w.Read(0).Atlas(), p.casts, p.lat.Low, p.lat.Low+p.lat.Span)
-	}
+// the ground under a point, the relief's
+func (p *Plugin) ground(x, y float32) float32 {
+	return float32(p.relief.GroundAt(geom.NewVec(float64(x), float64(y))))
 }
 
 // lattice is the ground the shade is baked over: the relief's, or level ground under the world
 // while a block stands on it (standing); false with nothing to bake
-func (p *Plugin) lattice(standing bool) (bake.Lattice, bool) {
+func (p *Plugin) lattice(standing bool) (render.Lattice, bool) {
 	if p.distant.Strength <= 0 {
-		return bake.Lattice{}, false
+		return render.Lattice{}, false
 	}
 	if p.relief == nil {
 		if !standing {
-			return bake.Lattice{}, false
+			return render.Lattice{}, false
 		}
 		space := p.w.Res.Config.Space
 		w, h := float64(space.Width), float64(space.Height)
 		cell := max(w, h) / flatCells
-		p.lat = bake.Lattice{
+		p.lat = render.Lattice{
 			Cols: int(math.Ceil(w/cell)) + 1,
 			Rows: int(math.Ceil(h/cell)) + 1,
 			Cell: float32(cell),
@@ -482,7 +291,7 @@ func (p *Plugin) lattice(standing bool) (bake.Lattice, bool) {
 		p.reliefAt = v
 		cols, rows, cell, heights, ok := p.relief.Lattice()
 		if !ok {
-			p.lat = bake.Lattice{}
+			p.lat = render.Lattice{}
 			return p.lat, false
 		}
 		low, high := float32(math.Inf(1)), float32(math.Inf(-1))
@@ -492,18 +301,17 @@ func (p *Plugin) lattice(standing bool) (bake.Lattice, bool) {
 		if len(heights) == 0 {
 			low, high = 0, 0
 		}
-		p.lat = bake.Lattice{Cols: cols, Rows: rows, Cell: cell, Low: low, Span: max(high-low, 1),
+		p.lat = render.Lattice{Cols: cols, Rows: rows, Cell: cell, Low: low, Span: max(high-low, 1),
 			Version: p.relief.Version()}
 	}
 	return p.lat, p.lat.Cols > 0
 }
 
-// standing is every Baked block on the ground: a deck over its Lie from its Altitude down its
-// Height, anything else over its box from its Altitude up
-func (p *Plugin) standing() []bake.Block {
-	p.found = p.found[:0]
+// standing is dst with every Baked block on the ground: a deck over its Lie from its Altitude
+// down its Height, anything else over its box from its Altitude up
+func (p *Plugin) standing(dst []render.Block) []render.Block {
 	if p.blocks == nil {
-		return p.found
+		return dst
 	}
 	for p.blocks.All(); p.blocks.Next(); {
 		cur := p.blocks.Cursor()
@@ -514,11 +322,11 @@ func (p *Plugin) standing() []bake.Block {
 			}
 			box, alt := bases[i].Pos.AABB, float32(zs[i].Altitude)
 			if lies != nil && lies[i].Length > 0 {
-				p.found = append(p.found, lying(bases[i].Pos.Center(), bases[i].Vel.Dir, lies[i],
+				dst = append(dst, lying(bases[i].Pos.Center(), bases[i].Vel.Dir, lies[i],
 					alt-float32(zs[i].Height), alt))
 				continue
 			}
-			p.found = append(p.found, bake.Block{
+			dst = append(dst, render.Block{
 				X:      float32(box.TopLeft.X + box.Size.X/2),
 				Y:      float32(box.TopLeft.Y + box.Size.Y/2),
 				UX:     1,
@@ -529,14 +337,14 @@ func (p *Plugin) standing() []bake.Block {
 			})
 		}
 	}
-	return p.found
+	return dst
 }
 
-func lying(m, dir geom.Vec, lie world.Lie, bottom, top float32) bake.Block {
+func lying(m, dir geom.Vec, lie world.Lie, bottom, top float32) render.Block {
 	c := lie.Corners(m, dir)
 	length := math.Hypot(c[1].X-c[0].X, c[1].Y-c[0].Y)
 	width := math.Hypot(c[2].X-c[0].X, c[2].Y-c[0].Y)
-	b := bake.Block{
+	b := render.Block{
 		X:      float32((c[0].X + c[3].X) / 2),
 		Y:      float32((c[0].Y + c[3].Y) / 2),
 		UX:     1,
@@ -549,17 +357,4 @@ func lying(m, dir geom.Vec, lie world.Lie, bottom, top float32) bake.Block {
 		b.UX, b.UY = float32((c[1].X-c[0].X)/length), float32((c[1].Y-c[0].Y)/length)
 	}
 	return b
-}
-
-func sqrt32(v float32) float32 { return float32(math.Sqrt(float64(v))) }
-
-// taken is the shade t takes: all for a zero one, none for Shines
-func taken(t render.Taking) render.Taking {
-	switch {
-	case t == 0:
-		return render.TakesAll
-	case t&render.Shines != 0:
-		return 0
-	}
-	return t
 }

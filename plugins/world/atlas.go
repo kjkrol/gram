@@ -382,22 +382,22 @@ func (a *Atlas) edged() map[render.SpriteID]render.SpriteID {
 // the effects' swaps, the look declared later first: a swap finds the kind's own sprite, so
 // under two effects at once the first swap that matches is the one that holds, and the rest
 // miss the twin it put in
-func (a *Atlas) swaps() []render.Rule {
-	out := make([]render.Rule, 0, len(a.marks))
+func (a *Atlas) swaps() []Rule {
+	out := make([]Rule, 0, len(a.marks))
 	for i := len(a.marks) - 1; i >= 0; i-- {
 		mark := a.marks[i]
-		out = append(out, render.Swap(a.twins[mark], mark.In))
+		out = append(out, Swap(a.twins[mark], mark.In))
 	}
 	return out
 }
 
 // in their order: the facing swaps, the frames by the clock, the frames along an effect, then
 // the turning, after the effects' own swaps
-func (a *Atlas) rules(now func() time.Duration) []render.Rule {
-	var out []render.Rule
+func (a *Atlas) rules(now func() time.Duration) []Rule {
+	var out []Rule
 	if len(a.faced) > 0 {
 		faced := a.faced
-		out = append(out, render.With(func(ap render.Appearance, b Base) render.Appearance {
+		out = append(out, With(func(ap render.Appearance, b Base) render.Appearance {
 			if twins := faced[ap.SpriteID]; len(twins) > 0 {
 				ap.SpriteID = twins[headingIndex(b.Vel.Dir, len(twins))]
 			}
@@ -406,7 +406,7 @@ func (a *Atlas) rules(now func() time.Duration) []render.Rule {
 	}
 	if len(a.animated) > 0 {
 		animated, moving := a.animated, a.moving
-		out = append(out, render.With(func(ap render.Appearance, b Base) render.Appearance {
+		out = append(out, With(func(ap render.Appearance, b Base) render.Appearance {
 			an, ok := animated[ap.SpriteID]
 			if !ok || moving[ap.SpriteID] && b.Vel.Value == 0 && b.Vel.Side == 0 {
 				return ap
@@ -424,11 +424,11 @@ func (a *Atlas) rules(now func() time.Duration) []render.Rule {
 			}
 			return ap
 		}
-		out = append(out, render.With(along))
+		out = append(out, With(along))
 	}
 	if len(a.turned) > 0 {
 		turned := a.withKin(a.turned)
-		out = append(out, render.With(func(ap render.Appearance, b Base) render.Appearance {
+		out = append(out, With(func(ap render.Appearance, b Base) render.Appearance {
 			if turned[ap.SpriteID] && (b.Vel.Dir.X != 0 || b.Vel.Dir.Y != 0) {
 				ap.Angle = angleOf(b.Vel.Dir)
 			}

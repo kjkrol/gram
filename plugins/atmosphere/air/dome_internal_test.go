@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 var (
@@ -236,5 +236,99 @@ func compare(t *testing.T, d *Dome, image *DomeImage, when string) {
 	if worst > 2.5/255 {
 		t.Errorf("%s, the shaders' dome differs from the CPU's by %v at %v, want within 2.5/255",
 			when, worst*255, at)
+	}
+}
+
+// whether a reads as d does: its masses across the dome and past it, its most and its levels as
+// the shaders read them
+func readsAs(a, d *Dome) bool {
+	for y := float32(-3000); y <= 3500; y += 97 {
+		for x := float32(-3000); x <= 3700; x += 89 {
+			ma, sa := a.At(x, y)
+			md, sd := d.At(x, y)
+			if ma != md || sa != sd {
+				return false
+			}
+		}
+	}
+	for k := range maxLevels {
+		fa, ca := a.frame(k)
+		fd, cd := d.frame(k)
+		if fa != fd || ca != cd {
+			return false
+		}
+	}
+	return a.Most() == d.Most()
+}
+
+func TestDome_ACopyHoldsItAsCopiedEachCatchingUp(t *testing.T) {
+	d := laidDome(640, 480, 2000, clearMass)
+	drift := [2]float32{}
+	carry := func(m Mass) {
+		for range 3 {
+			drift[0] += 1.7 * BoardCell
+			d.Carry(drift, bornOf(m, 1), false)
+		}
+	}
+	carry(cloudyMass)
+	var a, b Dome
+	d.CopyInto(&a)
+	if !readsAs(&a, d) {
+		t.Fatal("a copy reads otherwise than its dome")
+	}
+	carry(rainyMass)
+	d.CopyInto(&b)
+	if !readsAs(&b, d) || readsAs(&a, d) {
+		t.Errorf("carried on, the next copy reads as the dome %v, the one before still as it stood "+
+			"%v; want both", readsAs(&b, d), !readsAs(&a, d))
+	}
+	// the copy before missed a step: copied again it catches up
+	d.Settle(bornOf(Mass{Cover: 0.1, Billow: 1}, 9), func(float32, float32) float32 { return 0.6 },
+		0, 1)
+	d.CopyInto(&a)
+	if !readsAs(&a, d) {
+		t.Error("the copy two steps old, copied again, reads otherwise than its dome")
+	}
+	for k := range a.levels {
+		for i, p := range a.levels[k].patches {
+			if p == d.levels[k].patches[i] {
+				t.Fatalf("the copy holds the dome's patch %d of level %d, want one of its own", i, k)
+			}
+		}
+	}
+	other := laidDome(3584, 2688, 38400, rainyMass)
+	other.CopyInto(&a)
+	if !readsAs(&a, other) || len(a.levels) != len(other.levels) {
+		t.Error("copying another dome, the copy reads otherwise than it")
+	}
+}
+
+func TestDomeImage_PicturesTheCopiesOfADomeAsOne(t *testing.T) {
+	gputest.Need(t)
+	d := laidDome(640, 480, 6000, clearMass)
+	drift := [2]float32{}
+	carry := func(m Mass) {
+		for range 4 {
+			drift[0] += 7.3 * BoardCell
+			drift[1] -= 1.1 * BoardCell
+			d.Carry(drift, bornOf(m, 1), false)
+		}
+	}
+	var image DomeImage
+	var a, b Dome
+	carry(cloudyMass)
+	d.CopyInto(&a)
+	first := image.Of(&a)
+	compare(t, &a, &image, "the first copy")
+	carry(rainyMass)
+	d.CopyInto(&b)
+	if image.Of(&b) != first {
+		t.Fatal("the next copy of the dome has a picture of its own, want the dome's")
+	}
+	compare(t, &b, &image, "the next copy, carried on")
+	d.CopyInto(&a)
+	if image.Of(&a); len(image.pending) != 0 {
+		t.Errorf("the copy caught up with the one drawn last writes levels %v, want none",
+			image.pending)
 	}
 }

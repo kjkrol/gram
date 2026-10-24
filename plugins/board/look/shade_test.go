@@ -4,10 +4,7 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/kjkrol/aabbworld/plane"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -15,17 +12,12 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
-// white light on everything, as a light plugin without a sun gives it
-type whiteLighting struct{}
-
-func (whiteLighting) Join(*goke.QueryBuilder)                {}
-func (whiteLighting) Begin(*render.Frame, camera.Camera)     {}
-func (whiteLighting) At(x, y, z float32) render.Illumination { return render.WhiteLight }
-func (whiteLighting) Of(*goke.Cursor, int, plane.AABB, world.Z,
-	render.Appearance) render.Illumination {
-	return render.WhiteLight
+// the lights of a light plugin without a sun: white light on everything
+func whiteLights() *render.Lights {
+	return &render.Lights{Sun: render.Distant{Dir: [3]float32{0, 0, 1}, Ambient: 1}}
 }
 
 // hands the frame a distant light straight overhead, no ambient light, the ground's shade dark
@@ -35,7 +27,6 @@ type darkening struct {
 	lamp bool
 }
 
-func (*darkening) Init(*goke.SysInit) {}
 func (d *darkening) Compose(f *render.Frame, _ camera.Camera) {
 	f.Uniform("LightWay", 0, 0, 1)
 	f.Uniform("LightStrength", 1)
@@ -81,7 +72,7 @@ func TestRenderer_ShadesTheTilesAsTheFrameSaysWhereTheCellsTakeIt(t *testing.T) 
 		t.Fatalf("without a Lighting the grass is %d, want drawn as it is", v)
 	}
 	lighted := look.NewRenderer(brd, atlas, brd.Map(), space).
-		WithLighting(func() world.Lighting { return whiteLighting{} })
+		WithLights(whiteLights)
 	lit := draw(lighted, false)
 	if v := at(lit, 16, 16); v > 10 {
 		t.Errorf("under the frame's shade the grass is %d, want dark", v)

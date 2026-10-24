@@ -92,8 +92,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   a table's `TableVer` changed: spawns, despawns and marks alike, nothing else tells it, the
   `unindexed` flag gone; 2026-10-21, etap 3 and wave 3), the effects' pass. `Query`, `Scan` and collisions read that grid
   until the next rebuild. At the start of the world's tick the `view.System` refreshes every
-  `view.View` (`Plugin.View()` the camera's, `ViewFor(cam)` any's); the renderer draws what the
-  View contains. The world makes no camera. It hosts rules of a `clock.Moment` (every step, just
+  `view.View` (`Plugin.View()` the camera's); `Read.ViewFor(cam)` is a camera's as the frame
+  drawn was published (one copy a frame, 2026-10-23, the live one before the first publish; after
+  it nil for a camera the frame holds none of, 2026-10-24),
+  `Read.Views()`/`InView(id)` the live ones for what publishes to cull by; the renderer draws
+  what the View contains. The world makes no camera. It hosts rules of a `clock.Moment` (every step, just
   before the effects' pass) and handles the commands about effects, `Pause` (P and Shift+P),
   `Faster` (]) and `Slower` ([).
   `Figures(f...)` notes kinds of entity in one piece (`world.Figure`: `Define(w)`, `Look(a, w)`;
@@ -137,27 +140,33 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`Shining × Source`), `Plugin.Lamps()`, `White` the sun of a world without one. `light.Shadow{Cast,
   Take}` is every entity's knob (`KindTemplates`: `Patch` taking all; the board's standing
   template `Baked`): `Casting` `Patch`/`Silhouette`/`Baked`/`NoShadow`, `render.Taking` bits
-  `TakesRelief|TakesBlocks|TakesClouds|TakesLamps` (zero all, `render.Shines` none). The plugin is
-  a `render.Direct`: its `Begin` (called by the world's renderer, `world.Lighting`) hands the
-  frame the distant light's uniforms (`internal/distant`'s `light.wgsl`: `lightWay`, `U.LightWay`,
-  `U.LightStrength`, `U.LightColor`, `U.AmbientColor`, `U.Ambience`) and the `MaxLamps` 8 lamps
-  nearest the camera (`lamps.wgsl`: `lampLightAt(p)`, `U.LampCount`, `Lamp{k}At/Color`); `Of`
-  lights an entity (`render.Illumination{Light, Lamps, Direct, Takes}`) and gathers its live shadow
-  through the `ShadowPolicy` (`WithShadowPolicy`, by the distance from the eye): the sun's
-  (`Sun.ShadowOf`/`SilhouetteOf`, an `Umbra`, the sprite's shape flipped to the side it faces)
-  and on level ground the `Casting()` lamps' (`Lamp.ShadowOf`; `Config.LampShadows` nearest the
-  camera, `LampShadows{Count}` off and on, `SetLampShadows`, `Res.Settings.LampShadows`); `Compose` plans the bake and
-  `Draw` runs it in the opaque pass before the ground is drawn (`internal/bake`: the relief's
-  shade from the frame's `GroundHeights` over a `Relief` the topography gives with `OverRelief` —
-  `groundDrawnAt`, triangle-split as the mesh is drawn — a strip a frame as the sun turns, the
-  whole at a leap or as the heights or the blocks change, each band fading from its last bake,
-  `shade.wgsl`; then every `Baked` entity a block, `blocks.wgsl`, `Darkest`, a deck's pieces
-  joined, over level ground 256 cells a side under the world's space without a relief — so a flat
-  board gets its towers' and bridges' shadows; `CoarseShadows{On}` half as fine
-  (`Res.Settings.Coarse`, the baker's flag re-applied in `Restore`); nothing to bake
-  over a hex relief or without a sun; a bake before the frame holds the heights plans the whole
-  anew), and lays the casts after the ground over its depth (`internal/cast`, `cast.wgsl`, the
-  rect each covers from the relief's extent, `f.ReadGround`, at `OnGround(castLift)` 0.05 under
+  `TakesRelief|TakesBlocks|TakesClouds|TakesLamps` (zero all, `render.Shines` none). **The plugin
+  declares and publishes; render lights** (2026-10-24): it is a `plugin.Publisher` of
+  `render.Lights` once a frame (sun, lamps, `LampShadows`, `Coarse`, policy, the `Baked` blocks
+  scanned once a frame with `Exclude[sector.Off]`, the ground they bake over — the relief's lattice
+  by its version, or level ground 256 cells a side while a block stands — and the relief's
+  `GroundAt` for the live shadows), handed through `world.Write.SetLights` to the world's
+  composer (`render.Composer.Light`; `world.Read.Lights()` for what draws: the board's miniature,
+  the topography's billboards, the reporter). `world.Lighting` is the simulation's side alone:
+  `Join` and `Mark(cur, i) render.Shadowing`. The composer (`render/internal/compose/lighting.go`)
+  at the start of each part hands the frame the sun's uniforms (`lightWay`, `U.LightWay`,
+  `U.LightStrength`, `U.LightColor`, `U.AmbientColor`, `U.Ambience`, render's library
+  `light.wgsl`) and the `MaxLamps` 8 lamps nearest the camera (`lampLightAt(p)`, `U.LampCount`,
+  `Lamp{k}At/Color`) — the ground of a sharp-figures frame lit by them too — and plans the bake,
+  drawn first of the opaque pass; `render.Frame.Lit(x, y, z, take)` lights what a source draws
+  (`render.Illumination{Light, Lamps, Direct, Takes}`), `Frame.Cast(box, alt, height, Shadowing,
+  atlas, sprite)` declares a live shadow, laid once every source of the part has composed, through
+  the `ShadowPolicy` by the distance from the eye: the sun's (`Distant.ShadowOf`/`SilhouetteOf`,
+  an `Umbra`, the sprite's shape flipped to the side it faces) and on level ground the
+  `LampShadows` nearest lamps' (`Lamp.ShadowOf`). The bake (`compose/bake.go`): the relief's shade
+  from the frame's `GroundHeights` — `groundDrawnAt`, triangle-split as the mesh is drawn — a strip
+  a frame as the sun turns, the whole at a leap or as the heights or the blocks change, each band
+  fading from its last bake, `bake_shade.wgsl`; then every block, `bake_blocks.wgsl`, `Darkest`, a
+  deck's pieces joined, so a flat board gets its towers' and bridges' shadows; `CoarseShadows{On}`
+  half as fine (`Res.Settings.Coarse`); nothing to bake over a hex relief or without a sun; a bake
+  before the frame holds the heights plans the whole anew. The casts (`compose/cast.go`,
+  `cast.wgsl`, the rect each covers from the relief's extent, `f.ReadGround`, at
+  `OnGround(castLift)` 0.05 under
   the grid). A ground draws itself in what the frame holds: `render.GroundShade`, `lightWay`,
   `lampLightAt` (the terrain's `mesh.wgsl`, the hexes', the board's tiles, `look/tiles.go`). Tests:
   `plugin_test.go`, `shadows_test.go`, `internal/bake` (GPU: strips, blocks, level ground, reach,
@@ -173,7 +182,13 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   root keeps the `Plugin`, the `Board` (`Plugin.Board()`: `At(x, y)`, `Kind`, `KindAt`, `KindFor`,
   `Bare`, `Set`, `SetAll`, `Way`, `SetWay`, `Along`, `DecksOver`, `Reaches`, `Fenced`, `Lane`,
   `CellFor`, `LevelFor`, `CellVersion`, `Changes`, `Version`, `Touch`,
-  `Shape`, `Built`, `States`), the `Layout`, the `Map` contract, `NewUnits`, `NewEntities`, `Lay`
+  `Shape`, `Built`, `States`), the `Layout`, the `Map` contract, `NewUnits`, `NewEntities`, `Lay`;
+  what draws reads the cells **as published** (2026-10-24): the plugin publishes them once a
+  frame (`drawn.go`: two buffers, each brought up to the board where a cell's version differs,
+  a cell 32 bytes, its kinds and way interned), read through `board.Read.Drawn()` (a
+  `board.Drawn`: `look.Board` + `Way`, `States`, `Version`; the live board before any publish)
+  and `Read.DrawnHeights()` (the Map's `DrawnHeights`, the topography's frame relief); the
+  renderer publishes its grid's toggles (`look.Renderer.Publish`, `drawn()`)
   (`level.go`), `Spawn[R]`, `Each[R]`, `Sides`, `Shape`. Public subpackages: **`board/cell`**
   (`cell.ID`, `cell.Kind`, `cell.Kinds` through `board.Plugin.CellKinds()`, `cell.Domain` —
   `Land`, `Water`, `Air`, a game's own bits — `cell.Plot`, `cell.Ground`, `cell.Way`/`Links`,
@@ -313,7 +328,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   Terrain is never an entity in the space: the board's field (`internal/field`) is collision's
   `collision.Field` (`Solid`, `Overhang`), handed over by `Plugin.WithCollision`, and sight's
   `ground.Cover` (`Plugin.Cover`); both read the cell entities whenever asked. A flat board is lit
-  by the light plugin (`look.Renderer.WithLighting(world.Lighting)`) and drawn on the GPU out of
+  by the light plugin (`look.Renderer.WithLights(world.Read.Lights)`) and drawn on the GPU out of
   its tile map (`look/tiles.go`, 2026-10-23): an image of its cells, a 2×2 block a cell (sprite,
   shade taken, flags, the way's sprite and links, covers, width, fade, sway, height, material),
   and one of the sheet's rectangles; a changed cell (`CellVersion`) rewritten with its
@@ -330,7 +345,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`seen.go`). Nothing is composed on the CPU: a camera without rays or a board of no world
   draws nothing; `Renderer.Whole` draws the whole board from above into an image),
   and takes the weather through `board.Plugin.WithAtmosphere(atmosphere)` (`lit.go`, reading
-  `board.Atmosphere{Air}`: what sways leaning, the clouds' shadows laid on its ground right after
+  `board.Atmosphere{DrawnAir}`, the weather as published: what sways leaning, the clouds' shadows laid on its ground right after
   the tiles, `draw.Clouds`), called in a scene before the first frame; without either it is drawn
   as it is. The
   board's own Map is the simple map — flat, every kind in its sprite from the game's atlas
@@ -339,8 +354,13 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   Depends on `world`, `motion` and `collision`.
 - **`topography`** — a map in relief: `topography.NewPlugin(world, board, light, Config{Shaping,
   Climbing})`, made right after the world, the light and the board (so a world with heights);
-  refuses a wrapping world; hands the light its relief (`light.Plugin.OverRelief`) for the
-  shadows to fall on. It is the cameras' `cameras.Cage` (`Free(x, y, z)`: over the ground, over the
+  refuses a wrapping world; hands the light its relief (`light.Plugin.OverRelief`, the heights as
+  they stand for the bake, the frame's under the live shadows). It publishes its relief once a
+  frame (`relief.CopyInto`, the heights copied as their version moves), its settings and the
+  board's grid (2026-10-24); the terrain (`drawnGround`, `terrain.Config.Drawn`), the care's
+  lines, the painter (`painter.Board`, a func for the relief), the hexes (`drawnMap`) and the
+  billboards draw from them; the terrain encodes the heights as it composes, so the frame's
+  `GroundSpan` is theirs. It is the cameras' `cameras.Cage` (`Free(x, y, z)`: over the ground, over the
   kind on its cell to its `Height`, out of a deck's slab; `Span()` the relief's extent; `Grain`
   near decks — a game hands it as `cameras.Config.Cage`), sets the world's Look
   (`billboards.Look`), the board's Map (`look.Nothing`: the ground is drawn on the GPU) and the
@@ -374,7 +394,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   that multiplies the albedo, fading out below `detailNear` pixels a cell (no mipmaps; the
   details cost 1.7 ms a frame on an Intel UHD 620 at 40 px a cell, 265 to 182 FPS, 2026-10-20:
   ~0.4 of it the tile sampled minified, the rest the reads — the flags, the kinds where a cell
-  is dressed, the tile; mipmaps in `internal/gpu` are the next step, for the far look as much);
+  is dressed, the tile; mipmaps in `render/internal/gpu` are the next step, for the far look as much);
   where a cell sways (`sway.wgsl`, `air.Weather.Sway` ported, gust fronts of `noise`, the
   amount and the wave worked out at the lattice's corners in `vs_main` and blended) the grain
   leans with `U.Wind`
@@ -410,7 +430,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   reads them in a top-down game too. **Layering: the world knows its entities and nothing else; the
   ground is the board's, the sky the atmosphere's, `render` generic.** A relief is lit by the
   light plugin it is made with (without one `light.White`, which the topography hands the
-  frame itself) and stands under its `topography.Atmosphere` for the weather (`WithAtmosphere`).
+  frame itself) and stands under its `topography.Atmosphere{DrawnAir}` for the weather as
+  published (`WithAtmosphere`; `liveSky` relays it to the terrain, the hexes and the billboards).
   Its water reflects the sky's own colours (`skyAt`). "Full care follows the frame budget"
   (`AdaptCare{On}`, `Settings.AdaptiveCare`, 2026-10-20): the plugin is a `cameras.Lever` given
   in `cameras.Config.Levers`, its care's reach stepped down the ladder (`careLadder`) before the
@@ -418,12 +439,21 @@ facts for plans, knobs and commands (who may give each). That section is the aut
 - **`atmosphere`** — the time of day, the climate and the weather on the world's clock, over a
   world with heights alone (`NewPlugin` panics in a flat one); its root
   keeps no shaders and draws nothing of the world itself: every part is a package that never
-  imports it. Its HUD (2026-10-20, etap V, `hud.go`): `TimeOfDay()`, `Date()` (the season
+  imports it. Drawn as published (`drawn.go`, 2026-10-24): `Publish` copies the weather
+  (`Read.Air()` with the clouds' shadow flags, its dome by `air.Dome.CopyInto`, a patch where
+  its `Version` differs from that buffer's), `Read.Sun()`, the heavens, `Running` and the
+  Settings; the sky, the low clouds (`lowClouds`, setting `aloft`'s look from the Settings as it
+  composes) and the drops read only that (`drawn()`, live before the first swap), the boards
+  `Read.DrawnAir()`; `Read.Air` stays live for the weathering and the climate's rules. The
+  clouds' setters and the lever write the Settings alone; the sky hands the frame the sun only
+  where the composer has not lit it. Its HUD (2026-10-20, etap V, `hud.go`): `TimeOfDay()`, `Date()` (the season
   and the date, the moon's phase an icon beside them while `Running().Moon`, drawn from
   `celestial.MoonFace` with the phase's shade, lit on the right waxing), `Weather()` (the name,
   the temperature, the wind; absent without a running climate; it reads through a drawer of
   its own, so it goes in the tree a scene is made with) and `Bar()` (the three on one panel for
-  `ui.TopMiddle`), `*ui.Element`s the scene places; the old `HUD()` renderers are gone.
+  `ui.TopMiddle`), `*ui.Element`s the scene places; the old `HUD()` renderers are gone. Their
+  words are read once a frame as the scene publishes, kept (`framed`) till the clock moves or
+  the weather's name changes; the moon icon shows the phase the atmosphere published.
   `Reporter()` lists the daylight, the clouds and their shadows alone: the time, the season,
   the moon and the weather are the widgets' (a game without them adds
   `Calendar().Reporter()` and `Climate().Reporter()`). The settings screen's atmosphere section
@@ -471,7 +501,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `ByDay`, `Image`), the stars (`Catalogue` drawn as instances behind the sky, `Dots` its shader
   adds); `Earth()` part by part (`EarthVault`/`Sun`/`Moon`/`Stars`, `ScatteredStars` the dots);
   a part is WGSL to `shaders/sky.wgsl` (`SkyVault(s: SkyAt)`, `SkyStars`, `SkyMoon(s, d: SkyDisc)
-  -> SkyShine`, `SkySun`) with `Reads` its uniforms and `Feed(v *Values)` setting them; without
+  -> SkyShine`, `SkySun`) with `Reads` its uniforms and `Feed(v *Values)` setting them (from
+  `v.Heavens()`, the heavens drawn under, never the live sky); without
   WGSL it draws nothing (a stub stands in). `Renderer.Dress` assembles the shader as the Stage's
   looks are declared, panicking on a uniform or a module-scope name two parts (or the library,
   `render.SharedUniforms`) declare; compiled at the first draw, cached by source. The clouds'
@@ -521,8 +552,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Hazer` the haze worked out once a frame. WGSL `airAt(p)` reads the frame's image `AirMasses`
   (`air.DomeImage`, held by the sky's renderer, which sets it in Compose; a block of pixels a
   level, its kept cells in order from the first, not the ring, so the GPU's filter blends them:
-  a level is copied out of the world's memory and written whole as its window moves or a patch
-  of it changes, drawn in place by gpu, see gram-render): `U.AirLevelNA` (the block's first
+  a level is copied out of the dome drawn and written whole as its window moves or a patch
+  of it changes, drawn in place by gpu, see gram-render; the copies of a dome,
+  `Dome.CopyInto`, share its picture): `U.AirLevelNA` (the block's first
   cell in the world, cell, block across the picture) and `U.AirLevelNC` (the rect read in), the
   finest level holding p, mixed with the next over its 2-cell band, one `textureSampleLevel`
   with `wrapped` a level, as `Dome.At` does on the CPU (a test keeps them within 2.5/255, also
@@ -869,7 +901,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   settles after every Sync of the interface too) and replays every block after it as many times
   as the tempo says (`Clock.Replay`; a plan written by hand, a test or a bench, does the same); `Clock.Behind` lowers a tempo above 1 after 30 slow frames.
   `clock.Phase` tags on the clock's entity, `Clock.In(phase)`, `Clock.Entity()`, `Reporter()`,
-  `HUD()`, `Shown` (game time run on past the last tick by the real time held toward the next;
+  `HUD()` (a `ui.Drawer` and a `plugin.Publisher`, its line read after the ticks), `Shown` (game time run on past the last tick by the real time held toward the next;
   `Clock.Pending`). Rules of a `clock.Moment{Last, Now}` fire every step (`clock.Every(period,
   offset)`, `clock.At(t)`; by clock time, never again after a load), about the clock's entity.
 - **`selection`** — a `Select` command (ids, or a world box, additive or not) sets the
@@ -964,7 +996,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   columns as wide as their lines, as many as the height takes. `players.RunPlan` runs last and
   empties the queues. Depends on `world`.
 - **`cameras`** — every camera a game looks through, and all camera behaviour (the contract
-  stays in the root `camera`, which `render` and `control` read): `cameras.NewPlugin(world,
+  stays in the root `camera`, which `render` and `control` read). Every camera is
+  `camera.Snapped` (2026-10-24): `Snap` copies it for the frame drawn (a relief camera's copy
+  its own sticks, its ground's extent frozen, no cage read), taken by a feed as it is laid out;
+  a copy is for drawing alone, no `Pick`, no command. `cameras.NewPlugin(world,
   cameras.Config{…})` makes no camera; the Config is the game's (in `makePlugins`) and says what
   the keys may do — `Turn` (Q/E), `Tilt` (R steeper, F flatter), `Perspective` (Tab switches to
   it and back, V rides Inside, the mouse looks) — and how a world in relief is drawn (`Cell` required, `TileW`/`TileH` 64×32,
@@ -1050,8 +1085,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   Coarser, Finer}`) are turned before the pictures both ways — the first first going coarser,
   the last first coming back — so the cheapest to the eye takes the rate's wavering and the
   pictures move under a lasting change alone; the topography's care is one; the setters take
-  the profile first (`SetStrategy(profile, s)`); the adapter steps every camera by its profile's
-  strategy, `note` writes the lead's back into its profile; the settings screen lists "Frame
+  the profile first (`SetStrategy(profile, s)`); the adapter, on the frame's barrier
+  (`Plugin.Pace`, a `plugin.Paced` told each frame's `plugin.FrameTimes`, 2026-10-24), steps
+  coarser only while the drawing's side (drawing, presenting, the wait for the GPU) took longer
+  than the simulation over the window, and every camera by its profile's strategy, `note` writes the lead's back into its profile; the settings screen lists "Frame
   budget" under `control.Picture`, then each profile's nine knobs under `control.PictureTactical`
   and `PictureTacticalLayers`, `PictureRiding` and `PictureRidingLayers` (20 settings; the two
   profiles are twin sections, laid side by side by the settings screen; an element is named `setting:<section path>/<label>`); the
@@ -1130,12 +1167,14 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   keeps what the scan found to the field `Tilt ± Vertical/2` by elevation (`scanner.vertical`, after
   aabbworld's cone, which knows no vertical angle), the views drawn the ring of ground the field
   meets (near and far on the CPU from the eye's height, per pixel on the GPU by `atan2`, the
-  instance's fifth vec4). Every observer is scanned every step, or
+  instance's fifth vec4); the cover they are held back by on the GPU is walked as the observers
+  are published (`coverCopy`, anew where the cover or the ground changed; 2026-10-24), the
+  drawing only uploading it. Every observer is scanned every step, or
   `WithFrequency(perSecond)` with the observers taking turns, shared among goroutines
   (`WithWorkers`). It hosts rules of a `Sighting` inside the scan's pass, once a step per observer
   on what it saw at its last scan (`cond.Other.If(b)` everything in view; its `Subject` the nearest
   seen, so an aimed `steering.Away{}`/`Toward{}` is about that one); words `vision.SeesNobody()`,
-  `vision.Closing()`. The views drawn are every observer's unless `WithViews(render.Show(...))`
+  `vision.Closing()`. The views drawn are every observer's unless `WithViews(world.Show(...))`
   picks some (given in the scene); `Cones{Shown}` (the settings screen's, no key) shows and
   hides them (`ShowCones`, `HideCones`, `ConesShown`; `Res.Settings.Cones`, saved; the start in `makePlugins`). `WithLog`. Depends on `world`.
 - **`bridges`** — bridges built by one set of rules whoever builds them: `bridges.NewPlugin( world,
@@ -1179,7 +1218,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`plugin.Keep`, `Restorer`). The panel draws itself (a `ui.Drawer` of the scene, top-left):
   the labels bold, a value beside its label or under it indented, a line wider than
   `panelWrap` (260 px) wrapped with its rest indented, the plate as wide as the lines have run
-  since the mode changed (`stale` on `SetMode`), so a panel back to the basics shrinks. A many-valued line is a value of several lines, each under the
+  since the mode changed, so a panel back to the basics shrinks. The panel is a
+  `plugin.Publisher` (2026-10-24) its scene publishes while shown: the lines and the reporters
+  are read after the ticks, four times a second and as the mode changes, into labels and
+  values; the panel only wraps the last reading, as it changes, and draws it (a reporter runs on
+  the ticks' side; the topography's cares are handed over as it swaps). A many-valued line is a value of several lines, each under the
   label indented as Frame's: the light's `sun 0.71` / `lamps 1` / `shadows of 1`, the sky's
   `Daylight` (was "Light"), the cameras' `Picture` (the profile, the pixels, the layers or
   the figures sharp, the following), the topography's `Ground` (the reach, a care a line:
@@ -1196,7 +1239,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   the players' handlers, `RunPlan` after the cameras'. `For(cam, issuer) *ui.Element` is a
   camera's minimap for the scene to place and dress (`ui.TopRight(...).Size(220, 220)`,
   `.Masked(ui.Circle)`, `.Fill`, `.Border`). **Its picture is its own, not the Stage's**: a
-  `lens` (an inner `camera.Camera` straight down, over `cam`'s `Focus`, turned so `camera.Headed`
+  `lens` (an inner `camera.Camera` straight down, aimed as drawn: the ticks say where it is to
+  look, published with the marks, the picture aimed and the compass turned as published; over `cam`'s `Focus`, turned so `camera.Headed`
   `Ahead` runs up when turning, `min(w, h) / (2·Reach)` pixels a unit, the shorter way round a
   torus; neither in the cameras' list — no anchor, not saved — nor in `ctx.Draws`) and a
   composer of three sources: the ground (`Ground.Miniature() (img, perUnit)`, drawn opaque with
@@ -1204,13 +1248,16 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   space's ids in the picture's rectangle, each kind's `Mark{Color, Size}` declared
   `Styled(minimap.Mark{...})` in its figure's `Look`, looked up once a sprite; a square dot
   `OnTop(1)`; a kind without one not drawn) and the outline of `cam`'s screen on the ground
-  (`camera.Picker`, past the horizon cut at twice the reach; `OnTop(2)`). North is a second
+  (`camera.Picker`, past the horizon cut at twice the reach; `OnTop(2)`; picked as the marks are
+  published, on the ticks' side, and drawn as published, 2026-10-24; so is the reach, which
+  `SetReach` only configures). North is a second
   element, `Compass(cam) *ui.Element` (2026-10-20): a red triangle (18 by 16 px) hung on the
   circle's edge three quarters out, pointing north, turned round the circle and with it as the
   minimap turns, a transparent picture
   the scene lays over the minimap in a box `minimap.Overhang` (20) bigger on every side
-  (`ui.Layers(ui.Center(minimap).Size(220, 220), compass)` sized 260). Drawn anew at most 30
-  times a second (`paced`), the last picture in between. A press on it is its own
+  (`ui.Layers(ui.Center(minimap).Size(220, 220), compass)` sized 260). Its marks are published
+  at most 30 times a second (`allMarks`, a deadline and a version) and the minimap drawn anew as
+  they are (`paced`), the last picture in between. A press on it is its own
   (`ui.Clicked`): `cameras.CenterAt` with the world point under it as the issuer's; the player's
   picture under it is covered (`ui.Hovered`), so the cursor there neither scrolls nor turns.
   `Switch{Shown}` shows or hides them (`Show`, `Shown`), `Turn{On}` turns them with the

@@ -1,10 +1,11 @@
-package render_test
+package world_test
 
 import (
 	"testing"
 
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -25,9 +26,9 @@ type one struct {
 }
 
 // each entity starts from sprite 100 plus its place
-func draw(t *testing.T, rules []render.Rule, entities ...one) ([][]render.Appearance, []bool) {
+func draw(t *testing.T, rules []world.Rule, entities ...one) ([][]render.Appearance, []bool) {
 	t.Helper()
-	var r render.Rules
+	var r world.Rules
 	if err := r.Add(rules...); err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +36,7 @@ func draw(t *testing.T, rules []render.Rule, entities ...one) ([][]render.Appear
 	var ghosts goke.Comp[ghost]
 	var moods goke.Comp[mood]
 	var marks goke.Comp[tag.Tags[fam]]
-	render.Own(&r, &places)
+	world.Own(&r, &places)
 	layers, shown := make([][]render.Appearance, len(entities)), make([]bool, len(entities))
 	goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		for k, e := range entities {
@@ -81,8 +82,8 @@ func draw(t *testing.T, rules []render.Rule, entities ...one) ([][]render.Appear
 
 const eastward, other, spook, crown render.SpriteID = 7, 3, 9, 11
 
-func facing() render.Rule {
-	return render.With(func(a render.Appearance, p place) render.Appearance {
+func facing() world.Rule {
+	return world.With(func(a render.Appearance, p place) render.Appearance {
 		a.SpriteID = other
 		if p.Heading == 1 {
 			a.SpriteID = eastward
@@ -92,14 +93,14 @@ func facing() render.Rule {
 }
 
 func TestWith_ReadsAComponentTheRendererReadsItself(t *testing.T) {
-	got, _ := draw(t, []render.Rule{facing()}, one{heading: 1}, one{})
+	got, _ := draw(t, []world.Rule{facing()}, one{heading: 1}, one{})
 	if got[0][0].SpriteID != eastward || got[1][0].SpriteID != other {
 		t.Errorf("sprites %v and %v, want %v heading east and %v the other way", got[0][0].SpriteID, got[1][0].SpriteID, eastward, other)
 	}
 }
 
 func TestAs_DrawsACarrierAsAnotherSpriteAfterTheRulesBefore(t *testing.T) {
-	got, _ := draw(t, []render.Rule{facing(), render.As[ghost](render.Appearance{SpriteID: spook})},
+	got, _ := draw(t, []world.Rule{facing(), world.As[ghost](render.Appearance{SpriteID: spook})},
 		one{heading: 1, ghost: true}, one{heading: 1})
 	if len(got[0]) != 1 || got[0][0].SpriteID != spook {
 		t.Errorf("the ghost drawn as %v, want %v alone", got[0], spook)
@@ -110,7 +111,7 @@ func TestAs_DrawsACarrierAsAnotherSpriteAfterTheRulesBefore(t *testing.T) {
 }
 
 func TestOver_LaysASpriteOnACarrierAlone(t *testing.T) {
-	got, _ := draw(t, []render.Rule{render.Over[ghost](render.Appearance{SpriteID: crown})}, one{ghost: true}, one{})
+	got, _ := draw(t, []world.Rule{world.Over[ghost](render.Appearance{SpriteID: crown})}, one{ghost: true}, one{})
 	if len(got[0]) != 2 || got[0][0].SpriteID != 100 || got[0][1].SpriteID != crown {
 		t.Errorf("the carrier drawn as %v, want its own sprite under %v", got[0], crown)
 	}
@@ -120,20 +121,20 @@ func TestOver_LaysASpriteOnACarrierAlone(t *testing.T) {
 }
 
 func TestOver_OnlyWhereItsConditionHolds(t *testing.T) {
-	got, _ := draw(t, []render.Rule{render.Over(render.Appearance{SpriteID: crown}, hit.In)}, one{hit: true}, one{})
+	got, _ := draw(t, []world.Rule{world.Over(render.Appearance{SpriteID: crown}, hit.In)}, one{hit: true}, one{})
 	if len(got[0]) != 2 || len(got[1]) != 1 {
 		t.Errorf("drawn as %v and %v, want the crown on the one hit alone", got[0], got[1])
 	}
 }
 
 func TestWith_ReworksTheSpriteByTheComponentsValue(t *testing.T) {
-	angry := render.With(func(a render.Appearance, m mood) render.Appearance {
+	angry := world.With(func(a render.Appearance, m mood) render.Appearance {
 		if m.Angry {
 			a.SpriteID += 50
 		}
 		return a
 	})
-	got, _ := draw(t, []render.Rule{angry}, one{mood: &mood{Angry: true}}, one{mood: &mood{}}, one{})
+	got, _ := draw(t, []world.Rule{angry}, one{mood: &mood{Angry: true}}, one{mood: &mood{}}, one{})
 	if got[0][0].SpriteID != 150 || got[1][0].SpriteID != 101 || got[2][0].SpriteID != 102 {
 		t.Errorf("sprites %v, %v, %v; want the angry one reworked (150), the calm one and the one with no mood left alone (101, 102)",
 			got[0][0].SpriteID, got[1][0].SpriteID, got[2][0].SpriteID)
@@ -141,9 +142,9 @@ func TestWith_ReworksTheSpriteByTheComponentsValue(t *testing.T) {
 }
 
 func TestWith_ReworksOnlyWhereItsConditionHolds(t *testing.T) {
-	bump := render.With(func(a render.Appearance, _ mood) render.Appearance { a.SpriteID += 50; return a },
+	bump := world.With(func(a render.Appearance, _ mood) render.Appearance { a.SpriteID += 50; return a },
 		func(m mood) bool { return m.Angry })
-	got, _ := draw(t, []render.Rule{bump}, one{mood: &mood{Angry: true}}, one{mood: &mood{}})
+	got, _ := draw(t, []world.Rule{bump}, one{mood: &mood{Angry: true}}, one{mood: &mood{}})
 	if got[0][0].SpriteID != 150 || got[1][0].SpriteID != 101 {
 		t.Errorf("sprites %v, %v; want the angry one reworked (150), the calm one left alone (101)", got[0][0].SpriteID, got[1][0].SpriteID)
 	}
@@ -153,7 +154,7 @@ const frozenEast, frozenOther render.SpriteID = 17, 13
 
 func TestSwap_DrawsTheTwinOfTheSpriteWhereItsConditionHolds(t *testing.T) {
 	twins := map[render.SpriteID]render.SpriteID{eastward: frozenEast, other: frozenOther}
-	got, _ := draw(t, []render.Rule{facing(), render.Swap(twins, hit.In)},
+	got, _ := draw(t, []world.Rule{facing(), world.Swap(twins, hit.In)},
 		one{heading: 1, hit: true}, one{hit: true}, one{heading: 1})
 	if got[0][0].SpriteID != frozenEast || got[1][0].SpriteID != frozenOther {
 		t.Errorf("the ones hit drawn as %v and %v, want their twins %v (east) and %v", got[0][0].SpriteID, got[1][0].SpriteID, frozenEast, frozenOther)
@@ -161,7 +162,7 @@ func TestSwap_DrawsTheTwinOfTheSpriteWhereItsConditionHolds(t *testing.T) {
 	if got[2][0].SpriteID != eastward {
 		t.Errorf("the one not hit drawn as %v, want %v, its own", got[2][0].SpriteID, eastward)
 	}
-	if got, _ = draw(t, []render.Rule{render.Swap(twins, hit.In)}, one{hit: true}); got[0][0].SpriteID != 100 {
+	if got, _ = draw(t, []world.Rule{world.Swap(twins, hit.In)}, one{hit: true}); got[0][0].SpriteID != 100 {
 		t.Errorf("one hit with no twin for its sprite drawn as %v, want 100, as it is", got[0][0].SpriteID)
 	}
 }
@@ -170,7 +171,7 @@ func TestSwap_TwoStatesComposeInTheOrderGiven(t *testing.T) {
 	frozen := map[render.SpriteID]render.SpriteID{100: 30, 101: 31}
 	wounded := map[render.SpriteID]render.SpriteID{30: 50, 102: 42} // the frozen first's wounded twin; the third's
 	angry := func(m mood) bool { return m.Angry }
-	got, _ := draw(t, []render.Rule{render.Swap(frozen, hit.In), render.Swap(wounded, angry)},
+	got, _ := draw(t, []world.Rule{world.Swap(frozen, hit.In), world.Swap(wounded, angry)},
 		one{hit: true, mood: &mood{Angry: true}}, one{hit: true, mood: &mood{Angry: true}}, one{mood: &mood{Angry: true}})
 	if got[0][0].SpriteID != 50 || got[1][0].SpriteID != 31 || got[2][0].SpriteID != 42 {
 		t.Errorf("drawn as %v, %v, %v; want 50 (frozen, then its wounded twin), 31 (frozen, no wounded twin of it) and 42 (wounded alone)",
@@ -182,16 +183,16 @@ func TestShow_DrawsOnlyThoseItHoldsFor(t *testing.T) {
 	if _, shown := draw(t, nil, one{ghost: true}, one{}); !shown[0] || !shown[1] {
 		t.Errorf("shown %v with no Show rule, want both", shown)
 	}
-	if _, shown := draw(t, []render.Rule{render.Show[ghost]()}, one{ghost: true}, one{}); !shown[0] || shown[1] {
+	if _, shown := draw(t, []world.Rule{world.Show[ghost]()}, one{ghost: true}, one{}); !shown[0] || shown[1] {
 		t.Errorf("shown %v, want the ghost alone", shown)
 	}
-	if _, shown := draw(t, []render.Rule{render.Show(hit.In)}, one{hit: true}, one{}); !shown[0] || shown[1] {
+	if _, shown := draw(t, []world.Rule{world.Show(hit.In)}, one{hit: true}, one{}); !shown[0] || shown[1] {
 		t.Errorf("shown %v, want the one hit alone", shown)
 	}
 }
 
 func TestRules_RefuseOnesAddedOnceBound(t *testing.T) {
-	var r render.Rules
+	var r world.Rules
 	goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		var places goke.Comp[place]
 		r.Bind(si.NewQueryBuilder(&places))

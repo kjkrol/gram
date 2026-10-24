@@ -97,6 +97,8 @@ func TestRenderer_OutlinesEachKindInItsHighlight(t *testing.T) {
 		goke.SystemFn{OnInit: r.Init},
 	)
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
+	r.Publish()
+	r.Swap()
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)

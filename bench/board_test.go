@@ -32,7 +32,7 @@ type fixedSky struct {
 }
 
 func (s fixedSky) Distant() light.Distant { return s.sun }
-func (s fixedSky) Air() air.Weather       { return s.air }
+func (s fixedSky) DrawnAir() air.Weather  { return s.air }
 
 // Benchmark_Board_GroundAt reads the ground at 64 points along a diagonal of a 256x256 board of
 // hills, as sight samples it along one ray.
@@ -76,7 +76,8 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 }
 
 // Benchmark_Board_Shadows plans the shade of a 96x64 board of hills, warm and anew after the
-// sun has moved: the light's part of composing a frame, the bake itself the GPU's.
+// sun has moved: the light's publishing and the composer's lighting of a frame, the bake itself
+// the GPU's.
 func Benchmark_Board_Shadows(b *testing.B) {
 	const w, h, size = 96, 64, 32
 	ctx := newHeadless()
@@ -107,7 +108,8 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
 	cam := ctx.camera(cameras.Config{Turn: true, Tilt: true, Cell: size, Cage: topo.Read(0)},
 		cameras.FromAbove, 0, 0)
-	var f render.Frame
+	lit := render.NewComposer()
+	lit.Light(ctx.world.Read(0).Lights)
 	for _, sc := range []struct {
 		name  string
 		moved bool
@@ -118,8 +120,8 @@ func Benchmark_Board_Shadows(b *testing.B) {
 					sun.Dir[0] = -sun.Dir[0]
 					l.WithDistant(sun)
 				}
-				f.Reset(cam)
-				l.Compose(&f, cam)
+				ctx.publish()
+				lit.DrawWorld(nil, cam)
 			}
 		})
 	}
@@ -313,10 +315,7 @@ func islandWith(b *testing.B, view string, far bool, shine, lit, sectored bool) 
 	atlas.Close()
 	p.Write().SetAtlas(atlas)
 	ctx.look()
-	picture := ctx.world.Read(0).Picture().(*render.Composer)
-	ctx.pending = append(ctx.pending, func() []goke.System {
-		return []goke.System{goke.SystemFn{OnInit: picture.Init}}
-	})
+	ctx.pending = append(ctx.pending, ctx.bound)
 	ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
 		ctx.world.RunPlan(rc, d)
 		if l != nil {

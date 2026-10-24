@@ -4,14 +4,13 @@ import (
 	"math"
 	"testing"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 type sheet struct{}
@@ -22,7 +21,6 @@ func (sheet) White() (u, v float32)                       { return 40, 40 }
 
 type source func(f *render.Frame)
 
-func (source) Init(*goke.SysInit)                         {}
 func (s source) Compose(f *render.Frame, _ camera.Camera) { s(f) }
 
 func TestCloud_IsSmoothNoiseCarriedByTheDrift(t *testing.T) {

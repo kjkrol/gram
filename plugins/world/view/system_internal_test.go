@@ -81,3 +81,16 @@ func TestViewSystem_SeesABoxAcrossTheSeamFromEitherSide(t *testing.T) {
 		}
 	}
 }
+
+func TestView_CopyInto_SeesWhatTheViewSawWhileItMovesOn(t *testing.T) {
+	cam := cameratest.NewFromSpace(1000, 1000, 0, geom.NewAABBAt(geom.NewVec(0, 0), 500, 500))
+	v, ids := viewOf(t, 0, cam, geom.NewVec(100, 100), geom.NewVec(700, 700))
+	var c View
+	v.CopyInto(&c)
+	v.In.Clear()
+	v.In.Add(ids[1])
+	if !c.Culled || c.Bounds != v.Bounds || !c.Contains(ids[0]) || c.Contains(ids[1]) {
+		t.Errorf("the copy: culled %v, bounds %v, holds %v %v; want culled, %v, the first alone",
+			c.Culled, c.Bounds, c.Contains(ids[0]), c.Contains(ids[1]), v.Bounds)
+	}
+}

@@ -13,13 +13,19 @@ type Scene interface {
 	// Drawers returns what draws this scene, bottom to top: render.Renderers drawn on the screen,
 	// the world among them through a ui.Image of a render.Feed. It is called once, as the Stage is
 	// entered.
-	Drawers() []render.Drawer
+	Drawers() []render.Renderer
 
 	// HandleEvents handles this tick's input, while this scene is active.
 	HandleEvents(events *control.InputEvents, runtime Runtime, composition Composition)
 
 	// Focusable reports whether this scene can ever become active.
 	Focusable() bool
+}
+
+// Laying is a scene's drawer laid out before its frame is drawn: on the frame's barrier, where
+// nothing ticks or draws, over a screen w by h pixels.
+type Laying interface {
+	Lay(w, h int)
 }
 
 // Scenic is a plugin with scenes of its own, which a Stage defined in sections keeps in its stack

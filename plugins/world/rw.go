@@ -51,8 +51,14 @@ func (r *Read) HasHeights() bool { return r.p.Res.Config.Heights }
 // Scale is how many metres a world unit spans.
 func (r *Read) Scale() Scale { return r.p.Res.Config.Scale }
 
-// Lighting is what lights the world's entities, nil for white light.
-func (r *Read) Lighting() Lighting { return r.p.renderer.lighting }
+// Lights are the lights the frame drawn is lit by, the light plugin's; nil without one, or before
+// a frame was published.
+func (r *Read) Lights() *render.Lights {
+	if r.p.lights == nil {
+		return nil
+	}
+	return r.p.lights()
+}
 
 // Look is how the world's entities lie on the screen.
 func (r *Read) Look() Look { return r.p.look }
@@ -60,9 +66,35 @@ func (r *Read) Look() Look { return r.p.look }
 // FlatLook is the world's own Look, seen from above.
 func (r *Read) FlatLook() Look { return flatLook(r.p.Res.Config.Space) }
 
-// ViewFor is the View of what cam sees, kept current from the tick after Write.NewView made it;
-// nil for a camera of none.
-func (r *Read) ViewFor(cam camera.Camera) *view.View { return r.p.views[cam] }
+// ViewFor is the View of what cam saw as the frame drawn was published, for what draws: nil for
+// a camera the frame holds none of; before the first frame published, as the last tick left it.
+// A camera's copy has its View.
+func (r *Read) ViewFor(cam camera.Camera) *view.View {
+	cam = camera.OriginOf(cam)
+	if vs := r.p.renderer.figures.Front().views; vs != nil {
+		return vs[cam]
+	}
+	return r.p.views[cam]
+}
+
+// Views are the Views of every camera Write.NewView made, as the last tick left them: what
+// publishes for a frame culls by them.
+func (r *Read) Views() []*view.View { return r.p.module.views }
+
+// InView reports whether some camera's View holds id, as the last tick left them; with no
+// camera, everything is.
+func (r *Read) InView(id uid.UID64) bool {
+	views := r.p.module.views
+	if len(views) == 0 {
+		return true
+	}
+	for _, v := range views {
+		if v.Contains(id) {
+			return true
+		}
+	}
+	return false
+}
 
 // Picture is everything the Stage's plugins draw, one picture for every scene showing the world;
 // nil before the plugins have declared their looks.
@@ -148,9 +180,13 @@ func (w *Write) NewView(cam camera.Camera) *view.View {
 // SetLook has the world's entities drawn, picked and outlined by look, a view plugin's.
 func (w *Write) SetLook(look Look) { w.p.look = look }
 
-// SetLighting has the world's entities lit by l, the light plugin's; without one they are drawn
-// in white light. Before Install.
+// SetLighting has the world's entities marked by l as they are published, the light plugin's.
+// Before Install.
 func (w *Write) SetLighting(l Lighting) { w.p.renderer.lighting = l }
+
+// SetLights has the world's picture lit by the lights lights gives (render.Composer.Light), the
+// light plugin's; without them it is drawn in white light. Before Install.
+func (w *Write) SetLights(lights func() *render.Lights) { w.p.lights = lights }
 
 // SetAtlas takes atlas as the world's looks for the entity renderer, applying what a *Atlas
 // declared; its Close calls it. A foreign render.AtlasSource is given by hand.

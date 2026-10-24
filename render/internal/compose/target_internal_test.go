@@ -4,16 +4,14 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/internal/gpu/gputest"
+	"github.com/kjkrol/gram/render/gputest"
 	"github.com/kjkrol/gram/render/internal/gfx"
 )
 
 // a Direct over the figures noting how coarse the ground under each of its draws was
 type coarseNoted struct{ coarse []float32 }
 
-func (*coarseNoted) Init(*goke.SysInit)                {}
 func (*coarseNoted) Overlies()                         {}
 func (*coarseNoted) Compose(f *Frame, _ camera.Camera) { f.DrawAt(Nearest) }
 func (n *coarseNoted) Draw(t Target, _ camera.Camera, _ Uniforms) {

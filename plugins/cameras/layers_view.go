@@ -4,7 +4,6 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render"
 )
@@ -17,12 +16,10 @@ const layersLevel = 4
 // layersView outlines every inner layer of the camera being composed over its picture, where
 // each side of it fading inside the frame stops fading; composed once in the frame's pixels, a
 // picture drawn a layer at a time sees the outlines in each layer's own pixels (camera.InFrame).
-type layersView struct{ settings *Settings }
+type layersView struct{ drawnSettings }
 
 var _ render.Source = (*layersView)(nil)
 var _ render.Overlying = (*layersView)(nil)
-
-func (*layersView) Init(*goke.SysInit) {}
 
 // Overlies: drawn over the figures' ground (render.Overlying).
 func (*layersView) Overlies() {}
@@ -30,7 +27,7 @@ func (*layersView) Overlies() {}
 func (v *layersView) Compose(f *render.Frame, cam camera.Camera) {
 	layers := camera.LayersOf(cam)
 	c, crops := cam.(camera.Cropping)
-	if !v.settings.knobs(ProfileOf(cam)).ShowLayers || len(layers) < 2 || !crops {
+	if !v.drawn().knobs(ProfileOf(cam)).ShowLayers || len(layers) < 2 || !crops {
 		return
 	}
 	fw, fh := c.Frame()

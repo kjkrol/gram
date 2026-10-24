@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/uid"
 )
 
 // Boxes has Shown drawn of every entity's box (Settings.Boxes): a look for finding out why things
@@ -75,7 +76,8 @@ const (
 	baseRaise = 0.05
 )
 
-// boxesView draws every entity's box in sight of the camera as BoxesShown says.
+// boxesView draws every entity's box in sight of the camera as BoxesShown says, as published once
+// a frame.
 type boxesView struct {
 	w         *world.Plugin
 	settings  *Settings
@@ -83,9 +85,23 @@ type boxesView struct {
 	base      goke.Comp[world.Base]
 	z         goke.OptComp[world.Z]
 	footprint []render.Corners
+	drawn     render.Buffered[boxed]
 }
 
 var _ render.Overlying = (*boxesView)(nil)
+
+// boxed is what boxesView draws: what is shown of the boxes, and every box some camera sees
+type boxed struct {
+	shown BoxesShown
+	all   []boxOf
+}
+
+type boxOf struct {
+	id       uid.UID64
+	box      geom.AABB
+	mid      geom.Vec
+	alt, top float32
+}
 
 func (v *boxesView) Init(si *goke.SysInit) {
 	v.q = si.NewQueryBuilder(&v.base).Optional(&v.z).Build()
@@ -94,38 +110,56 @@ func (v *boxesView) Init(si *goke.SysInit) {
 // Overlies: drawn over the figures' ground (render.Overlying).
 func (*boxesView) Overlies() {}
 
-func (v *boxesView) Compose(f *render.Frame, cam camera.Camera) {
-	shown := v.settings.Boxes
-	if shown == NoBoxes {
+// Publish takes every box some camera sees while any is shown, for the frame drawn next.
+func (v *boxesView) Publish() {
+	b := v.drawn.Back()
+	b.shown, b.all = v.settings.Boxes, b.all[:0]
+	if b.shown == NoBoxes {
 		return
 	}
-	in := v.w.Read(0).ViewFor(cam)
-	look := v.w.Read(0).Look()
+	read := v.w.Read(0)
 	for v.q.All(); v.q.Next(); {
 		cur := v.q.Cursor()
 		bases, zs := v.base.Slice(cur), v.z.Slice(cur)
 		for i, id := range cur.IDs {
-			if in != nil && !in.Contains(id) {
+			if !read.InView(id) {
 				continue
 			}
 			var z world.Z
 			if zs != nil {
 				z = zs[i]
 			}
-			box, mid := bases[i].Pos.AABB, bases[i].Pos.Center()
-			alt := float32(z.Altitude)
-			at := f.Lifted(float32(mid.X), float32(mid.Y), alt, boxLift)
-			if shown == Solids {
-				v.solid(f, cam, at.OverFigures(), box.AABB, alt, float32(z.Top()))
-				continue
-			}
-			base := alt + baseRaise
-			v.footprint = look.Footprint(cam, box.AABB, base, v.footprint[:0])
-			for _, c := range v.footprint {
-				for _, e := range [4][2]int{{0, 1}, {1, 3}, {3, 2}, {2, 0}} {
-					a, b := c[e[0]], c[e[1]]
-					f.Edge(at, a[0], a[1], base, b[0], b[1], base, boxWidth, boxColor)
-				}
+			b.all = append(b.all, boxOf{id: id, box: bases[i].Pos.AABB.AABB,
+				mid: bases[i].Pos.Center(), alt: float32(z.Altitude), top: float32(z.Top())})
+		}
+	}
+}
+
+// Swap has what was published last drawn.
+func (v *boxesView) Swap() { v.drawn.Swap() }
+
+func (v *boxesView) Compose(f *render.Frame, cam camera.Camera) {
+	d := v.drawn.Front()
+	if d.shown == NoBoxes {
+		return
+	}
+	in := v.w.Read(0).ViewFor(cam)
+	look := v.w.Read(0).Look()
+	for _, e := range d.all {
+		if in != nil && !in.Contains(e.id) {
+			continue
+		}
+		at := f.Lifted(float32(e.mid.X), float32(e.mid.Y), e.alt, boxLift)
+		if d.shown == Solids {
+			v.solid(f, cam, at.OverFigures(), e.box, e.alt, e.top)
+			continue
+		}
+		base := e.alt + baseRaise
+		v.footprint = look.Footprint(cam, e.box, base, v.footprint[:0])
+		for _, c := range v.footprint {
+			for _, k := range [4][2]int{{0, 1}, {1, 3}, {3, 2}, {2, 0}} {
+				a, b := c[k[0]], c[k[1]]
+				f.Edge(at, a[0], a[1], base, b[0], b[1], base, boxWidth, boxColor)
 			}
 		}
 	}

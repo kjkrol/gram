@@ -80,6 +80,19 @@ func (r *Relief) Lattice() (cols, rows int, cell float32, heights []float32, ok 
 	return r.cols, r.rows, float32(r.sq.Cell), r.values, true
 }
 
+// CopyInto has dst hold the heights r holds now, copied where its version differs, keeping its
+// memory: a relief to read alone, changed by nothing.
+func (r *Relief) CopyInto(dst *Relief) {
+	if dst.grid == nil {
+		*dst = Relief{grid: r.grid, sq: r.sq, square: r.square, cols: r.cols, rows: r.rows}
+	}
+	if dst.version == r.version && len(dst.values) == len(r.values) {
+		return
+	}
+	dst.values = append(dst.values[:0], r.values...)
+	dst.version, dst.low, dst.high = r.version, r.low, r.high
+}
+
 // Sloped reports whether the ground runs between a cell's corners: a square grid's.
 func (r *Relief) Sloped() bool { return r.square }
 

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugin"
 )
 
 // adapter steps the pictures' resolution after the frame rate, sampled once a second and
@@ -24,6 +25,11 @@ type adapter struct {
 	last     time.Time // the last sample
 	finer    time.Time // the last finer step
 	burnt    time.Time // no finer step before
+	// the frames paced since the last sample, and the window's time the drawing's side and the
+	// simulation took
+	frames             int
+	counted            time.Time
+	drawing, simulated time.Duration
 }
 
 // Sampling the frame rate is averaged over before the pictures' resolution follows it
@@ -82,6 +88,33 @@ func (a *adapter) step(now time.Time, fps float64) float32 {
 	}
 	a.met = 0
 	return 1
+}
+
+// pace counts the frame of times t, and steps as step does after the frames counted a second
+// apiece; coarser only while over the window the drawing's side, the drawing, its presenting and
+// the wait for the GPU, took longer than the simulation, which no lever lightens
+func (a *adapter) pace(now time.Time, t plugin.FrameTimes) float32 {
+	a.frames++
+	a.drawing += t.Draw + t.Present + t.Wait
+	a.simulated += t.Simulate
+	if a.counted.IsZero() {
+		a.counted = now
+	}
+	elapsed := now.Sub(a.counted)
+	if elapsed < sampleEvery {
+		return 1
+	}
+	fps := float64(a.frames) / elapsed.Seconds()
+	a.frames, a.counted = 0, now
+	f := a.step(now, fps)
+	if a.samples > 0 {
+		return f // the window goes on
+	}
+	if f < 1 && a.drawing <= a.simulated {
+		f = 1
+	}
+	a.drawing, a.simulated = 0, 0
+	return f
 }
 
 // clamped is s between LeastResolution and all the pixels

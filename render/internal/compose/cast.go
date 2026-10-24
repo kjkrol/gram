@@ -1,46 +1,41 @@
-// Package cast lays the live shadows of what stands on whatever ground the frame drew: patches
-// and silhouettes, read off the ground's depth, so the ground may rise and fall under them or
-// lie flat.
-package cast
+package compose
+
+// The live shadows of what stands, laid on whatever ground the frame drew: patches and
+// silhouettes, read off the ground's depth, so the ground may rise and fall under them or lie
+// flat.
 
 import (
 	"math"
 
 	"github.com/kjkrol/gram/camera"
-	_ "github.com/kjkrol/gram/plugins/light/internal/distant" // the light in the shaders
-	"github.com/kjkrol/gram/render"
-
-	"embed"
+	"github.com/kjkrol/gram/render/internal/gfx"
 )
 
-//go:embed shaders/*.wgsl
-var shaders embed.FS
-
-var shading = render.NewMeshShaderWith("casts", render.Files(shaders, "shaders/cast.wgsl"),
-	[]render.Uniform{
+var castShading = gfx.NewMeshShaderWith("casts", shaderFiles("cast.wgsl"),
+	[]gfx.Uniform{
 		{Name: "Unproject", Size: 16},
 		{Name: "ViewSize", Size: 2},
 		{Name: "ViewAt", Size: 2},
 	}).Instanced(4)
 
-// Floats is a cast's floats as Caster.Draw takes them: a light.Umbra and the corners of the
-// sprite whose shape it has, all 0 for a patch's own.
-const Floats = 12
+// a cast's floats as Caster.Draw takes them: a light.Umbra and the corners of the sprite whose
+// shape it has, all 0 for a patch's own
+const castFloats = 12
 
 // world units over the ground's highest a shadow may lie, on what stands there
-const headroom = 64
+const castHeadroom = 64
 
 // Caster draws casts over the ground's depth.
 type Caster struct {
-	opts      render.DrawMeshOptions
+	opts      gfx.DrawMeshOptions
 	own       map[string]any
 	instances []float32
 }
 
-// Draw lays casts, Floats each, the sprites' shapes from atlas, on the ground drawn through cam
+// Draw lays casts, castFloats each, the sprites' shapes from atlas, on the ground drawn through cam
 // between low and high, read from the target's Ground depth: nothing without one.
 func (c *Caster) Draw(
-	t render.Target, cam camera.Camera, atlas render.AtlasSource, casts []float32,
+	t Target, cam camera.Camera, atlas AtlasSource, casts []float32,
 	low, high float32,
 ) {
 	if t.Screen == nil || t.Ground == nil || len(casts) == 0 {
@@ -64,9 +59,9 @@ func (c *Caster) Draw(
 		return
 	}
 	c.instances = c.instances[:0]
-	for k := 0; k+Floats <= len(casts); k += Floats {
-		in := casts[k : k+Floats]
-		rect, ok := covers(tr, in[0], in[1], in[2], in[3], in[4], in[5], low, high+headroom, w, h)
+	for k := 0; k+castFloats <= len(casts); k += castFloats {
+		in := casts[k : k+castFloats]
+		rect, ok := castCovers(tr, in[0], in[1], in[2], in[3], in[4], in[5], low, high+castHeadroom, w, h)
 		if !ok {
 			continue
 		}
@@ -85,16 +80,16 @@ func (c *Caster) Draw(
 	c.set("ViewAt", float32(at.X), float32(at.Y))
 	c.opts.Vertices, c.opts.Instances = 6, c.instances
 	c.opts.Depth, c.opts.ReadDepth = t.Depth, t.Ground
-	c.opts.Images = [4]*render.Image{}
+	c.opts.Images = [4]*Image{}
 	if atlas != nil {
 		c.opts.Images[0] = atlas.Atlas()
 	}
-	t.Screen.DrawMesh(nil, shading, &c.opts)
+	t.Screen.DrawMesh(nil, castShading, &c.opts)
 }
 
 // the screen rectangle the cast's corners cover standing anywhere from low up to high: the whole
 // viewport where a corner lies behind the eye; false off the viewport
-func covers(tr camera.Transform, x, y, ux, uy, along, wide, low, high, w, h float32) (
+func castCovers(tr camera.Transform, x, y, ux, uy, along, wide, low, high, w, h float32) (
 	[4]float32, bool,
 ) {
 	x0, y0 := float32(math.Inf(1)), float32(math.Inf(1))

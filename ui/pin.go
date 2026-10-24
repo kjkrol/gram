@@ -173,6 +173,7 @@ type locator interface {
 }
 
 type view struct {
+	pic   *Element
 	box   geom.AABB
 	at    locator
 	input Input
@@ -182,12 +183,13 @@ func views(root *Element) []view {
 	var out []view
 	var visit func(e *Element)
 	visit = func(e *Element) {
-		if e.hidden {
+		if e.shut() {
 			return
 		}
 		if p, ok := e.content.(*picture); ok {
 			if l, ok := p.src.(locator); ok {
-				out = append(out, view{box: shrink(e.box, e.padding), at: l, input: p.input})
+				out = append(out, view{pic: e, box: shrink(e.box, e.padding), at: l,
+					input: p.input})
 			}
 		}
 		for _, c := range e.children {
@@ -204,7 +206,15 @@ type Owner interface{ Shows(entity uid.UID64) bool }
 
 func (v view) shows(id uid.UID64) bool {
 	o, ok := v.input.(Owner)
-	return !ok || o.Shows(id)
+	if !ok {
+		return true
+	}
+	if f := v.pic.front(); f != nil {
+		if shown, ok := f.shows[showing{v.pic, id}]; ok {
+			return shown
+		}
+	}
+	return o.Shows(id)
 }
 
 func (p *pin) stand(e *Element, spots []spot, vs []view, screen geom.AABB) {
@@ -245,11 +255,12 @@ func (p *pin) place(e *Element, s spot, vs []view, screen geom.AABB) {
 		return
 	}
 	in := instance{id: s.id}
-	p.offScreen(*first, s, w, h, screen, &in)
+	p.offScreen(e, *first, s, w, h, screen, &in)
 	p.instances = append(p.instances, in)
 }
 
-func (p *pin) offScreen(v view, s spot, w, h float64, screen geom.AABB, in *instance) {
+func (p *pin) offScreen(e *Element, v view, s spot, w, h float64, screen geom.AABB,
+	in *instance) {
 	in.looker, _ = v.input.(Looker)
 	px, py, _, _ := v.at.ToPixels(s.x, s.y, s.z)
 	target := v.box.TopLeft.Add(geom.NewVec(float64(px), float64(py)))
@@ -268,9 +279,18 @@ func (p *pin) offScreen(v view, s spot, w, h float64, screen geom.AABB, in *inst
 		in.box = geom.NewAABBAt(middle.Sub(geom.NewVec(w/2, h/2)), w, h)
 		if in.looker != nil && !p.gone[s.id] {
 			p.gone[s.id] = true
-			in.looker.LookAt(s.id)
+			e.lookAt(in.looker, s.id)
 		}
 	}
+}
+
+// lookAt has looker move its camera onto id: at its scene's next Publish once one was, now before
+func (e *Element) lookAt(looker Looker, id uid.UID64) {
+	if e.front() == nil {
+		looker.LookAt(id)
+		return
+	}
+	e.d.wished = append(e.d.wished, look{looker, id})
 }
 
 func (p *pin) by(a geom.Vec, w, h float64) geom.AABB {

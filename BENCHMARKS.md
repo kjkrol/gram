@@ -127,6 +127,31 @@ the tree before, three runs each, the median:
 The drawing of a motion/collision frame (8,388 boxes on a torus, `GRAM_FPS_LOG`) went from 2.15 ms
 to about 1.5 ms; its presenting grew by some 50 µs, the GPU projecting four copies of every box.
 
+#### Published once a frame — `Benchmark_World_Publish`, `Benchmark_World_Frame`
+
+Since 2026-10-23 the entities are published once a frame, after its ticks, and drawn from what
+was published: `Benchmark_World_Draw` draws a published frame, `Benchmark_World_Publish` is the
+publishing alone, `Benchmark_World_Frame` both; a case of two cameras viewing a quarter each, side
+by side, is new. "Before" is the renderer reading the world as it drew; measured alternately, two
+runs each, on an idle machine (a run that another process disturbed is run again):
+
+| Camera view | Before | Drawing | Publishing | Both |
+|:---|---:|---:|---:|---:|
+| whole world | 442–449 µs | 466–468 µs | 69–70 µs | 535–539 µs |
+| a quarter | 125 µs | 119–122 µs | 26–27 µs | 147–148 µs |
+| a twentieth | 30–31 µs | 24 µs | 12 µs | 37 µs |
+| two cameras, a quarter each | 242–243 µs | 239 µs | 45 µs | 284–287 µs |
+
+The publishing costs what it writes. An entity was a record of 176 bytes at first (its
+`Position`, `Velocity`'s heading and speed, `Z` and `Lie` as they are): 117–121 µs in full view,
+37% of it the record's append, the two buffers past the cache. Writing it in place rather than
+through a copy gained nothing; a record of 80 bytes (the box, heading, speed and `Z` in float32,
+a `Lie` apart, the layers a span) took it to 84 µs, while the drawing, turning the floats back for
+the Look, grew by some 30 µs; skipping the rules' scratch where a scene has no rule took it to 70.
+In motion/collision (8,388 boxes, the rules and the light on) the drawing went from 1.43–1.46 ms
+to 1.2–1.28 ms beside 0.40–0.46 ms of publishing. Done one after the other the copy is a price; it
+is meant to be paid on the ticks' side once the frame is drawn beside them.
+
 ## Collision tick — `Benchmark_Collision_Tick`
 
 One tick of world plus collision at the collision demo's scales: movement, the space rebuilt,

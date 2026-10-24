@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/kjkrol/gram/internal/gpu"
+	"github.com/kjkrol/gram/render/internal/gpu"
 )
 
 // Need opens the GPU without a window, a software one where GRAM_GPU is "software", or skips t

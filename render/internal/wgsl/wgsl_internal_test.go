@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kjkrol/gram/internal/gpu"
+	"github.com/kjkrol/gram/render/internal/gpu"
 )
 
 func TestRegisterImage_RefusesATwiceGivenANameTooManyAndALateOne(t *testing.T) {

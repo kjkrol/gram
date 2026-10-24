@@ -176,12 +176,15 @@ func (p *Program) compile(d *device) error {
 	if p.module != nil || p.err != nil {
 		return p.err
 	}
-	m, err := d.dev.CreateShaderModule(&wgpu.ShaderModuleDescriptor{Label: p.label, WGSL: p.source})
+	words, err := spirvOf(p.source)
+	if err == nil {
+		p.module, err = d.dev.CreateShaderModule(&wgpu.ShaderModuleDescriptor{Label: p.label,
+			SPIRV: words})
+	}
 	if err != nil {
 		p.err = fmt.Errorf("gpu: the %s program: %w", p.label, err)
 		return p.err
 	}
-	p.module = m
 	return nil
 }
 

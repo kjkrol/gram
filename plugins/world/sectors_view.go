@@ -5,7 +5,6 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/world/internal/sectorview"
 	"github.com/kjkrol/gram/plugins/world/sector"
@@ -55,8 +54,8 @@ var (
 // how far over the ground the sectors lie: over the cells held, under the sight
 const sectorLift = 0.2
 
-// sectorsView draws the sectors as SectorsShown says: over the ground the frame drew on the GPU
-// in a world with heights, as quads at the ground's level in a flat one.
+// sectorsView draws the sectors as SectorsShown says, as published once a frame: over the ground
+// the frame drew on the GPU in a world with heights, as quads at the ground's level in a flat one.
 type sectorsView struct {
 	p       *Plugin
 	gpu     *sectorview.Ground
@@ -64,7 +63,34 @@ type sectorsView struct {
 	colors  []color.RGBA
 	levels  []view.Level
 	corners []render.Corners
+	drawn   render.Buffered[shownSectors]
 }
+
+// shownSectors are what is shown of the sectors and, their bands shown, each one's
+type shownSectors struct {
+	shown SectorsShown
+	bands []uint8
+}
+
+// Publish takes what is shown of the sectors and their bands as they stand, for the frame drawn
+// next.
+func (v *sectorsView) Publish() {
+	b, g := v.drawn.Back(), v.p.module.sectors.grid
+	b.shown, b.bands = v.p.module.sectorsShown, b.bands[:0]
+	if g == nil || b.shown != SectorBands {
+		return
+	}
+	for i := range g.Len() {
+		band := g.Band(i)
+		if band == g.Beyond() {
+			band = sector.MaxBands
+		}
+		b.bands = append(b.bands, uint8(band))
+	}
+}
+
+// Swap has what was published last drawn.
+func (v *sectorsView) Swap() { v.drawn.Swap() }
 
 func newSectorsView(p *Plugin) *sectorsView {
 	v := &sectorsView{p: p}
@@ -85,26 +111,25 @@ func newSectorsView(p *Plugin) *sectorsView {
 	return v
 }
 
-func (v *sectorsView) Init(*goke.SysInit) {}
-
 func (v *sectorsView) Compose(f *render.Frame, cam camera.Camera) {
 	v.onGPU = false
-	shown, g := v.p.module.sectorsShown, v.p.module.sectors.grid
-	if g == nil || shown == NoSectors {
+	d, g := v.drawn.Front(), v.p.module.sectors.grid
+	if g == nil || d.shown == NoSectors {
 		return
 	}
 	v.colors = v.colors[:0]
-	if shown == SectorBands {
-		for i := range g.Len() {
-			band := g.Band(i)
-			if band == g.Beyond() {
-				band = sector.MaxBands
-			}
+	if d.shown == SectorBands {
+		for _, band := range d.bands {
 			v.colors = append(v.colors, bandColors[band])
 		}
 	} else {
-		v.levels = append(v.levels[:0], make([]view.Level, g.Len())...)
-		v.p.read.ViewFor(cam).Sectors(func(i int, _ geom.AABB, l view.Level) { v.levels[i] = l })
+		if len(v.levels) != g.Len() {
+			v.levels = make([]view.Level, g.Len())
+		}
+		clear(v.levels)
+		if seen := v.p.read.ViewFor(cam); seen != nil {
+			seen.Sectors(func(i int, _ geom.AABB, l view.Level) { v.levels[i] = l })
+		}
 		for _, l := range v.levels {
 			v.colors = append(v.colors, levelColors[l])
 		}

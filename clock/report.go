@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -13,8 +12,6 @@ import (
 func (r *Read) Reporter() render.Reporter { return reporter{r.c} }
 
 type reporter struct{ c *Clock }
-
-func (reporter) Init(*goke.SysInit) {}
 
 func (r reporter) Report(line func(label, value string)) { line("Game time", r.c.written()) }
 
@@ -32,14 +29,34 @@ func (c *Clock) written() string {
 	return s
 }
 
-// HUD is a screen renderer showing the clock in the window's bottom-left corner, for a ui.Drawer.
+// HUD is a screen renderer showing the clock in the window's bottom-left corner, for a ui.Drawer:
+// a plugin.Publisher, reading the clock after the ticks.
 func (r *Read) HUD() render.Renderer { return &hud{c: r.c} }
 
-type hud struct{ c *Clock }
+type hud struct {
+	c       *Clock
+	shown   render.Buffered[string]
+	swapped bool
+}
 
-func (*hud) Init(*goke.SysInit) {}
+// Publish reads the clock's line for the frame drawn next.
+func (h *hud) Publish() { *h.shown.Back() = h.c.written() }
+
+// Swap has the line read last drawn.
+func (h *hud) Swap() {
+	h.shown.Swap()
+	h.swapped = true
+}
 
 func (h *hud) Draw(screen *render.Image) {
 	b := screen.Bounds()
-	render.DebugPrintAt(screen, h.c.written(), b.Min.X+8, b.Max.Y-20)
+	render.DebugPrintAt(screen, h.line(), b.Min.X+8, b.Max.Y-20)
+}
+
+// line is the line drawn: the one read last, the clock's now before any was
+func (h *hud) line() string {
+	if h.swapped {
+		return *h.shown.Front()
+	}
+	return h.c.written()
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 )
 
@@ -158,5 +159,29 @@ func TestStepLayers_StepsTheOutermostRingCoarserFirstAndTheInnermostFinerFirst(t
 					centre, got[2])
 			}
 		}
+	}
+}
+
+func TestAdapter_PacedStepsCoarserOnlyWhileTheDrawingHoldsTheFramesBack(t *testing.T) {
+	a := newTicking().a
+	now := time.Unix(1000, 0)
+	// 40 frames a second, of 60 the budget wants
+	run := func(drawing, simulated time.Duration, seconds int) (steps []float32) {
+		for range seconds * 40 {
+			now = now.Add(25 * time.Millisecond)
+			f := a.pace(now, plugin.FrameTimes{Draw: drawing, Simulate: simulated})
+			if f != 1 {
+				steps = append(steps, f)
+			}
+		}
+		return steps
+	}
+	if got := run(20*time.Millisecond, 5*time.Millisecond, 3); len(got) != 1 ||
+		got[0] != ResolutionStep {
+		t.Errorf("the drawing holding the frames back, the steps are %v, want one coarser", got)
+	}
+	if got := run(5*time.Millisecond, 20*time.Millisecond, 4); len(got) != 0 {
+		t.Errorf("the simulation holding the frames back, the steps are %v, want none: no lever "+
+			"lightens it", got)
 	}
 }

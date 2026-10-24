@@ -3,9 +3,7 @@ package aloft
 import (
 	"testing"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
@@ -13,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 // half heaped clouds over the west half of a world 640 by 480, the east clear, a heap drifted
@@ -173,7 +172,6 @@ func TestRenderer_InOneLayerDrawsTheLowOnesHighAlone(t *testing.T) {
 // the ground's heights handed to the frame
 type heights struct{ render.GroundHeights }
 
-func (heights) Init(*goke.SysInit)                         {}
 func (h heights) Compose(f *render.Frame, _ camera.Camera) { f.GroundHeights(h.GroundHeights) }
 
 // a world 640 by 480 whose west half stands 2000 up, over the low clouds' heaps, the east at 0
@@ -353,7 +351,6 @@ func TestRenderer_DrawsTheCloudsAtACoarseOfTheGroundsPixels(t *testing.T) {
 // over it meets the furthest depth
 type handed map[string]any
 
-func (handed) Init(*goke.SysInit)                                 {}
 func (handed) Draw(render.Target, camera.Camera, render.Uniforms) {}
 func (h handed) Compose(f *render.Frame, _ camera.Camera) {
 	f.DrawOpaque()

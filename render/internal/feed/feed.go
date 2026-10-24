@@ -4,14 +4,12 @@ import (
 	"math"
 	"slices"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render/internal/gfx"
 )
 
 // Picture is what is in the world before a camera, drawn through the camera it is handed.
 type Picture interface {
-	Init(*goke.SysInit)
 	DrawWorld(screen *gfx.Image, cam camera.Camera)
 }
 
@@ -33,7 +31,9 @@ type Laid interface {
 // (camera.Layered) is drawn once a layer, the frame cropped to each, the widest first and the inner
 // ones laid over with feathered edges, a Laid picture composed once for them all; one whose
 // figures are sharp (camera.Figured) has a Laid picture's ground drawn so, or whole at its
-// resolution, and what lies over it at every shown pixel. Several feeds may share one picture.
+// resolution, and what lies over it at every shown pixel. A camera.Snapped camera is drawn from
+// its copy, taken as the feed is laid out (Resize): cropped, not the camera itself. Several feeds
+// may share one picture.
 type Feed struct {
 	cam     camera.Camera
 	picture Picture
@@ -68,55 +68,59 @@ func (f *Feed) Proportions() (w, h float64, ok bool) {
 	return 0, 0, false
 }
 
-// Resize gives the feed its size, the camera's viewport with it.
+// Resize gives the feed its size, the camera's viewport with it, and takes the camera's copy the
+// frame drawn next is drawn through (camera.Snapped): as the frame is laid out, on its barrier.
 func (f *Feed) Resize(w, h int) {
-	if w == f.w && h == f.h {
-		return
+	if w != f.w || h != f.h {
+		f.w, f.h = w, h
+		if w > 0 && h > 0 {
+			f.cam.SetViewport(float32(w), float32(h))
+		}
 	}
-	f.w, f.h = w, h
-	if w > 0 && h > 0 {
-		f.cam.SetViewport(float32(w), float32(h))
+	if s, ok := f.cam.(camera.Snapped); ok {
+		s.Snap()
 	}
 }
 
-// Draw draws the world through the camera into the feed's image: at the camera's resolution, or
-// at the shown size in layers or with the figures sharp.
+// Draw draws the world through the camera's copy into the feed's image: at the camera's
+// resolution, or at the shown size in layers or with the figures sharp.
 func (f *Feed) Draw() *gfx.Image {
 	if f.w <= 0 || f.h <= 0 {
 		return nil
 	}
-	layers, cropping := f.layers()
-	sharp, crop := f.sharp(layers)
+	cam := camera.DrawnOf(f.cam)
+	layers, cropping := layersOf(cam)
+	sharp, crop := f.sharp(cam, layers)
 	switch {
 	case layers != nil:
 		f.freeGround()
 		f.img = sized(f.img, f.w, f.h)
 		f.img.Clear()
-		f.drawLayers(f.img, layers, cropping, sharp != nil)
+		f.drawLayers(cam, f.img, layers, cropping, sharp != nil)
 	case sharp != nil:
 		f.freeLayers()
 		f.img = sized(f.img, f.w, f.h)
 		f.img.Clear()
-		f.drawSharp(f.img, sharp, crop)
+		f.drawSharp(cam, f.img, sharp, crop)
 	default:
 		f.freeLayers()
 		f.freeGround()
-		w, h := f.drawn()
+		w, h := drawnOf(cam)
 		f.img = sized(f.img, w, h)
 		f.img.Clear()
-		f.picture.DrawWorld(f.img, f.cam)
+		f.picture.DrawWorld(f.img, cam)
 	}
 	return f.img
 }
 
-// the layers the camera is drawn in and the camera to crop to each: none for a camera drawn whole
-// or one that cannot be cropped
-func (f *Feed) layers() ([]camera.Layer, camera.Cropping) {
-	c, ok := f.cam.(camera.Cropping)
+// the layers cam is drawn in and the camera to crop to each: none for a camera drawn whole or one
+// that cannot be cropped
+func layersOf(cam camera.Camera) ([]camera.Layer, camera.Cropping) {
+	c, ok := cam.(camera.Cropping)
 	if !ok {
 		return nil, nil
 	}
-	if layers := camera.LayersOf(f.cam); len(layers) > 1 {
+	if layers := camera.LayersOf(cam); len(layers) > 1 {
 		return layers, c
 	}
 	return nil, nil
@@ -125,16 +129,16 @@ func (f *Feed) layers() ([]camera.Layer, camera.Cropping) {
 // the picture and the camera to crop for a feed drawing the figures at every pixel: a camera
 // that says so, drawn under every pixel in one of its layers or whole, before a Laid picture; in
 // layers the camera's resolution is the innermost one's, often every pixel
-func (f *Feed) sharp(layers []camera.Layer) (Laid, camera.Cropping) {
-	coarse := camera.ResolutionOf(f.cam) < 1
+func (f *Feed) sharp(cam camera.Camera, layers []camera.Layer) (Laid, camera.Cropping) {
+	coarse := camera.ResolutionOf(cam) < 1
 	if layers != nil {
 		coarse = slices.ContainsFunc(layers, func(l camera.Layer) bool { return l.Resolution < 1 })
 	}
-	if !camera.SharpFiguresOf(f.cam) || !coarse {
+	if !camera.SharpFiguresOf(cam) || !coarse {
 		return nil, nil
 	}
 	l, laid := f.picture.(Laid)
-	c, crops := f.cam.(camera.Cropping)
+	c, crops := cam.(camera.Cropping)
 	if !laid || !crops {
 		return nil, nil
 	}
@@ -144,21 +148,21 @@ func (f *Feed) sharp(layers []camera.Layer) (Laid, camera.Cropping) {
 // the ground composed once and drawn at the camera's resolution, laid over dst scaled, then what
 // lies over the figures drawn straight onto dst, both composed through the camera cropped to the
 // whole frame at every pixel
-func (f *Feed) drawSharp(dst *gfx.Image, l Laid, c camera.Cropping) {
+func (f *Feed) drawSharp(cam camera.Camera, dst *gfx.Image, l Laid, c camera.Cropping) {
 	f.cropWhole(c)
-	l.Lay(f.cam, true)
+	l.Lay(cam, true)
 	c.Uncrop()
-	gw, gh := f.drawn()
+	gw, gh := drawnOf(cam)
 	f.ground = sized(f.ground, gw, gh)
 	f.ground.Clear()
-	l.DrawLayer(f.ground, f.cam, f.whole(), camera.Window{})
+	l.DrawLayer(f.ground, cam, f.whole(), camera.Window{})
 	b := dst.Bounds()
 	op := gfx.DrawImageOptions{Filter: gfx.FilterLinear}
 	op.GeoM.Scale(float64(b.Dx())/float64(gw), float64(b.Dy())/float64(gh))
 	op.GeoM.Translate(float64(b.Min.X), float64(b.Min.Y))
 	dst.DrawImage(f.ground, &op)
 	f.cropWhole(c)
-	l.DrawOver(dst, f.cam)
+	l.DrawOver(dst, cam)
 	c.Uncrop()
 }
 
@@ -170,7 +174,8 @@ func (f *Feed) cropWhole(c camera.Cropping) { c.Crop(f.whole(), 1) }
 // layout lays it, laid over dst there, a Laid picture composed once for them all and, with the
 // figures sharp, what lies over them drawn straight onto dst; a layer of the whole frame at every
 // pixel is drawn straight onto dst
-func (f *Feed) drawLayers(dst *gfx.Image, layers []camera.Layer, c camera.Cropping, sharp bool) {
+func (f *Feed) drawLayers(cam camera.Camera, dst *gfx.Image, layers []camera.Layer,
+	c camera.Cropping, sharp bool) {
 	if len(f.imgs) != len(layers) {
 		f.freeLayers()
 		f.imgs = make([]*gfx.Image, len(layers))
@@ -178,11 +183,11 @@ func (f *Feed) drawLayers(dst *gfx.Image, layers []camera.Layer, c camera.Croppi
 	laid, _ := f.picture.(Laid)
 	if laid != nil {
 		f.cropWhole(c)
-		laid.Lay(f.cam, sharp)
+		laid.Lay(cam, sharp)
 		c.Uncrop()
 	}
 	b := dst.Bounds()
-	wins := camera.Arrange(camera.LayoutOf(f.cam), layers, f.w, f.h)
+	wins := camera.Arrange(camera.LayoutOf(cam), layers, f.w, f.h)
 	for i, r := range layers {
 		win := wins[i]
 		var hole camera.Window
@@ -191,14 +196,14 @@ func (f *Feed) drawLayers(dst *gfx.Image, layers []camera.Layer, c camera.Croppi
 		}
 		c.Crop(win, r.Resolution)
 		if win.W == float32(f.w) && win.H == float32(f.h) && r.Resolution == 1 {
-			f.drawLayer(dst, laid, win, hole)
+			f.drawLayer(cam, dst, laid, win, hole)
 			c.Uncrop()
 			continue
 		}
-		lw, lh := f.drawn()
+		lw, lh := drawnOf(cam)
 		f.imgs[i] = sized(f.imgs[i], lw, lh)
 		f.imgs[i].Clear()
-		f.drawLayer(f.imgs[i], laid, win, hole)
+		f.drawLayer(cam, f.imgs[i], laid, win, hole)
 		c.Uncrop()
 		op := gfx.DrawImageOptions{Filter: gfx.FilterLinear, Fade: fadeOf(win, f.w, f.h)}
 		op.GeoM.Scale(float64(win.W)/float64(lw), float64(win.H)/float64(lh))
@@ -207,19 +212,19 @@ func (f *Feed) drawLayers(dst *gfx.Image, layers []camera.Layer, c camera.Croppi
 	}
 	if sharp {
 		f.cropWhole(c)
-		laid.DrawOver(dst, f.cam)
+		laid.DrawOver(dst, cam)
 		c.Uncrop()
 	}
 }
 
-// the picture drawn into img through the camera cropped to the frame's window win: a layer of
-// what Lay composed where the picture is Laid, its ground leaving out the window hole
-func (f *Feed) drawLayer(img *gfx.Image, laid Laid, win, hole camera.Window) {
+// the picture drawn into img through cam cropped to the frame's window win: a layer of what Lay
+// composed where the picture is Laid, its ground leaving out the window hole
+func (f *Feed) drawLayer(cam camera.Camera, img *gfx.Image, laid Laid, win, hole camera.Window) {
 	if laid == nil {
-		f.picture.DrawWorld(img, f.cam)
+		f.picture.DrawWorld(img, cam)
 		return
 	}
-	laid.DrawLayer(img, f.cam, win, hole)
+	laid.DrawLayer(img, cam, win, hole)
 }
 
 // the part of the frame's window inner that its layer covers whole when laid over a layer at
@@ -290,43 +295,47 @@ func (f *Feed) freeGround() {
 	}
 }
 
-// the size the picture is drawn at: the camera's pixels
-func (f *Feed) drawn() (w, h int) {
-	vw, vh := f.cam.Viewport()
+// the size the picture is drawn at through cam: its pixels
+func drawnOf(cam camera.Camera) (w, h int) {
+	vw, vh := cam.Viewport()
 	return max(int(math.Round(float64(vw))), 1), max(int(math.Round(float64(vh))), 1)
 }
 
 // DrawGlass has the picture's Glass sources draw on the glass over the feed, dst, as it is
-// shown, through the camera (ui draws it after everything laid over the feed).
+// shown, through the camera's copy (ui draws it after everything laid over the feed).
 func (f *Feed) DrawGlass(dst *gfx.Image) {
 	if g, ok := f.picture.(interface {
 		DrawGlass(dst *gfx.Image, cam camera.Camera)
 	}); ok {
-		g.DrawGlass(dst, f.cam)
+		g.DrawGlass(dst, camera.DrawnOf(f.cam))
 	}
 }
 
-// DrawOn draws the world through the camera onto dst, shown at dst's size: straight onto it at
-// the resolution of every pixel, else drawn at the camera's and scaled up; in layers, each over
-// the last; with the figures sharp, the ground scaled up and what lies over it straight onto dst.
+// DrawOn draws the world through the camera's copy onto dst, shown at dst's size: straight onto
+// it at the resolution of every pixel, else drawn at the camera's and scaled up; in layers, each
+// over the last; with the figures sharp, the ground scaled up and what lies over it straight onto
+// dst. A dst of another size than the feed was laid at resizes it first.
 func (f *Feed) DrawOn(dst *gfx.Image) {
 	b := dst.Bounds()
-	f.Resize(b.Dx(), b.Dy())
-	layers, cropping := f.layers()
-	sharp, crop := f.sharp(layers)
+	if b.Dx() != f.w || b.Dy() != f.h {
+		f.Resize(b.Dx(), b.Dy())
+	}
+	cam := camera.DrawnOf(f.cam)
+	layers, cropping := layersOf(cam)
+	sharp, crop := f.sharp(cam, layers)
 	if layers != nil {
 		f.freeGround()
-		f.drawLayers(dst, layers, cropping, sharp != nil)
+		f.drawLayers(cam, dst, layers, cropping, sharp != nil)
 		return
 	}
 	f.freeLayers()
 	if sharp != nil {
-		f.drawSharp(dst, sharp, crop)
+		f.drawSharp(cam, dst, sharp, crop)
 		return
 	}
 	f.freeGround()
-	if camera.ResolutionOf(f.cam) == 1 {
-		f.picture.DrawWorld(dst, f.cam)
+	if camera.ResolutionOf(cam) == 1 {
+		f.picture.DrawWorld(dst, cam)
 		return
 	}
 	img := f.Draw()
@@ -352,16 +361,17 @@ func (f *Feed) ToWorld(px, py float32) (x, y float32, ok bool) {
 	return x, y, true
 }
 
-// ToPixels is where in the feed the world point (x, y) at height z lies, and its depth; visible
-// is false for a point outside the feed or behind the eye.
+// ToPixels is where in the feed the world point (x, y) at height z lies, as the camera's copy
+// draws it, and its depth; visible is false for a point outside the feed or behind the eye.
 func (f *Feed) ToPixels(x, y, z float32) (px, py, depth float32, visible bool) {
-	px, py = f.cam.Project(x, y, z)
-	depth = f.cam.Depth(x, y, z)
-	w, h := f.cam.Viewport()
+	cam := camera.DrawnOf(f.cam)
+	px, py = cam.Project(x, y, z)
+	depth = cam.Depth(x, y, z)
+	w, h := cam.Viewport()
 	visible = px >= 0 && py >= 0 && px < w && py < h
-	if s, is := f.cam.(camera.Scaler); is && s.ScaleAt(x, y, z) <= 0 {
+	if s, is := cam.(camera.Scaler); is && s.ScaleAt(x, y, z) <= 0 {
 		visible = false
 	}
-	k := camera.ResolutionOf(f.cam)
+	k := camera.ResolutionOf(cam)
 	return px / k, py / k, depth, visible
 }

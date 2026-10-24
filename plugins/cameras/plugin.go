@@ -17,7 +17,6 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras/internal/stick"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/sector"
-	"github.com/kjkrol/gram/render"
 )
 
 // Config is what a game's cameras may do and how they see: Turn (Q, E), Tilt (R, F) and
@@ -124,6 +123,7 @@ var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ plugin.Tunable = (*Plugin)(nil)
 var _ plugin.Restorer = (*Plugin)(nil)
+var _ plugin.Paced = (*Plugin)(nil)
 
 // NewPlugin keeps and moves the cameras of worldPlugin's world as cfg says; it makes none itself.
 // A Config seeing in relief (any but the plain one) panics without a Cell or over a world that
@@ -132,8 +132,8 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin, cfg: cfg, worn: map[camera.Camera]dressed{}}
 	p.read.p, p.write.p = p, p
 	p.Self = world.NewSelf(worldPlugin, p)
-	p.zonesView = &zonesView{settings: &p.Res.Settings}
-	p.layersView = &layersView{settings: &p.Res.Settings}
+	p.zonesView = &zonesView{drawnSettings{live: &p.Res.Settings}}
+	p.layersView = &layersView{drawnSettings{live: &p.Res.Settings}}
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.levers = cfg.Levers
 	p.Res.Settings = Settings{Tactical: cfg.Tactical.filled(), Riding: cfg.Riding.filled()}
@@ -221,12 +221,17 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // entities.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.switchZones()
-	p.adapter.on = p.following()
-	if f := p.adapter.step(time.Now(), render.ActualFPS()); f != 1 {
-		p.redraw(f)
-	}
 	p.module.RunPlan(ctx, d)
 	p.redressChanged()
+}
+
+// Pace steps what follows the frame budget coarser or finer after the frames' times, on the
+// frame's barrier (plugin.Paced): the levers first, then the pictures.
+func (p *Plugin) Pace(t plugin.FrameTimes) {
+	p.adapter.on = p.following()
+	if f := p.adapter.pace(time.Now(), t); f != 1 {
+		p.redraw(f)
+	}
 }
 
 // following reports whether anything follows the frame budget: a profile's pictures or a lever
@@ -295,8 +300,6 @@ func (p *Plugin) apply(cam camera.Camera, factor float32) bool {
 }
 
 type reporter struct{ p *Plugin }
-
-func (reporter) Init(*goke.SysInit) {}
 
 func (r reporter) Report(line func(label, value string)) {
 	lead := r.p.lead()

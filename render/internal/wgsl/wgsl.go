@@ -6,17 +6,28 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/kjkrol/gram/internal/gpu"
+	"github.com/kjkrol/gram/render/internal/gpu"
 )
 
-//go:embed library.wgsl noise.wgsl
+//go:embed library.wgsl noise.wgsl light.wgsl
 var library embed.FS
 
 // MaterialID is a material registered with RegisterMaterials, which the shader works an overlay
 // out with.
 type MaterialID uint8
 
-var libraryUniforms = []gpu.Uniform{
+// Lamps is how many lamps at most light a picture (light.wgsl).
+const Lamps = 8
+
+// LampNames are the uniforms each lamp's place and colour go to the frame by.
+var LampNames = func() (names [Lamps][2]string) {
+	for k := range Lamps {
+		names[k] = [2]string{fmt.Sprintf("Lamp%dAt", k), fmt.Sprintf("Lamp%dColor", k)}
+	}
+	return names
+}()
+
+var libraryUniforms = append([]gpu.Uniform{
 	{Name: "Toward", Size: 3},
 	{Name: "Clock", Size: 1},
 	{Name: "Pixel", Size: 1},
@@ -29,6 +40,20 @@ var libraryUniforms = []gpu.Uniform{
 	{Name: "GroundShadeMix1", Size: 4},
 	{Name: "GroundShadeMix2", Size: 4},
 	{Name: "GroundShadeMix3", Size: 4},
+	{Name: "LightWay", Size: 3},
+	{Name: "LightStrength", Size: 1},
+	{Name: "LightColor", Size: 3},
+	{Name: "AmbientColor", Size: 3},
+	{Name: "Ambience", Size: 3},
+	{Name: "LampCount", Size: 1},
+}, lampUniforms()...)
+
+func lampUniforms() []gpu.Uniform {
+	var u []gpu.Uniform
+	for _, n := range LampNames {
+		u = append(u, gpu.Uniform{Name: n[0], Size: 4}, gpu.Uniform{Name: n[1], Size: 3})
+	}
+	return u
 }
 
 var (
@@ -95,7 +120,7 @@ func Layout(own []gpu.Uniform) *gpu.Layout {
 func SourceWith(fragment []byte) string {
 	sealed = true
 	var b strings.Builder
-	for _, n := range []string{"library.wgsl", "noise.wgsl"} {
+	for _, n := range []string{"library.wgsl", "noise.wgsl", "light.wgsl"} {
 		src, err := library.ReadFile(n)
 		if err != nil {
 			panic(fmt.Sprintf("render: %v", err))

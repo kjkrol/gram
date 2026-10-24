@@ -2,6 +2,133 @@
 
 ## Unreleased
 
+Needs aabbworld v1.16.0: built with `GOEXPERIMENT=simd` and run on a CPU with AVX2, the
+collision's pair sweep tests a crowded cell four boxes at a time, finding the same pairs.
+
+**The renderer's boundary** (2026-10-23, branch `feat/render-boundary`)
+- Breaking: the device is render's own, `render/internal/gpu`; the engine reaches it through
+  `render.UseDevice`, `render.Windowed`, `render.Present` and `render.Submit`, a test that draws
+  readies it with `gputest.Need(t)` from `render/gputest`. `Image.Texture` is gone.
+- A stage is readied before its first frame (`render.Prepare`): every shader made is compiled,
+  every deferred fill done, every texture written before the device put on it, and a frame drawn
+  and thrown away, for what is baked, laid out or built as it is first drawn; the world's time
+  starts after it, so the first frame no longer catches up five ticks. `GRAM_FPS_LOG=1` logs the
+  readying and the first three frames. The window's device is promised before the first stage's
+  Init, so a draw from an Init is an error rather than a device of its own.
+- A shader's SPIR-V is kept on disk and read back the next time (`os.UserCacheDir()`'s
+  `gram/shaders`, named by the WGSL and naga's version; `GRAM_SHADER_CACHE=off` keeps none, a
+  folder keeps it there): naga no longer translates every shader at every start, nor wgpu
+  parses its WGSL again. Readying board/topography 899 → 574 ms the first time, 323 ms after
+  (the shaders 601 → 34 ms), look/sky 744 → 426 / 200 ms, on an Intel UHD 620.
+- What is drawn can be published once a frame, after its ticks, and swapped before it is drawn
+  (`plugin.Publisher`, `render.Buffered`; the engine finds publishers among what it tracks, what
+  is drawn and the scenes' drawers, and its `Frame` updates and publishes, for tests).
+- Breaking: the looks' rules are the world's: `world.Rule`, `world.Rules`, `world.Own`,
+  `world.Over`, `world.As`, `world.Swap`, `world.With`, `world.Show` (were `render`'s).
+- Breaking: render no longer depends on goke (a test keeps it so). `render.Drawer` is gone and
+  no drawing type has `Init`: a `Renderer` draws, a `Reporter` reports, a Source composes, a
+  Picture draws its world, and the Composer readies nothing. What reads the world is a
+  `plugin.Bound`, readied once by the engine; `game.Scene.Drawers` returns `[]render.Renderer`,
+  so a picture or a source listed in a scene no longer compiles (the engine's check is gone).
+- The world's entities are published once a frame and drawn from what was published: the looks'
+  rules run once for every camera's sight together, not once a camera (none where a scene has
+  no rule), and each entity some camera sees is kept in 80 bytes (its box, heading, speed and Z
+  in float32, its layers and how far their materials have run, a Lie apart, the light's mark);
+  each camera draws through a copy of its view (`view.View.CopyInto`). `GRAM_FPS_LOG` shows the
+  publishing apart. 5,000 boxes (`Benchmark_World_Draw`, new `Benchmark_World_Publish` and
+  `Benchmark_World_Frame`), before → drawing + publishing: in full view 445 → 467 + 70 µs, a
+  quarter 125 → 120 + 27, a twentieth 30 → 24 + 12, two cameras a quarter each 242 → 239 + 45;
+  motion/collision 1.45 ms → 1.24 + 0.42. Done one after the other the copy is a price, meant to
+  be paid on the ticks' side once the frame is drawn beside them.
+- Breaking: `world.Lighting` marks an entity as it is published (`Mark(cur, i) uint16`) and lights
+  it by the mark (`Of(mark, box, z, a)`); `light.Write.Of` takes the mark.
+- What is drawn over the entities is published once a frame too: the selection's outlines and
+  the box being dragged, the collision boxes, the cells held (their outlines with their heights),
+  the bridges in hand, the views (their Show rules run once a frame, their outlines copied), the
+  routes and goals (the route to a queued goal found as it is published, no longer as it is
+  drawn) and the minimap's marks (at most 30 times a second, a deadline and a version; the
+  minimap is drawn anew as they are). `world.Read.ViewFor` is a camera's view as the frame drawn
+  was published, one copy a frame for everything that draws; `Read.Views` and `Read.InView` are
+  the views as the last tick left them, for what publishes. New: `vision.Renderer.WithInView`.
+- render lights the frame; the light plugin declares and publishes. The composer, given a scene's
+  lights (`render.Composer.Light`, `render.Lights`), hands each part of a frame the sun and the
+  lamps nearest its camera — the ground of a sharp-figures frame lit by the lamps too, which it
+  was not —, lights what a source draws (`render.Frame.Lit`), lays the live shadows of what
+  a source declares (`render.Frame.Cast`) once every source of the part has composed — the
+  camera's own, of the frame drawn, where a sharp-figures frame drew those of the composition
+  before or of another camera — and bakes the ground's shade first of the opaque pass. The
+  light's math, its WGSL (`lightWay`, `lampLightAt` and their uniforms, render's library now),
+  its baker and its caster are render's: `render.Distant`, `Lamp`, `Umbra`, `Beam`, `Casting`
+  (`Patch`, `Silhouette`, `Baked`, `NoShadow`), `Shadowing`, `ShadowPolicy`, `Block`,
+  `Lattice`, `MaxLamps`. The light plugin publishes `render.Lights` once a frame (the Baked
+  blocks scanned once a frame, not at every composition of every camera; blocks beyond every
+  band left out) through `world.Write.SetLights`; `world.Read.Lights` is what draws reads.
+- Breaking: `world.Lighting` is `Join` and `Mark(cur, i) render.Shadowing`; gone:
+  `light.Write.Begin`, `Of`, `light.Read.At`, `Casting`, the light plugin as a render source,
+  `world.Read.Lighting`, `look.Renderer.WithLighting` (now `WithLights`). `light.Distant`,
+  `Lamp`, `Umbra`, `Beam`, `Casting` and `ShadowPolicy` are render's; a shadow is of what stands
+  from an altitude up a height.
+- The ground is drawn as published too. The board publishes its cells once a frame, each of two
+  buffers brought up to the board where a cell's version differs from the one it holds (a cell
+  32 bytes, its kinds and way interned), and its renderer its grid's toggles; the topography its
+  relief, a copy of the heights as their version moves, and its settings. What draws reads them:
+  the board's tiles and covers, the painter, the kinds' shade, the terrain, the care's lines,
+  the hexes, the billboards, the light's live shadows, the routes and the views
+  (`board.Read.Drawn`, a `board.Drawn`; `board.Read.DrawnHeights`;
+  `routes.Renderer.WithDrawnHeights`), and the sectors' view its bands, the cameras' zones and
+  layers their settings. The terrain hands the frame the span of the heights it draws, a frame
+  late after the relief changed before; the board's miniature is drawn anew as the sun's light on
+  it changes visibly, never before; a sector's tints go to the GPU only as one changes.
+- The sky is drawn as published too. The atmosphere copies once a frame the weather, its air
+  masses where a patch changed since that buffer was drawn (`air.Dome.CopyInto`; the copies of a
+  dome share its picture, `air.DomeImage`), the sun, the heavens, which workings go on and its
+  Settings; the sky, the low clouds and what falls read only that, and so do the board's and the
+  topography's ground, haze and swaying through `atmosphere.Read.DrawnAir`. The sky hands the
+  frame the sun only where the composer has not lit it; the clouds' setters and the frame
+  budget's lever write the Settings alone. New: `backdrop.Values.Heavens`, for a sky part's Feed.
+- Breaking: `board.Atmosphere` and `topography.Atmosphere` ask for `DrawnAir()` (were `Air()`);
+  `atmosphere.Read` gives both, `Air` the live weather.
+- The screen is drawn as published too. A ui scene's drawer is a `plugin.Publisher`: once a frame,
+  after the ticks, it reads where its pinned elements' entities stand and whether each picture
+  shows them, every `ui.Text`'s words (a pinned label's for each of its entities), every
+  checkbox's and slider's value and which elements are hidden, and the frame is laid, drawn and
+  clicked as that says; an element put in since reads them as it is laid. A Text is read once
+  a frame where it was read four to seven times; `GoToIt` moves the camera at the publish after
+  the frame that laid it. A `ui.Drawer` that is a Publisher is published with its scene. A
+  scene's drawers publish only while the scene is shown: a hidden one reads nothing.
+- The telemetry's lines and reporters are read after the ticks while the panel is shown, four
+  times a second and as the mode changes; the panel only wraps the last reading and draws it.
+  The topography's cares are handed to its reporter as it swaps. The clock's HUD reads its line
+  after the ticks; the moon icon shows the phase the atmosphere published; a minimap is aimed,
+  and its compass turned, as published with its marks.
+- Fixed: the HUD's weather said the weather of before one set while the clock stood.
+- A frame is the engine's steps: the input, the simulation (the ticks and the publishing), the
+  barrier, where nothing ticks or draws, and the drawing. On the barrier what was published is
+  swapped in, the scenes shown are noted for the frame drawn, their drawers laid out
+  (`game.Laying`: a ui scene's layout, its text measured and its pictures sized, there and no
+  longer as it is drawn) and the last frame's times handed to what is paced (`plugin.Paced`,
+  `plugin.FrameTimes`: the wait for the GPU, the simulation, the barrier, the drawing, the
+  presenting). The cameras follow the frame budget there (`cameras.Plugin.Pace`), coarser only
+  while the drawing's side holds the frames back, not the simulation. `GRAM_FPS_LOG` names the
+  barrier and the waiting.
+- A camera is drawn from a copy of itself (`camera.Snapped`: `Snap`, `Drawn`, `Origin`;
+  `camera.DrawnOf`, `OriginOf`), taken as its feed is laid out on the barrier: the layers and the
+  sharp figures crop the copy, never the camera the ticks move, and a relief camera's copy has
+  its ground's extent frozen as it stood, the cage no longer read as it is drawn. What is kept
+  for a camera (the world's views, the marquees) is looked up by the camera the copy was taken
+  of. A minimap's outline of its camera's screen and its reach are published with its marks;
+  what the marks are gathered round is a lens of the ticks' own.
+- Nothing drawn reads the game as it ticks:
+  - Vision's views are held back by the cover as it was published: the board's cover is walked
+    as the observers are published, where it changed, and the drawing only sends it to the GPU.
+  - A stage is readied before the barrier lays its scenes out, so its first frame is laid out
+    there too; a ui picture drawn straight onto a screen it overhangs is laid at the screen's
+    size, so drawing it resizes no camera.
+  - What is shown after the frame's publish is published on the barrier: a ui scene's tree put
+    in by `Replace` as the scene is laid out, the drawers of a scene shown since.
+  - `world.Read.ViewFor` reads only the frame's Views once one was published: a camera the
+    frame holds none of has no View, no longer the one the ticks keep.
+
 **The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
 - No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an
   image of its cells (`look/tiles.go`): the sprites, the ways, the covers, what sways, the cells

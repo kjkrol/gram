@@ -122,7 +122,7 @@ func TestAtlas_UnderTwoEffectsTheLookDeclaredLaterIsDrawn(t *testing.T) {
 	blank := render.Solid(color.RGBA{})
 	a := w.NewAtlas()
 	a.Add(hero, 8, blank).Under(blinking, blank).Under(stamp, blank)
-	var drawing render.Rules
+	var drawing Rules
 	if err := drawing.Add(a.swaps()...); err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestAtlas_UnderTwoEffectsTheLookDeclaredLaterIsDrawn(t *testing.T) {
 			look.Slice(&f.Cursor)[0] = render.Appearance{SpriteID: hero}
 		}
 		qb := si.NewQueryBuilder(&look, &marks)
-		render.Own(&drawing, &marks)
+		Own(&drawing, &marks)
 		drawing.Bind(qb)
 		q = qb.Build()
 	}})

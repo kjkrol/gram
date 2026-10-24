@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -142,7 +143,9 @@ func TestPlugin_TheLayersInitialiseTheReportersAndCloseTheLines(t *testing.T) {
 	ecs := goke.New()
 	systems := make([]goke.System, 0, len(layers))
 	for _, l := range layers {
-		systems = append(systems, goke.SystemFn{OnInit: l.Init})
+		if b, ok := l.(plugin.Bound); ok {
+			systems = append(systems, goke.SystemFn{OnInit: b.Init})
+		}
 	}
 	ecs.Setup(systems...)
 	if !r.inited {
@@ -182,6 +185,39 @@ func TestPlugin_ToggleShowsAndHidesThePanelWithoutTakingTheInput(t *testing.T) {
 type plain struct{}
 
 func (plain) Name() string                                                      { return "main" }
-func (plain) Drawers() []render.Drawer                                          { return nil }
+func (plain) Drawers() []render.Renderer                                        { return nil }
 func (plain) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
 func (plain) Focusable() bool                                                   { return true }
+
+func TestPlugin_ThePanelShowsTheLinesAsPublished(t *testing.T) {
+	reads := 0
+	p := telemetry.NewPlugin(newWorld()).Clear().Line("Reads", func() string {
+		reads++
+		return strconv.Itoa(reads)
+	})
+	p.Write().SetMode(telemetry.Extended)
+	// its scene's drawer publishes it
+	scene := p.Scenes()[0].Drawers()[0].(plugin.Publisher)
+	scene.Publish()
+	scene.Swap()
+	if got := text(p); got != "Reads: 1" {
+		t.Fatalf("published, the panel says %q, want its line read once", got)
+	}
+	telemetry.Refresh(p, 0)
+	scene.Publish()
+	if got := text(p); got != "Reads: 1" || reads != 2 {
+		t.Errorf("read again, not yet swapped, the panel says %q, the line read %d times; want "+
+			"the first reading drawn, the line read twice", got, reads)
+	}
+	scene.Swap()
+	text(p)
+	if got := text(p); got != "Reads: 2" || reads != 2 {
+		t.Errorf("swapped, the panel says %q, the line read %d times; want the second reading, "+
+			"the line read as it was published alone", got, reads)
+	}
+	p.Write().SetMode(telemetry.Basic)
+	if got := text(p); got != "Reads: 2" {
+		t.Errorf("the mode set back, before it is published the panel says %q, want the lines "+
+			"drawn", got)
+	}
+}

@@ -18,6 +18,8 @@ import (
 // colour
 func insides(t *testing.T, p *Plugin, cam camera.Camera) map[int]color.RGBA {
 	t.Helper()
+	p.sectors.Publish()
+	p.sectors.Swap()
 	var f render.Frame
 	f.Reset(cam)
 	p.sectors.Compose(&f, cam)
@@ -58,6 +60,8 @@ func TestSectorsView_LaysTheSectorsInSightInTheColoursOfTheirBandsOrOfHowTheyAre
 		t.Errorf("as seen %v, want %v", got, want)
 	}
 	r.p.write.ShowSectors(NoSectors)
+	r.p.sectors.Publish()
+	r.p.sectors.Swap()
 	var f render.Frame
 	f.Reset(cam)
 	if r.p.sectors.Compose(&f, cam); f.Len() != 0 {

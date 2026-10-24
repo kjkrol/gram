@@ -29,24 +29,22 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Atmosphere is the weather over the relief, what leans what sways, hazes the far off and casts
-// the clouds' shadows: plugins/atmosphere's Plugin. Given none the relief stands in still, clear
-// air. The light is the light plugin's; given none, light.White, which the relief hands the
-// frame itself.
+// Atmosphere is the weather over the relief as the frame drawn reads it, what leans what sways,
+// hazes the far off and casts the clouds' shadows: plugins/atmosphere's Read. Given none the
+// relief stands in still, clear air. The light is the light plugin's; given none, light.White,
+// which the relief hands the frame itself.
 type Atmosphere interface {
-	Air() air.Weather
+	DrawnAir() air.Weather
 }
 
 // clear air seen as far as the world's scale lets one see
 type stillSky struct{ sight float64 }
 
-func (s stillSky) Air() air.Weather { return air.Weather{Sight: s.sight} }
+func (s stillSky) DrawnAir() air.Weather { return air.Weather{Sight: s.sight} }
 
 // stillFrame hands the frame the default sun and the still air while no plugin gives them, giving
 // way to what some other source has put on the frame, whichever composes first
 type stillFrame struct{ p *Plugin }
-
-func (stillFrame) Init(*goke.SysInit) {}
 
 func (s stillFrame) Compose(f *render.Frame, _ camera.Camera) {
 	if _, still := s.p.sky.(stillSky); !still || f.Uniformed("LightWay") {
@@ -79,6 +77,7 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	boardPlugin *board.Plugin
 	board       *board.BoardRead // the board's main read
+	drawnBoard  board.Drawn      // the board as the frame drawn holds it
 	light       *light.Plugin
 	relief      *irelief.Relief
 	painter     *ipainter.Painter
@@ -101,10 +100,15 @@ type Plugin struct {
 	taking   []render.Taking // by cell, as the kinds last stood
 	swaying  []float32
 	takesAt  uint64
-	module   *module
-	read     Read
-	reads    []*Read
-	write    Write
+	// the relief and the settings as the frame drawn holds them
+	drawn   render.Buffered[drawnTopography]
+	swapped bool
+	// the sectors the last frame drawn shaded with each care, handed over as it is swapped
+	cared  [terrain.FullCare + 1]int
+	module *module
+	read   Read
+	reads  []*Read
+	write  Write
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -113,6 +117,103 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ plugin.Tunable = (*Plugin)(nil)
 var _ plugin.Restorer = (*Plugin)(nil)
 var _ board.Map = (*Plugin)(nil)
+var _ plugin.Publisher = (*Plugin)(nil)
+
+// drawnTopography is the relief and the settings a frame is drawn by
+type drawnTopography struct {
+	relief   irelief.Relief
+	settings Settings
+	grid     look.RenderState // the board's
+}
+
+// Publish hands the frame drawn next the relief as it stands, its heights copied as they change,
+// and the topography's settings.
+func (p *Plugin) Publish() {
+	b := p.drawn.Back()
+	p.relief.CopyInto(&b.relief)
+	b.settings = p.Res.Settings
+	b.grid = look.RenderState{}
+	if r := p.boardPlugin.Res.Render; r != nil {
+		b.grid = *r
+	}
+}
+
+// Swap has the relief and the settings published last drawn.
+func (p *Plugin) Swap() {
+	p.drawn.Swap()
+	p.swapped = true
+	if p.ground != nil {
+		p.cared = p.ground.Cared()
+	}
+}
+
+// drawnRelief is the relief the frame drawn holds, the live one before any was published
+func (p *Plugin) drawnRelief() *irelief.Relief {
+	if !p.swapped {
+		return p.relief
+	}
+	return &p.drawn.Front().relief
+}
+
+// drawnSettings are the settings the frame drawn holds
+func (p *Plugin) drawnSettings() Settings {
+	if !p.swapped {
+		return p.Res.Settings
+	}
+	return p.drawn.Front().settings
+}
+
+// drawnGrid is the board's grid as the frame drawn holds it
+func (p *Plugin) drawnGrid() look.RenderState {
+	if !p.swapped {
+		if r := p.boardPlugin.Res.Render; r != nil {
+			return *r
+		}
+		return look.RenderState{}
+	}
+	return p.drawn.Front().grid
+}
+
+// drawnMap is the board's cells standing on the relief as the frame drawn holds them
+type drawnMap struct{ p *Plugin }
+
+func (m drawnMap) Look() look.Look         { return m.p.Look() }
+func (m drawnMap) Heights() ground.Heights { return m.p.drawnRelief() }
+func (m drawnMap) Dressing() look.Dressing { return m.p.painter }
+
+func (m drawnMap) Top(c cell.ID) (corners [4]float32, level float32) {
+	return m.p.drawnRelief().Top(c, m.p.drawnBoard.Kind(c).Height)
+}
+
+// DrawnHeights is the ground's height as the frame drawn holds it (board.Read.DrawnHeights).
+func (p *Plugin) DrawnHeights() ground.Heights { return drawnHeights{p} }
+
+// drawnHeights is the frame's relief, for what draws on it
+type drawnHeights struct{ p *Plugin }
+
+func (h drawnHeights) At(at geom.Vec) float64 { return h.p.drawnRelief().At(at) }
+func (h drawnHeights) Step() float64          { return h.p.drawnRelief().Step() }
+
+// drawnGround is the relief the terrain draws, the frame's
+type drawnGround struct{ p *Plugin }
+
+func (g drawnGround) Lattice() (cols, rows int, cell float32, heights []float32, ok bool) {
+	return g.p.drawnRelief().Lattice()
+}
+
+func (g drawnGround) Version() uint64 { return g.p.drawnRelief().Version() }
+
+// lightRelief is the relief as the light takes it: its heights as they stand, for the shade it
+// bakes as it publishes, and the ground the frame drawn holds, under the shadows cast in it
+type lightRelief struct{ p *Plugin }
+
+func (r lightRelief) Lattice() (cols, rows int, cell float32, heights []float32, ok bool) {
+	return r.p.relief.Lattice()
+}
+
+func (r lightRelief) Version() uint64 { return r.p.relief.Version() }
+
+func (r lightRelief) GroundAt(at geom.Vec) float64 { return r.p.drawnRelief().GroundAt(at) }
 
 // NewPlugin puts boardPlugin, over worldPlugin, in relief as cfg says, lit by lightPlugin (nil,
 // light.White), whose shadows fall on the relief from then on: the topography is the
@@ -124,9 +225,10 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 	}
 	brd := boardPlugin.Read(0).Board()
 	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, board: brd,
-		light:    lightPlugin,
-		sky:      stillSky{sight: air.Sight(worldPlugin.Read(0).Scale())},
-		climbing: cfg.Climbing}
+		drawnBoard: boardPlugin.Read(0).Drawn(),
+		light:      lightPlugin,
+		sky:        stillSky{sight: air.Sight(worldPlugin.Read(0).Scale())},
+		climbing:   cfg.Climbing}
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.read, p.write = Read{p: p}, Write{p: p}
 	p.reads = []*Read{&p.read}
@@ -141,22 +243,30 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 	}
 	p.relief = irelief.New(brd, boardPlugin.Write().Board().Touch)
 	p.shaper = &shaper{relief: p.relief, cfg: shaping}
-	p.painter = ipainter.New(brd, p.relief, true, map[cell.Name]painter.Style{}).WithKinds(boardPlugin.Read(0).CellKinds())
+	p.painter = ipainter.New(p.drawnBoard, p.drawnRelief, true, map[cell.Name]painter.Style{}).
+		WithKinds(boardPlugin.Read(0).CellKinds())
 	boardPlugin.WithMap(p)
 	if _, _, _, _, square := p.relief.Lattice(); square {
-		p.ground = terrain.New(p.relief, boardSurface{p}, liveSky{p}, terrain.Config{
+		p.ground = terrain.New(drawnGround{p}, boardSurface{p}, liveSky{p}, terrain.Config{
 			Scale: worldPlugin.Read(0).Scale(),
 			Seen:  worldPlugin.Read(0).ViewFor,
+			Drawn: func() (int, bool) {
+				s := p.drawnSettings()
+				return s.Care, s.Haze
+			},
 		})
 		p.careView = &careView{p}
 		p.write.SetCare(cfg.Care)
 	} else {
-		p.hexes = hexes.New(worldPlugin, boardPlugin, brd.Map(), p.relief, liveSky{p}, p.painter)
+		p.hexes = hexes.New(worldPlugin, boardPlugin, p.drawnBoard, drawnMap{p}, p.drawnRelief,
+			func() (bool, look.RenderState) { return p.drawnSettings().Haze, p.drawnGrid() },
+			liveSky{p}, p.painter)
 	}
-	p.look = billboards.New(worldPlugin.Read(0).FlatLook(), liveSky{p}, p.relief)
+	p.look = billboards.New(worldPlugin.Read(0).FlatLook(), liveSky{p},
+		func() (*irelief.Relief, bool) { return p.drawnRelief(), p.drawnSettings().Haze })
 	worldPlugin.Write().SetLook(p.look)
 	if lightPlugin != nil {
-		lightPlugin.OverRelief(p.relief)
+		lightPlugin.OverRelief(lightRelief{p})
 	}
 	return p
 }
@@ -177,7 +287,8 @@ func (s boardSurface) Surface() terrain.Painted {
 	}
 	out.Shores, out.Reach, out.Coast = d.Shores(s.p.boardPlugin.Read(0).Atlas())
 	out.Takes, out.Sway, out.Styled = s.p.takes()
-	if line, width, shown := s.p.boardPlugin.Res.Render.Grid(); shown {
+	grid := s.p.drawnGrid()
+	if line, width, shown := grid.Grid(); shown {
 		out.Grid, out.GridLine, out.GridWidth = look.MinGridCell, line, width
 	}
 	return out
@@ -186,7 +297,7 @@ func (s boardSurface) Surface() terrain.Painted {
 // the shade every cell takes and how much it sways, by cell row by row, read anew as the kinds
 // change, with the board's count of those changes
 func (p *Plugin) takes() ([]render.Taking, []float32, uint64) {
-	brd := p.board
+	brd := p.drawnBoard
 	if v := brd.Version() + 1; p.takesAt != v {
 		p.takesAt = v
 		p.taking, p.swaying = p.taking[:0], p.swaying[:0]
@@ -203,16 +314,16 @@ func (p *Plugin) takes() ([]render.Taking, []float32, uint64) {
 	return p.taking, p.swaying, brd.Version()
 }
 
-// the sun the light plugin shines, and the weather the atmosphere gives, as they stand
+// the sun the frame drawn is lit by, the light plugin's, and the weather the atmosphere gives
 type liveSky struct{ p *Plugin }
 
 func (s liveSky) Distant() light.Distant {
-	if s.p.light == nil {
-		return light.White
+	if l := s.p.worldPlugin.Read(0).Lights(); l != nil {
+		return l.Sun
 	}
-	return s.p.light.Read(0).Distant()
+	return light.White
 }
-func (s liveSky) Air() air.Weather { return s.p.sky.Air() }
+func (s liveSky) Air() air.Weather { return s.p.sky.DrawnAir() }
 
 // WithAtmosphere puts the relief under a: its weather leans what sways, lays the clouds' shadows
 // and hazes the far off. Call it before the first frame is drawn.
@@ -277,14 +388,12 @@ var careNames = [terrain.FullCare + 1]string{
 
 type reporter struct{ p *Plugin }
 
-func (reporter) Init(*goke.SysInit) {}
-
 func (r reporter) Report(line func(label, value string)) {
 	if r.p.read.Care() == 0 {
 		line("Ground", "care everywhere")
 		return
 	}
-	cared := r.p.ground.Cared()
+	cared := r.p.cared
 	lines := []string{fmt.Sprintf("care within %d sectors", r.p.read.Care())}
 	for c := terrain.FullCare; c >= terrain.LeastCare; c-- {
 		lines = append(lines, careNames[c]+" "+strconv.Itoa(cared[c]))

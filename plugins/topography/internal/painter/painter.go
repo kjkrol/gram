@@ -2,7 +2,6 @@ package painter
 
 import (
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/look"
@@ -14,8 +13,8 @@ import (
 // Painter is the board's Dressing in relief: the light on the tiles and what lies on them, and
 // the board painted flat for the ground drawn on the GPU.
 type Painter struct {
-	board   *board.BoardRead
-	relief  *relief.Relief
+	board   Board
+	ground  func() *relief.Relief
 	styles  map[cell.Name]Style
 	kinds   cell.Kinds
 	heights bool
@@ -49,14 +48,20 @@ var (
 	_ look.Overlaid = (*Painter)(nil)
 )
 
-// New is the painter of b over ground, the kinds looking as styles has them. heights says
-// whether the ground stands in relief.
-func New(b *board.BoardRead, ground *relief.Relief, heights bool,
+// Board is what the painter reads of a board: a look.Board, and each cell's way.
+type Board interface {
+	look.Board
+	Way(c cell.ID) cell.Way
+}
+
+// New is the painter of b over the relief ground gives, the kinds looking as styles has them.
+// heights says whether the ground stands in relief.
+func New(b Board, ground func() *relief.Relief, heights bool,
 	styles map[cell.Name]Style) *Painter {
 	w, h := b.CellBounds()
 	sq, square := b.Shape()
 	square = square && !sq.Hex
-	return &Painter{board: b, relief: ground, styles: styles, heights: heights, square: square,
+	return &Painter{board: b, ground: ground, styles: styles, heights: heights, square: square,
 		sq: sq, cellW: w, cellH: h}
 }
 
@@ -180,7 +185,7 @@ func (l *Painter) topOf(c cell.ID) *cellTop {
 	}
 	kind := l.board.Kind(c)
 	style := l.styles[kind.Name]
-	r := l.relief.Corners(c)
+	r := l.ground().Corners(c)
 	t.alt, t.sprite, t.ver = float32(r.Level()), kind.SpriteID, v
 	t.shine, t.flow, t.spread, t.under, t.raised = style.Shine, style.Flow, style.Spread, style.Under, kind.Height > 0
 	t.way = l.laneOf(l.board.Way(c))

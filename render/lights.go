@@ -1,15 +1,56 @@
 package render
 
-import "github.com/kjkrol/gram/camera"
+import (
+	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/render/internal/light"
+	"github.com/kjkrol/gram/render/internal/wgsl"
+)
 
-// Illumination is the light a thing is drawn in: Light on a surface facing up, the sun's and the
-// lamps', Lamps the lamps' alone, and which shade it Takes.
-type Illumination struct {
-	Light, Lamps Light
-	// Direct is the share of Light that is the distant light's, 0 to 1: what a shadow takes away.
-	Direct float32
-	Takes  Taking
-}
+// Illumination is the light a thing is drawn in (light.Illumination).
+type Illumination = light.Illumination
+
+// Distant is a light from far off, the same everywhere (light.Distant).
+type Distant = light.Distant
+
+// Beam is a Distant ready to light many surfaces (light.Beam).
+type Beam = light.Beam
+
+// Umbra is where a shadow lies on the ground (light.Umbra).
+type Umbra = light.Umbra
+
+// Lamp is a lamp in the world (light.Lamp).
+type Lamp = light.Lamp
+
+// MaxLamps is how many lamps at most light a picture: the nearest its camera.
+const MaxLamps = wgsl.Lamps
+
+// Casting is how a thing casts its shadow on the ground (light.Casting).
+type Casting = light.Casting
+
+// The ways a thing casts its shadow (light.Patch…).
+const (
+	Patch      = light.Patch
+	Silhouette = light.Silhouette
+	Baked      = light.Baked
+	NoShadow   = light.NoShadow
+)
+
+// Lights are a scene's lights for a frame, which a Composer lights its frames by
+// (Composer.Light; light.Lights).
+type Lights = light.Lights
+
+// Block is a solid whose shadow the ground bakes (light.Block).
+type Block = light.Block
+
+// Lattice is the ground a shade is baked over (light.Lattice).
+type Lattice = light.Lattice
+
+// Shadowing is how a thing casts its shadow and which shade it takes (light.Shadowing).
+type Shadowing = light.Shadowing
+
+// ShadowPolicy is how a thing casts its live shadow at a distance from the eye
+// (light.ShadowPolicy).
+type ShadowPolicy = light.ShadowPolicy
 
 // WhiteLight is a thing drawn as it is, taking every shade: a world without a light plugin.
 var WhiteLight = Illumination{Light: Light{1, 1, 1}, Takes: TakesAll}

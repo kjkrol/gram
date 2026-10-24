@@ -70,18 +70,25 @@ make demo-motion-bullet                                         # a soldier on W
 make demo-motion-platformer                                     # a hero in a side view under gravity: A/D walk, W jumps, G turns gravity over
 make bench                                                      # every benchmark once, with allocations
 make bench-save                                                 # 5 repeats into bench_results/ (ignored by git)
+make build                                                      # every package, the examples too
+make test                                                       # every test
 ```
 
-Only `internal/gpu` and `internal/engine` import gogpu (and wgpu, gputypes); plugins see `render`
-and `control`. Tests that draw ready a headless device (`gputest.Need(t)`, `internal/gpu/gputest`;
-`GRAM_GPU=software` for the software rasteriser, which draws wrong) and skip without a GPU. A
-running game logs its frame rate and where a frame's time goes every second with `GRAM_FPS_LOG=1`,
-starts fullscreen with `GRAM_FULLSCREEN=1` (F11 switches) and runs unpaced with `GRAM_VSYNC=off`;
-headless probes of a demo's frame include about 10 ms of the GPU's readback at 2560x1440, so
-compare them with each other, not with a frame rate. `GRAM_SHOT=<file.png>` saves frame
-`GRAM_SHOT_FRAME` (120) and quits, the world taking one step a frame till then: shots of a baseline
-tree and of the working one compare a change's pictures (the telemetry panel, random weather and
-random scenes are noise).
+The Makefile builds, tests, benches and runs with `GOEXPERIMENT=simd` (aabbworld's pair sweep
+four boxes at a time on a CPU with AVX2); `GOEXPERIMENT=` on its command line goes without it,
+and a plain `go` command goes without it unless the variable is set.
+
+Only `render` (its device in `render/internal/gpu`) and `internal/engine` import gogpu (and wgpu,
+gputypes); plugins see `render` and `control`. Tests that draw ready a headless device
+(`gputest.Need(t)`, `render/gputest`; `GRAM_GPU=software` for the software rasteriser, which draws
+wrong) and skip without a GPU. A running game logs its frame rate and where a frame's time goes
+every second with `GRAM_FPS_LOG=1`, starts fullscreen with `GRAM_FULLSCREEN=1` (F11 switches) and
+runs unpaced with `GRAM_VSYNC=off`, keeps its shaders' SPIR-V in `~/.cache/gram/shaders`
+(`GRAM_SHADER_CACHE=off` none, a folder there); headless probes of a demo's frame include about 10
+ms of the GPU's readback at 2560x1440, so compare them with each other, not with a frame rate.
+`GRAM_SHOT=<file.png>` saves frame `GRAM_SHOT_FRAME` (120) and quits, the world taking one step a
+frame till then: shots of a baseline tree and of the working one compare a change's pictures (the
+telemetry panel, random weather and random scenes are noise).
 
 The `examples/<group>/<name>` programs are real GUI apps — `go test` cannot exercise them. To
 check one still runs after a change: build to a temp path, run under `timeout <n>s`, treat exit
@@ -91,14 +98,14 @@ skill.
 
 **A change is checked on the demos that use what it changed**: `grep -rl
 '"github.com/kjkrol/gram/plugins/<pkg>"' examples` lists them (the atmosphere: board/topography,
-board/flat, look/sky); a demo without the package shows nothing of it. Every demo is the field
-only for a change to `render`, `internal/gpu`, the engine or the world. Pictures and frame rates
-compare a copy of the tree from before the change with the working one, alternately, in each
-regime the change has (steady, and the moment it works hardest): `gram-probe`, § Checking a
-change.
+board/flat, look/sky); a demo without the package shows nothing of it. Every demo is the field only
+for a change to `render`, the engine or the world. Pictures and frame rates compare a copy of the
+tree from before the change with the working one, alternately, in each regime the change has
+(steady, and the moment it works hardest): `gram-probe`, § Checking a change.
 
 CI (`.github/workflows/go.yml`) runs
-`xvfb-run -a go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...` on Go 1.27.0.
+`xvfb-run -a go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...` on Go 1.27.0,
+with `GOEXPERIMENT=simd` as the Makefile.
 
 ## A stage in parts
 
@@ -145,7 +152,7 @@ Decisions the user has made; they are not up for revisiting in passing.
   (moments, facts, words, knobs) and carries commands out; what to do when is rules and plans; a
   rule holds no Go code of its own. What a plugin does of its own — a pace, a log, a count, the
   weather — is its own pass's work, never a rule. The one place rules are Go is drawing
-  (`render.Rule`). A step a rule cannot say is a missing moment, step or knob.
+  (`world.Rule`). A step a rule cannot say is a missing moment, step or knob.
 - **No hooking.** No `ctx.Hook`, no `Plugin.Hook`, no side entrance by another name: a rule is a
   role's, a role is played, the engine delivers the rules to the hosts. Tests of a plugin's own
   package may keep a `Hook` in `export_test.go`.
@@ -238,9 +245,12 @@ Decisions the user has made; they are not up for revisiting in passing.
   strength, ambient, colours), lamps, and what each thing casts and takes (`light.Shadow`, a
   cell's `cell.Kind.Takes`); what shines is a `light.Source` on an entity. The sun is the
   atmosphere's: its sky writes the sun of the hour into the `light.Shining` beside its own
-  entity's Source; a scene without a sky sets a `WithDistant` light. The light bakes the
-  ground's shade and lays the live shadows; a ground draws itself in the frame's light, shade and
-  lamps (`render.GroundShade`, `lightWay`, `lampLightAt`), never working light out of its own.
+  entity's Source; a scene without a sky sets a `WithDistant` light. The light declares and
+  publishes (`render.Lights` once a frame); **render lights** (2026-10-24): the composer picks a
+  camera's lamps, lights what the sources draw (`render.Frame.Lit`), lays the shadows they say
+  cast (`Frame.Cast`) once they have all composed, and bakes the ground's shade; a ground draws
+  itself in the frame's light, shade and lamps (`render.GroundShade`, `lightWay`, `lampLightAt`),
+  never working light out of its own.
 - **What is drawn over what is Z's alone**, never a layer, the order of adding or the order a
   plugin registers in: every piece of the world lies at a height (`render.At`; what lies on a
   surface at a small lift over it — a route's goal, a cell held, a bridge in hand — a figure at
@@ -267,7 +277,7 @@ Decisions the user has made; they are not up for revisiting in passing.
 
 Dependency direction is one-way: `render` ← `plugin` ← `game` ← `internal/engine` ← `gram`.
 `render` draws with no knowledge of Stages, Scenes or plugins, its machinery in `render/internal`
-over the device (`internal/gpu`); `plugin` is the extension contract
+over the device (`render/internal/gpu`); `plugin` is the extension contract
 (`Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`/`CommandHandler`/
 `KindTemplater`/`Tunable`/`Keep`/`Made`, `plugin/section`); `game` is what a Stage implements and
 receives; `internal/engine` the `Engine`. Built-in plugins (`plugins/*`) import `plugin`/`render`

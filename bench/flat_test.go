@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/internal/gpu"
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -14,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 // the flat board's frames: 96x64 cells of 32, as the island
@@ -54,7 +53,7 @@ func Benchmark_Frame_Flat(b *testing.B) {
 			composer := render.NewComposer(r)
 			// the first frame builds the shaders and lays the board, as a game's first does
 			composer.DrawWorld(screen, cam)
-			gpu.Submit()
+			render.Submit()
 			screen.ReadPixels(buf)
 			k := 0
 			b.ReportAllocs()
@@ -65,7 +64,7 @@ func Benchmark_Frame_Flat(b *testing.B) {
 				}
 				screen.Clear()
 				composer.DrawWorld(screen, cam)
-				gpu.Submit()
+				render.Submit()
 				screen.ReadPixels(buf)
 			}
 		})

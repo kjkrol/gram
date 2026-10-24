@@ -23,8 +23,11 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-func pathCells(at unit.At, mt order.MoveOrder) []cell.ID {
-	cells := []cell.ID{at.Cell}
+func pathCells(at unit.At, mt order.MoveOrder) []cell.ID { return appendPath(nil, at, mt) }
+
+// appendPath appends to dst the cells from at to the order's target: the leg's, the path's left
+func appendPath(dst []cell.ID, at unit.At, mt order.MoveOrder) []cell.ID {
+	cells := append(dst, at.Cell)
 	next := mt.Target
 	if mt.Path.Index < mt.Path.Length {
 		next = mt.Path.Steps[mt.Path.Index]
@@ -63,7 +66,7 @@ var DefaultRouteStyle = RouteStyle{Line: color.RGBA{R: 255, G: 140, B: 0, A: 220
 // the selection's width
 const goalWidth = 2
 
-// Renderer draws the selected units' routes and every unit's goal.
+// Renderer draws the selected units' routes and every unit's goal, as published once a frame.
 type Renderer struct {
 	grid    grid.Grid
 	Style   RouteStyle // the kinds' default
@@ -72,10 +75,11 @@ type Renderer struct {
 	frame   *render.Frame // the one being composed
 	camera  camera.Camera // the one of the frame being composed
 	space   *aabbworld.Space
-	// nil: level at 0
-	heights func() ground.Heights
-	ground  ground.Heights
-	step    float64
+	// nil: level at 0; those of the frame drawn, nil: heights
+	heights      func() ground.Heights
+	drawnHeights func() ground.Heights
+	ground       ground.Heights
+	step         float64
 	// nil: the box as it lies
 	look   func() world.Look
 	routes bool
@@ -95,12 +99,42 @@ type Renderer struct {
 	mover goke.OptComp[unit.Mover]
 
 	footprint []render.Corners
+	drawn     render.Buffered[planned]
 
 	gpu   *Lines
 	onGPU bool // this frame's
 }
 
 var _ render.Direct = (*Renderer)(nil)
+
+// planned is what the Renderer draws: every selected unit and, the routes shown, its way: the
+// cells of its path planned.cells[path], its goals, the routes to its queued goals
+type planned struct {
+	routes bool
+	units  []routed
+	cells  []cell.ID
+	goals  []goalAt
+	legs   []leg
+}
+
+type routed struct {
+	style             RouteStyle
+	size, center, dir geom.Vec
+	end               geom.Vec // where its path ends
+	path, goals, legs [2]int32 // from, to
+}
+
+// goalAt is where a goal stands and how high
+type goalAt struct {
+	at  geom.Vec
+	alt float32
+}
+
+// leg is the route to a queued goal, from the goal before, its cells a preview's (queued)
+type leg struct {
+	cells    []cell.ID
+	from, to geom.Vec
+}
 
 // NewRenderer draws over grid in style the routes of the units marked selected.
 func NewRenderer(grid grid.Grid, style RouteStyle, selected tag.Tag[selection.Family]) *Renderer {
@@ -127,6 +161,12 @@ func (r *Renderer) WithHeights(heights func() ground.Heights) *Renderer {
 	return r
 }
 
+// WithDrawnHeights has the routes drawn over the ground as the frame drawn holds it.
+func (r *Renderer) WithDrawnHeights(heights func() ground.Heights) *Renderer {
+	r.drawnHeights = heights
+	return r
+}
+
 func (r *Renderer) WithLook(look func() world.Look) *Renderer {
 	r.look = look
 	return r
@@ -145,12 +185,73 @@ func (r *Renderer) Init(si *goke.SysInit) {
 		Build()
 }
 
+// Publish takes every selected unit's goals and, the routes shown, its way, the routes to its
+// queued goals found once a change of them, for the frame drawn next.
+func (r *Renderer) Publish() {
+	b := r.drawn.Back()
+	b.routes = r.routes
+	b.units, b.cells, b.goals, b.legs = b.units[:0], b.cells[:0], b.goals[:0], b.legs[:0]
+	if r.space == nil {
+		return
+	}
+	var g ground.Heights
+	if r.heights != nil {
+		g = r.heights()
+	}
+	var styles *render.Styles
+	if r.styles != nil {
+		styles = r.styles()
+	}
+	for r.query.All(); r.query.Next(); {
+		cursor := r.query.Cursor()
+		bases, cells, orders := r.base.Slice(cursor), r.cell.Slice(cursor), r.order.Slice(cursor)
+		marks, apps, movers := r.marks.Slice(cursor), r.app.Slice(cursor), r.mover.Slice(cursor)
+		for i := range cursor.IDs {
+			if !marks[i].Has(r.selected) {
+				continue
+			}
+			u := routed{style: r.Style, size: bases[i].Pos.Size}
+			if apps != nil {
+				if st, ok := render.StyleOf[RouteStyle](styles, apps[i].SpriteID); ok {
+					u.style = st
+				}
+			}
+			o, domain := &orders[i], unit.DomainAt(movers, i)
+			u.goals[0] = int32(len(b.goals))
+			r.goals(b, g, domain, o)
+			u.goals[1], u.path[0], u.legs[0] = int32(len(b.goals)), int32(len(b.cells)),
+				int32(len(b.legs))
+			if r.routes {
+				u.center, u.dir, u.end = bases[i].Pos.Center(), bases[i].Vel.Dir,
+					r.point(o.Target, o.Spot)
+				b.cells = appendPath(b.cells, cells[i], *o)
+				from := u.end
+				body := bodies.BodyOf(world.Z{}, bases[i].Pos.Size)
+				for k, route := range r.queued(cursor.IDs[i], domain, body, o) {
+					to := r.point(o.Waypoints[k].Cell, o.Waypoints[k].Spot)
+					b.legs = append(b.legs, leg{cells: route, from: from, to: to})
+					from = to
+				}
+			}
+			u.path[1], u.legs[1] = int32(len(b.cells)), int32(len(b.legs))
+			b.units = append(b.units, u)
+		}
+	}
+}
+
+// Swap has what was published last drawn.
+func (r *Renderer) Swap() { r.drawn.Swap() }
+
 func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	r.frame, r.camera = f, cam
 	r.gpu.Reset()
 	r.ground, r.step = nil, 0
-	if r.heights != nil {
-		if r.ground = r.heights(); r.ground != nil {
+	heights := r.drawnHeights
+	if heights == nil {
+		heights = r.heights
+	}
+	if heights != nil {
+		if r.ground = heights(); r.ground != nil {
 			r.step = r.ground.Step()
 		}
 	}
@@ -159,43 +260,18 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	if r.space == nil {
 		return
 	}
-	var styles *render.Styles
-	if r.styles != nil {
-		styles = r.styles()
-	}
-	r.query.All()
-	for r.query.Next() {
-		cursor := r.query.Cursor()
-		bases := r.base.Slice(cursor)
-		cells := r.cell.Slice(cursor)
-		orders := r.order.Slice(cursor)
-		marks := r.marks.Slice(cursor)
-		apps := r.app.Slice(cursor)
-		movers := r.mover.Slice(cursor)
-		for i := range cursor.IDs {
-			if !marks[i].Has(r.selected) {
-				continue
-			}
-			r.Current = r.Style
-			if apps != nil {
-				if st, ok := render.StyleOf[RouteStyle](styles, apps[i].SpriteID); ok {
-					r.Current = st
-				}
-			}
-			o := &orders[i]
-			r.goals(bases[i].Pos.Size, unit.DomainAt(movers, i), o)
-			if !r.routes {
-				continue
-			}
-			center := bases[i].Pos.Center()
-			r.drawPath(center, bases[i].Vel.Dir, pathCells(cells[i], *o), r.point(o.Target, o.Spot))
-			from := r.point(o.Target, o.Spot)
-			body := bodies.BodyOf(world.Z{}, bases[i].Pos.Size)
-			for k, route := range r.queued(cursor.IDs[i], unit.DomainAt(movers, i), body, o) {
-				to := r.point(o.Waypoints[k].Cell, o.Waypoints[k].Spot)
-				r.drawRoute(route, from, to)
-				from = to
-			}
+	d := r.drawn.Front()
+	for _, u := range d.units {
+		r.Current = u.style
+		for _, g := range d.goals[u.goals[0]:u.goals[1]] {
+			r.goal(u.size, g.at, g.alt)
+		}
+		if !d.routes {
+			continue
+		}
+		r.drawPath(u.center, u.dir, d.cells[u.path[0]:u.path[1]], u.end)
+		for _, l := range d.legs[u.legs[0]:u.legs[1]] {
+			r.drawRoute(l.cells, l.from, l.to)
 		}
 	}
 	if r.onGPU && r.gpu.Len() > 0 {
@@ -211,23 +287,28 @@ const (
 	goalLift  = 0.8
 )
 
-// a step aside is no goal
-func (r *Renderer) goals(size geom.Vec, domain cell.Domain, o *order.MoveOrder) {
+// a step aside is no goal; each stands on g
+func (r *Renderer) goals(b *planned, g ground.Heights, domain cell.Domain, o *order.MoveOrder) {
 	if !o.GivingWay {
-		r.goal(size, o.Target, o.Spot, r.standing(r.point(o.Target, o.Spot), domain, o.Level))
+		at := r.point(o.Target, o.Spot)
+		b.goals = append(b.goals, goalAt{at: at, alt: standing(g, at, domain, o.Level)})
 	}
 	for k := range o.Waypoints[:o.Queued] {
-		g := &o.Waypoints[k]
-		r.goal(size, g.Cell, g.Spot, r.standing(r.point(g.Cell, g.Spot), domain, g.Level))
+		w := &o.Waypoints[k]
+		at := r.point(w.Cell, w.Spot)
+		b.goals = append(b.goals, goalAt{at: at, alt: standing(g, at, domain, w.Level)})
 	}
 }
 
-func (r *Renderer) standing(p geom.Vec, domain cell.Domain, level order.Level) float32 {
-	if s, ok := r.ground.(ground.Surfaces); ok && level != order.OnGround {
+func standing(g ground.Heights, p geom.Vec, domain cell.Domain, level order.Level) float32 {
+	if s, ok := g.(ground.Surfaces); ok && level != order.OnGround {
 		top, _ := s.Surface(p, domain, math.Inf(1), 0)
 		return float32(top)
 	}
-	return r.groundAt(p)
+	if g == nil {
+		return 0
+	}
+	return float32(g.At(p))
 }
 
 func (r *Renderer) point(c cell.ID, spot geom.Vec) geom.Vec {
@@ -311,8 +392,7 @@ func (r *Renderer) on(p geom.Vec) (float32, float32) {
 	return r.camera.Project(float32(p.X), float32(p.Y), r.groundAt(p))
 }
 
-func (r *Renderer) goal(size geom.Vec, c cell.ID, spot geom.Vec, alt float32) {
-	at := r.point(c, spot)
+func (r *Renderer) goal(size, at geom.Vec, alt float32) {
 	box := geom.NewAABBAt(geom.NewVec(at.X-size.X/2, at.Y-size.Y/2), size.X, size.Y)
 	r.footprint = r.footprint[:0]
 	if r.look != nil {

@@ -1,19 +1,19 @@
-package bake
+package compose
 
 import (
 	"image"
 	"math"
 	"testing"
 
-	"github.com/kjkrol/gram/internal/gpu/gputest"
-	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
+	"github.com/kjkrol/gram/render/internal/gfx"
 )
 
 // a ground of 17 by 17 corners 32 apart, its heights as a test raises them
 type ground struct {
 	heights []float32
 	version uint64
-	img     *render.Image
+	img     *Image
 }
 
 func groundOf(raise func(x, y int) float32) *ground {
@@ -57,12 +57,12 @@ func (g *ground) lattice() Lattice {
 		Version: g.version}
 }
 
-// the frame's uniforms: the sun the way way and the ground's heights (render.GroundHeights), 16
+// the frame's uniforms: the sun the way way and the ground's heights (GroundHeights), 16
 // bits a corner as the terrain encodes them
-func (g *ground) uniforms(way [3]float32) render.Uniforms {
+func (g *ground) uniforms(way [3]float32) Uniforms {
 	lat := g.lattice()
 	if g.img == nil {
-		g.img = render.NewImage(17, 17)
+		g.img = gfx.NewImage(17, 17)
 		var buf []byte
 		for _, h := range g.heights {
 			v := uint32(min(max((h-lat.Low)/lat.Span, 0), 1)*65535 + 0.5)
@@ -70,7 +70,7 @@ func (g *ground) uniforms(way [3]float32) render.Uniforms {
 		}
 		g.img.WritePixels(buf)
 	}
-	return render.UniformsOf(map[string]any{
+	return UniformsOf(map[string]any{
 		"LightWay":      way[:],
 		"LightStrength": []float32{1},
 		"GroundHeights": g.img,
@@ -88,7 +88,7 @@ func frame(t *testing.T, b *Baker, g *ground, way [3]float32, blocks ...Block) {
 
 func bakedOver(t *testing.T, g *ground, sun [3]float32, blocks ...Block) *Baker {
 	t.Helper()
-	b := New()
+	b := &Baker{}
 	frame(t, b, g, sun, blocks...)
 	return b
 }
@@ -117,7 +117,7 @@ func TestBaker_BakesTheShadeInStripsAsTheSunTurns(t *testing.T) {
 	west := bakedOver(t, hill(), nudged(0.9))
 	want, before := shade(west), shade(east)
 
-	b, g := New(), hill()
+	b, g := &Baker{}, hill()
 	frame(t, b, g, sun(0.9))
 	frame(t, b, g, nudged(0.9))
 	got := shade(b)
@@ -151,12 +151,12 @@ func TestBaker_BakesTheShadeInStripsAsTheSunTurns(t *testing.T) {
 
 func TestBaker_WaitsForTheReliefsHeights(t *testing.T) {
 	gputest.Need(t)
-	b, g := New(), wall()
+	b, g := &Baker{}, wall()
 	sun := [3]float32{0.9487, 0, 0.3162}
 	if _, shown := b.Plan(g.lattice(), sun, nil); shown {
 		t.Error("the shade shows before anything is baked")
 	}
-	b.Bake(render.UniformsOf(map[string]any{"LightWay": sun[:]}))
+	b.Bake(UniformsOf(map[string]any{"LightWay": sun[:]}))
 	if _, shown := b.Plan(g.lattice(), sun, nil); shown || !b.Pending() {
 		t.Error("a frame without the ground's heights baked the shade, or the next plans nothing")
 	}
@@ -171,7 +171,7 @@ func TestBaker_WaitsForTheReliefsHeights(t *testing.T) {
 
 func TestBaker_BakesTheShadowsOfTheBlocks(t *testing.T) {
 	gputest.Need(t)
-	b, g := New(), level()
+	b, g := &Baker{}, level()
 	// a deck 64 along x either side of (256, y), 16 across, from 40 up to 50, in two pieces
 	deck := func(y float32) []Block {
 		piece := Block{UX: 1, Along: 32, Wide: 16, Bottom: 40, Top: 50, Y: y}
@@ -209,11 +209,11 @@ func TestBaker_BakesTheShadowsOfTheBlocks(t *testing.T) {
 
 func TestBaker_BakesTheBlocksOnLevelGroundWithoutHeights(t *testing.T) {
 	gputest.Need(t)
-	b := New()
+	b := &Baker{}
 	flat := Lattice{Cols: 17, Rows: 17, Cell: 32}
 	post := Block{X: 256, Y: 256, UX: 1, Along: 8, Wide: 8, Top: 40}
 	b.Plan(flat, eastAt45, []Block{post})
-	b.Bake(render.UniformsOf(map[string]any{"LightWay": eastAt45[:],
+	b.Bake(UniformsOf(map[string]any{"LightWay": eastAt45[:],
 		"LightStrength": []float32{1}}))
 	if v := pixelAt(b, 236, 256)[0]; v > 10 {
 		t.Errorf("west of the post on level ground the sun reaches %d, want its shadow", v)
@@ -306,7 +306,7 @@ func TestBaker_BakesHowHighABlocksShadowReaches(t *testing.T) {
 
 // what the library reads of the shade (groundShadeAt, standingShadeAt) at the points U.Probe0..3,
 // (x, y, how high over the ground, 0 the relief's or 1 the blocks'), a pixel each
-var shadeProbe = render.NewMeshShaderWith("shade probe", []byte(`
+var shadeProbe = gfx.NewMeshShaderWith("shade probe", []byte(`
 struct Out { @builtin(position) clip: vec4<f32> }
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32) -> Out {
@@ -329,7 +329,7 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> {
     }
     return vec4<f32>(lit, lit, lit, 1.0);
 }
-`), []render.Uniform{
+`), []gfx.Uniform{
 	{Name: "Probe0", Size: 4},
 	{Name: "Probe1", Size: 4},
 	{Name: "Probe2", Size: 4},
@@ -359,8 +359,8 @@ func TestGroundShade_TellsWhatStandsInAShadowAtItsHeight(t *testing.T) {
 		"Probe2": []float32{96, 256, 21, 1},
 		"Probe3": []float32{40, 256, 2, 1},
 	}
-	img := render.NewImage(4, 1)
-	img.DrawMesh(nil, shadeProbe, &render.DrawMeshOptions{Vertices: 3, Uniforms: u})
+	img := gfx.NewImage(4, 1)
+	img.DrawMesh(nil, shadeProbe, &gfx.DrawMeshOptions{Vertices: 3, Uniforms: u})
 	pix := make([]byte, 16)
 	img.ReadPixels(pix)
 	for k, c := range []struct {
@@ -379,7 +379,7 @@ func TestGroundShade_TellsWhatStandsInAShadowAtItsHeight(t *testing.T) {
 }
 
 func TestBaker_SetKeepsASliceForEachName(t *testing.T) {
-	b := New()
+	b := &Baker{}
 	b.baking.Uniforms, b.own = map[string]any{}, map[string][]float32{}
 	b.set("Strip", 1, 2, 3, 4)
 	first := b.baking.Uniforms["Strip"].([]float32)

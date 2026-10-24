@@ -39,7 +39,7 @@ fields, the zero value the plugin's default where it can be), written by setters
 builds the next value in its `control.Build` closure (a game's own key: a setting on the
 settings screen has no default key of the plugin's, 2026-10-20), never a
 command that means "the next one". `Settings()` (`plugin.Tunable`, asserted) lists them as
-`control.Switch`/`Choice`/`Range`, `Get` read every frame, `Set` building the command, a
+`control.Switch`/`Choice`/`Range`, `Get` read once a frame after the ticks, `Set` building the command, a
 `Section` (`control.Picture`, `Graphics` and the rest, a path of levels) putting one under a
 section the plugins share: the players' settings screen (F10) is generated from them, the
 shared sections first, then a section a plugin, centred. `Serializable()` returns

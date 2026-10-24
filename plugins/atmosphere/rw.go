@@ -58,6 +58,10 @@ func (r *Read) Air() air.Weather {
 	return w
 }
 
+// DrawnAir is the weather as the frame drawn reads it: as last published, the live one before any
+// was.
+func (r *Read) DrawnAir() air.Weather { return r.p.drawnAir() }
+
 // CloudShadows is whose shadows the clouds cast.
 func (r *Read) CloudShadows() CloudShadows { return r.p.shadows }
 
@@ -68,22 +72,10 @@ func (r *Read) ShownClouds() CloudLook { return r.p.Res.Settings.Clouds }
 func (r *Read) CloudsAdaptive() bool { return r.p.Res.Settings.AdaptiveClouds }
 
 // CloudsDrawnAt is the coarse of the pixels each way the clouds are drawn at, 4 to start.
-func (r *Read) CloudsDrawnAt() int {
-	p := r.p
-	if c := p.Res.Settings.CloudCoarse; c > 0 {
-		return c
-	}
-	return coarses[0]
-}
+func (r *Read) CloudsDrawnAt() int { return r.p.Res.Settings.coarse() }
 
 // CloudsReach is the share of the camera's sight the clouds are bodies out to, 1 everywhere.
-func (r *Read) CloudsReach() float32 {
-	p := r.p
-	if r := p.Res.Settings.CloudReach; r > 0 {
-		return r
-	}
-	return 1
-}
+func (r *Read) CloudsReach() float32 { return r.p.Res.Settings.reach() }
 
 // Calendar is the day, the season and the moon of the world's clock.
 func (r *Read) Calendar() *calendar.Calendar { return r.p.calendar }
@@ -111,10 +103,7 @@ func (w *Write) SetRunning(r Running) {
 // ShowClouds has the clouds drawn as look says (Settings.Clouds), AllBodies till then: a game's
 // say as it is made, the Clouds command's as it goes.
 func (w *Write) ShowClouds(look CloudLook) {
-	p := w.p
-	p.Res.Settings.Clouds = look
-	p.aloft.Show(look != ShadowsAlone)
-	p.aloft.Bodies(look == LowBodies || look == AllBodies)
+	w.p.Res.Settings.Clouds = look
 }
 
 // AdaptClouds has the clouds follow the cameras' frame budget, or not (Settings.AdaptiveClouds):
@@ -124,23 +113,19 @@ func (w *Write) AdaptClouds(on bool) { w.p.Res.Settings.AdaptiveClouds = on }
 // DrawCloudsAt has the clouds drawn at a coarse of the pixels each way, 4, 6 or 8
 // (Settings.CloudCoarse); any other, 4.
 func (w *Write) DrawCloudsAt(coarse int) {
-	p := w.p
 	if !slices.Contains(coarses, coarse) {
 		coarse = coarses[0]
 	}
-	p.Res.Settings.CloudCoarse = coarse
-	p.aloft.Coarse(coarse)
+	w.p.Res.Settings.CloudCoarse = coarse
 }
 
 // ReachClouds has the clouds drawn as bodies out to share of the camera's sight from where it
 // looks and flat beyond (Settings.CloudReach); 1 or more, or zero, everywhere.
 func (w *Write) ReachClouds(share float32) {
-	p := w.p
 	if share <= 0 || share > 1 {
 		share = 1
 	}
-	p.Res.Settings.CloudReach = share
-	p.aloft.BodiesTo(share)
+	w.p.Res.Settings.CloudReach = share
 }
 
 // Following is whether the clouds follow the frame budget (cameras.Lever).

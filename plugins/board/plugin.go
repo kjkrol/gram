@@ -79,6 +79,7 @@ type Plugin struct {
 // its deck Clearance over the ground under the middle of every cell between at least.
 type Bridges struct{ Clearance float64 }
 
+var _ plugin.Publisher = (*Plugin)(nil)
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
@@ -123,9 +124,10 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 			unit.AirborneName))
 	}
 	p.keepBridges()
-	p.renderer = look.NewRenderer(&brd.read, nil, brd.read.Map(), worldPlugin.Res.Config.Space).
+	p.renderer = look.NewRenderer(brd.drawnBoard(), nil, drawnMap{brd.drawnBoard()},
+		worldPlugin.Res.Config.Space).
 		WithSeen(worldPlugin.Read(0).ViewFor).
-		WithLighting(worldPlugin.Read(0).Lighting)
+		WithLights(worldPlugin.Read(0).Lights)
 	p.holdsView = p.newHoldsView()
 	return p
 }
@@ -143,7 +145,7 @@ func (p *Plugin) KindTemplates(r *kind.Roster) {
 }
 
 func (p *Plugin) newHoldsView() *occupancy.View {
-	v := occupancy.NewView(p.board.Grid, p.occupancy, p.holdAt)
+	v := occupancy.NewView(p.board.Grid, p.occupancy, p.holdAt, p.worldPlugin.Read(0).Views)
 	v.Width(DefaultHoldWidth)
 	return v
 }
@@ -187,6 +189,12 @@ func (p *Plugin) dress() {
 }
 
 // RunPlan runs the board's step; call it after collision's RunPlan.
+// Publish hands the frame drawn next the board's cells as they stand.
+func (p *Plugin) Publish() { p.board.drawn.publish() }
+
+// Swap has the cells published last drawn.
+func (p *Plugin) Swap() { p.board.drawn.swap() }
+
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.grids.Drain(func(i command.Issued[Grid]) { p.write.ShowGrid(i.Command.Shown) })
 	p.holds.Drain(func(i command.Issued[Holds]) { p.write.ShowHolds(i.Command.Shown) })

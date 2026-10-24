@@ -2,9 +2,10 @@ package bench_test
 
 import (
 	"fmt"
-	"github.com/kjkrol/gram/render"
 	"testing"
 	"time"
+
+	"github.com/kjkrol/gram/render"
 
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"

@@ -88,7 +88,7 @@ type fixedSky struct {
 }
 
 func (s fixedSky) Distant() light.Distant { return s.sun }
-func (s fixedSky) Air() air.Weather       { return s.air }
+func (s fixedSky) DrawnAir() air.Weather  { return s.air }
 
 func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 	w, p, cam := isometricIsland()

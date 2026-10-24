@@ -54,17 +54,16 @@ func (s *standing) Fog(amount float32) { s.fogs = append(s.fogs, amount) }
 
 // standing entities at x 100 and 700, and one at 900 of another kind, drawn through a camera
 // seeing as d says, the sprite standing where stands says
-func drawStanding(t *testing.T, d camera.Detail, stands bool, rules ...render.Rule) *standing {
+func drawStanding(t *testing.T, d camera.Detail, stands bool, rules ...Rule) *standing {
 	t.Helper()
 	look := &standing{counting: &counting{Look: ilook.NewFlat(1024, 1000, false, false)}}
 	cam := farther{Camera: cameratest.NewFromSpace(1024, 1000, 0), d: d}
 	v := view.NewSeen(cam, halves{})
-	var drawing render.Rules
+	var drawing Rules
 	if err := drawing.Add(rules...); err != nil {
 		t.Fatal(err)
 	}
-	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return v }, &drawing,
-		func() Look { return look })
+	r := newRenderer(flatAtlas{}, seenBy(cam, v), &drawing, func() Look { return look })
 	r.shade(nil, nil)
 	r.lie(nil, nil, map[render.SpriteID]bool{1: stands})
 	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 1024, Height: 1000, BucketSize: 128})
@@ -94,9 +93,7 @@ func drawStanding(t *testing.T, d camera.Detail, stands bool, rules ...render.Ru
 	}})
 	views := []*view.View{v}
 	view.NewSystem(space, &views, 1024, 1000).Update(nil, 0)
-	var f render.Frame
-	f.Reset(cam)
-	r.Compose(&f, cam)
+	composed(r, cam)
 	return look
 }
 
@@ -120,7 +117,7 @@ func TestRenderer_Compose_HandsTheLookTheFogOfEachEntity(t *testing.T) {
 
 func TestRenderer_Compose_RunsTheRulesOnAChunkInViewAlone(t *testing.T) {
 	var ran []float64
-	saw := render.Show(func(b Base) bool {
+	saw := Show(func(b Base) bool {
 		ran = append(ran, b.Pos.TopLeft.X)
 		return true
 	})

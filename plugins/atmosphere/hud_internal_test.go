@@ -14,12 +14,12 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/internal/engine"
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -128,6 +128,12 @@ func TestWeather_NamesTheWeatherSetAndIsLeftOutWithoutAClimate(t *testing.T) {
 	tick(1)
 	if got, _ := words.Text(0, false); !strings.HasPrefix(got, "rain") {
 		t.Errorf("the weather set to rain says %q", got)
+	}
+	a.worldPlugin.Write().Clock().TogglePause()
+	a.write.Climate().Set(weather.Clear)
+	tick(1)
+	if got, _ := words.Text(0, false); !strings.HasPrefix(got, "clear") {
+		t.Errorf("the weather set to clear while the clock stands says %q", got)
 	}
 	a.write.SetRunning(Running{Day: true, Stars: true, Moon: true})
 	if got, ok := words.Text(0, false); ok {

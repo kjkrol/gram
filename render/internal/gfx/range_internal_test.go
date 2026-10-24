@@ -4,7 +4,7 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/kjkrol/gram/internal/gpu/gputest"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 // two triangles, vertices 0 to 2 over the left half of the target, 3 to 5 over the right

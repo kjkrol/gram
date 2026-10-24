@@ -225,7 +225,6 @@ func TestEngine_Init_StageWithoutUseWorldGetsNoWorld(t *testing.T) {
 
 type drawnSource struct{}
 
-func (*drawnSource) Init(*goke.SysInit)                   {}
 func (*drawnSource) Compose(*render.Frame, camera.Camera) {}
 
 func TestInitializer_DrawsInTheOrderSaidAndNothingOnceThePictureIsMade(t *testing.T) {

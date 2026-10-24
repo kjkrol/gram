@@ -4,13 +4,12 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	_ "github.com/kjkrol/gram/plugins/atmosphere/air" // the clouds' functions the water calls
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 type sea struct {
@@ -18,7 +17,6 @@ type sea struct {
 	horizon, zenith [3]float32
 }
 
-func (*sea) Init(*goke.SysInit) {}
 func (s *sea) Compose(f *render.Frame, _ camera.Camera) {
 	f.Uniform("Fog", s.horizon[:]...)
 	f.Uniform("SkyOverhead", s.zenith[:]...)

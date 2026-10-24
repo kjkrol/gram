@@ -52,6 +52,7 @@ type Plugin struct {
 	styles   *render.Styles
 	ctx      plugin.Installer
 	picture  *render.Composer
+	lights   func() *render.Lights
 	read     Read
 	reads    parallel.Reads[*Read]
 	write    Write
@@ -87,7 +88,8 @@ func NewPlugin(cfg Config) *Plugin {
 	p.reads = parallel.Reads[*Read]{&p.read}
 	// the clock's entity is the world's own
 	p.Self = newSelf(p, p.Name(), comp.Const(m.clock.Read().State()))
-	p.renderer = newRenderer(nil, p.read.ViewFor, &m.drawing, p.read.Look)
+	p.renderer = newRenderer(nil, func() map[camera.Camera]*view.View { return p.views }, &m.drawing,
+		p.read.Look)
 	p.sectors = newSectorsView(p)
 	p.renderer.clock = m.clock.Read().Shown
 	return p
@@ -211,6 +213,7 @@ func (p *Plugin) dress() {
 		panic("world: a picture is made of what the Stage's plugins draw, and none was told")
 	}
 	p.picture = render.NewComposer(d.Drawn()...)
+	p.picture.Light(p.lights)
 }
 
 // RunPlan runs the world's tick. Call it from Stage.Update before whatever reads the world's

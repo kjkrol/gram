@@ -92,8 +92,8 @@ func TestRenderer_ComposesTheOutlinedViewsTheShowRulesShow(t *testing.T) {
 	every := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
 	tagged := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
 	shown := tag.Tag[viewers](3)
-	var rules render.Rules
-	if err := rules.Add(render.Show(shown.In)); err != nil {
+	var rules world.Rules
+	if err := rules.Add(world.Show(shown.In)); err != nil {
 		t.Fatal(err)
 	}
 	tagged.WithDrawing(&rules)
@@ -235,6 +235,8 @@ func recordFans(r *Renderer) *[][]ConePoint {
 }
 
 func composeWith(r *Renderer) *render.Frame {
+	r.Publish()
+	r.Swap()
 	var f render.Frame
 	f.Reset(r.camera)
 	r.Compose(&f, r.camera)
@@ -550,5 +552,41 @@ func TestRenderer_TheBoardsCoverKeepsACount(t *testing.T) {
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(8, 8, 32), &cell.MultipleOccupancy{}, w)
 	if versionOf(b.Read(0).Cover()) == 0 {
 		t.Error("the board's cover keeps no count: the views copy it anew every frame")
+	}
+}
+
+func TestRenderer_PublishesTheCoverItsViewsAreDrawnBy(t *testing.T) {
+	r := testRenderer(t, 256, 256, false, wholeWorld(256, 256))
+	cover := &counted{version: 1}
+	r.WithCover(func() ground.Cover { return cover })
+	var pos goke.Comp[world.Base]
+	var sight goke.Comp[Sight]
+	var eye goke.Comp[world.Eye]
+	ecs := goke.New()
+	ecs.Setup(
+		goke.SystemFn{OnInit: func(si *goke.SysInit) {
+			f := si.NewFactory(&pos, &sight, &eye)
+			f.Create(1)
+			for f.Next() {
+				pos.Slice(&f.Cursor)[0].Pos = world.Position{
+					AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}
+				sight.Slice(&f.Cursor)[0] = Sight{Facing: geom.NewVec(1, 0), Radius: 100}
+				eye.Slice(&f.Cursor)[0] = world.Eye{Angle: 1}
+			}
+		}},
+		goke.SystemFn{OnInit: r.Init},
+	)
+	r.Publish()
+	walks := cover.walks
+	if walks == 0 {
+		t.Fatal("published with an observer, the cover was not walked")
+	}
+	r.Swap()
+	var f render.Frame
+	f.Reset(r.camera)
+	r.Compose(&f, r.camera)
+	if cover.walks != walks || r.drawn.Front().cover.texels == nil {
+		t.Errorf("composed, the cover walked %d more times, a copy drawn %v; want none walked, "+
+			"the copy published drawn", cover.walks-walks, r.drawn.Front().cover.texels != nil)
 	}
 }

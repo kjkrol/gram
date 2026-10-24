@@ -37,8 +37,9 @@ type Ground struct {
 }
 
 type tints struct {
-	img *render.Image
-	pix []byte
+	img     *render.Image
+	pix     []byte
+	written bool
 }
 
 // New is a Ground over grid.
@@ -56,10 +57,18 @@ func (g *Ground) Paint(cam camera.Camera, colors []color.RGBA) {
 			pix: make([]byte, 4*g.grid.Cols*g.grid.Rows)}
 		g.tints[cam] = t
 	}
+	changed := !t.written
 	for i, c := range colors {
-		copy(t.pix[4*i:], []byte{c.R, c.G, c.B, c.A})
+		px := t.pix[4*i : 4*i+4]
+		if px[0] != c.R || px[1] != c.G || px[2] != c.B || px[3] != c.A {
+			px[0], px[1], px[2], px[3] = c.R, c.G, c.B, c.A
+			changed = true
+		}
 	}
-	t.img.WritePixels(t.pix)
+	if changed {
+		t.img.WritePixels(t.pix)
+		t.written = true
+	}
 }
 
 // Line is how a sector is laid: its edge Width pixels wide at Edge of its colour, its inside at

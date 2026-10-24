@@ -25,11 +25,14 @@ type headless struct {
 	ecs     *goke.ECS
 	world   *world.Plugin
 	cam     camera.Camera
+	cameras *cameras.Plugin
 	tracked []any
 	pending []func() []goke.System
 	tps     game.TPS
 	drawn   []render.Source
 	looks   []func()
+	// what publishes, found at the first publish
+	publishers []plugin.Publisher
 }
 
 var _ game.Initializer = (*headless)(nil)
@@ -72,13 +75,16 @@ func (c *headless) UseWorld(cfg world.Config) *world.Plugin {
 	return c.world
 }
 
-// w, h 0: the whole world
+// w, h 0: the whole world; cfg the first camera's, for every one
 func (c *headless) camera(cfg cameras.Config, start cameras.Start, w, h float32) camera.Camera {
 	if w == 0 {
 		space := c.world.Res.Config.Space
 		w, h = float32(space.Width), float32(space.Height)
 	}
-	cam := cameras.NewPlugin(c.world, cfg).Write().New(start, camera.Config{})
+	if c.cameras == nil {
+		c.cameras = cameras.NewPlugin(c.world, cfg)
+	}
+	cam := c.cameras.Write().New(start, camera.Config{})
 	cam.SetViewport(w, h)
 	cam.MoveTo(0, 0)
 	return cam
@@ -131,6 +137,45 @@ func (*headless) Pool() *parallel.Pool       { return pool }
 
 // the game's pool, every CPU, as the engine hands it to the plugins
 var pool = parallel.New(0)
+
+// bound readies the sources drawn that read the world, as the engine does.
+func (c *headless) bound() []goke.System {
+	var out []goke.System
+	for _, s := range c.drawn {
+		if b, ok := s.(plugin.Bound); ok {
+			out = append(out, goke.SystemFn{OnInit: b.Init})
+		}
+	}
+	return out
+}
+
+// publish has the publishers among what is tracked and drawn publish, then swap, as the engine
+// does once a frame.
+func (c *headless) publish() {
+	if c.publishers == nil {
+		seen := map[any]bool{}
+		for _, v := range append(append([]any(nil), c.tracked...), sources(c.drawn)...) {
+			if p, ok := v.(plugin.Publisher); ok && !seen[v] {
+				seen[v] = true
+				c.publishers = append(c.publishers, p)
+			}
+		}
+	}
+	for _, p := range c.publishers {
+		p.Publish()
+	}
+	for _, p := range c.publishers {
+		p.Swap()
+	}
+}
+
+func sources(s []render.Source) []any {
+	out := make([]any, len(s))
+	for i, v := range s {
+		out[i] = v
+	}
+	return out
+}
 
 // Drawn is what the installed plugins draw, for the world's picture.
 func (c *headless) Drawn() []render.Source { return c.drawn }
