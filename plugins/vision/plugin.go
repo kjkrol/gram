@@ -65,7 +65,7 @@ func (p *Plugin) Name() string { return "gram.vision" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	var h *heights
 	if p.worldPlugin.Read(0).HasHeights() {
-		h = &heights{groundOf: p.groundOf, step: p.groundStep, bend: p.worldPlugin.Read(0).Scale().Bend()}
+		h = &heights{groundOf: p.scanned, step: p.groundStep, bend: p.worldPlugin.Read(0).Scale().Bend()}
 	}
 	p.module = newModule(p.worldPlugin.Read(0).Space(), &p.sightings, h, p.coverOn, p.workers)
 	p.module.sys.Pool(ctx.Pool())
@@ -150,13 +150,18 @@ func (p *Plugin) WithCover(cover func() ground.Cover) *Plugin {
 
 // the ground the views are drawn over: the frame's where the board gives it
 func (p *Plugin) groundOf() ground.Heights {
-	switch {
-	case p.drawnHeights != nil:
+	if p.drawnHeights != nil {
 		return p.drawnHeights()
-	case p.heights != nil:
-		return p.heights()
 	}
-	return nil
+	return p.scanned()
+}
+
+// the ground sight scans: as it stands
+func (p *Plugin) scanned() ground.Heights {
+	if p.heights == nil {
+		return nil
+	}
+	return p.heights()
 }
 
 func (p *Plugin) coverOf() ground.Cover { return p.coverOn(0) }
