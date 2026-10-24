@@ -9,9 +9,10 @@
 // game/stage makes one itself where the game made none ([Of] finds it). [Plugin.With] adds the
 // lines of render.Reporters (the atmosphere's, collision's stats), [Plugin.Line] a line of the
 // game's own, [Plugin.Clear] drops every line, the standard ones too; all before the Stage's
-// scenes are made. A value of several lines stands under its label, a part a line.
-// [Write.Show], [Write.Hide], [Write.Toggle] and [Read.Shown] work on the Stage's
-// Composition, as the players' key does.
+// scenes are made. A value of several lines stands under its label, a part a line. The lines are
+// read after the ticks, four times a second and as the mode changes ([Plugin.Publish]); the
+// panel draws the last reading. [Write.Show], [Write.Hide], [Write.Toggle] and [Read.Shown] work
+// on the Stage's Composition, as the players' key does.
 //
 // # Mode
 //

@@ -188,3 +188,34 @@ func (plain) Name() string                                                      
 func (plain) Drawers() []render.Renderer                                        { return nil }
 func (plain) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
 func (plain) Focusable() bool                                                   { return true }
+
+func TestPlugin_ThePanelShowsTheLinesAsPublished(t *testing.T) {
+	reads := 0
+	p := telemetry.NewPlugin(newWorld()).Clear().Line("Reads", func() string {
+		reads++
+		return strconv.Itoa(reads)
+	})
+	p.Write().SetMode(telemetry.Extended)
+	p.Publish()
+	p.Swap()
+	if got := text(p); got != "Reads: 1" {
+		t.Fatalf("published, the panel says %q, want its line read once", got)
+	}
+	telemetry.Refresh(p, 0)
+	p.Publish()
+	if got := text(p); got != "Reads: 1" || reads != 2 {
+		t.Errorf("read again, not yet swapped, the panel says %q, the line read %d times; want "+
+			"the first reading drawn, the line read twice", got, reads)
+	}
+	p.Swap()
+	text(p)
+	if got := text(p); got != "Reads: 2" || reads != 2 {
+		t.Errorf("swapped, the panel says %q, the line read %d times; want the second reading, "+
+			"the line read as it was published alone", got, reads)
+	}
+	p.Write().SetMode(telemetry.Basic)
+	if got := text(p); got != "Reads: 2" {
+		t.Errorf("the mode set back, before it is published the panel says %q, want the lines "+
+			"drawn", got)
+	}
+}

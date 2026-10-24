@@ -48,7 +48,5 @@ func (w *Write) Toggle(c game.Composition) {
 
 // SetMode has the panel show the basics or every line (Settings.Extended).
 func (w *Write) SetMode(m Mode) {
-	p := w.p
-	p.Res.Settings.Extended = m == Extended
-	p.panel.stale()
+	w.p.Res.Settings.Extended = m == Extended
 }

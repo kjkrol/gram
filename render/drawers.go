@@ -8,7 +8,7 @@ type Renderer interface {
 }
 
 // Reporter is a plugin's part of the telemetry panel: lines it adds under the standard ones,
-// each a label and a value, asked for once a frame.
+// each a label and a value, asked for after the ticks, not as a frame is drawn.
 type Reporter interface {
 	Report(line func(label, value string))
 }

@@ -103,10 +103,12 @@ type Plugin struct {
 	// the relief and the settings as the frame drawn holds them
 	drawn   render.Buffered[drawnTopography]
 	swapped bool
-	module  *module
-	read    Read
-	reads   []*Read
-	write   Write
+	// the sectors the last frame drawn shaded with each care, handed over as it is swapped
+	cared  [terrain.FullCare + 1]int
+	module *module
+	read   Read
+	reads  []*Read
+	write  Write
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -140,6 +142,9 @@ func (p *Plugin) Publish() {
 func (p *Plugin) Swap() {
 	p.drawn.Swap()
 	p.swapped = true
+	if p.ground != nil {
+		p.cared = p.ground.Cared()
+	}
 }
 
 // drawnRelief is the relief the frame drawn holds, the live one before any was published
@@ -388,7 +393,7 @@ func (r reporter) Report(line func(label, value string)) {
 		line("Ground", "care everywhere")
 		return
 	}
-	cared := r.p.ground.Cared()
+	cared := r.p.cared
 	lines := []string{fmt.Sprintf("care within %d sectors", r.p.read.Care())}
 	for c := terrain.FullCare; c >= terrain.LeastCare; c-- {
 		lines = append(lines, careNames[c]+" "+strconv.Itoa(cared[c]))

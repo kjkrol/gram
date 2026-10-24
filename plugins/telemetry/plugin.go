@@ -30,10 +30,28 @@ type Plugin struct {
 	made        bool
 	read        Read
 	write       Write
+
+	readings render.Buffered[reading]
+	live     reading // read before any is published
+	count    uint64
+	readAt   time.Time
+	readMode bool
+	every    time.Duration
+	fresh    bool // a reading published, not yet swapped
+	swapped  bool
+}
+
+// reading is the panel's lines as read off the game: each label and its value, in the mode they
+// were read in, the count of readings so far
+type reading struct {
+	said     []said
+	extended bool
+	n        uint64
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Restorer = (*Plugin)(nil)
+var _ plugin.Publisher = (*Plugin)(nil)
 var _ game.Scenic = (*Plugin)(nil)
 
 // Mode is what the panel shows: the basics, the frame rate, the ticks a second, where a frame's
@@ -48,7 +66,7 @@ const (
 // NewPlugin makes the panel over worldPlugin's world with the standard lines: the basics, the
 // frame rate, the ticks a second, where a frame's time goes and the entities, and the game time.
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
-	p := &Plugin{worldPlugin: worldPlugin}
+	p := &Plugin{worldPlugin: worldPlugin, every: refreshEvery}
 	p.read.p, p.write.p = p, p
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.panel = newPanel(p)
@@ -84,9 +102,9 @@ func (p *Plugin) With(reporters ...render.Reporter) *Plugin {
 	return p
 }
 
-// Line adds a line of the game's own, label: value, value read every frame, shown in the Extended
-// mode; a value of several lines stands under its label, each indented. Before the Stage's scenes
-// are made.
+// Line adds a line of the game's own, label: value, value read four times a second, shown in the
+// Extended mode; a value of several lines stands under its label, each indented. Before the
+// Stage's scenes are made.
 func (p *Plugin) Line(label string, value func() string) *Plugin {
 	p.adding()
 	p.lines = append(p.lines, line{label: label, value: value})
@@ -148,7 +166,50 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
 
 // Restore takes the Settings loaded.
-func (p *Plugin) Restore() {
-	p.kept.Restore()
-	p.panel.stale()
+func (p *Plugin) Restore() { p.kept.Restore() }
+
+// Publish reads the panel's lines off the game, the reporters' too, four times a second and as
+// the mode changes.
+func (p *Plugin) Publish() {
+	if p.due() {
+		p.readInto(p.readings.Back())
+		p.fresh = true
+	}
+}
+
+// Swap has the lines read last drawn.
+func (p *Plugin) Swap() {
+	if p.fresh {
+		p.readings.Swap()
+		p.fresh, p.swapped = false, true
+	}
+}
+
+// drawn is the lines the frame drawn shows: as last published, read now before any was
+func (p *Plugin) drawn() *reading {
+	if p.swapped {
+		return p.readings.Front()
+	}
+	if p.due() {
+		p.readInto(&p.live)
+	}
+	return &p.live
+}
+
+// due reports whether the lines are to be read again: never read, a refresh gone by, the mode
+// changed
+func (p *Plugin) due() bool {
+	return p.count == 0 || time.Since(p.readAt) >= p.every ||
+		p.readMode != p.Res.Settings.Extended
+}
+
+func (p *Plugin) readInto(r *reading) {
+	p.count++
+	p.readAt, p.readMode = time.Now(), p.Res.Settings.Extended
+	r.n, r.extended, r.said = p.count, p.readMode, r.said[:0]
+	for _, l := range p.lines {
+		if l.basic || r.extended {
+			r.said = l.read(r.said)
+		}
+	}
 }

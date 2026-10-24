@@ -47,27 +47,31 @@ type entry struct {
 	under  []string
 }
 
-// entries appends the line's entries to dst
-func (l line) entries(dst []entry, f *render.Font) []entry {
-	add := func(label, value string) {
-		e := entry{label: label}
-		parts := strings.Split(value, "\n")
-		if len(parts) == 1 {
-			lines := wrap(f, value, panelWrap)
-			e.beside, e.under = lines[0], lines[1:]
-		} else {
-			for _, part := range parts {
-				e.under = append(e.under, wrap(f, part, panelWrap)...)
-			}
-		}
-		dst = append(dst, e)
-	}
+// a label and its value as read off the game
+type said struct{ label, value string }
+
+// read appends the line's labels and values to dst
+func (l line) read(dst []said) []said {
 	if l.reporter != nil {
-		l.reporter.Report(add)
+		l.reporter.Report(func(label, value string) { dst = append(dst, said{label, value}) })
 		return dst
 	}
-	add(l.label, l.value())
-	return dst
+	return append(dst, said{l.label, l.value()})
+}
+
+// entryOf is s's entry in f
+func entryOf(s said, f *render.Font) entry {
+	e := entry{label: s.label}
+	parts := strings.Split(s.value, "\n")
+	if len(parts) == 1 {
+		lines := wrap(f, s.value, panelWrap)
+		e.beside, e.under = lines[0], lines[1:]
+		return e
+	}
+	for _, part := range parts {
+		e.under = append(e.under, wrap(f, part, panelWrap)...)
+	}
+	return e
 }
 
 // wrap is s on as many lines as keep it within width pixels of f, broken between words; a word
@@ -116,49 +120,52 @@ func text(entries []entry) string {
 	return sb.String()
 }
 
-// how long the panel's lines stand before they are built anew
+// how long the panel's lines stand before they are read anew
 const refreshEvery = 250 * time.Millisecond
 
 // panel is the scene: never active, so the game under it keeps the input; it draws itself in
 // the top-left corner, the labels bold, as wide as its lines have been since the mode changed
 type panel struct {
-	p       *Plugin
-	screen  *ui.Scene
-	entries []entry
-	at      time.Time // when the entries were built
-	every   time.Duration
-	width   float32 // the widest the lines have run in this mode
-	font    *render.Font
-	bold    *render.Font
+	p        *Plugin
+	screen   *ui.Scene
+	entries  []entry
+	n        uint64  // the reading the entries were built of
+	extended bool    // its mode
+	width    float32 // the widest the lines have run in this mode
+	font     *render.Font
+	bold     *render.Font
 }
 
 var _ game.Scene = (*panel)(nil)
 var _ render.Renderer = (*panel)(nil)
 
 func newPanel(p *Plugin) *panel {
-	s := &panel{p: p, every: refreshEvery}
+	s := &panel{p: p}
 	s.screen = ui.NewScene(SceneName, ui.Drawer(s))
 	return s
 }
 
-// Text is the panel's lines of its mode as plain text (ui.Text), built anew four times a second.
+// Text is the panel's lines of its mode as plain text (ui.Text), as the frame drawn shows them.
 func (s *panel) Text(uid.UID64, bool) (string, bool) {
 	s.build()
 	return text(s.entries), len(s.entries) > 0
 }
 
-// build has the entries built anew once every refresh
+// build has the entries built anew of a new reading, the panel as narrow as they are in a new
+// mode
 func (s *panel) build() {
-	if now := time.Now(); now.Sub(s.at) >= s.every {
-		s.fonts()
-		extended := s.p.Res.Settings.Extended
-		s.entries = s.entries[:0]
-		for _, l := range s.p.lines {
-			if l.basic || extended {
-				s.entries = l.entries(s.entries, s.font)
-			}
-		}
-		s.at = now
+	r := s.p.drawn()
+	if r.n == s.n {
+		return
+	}
+	s.fonts()
+	if r.extended != s.extended {
+		s.width = 0
+	}
+	s.n, s.extended = r.n, r.extended
+	s.entries = s.entries[:0]
+	for _, said := range r.said {
+		s.entries = append(s.entries, entryOf(said, s.font))
 	}
 }
 
@@ -168,9 +175,6 @@ func (s *panel) fonts() {
 		s.font, s.bold = th.Font, th.Bold
 	}
 }
-
-// stale has the entries built anew at the next read, the panel as narrow as they are
-func (s *panel) stale() { s.at, s.width = time.Time{}, 0 }
 
 func (s *panel) Name() string { return SceneName }
 
