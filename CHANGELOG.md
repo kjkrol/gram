@@ -76,6 +76,15 @@
   layers their settings. The terrain hands the frame the span of the heights it draws, a frame
   late after the relief changed before; the board's miniature is drawn anew as the sun's light on
   it changes visibly, never before; a sector's tints go to the GPU only as one changes.
+- The sky is drawn as published too. The atmosphere copies once a frame the weather, its air
+  masses where a patch changed since that buffer was drawn (`air.Dome.CopyInto`; the copies of a
+  dome share its picture, `air.DomeImage`), the sun, the heavens, which workings go on and its
+  Settings; the sky, the low clouds and what falls read only that, and so do the board's and the
+  topography's ground, haze and swaying through `atmosphere.Read.DrawnAir`. The sky hands the
+  frame the sun only where the composer has not lit it; the clouds' setters and the frame
+  budget's lever write the Settings alone. New: `backdrop.Values.Heavens`, for a sky part's Feed.
+- Breaking: `board.Atmosphere` and `topography.Atmosphere` ask for `DrawnAir()` (were `Air()`);
+  `atmosphere.Read` gives both, `Air` the live weather.
 
 **The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
 - No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an

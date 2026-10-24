@@ -344,7 +344,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`seen.go`). Nothing is composed on the CPU: a camera without rays or a board of no world
   draws nothing; `Renderer.Whole` draws the whole board from above into an image),
   and takes the weather through `board.Plugin.WithAtmosphere(atmosphere)` (`lit.go`, reading
-  `board.Atmosphere{Air}`: what sways leaning, the clouds' shadows laid on its ground right after
+  `board.Atmosphere{DrawnAir}`, the weather as published: what sways leaning, the clouds' shadows laid on its ground right after
   the tiles, `draw.Clouds`), called in a scene before the first frame; without either it is drawn
   as it is. The
   board's own Map is the simple map — flat, every kind in its sprite from the game's atlas
@@ -429,7 +429,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   reads them in a top-down game too. **Layering: the world knows its entities and nothing else; the
   ground is the board's, the sky the atmosphere's, `render` generic.** A relief is lit by the
   light plugin it is made with (without one `light.White`, which the topography hands the
-  frame itself) and stands under its `topography.Atmosphere` for the weather (`WithAtmosphere`).
+  frame itself) and stands under its `topography.Atmosphere{DrawnAir}` for the weather as
+  published (`WithAtmosphere`; `liveSky` relays it to the terrain, the hexes and the billboards).
   Its water reflects the sky's own colours (`skyAt`). "Full care follows the frame budget"
   (`AdaptCare{On}`, `Settings.AdaptiveCare`, 2026-10-20): the plugin is a `cameras.Lever` given
   in `cameras.Config.Levers`, its care's reach stepped down the ladder (`careLadder`) before the
@@ -437,7 +438,14 @@ facts for plans, knobs and commands (who may give each). That section is the aut
 - **`atmosphere`** — the time of day, the climate and the weather on the world's clock, over a
   world with heights alone (`NewPlugin` panics in a flat one); its root
   keeps no shaders and draws nothing of the world itself: every part is a package that never
-  imports it. Its HUD (2026-10-20, etap V, `hud.go`): `TimeOfDay()`, `Date()` (the season
+  imports it. Drawn as published (`drawn.go`, 2026-10-24): `Publish` copies the weather
+  (`Read.Air()` with the clouds' shadow flags, its dome by `air.Dome.CopyInto`, a patch where
+  its `Version` differs from that buffer's), `Read.Sun()`, the heavens, `Running` and the
+  Settings; the sky, the low clouds (`lowClouds`, setting `aloft`'s look from the Settings as it
+  composes) and the drops read only that (`drawn()`, live before the first swap), the boards
+  `Read.DrawnAir()`; `Read.Air` stays live for the weathering and the climate's rules. The
+  clouds' setters and the lever write the Settings alone; the sky hands the frame the sun only
+  where the composer has not lit it. Its HUD (2026-10-20, etap V, `hud.go`): `TimeOfDay()`, `Date()` (the season
   and the date, the moon's phase an icon beside them while `Running().Moon`, drawn from
   `celestial.MoonFace` with the phase's shade, lit on the right waxing), `Weather()` (the name,
   the temperature, the wind; absent without a running climate; it reads through a drawer of
@@ -490,7 +498,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `ByDay`, `Image`), the stars (`Catalogue` drawn as instances behind the sky, `Dots` its shader
   adds); `Earth()` part by part (`EarthVault`/`Sun`/`Moon`/`Stars`, `ScatteredStars` the dots);
   a part is WGSL to `shaders/sky.wgsl` (`SkyVault(s: SkyAt)`, `SkyStars`, `SkyMoon(s, d: SkyDisc)
-  -> SkyShine`, `SkySun`) with `Reads` its uniforms and `Feed(v *Values)` setting them; without
+  -> SkyShine`, `SkySun`) with `Reads` its uniforms and `Feed(v *Values)` setting them (from
+  `v.Heavens()`, the heavens drawn under, never the live sky); without
   WGSL it draws nothing (a stub stands in). `Renderer.Dress` assembles the shader as the Stage's
   looks are declared, panicking on a uniform or a module-scope name two parts (or the library,
   `render.SharedUniforms`) declare; compiled at the first draw, cached by source. The clouds'
@@ -540,8 +549,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Hazer` the haze worked out once a frame. WGSL `airAt(p)` reads the frame's image `AirMasses`
   (`air.DomeImage`, held by the sky's renderer, which sets it in Compose; a block of pixels a
   level, its kept cells in order from the first, not the ring, so the GPU's filter blends them:
-  a level is copied out of the world's memory and written whole as its window moves or a patch
-  of it changes, drawn in place by gpu, see gram-render): `U.AirLevelNA` (the block's first
+  a level is copied out of the dome drawn and written whole as its window moves or a patch
+  of it changes, drawn in place by gpu, see gram-render; the copies of a dome,
+  `Dome.CopyInto`, share its picture): `U.AirLevelNA` (the block's first
   cell in the world, cell, block across the picture) and `U.AirLevelNC` (the rect read in), the
   finest level holding p, mixed with the next over its 2-cell band, one `textureSampleLevel`
   with `wrapped` a level, as `Dome.At` does on the CPU (a test keeps them within 2.5/255, also
