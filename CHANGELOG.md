@@ -118,6 +118,16 @@ collision's pair sweep tests a crowded cell four boxes at a time, finding the sa
   for a camera (the world's views, the marquees) is looked up by the camera the copy was taken
   of. A minimap's outline of its camera's screen and its reach are published with its marks;
   what the marks are gathered round is a lens of the ticks' own.
+- Nothing drawn reads the game as it ticks:
+  - Vision's views are held back by the cover as it was published: the board's cover is walked
+    as the observers are published, where it changed, and the drawing only sends it to the GPU.
+  - A stage is readied before the barrier lays its scenes out, so its first frame is laid out
+    there too; a ui picture drawn straight onto a screen it overhangs is laid at the screen's
+    size, so drawing it resizes no camera.
+  - What is shown after the frame's publish is published on the barrier: a ui scene's tree put
+    in by `Replace` as the scene is laid out, the drawers of a scene shown since.
+  - `world.Read.ViewFor` reads only the frame's Views once one was published: a camera the
+    frame holds none of has no View, no longer the one the ticks keep.
 
 **The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
 - No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an

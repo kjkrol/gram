@@ -93,7 +93,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `unindexed` flag gone; 2026-10-21, etap 3 and wave 3), the effects' pass. `Query`, `Scan` and collisions read that grid
   until the next rebuild. At the start of the world's tick the `view.System` refreshes every
   `view.View` (`Plugin.View()` the camera's); `Read.ViewFor(cam)` is a camera's as the frame
-  drawn was published (one copy a frame, 2026-10-23, the live one before the first publish),
+  drawn was published (one copy a frame, 2026-10-23, the live one before the first publish; after
+  it nil for a camera the frame holds none of, 2026-10-24),
   `Read.Views()`/`InView(id)` the live ones for what publishes to cull by; the renderer draws
   what the View contains. The world makes no camera. It hosts rules of a `clock.Moment` (every step, just
   before the effects' pass) and handles the commands about effects, `Pause` (P and Shift+P),
@@ -1166,7 +1167,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   keeps what the scan found to the field `Tilt ± Vertical/2` by elevation (`scanner.vertical`, after
   aabbworld's cone, which knows no vertical angle), the views drawn the ring of ground the field
   meets (near and far on the CPU from the eye's height, per pixel on the GPU by `atan2`, the
-  instance's fifth vec4). Every observer is scanned every step, or
+  instance's fifth vec4); the cover they are held back by on the GPU is walked as the observers
+  are published (`coverCopy`, anew where the cover or the ground changed; 2026-10-24), the
+  drawing only uploading it. Every observer is scanned every step, or
   `WithFrequency(perSecond)` with the observers taking turns, shared among goroutines
   (`WithWorkers`). It hosts rules of a `Sighting` inside the scan's pass, once a step per observer
   on what it saw at its last scan (`cond.Other.If(b)` everything in view; its `Subject` the nearest

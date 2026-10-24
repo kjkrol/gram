@@ -97,7 +97,8 @@ no `render` rule: the world through a camera is a `render.Feed` (`render.NewFeed
 drawn every frame into an image of the size it is shown at; `ToWorld`/`ToPixels`), which
 `ui.Image(feed)` shows. `ui.NewScene(name, screen)` is a `game.Scene`: `Input(players.Handle)`,
 `Issue(players.IssueAs(pl))` for its buttons and keys, `Keys(bindings...)`, `Theme(th)`,
-`Show`/`Hide`/`Toggle`/`Shown` by name, `Replace(screen)`, `Lay(screen)` (tests call it),
+`Show`/`Hide`/`Toggle`/`Shown` by name, `Replace(screen)` (a tree put in after the frame's
+publish published as the barrier lays the scene out), `Lay(screen)` (tests call it),
 `Laid()` (the screen it was last laid over: a menu built for a size rebuilds itself when the
 next tick finds it laid over another, as the players' settings and shortcuts do); it saves
 which named elements are shown (`Persisted`/`Restore`). **The notation says what it does**:
@@ -109,7 +110,8 @@ theme's `Bold`), `Title` (its `Large`, Go Bold at 20), `Image` (a picture; a sou
 `DrawGlass(dst)`, as a `render.Feed` with a `render.Glass` source, draws on it last of all,
 over whatever lies over the picture), `Window`, `LabelOf`/`ButtonOf`/
 `WindowOf`/`HeadingOf` (their words read off a `ui.Text` once a frame, as the scene's drawer — a
-`plugin.Publisher` — publishes after the ticks, only while the scene is shown, the frame laid, drawn and clicked as published; `ui.Of[T]` reads a component of the pinned
+`plugin.Publisher` — publishes after the ticks, only while the scene is shown, a scene shown
+after the frame's publish on the barrier, the frame laid, drawn and clicked as published; `ui.Of[T]` reads a component of the pinned
 entity, `ui.While(on, text)` says text while `on()`; a Text saying nothing leaves the element out), `Button(label, cmds...)` (the scene's own
 `ui.Show`/`Hide`/`Toggle{Name}`, or any command through `Issue`; no callbacks into the game),
 `Blank`, `Drawer(renderer)`, `Scroll(el)` (an element taller than its box, scrolled by its bar or
