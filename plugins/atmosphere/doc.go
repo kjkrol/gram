@@ -10,7 +10,7 @@
 // weather in every step of the simulation, carried over the world by the wind: a new one is born
 // at the horizon it blows from and comes in over the world, and rain and snow fall only under
 // their clouds.
-// [Read.Sun] and [Read.Air] are what a board takes to light and shade itself
+// [Read.DrawnAir] is what a board takes to shade itself and lean what sways
 // (board.Plugin.WithAtmosphere, topography.Plugin.WithAtmosphere).
 //
 // [Plugin.Over], as the plugin is made, has the low clouds hang over a board's ground, their bands

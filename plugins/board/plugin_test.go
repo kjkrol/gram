@@ -159,7 +159,7 @@ func (*drawsCtx) Pool() *parallel.Pool       { return nil }
 type stillSky struct{}
 
 func (stillSky) Distant() light.Distant { return sky.DefaultSun }
-func (stillSky) Air() air.Weather       { return air.Weather{} }
+func (stillSky) DrawnAir() air.Weather  { return air.Weather{} }
 
 func TestPlugin_DrawsItsGroundAndItsHoldsAndDressesTheGroundUnderASky(t *testing.T) {
 	worldPlugin := world.NewPlugin(world.Config{

@@ -15,7 +15,7 @@ import (
 type ownSky struct{ sun light.Distant }
 
 func (s ownSky) Distant() light.Distant { return s.sun }
-func (s ownSky) Air() air.Weather       { return air.Weather{} }
+func (s ownSky) DrawnAir() air.Weather  { return air.Weather{} }
 
 // a sky some other source puts on the frame
 type framing struct{ sun light.Distant }

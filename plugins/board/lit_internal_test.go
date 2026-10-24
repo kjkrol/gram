@@ -21,7 +21,7 @@ type heldSky struct {
 }
 
 func (s heldSky) Distant() light.Distant { return s.sun }
-func (s heldSky) Air() air.Weather       { return *s.weather }
+func (s heldSky) DrawnAir() air.Weather  { return *s.weather }
 
 // the atmosphere's sky handing the frame its sun and weather, and a strip lying on the ground at
 // a material's lift

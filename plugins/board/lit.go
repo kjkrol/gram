@@ -12,10 +12,10 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Atmosphere is the weather over a flat board: what leans what sways and whose clouds shade the
-// ground; plugins/atmosphere's Plugin. The light is the light plugin's.
+// Atmosphere is the weather over a flat board as the frame drawn reads it: what leans what sways
+// and whose clouds shade the ground; plugins/atmosphere's Read. The light is the light plugin's.
 type Atmosphere interface {
-	Air() air.Weather
+	DrawnAir() air.Weather
 }
 
 // WithAtmosphere puts the board under a's weather: what sways leans with the wind and the clouds'
@@ -83,7 +83,7 @@ func (d *cloudyDressing) Begin(f *render.Frame, cam camera.Camera) {
 
 // DressGround lays the clouds' shadows on the ground, where the atmosphere casts them.
 func (d *cloudyDressing) DressGround(t render.Target, cam camera.Camera, u render.Uniforms) {
-	if w := d.sky.Air(); w.ShadeGround {
+	if w := d.sky.DrawnAir(); w.ShadeGround {
 		d.clouds.Draw(t, cam, u, w.Most().Cover)
 	}
 }
@@ -129,7 +129,7 @@ func (l windyLook) Sprite(
 	if a.Sway > 0 { // seen from above by its top, as high as it is wide
 		sizeX, sizeY := float32(box.Size.X), float32(box.Size.Y)
 		cx, cy := float32(box.TopLeft.X)+sizeX/2, float32(box.TopLeft.Y)+sizeY/2
-		lx, ly := l.sky.Air().Sway(f.Time(), cx, cy, a.Sway)
+		lx, ly := l.sky.DrawnAir().Sway(f.Time(), cx, cy, a.Sway)
 		rise := max(sizeX, sizeY)
 		box = plane.NewAABB(geom.NewVec(box.TopLeft.X+float64(lx*rise),
 			box.TopLeft.Y+float64(ly*rise)), box.Size.X, box.Size.Y)

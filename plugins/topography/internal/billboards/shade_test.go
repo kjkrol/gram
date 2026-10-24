@@ -26,7 +26,7 @@ var westSun = light.Distant{Dir: [3]float32{-0.5, 0, 0.866}, Strength: 1, Ambien
 type westSky struct{}
 
 func (westSky) Distant() light.Distant { return westSun }
-func (westSky) Air() air.Weather       { return air.Weather{} }
+func (westSky) DrawnAir() air.Weather  { return air.Weather{} }
 
 // hands the frame the west sun before the ground composes
 type sunning struct{}

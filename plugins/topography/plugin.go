@@ -29,18 +29,18 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Atmosphere is the weather over the relief, what leans what sways, hazes the far off and casts
-// the clouds' shadows: plugins/atmosphere's Plugin. Given none the relief stands in still, clear
-// air. The light is the light plugin's; given none, light.White, which the relief hands the
-// frame itself.
+// Atmosphere is the weather over the relief as the frame drawn reads it, what leans what sways,
+// hazes the far off and casts the clouds' shadows: plugins/atmosphere's Read. Given none the
+// relief stands in still, clear air. The light is the light plugin's; given none, light.White,
+// which the relief hands the frame itself.
 type Atmosphere interface {
-	Air() air.Weather
+	DrawnAir() air.Weather
 }
 
 // clear air seen as far as the world's scale lets one see
 type stillSky struct{ sight float64 }
 
-func (s stillSky) Air() air.Weather { return air.Weather{Sight: s.sight} }
+func (s stillSky) DrawnAir() air.Weather { return air.Weather{Sight: s.sight} }
 
 // stillFrame hands the frame the default sun and the still air while no plugin gives them, giving
 // way to what some other source has put on the frame, whichever composes first
@@ -318,7 +318,7 @@ func (s liveSky) Distant() light.Distant {
 	}
 	return light.White
 }
-func (s liveSky) Air() air.Weather { return s.p.sky.Air() }
+func (s liveSky) Air() air.Weather { return s.p.sky.DrawnAir() }
 
 // WithAtmosphere puts the relief under a: its weather leans what sways, lays the clouds' shadows
 // and hazes the far off. Call it before the first frame is drawn.

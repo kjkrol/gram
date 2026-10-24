@@ -32,7 +32,7 @@ type fixedSky struct {
 }
 
 func (s fixedSky) Distant() light.Distant { return s.sun }
-func (s fixedSky) Air() air.Weather       { return s.air }
+func (s fixedSky) DrawnAir() air.Weather  { return s.air }
 
 // Benchmark_Board_GroundAt reads the ground at 64 points along a diagonal of a 256x256 board of
 // hills, as sight samples it along one ray.
