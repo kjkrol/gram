@@ -107,7 +107,10 @@ drops, the selection, collision's boxes, the cameras' layers; the cameras' zones
 screen is painted, onto the picture's part of it, so the HUD never covers them, 2026-10-20), and the composer is
 `render.Laid` (2026-10-20, stage U, in place of `Grounded`): `Lay(cam, apart)` composes every
 source (the ground's alone when apart) once, in cam's pixels, the feed having cropped the camera
-to the whole frame at every pixel (`Crop(camera.Window{W, H}, 1)`, exact, `Cropped()` false);
+to the whole frame at every pixel (`Crop(camera.Window{W, H}, 1)`, exact, `Cropped()` false) —
+the camera's copy (`camera.Snapped`, 2026-10-24, E5): a feed takes it as it is laid out on the
+barrier (`Feed.Resize`) and draws, crops and places pins through it alone, the camera the ticks
+move never cropped; what is keyed by a camera is looked up by `camera.OriginOf(cam)`;
 `DrawLayer(layer, cam, at, hole)` draws what was composed into `layer`, the camera cropped to the
 frame's window `at`, leaving out the frame's window `hole` where the frame has a ground (R2,
 2026-10-20: a layer but the innermost is handed the next one's window inset by `LayerFeather`

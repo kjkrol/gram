@@ -111,6 +111,13 @@ collision's pair sweep tests a crowded cell four boxes at a time, finding the sa
   presenting). The cameras follow the frame budget there (`cameras.Plugin.Pace`), coarser only
   while the drawing's side holds the frames back, not the simulation. `GRAM_FPS_LOG` names the
   barrier and the waiting.
+- A camera is drawn from a copy of itself (`camera.Snapped`: `Snap`, `Drawn`, `Origin`;
+  `camera.DrawnOf`, `OriginOf`), taken as its feed is laid out on the barrier: the layers and the
+  sharp figures crop the copy, never the camera the ticks move, and a relief camera's copy has
+  its ground's extent frozen as it stood, the cage no longer read as it is drawn. What is kept
+  for a camera (the world's views, the marquees) is looked up by the camera the copy was taken
+  of. A minimap's outline of its camera's screen and its reach are published with its marks;
+  what the marks are gathered round is a lens of the ticks' own.
 
 **The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
 - No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an

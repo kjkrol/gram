@@ -995,7 +995,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   columns as wide as their lines, as many as the height takes. `players.RunPlan` runs last and
   empties the queues. Depends on `world`.
 - **`cameras`** — every camera a game looks through, and all camera behaviour (the contract
-  stays in the root `camera`, which `render` and `control` read): `cameras.NewPlugin(world,
+  stays in the root `camera`, which `render` and `control` read). Every camera is
+  `camera.Snapped` (2026-10-24): `Snap` copies it for the frame drawn (a relief camera's copy
+  its own sticks, its ground's extent frozen, no cage read), taken by a feed as it is laid out;
+  a copy is for drawing alone, no `Pick`, no command. `cameras.NewPlugin(world,
   cameras.Config{…})` makes no camera; the Config is the game's (in `makePlugins`) and says what
   the keys may do — `Turn` (Q/E), `Tilt` (R steeper, F flatter), `Perspective` (Tab switches to
   it and back, V rides Inside, the mouse looks) — and how a world in relief is drawn (`Cell` required, `TileW`/`TileH` 64×32,
@@ -1242,7 +1245,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   space's ids in the picture's rectangle, each kind's `Mark{Color, Size}` declared
   `Styled(minimap.Mark{...})` in its figure's `Look`, looked up once a sprite; a square dot
   `OnTop(1)`; a kind without one not drawn) and the outline of `cam`'s screen on the ground
-  (`camera.Picker`, past the horizon cut at twice the reach; `OnTop(2)`). North is a second
+  (`camera.Picker`, past the horizon cut at twice the reach; `OnTop(2)`; picked as the marks are
+  published, on the ticks' side, and drawn as published, 2026-10-24; so is the reach, which
+  `SetReach` only configures). North is a second
   element, `Compass(cam) *ui.Element` (2026-10-20): a red triangle (18 by 16 px) hung on the
   circle's edge three quarters out, pointing north, turned round the circle and with it as the
   minimap turns, a transparent picture
