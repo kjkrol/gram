@@ -102,6 +102,15 @@ collision's pair sweep tests a crowded cell four boxes at a time, finding the sa
   after the ticks; the moon icon shows the phase the atmosphere published; a minimap is aimed,
   and its compass turned, as published with its marks.
 - Fixed: the HUD's weather said the weather of before one set while the clock stood.
+- A frame is the engine's steps: the input, the simulation (the ticks and the publishing), the
+  barrier, where nothing ticks or draws, and the drawing. On the barrier what was published is
+  swapped in, the scenes shown are noted for the frame drawn, their drawers laid out
+  (`game.Laying`: a ui scene's layout, its text measured and its pictures sized, there and no
+  longer as it is drawn) and the last frame's times handed to what is paced (`plugin.Paced`,
+  `plugin.FrameTimes`: the wait for the GPU, the simulation, the barrier, the drawing, the
+  presenting). The cameras follow the frame budget there (`cameras.Plugin.Pace`), coarser only
+  while the drawing's side holds the frames back, not the simulation. `GRAM_FPS_LOG` names the
+  barrier and the waiting.
 
 **The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
 - No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an
