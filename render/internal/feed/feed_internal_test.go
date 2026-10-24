@@ -32,6 +32,7 @@ func TestFeed_ToWorldAndToPixelsAreEachOthersInverse(t *testing.T) {
 	feed.Resize(400, 300)
 	cam.ZoomIn(2, 0, 0)
 	cam.CenterOn(500, 500, 0)
+	feed.Resize(400, 300) // laid out again, as every frame: its camera copied
 
 	x, y, ok := feed.ToWorld(120, 80)
 	if !ok {
@@ -76,6 +77,8 @@ type recording struct {
 	layers  []*gfx.Image    // the images DrawLayer drew into
 	wins    []camera.Window // the windows DrawWorld was cropped to
 	holes   []camera.Window // the windows DrawLayer left out
+	// whether the camera a copy drawn through was taken of was cropped as it was drawn
+	originCropped bool
 }
 
 // one DrawWorld: the screen's size and the camera's viewport
@@ -94,6 +97,7 @@ type pass struct {
 
 func (r *recording) DrawWorld(screen *gfx.Image, cam camera.Camera) {
 	r.w, r.h, r.cam = screen.Bounds().Dx(), screen.Bounds().Dy(), cam
+	r.originCropped = r.originCropped || camera.IsCropped(camera.OriginOf(cam))
 	r.calls = append(r.calls, callOf(screen, cam))
 	r.screens = append(r.screens, screen)
 	if c, ok := cam.(camera.Cropping); ok {
@@ -155,8 +159,10 @@ func TestFeed_DrawsItsPictureThroughItsCameraAtItsSize(t *testing.T) {
 	feed := NewFeed(cam, picture)
 	feed.Resize(64, 48)
 	img := feed.Draw()
-	if img == nil || picture.w != 64 || picture.h != 48 || picture.cam != cam {
-		t.Fatalf("picture drawn %dx%d through %v, want 64x48 through the feed's camera", picture.w, picture.h, picture.cam)
+	if img == nil || picture.w != 64 || picture.h != 48 || picture.cam == cam ||
+		camera.OriginOf(picture.cam) != cam {
+		t.Fatalf("picture drawn %dx%d through %p, want 64x48 through a copy of the feed's camera",
+			picture.w, picture.h, picture.cam)
 	}
 	feed.Resize(32, 24)
 	if img := feed.Draw(); img.Bounds().Dx() != 32 || img.Bounds().Dy() != 24 {
@@ -178,6 +184,7 @@ func TestFeed_DrawsAtItsCamerasResolutionAndSpeaksShownPixels(t *testing.T) {
 	}
 	cam.ZoomIn(2, 0, 0)
 	cam.CenterOn(500, 500, 0)
+	feed.Resize(400, 300)
 	x, y, ok := feed.ToWorld(120, 80)
 	if cx, cy := cam.FromScreen(60, 40); !ok || cx != x || cy != y {
 		t.Fatalf("under the shown pixel (120, 80) lies (%v, %v), want (%v, %v): the camera's (60, 40)",
@@ -209,12 +216,14 @@ func TestFeed_DrawsALayeredCameraALayerARingCoarseToFine(t *testing.T) {
 	if img == nil || img.Bounds().Dx() != 400 || img.Bounds().Dy() != 300 {
 		t.Fatalf("the feed's image is %v, want 400x300: the shown size", img.Bounds())
 	}
-	if w, h := cam.Viewport(); w != 400 || h != 300 || camera.IsCropped(cam) {
-		t.Errorf("after the frame the viewport is %vx%v, cropped %v; want 400x300, not cropped",
-			w, h, camera.IsCropped(cam))
+	if w, h := cam.Viewport(); w != 400 || h != 300 || camera.IsCropped(cam) ||
+		picture.originCropped {
+		t.Errorf("after the frame the viewport is %vx%v, cropped %v, as drawn %v; want 400x300, "+
+			"never cropped: its copy is", w, h, camera.IsCropped(cam), picture.originCropped)
 	}
 	cam.ZoomIn(2, 0, 0)
 	cam.CenterOn(500, 500, 0)
+	feed.Resize(400, 300)
 	x, y, ok := feed.ToWorld(120, 80)
 	px, py, _, visible := feed.ToPixels(x, y, 0)
 	if !ok || !visible || math.Abs(float64(px-120)) > 1e-3 || math.Abs(float64(py-80)) > 1e-3 {
@@ -248,9 +257,10 @@ func TestFeed_DrawsAFootedCameraALayerOnTheBottomEdge(t *testing.T) {
 		t.Errorf("the picture was drawn %v, want %v: each window at its layer's resolution",
 			picture.calls, want)
 	}
-	if w, h := cam.Viewport(); w != 400 || h != 300 || camera.IsCropped(cam) {
-		t.Errorf("after the frame the viewport is %vx%v, cropped %v; want 400x300, not cropped",
-			w, h, camera.IsCropped(cam))
+	if w, h := cam.Viewport(); w != 400 || h != 300 || camera.IsCropped(cam) ||
+		picture.originCropped {
+		t.Errorf("after the frame the viewport is %vx%v, cropped %v, as drawn %v; want 400x300, "+
+			"never cropped: its copy is", w, h, camera.IsCropped(cam), picture.originCropped)
 	}
 }
 
@@ -346,9 +356,10 @@ func TestFeed_DrawOnDrawsTheWholeFrameAtEveryPixelStraightOntoTheTarget(t *testi
 		t.Errorf("the picture was drawn %v, the first layer onto the target %v; want %v, the "+
 			"first straight onto it", picture.passes, picture.layers[0] == dst, want)
 	}
-	if w, h := cam.Viewport(); w != 400 || h != 300 || camera.IsCropped(cam) {
-		t.Errorf("after the frame the viewport is %vx%v, cropped %v; want 400x300, not cropped",
-			w, h, camera.IsCropped(cam))
+	if w, h := cam.Viewport(); w != 400 || h != 300 || camera.IsCropped(cam) ||
+		picture.originCropped {
+		t.Errorf("after the frame the viewport is %vx%v, cropped %v, as drawn %v; want 400x300, "+
+			"never cropped: its copy is", w, h, camera.IsCropped(cam), picture.originCropped)
 	}
 }
 

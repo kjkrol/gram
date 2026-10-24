@@ -87,7 +87,7 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	uprights, _ := look.(UprightLook)
 	foggy, _ := look.(FoggyLook)
 	figs := s.figures.Front()
-	v := figs.views[cam]
+	v := figs.views[camera.OriginOf(cam)]
 	lowest, any := render.Nearest, false
 	for k := range figs.all {
 		e := &figs.all[k]

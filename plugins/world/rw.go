@@ -67,8 +67,9 @@ func (r *Read) Look() Look { return r.p.look }
 func (r *Read) FlatLook() Look { return flatLook(r.p.Res.Config.Space) }
 
 // ViewFor is the View of what cam saw as the frame drawn was published, for what draws; before
-// the first, as the last tick left it; nil for a camera of none.
+// the first, as the last tick left it; nil for a camera of none. A camera's copy has its View.
 func (r *Read) ViewFor(cam camera.Camera) *view.View {
+	cam = camera.OriginOf(cam)
 	if v := r.p.renderer.figures.Front().views[cam]; v != nil {
 		return v
 	}

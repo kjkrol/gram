@@ -63,3 +63,19 @@ func TestMarquees_ComposeTheBoxInThePixelsOfEveryLayersPass(t *testing.T) {
 	}
 	cam.(camera.Cropping).Uncrop()
 }
+
+func TestMarquees_ComposeTheBoxDraggedInACameraThroughItsCopy(t *testing.T) {
+	cam := cameratest.NewFromSpace(1000, 800, 0)
+	cam.SetViewport(400, 300)
+	var m marquees
+	m.show(cam, geom.NewAABB(geom.NewVec(100, 100), geom.NewVec(200, 200)))
+	cam.(camera.Snapped).Snap()
+	var f render.Frame
+	f.Reset(camera.DrawnOf(cam))
+	m.compose(&f, camera.DrawnOf(cam))
+	pieces := 0
+	f.Each(func(render.At, []render.Vertex) { pieces++ })
+	if pieces == 0 {
+		t.Error("drawn through the camera's copy, the box dragged in the camera is not composed")
+	}
+}

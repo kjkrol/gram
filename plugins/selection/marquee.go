@@ -39,7 +39,7 @@ func (m *marquees) copyInto(dst *marquees) {
 }
 
 func (m *marquees) compose(f *render.Frame, cam camera.Camera) {
-	b, ok := m.boxes[cam]
+	b, ok := m.boxes[camera.OriginOf(cam)]
 	if !ok {
 		return
 	}

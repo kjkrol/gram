@@ -3,6 +3,7 @@ package world_test
 import (
 	"testing"
 
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 )
@@ -25,5 +26,18 @@ func TestNewView_IsTheCamerasOwnViewMadeOnceAndReadAfter(t *testing.T) {
 	}
 	if read := w.Read(0).ViewFor(one); read != v {
 		t.Error("the View read is not the one made")
+	}
+}
+
+func TestViewFor_ACamerasCopyHasItsView(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
+	v := w.Write().NewView(cam)
+	cam.(camera.Snapped).Snap()
+	if copied := camera.DrawnOf(cam); copied == cam || w.Read(0).ViewFor(copied) != v {
+		t.Error("the camera's copy has no View of its own: want the camera's")
 	}
 }
