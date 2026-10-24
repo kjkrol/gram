@@ -85,18 +85,40 @@ func TestMinimap_FollowsItsCameraTurningWithItOnlyWhenAsked(t *testing.T) {
 	m := p.maps[0]
 	m.lens.SetViewport(100, 100)
 	p.RunPlan(nil, 0)
-	if m.lens.cx != 300 || m.lens.cy != 700 || m.lens.ax != 0 || m.lens.ay != -1 {
-		t.Errorf("north up the lens is over (%v, %v) ahead (%v, %v), want (300, 700) north",
-			m.lens.cx, m.lens.cy, m.lens.ax, m.lens.ay)
+	if at := m.shown(); at != (aim{300, 700, 0, -1}) {
+		t.Errorf("north up the minimap looks %v, want over (300, 700) north", at)
 	}
 	if m.lens.scale != 0.25 {
 		t.Errorf("a picture 100 across reaching 200 is %v a unit, want 0.25", m.lens.scale)
 	}
 	w.Write().Carrier().Put(command.Nobody, Turn{On: true})
 	p.RunPlan(nil, 0)
-	if !p.read.Turning() || m.lens.ax != 1 || m.lens.ay != 0 {
-		t.Errorf("turning, the lens looks ahead (%v, %v), want east as the camera", m.lens.ax,
-			m.lens.ay)
+	if at := m.shown(); !p.read.Turning() || at.ax != 1 || at.ay != 0 {
+		t.Errorf("turning, the minimap looks %v, want ahead east as the camera", at)
+	}
+}
+
+func TestMinimap_IsDrawnLookingWhereItWasPublished(t *testing.T) {
+	w := flatWorld(nil)
+	p := carried(t, w, NewPlugin(w, nil, Config{Reach: 200}))
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
+	cam.SetViewport(200, 200)
+	cam.CenterOn(300, 700, 0)
+	p.For(cam, command.Nobody)
+	m := p.maps[0]
+	m.lens.SetViewport(100, 100)
+	m.marks.publish(time.Now())
+	m.marks.swap()
+	cam.CenterOn(500, 500, 0)
+	p.RunPlan(nil, 0)
+	if at := m.shown(); at.cx != 300 || at.cy != 700 {
+		t.Errorf("moved after the minimap was published, it is drawn over (%v, %v), want "+
+			"(300, 700) till the next", at.cx, at.cy)
+	}
+	m.marks.publish(time.Now().Add(redraw))
+	m.marks.swap()
+	if at := m.shown(); at.cx != 500 || at.cy != 500 {
+		t.Errorf("published again, it is drawn over (%v, %v), want (500, 500)", at.cx, at.cy)
 	}
 }
 

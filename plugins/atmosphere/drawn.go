@@ -10,13 +10,14 @@ import (
 )
 
 // drawnSky is the atmosphere as the frame drawn reads it, as the last Publish copied it: the
-// weather, its Dome the copy beside it, the sun, the heavens, which workings go on and the
-// Settings.
+// weather, its Dome the copy beside it, the sun, the heavens, the moon's phase, which workings go
+// on and the Settings.
 type drawnSky struct {
 	air      air.Weather
 	dome     air.Dome
 	sun      light.Distant
 	heavens  celestial.Heavens
+	moon     float32
 	running  Running
 	settings Settings
 }
@@ -40,7 +41,7 @@ func (p *Plugin) Swap() {
 
 func (p *Plugin) fill(s *drawnSky) {
 	s.air, s.sun, s.heavens = p.read.Air(), p.read.Sun(), p.sky.Heavens()
-	s.running, s.settings = p.read.Running(), p.Res.Settings
+	s.moon, s.running, s.settings = p.calendar.Now().Moon(), p.read.Running(), p.Res.Settings
 }
 
 // drawn is the atmosphere as the frame drawn reads it: as last published, the live one before any

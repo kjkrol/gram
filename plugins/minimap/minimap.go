@@ -32,19 +32,39 @@ type minimap struct {
 	p       *Plugin
 	of      camera.Camera
 	issuer  command.Issuer
-	lens    *lens
+	lens    *lens // aimed as drawn
+	at      aim   // where the ticks have it look
 	element *ui.Element
 	marks   *marksView
 }
 
-// follow puts the lens over the camera's middle, turned as it looks where turning
+// aim is where a minimap looks: the middle of its picture on the world, and the way up it
+type aim struct{ cx, cy, ax, ay float32 }
+
+// follow has the minimap look over the camera's middle, turned as it looks where turning
 func (m *minimap) follow(turning bool) {
 	x, y := m.middle()
 	ax, ay := float32(0), float32(-1)
 	if h, ok := m.of.(camera.Headed); ok && turning {
 		ax, ay = h.Ahead()
 	}
-	m.lens.aim(x, y, ax, ay)
+	m.at = aim{x, y, ax, ay}
+}
+
+// shown is where the minimap looks as drawn: as last published, where the ticks have it look
+// before
+func (m *minimap) shown() aim {
+	if f := m.marks.drawn.Front(); f.version > 0 {
+		return f.at
+	}
+	return m.at
+}
+
+// covered is the world round the minimap where the ticks have it look
+func (m *minimap) covered() camera.AABB {
+	l := *m.lens
+	l.aim(m.at.cx, m.at.cy, m.at.ax, m.at.ay)
+	return l.covered()
 }
 
 func (m *minimap) middle() (float32, float32) {
@@ -79,6 +99,8 @@ func (p *paced) Resize(w, h int) {
 
 func (p *paced) Draw() *render.Image {
 	if v := p.marks.drawn.Front().version; p.last == nil || v != p.version {
+		at := p.marks.m.shown()
+		p.marks.m.lens.aim(at.cx, at.cy, at.ax, at.ay)
 		p.last, p.version = p.Feed.Draw(), v
 	}
 	return p.last
@@ -170,9 +192,11 @@ type marksView struct {
 	fresh bool // published since the last swap
 }
 
-// dots are the marks round a minimap where they stand, as of the version-th publish
+// dots are the marks round a minimap where they stand and where it looks, as of the version-th
+// publish
 type dots struct {
 	all     []dot
+	at      aim
 	version uint64
 }
 
@@ -192,7 +216,7 @@ func (v *marksView) publish(now time.Time) {
 	}
 	v.due, v.fresh = now.Add(redraw), true
 	b := v.drawn.Back()
-	b.all, b.version = b.all[:0], v.drawn.Front().version+1
+	b.all, b.at, b.version = b.all[:0], v.m.at, v.drawn.Front().version+1
 	styles := v.m.p.w.Read(0).Styles()
 	if styles == nil {
 		return
@@ -200,7 +224,7 @@ func (v *marksView) publish(now time.Time) {
 	v.found.Clear()
 	v.ids = v.ids[:0]
 	// a box across a seam is met once a piece
-	v.m.p.w.Read(0).Space().Query(v.m.lens.covered(), aabbworld.AnyCapability, func(id uid.UID64) {
+	v.m.p.w.Read(0).Space().Query(v.m.covered(), aabbworld.AnyCapability, func(id uid.UID64) {
 		if !v.found.Has(id) {
 			v.found.Add(id)
 			v.ids = append(v.ids, id)

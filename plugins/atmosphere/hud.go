@@ -52,7 +52,7 @@ func (p *Plugin) hour() *ui.Element { return ui.LabelOf(&hourWords{p: p}).Steady
 
 func (p *Plugin) date() *ui.Element {
 	line := float64(render.DefaultFont().LineHeight())
-	moon := &moonIcon{moon: func() float32 { return p.calendar.Now().Moon() }}
+	moon := &moonIcon{moon: func() float32 { return p.drawn().moon }}
 	// the disc at the right end of its box, 6 pixels off the words
 	icon := ui.Image(moon).Size(line+6, line)
 	return ui.Columns(
@@ -62,16 +62,17 @@ func (p *Plugin) date() *ui.Element {
 	)
 }
 
-// words built anew once the clock has moved: a Text is read several times a frame
+// words built anew once the clock has moved or the weather named is another, not every frame
 type framed struct {
-	at   time.Duration
-	text string
-	read bool
+	at    time.Duration
+	named string
+	text  string
+	read  bool
 }
 
-func (f *framed) of(p *Plugin, say func() string) string {
-	if t := p.worldPlugin.Read(0).Clock().Time(); !f.read || t != f.at {
-		f.text, f.at, f.read = say(), t, true
+func (f *framed) of(p *Plugin, named string, say func() string) string {
+	if t := p.worldPlugin.Read(0).Clock().Time(); !f.read || t != f.at || named != f.named {
+		f.text, f.at, f.named, f.read = say(), t, named, true
 	}
 	return f.text
 }
@@ -82,7 +83,7 @@ type hourWords struct {
 }
 
 func (h *hourWords) Text(uid.UID64, bool) (string, bool) {
-	return h.of(h.p, func() string { return h.p.calendar.Now().Hour() }), true
+	return h.of(h.p, "", func() string { return h.p.calendar.Now().Hour() }), true
 }
 
 type dateWords struct {
@@ -98,7 +99,7 @@ func (d *dateWords) Text(uid.UID64, bool) (string, bool) {
 	} else {
 		d.icon.Hide()
 	}
-	return d.of(d.p, func() string {
+	return d.of(d.p, "", func() string {
 		m := d.p.calendar.Now()
 		return fmt.Sprintf("%s, %s", m.Season(), m.Written())
 	}), true
@@ -121,7 +122,7 @@ func (w *weatherWords) Text(uid.UID64, bool) (string, bool) {
 	if w.query == nil || w.p.climate.Running() == (climate.Running{}) {
 		return "", false
 	}
-	text := w.of(w.p, w.say)
+	text := w.of(w.p, w.p.climate.Now(), w.say)
 	return text, text != ""
 }
 

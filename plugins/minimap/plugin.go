@@ -107,6 +107,7 @@ func (p *Plugin) For(cam camera.Camera, issuer command.Issuer) *ui.Element {
 		geom.NewVec(float64(space.Width), float64(space.Height)),
 		space.Edges.WrapsX(), space.Edges.WrapsY(), p.cfg.Reach)}
 	m.follow(p.Res.Settings.Turning)
+	m.lens.aim(m.at.cx, m.at.cy, m.at.ax, m.at.ay)
 	picture := m.picture()
 	m.element = ui.Image(&paced{Feed: render.NewFeed(m.lens, picture), marks: m.marks}).
 		Input(&clicks{m: m})

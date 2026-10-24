@@ -2,6 +2,7 @@ package clock_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -302,5 +303,28 @@ func TestReplayed_RunsOnceAReplayAfterTheSimulationPausedOrNot(t *testing.T) {
 	r.ticks(1)
 	if want := []int{4, 8, 0}; !slices.Equal(after, want) {
 		t.Errorf("after each Replay the simulation had run %v times, want %v", after, want)
+	}
+}
+
+func TestHUD_ShowsTheClockAsPublished(t *testing.T) {
+	c := clock.New(clock.Config{})
+	h := c.Read().HUD()
+	frame := func() {
+		p := h.(interface {
+			Publish()
+			Swap()
+		})
+		p.Publish()
+		p.Swap()
+	}
+	frame()
+	c.SetPaused(true)
+	if got := clock.HUDLine(h); strings.Contains(got, "paused") {
+		t.Errorf("paused after the frame was published, the HUD says %q, want it going till the "+
+			"next", got)
+	}
+	frame()
+	if got := clock.HUDLine(h); !strings.Contains(got, "(paused)") {
+		t.Errorf("published again, the HUD says %q, want it paused", got)
 	}
 }

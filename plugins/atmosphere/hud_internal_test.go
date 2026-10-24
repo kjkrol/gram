@@ -129,6 +129,12 @@ func TestWeather_NamesTheWeatherSetAndIsLeftOutWithoutAClimate(t *testing.T) {
 	if got, _ := words.Text(0, false); !strings.HasPrefix(got, "rain") {
 		t.Errorf("the weather set to rain says %q", got)
 	}
+	a.worldPlugin.Write().Clock().TogglePause()
+	a.write.Climate().Set(weather.Clear)
+	tick(1)
+	if got, _ := words.Text(0, false); !strings.HasPrefix(got, "clear") {
+		t.Errorf("the weather set to clear while the clock stands says %q", got)
+	}
 	a.write.SetRunning(Running{Day: true, Stars: true, Moon: true})
 	if got, ok := words.Text(0, false); ok {
 		t.Errorf("with none of the climate's workings running the weather says %q, want nothing",
