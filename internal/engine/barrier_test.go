@@ -43,14 +43,14 @@ func TestEngine_DrawsTheScenesShownAsTheBarrierFoundThem(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 	e.current.prepared = true
-	e.barrier(100, 100)
+	e.barrier(100, 100, false)
 	st.Stack().Composition().Show("hud")
 	e.Draw(nil)
 	if !slices.Equal(drawn, []string{"main"}) {
 		t.Errorf("shown after the barrier, the frame drew %v, want the main scene alone", drawn)
 	}
 	drawn = nil
-	e.barrier(100, 100)
+	e.barrier(100, 100, false)
 	e.Draw(nil)
 	if !slices.Equal(drawn, []string{"main", "hud"}) {
 		t.Errorf("past the next barrier, the frame drew %v, want both", drawn)
@@ -79,7 +79,7 @@ func TestEngine_LaysTheScenesShownOnTheBarrierBeforeTheyAreDrawn(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 	e.current.prepared = true
-	e.barrier(320, 200)
+	e.barrier(320, 200, false)
 	e.Draw(nil)
 	if want := []string{"main laid 320x200", "main"}; !slices.Equal(drawn, want) {
 		t.Errorf("a frame went %v, want %v: the shown scene laid on the barrier, then drawn, the "+
@@ -106,15 +106,15 @@ func TestEngine_PacesThePacedOnTheBarrierWithTheLastFramesTimesOnce(t *testing.T
 		t.Fatalf("Init: %v", err)
 	}
 	e.current.prepared = true
-	e.barrier(100, 100)
+	e.barrier(100, 100, false)
 	if len(paced.paced) != 0 {
 		t.Fatalf("before any frame was timed it was paced with %v, want nothing", paced.paced)
 	}
 	frame := plugin.FrameTimes{Frame: 20 * time.Millisecond, Simulate: 4 * time.Millisecond,
 		Draw: 9 * time.Millisecond}
 	e.last, e.timed = frame, true
-	e.barrier(100, 100)
-	e.barrier(100, 100)
+	e.barrier(100, 100, false)
+	e.barrier(100, 100, false)
 	if len(paced.paced) != 1 || paced.paced[0] != frame {
 		t.Errorf("a frame timed, two barriers paced it with %v, want its times once", paced.paced)
 	}
@@ -134,7 +134,7 @@ func TestEngine_ReadiesAStageBeforeTheBarrierLaysItsScenes(t *testing.T) {
 	}
 	e.window = render.NewImage(320, 200)
 	defer e.window.Deallocate()
-	if !e.barrier(320, 200) {
+	if readied, _ := e.barrier(320, 200, false); !readied {
 		t.Fatal("the stage's first barrier readied nothing")
 	}
 	e.Draw(nil)
@@ -168,7 +168,7 @@ func TestEngine_PublishesOnTheBarrierTheScenesShownSinceTheFrameWasPublished(t *
 	e.current.prepared = true
 	e.publish()
 	st.Stack().Composition().Show("hud")
-	e.barrier(100, 100)
+	e.barrier(100, 100, false)
 	e.Draw(nil)
 	want := []string{"main published", "main swapped", "hud published", "hud swapped", "main",
 		"hud"}
@@ -177,7 +177,7 @@ func TestEngine_PublishesOnTheBarrierTheScenesShownSinceTheFrameWasPublished(t *
 	}
 	noted = nil
 	e.publish()
-	e.barrier(100, 100)
+	e.barrier(100, 100, false)
 	want = []string{"main published", "hud published", "main swapped", "hud swapped"}
 	if !slices.Equal(noted, want) {
 		t.Errorf("the next frame went %v, want %v: both published once, as the frame is", noted,

@@ -52,7 +52,12 @@ type Engine struct {
 	order         []string // the scenes drawn, bottom to top, as the barrier found them shown
 	started       time.Time
 	last          plugin.FrameTimes // the last frame's, paced on the next barrier
+	awaited       time.Duration     // the last frame's wait for its simulation
 	timed         bool              // a frame timed since the last barrier
+
+	serial    bool               // GRAM_SERIAL: every frame's ticks run before it is drawn
+	running   bool               // a simulation simulate started, not joined yet
+	simulated chan time.Duration // how long it took
 }
 
 var _ game.Runtime = (*Engine)(nil)
@@ -83,6 +88,8 @@ func NewEngine(g game.Game) *Engine {
 		timeTracker:       newTracker(),
 		controller:        controller,
 		transitionOverlay: render.SolidBackground{Color: color.RGBA{A: 255}},
+		serial:            os.Getenv("GRAM_SERIAL") != "",
+		simulated:         make(chan time.Duration, 1),
 	}
 	controller.SetHandler(HandlerFn(e.dispatchEvents))
 	return e
@@ -177,6 +184,7 @@ func (e *Engine) Run() {
 	if err := e.app.Run(); err != nil {
 		log.Fatal(err)
 	}
+	e.join()
 }
 
 func (e *Engine) frame(dc *gogpu.Context) {
@@ -195,15 +203,6 @@ func (e *Engine) frame(dc *gogpu.Context) {
 	}
 	e.started = start
 	began := time.Now()
-	if err := e.Update(); err != nil {
-		if errors.Is(err, Termination) {
-			e.app.Quit()
-			return
-		}
-		log.Fatal(err)
-	}
-	e.publish()
-	t.Simulate = time.Since(began)
 	w, h := e.Layout(dc.Size())
 	if e.window == nil || e.window.Bounds().Dx() != w || e.window.Bounds().Dy() != h {
 		if e.window != nil {
@@ -211,13 +210,19 @@ func (e *Engine) frame(dc *gogpu.Context) {
 		}
 		e.window = render.NewImage(w, h)
 	}
-	barred := time.Now()
-	readied := e.barrier(w, h)
-	t.Barrier = time.Since(barred)
+	readied, awaited, err := e.advance(w, h, &t)
+	if err != nil {
+		if errors.Is(err, Termination) {
+			e.app.Quit()
+			return
+		}
+		log.Fatal(err)
+	}
 	drawing := time.Now()
 	e.window.Clear()
 	e.Draw(e.window)
 	if e.shot != nil && e.shot.take(e.window) {
+		e.join()
 		e.app.Quit()
 		return
 	}
@@ -236,7 +241,62 @@ func (e *Engine) frame(dc *gogpu.Context) {
 			time.Since(began).Round(10*time.Microsecond))
 	}
 	// a frame readying its stage is no measure of the next
-	e.last, e.timed = t, !readied
+	e.last, e.awaited, e.timed = t, awaited, !readied
+}
+
+// advance is a frame's work before it is drawn on a screen w by h: the simulation the last
+// barrier started waited for, else the frame's input, ticks and publishing run now; the barrier,
+// the input taken there when the ticks ran apart; and the next frame's simulation started to run
+// while this one is drawn, where it may. It reports whether the stage was readied and how long
+// the frame waited for its simulation; Termination once the game has quit.
+func (e *Engine) advance(w, h int, t *plugin.FrameTimes) (readied bool, awaited time.Duration,
+	err error) {
+	began := time.Now()
+	took, ran := e.join()
+	if ran {
+		awaited = time.Since(began)
+	} else {
+		if err := e.Update(); err != nil {
+			return false, 0, err
+		}
+		e.publish()
+		took = time.Since(began)
+	}
+	t.Simulate = took
+	barred := time.Now()
+	readied, err = e.barrier(w, h, ran)
+	t.Barrier = time.Since(barred)
+	if err == nil && e.concurrent() {
+		e.simulate()
+	}
+	return readied, awaited, err
+}
+
+// concurrent reports whether the next frame's simulation may run while this one is drawn: not
+// with GRAM_SERIAL, nor while a stage waits to be entered or readied, nor once the game quits
+func (e *Engine) concurrent() bool {
+	return !e.serial && e.pendingSwitch == "" && e.current.prepared && !e.quit
+}
+
+// simulate starts the next frame's ticks and publishing on a goroutine of their own
+func (e *Engine) simulate() {
+	e.running = true
+	go func() {
+		began := time.Now()
+		e.tick()
+		e.publish()
+		e.simulated <- time.Since(began)
+	}()
+}
+
+// join waits for the simulation simulate started, reporting how long it took; false where none
+// runs
+func (e *Engine) join() (time.Duration, bool) {
+	if !e.running {
+		return 0, false
+	}
+	e.running = false
+	return <-e.simulated, true
 }
 
 // pace hands the last frame's times to what is paced, and once a second notes the frame rate and
@@ -252,6 +312,7 @@ func (e *Engine) pace() {
 	}
 	e.frames++
 	e.spent.update += t.Simulate
+	e.spent.awaited += e.awaited
 	e.spent.barrier += t.Barrier
 	e.spent.draw += t.Draw
 	e.spent.present += t.Present
@@ -266,10 +327,10 @@ func (e *Engine) pace() {
 	render.SetSpent(e.spent.update/n, e.spent.draw/n, e.spent.present/n)
 	if logRates {
 		us := func(d time.Duration) time.Duration { return (d / n).Round(10 * time.Microsecond) }
-		log.Printf("gram: %.1f FPS at %dx%d: a frame's tick %v (publishing %v), barrier %v, "+
-			"drawing %v, presenting %v, waiting %v", rate, e.window.Bounds().Dx(),
-			e.window.Bounds().Dy(), us(e.spent.update), us(e.spent.publish), us(e.spent.barrier),
-			us(e.spent.draw), us(e.spent.present), us(e.spent.wait))
+		log.Printf("gram: %.1f FPS at %dx%d: a frame's tick %v (publishing %v, awaited %v), "+
+			"barrier %v, drawing %v, presenting %v, waiting %v", rate, e.window.Bounds().Dx(),
+			e.window.Bounds().Dy(), us(e.spent.update), us(e.spent.publish), us(e.spent.awaited),
+			us(e.spent.barrier), us(e.spent.draw), us(e.spent.present), us(e.spent.wait))
 	}
 	e.frames, e.counted, e.spent = 0, time.Now(), spent{}
 }
@@ -277,15 +338,21 @@ func (e *Engine) pace() {
 var logRates = os.Getenv("GRAM_FPS_LOG") != ""
 
 // barrier is the frame's step where nothing ticks and nothing draws: what was published swapped
-// in to be drawn, the last frame's times paced, the scenes shown since published, a stage entered
-// readied before its first frame, and the scenes shown laid out over a screen w by h (their
-// cameras copied for drawing), reporting whether the stage was readied
-func (e *Engine) barrier(w, h int) (readied bool) {
+// in to be drawn, the frame's input with input (on the layout last drawn), the last frame's times
+// paced, the scenes shown since published, a stage entered readied before its first frame, and
+// the scenes shown laid out over a screen w by h (their cameras copied for drawing), reporting
+// whether the stage was readied; Termination once the game has quit
+func (e *Engine) barrier(w, h int, input bool) (readied bool, err error) {
 	e.current.swap()
+	if input {
+		if err := e.input(); err != nil {
+			return false, err
+		}
+	}
 	e.order = append(e.order[:0], e.current.stage.Stack().Composition().Order()...)
 	e.pace()
 	if e.pendingSwitch != "" {
-		return false
+		return false, nil
 	}
 	e.current.publishShown(e.order)
 	if readied = !e.current.prepared; readied {
@@ -298,7 +365,7 @@ func (e *Engine) barrier(w, h int) (readied bool) {
 			}
 		}
 	}
-	return readied
+	return readied, nil
 }
 
 // prepare readies a stage entered for its first frame: every shader compiled, what waits on the
@@ -323,7 +390,7 @@ func (e *Engine) prepare() {
 	}
 }
 
-type spent struct{ update, publish, barrier, draw, present, wait time.Duration }
+type spent struct{ update, publish, awaited, barrier, draw, present, wait time.Duration }
 
 // Frame runs a frame's Update and hands the renderer what it draws: every Publisher of the stage
 // and of the scenes shown publishes, then swaps; not while a stage switch is pending. It returns
