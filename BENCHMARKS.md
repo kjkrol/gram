@@ -152,6 +152,33 @@ In motion/collision (8,388 boxes, the rules and the light on) the drawing went f
 to 1.2–1.28 ms beside 0.40–0.46 ms of publishing. Done one after the other the copy is a price; it
 is meant to be paid on the ticks' side once the frame is drawn beside them.
 
+#### Publishing in parts, from the views, by index — tried, not kept (2026-10-25)
+
+The cases are named by the boxes in view since; a world of 50000 is new. Three ways to publish
+less or sooner were measured alternately, two runs each, and set aside:
+
+| In view | Published as it is | In parts on the pool, by index | From the views |
+|:---|---:|---:|---:|
+| 5000 of 5000 | 67 µs | 68–74 µs | (walks) |
+| 1296 of 5000 | 25 µs | 27–29 µs | 67–68 µs |
+| 256 of 5000 | 12 µs | 13–14 µs | 14 µs |
+| 49 of 5000 | 8.4–8.5 µs | 9.2–9.3 µs | 3.5 µs |
+| 1296 and 1190 of 5000, 2 cameras | 44 µs | 48 µs | 125–126 µs |
+| 2809 of 50000 | 122–123 µs | 98–103 µs | 178–181 µs |
+| 529 of 50000 | 88–92 µs | 62–63 µs | 42–44 µs |
+
+- From the views (the entities the cameras found, read where they lie) an entity costs some
+  55 ns against under 2 ns an entity of the world walked: it pays under 2–4% of the world in view.
+  A large world is cut by its sectors first: motion/expanse publishes some 5,450 of its 100,000,
+  6% of them in view, where walking costs less.
+- The pool's parts are held back by writing the records, the memory past the cache: shared among
+  four a world of 5000 took 66–188 µs against 69–72 alone, and motion/collision's 8,388 published
+  no sooner in two.
+- Drawing by the entities' indexes (a stable order where figures overlap at one depth) cost the
+  drawing wherever entities change archetype, the figures then read out of their order:
+  motion/collision, never in order, drew in 1.65–1.75 ms against 1.40–1.45. A field more in
+  `render.At` alone cost 40% of the drawing: what every piece carries has to stay small.
+
 ## Collision tick — `Benchmark_Collision_Tick`
 
 One tick of world plus collision at the collision demo's scales: movement, the space rebuilt,

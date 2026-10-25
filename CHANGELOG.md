@@ -136,6 +136,9 @@ collision's pair sweep tests a crowded cell four boxes at a time, finding the sa
   thread left a core (`Props.Workers` says otherwise). `GRAM_FPS_LOG` notes how long a frame
   awaited its ticks. A minimap hidden still publishes where it looks, for its compass; a ui
   picture is drawn straight onto a target only at the size it was laid out at.
+- `Benchmark_World_Publish`, `_Draw` and `_Frame` name their cases by the boxes in view, a world
+  of 50000 besides; publishing in parts on the pool, from the cameras' views or by the entities'
+  indexes was measured and not kept (BENCHMARKS.md).
 
 **The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
 - No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an
