@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/uid"
@@ -36,7 +37,7 @@ type testHandles struct {
 func newTestWorld(
 	t *testing.T,
 	vel world.Velocity,
-	side float64,
+	side float32,
 ) (*goke.ECS, *goke.Query, testHandles) {
 	t.Helper()
 	ecs, q, h, _ := newTestWorldIn(t, testSpace(t), vel, side)
@@ -47,7 +48,7 @@ func newTestWorldIn(
 	t *testing.T,
 	space *aabbworld.Space,
 	vel world.Velocity,
-	side float64,
+	side float32,
 ) (*goke.ECS, *goke.Query, testHandles, *aabbworld.Space) {
 	t.Helper()
 
@@ -96,7 +97,7 @@ func TestMoveSystem_Update_SubPixelAccumulatesWithoutMoving(t *testing.T) {
 	ecs.Tick(10 * time.Millisecond)
 
 	p, _ := readFirst(t, q, h)
-	if math.Abs(p.TopLeft.X-0.01) > 1e-9 {
+	if f32.Abs(p.TopLeft.X-0.01) > f32.Eps(0.01) {
 		t.Errorf("TopLeft.X = %v, want 0.01 — the step is a hundredth of a unit and it should "+
 			"land there", p.TopLeft.X)
 	}
@@ -111,7 +112,7 @@ func TestMoveSystem_Update_TranslatesWholeUnits(t *testing.T) {
 	}
 
 	p, _ := readFirst(t, q, h)
-	if math.Abs(p.TopLeft.X-6) > 1e-9 {
+	if f32.Abs(p.TopLeft.X-6) > f32.Eps(6) {
 		t.Errorf("TopLeft.X = %v, want 6 (three ticks of two units)", p.TopLeft.X)
 	}
 }
@@ -120,7 +121,7 @@ func TestMoveSystem_Update_HandsTheSpaceEveryEntityWhereItNowIs(t *testing.T) {
 	vel := world.Velocity{Dir: geom.NewVec(1, 0), Value: 100}
 	ecs, _, _, space := newTestWorldIn(t, testSpace(t), vel, 5)
 
-	at := func(x float64) int {
+	at := func(x float32) int {
 		box := geom.NewAABB(geom.NewVec(x, 0), geom.NewVec(x+5, 5))
 		return space.Query(box, aabbworld.AnyCapability, func(uid.UID64) {})
 	}
@@ -142,13 +143,13 @@ func TestMoveSystem_Update_HandsTheSpaceEveryEntityWhereItNowIs(t *testing.T) {
 
 func TestMoveSystem_Update_ClampsTheStepToHalfTheEntitysOwnSide(t *testing.T) {
 	vel := world.Velocity{Dir: geom.NewVec(1, 0), Value: 1000}
-	for _, side := range []float64{2, 16, 100} {
+	for _, side := range []float32{2, 16, 100} {
 		ecs, q, h := newTestWorld(t, vel, side)
 
 		ecs.Tick(100 * time.Millisecond)
 
 		p, _ := readFirst(t, q, h)
-		if want := side / 2; math.Abs(p.TopLeft.X-want) > 1e-9 {
+		if want := side / 2; f32.Abs(p.TopLeft.X-want) > f32.Eps(want) {
 			t.Errorf("a %vx%v entity moved %v in one tick, want %v — half its own side",
 				side, side, p.TopLeft.X, want)
 		}
@@ -162,8 +163,8 @@ func TestClampStep_ScalesOnlyPastTheLimit(t *testing.T) {
 	cases := []struct {
 		name         string
 		step         geom.Vec
-		max          float64
-		wantX, wantY float64
+		max          float32
+		wantX, wantY float32
 	}{
 		{"within max is left alone", geom.NewVec(3, 4), 10, 3, 4},
 		{"exactly at max is left alone", geom.NewVec(3, 4), 5, 3, 4},
@@ -174,14 +175,15 @@ func TestClampStep_ScalesOnlyPastTheLimit(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			got := clampStep(c.step, c.max)
-			if math.Abs(got.X-c.wantX) > 1e-12 || math.Abs(got.Y-c.wantY) > 1e-12 {
+			if f32.Abs(got.X-c.wantX) > f32.Eps(c.wantX) ||
+				f32.Abs(got.Y-c.wantY) > f32.Eps(c.wantY) {
 				t.Errorf("clampStep(%v, %v) = %v, want (%v, %v)", c.step, c.max, got, c.wantX,
 					c.wantY)
 			}
 		})
 	}
-	byHypot := func(step geom.Vec, max float64) geom.Vec {
-		mag := math.Hypot(step.X, step.Y)
+	byHypot := func(step geom.Vec, max float32) geom.Vec {
+		mag := f32.Hypot(step.X, step.Y)
 		if mag <= max || mag == 0 {
 			return step
 		}
@@ -189,10 +191,10 @@ func TestClampStep_ScalesOnlyPastTheLimit(t *testing.T) {
 	}
 	rng := rand.New(rand.NewSource(7))
 	for range 100 {
-		step := geom.NewVec(rng.Float64()*20-10, rng.Float64()*20-10)
-		max := rng.Float64() * 10
+		step := geom.NewVec(float32(rng.Float64())*20-10, float32(rng.Float64())*20-10)
+		max := float32(rng.Float64()) * 10
 		got, want := clampStep(step, max), byHypot(step, max)
-		if math.Abs(got.X-want.X) > 1e-12 || math.Abs(got.Y-want.Y) > 1e-12 {
+		if f32.Abs(got.X-want.X) > f32.Eps(want.X) || f32.Abs(got.Y-want.Y) > f32.Eps(want.Y) {
 			t.Errorf("clampStep(%v, %v) = %v, want %v as Hypot has it", step, max, got, want)
 		}
 	}
@@ -204,7 +206,7 @@ type stepwise struct{ *moveSystem }
 func (s stepwise) Update(cb *goke.CmdBuf, d time.Duration) {
 	for s.moveQuery.Paced(d); s.moveQuery.Next(); {
 		cursor, step := s.moveQuery.Cursor(), s.moveQuery.Dt()
-		dt, reach := step.Seconds(), float64(max(step/d, 1))
+		dt, reach := float32(step.Seconds()), float32(max(step/d, 1))
 		bases, drifts := s.base.Slice(cursor), s.drift.Slice(cursor)
 		marked := s.outside.Present(cursor)
 		for i, id := range cursor.IDs {
@@ -227,7 +229,7 @@ func (s stepwise) Update(cb *goke.CmdBuf, d time.Duration) {
 
 type lying struct {
 	id      uid.UID64
-	box     [8]uint64
+	box     [8]uint32
 	outside bool
 }
 
@@ -266,7 +268,10 @@ func newCrowd(t *testing.T, edges aabbworld.Edges, alone bool) *crowd {
 				}
 				if k%2 == 1 {
 					for i := range drift.Slice(&f.Cursor) {
-						drift.Slice(&f.Cursor)[i] = Drift{X: rng.Float64()*200 - 100, Y: -40}
+						drift.Slice(&f.Cursor)[i] = Drift{
+							X: float32(rng.Float64())*200 - 100,
+							Y: -40,
+						}
 					}
 				}
 			}
@@ -292,20 +297,21 @@ func newCrowd(t *testing.T, edges aabbworld.Edges, alone bool) *crowd {
 }
 
 func randomBase(rng *rand.Rand, space *aabbworld.Space) world.Base {
-	side := []float64{1, 4, 20}[rng.Intn(3)]
-	at := geom.NewVec(rng.Float64()*400, rng.Float64()*300)
-	b := world.Base{Pos: world.Position{AABB: plane.NewAABB(at, side, side*(0.5+rng.Float64()))}}
+	side := []float32{1, 4, 20}[rng.Intn(3)]
+	at := geom.NewVec(float32(rng.Float64())*400, float32(rng.Float64())*300)
+	box := plane.NewAABB(at, side, side*(0.5+float32(rng.Float64())))
+	b := world.Base{Pos: world.Position{AABB: box}}
 	space.Place(&b.Pos.AABB)
 	if rng.Intn(6) == 0 {
 		return b
 	}
-	angle := rng.Float64() * 2 * math.Pi
+	angle := float32(rng.Float64()) * 2 * math.Pi
 	b.Vel = world.Velocity{
-		Dir:   geom.NewVec(math.Cos(angle), math.Sin(angle)),
-		Value: rng.Float64()*600 - 200,
+		Dir:   geom.NewVec(f32.Cos(angle), f32.Sin(angle)),
+		Value: float32(rng.Float64())*600 - 200,
 	}
 	if rng.Intn(3) == 0 {
-		b.Vel.Side = rng.Float64()*100 - 50
+		b.Vel.Side = float32(rng.Float64())*100 - 50
 	}
 	return b
 }
@@ -317,11 +323,11 @@ func (c *crowd) state() []lying {
 		marked := c.outside.Present(cursor)
 		for i, b := range c.base.Slice(cursor) {
 			box := b.Pos.AABB
-			all = append(all, lying{id: cursor.IDs[i], outside: marked, box: [8]uint64{
-				math.Float64bits(box.TopLeft.X), math.Float64bits(box.TopLeft.Y),
-				math.Float64bits(box.BottomRight.X), math.Float64bits(box.BottomRight.Y),
-				math.Float64bits(box.Size.X), math.Float64bits(box.Size.Y),
-				math.Float64bits(box.Overhang.X), math.Float64bits(box.Overhang.Y),
+			all = append(all, lying{id: cursor.IDs[i], outside: marked, box: [8]uint32{
+				math.Float32bits(box.TopLeft.X), math.Float32bits(box.TopLeft.Y),
+				math.Float32bits(box.BottomRight.X), math.Float32bits(box.BottomRight.Y),
+				math.Float32bits(box.Size.X), math.Float32bits(box.Size.Y),
+				math.Float32bits(box.Overhang.X), math.Float32bits(box.Overhang.Y),
 			}})
 		}
 	}

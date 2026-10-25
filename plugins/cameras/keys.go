@@ -51,10 +51,10 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 		speed = DefaultScrollSpeed
 	}
 	// the speed in the camera's pixels: the same on the screen at any resolution
-	step := func(c control.Context) float32 { return float32(c.Pixels(float64(speed))) }
+	step := func(c control.Context) float32 { return c.Pixels(speed) }
 	edgeStep := func(c control.Context) float32 {
 		if p != nil && p.read.EdgeSpeed() > 0 {
-			return float32(c.Pixels(float64(p.read.EdgeSpeed())))
+			return c.Pixels(p.read.EdgeSpeed())
 		}
 		return step(c)
 	}
@@ -84,7 +84,7 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 	}
 	zoom(k.ZoomIn, "Zoom in", ZoomStep)
 	zoom(k.ZoomOut, "Zoom out", 1/ZoomStep)
-	see := func(key control.Key, label string, factor float64) {
+	see := func(key control.Key, label string, factor float32) {
 		if key != control.KeyUnknown {
 			press := control.KeyPress{Key: key, Mods: control.Mods{Ctrl: true}}
 			out = append(out, control.Build(press, label, func(c control.Context) (Sight, bool) {
@@ -104,7 +104,7 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 	}
 	if k.Drag {
 		out = append(out, control.Build(control.ButtonHeld{Button: control.MouseButtonMiddle}, "Pan", func(c control.Context) (Pan, bool) {
-			return Pan{Camera: c.Camera, Dx: float32(-c.Delta.X), Dy: float32(-c.Delta.Y)}, true
+			return Pan{Camera: c.Camera, Dx: -c.Delta.X, Dy: -c.Delta.Y}, true
 		}).In(camera.Outside))
 	}
 	if k.Edge {
@@ -115,7 +115,7 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 			// the deeper in the zone, the faster: a quarter the speed at its inner bound
 			var dx, dy float32
 			side := c.Edges()
-			speed := edgeStep(c) * float32(0.25+0.75*side.Depth)
+			speed := edgeStep(c) * (0.25 + 0.75*side.Depth)
 			if side.Corner != control.NoCorner {
 				sx, sy := side.Corner.Signs()
 				return Pan{Camera: c.Camera, Dx: sx * speed, Dy: sy * speed}, !k.CornersTurn

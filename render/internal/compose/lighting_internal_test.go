@@ -18,7 +18,7 @@ func casters() items {
 	return items(func(f *Frame) {
 		for i, c := range []light.Casting{light.Patch, light.Silhouette, light.NoShadow,
 			light.Baked} {
-			box := geom.NewAABBAt(geom.NewVec(498+20*float64(i), 498), 4, 4)
+			box := geom.NewAABBAt(geom.NewVec(498+20*float32(i), 498), 4, 4)
 			f.Cast(box, 0, 4, light.Shadowing{Cast: c}, sheet{}, 1)
 		}
 	})

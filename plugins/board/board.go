@@ -1,11 +1,10 @@
 package board
 
 import (
-	"math"
-
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/tag"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
@@ -86,23 +85,23 @@ func (r *BoardRead) KindAt(c cell.ID, deck bool) cell.Kind { return r.cells.Kind
 
 // KindFor is c's kind at p, a point in c, on the level of whoever has its feet at feet and steps
 // reach high: a deck over p within reach, else what lies under.
-func (r *BoardRead) KindFor(c cell.ID, p geom.Vec, feet, reach float64) cell.Kind {
+func (r *BoardRead) KindFor(c cell.ID, p geom.Vec, feet, reach float32) cell.Kind {
 	return r.cells.KindFor(c, p, feet, reach, r.altitude)
 }
 
 // CellFor is the cell whoever stands at p with its feet at feet and steps reach high is on: the
 // cell of the highest deck over p within reach, else the cell under p. Feet at +Inf stand on any
 // deck.
-func (r *BoardRead) CellFor(p geom.Vec, feet, reach float64) (cell.ID, bool) {
+func (r *BoardRead) CellFor(p geom.Vec, feet, reach float32) (cell.ID, bool) {
 	return r.cells.CellFor(p, feet, reach, r.altitude)
 }
 
 // LevelFor is CellFor and whether whoever stands there stands on a raised deck.
-func (r *BoardRead) LevelFor(p geom.Vec, feet, reach float64) (c cell.ID, deck, ok bool) {
+func (r *BoardRead) LevelFor(p geom.Vec, feet, reach float32) (c cell.ID, deck, ok bool) {
 	return r.cells.LevelFor(p, feet, reach, r.altitude)
 }
 
-func (r *BoardRead) footing(p geom.Vec, feet, reach float64) (c cell.ID, deck, raised, ok bool) {
+func (r *BoardRead) footing(p geom.Vec, feet, reach float32) (c cell.ID, deck, raised, ok bool) {
 	if c, deck, ok = r.LevelFor(p, feet, reach); !ok {
 		return c, false, false, false
 	}
@@ -129,10 +128,10 @@ func (r *BoardRead) NearDeck(p geom.Vec) bool {
 }
 
 // NarrowestDeck is how wide the narrowest Floor running as a band is; 0 for none.
-func (r *BoardRead) NarrowestDeck() float64 { return r.cells.Narrowest() }
+func (r *BoardRead) NarrowestDeck() float32 { return r.cells.Narrowest() }
 
 // ThinnestDeck is how thick the thinnest raised band's slab is; 0 for none.
-func (r *BoardRead) ThinnestDeck() float64 { return r.cells.Thinnest() }
+func (r *BoardRead) ThinnestDeck() float32 { return r.cells.Thinnest() }
 
 // Reaches reports whether c's Floor runs out towards its neighbour n; through a corner only
 // along a link.
@@ -141,7 +140,7 @@ func (r *BoardRead) Reaches(c, n cell.ID) bool { return r.cells.Reaches(c, n) }
 // Lane is how wide a body may be across the step from from to its neighbour to in d where a
 // deck's band runs along it, on the decks' level when deck, else the ground's; +Inf where no band
 // narrows the step. The railings keeping d off are taken off the band's width.
-func (r *BoardRead) Lane(from, to cell.ID, d cell.Domain, deck bool) float64 {
+func (r *BoardRead) Lane(from, to cell.ID, d cell.Domain, deck bool) float32 {
 	return r.cells.Lane(from, to, d, deck)
 }
 
@@ -193,9 +192,9 @@ func (r *BoardRead) Version() uint64 { return r.cells.Version() }
 // or the simple map on a board no plugin runs.
 func (r *BoardRead) Map() MapRead { return readMap{r} }
 
-func (r *BoardRead) altitude(c cell.ID) float64 {
+func (r *BoardRead) altitude(c cell.ID) float32 {
 	_, level := r.b.mapping.Top(c, 0) // the ground's level, whatever stands on it
-	return float64(level)
+	return level
 }
 
 // surfaces is where whoever moves over the board stands, the ground or a deck, read through r
@@ -203,11 +202,11 @@ type surfaces struct{ r *BoardRead }
 
 var _ ground.Surfaces = surfaces{}
 
-func (s surfaces) Surface(p geom.Vec, d cell.Domain, feet, step float64) (floor, ceiling float64) {
+func (s surfaces) Surface(p geom.Vec, d cell.Domain, feet, step float32) (floor, ceiling float32) {
 	if h := s.r.b.mapping.Heights(); h != nil {
 		floor = h.At(p)
 	}
-	ceiling = math.Inf(1)
+	ceiling = f32.Inf(1)
 	if d == 0 {
 		d = cell.Land
 	}

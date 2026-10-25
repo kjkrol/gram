@@ -33,12 +33,12 @@ const (
 // the draining alone; how many cells a course runs on out to sea by the square root of its water.
 type Config struct {
 	BrookAt, StreamAt, RiverAt          float64
-	Rain                                func(level float64) float64
-	BrookDepth, StreamDepth, RiverDepth float64
+	Rain                                func(level float32) float64
+	BrookDepth, StreamDepth, RiverDepth float32
 	FordEvery                           int
-	FordSlope                           float64
-	WidthPerRoot                        float64
-	Meander                             float64
+	FordSlope                           float32
+	WidthPerRoot                        float32
+	Meander                             float32
 	Plume                               float64
 }
 
@@ -51,30 +51,31 @@ type Network struct {
 	Gathered map[cell.ID]float64
 
 	grid    grid.Grid
-	perRoot float64 // WidthPerRoot
+	perRoot float32 // WidthPerRoot
 	mouths  map[cell.ID]mouth
 
 	cw, ch       float64
 	width        int64
 	height       int64
 	wrapX, wrapY bool
-	beds         map[[2]int64]float64 // by lattice corner
+	beds         map[[2]int64]float32 // by lattice corner
 }
 
 // ErrNotSquare is Drain's answer for a grid other than square: it has no corners to carve.
 var ErrNotSquare = errors.New("water: drains a square grid alone")
 
 // Drain works out the network over grid for heights, water leaving where sea says.
-func Drain(grid grid.Grid, heights func(geom.Vec) float64, sea func(cell.ID) bool, cfg Config) (*Network, error) {
+func Drain(grid grid.Grid, heights func(geom.Vec) float32, sea func(cell.ID) bool, cfg Config) (*Network, error) {
 	var any cell.ID
 	grid.EachCell(func(c cell.ID) { any = c })
 	if len(grid.CellOutline(any, nil)) != 4 {
 		return nil, ErrNotSquare
 	}
-	cw, ch := grid.CellBounds()
+	w, h := grid.CellBounds()
 	n := &Network{
 		Courses: map[cell.ID]Course{}, Down: map[cell.ID]cell.ID{}, Gathered: map[cell.ID]float64{},
-		grid: grid, cw: cw, ch: ch, beds: map[[2]int64]float64{}, perRoot: cfg.WidthPerRoot, mouths: map[cell.ID]mouth{},
+		grid: grid, cw: float64(w), ch: float64(h), beds: map[[2]int64]float32{},
+		perRoot: cfg.WidthPerRoot, mouths: map[cell.ID]mouth{},
 	}
 	grid.EachCell(func(c cell.ID) {
 		x, y, _ := grid.Coords(c)
@@ -83,15 +84,16 @@ func Drain(grid grid.Grid, heights func(geom.Vec) float64, sea func(cell.ID) boo
 	n.wrapX, n.wrapY = wrapsOf(grid)
 
 	shore := stepsFromSea(grid, sea)
+	// the draining works in float64: the levels rise a step a cell from the sea
 	level := map[cell.ID]float64{}
 	grid.EachCell(func(c cell.ID) {
 		x, y, _ := grid.Coords(c)
 		sum := 0.0
 		for _, d := range corners {
-			sum += heights(geom.NewVec(float64(int64(x)+d[0])*cw, float64(int64(y)+d[1])*ch))
+			sum += float64(heights(geom.NewVec(float32(int64(x)+d[0])*w, float32(int64(y)+d[1])*h)))
 		}
 		calm := min(float64(shore[c])/calmNear, 1) // near the sea a course runs straight for it
-		level[c] = sum/4 + cfg.Meander*(nudge(c)-0.5)*calm
+		level[c] = sum/4 + float64(cfg.Meander)*(nudge(c)-0.5)*calm
 	})
 
 	// from the sea up, the lowest first
@@ -122,11 +124,11 @@ func Drain(grid grid.Grid, heights func(geom.Vec) float64, sea func(cell.ID) boo
 	// the highest first
 	rain := cfg.Rain
 	if rain == nil {
-		rain = func(float64) float64 { return 1 }
+		rain = func(float32) float64 { return 1 }
 	}
 	for i := len(order) - 1; i >= 0; i-- {
 		c := order[i]
-		n.Gathered[c] += rain(level[c])
+		n.Gathered[c] += rain(float32(level[c]))
 		if d := n.Down[c]; !sea(d) {
 			n.Gathered[d] += n.Gathered[c]
 		}
@@ -136,11 +138,11 @@ func Drain(grid grid.Grid, heights func(geom.Vec) float64, sea func(cell.ID) boo
 	for _, c := range order {
 		switch g := n.Gathered[c]; {
 		case g >= cfg.RiverAt:
-			n.Courses[c], bed[c] = River, filled[c]-cfg.RiverDepth
+			n.Courses[c], bed[c] = River, filled[c]-float64(cfg.RiverDepth)
 		case g >= cfg.StreamAt:
-			n.Courses[c], bed[c] = Stream, filled[c]-cfg.StreamDepth
+			n.Courses[c], bed[c] = Stream, filled[c]-float64(cfg.StreamDepth)
 		case g >= cfg.BrookAt:
-			n.Courses[c], bed[c] = Brook, filled[c]-cfg.BrookDepth
+			n.Courses[c], bed[c] = Brook, filled[c]-float64(cfg.BrookDepth)
 		}
 	}
 	n.ford(cfg, level, sea)
@@ -150,8 +152,8 @@ func Drain(grid grid.Grid, heights func(geom.Vec) float64, sea func(cell.ID) boo
 		x, y, _ := grid.Coords(c)
 		for _, d := range corners {
 			k := n.key(int64(x)+d[0], int64(y)+d[1])
-			if old, ok := n.beds[k]; !ok || b < old {
-				n.beds[k] = max(b, 0)
+			if old, ok := n.beds[k]; !ok || float32(b) < old {
+				n.beds[k] = float32(max(b, 0))
 			}
 		}
 	}
@@ -211,7 +213,7 @@ func (n *Network) ford(cfg Config, level map[cell.ID]float64, sea func(cell.ID) 
 		if k != River || from(c)%cfg.FordEvery != cfg.FordEvery/2 {
 			continue
 		}
-		if d := n.Down[c]; math.Abs(level[c]-level[d])/n.cw > cfg.FordSlope {
+		if d := n.Down[c]; math.Abs(level[c]-level[d])/n.cw > float64(cfg.FordSlope) {
 			continue
 		}
 		fords = append(fords, c)
@@ -267,12 +269,12 @@ func (n *Network) plume(g grid.Grid, cfg Config, sea func(cell.ID) bool) {
 
 // Fade is how far c's course has faded out: 0 ashore, and out at sea from a little beyond the mouth
 // to nearly all at the last cell a course reaches.
-func (n *Network) Fade(c cell.ID) float64 {
+func (n *Network) Fade(c cell.ID) float32 {
 	m, ok := n.mouths[c]
 	if !ok {
 		return 0
 	}
-	return float64(m.out) / float64(m.reach+1)
+	return float32(m.out) / float32(m.reach+1)
 }
 
 // Net is the courses as a network.Network, to lay on a board: a node on every wet cell of the
@@ -281,7 +283,7 @@ func (n *Network) Net(kinds map[Course]string) *network.Network {
 	net := network.New(n.grid)
 	for c, k := range n.Courses {
 		if k != Dry {
-			net.Set(c, network.Node{Kind: kinds[k], Width: n.Width(c, n.cw), Fade: n.Fade(c)})
+			net.Set(c, network.Node{Kind: kinds[k], Width: n.Width(c, float32(n.cw)), Fade: n.Fade(c)})
 		}
 	}
 	for c, k := range n.Courses {
@@ -293,25 +295,25 @@ func (n *Network) Net(kinds map[Course]string) *network.Network {
 }
 
 // Width is how wide c's course runs, a cell wide at most; out at sea it widens as it runs out.
-func (n *Network) Width(c cell.ID, cell float64) float64 {
+func (n *Network) Width(c cell.ID, cell float32) float32 {
 	if n.Courses[c] == Dry {
 		return 0
 	}
 	if m, ok := n.mouths[c]; ok {
-		return min(n.Width(m.from, cell)*(1+0.6*float64(m.out)), cell)
+		return min(n.Width(m.from, cell)*(1+0.6*float32(m.out)), cell)
 	}
-	return min(n.perRoot*math.Sqrt(n.Gathered[c]), cell)
+	return min(n.perRoot*float32(math.Sqrt(n.Gathered[c])), cell)
 }
 
 // Carved is heights with the channels cut: every corner touching a course at its bed, the corners
 // at the sea as they are.
-func (n *Network) Carved(heights func(geom.Vec) float64) func(geom.Vec) float64 {
-	return func(p geom.Vec) float64 {
+func (n *Network) Carved(heights func(geom.Vec) float32) func(geom.Vec) float32 {
+	return func(p geom.Vec) float32 {
 		h := heights(p)
 		if h <= 0 {
 			return h
 		}
-		gx, gy := p.X/n.cw, p.Y/n.ch
+		gx, gy := float64(p.X)/n.cw, float64(p.Y)/n.ch
 		rx, ry := math.Round(gx), math.Round(gy)
 		if math.Abs(gx-rx) > 1e-6 || math.Abs(gy-ry) > 1e-6 {
 			return h

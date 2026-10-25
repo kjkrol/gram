@@ -2,7 +2,6 @@ package world_test
 
 import (
 	"fmt"
-	cgoke "github.com/kjkrol/ceremony/goke"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/effect"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
@@ -143,7 +143,7 @@ func (r *rig) cast(fx effect.Effect) {
 	r.casting = func(cb *goke.CmdBuf) { r.fx.Cast(r.id, fx) }
 }
 
-func (r *rig) state() (speed float64, sprite uint8, angry bool, active bool) {
+func (r *rig) state() (speed float32, sprite uint8, angry bool, active bool) {
 	for r.query.All(); r.query.Next(); {
 		cur := r.query.Cursor()
 		speed = r.steer.Slice(cur)[0].MaxSpeed

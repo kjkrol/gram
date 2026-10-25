@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 )
 
 // rises 3 a unit towards where x and y grow, where the eye looks from: 0 from 660 on, 300 at 560
@@ -33,13 +34,15 @@ func TestIsoCamera_PickFindsTheGroundOnASlopeTooSteepToSettle(t *testing.T) {
 	missed := false
 	for _, q := range rampPoints {
 		z := ramp(q[0], q[1])
-		c.CenterOn(float64(q[0]), float64(q[1]), float64(z))
+		c.CenterOn(float32(q[0]), float32(q[1]), float32(z))
 		sx, sy := c.Project(q[0], q[1], z)
 		x, y, _, ok := c.Pick(sx, sy)
-		if !ok || math.Abs(float64(x-q[0])) > 1e-2 || math.Abs(float64(y-q[1])) > 1e-2 {
+		if !ok || f32.Abs(float32(x-q[0])) > 1e-2 || f32.Abs(float32(y-q[1])) > 1e-2 {
 			t.Errorf("point %v at height %v is drawn at (%v, %v) and picked back as (%v, %v) %v", q, z, sx, sy, x, y, ok)
 		}
-		if ox, oy := settle(c.Unproject, ramp, sx, sy); math.Hypot(float64(ox-q[0]), float64(oy-q[1])) > 1 {
+		if ox, oy := settle(c.Unproject, ramp, sx, sy); f32.Hypot(
+			float32(ox-q[0]),
+			float32(oy-q[1])) > 1 {
 			missed = true
 		}
 	}
@@ -72,7 +75,7 @@ func TestPerspCamera_PickFindsTheGroundOnASteepSlopeOverTheCurve(t *testing.T) {
 		z := ramp(q[0], q[1])
 		sx, sy := c.Project(q[0], q[1], z)
 		x, y, _, ok := c.Pick(sx, sy)
-		if !ok || math.Abs(float64(x-q[0])) > 1e-2 || math.Abs(float64(y-q[1])) > 1e-2 {
+		if !ok || f32.Abs(float32(x-q[0])) > 1e-2 || f32.Abs(float32(y-q[1])) > 1e-2 {
 			t.Errorf("point %v at height %v is drawn at (%v, %v) and picked back as (%v, %v) %v", q, z, sx, sy, x, y, ok)
 		}
 	}
@@ -80,7 +83,8 @@ func TestPerspCamera_PickFindsTheGroundOnASteepSlopeOverTheCurve(t *testing.T) {
 	if !near(at[2], ramp(at[0], at[1])) {
 		t.Errorf("the middle of the screen looks at %v, off the ground %v there", at, ramp(at[0], at[1]))
 	}
-	if sx, sy := c.Project(at[0], at[1], at[2]); math.Abs(float64(sx-200)) > 0.05 || math.Abs(float64(sy-150)) > 0.05 {
+	if sx, sy := c.Project(at[0], at[1], at[2]); f32.Abs(float32(sx-200)) > 0.05 ||
+		f32.Abs(float32(sy-150)) > 0.05 {
 		t.Errorf("the middle's ground point is drawn at (%v, %v), want (200, 150)", sx, sy)
 	}
 }
@@ -94,7 +98,8 @@ func TestPerspCamera_InsideAUnitPickReachesUpASlopeAndMissesTheSky(t *testing.T)
 	if !ok || slope(x, y) <= 5 {
 		t.Fatalf("looking up the slope the middle picked (%v, %v) %v at height %v, want the slope above the eye", x, y, ok, slope(x, y))
 	}
-	if sx, sy := c.Project(x, y, slope(x, y)); math.Abs(float64(sx-200)) > 0.05 || math.Abs(float64(sy-150)) > 0.05 {
+	if sx, sy := c.Project(x, y, slope(x, y)); f32.Abs(float32(sx-200)) > 0.05 ||
+		f32.Abs(float32(sy-150)) > 0.05 {
 		t.Errorf("the picked point is drawn at (%v, %v), want the middle", sx, sy)
 	}
 	c.Turn(math.Pi) // the slope behind: level ground ahead, and the eye looking over it at the sky

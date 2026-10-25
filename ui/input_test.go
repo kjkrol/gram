@@ -3,12 +3,11 @@ package ui
 import (
 	"testing"
 
-	"github.com/kjkrol/ceremony/command"
-	"github.com/kjkrol/gram/render"
-
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/render"
 )
 
 type order struct{ what string }
@@ -19,7 +18,7 @@ type player struct {
 	area   geom.AABB
 	shown  render.Surface
 	clicks []geom.Vec
-	wheel  float64
+	wheel  float32
 }
 
 func (p *player) Over(area geom.AABB, shown render.Surface) { p.area, p.shown = area, shown }

@@ -41,7 +41,8 @@ type exitRig struct {
 	lefts   lefts
 }
 
-// a thing heading out by the right edge, 300 units a second, a rule of Leaving heard if heeded
+// a thing heading out by the right edge, 300 units a second, a rule of Leaving heard if heeded;
+// it starts off the edge by no whole number of steps, so no tick leaves it on the edge itself
 func leaving(t *testing.T, edges aabbworld.Edges, heeded bool) *exitRig {
 	t.Helper()
 	var rules []act.Rule
@@ -53,7 +54,7 @@ func leaving(t *testing.T, edges aabbworld.Edges, heeded bool) *exitRig {
 		})
 	}
 	er := &exitRig{}
-	er.rig = newRig(t, edges, box(985, 500, 10), world.Velocity{Dir: geom.NewVec(1, 0), Value: 300},
+	er.rig = newRig(t, edges, box(984, 500, 10), world.Velocity{Dir: geom.NewVec(1, 0), Value: 300},
 		nil, rules...)
 	if err := er.w.Carry(&er.lefts); err != nil {
 		t.Fatal(err)

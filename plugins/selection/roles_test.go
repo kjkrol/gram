@@ -4,12 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kjkrol/ceremony/command"
-	"github.com/kjkrol/gram/render"
-
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/tag"
@@ -22,13 +20,14 @@ import (
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
 type soldier struct {
 	name     string
 	kind     string
-	x        float64
+	x        float32
 	by       command.Issuer
 	selected bool
 }
@@ -153,7 +152,7 @@ func (s *squad) tick() {
 }
 
 func (s *squad) under(e effect.Effect) map[string]bool {
-	byX := map[float64]uid.UID64{}
+	byX := map[float32]uid.UID64{}
 	for s.q.All(); s.q.Next(); {
 		cur := s.q.Cursor()
 		for i, id := range cur.IDs {
@@ -257,7 +256,7 @@ func TestPointed_IsTheEntityUnderTheCursor(t *testing.T) {
 	s.start(roster(s.me.ID, s.rival.ID))
 	cure := control.Give(control.KeyPress{Key: control.KeyC}, "Hasten the one pointed at",
 		s.named("cure", ceremony.Put(s.haste).On(s.sel.Pointed())))
-	point := func(x, y float64) {
+	point := func(x, y float32) {
 		cmd, ok := cure.Build(control.Context{
 			Player: s.me.ID,
 			Camera: cameratest.NewFromSpace(1000, 1000, 0),

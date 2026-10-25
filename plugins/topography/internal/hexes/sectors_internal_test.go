@@ -16,9 +16,9 @@ type row struct{}
 func (row) Len() int  { return 4 }
 func (row) Cols() int { return 4 }
 func (row) Box(i int) geom.AABB {
-	return geom.NewAABB(geom.NewVec(float64(i)*512, 0), geom.NewVec(float64(i+1)*512, 512))
+	return geom.NewAABB(geom.NewVec(float32(i)*512, 0), geom.NewVec(float32(i+1)*512, 512))
 }
-func (row) Of(x, _ float64) int { return min(max(int(x/512), 0), 3) }
+func (row) Of(x, _ float32) int { return min(max(int(x/512), 0), 3) }
 func (row) Off(i int) bool      { return i == 3 }
 
 type seeing struct{ camera.Camera }

@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/uid"
 )
 
@@ -61,7 +62,7 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 			continue
 		}
 		step := s.query.Dt()
-		dt, n := step.Seconds(), steps(step, d)
+		dt, n := float32(step.Seconds()), steps(step, d)
 		steers, courses := s.steer.Slice(cursor), s.course.Slice(cursor)
 		bases := s.base.Slice(cursor)
 
@@ -73,7 +74,7 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 				continue
 			}
 			if h.Want.X != 0 || h.Want.Y != 0 {
-				bases[i].Vel.Dir = turnTowards(bases[i].Vel.Dir, h.Want, h.TurnRate*float64(n))
+				bases[i].Vel.Dir = turnTowards(bases[i].Vel.Dir, h.Want, h.TurnRate*float32(n))
 			}
 			if h.Delay > 0 {
 				h.Delay -= uint8(min(int(h.Delay), n))
@@ -98,15 +99,15 @@ func steps(given, d time.Duration) int {
 }
 
 // a zero rate or heading snaps to the target
-func turnTowards(from, to geom.Vec, rate float64) geom.Vec {
+func turnTowards(from, to geom.Vec, rate float32) geom.Vec {
 	if rate <= 0 || (from.X == 0 && from.Y == 0) {
 		return to
 	}
-	at := math.Atan2(from.Y, from.X)
-	delta := math.Mod(math.Atan2(to.Y, to.X)-at+3*math.Pi, 2*math.Pi) - math.Pi
-	if math.Abs(delta) <= rate {
+	at := f32.Atan2(from.Y, from.X)
+	delta := f32.Mod(f32.Atan2(to.Y, to.X)-at+3*math.Pi, 2*math.Pi) - math.Pi
+	if f32.Abs(delta) <= rate {
 		return to
 	}
-	at += math.Copysign(rate, delta)
-	return geom.NewVec(math.Cos(at), math.Sin(at))
+	at += f32.Copysign(rate, delta)
+	return geom.NewVec(f32.Cos(at), f32.Sin(at))
 }

@@ -73,7 +73,7 @@ func TestSaveLoadCycle(t *testing.T) {
 				comp.Const(collision.Collider{}),
 			})
 			of := kind.Named[body](wp.Kinds(), fmt.Sprintf("k%d", i))
-			entries = append(entries, of.Entry(body{pos: placement.Place(i, count), vel: world.Velocity{Dir: geom.NewVec(1, 0), Value: float64(10 * (i + 1))}}))
+			entries = append(entries, of.Entry(body{pos: placement.Place(i, count), vel: world.Velocity{Dir: geom.NewVec(1, 0), Value: float32(10 * (i + 1))}}))
 		}
 		return entries
 	}

@@ -21,7 +21,7 @@ type Climate struct {
 	report   report
 	rules    host.StepRules[Weathering]
 	about    func() uid.UID64
-	ground   func() (low, peaks float64)
+	ground   func() (low, peaks float32)
 	land     *air.Land
 	running  Running
 	now      string // the weather of the time, by name, as the system last set it
@@ -97,7 +97,7 @@ func (c *Climate) About(self func() uid.UID64) { c.about = self }
 // Over has the low clouds hang over the ground ground gives at the first step: its low ground and
 // its peaks, world units up (air.ReliefOf); without it, over no ground in particular. Call it
 // before System.
-func (c *Climate) Over(ground func() (low, peaks float64)) { c.ground = ground }
+func (c *Climate) Over(ground func() (low, peaks float32)) { c.ground = ground }
 
 // OnLand has the land work on the air masses over the world every step (air.Dome.Lift): the low
 // clouds held back by the ground, rain and clouds wrung out of the air where it says. Call it

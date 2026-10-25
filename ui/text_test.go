@@ -26,7 +26,7 @@ func TestText_APinnedLabelSaysWhatItsEntityIs(t *testing.T) {
 		spot{id: 1, placed: true, x: 100, y: 100},
 		spot{id: 2, placed: true, x: 400, y: 100},
 		spot{id: 3, placed: true, x: 700, y: 100})
-	widths := map[uid.UID64]float64{}
+	widths := map[uid.UID64]float32{}
 	label.pin.each(label, label.parent, func(in *instance) {
 		w, _ := size(label.Box())
 		widths[in.id] = w

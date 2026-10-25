@@ -1,7 +1,6 @@
 package collision_test
 
 import (
-	"math"
 	"testing"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/motion"
@@ -19,7 +19,7 @@ import (
 )
 
 type pushedOut struct {
-	x    float64
+	x    float32
 	wall bool
 }
 
@@ -49,7 +49,7 @@ func pushedOutWorld(t *testing.T, hooked bool) (*goke.ECS, *heards, *goke.Query,
 		comp.Const(collision.Collider{}),
 		comp.Load(func(b pushedOut) collision.Physics {
 			if b.wall {
-				return collision.Physics{Mass: math.Inf(1)}
+				return collision.Physics{Mass: f32.Inf(1)}
 			}
 			return collision.Physics{}
 		}),
@@ -99,7 +99,7 @@ func TestCollision_ABoxPushedThroughAnOpenEdgeIsDespawned(t *testing.T) {
 	for range 3 {
 		ecs.Tick(time.Second / 60)
 	}
-	var lefts []float64
+	var lefts []float32
 	for q.All(); q.Next(); {
 		for _, b := range base.Slice(q.Cursor()) {
 			lefts = append(lefts, b.Pos.AABB.TopLeft.X)

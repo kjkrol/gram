@@ -191,7 +191,7 @@ func (a *arena) bindKeys() error {
 		control.Build(control.KeyReleased{Key: control.KeyShift},
 			"Throw a grenade, the further the longer held",
 			func(c control.Context) (bullet.Shoot, bool) {
-				power := max(float64(c.Held)/float64(fullThrow), tapThrow)
+				power := max(float32(c.Held)/float32(fullThrow), tapThrow)
 				grenade := shots.Named(GrenadeKind)
 				return bullet.Shoot{Ammo: grenade, Camera: c.Camera, Power: power}, true
 			}),

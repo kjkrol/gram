@@ -1,10 +1,6 @@
 package bullet_test
 
 import (
-	cgoke "github.com/kjkrol/ceremony/goke"
-	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/internal/parallel"
-	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"math"
 	"testing"
 	"time"
@@ -19,13 +15,18 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/effect"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/bullet"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/players/owner"
@@ -66,9 +67,9 @@ func (c *installCtx) systems() []goke.System {
 type family struct{}
 
 type piece struct {
-	x, y, size float64
+	x, y, size float32
 	facing     geom.Vec
-	speed      float64
+	speed      float32
 	selectable bool
 	selected   bool
 	owner      command.Issuer
@@ -311,17 +312,17 @@ const allSides = collide.Left | collide.Right | collide.Top | collide.Bottom
 
 type wallField struct {
 	box  geom.AABB
-	top  float64
+	top  float32
 	cell uint64
 }
 
 func (f *wallField) Solid(_ world.Layers, band collision.Band, box geom.AABB, visit func(collision.FieldBox) bool) {
-	if box.Intersects(f.box) && band.Meets(collision.Band{Bottom: math.Inf(-1), Top: f.top}) {
+	if box.Intersects(f.box) && band.Meets(collision.Band{Bottom: f32.Inf(-1), Top: f.top}) {
 		visit(collision.FieldBox{Box: f.box, Cell: f.cell, Open: allSides})
 	}
 }
 
-func (f *wallField) Overhang(world.Layers, geom.AABB) float64 { return 0 }
+func (f *wallField) Overhang(world.Layers, geom.AABB) float32 { return 0 }
 
 func (f *wallField) Walls(world.Layers, collision.Band, geom.AABB,
 	func(collide.FieldWall) bool) {
@@ -341,7 +342,7 @@ func TestShoot_AnEntityFiresFromItsMuzzleTheWayItFaces(t *testing.T) {
 			}
 			r.tick(1)
 			shot, who := r.theShot(), r.unit(0)
-			if d := shot.flight.Dir; math.Hypot(d.X-tc.facing.X, d.Y-tc.facing.Y) > 1e-9 || shot.flight.Shooter != who.id {
+			if d := shot.flight.Dir; f32.Hypot(d.X-tc.facing.X, d.Y-tc.facing.Y) > f32.Eps(1) || shot.flight.Shooter != who.id {
 				t.Errorf("the shot flies %v shot by %v, want %v by %v", shot.flight.Dir, shot.flight.Shooter, tc.facing, who.id)
 			}
 			if muzzle := geom.NewAABBAt(geom.NewVec(100, 100), 20, 20); shot.base.Pos.AABB.AABB.Intersects(muzzle) {
@@ -466,12 +467,12 @@ func TestFlight_TheRangeFlownLandsAStepLater(t *testing.T) {
 	r.w.Write().Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
 	r.tick(11) // spawned, then ten steps of ten
 	shot := r.theShot()
-	if f := shot.flight; f.Landed || f.Ending != bullet.Spent || math.Abs(f.Flown-100) > 1e-3 {
+	if f := shot.flight; f.Landed || f.Ending != bullet.Spent || f32.Abs(f.Flown-100) > 1e-3 {
 		t.Fatalf("after the range the flight is %+v, want its range flown, Spent, not yet landed", *f)
 	}
 	r.tick(1)
 	shot = r.theShot()
-	if f := shot.flight; !f.Landed || f.Ending != bullet.Spent || math.Abs(f.At.X-223) > 1e-3 {
+	if f := shot.flight; !f.Landed || f.Ending != bullet.Spent || f32.Abs(f.At.X-223) > 1e-3 {
 		t.Errorf("a step later the flight is %+v, want landed where the range ended, at 223", *f)
 	}
 	if shot.contacts != nil {
@@ -568,7 +569,7 @@ func TestPlan_AFuseWaitsOnTheShotLyingAndBursts(t *testing.T) {
 func TestFlight_AThrownShotArcsAndComesDownWhereAimed(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		top  float64
+		top  float32
 		want bullet.End
 	}{{"over a low wall", 18, bullet.Grounded}, {"into a high wall", 30, bullet.Wall}} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -580,7 +581,7 @@ func TestFlight_AThrownShotArcsAndComesDownWhereAimed(t *testing.T) {
 			grenade := r.arms.Named("grenade")
 			r.start()
 			r.w.Write().Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: grenade, At: geom.NewVec(220, 110), Targeted: true})
-			peak := 0.0
+			peak := float32(0)
 			for i := 0; i < 90; i++ {
 				r.tick(1)
 				shot := r.theShot()
@@ -598,7 +599,7 @@ func TestFlight_AThrownShotArcsAndComesDownWhereAimed(t *testing.T) {
 			}
 			switch tc.want {
 			case bullet.Grounded:
-				if math.Abs(shot.flight.At.X-220) > 4 || shot.z.Altitude != 0 {
+				if f32.Abs(shot.flight.At.X-220) > 4 || shot.z.Altitude != 0 {
 					t.Errorf("came down at %v, %v up; want within a step of 220, on the ground", shot.flight.At, shot.z.Altitude)
 				}
 			case bullet.Wall:
@@ -817,7 +818,7 @@ func TestShoot_AThrowGoesAsFarAsItsPowerSays(t *testing.T) {
 		r.tick(1)
 	}
 	// the muzzle at 125, half a range of 200 on
-	if shot := r.theShot(); !shot.flight.Landed || math.Abs(shot.flight.At.X-225) > 5 {
+	if shot := r.theShot(); !shot.flight.Landed || f32.Abs(shot.flight.At.X-225) > 5 {
 		t.Errorf("thrown at half power the shot is %+v, want landed near 225", *shot.flight)
 	}
 }

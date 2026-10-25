@@ -11,8 +11,8 @@ import (
 // runs in world units, and how far it has faded out, 0 not at all to 1 gone.
 type Node struct {
 	Kind  string
-	Width float64
-	Fade  float64
+	Width float32
+	Fade  float32
 }
 
 // Network is what runs from cell to cell over a board's grid — a river, a road: the cells it runs
@@ -159,8 +159,8 @@ func (n *Network) Ways() []cell.WayEntry {
 	out := make([]cell.WayEntry, 0, len(cells))
 	for _, c := range cells {
 		node := n.nodes[c]
-		out = append(out, cell.WayEntry{Kind: node.Kind, Cell: c, Width: float32(node.Width),
-			Links: n.Links(c), Fade: float32(node.Fade), Mix: float32(n.Along(c))})
+		out = append(out, cell.WayEntry{Kind: node.Kind, Cell: c, Width: node.Width,
+			Links: n.Links(c), Fade: node.Fade, Mix: float32(n.Along(c))})
 	}
 	return out
 }

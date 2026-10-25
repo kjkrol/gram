@@ -18,7 +18,7 @@ type valley struct {
 	wet     map[cell.ID]bool
 	bridged map[cell.ID]site.Part
 	roads   map[cell.ID]cell.Links
-	height  func(p geom.Vec) float64
+	height  func(p geom.Vec) float32
 }
 
 func newValley() *valley {
@@ -28,7 +28,7 @@ func newValley() *valley {
 		bridged: map[cell.ID]site.Part{},
 		roads:   map[cell.ID]cell.Links{},
 	}
-	v.height = func(p geom.Vec) float64 {
+	v.height = func(p geom.Vec) float32 {
 		if p.X > 40 && p.X < 70 {
 			return 0
 		}
@@ -39,7 +39,7 @@ func newValley() *valley {
 
 func (v *valley) Grid() grid.Grid { return v.g }
 
-func (v *valley) Heights(c cell.ID, dst []float64) []float64 {
+func (v *valley) Heights(c cell.ID, dst []float32) []float32 {
 	for _, p := range v.g.CellOutline(c, nil) {
 		dst = append(dst, v.height(p))
 	}
@@ -77,7 +77,7 @@ func TestPlan_RefusesWhatBreaksARule(t *testing.T) {
 	g := newValley().g
 	for name, tc := range map[string]struct {
 		from, to cell.ID
-		deck     float64
+		deck     float32
 		setup    func(v *valley)
 		why      string
 	}{
@@ -85,7 +85,7 @@ func TestPlan_RefusesWhatBreaksARule(t *testing.T) {
 		"off a line":   {g.At(3, 5), g.At(7, 6), 30, nil, "off every line"},
 		"side by side": {g.At(3, 5), g.At(4, 5), 30, nil, "spans no cell"},
 		"too shallow": {g.At(3, 5), g.At(7, 5), 30, func(v *valley) {
-			v.height = func(p geom.Vec) float64 {
+			v.height = func(p geom.Vec) float32 {
 				if p.X > 40 && p.X < 70 {
 					return 15
 				}
@@ -93,7 +93,7 @@ func TestPlan_RefusesWhatBreaksARule(t *testing.T) {
 			}
 		}, "crosses no water"},
 		"over water however shallow": {g.At(3, 5), g.At(7, 5), 30, func(v *valley) {
-			v.height = func(p geom.Vec) float64 {
+			v.height = func(p geom.Vec) float32 {
 				if p.X > 30 && p.X < 70 {
 					return 25
 				}
@@ -102,7 +102,7 @@ func TestPlan_RefusesWhatBreaksARule(t *testing.T) {
 			v.wet[g.At(5, 5)] = true
 		}, ""},
 		"into the ground": {g.At(3, 5), g.At(7, 5), 10, func(v *valley) {
-			v.height = func(p geom.Vec) float64 {
+			v.height = func(p geom.Vec) float32 {
 				if p.X > 40 && p.X < 70 {
 					return 12
 				}
@@ -110,7 +110,7 @@ func TestPlan_RefusesWhatBreaksARule(t *testing.T) {
 			}
 		}, "the ground rises"},
 		"one span over nothing": {g.At(3, 5), g.At(5, 5), 30, func(v *valley) {
-			v.height = func(p geom.Vec) float64 {
+			v.height = func(p geom.Vec) float32 {
 				if p.X > 30 && p.X < 50 {
 					return 0
 				}
@@ -156,7 +156,7 @@ func TestPlan_RefusesWhatBreaksARule(t *testing.T) {
 
 func TestPlan_Slantwise(t *testing.T) {
 	v := newValley()
-	v.height = func(p geom.Vec) float64 {
+	v.height = func(p geom.Vec) float32 {
 		if p.X+p.Y > 80 && p.X+p.Y < 140 {
 			return 0
 		}
@@ -206,7 +206,7 @@ type hexes struct {
 }
 
 func (h *hexes) Grid() grid.Grid { return h.g }
-func (h *hexes) Heights(c cell.ID, dst []float64) []float64 {
+func (h *hexes) Heights(c cell.ID, dst []float32) []float32 {
 	if h.wet[c] {
 		return append(dst, 0)
 	}

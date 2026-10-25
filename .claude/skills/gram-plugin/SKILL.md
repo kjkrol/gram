@@ -238,6 +238,15 @@ plugin: no `Plugin` method hands out a system's state, no plugin takes a callbac
 another's system. A system keeps no table beside the ECS: what it knows about an entity is a
 component on it. Each `plugin.go`/`module.go` groups contract methods first.
 
+**Numbers** (aabbworld v1.17.0): what a plugin keeps or hands across a seam of positions, sizes,
+speeds, heights, angles and pixels is a float32, `geom.Vec` and `plane.AABB` with it, the heights
+a map is built from too; float64 stays inside a computation that sums (a walk along a ray, a
+relief's draining), in costs and time ratios and in a setting's value. Math on float32 goes through `internal/f32` (`f32.Hypot`,
+`f32.Floor`, …); a tolerance on coordinates is `f32.Eps(scale)`, never a 1e-9 sized for float64.
+An interface asserted at run time (`x.(interface{ Proportions() (float32, float32, bool) })`)
+misses an implementer whose float type differs without a word, so a seam changed is changed on
+both sides.
+
 ## Behaviour goes through rules
 
 The game's side of ceremony — the plugins' moments and words, what is marked a fact, a knob or a

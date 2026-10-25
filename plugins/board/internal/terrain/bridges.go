@@ -2,19 +2,19 @@ package terrain
 
 import (
 	"fmt"
-	"math"
 	"slices"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
 // Bridges is what a bridge keeps to and what the board reads the ground with to tell: its deck
 // Clearance over the ground under every cell between its heads at least.
 type Bridges struct {
-	Clearance float64
-	Level     func(c cell.ID) float64  // a cell's ground level; nil, 0
-	Ground    func(p geom.Vec) float64 // the ground at a point; nil, flat at 0
+	Clearance float32
+	Level     func(c cell.ID) float32  // a cell's ground level; nil, 0
+	Ground    func(p geom.Vec) float32 // the ground at a point; nil, flat at 0
 	Where     func(c cell.ID) string   // the file and line the entity on c was laid by
 	Log       func(format string, args ...any)
 }
@@ -89,7 +89,7 @@ func (t *Cells) span(c cell.ID, sites []site, at map[cell.ID]int, seen map[cell.
 
 func (t *Cells) broken(span []cell.ID, sites []site, at map[cell.ID]int) string {
 	floor := func(c cell.ID) cell.Floor { return sites[at[c]].built.Floor }
-	eps := 1e-3 * float64(t.grid.CellSpan())
+	eps := 1e-3 * t.grid.CellSpan()
 	deck := t.level(span[0]) + floor(span[0]).Height
 	x0, y0, _ := t.grid.Coords(span[0])
 	var axis cell.Links
@@ -104,7 +104,7 @@ func (t *Cells) broken(span []cell.ID, sites []site, at map[cell.ID]int) string 
 		if !ok || f.Links&^axis != 0 {
 			return fmt.Sprintf("the bridge at [%d, %d] turns: a bridge runs straight", x, y)
 		}
-		if h := t.level(c) + f.Height; math.Abs(h-deck) > eps {
+		if h := t.level(c) + f.Height; f32.Abs(h-deck) > eps {
 			return fmt.Sprintf("the bridge's deck stands at %.2f at [%d, %d], at %.2f at "+
 				"[%d, %d]: a bridge is level", deck, x0, y0, h, x, y)
 		}
@@ -132,25 +132,25 @@ func (t *Cells) broken(span []cell.ID, sites []site, at map[cell.ID]int) string 
 	return ""
 }
 
-func (t *Cells) offFlat(c cell.ID, top float64) float64 {
+func (t *Cells) offFlat(c cell.ID, top float32) float32 {
 	m := t.grid.CellCenter(c)
-	off := math.Abs(t.ground(m) - top)
+	off := f32.Abs(t.ground(m) - top)
 	t.outline = t.grid.CellOutline(c, t.outline[:0])
 	for _, p := range t.outline {
 		in := geom.NewVec(p.X+(m.X-p.X)*1e-3, p.Y+(m.Y-p.Y)*1e-3)
-		off = max(off, math.Abs(t.ground(in)-top))
+		off = max(off, f32.Abs(t.ground(in)-top))
 	}
 	return off
 }
 
-func (t *Cells) level(c cell.ID) float64 {
+func (t *Cells) level(c cell.ID) float32 {
 	if t.bridges.Level == nil {
 		return 0
 	}
 	return t.bridges.Level(c)
 }
 
-func (t *Cells) ground(p geom.Vec) float64 {
+func (t *Cells) ground(p geom.Vec) float32 {
 	if t.bridges.Ground == nil {
 		return 0
 	}

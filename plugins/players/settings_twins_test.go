@@ -108,10 +108,10 @@ func columnsAt(t *testing.T, p *Plugin, w, h int) int {
 	p.settings.Open(rt, comp)
 	s := p.settings.screen
 	s.Drawers()
-	s.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(float64(w), float64(h))))
+	s.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(float32(w), float32(h))))
 	// the tick after the first frame builds the listing for the screen as it is
 	p.settings.HandleEvents(&control.InputEvents{}, rt, comp)
-	s.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(float64(w), float64(h))))
+	s.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(float32(w), float32(h))))
 	n := 0
 	for s.Element(settingsColumn(n)) != nil {
 		n++
@@ -222,7 +222,7 @@ func TestSettings_EverySectionIsFramedUnderALargerTitle(t *testing.T) {
 	}
 	title := boxOf("settings.title")
 	_, large := ui.DefaultTheme().Large.Measure("Settings")
-	if tall := title.BottomRight.Y - title.TopLeft.Y; tall <= float64(large) {
+	if tall := title.BottomRight.Y - title.TopLeft.Y; tall <= float32(large) {
 		t.Errorf("the title is %v tall, want taller than the theme's large font's %v", tall, large)
 	}
 }

@@ -26,7 +26,7 @@ func TestCells_HoldWhatTheBakeReadsOfEachCell(t *testing.T) {
 	brdW.SetAll(land)
 	brdW.Set(g.At(2, 2), sea)
 	brdW.SetWay(g.At(1, 1), cell.Way{Kind: river, Width: 7.5, Links: 0x03, Fade: 0.2, Mix: 0.6})
-	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 10 + p.X/4 })
+	reliefFor(brd).SetHeights(func(p geom.Vec) float32 { return 10 + p.X/4 })
 	atlas := render.NewAtlas()
 	for id := range render.SpriteID(4) {
 		atlas.Add(id, 8, render.Solid(color.RGBA{A: 255}))

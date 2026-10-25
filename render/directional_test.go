@@ -1,6 +1,10 @@
 package render
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/kjkrol/gram/internal/f32"
+)
 
 func TestEndpointAt_DiagonalReachesTheCorner(t *testing.T) {
 	const size = 10
@@ -23,7 +27,7 @@ func TestEndpointAt_DiagonalReachesTheCorner(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			x, y := endpointAt(size, c.angleDeg)
-			if abs32(x-c.wantX) > tolerance || abs32(y-c.wantY) > tolerance {
+			if f32.Abs(x-c.wantX) > tolerance || f32.Abs(y-c.wantY) > tolerance {
 				t.Errorf("endpointAt(%d, %v) = (%v,%v), want (%v,%v)", size, c.angleDeg, x, y, c.wantX, c.wantY)
 			}
 		})

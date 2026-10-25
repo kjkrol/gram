@@ -4,7 +4,6 @@ import (
 	"log"
 
 	"github.com/kjkrol/aabbworld/geom"
-
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -24,7 +23,7 @@ type Rules struct {
 	now      host.Rules[cell.Now]
 	rings    rings
 	slope    func(p, dir geom.Vec, d cell.Domain) float64
-	level    func(c cell.ID) float64
+	level    func(c cell.ID) float32
 
 	// Log, when set, has a line written once for each unit fallen where its domain may not be.
 	Log  *log.Logger
@@ -35,7 +34,7 @@ type Rules struct {
 // board's Map's, what a unit's Pace goes by besides the cell's cost, and level a cell's ground
 // level.
 func New(g grid.Grid, cells *terrain.Cells, tick host.TickSource,
-	slope func(p, dir geom.Vec, d cell.Domain) float64, level func(c cell.ID) float64) *Rules {
+	slope func(p, dir geom.Vec, d cell.Domain) float64, level func(c cell.ID) float32) *Rules {
 	return &Rules{grid: g, cells: cells, tick: tick, slope: slope, level: level}
 }
 

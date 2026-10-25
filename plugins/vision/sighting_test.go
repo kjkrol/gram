@@ -9,7 +9,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-func moving(x, y float64, dir geom.Vec) *world.Base {
+func moving(x, y float32, dir geom.Vec) *world.Base {
 	return &world.Base{Pos: world.Position{AABB: plane.NewAABB(geom.NewVec(x, y), 10, 10)}, Vel: world.Velocity{Dir: dir, Value: 1}}
 }
 
@@ -17,7 +17,7 @@ func TestSighting_ClosingAndNobody(t *testing.T) {
 	east, west, north := geom.NewVec(1, 0), geom.NewVec(-1, 0), geom.NewVec(0, -1)
 	for name, c := range map[string]struct {
 		mine, theirs geom.Vec
-		at           float64 // the other's x; the observer stands at 0
+		at           float32 // the other's x; the observer stands at 0
 		none         bool
 		want         bool
 	}{

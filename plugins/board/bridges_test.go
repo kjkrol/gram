@@ -19,6 +19,7 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -96,7 +97,7 @@ func (d *decked) over(p geom.Vec) []cell.ID {
 	return out
 }
 
-func band(g grid.Grid, way [2]int, width float64, height float64, cells ...cell.ID) []deckRow {
+func band(g grid.Grid, way [2]int, width float32, height float32, cells ...cell.ID) []deckRow {
 	ahead, _ := grid.Direction(g, way[0], way[1])
 	back, _ := grid.Direction(g, -way[0], -way[1])
 	var rows []deckRow
@@ -109,7 +110,7 @@ func band(g grid.Grid, way [2]int, width float64, height float64, cells ...cell.
 	return rows
 }
 
-func bridgeRows(g grid.Grid, way [2]int, width, height float64, cells ...cell.ID) []deckRow {
+func bridgeRows(g grid.Grid, way [2]int, width, height float32, cells ...cell.ID) []deckRow {
 	rows := band(g, way, width, height, cells...)
 	ahead, _ := grid.Direction(g, way[0], way[1])
 	back, _ := grid.Direction(g, -way[0], -way[1])
@@ -142,7 +143,7 @@ func TestDecks_ABandSlantwiseCutsTheCorners(t *testing.T) {
 			t.Errorf("%s: decks of %v, want %v", c.name, got, c.want)
 		}
 	}
-	feet := math.Inf(-1)
+	feet := f32.Inf(-1)
 	if k := brd.KindFor(g.At(2, 1), geom.NewVec(20.5, 19), feet, 0); !k.Admits(cell.Land) {
 		t.Error("by the corner on the band, in the cell beside, a walker has fallen in")
 	}
@@ -211,10 +212,10 @@ func TestDecks_ABandLiesAlongItself(t *testing.T) {
 	}
 	for i, lie := range lies {
 		want := world.Lie{Length: 10 * math.Sqrt2, Width: 4, Edged: true}
-		if math.Abs(lie.Length-want.Length) > 1e-9 || lie.Width != 4 || !lie.Edged {
+		if f32.Abs(lie.Length-want.Length) > f32.Eps(want.Length) || lie.Width != 4 || !lie.Edged {
 			t.Errorf("a deck lies %+v, want %+v", lie, want)
 		}
-		if d := dirs[i]; math.Abs(math.Abs(d.X)-math.Sqrt2/2) > 1e-9 || d.X != d.Y {
+		if d := dirs[i]; f32.Abs(f32.Abs(d.X)-math.Sqrt2/2) > f32.Eps(1) || d.X != d.Y {
 			t.Errorf("a deck is headed %v, want along the band slantwise", d)
 		}
 	}
@@ -228,7 +229,7 @@ func TestDecks_ABandOnAHexRunsFromEdgeToEdge(t *testing.T) {
 	brd := d.p.Read(0).Board()
 	se, _ := grid.Direction(g, 0, 1)
 	s := g.Step(se)
-	l := math.Hypot(s.X, s.Y)
+	l := f32.Hypot(s.X, s.Y)
 	m := g.CellCenter(g.At(2, 2))
 	beside := geom.NewVec(m.X-s.Y/l*5, m.Y+s.X/l*5)
 	if got := d.over(m); !slices.Equal(got, []cell.ID{g.At(2, 2)}) {
@@ -255,7 +256,7 @@ func TestRailings_OnAHexRunAlongTheBand(t *testing.T) {
 	d.tick()
 	se, _ := grid.Direction(g, 0, 1)
 	s := g.Step(se)
-	l := math.Hypot(s.X, s.Y)
+	l := f32.Hypot(s.X, s.Y)
 	m := g.CellCenter(g.At(2, 2))
 	var walls []collide.FieldWall
 	d.p.Read(0).Cover().(collision.Field).Walls(world.Layers(cell.Land), collision.Everywhere,
@@ -267,13 +268,15 @@ func TestRailings_OnAHexRunAlongTheBand(t *testing.T) {
 	if len(walls) != 2 {
 		t.Fatalf("%d walls by the band's middle, want its two railings", len(walls))
 	}
+	// the railings' ends lie where float32 rounds them near m
+	eps := f32.Eps(max(m.X, m.Y))
 	for _, w := range walls {
 		dx, dy := w.B.X-w.A.X, w.B.Y-w.A.Y
-		if math.Abs(dx*s.Y-dy*s.X) > 1e-9 || math.Abs(math.Hypot(dx, dy)-l) > 1e-9 {
+		if f32.Abs(dx*s.Y-dy*s.X) > eps*l || f32.Abs(f32.Hypot(dx, dy)-l) > eps {
 			t.Errorf("a railing from %v to %v, want one link long along %v", w.A, w.B, s)
 		}
-		off := math.Abs((w.A.X-m.X)*s.Y-(w.A.Y-m.Y)*s.X) / l
-		if math.Abs(off-3) > 1e-9 {
+		off := f32.Abs((w.A.X-m.X)*s.Y-(w.A.Y-m.Y)*s.X) / l
+		if f32.Abs(off-3) > eps {
 			t.Errorf("a railing %v off the band's middle line, want 3", off)
 		}
 	}
@@ -469,7 +472,7 @@ func TestRailings_AWalkerSlidesAlongASlantwiseOne(t *testing.T) {
 		[]boardtest.Mover{{Here: start, Heading: geom.NewVec(1, 0)}})
 	m := g.CellCenter(start)
 	// the box's corner keeps the railing's half thickness off its middle line, 22 off the axis
-	room := 22 - 48.0/32 - boardtest.UnitSize/2*math.Sqrt2
+	room := float32(22 - 48.0/32 - boardtest.UnitSize/2*math.Sqrt2)
 	for tick := range 60 {
 		bw.Tick()
 		c := middleOf(bw.Snapshot()[0])

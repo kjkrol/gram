@@ -2,11 +2,11 @@ package weathering
 
 import (
 	"fmt"
-	cgoke "github.com/kjkrol/ceremony/goke"
 	"math"
 	"time"
 
 	"github.com/kjkrol/ceremony/effect"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
@@ -25,7 +25,7 @@ type Config struct {
 	Ice     string
 	Water   string
 	Sway    []string
-	Swaying float64
+	Swaying float32
 	High    func(c cell.ID) bool
 	Seed    uint64
 }
@@ -242,7 +242,7 @@ func (w *Weathering) winter(cb *goke.CmdBuf) {
 // how much snow falls on the cell c, out of the clouds over it
 func (w *Weathering) snowing(air air.Weather, c cell.ID) float32 {
 	p := w.board.Read(0).Board().CellCenter(c)
-	_, snow := air.FallsAt(float32(p.X), float32(p.Y))
+	_, snow := air.FallsAt(p.X, p.Y)
 	return snow
 }
 

@@ -1,23 +1,23 @@
 package selection_test
 
 import (
-	"github.com/kjkrol/ceremony/command"
-	"github.com/kjkrol/gram/plugins/cameras/cameratest"
-	"github.com/kjkrol/gram/render"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
@@ -34,20 +34,20 @@ type camp struct {
 	q       *goke.Query
 }
 
-func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.Entry) *camp {
+func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float32]) []kind.Entry) *camp {
 	t.Helper()
 	c := &camp{t: t}
 	c.w = world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 10, MaxSize: 10},
 	})
-	kind.Define[float64](c.w.Kinds(), "unit", kind.Spec{
-		comp.Load(func(x float64) world.Position {
+	kind.Define[float32](c.w.Kinds(), "unit", kind.Spec{
+		comp.Load(func(x float32) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
 		}),
 		comp.Const(world.Velocity{}),
 	})
-	unit := kind.Named[float64](c.w.Kinds(), "unit")
+	unit := kind.Named[float32](c.w.Kinds(), "unit")
 	c.sel = selection.NewPlugin(c.w)
 	c.players = players.NewPlugin(c.w, c.sel)
 	c.one, c.two = c.players.Local("one"), c.players.Add("two")
@@ -89,8 +89,8 @@ func (c *camp) tick() {
 	}
 }
 
-func (c *camp) ids() map[float64]uid.UID64 {
-	out := map[float64]uid.UID64{}
+func (c *camp) ids() map[float32]uid.UID64 {
+	out := map[float32]uid.UID64{}
 	for c.q.All(); c.q.Next(); {
 		cur := c.q.Cursor()
 		for i, id := range cur.IDs {
@@ -100,14 +100,14 @@ func (c *camp) ids() map[float64]uid.UID64 {
 	return out
 }
 
-func (c *camp) reached(by command.Issuer) map[float64]bool {
+func (c *camp) reached(by command.Issuer) map[float32]bool {
 	c.t.Helper()
 	everywhere := geom.NewAABBAt(geom.NewVec(0, 0), 1000, 1000)
 	c.w.Write().Carrier().Put(by, selection.Select{Box: everywhere})
 	c.tick()
 	c.w.Write().Carrier().Put(by, ceremony.Put(c.haste).On(c.sel.Selected()))
 	c.tick()
-	out := map[float64]bool{}
+	out := map[float32]bool{}
 	for x, id := range c.ids() {
 		if c.w.Read(0).Effects().Has(id, c.haste) {
 			out[x] = true
@@ -120,7 +120,7 @@ func (c *camp) reached(by command.Issuer) map[float64]bool {
 	return out
 }
 
-func only(got map[float64]bool, want ...float64) bool {
+func only(got map[float32]bool, want ...float32) bool {
 	if len(got) != len(want) {
 		return false
 	}
@@ -133,7 +133,7 @@ func only(got map[float64]bool, want ...float64) bool {
 }
 
 func TestTold_AUnitIsWhoseAndSelectableAsItsEntrySays(t *testing.T) {
-	c := newCamp(t, func(c *camp, unit kind.Of[float64]) []kind.Entry {
+	c := newCamp(t, func(c *camp, unit kind.Of[float32]) []kind.Entry {
 		return []kind.Entry{
 			unit.Entry(100).Told(players.Give{To: c.one.ID}, selection.Allow{}),
 			unit.Entry(200).Told(players.Give{To: c.two.ID}, selection.Allow{}),
@@ -153,7 +153,7 @@ func TestTold_AUnitIsWhoseAndSelectableAsItsEntrySays(t *testing.T) {
 }
 
 func TestGiveAndForbid_ChangeAUnitMidGame(t *testing.T) {
-	c := newCamp(t, func(c *camp, unit kind.Of[float64]) []kind.Entry {
+	c := newCamp(t, func(c *camp, unit kind.Of[float32]) []kind.Entry {
 		return []kind.Entry{
 			unit.Entry(100).Told(players.Give{To: c.one.ID}, selection.Allow{}),
 			unit.Entry(200).Told(players.Give{To: c.one.ID}, selection.Allow{}),
@@ -172,7 +172,7 @@ func TestGiveAndForbid_ChangeAUnitMidGame(t *testing.T) {
 }
 
 func TestAllow_SelectedSelectsAtOnce(t *testing.T) {
-	c := newCamp(t, func(c *camp, unit kind.Of[float64]) []kind.Entry {
+	c := newCamp(t, func(c *camp, unit kind.Of[float32]) []kind.Entry {
 		return []kind.Entry{
 			unit.Entry(100).Told(players.Give{To: c.one.ID}, selection.Allow{Selected: true}),
 			unit.Entry(200).Told(players.Give{To: c.one.ID}, selection.Allow{}),
@@ -191,11 +191,11 @@ func TestTold_ACommandNobodyCarriesOutIsRefused(t *testing.T) {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 10, MaxSize: 10},
 	})
-	kind.Define[float64](w.Kinds(), "unit", kind.Spec{
+	kind.Define[float32](w.Kinds(), "unit", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 		comp.Const(world.Velocity{}),
 	})
-	unit := kind.Named[float64](w.Kinds(), "unit")
+	unit := kind.Named[float32](w.Kinds(), "unit")
 	w.Write().Seed(unit.Entry(0).Told(selection.Allow{})) // no selection plugin in use
 	if err := w.Populate(); err == nil {
 		t.Error("Populate took an entry told a command nobody carries out, want an error")

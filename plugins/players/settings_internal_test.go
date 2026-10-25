@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
-	"math"
 	"strings"
 	"testing"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/world"
@@ -164,7 +164,7 @@ func TestSettings_SectionsComeFirstCentredAndAMovedSettingSitsUnderItsSubheading
 			"its subheading in one column", graphics, shadows, column)
 	}
 	title := boxOf("settings.title")
-	if centre := (title.TopLeft.X + title.BottomRight.X) / 2; math.Abs(centre-960) > 1 {
+	if centre := (title.TopLeft.X + title.BottomRight.X) / 2; f32.Abs(centre-960) > 1 {
 		t.Errorf("the title's centre at x %v, want 960", centre)
 	}
 }

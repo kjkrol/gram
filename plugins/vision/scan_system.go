@@ -1,15 +1,16 @@
 package vision
 
 import (
-	cgoke "github.com/kjkrol/ceremony/goke"
 	"log"
 	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
@@ -43,9 +44,9 @@ type ScanSystem struct {
 
 	heights  bool
 	groundOf func() ground.Heights
-	step     float64
+	step     float32
 	grounded bool
-	bend     float64
+	bend     float32
 
 	coverOf func(w int) ground.Cover // worker w's
 	covered bool
@@ -78,16 +79,16 @@ type scanner struct {
 
 	shadows []aabbworld.Shadow
 
-	tau func(uid.UID64) float64
+	tau func(uid.UID64) float32
 
 	heights   bool
-	elev      func(uid.UID64) (float64, float64)
-	groundAt  func(geom.Vec) float64
-	step      float64
+	elev      func(uid.UID64) (float32, float32)
+	groundAt  func(geom.Vec) float32
+	step      float32
 	profiling profiling
-	bend      float64 // the ground sinks bend·d² under the observer's level, d how far off
-	sunk      func(geom.Vec) float64
-	ox, oy    float64
+	bend      float32 // the ground sinks bend·d² under the observer's level, d how far off
+	sunk      func(geom.Vec) float32
+	ox, oy    float32
 
 	covering covering
 
@@ -175,7 +176,7 @@ func (s *ScanSystem) Init(si *goke.SysInit) {
 	}
 }
 
-func (s *scanner) transparency(id uid.UID64) float64 {
+func (s *scanner) transparency(id uid.UID64) float32 {
 	if !s.lookup.Seek(id) {
 		return 0
 	}
@@ -190,13 +191,13 @@ func (s *scanner) transparency(id uid.UID64) float64 {
 	return 0
 }
 
-func (s *scanner) elevation(id uid.UID64) (bottom, top float64) {
+func (s *scanner) elevation(id uid.UID64) (bottom, top float32) {
 	if !s.lookup.Seek(id) {
 		return 0, 0
 	}
 	s.lookupHot = false
 	cur := s.lookup.Cursor()
-	sink := 0.0
+	sink := float32(0)
 	if s.bend > 0 {
 		c := s.lookupBase.At(cur).Pos.AABB
 		dx, dy := (c.TopLeft.X+c.BottomRight.X)/2-s.ox, (c.TopLeft.Y+c.BottomRight.Y)/2-s.oy
@@ -239,8 +240,8 @@ func (s *ScanSystem) cover() {
 	}
 }
 
-func (s *scanner) sunkGround(p geom.Vec) float64 {
-	g := 0.0
+func (s *scanner) sunkGround(p geom.Vec) float32 {
+	g := float32(0)
 	if s.groundAt != nil {
 		g = s.groundAt(p)
 	}
@@ -451,12 +452,12 @@ func (s *scanner) cone(sight *Sight, eye world.Eye, z world.Z) aabbworld.Cone {
 
 type profiling struct {
 	profile ground.Profile
-	bend    float64
-	visit   func(d, alt float64) bool
-	sunk    func(d, alt float64) bool
+	bend    float32
+	visit   func(d, alt float32) bool
+	sunk    func(d, alt float32) bool
 }
 
-func (p *profiling) Along(origin, dir geom.Vec, length float64, visit func(d, alt float64) bool) {
+func (p *profiling) Along(origin, dir geom.Vec, length float32, visit func(d, alt float32) bool) {
 	if p.bend <= 0 {
 		p.profile.Along(origin, dir, length, visit)
 		return
@@ -468,18 +469,18 @@ func (p *profiling) Along(origin, dir geom.Vec, length float64, visit func(d, al
 	p.profile.Along(origin, dir, length, p.sunk)
 }
 
-func (p *profiling) sink(d, alt float64) bool { return p.visit(d, alt-p.bend*d*d) }
+func (p *profiling) sink(d, alt float32) bool { return p.visit(d, alt-p.bend*d*d) }
 
 type covering struct {
 	cover    ground.Cover
 	blockers world.Layers
-	bend     float64
-	ox, oy   float64
-	visit    func(near, far, bottom, top, tau float64) bool
-	sunk     func(near, far, bottom, top, tau float64) bool
+	bend     float32
+	ox, oy   float32
+	visit    func(near, far, bottom, top, tau float32) bool
+	sunk     func(near, far, bottom, top, tau float32) bool
 }
 
-func (c *covering) Walk(origin, dir geom.Vec, length float64, visit func(near, far, bottom, top, tau float64) bool) {
+func (c *covering) Walk(origin, dir geom.Vec, length float32, visit func(near, far, bottom, top, tau float32) bool) {
 	if c.bend <= 0 {
 		c.cover.Walk(origin, dir, length, c.blockers, visit)
 		return
@@ -491,7 +492,7 @@ func (c *covering) Walk(origin, dir geom.Vec, length float64, visit func(near, f
 	c.cover.Walk(origin, dir, length, c.blockers, c.sunk)
 }
 
-func (c *covering) sink(near, far, bottom, top, tau float64) bool {
+func (c *covering) sink(near, far, bottom, top, tau float32) bool {
 	m := (near + far) / 2
 	d := c.bend * m * m
 	return c.visit(near, far, bottom-d, top-d, tau)
@@ -499,30 +500,30 @@ func (c *covering) sink(near, far, bottom, top, tau float64) bool {
 
 // the vertical field of an eye: whether what is seen at a distance lies up or down within it;
 // nil for an eye seeing every height
-func (c *scanner) vertical(eye world.Eye, z world.Z) func(uid.UID64, float64) bool {
+func (c *scanner) vertical(eye world.Eye, z world.Z) func(uid.UID64, float32) bool {
 	if eye.Vertical <= 0 {
 		return nil
 	}
 	level := eye.Level(z)
-	return func(id uid.UID64, dist float64) bool {
+	return func(id uid.UID64, dist float32) bool {
 		bottom, top := c.elev(id)
-		return eye.Within(math.Atan2(bottom-level, dist), math.Atan2(top-level, dist))
+		return eye.Within(f32.Atan2(bottom-level, dist), f32.Atan2(top-level, dist))
 	}
 }
 
-func record(dst *Sighted, view *aabbworld.View, within func(uid.UID64, float64) bool) {
+func record(dst *Sighted, view *aabbworld.View, within func(uid.UID64, float32) bool) {
 	dst.Count = 0
-	view.Entities(func(id uid.UID64, dist float64) {
+	view.Entities(func(id uid.UID64, dist float32) {
 		if dst.Count == MaxSeen || (within != nil && !within(id, dist)) {
 			return
 		}
 		dst.IDs[dst.Count] = id
-		dst.Dists[dst.Count] = float32(dist)
+		dst.Dists[dst.Count] = dist
 		dst.Count++
 	})
 }
 
-func (s *scanner) trace(dst *SightOutline, sight *Sight, half float64) {
+func (s *scanner) trace(dst *SightOutline, sight *Sight, half float32) {
 	k := samplesFor(sight, half)
 	clear(dst.Shadows[:k])
 	if !s.heights {
@@ -531,7 +532,7 @@ func (s *scanner) trace(dst *SightOutline, sight *Sight, half float64) {
 	}
 	dst.Count = uint8(k)
 	for i := range k {
-		dst.Depths[i] = float32(sight.Radius)
+		dst.Depths[i] = sight.Radius
 	}
 	s.shadows = s.view.Shadows(k, s.shadows[:0])
 	for _, sh := range s.shadows {
@@ -545,8 +546,8 @@ func (s *scanner) trace(dst *SightOutline, sight *Sight, half float64) {
 	}
 }
 
-func samplesFor(s *Sight, half float64) int {
-	k := int(math.Ceil(2*half*s.Radius/EdgeTolerance)) + 1
+func samplesFor(s *Sight, half float32) int {
+	k := int(f32.Ceil(2*half*s.Radius/EdgeTolerance)) + 1
 	return min(max(k, 2), MaxSamples)
 }
 

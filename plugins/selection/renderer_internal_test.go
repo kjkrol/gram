@@ -87,7 +87,7 @@ func TestRenderer_OutlinesEachKindInItsHighlight(t *testing.T) {
 			f.Create(2)
 			for f.Next() {
 				for i := range f.Cursor.IDs {
-					at := geom.NewVec(100+200*float64(i), 100)
+					at := geom.NewVec(100+200*float32(i), 100)
 					base.Slice(&f.Cursor)[i].Pos = world.Position{AABB: plane.NewAABB(at, 10, 10)}
 					marks.Slice(&f.Cursor)[i] = tag.Tags[Family](0).With(selected)
 					app.Slice(&f.Cursor)[i] = render.Appearance{SpriteID: render.SpriteID(6 + i)}

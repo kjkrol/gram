@@ -1,13 +1,13 @@
 package world
 
-import "math"
+import "github.com/kjkrol/gram/internal/f32"
 
 // Scale is how many Metres a world unit spans, across and up alike, and how many times bigger
 // than life the Figures standing on it are drawn. The zero Scale leaves the world a board, flat
 // as far as the eye goes.
 type Scale struct {
-	Metres  float64
-	Figures float64
+	Metres  float32
+	Figures float32
 }
 
 // EarthRadius is in metres; Refraction is the standard refraction, how much the air bends a line
@@ -18,7 +18,7 @@ const (
 )
 
 // Units is m metres in world units; m itself without a scale.
-func (s Scale) Units(m float64) float64 {
+func (s Scale) Units(m float32) float32 {
 	if s.Metres <= 0 {
 		return m
 	}
@@ -26,7 +26,7 @@ func (s Scale) Units(m float64) float64 {
 }
 
 // Figure is the size in world units of a figure m metres big in life, Units(m) times Figures.
-func (s Scale) Figure(m float64) float64 {
+func (s Scale) Figure(m float32) float32 {
 	if s.Figures <= 0 {
 		return s.Units(m)
 	}
@@ -35,7 +35,7 @@ func (s Scale) Figure(m float64) float64 {
 
 // Bend is how far below the level of an eye the ground d world units off lies, per d²; 0 for a
 // flat world.
-func (s Scale) Bend() float64 {
+func (s Scale) Bend() float32 {
 	if s.Metres <= 0 {
 		return 0
 	}
@@ -43,13 +43,13 @@ func (s Scale) Bend() float64 {
 }
 
 // Drop is how far below the level of an eye the ground d world units off lies: Bend·d².
-func (s Scale) Drop(d float64) float64 { return s.Bend() * d * d }
+func (s Scale) Drop(d float32) float32 { return s.Bend() * d * d }
 
 // Horizon is how far over level ground an eye h world units up sees it before it sinks away;
 // +Inf for a flat world.
-func (s Scale) Horizon(h float64) float64 {
+func (s Scale) Horizon(h float32) float32 {
 	if b := s.Bend(); b > 0 && h > 0 {
-		return math.Sqrt(h / b)
+		return f32.Sqrt(h / b)
 	}
-	return math.Inf(1)
+	return f32.Inf(1)
 }

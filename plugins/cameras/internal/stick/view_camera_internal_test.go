@@ -8,6 +8,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	contract "github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/vec"
 )
 
@@ -250,7 +251,7 @@ func TestViewCamera_RaysRunThroughWhatTheScreenPointsSee(t *testing.T) {
 				k := (z - o[2]) / d[2]
 				x, y := c.Unproject(s[0], s[1], z)
 				px, py := o[0]+k*d[0], o[1]+k*d[1]
-				if math.Abs(float64(px-x)) > 0.05 || math.Abs(float64(py-y)) > 0.05 {
+				if f32.Abs(float32(px-x)) > 0.05 || f32.Abs(float32(py-y)) > 0.05 {
 					t.Errorf("%s: the ray through %v meets height %v at (%v, %v), the screen "+
 						"point sees (%v, %v)", view, s, z, px, py, x, y)
 				}

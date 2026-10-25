@@ -1,7 +1,6 @@
 package selection
 
 import (
-	cgoke "github.com/kjkrol/ceremony/goke"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
@@ -10,6 +9,7 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/effect"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
@@ -205,7 +205,7 @@ func (s *SelectionSystem) hover() {
 
 func (s *SelectionSystem) pick(at geom.Vec, screen geom.AABB, cam camera.Camera) (uid.UID64, bool) {
 	var best uid.UID64
-	found, nearest := false, 0.0
+	found, nearest := false, float32(0)
 	s.space.Query(grow(geom.NewAABBAt(at, 1, 1), pickReach), aabbworld.AnyCapability, func(id uid.UID64) {
 		if !s.drawnIn(id, screen, cam) {
 			return
@@ -249,11 +249,11 @@ func (s *SelectionSystem) drawnIn(id uid.UID64, screen geom.AABB, cam camera.Cam
 		minX, maxX = min(minX, p[0]), max(maxX, p[0])
 		minY, maxY = min(minY, p[1]), max(maxY, p[1])
 	}
-	return float64(maxX) >= screen.TopLeft.X && float64(minX) <= screen.BottomRight.X &&
-		float64(maxY) >= screen.TopLeft.Y && float64(minY) <= screen.BottomRight.Y
+	return maxX >= screen.TopLeft.X && minX <= screen.BottomRight.X &&
+		maxY >= screen.TopLeft.Y && minY <= screen.BottomRight.Y
 }
 
-func grow(box geom.AABB, reach float64) geom.AABB {
+func grow(box geom.AABB, reach float32) geom.AABB {
 	return geom.AABB{
 		TopLeft:     geom.NewVec(box.TopLeft.X-reach, box.TopLeft.Y-reach),
 		BottomRight: geom.NewVec(box.BottomRight.X+reach, box.BottomRight.Y+reach),

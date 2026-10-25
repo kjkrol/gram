@@ -1,12 +1,12 @@
 package occupancy
 
 import (
-	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
@@ -24,7 +24,7 @@ func KeepSystem(o cell.Occupancy, footing Footing) goke.System {
 
 // Footing is the cell whoever stands at p, its feet at feet, stepping reach high, is on, whether on
 // the raised deck over it, and whether it has a raised deck at all; false off the board.
-type Footing func(p geom.Vec, feet, reach float64) (c cell.ID, deck, raised, ok bool)
+type Footing func(p geom.Vec, feet, reach float32) (c cell.ID, deck, raised, ok bool)
 
 var _ goke.System = (*keepSystem)(nil)
 
@@ -76,7 +76,7 @@ func (s *keepSystem) keep(starting bool) {
 		movers, bases, zs, states := s.mover.Slice(cur), s.base.Slice(cur), s.z.Slice(cur),
 			s.states.Slice(cur)
 		for i, id := range cur.IDs {
-			feet, reach := math.Inf(-1), 0.0
+			feet, reach := f32.Inf(-1), float32(0)
 			if zs != nil {
 				feet, reach = zs[i].Altitude, zs[i].Reach()
 			}

@@ -1,11 +1,11 @@
 package cameras
 
 import (
-	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/cameras/internal/stick"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
@@ -53,11 +53,11 @@ func (r *riding) Of(id uid.UID64) (stick.Target, bool) {
 		Alt:   z.Altitude,
 		Level: z.Top(),
 	}
-	if n := math.Hypot(base.Vel.Dir.X, base.Vel.Dir.Y); n > 0 {
+	if n := f32.Hypot(base.Vel.Dir.X, base.Vel.Dir.Y); n > 0 {
 		t.Dir = geom.NewVec(base.Vel.Dir.X/n, base.Vel.Dir.Y/n)
 	}
 	if eye := r.eye.At(cur); eye != nil {
-		t.Level, t.Across, t.Tilt, t.Eyed = eye.Level(z), float32(eye.Angle), eye.Tilt, true
+		t.Level, t.Across, t.Tilt, t.Eyed = eye.Level(z), eye.Angle, eye.Tilt, true
 	}
 	if d := r.driven.At(cur); d != nil {
 		t.Turning = d.Turn != 0
@@ -65,7 +65,7 @@ func (r *riding) Of(id uid.UID64) (stick.Target, bool) {
 	return t, true
 }
 
-func (r *riding) Drive(id uid.UID64, look geom.Vec, flown bool, climb float64) {
+func (r *riding) Drive(id uid.UID64, look geom.Vec, flown bool, climb float32) {
 	if !r.query.Seek(id) {
 		return
 	}
@@ -74,7 +74,7 @@ func (r *riding) Drive(id uid.UID64, look geom.Vec, flown bool, climb float64) {
 	}
 }
 
-func (r *riding) Tilt(id uid.UID64, tilt float64) {
+func (r *riding) Tilt(id uid.UID64, tilt float32) {
 	if !r.query.Seek(id) {
 		return
 	}

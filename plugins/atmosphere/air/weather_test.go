@@ -1,10 +1,10 @@
 package air_test
 
 import (
-	"math"
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/light"
@@ -102,7 +102,7 @@ func TestMass_LayerHeapsTheLowCloudsAsTheSkyFillsAndBringsTheHighSoon(t *testing
 func TestWeather_HighCloudsComeInPatchesEachSheetAtItsHeightIntoTheLowOnes(t *testing.T) {
 	w := air.Weather{Bases: [2]float32{1500, 6000}}
 	m := air.Mass{Cover: 0.6}.Layer(air.High)
-	floor, top := float32(math.Inf(1)), float32(math.Inf(-1))
+	floor, top := float32(f32.Inf(1)), float32(f32.Inf(-1))
 	var none, whole int
 	for i := range 80 {
 		for j := range 80 {
@@ -138,12 +138,12 @@ func TestShade_FallsAlongTheWayToTheSunFromTheCloudsHeight(t *testing.T) {
 	for i := range 200 {
 		x, y := float32(i)*37, float32(i%13)*41
 		under := w.Shade(x, y, 0, up)
-		if a := w.Shade(x-across, y, 0, sun); math.Abs(float64(a-under)) > 1e-5 {
+		if a := w.Shade(x-across, y, 0, sun); f32.Abs(float32(a-under)) > 1e-5 {
 			t.Fatalf("in the sun %v the ground %v units off (%v, %v) is shaded %v, want %v as "+
 				"straight under the cloud", sun, across, x, y, a, under)
 		}
 		nearer := 0.75 * (bases[air.Low] - 30)
-		if a := w.Shade(x-nearer, y, 30, sun); math.Abs(float64(a-under)) > 1e-5 {
+		if a := w.Shade(x-nearer, y, 30, sun); f32.Abs(float32(a-under)) > 1e-5 {
 			t.Fatalf("ground 30 up is shaded %v, want %v: nearer the cloud, nearer under it", a,
 				under)
 		}
@@ -272,7 +272,8 @@ func TestHaze_GrowsWithDistance(t *testing.T) {
 	}
 	w := air.Weather{Sight: 100}
 	near, far := w.Haze(eyed{}, 10, 0, 10), w.Haze(eyed{}, 300, 0, 10)
-	if near <= 0 || near >= far || far >= 1 || math.Abs(float64(w.Haze(eyed{}, 100, 0, 10))-(1-math.Exp(-1))) > 1e-6 {
+	if near <= 0 || near >= far || far >= 1 ||
+		f32.Abs(float32(w.Haze(eyed{}, 100, 0, 10))-(1-f32.Exp(-1))) > 1e-6 {
 		t.Errorf("the haze 10, 100 and 300 off is %v, %v and %v; want growing, 1 − 1/e at the visibility", near, w.Haze(eyed{}, 100, 0, 10), far)
 	}
 	if h := w.Haze(cameratest.NewFromSpace(64, 64, 0), 1000, 0, 0); h != 0 {
@@ -284,7 +285,7 @@ func TestVisibility_SeesAsFarAsTheScaleAndTheWeatherSay(t *testing.T) {
 	s := world.Scale{Metres: 1000.0 / 32}
 	sight := air.Sight(s)
 	clear := air.Weather{Sight: sight}.Visibility(0, 0)
-	if math.Abs(clear*s.Metres-air.ClearAir) > 1e-6 {
+	if f32.Abs(clear*s.Metres-air.ClearAir) > 1e-6 {
 		t.Errorf("clear air lets one see %v m, want %v", clear*s.Metres, air.ClearAir)
 	}
 	pour := air.Weather{Sight: sight, Rain: 1, Clouds: 1, Temperature: 10}

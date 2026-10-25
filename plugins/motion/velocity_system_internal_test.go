@@ -21,9 +21,9 @@ func (moved) Command() {}
 
 func velocityTick(
 	t *testing.T,
-	share float64,
+	share float32,
 	rules ...act.Rule,
-) (paced, unpaced float64, gave []uid.UID64) {
+) (paced, unpaced float32, gave []uid.UID64) {
 	t.Helper()
 	var commands command.Carrier
 	var given command.Queue[moved]

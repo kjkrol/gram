@@ -3,10 +3,10 @@ package ui
 import (
 	"image"
 	"image/color"
-	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -133,7 +133,7 @@ func (l *label) draw(e *Element, dst *render.Image) {
 	text, _ := l.words(e)
 	box := shrink(e.box, e.padding)
 	th := e.look()
-	x, y := float32(math.Round(box.TopLeft.X)), float32(math.Round(box.TopLeft.Y))
+	x, y := f32.Round(box.TopLeft.X), f32.Round(box.TopLeft.Y)
 	if th.Shadow.A > 0 {
 		l.font(th).Draw(dst, text, x+1, y+1, th.Shadow)
 	}
@@ -147,10 +147,10 @@ func (l *label) colour(th *Theme) color.RGBA {
 	return th.Text
 }
 
-func (l *label) needs(e *Element) (w, h float64) {
+func (l *label) needs(e *Element) (w, h float32) {
 	text, _ := l.words(e)
 	tw, th := l.font(e.look()).Measure(text)
-	return math.Ceil(float64(tw)), math.Ceil(float64(th))
+	return f32.Ceil(tw), f32.Ceil(th)
 }
 
 // Image shows src filling the element's box, the box's size given to it: a feed of the world, a
@@ -176,7 +176,7 @@ func (p *picture) place(e *Element, box geom.AABB) {
 			w, h = sw, sh
 		}
 	}
-	p.laid = [2]int{int(math.Round(w)), int(math.Round(h))}
+	p.laid = [2]int{int(f32.Round(w)), int(f32.Round(h))}
 	p.src.Resize(p.laid[0], p.laid[1])
 }
 
@@ -201,12 +201,12 @@ func (p *picture) draw(e *Element, dst *render.Image) {
 	}
 	op := &render.DrawImageOptions{}
 	w, h := size(box)
-	bw, bh := math.Round(w), math.Round(h)
-	if iw, ih := img.Bounds().Dx(), img.Bounds().Dy(); float64(iw) != bw || float64(ih) != bh {
-		op.GeoM.Scale(bw/float64(iw), bh/float64(ih))
+	bw, bh := f32.Round(w), f32.Round(h)
+	if iw, ih := img.Bounds().Dx(), img.Bounds().Dy(); float32(iw) != bw || float32(ih) != bh {
+		op.GeoM.Scale(float64(bw)/float64(iw), float64(bh)/float64(ih))
 		op.Filter = render.FilterLinear
 	}
-	op.GeoM.Translate(math.Round(box.TopLeft.X), math.Round(box.TopLeft.Y))
+	op.GeoM.Translate(float64(f32.Round(box.TopLeft.X)), float64(f32.Round(box.TopLeft.Y)))
 	if e.mask != nil {
 		dst.DrawImageIn(img, op, e.mask.points(box))
 		return
@@ -214,20 +214,20 @@ func (p *picture) draw(e *Element, dst *render.Image) {
 	dst.DrawImage(img, op)
 }
 
-func (*picture) needs(*Element) (w, h float64) { return 0, 0 }
+func (*picture) needs(*Element) (w, h float32) { return 0, 0 }
 
 func fills(box geom.AABB, dst *render.Image) bool {
 	b := dst.Bounds()
-	return covers(box, geom.NewAABB(geom.NewVec(float64(b.Min.X), float64(b.Min.Y)),
-		geom.NewVec(float64(b.Max.X), float64(b.Max.Y))))
+	return covers(box, geom.NewAABB(geom.NewVec(float32(b.Min.X), float32(b.Min.Y)),
+		geom.NewVec(float32(b.Max.X), float32(b.Max.Y))))
 }
 
 // covers reports whether box, rounded to pixels, covers the whole of screen
 func covers(box, screen geom.AABB) bool {
-	return math.Round(box.TopLeft.X) <= screen.TopLeft.X &&
-		math.Round(box.TopLeft.Y) <= screen.TopLeft.Y &&
-		math.Round(box.BottomRight.X) >= screen.BottomRight.X &&
-		math.Round(box.BottomRight.Y) >= screen.BottomRight.Y
+	return f32.Round(box.TopLeft.X) <= screen.TopLeft.X &&
+		f32.Round(box.TopLeft.Y) <= screen.TopLeft.Y &&
+		f32.Round(box.BottomRight.X) >= screen.BottomRight.X &&
+		f32.Round(box.BottomRight.Y) >= screen.BottomRight.Y
 }
 
 // Window is a panel with a title over its elements, one under another, each as large as it needs.
@@ -257,7 +257,7 @@ func (*windowed) place(e *Element, box geom.AABB) { e.children[0].lay(box) }
 
 func (*windowed) draw(*Element, *render.Image) {}
 
-func (*windowed) needs(e *Element) (w, h float64) { return e.children[0].needs() }
+func (*windowed) needs(e *Element) (w, h float32) { return e.children[0].needs() }
 
 // Blank is an element showing nothing of its own: a gap, or with a Fill a divider, a plate.
 func Blank() *Element { return newElement(blank{}) }
@@ -266,7 +266,7 @@ type blank struct{}
 
 func (blank) place(*Element, geom.AABB)     {}
 func (blank) draw(*Element, *render.Image)  {}
-func (blank) needs(*Element) (w, h float64) { return 0, 0 }
+func (blank) needs(*Element) (w, h float32) { return 0, 0 }
 
 // Drawer is an element drawn by r, a screen renderer drawing in the screen's pixels: the
 // telemetry line. An r that is a plugin.Publisher is published and swapped with the scene.
@@ -276,7 +276,7 @@ type layered struct{ r render.Renderer }
 
 func (*layered) place(*Element, geom.AABB)            {}
 func (l *layered) draw(_ *Element, dst *render.Image) { l.r.Draw(dst) }
-func (*layered) needs(*Element) (w, h float64)        { return 0, 0 }
+func (*layered) needs(*Element) (w, h float32)        { return 0, 0 }
 func (*layered) container()                           {} // takes no click
 
 // onGlass has the source draw on the glass over the picture, where it was drawn this frame
@@ -286,7 +286,7 @@ func (p *picture) onGlass(screen *render.Image) {
 	}
 	p.drawn = false
 	box := p.glass
-	dst := screen.SubImage(image.Rect(int(math.Round(box.TopLeft.X)), int(math.Round(box.TopLeft.Y)),
-		int(math.Round(box.BottomRight.X)), int(math.Round(box.BottomRight.Y))))
+	dst := screen.SubImage(image.Rect(int(f32.Round(box.TopLeft.X)), int(f32.Round(box.TopLeft.Y)),
+		int(f32.Round(box.BottomRight.X)), int(f32.Round(box.BottomRight.Y))))
 	p.src.(glassed).DrawGlass(dst)
 }

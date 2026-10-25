@@ -3,10 +3,10 @@ package hexes
 import (
 	"embed"
 	"image/color"
-	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -88,7 +88,7 @@ func New(w *world.Plugin, b *board.Plugin, cells look.Board, m look.Map,
 	ground func() *relief.Relief, drawn func() (hazed bool, grid look.RenderState), sky Sky,
 	p *painter.Painter) *Ground {
 	h := &Ground{world: w, board: b, cellsOf: cells, m: m, ground: ground, drawn: drawn, sky: sky,
-		painter: p, grid: cells, size: float32(b.Read(0).Board().CellSpan()),
+		painter: p, grid: cells, size: b.Read(0).Board().CellSpan(),
 		own: map[string]any{}, uv: map[string]any{}, pixel: []float32{0}}
 	h.opts = render.DrawMeshOptions{WriteDepth: true, Vertices: prismVertices, Uniforms: map[string]any{}}
 	return h
@@ -210,7 +210,7 @@ func (h *Ground) refresh() bool {
 		ww, wh := float32(space.Width), float32(space.Height)
 		h.tiles = look.NewRenderer(h.cellsOf, atlas, h.m, space)
 		h.px = min(topPx, maxTop/ww, maxTop/wh)
-		h.top = render.NewImage(int(math.Ceil(float64(ww*h.px))), int(math.Ceil(float64(wh*h.px))))
+		h.top = render.NewImage(int(f32.Ceil(ww*h.px)), int(f32.Ceil(wh*h.px)))
 	}
 	h.lay()
 	h.at, h.stale = at, true
@@ -235,11 +235,11 @@ func (h *Ground) lay() {
 	add := func(c cell.ID) {
 		centre := h.grid.CellCenter(c)
 		top, _ := h.m.Top(c)
-		h.cells = append(h.cells, float32(centre.X), float32(centre.Y), top[0],
+		h.cells = append(h.cells, centre.X, centre.Y, top[0],
 			float32(takesOf(h.cellsOf.Kind(c).Takes)))
 		for _, i := range across {
 			n, ok := h.grid.Toward(c, i)
-			lowest := float32(min(low, 0))
+			lowest := min(low, 0)
 			if ok {
 				nt, _ := h.m.Top(n)
 				lowest = nt[0]

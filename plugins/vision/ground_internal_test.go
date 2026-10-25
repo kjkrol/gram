@@ -13,10 +13,10 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-type flatAt float64
+type flatAt float32
 
-func (l flatAt) At(geom.Vec) float64 { return float64(l) }
-func (flatAt) Step() float64         { return 1 }
+func (l flatAt) At(geom.Vec) float32 { return float32(l) }
+func (flatAt) Step() float32         { return 1 }
 
 type installs struct{ plugin.Installer }
 

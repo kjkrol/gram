@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -30,7 +31,7 @@ type Sides map[string][]command.Command
 // Level is a board laid out of a file by Plugin.Lay, its entities waiting for Spawn.
 type Level struct {
 	l       *leveler
-	heights func(p geom.Vec) float64
+	heights func(p geom.Vec) float32
 	waiting []waiting // in the file's order
 }
 
@@ -43,7 +44,7 @@ type waiting struct {
 
 // Heights is the ground's heights the level's relief gives, in world units; nil for a level
 // without one.
-func (l *Level) Heights() func(p geom.Vec) float64 { return l.heights }
+func (l *Level) Heights() func(p geom.Vec) float32 { return l.heights }
 
 // Lay seeds the board out of the YAML level at path of fsys and keeps its entities for Spawn.
 func (p *Plugin) Lay(fsys fs.FS, path string) (*Level, error) {
@@ -353,7 +354,7 @@ func (l *leveler) keys(n *yaml.Node, allowed ...string) (map[string]*yaml.Node, 
 	return out, nil
 }
 
-func (l *leveler) ways(w *levelWays, layout *Layout, heights func(geom.Vec) float64) error {
+func (l *leveler) ways(w *levelWays, layout *Layout, heights func(geom.Vec) float32) error {
 	brd := &l.p.board.read
 	roads, rivers := network.New(brd), network.New(brd)
 	laidBy := map[cell.ID]*yaml.Node{}
@@ -413,7 +414,7 @@ func (l *leveler) ways(w *levelWays, layout *Layout, heights func(geom.Vec) floa
 
 // a graded road lies as Transport Tycoon lays it
 func (l *leveler) graded(roads *network.Network, laidBy map[cell.ID]*yaml.Node,
-	heights func(geom.Vec) float64) error {
+	heights func(geom.Vec) float32) error {
 	brd := &l.p.board.read
 	run := l.shape.Cell
 	for _, c := range roads.Cells() {
@@ -436,7 +437,7 @@ func (l *leveler) graded(roads *network.Network, laidBy map[cell.ID]*yaml.Node,
 			}
 			continue
 		}
-		var corners [6]float64
+		var corners [6]float32
 		outline := brd.CellOutline(c, nil)
 		for k, p := range outline {
 			corners[k] = heights(p)
@@ -458,7 +459,7 @@ type roadPath struct {
 
 func (r roadPath) onto(i int) bool { return i == 0 && r.first || i == len(r.cells)-1 && r.last }
 
-func (l *leveler) road(n *yaml.Node, name string) (width float64, paths []roadPath, err error) {
+func (l *leveler) road(n *yaml.Node, name string) (width float32, paths []roadPath, err error) {
 	if err := l.cellKind(n, name); err != nil {
 		return 0, nil, err
 	}
@@ -510,7 +511,7 @@ func (l *leveler) river(n *yaml.Node) (cells []cell.ID, nodes []network.Node, er
 	type mark struct {
 		at    int
 		kind  string
-		width float64
+		width float32
 		wide  bool
 	}
 	var marks []mark
@@ -573,7 +574,7 @@ func (l *leveler) river(n *yaml.Node) (cells []cell.ID, nodes []network.Node, er
 		}
 		width := from.width
 		if to != nil {
-			width += (to.width - from.width) * float64(i-from.at) / float64(to.at-from.at)
+			width += (to.width - from.width) * float32(i-from.at) / float32(to.at-from.at)
 		}
 		nodes = append(nodes, network.Node{Kind: kind, Width: width})
 	}
@@ -615,9 +616,9 @@ func (l *leveler) route(from, to cell.ID) ([]cell.ID, bool) {
 	a, b := brd.CellCenter(from), brd.CellCenter(to)
 	off := func(c cell.ID) float64 {
 		p := brd.CellCenter(c)
-		dx, dy := b.X-a.X, b.Y-a.Y
+		dx, dy := float64(b.X-a.X), float64(b.Y-a.Y)
 		if d := dx*dx + dy*dy; d > 0 {
-			return math.Abs((p.X-a.X)*dy-(p.Y-a.Y)*dx) / math.Sqrt(d)
+			return math.Abs(float64(p.X-a.X)*dy-float64(p.Y-a.Y)*dx) / math.Sqrt(d)
 		}
 		return 0
 	}
@@ -638,7 +639,7 @@ func (l *leveler) cell(n *yaml.Node) (cell.ID, error) {
 	return (&l.p.board.read).At(uint32(xy[0]), uint32(xy[1])), nil
 }
 
-func (l *leveler) relief(r *levelRelief) (func(p geom.Vec) float64, error) {
+func (l *leveler) relief(r *levelRelief) (func(p geom.Vec) float32, error) {
 	cells, corners := r.Cells.Kind != 0, r.Corners.Kind != 0
 	if !cells && !corners {
 		return nil, nil
@@ -662,20 +663,20 @@ func (l *leveler) relief(r *levelRelief) (func(p geom.Vec) float64, error) {
 	}
 	brd := &l.p.board.read
 	if cells {
-		return ground.MeanOfCells(brd, func(c cell.ID) float64 {
+		return ground.MeanOfCells(brd, func(c cell.ID) float32 {
 			x, y, _ := brd.Coords(c)
 			return values[int(y)*cols+int(x)]
 		}), nil
 	}
 	size := l.shape.Cell
-	return func(p geom.Vec) float64 {
-		x := min(max(int(math.Round(p.X/size)), 0), cols-1)
-		y := min(max(int(math.Round(p.Y/size)), 0), rows-1)
+	return func(p geom.Vec) float32 {
+		x := min(max(int(f32.Round(p.X/size)), 0), cols-1)
+		y := min(max(int(f32.Round(p.Y/size)), 0), rows-1)
 		return values[y*cols+x]
 	}, nil
 }
 
-func (l *leveler) numbers(n *yaml.Node, cols, rows int) ([]float64, error) {
+func (l *leveler) numbers(n *yaml.Node, cols, rows int) ([]float32, error) {
 	first := n.Line
 	if n.Style&(yaml.LiteralStyle|yaml.FoldedStyle) != 0 {
 		first++
@@ -685,7 +686,7 @@ func (l *leveler) numbers(n *yaml.Node, cols, rows int) ([]float64, error) {
 		return nil, l.errorf(n, "the relief has %d rows, want %d", len(lns), rows)
 	}
 	scale := l.p.worldPlugin.Read(0).Scale()
-	values := make([]float64, 0, cols*rows)
+	values := make([]float32, 0, cols*rows)
 	for y, ln := range lns {
 		at := &yaml.Node{Line: first + y}
 		fields := strings.Fields(ln)
@@ -693,11 +694,11 @@ func (l *leveler) numbers(n *yaml.Node, cols, rows int) ([]float64, error) {
 			return nil, l.errorf(at, "the row has %d numbers, want %d", len(fields), cols)
 		}
 		for _, f := range fields {
-			m, err := strconv.ParseFloat(f, 64)
+			m, err := strconv.ParseFloat(f, 32)
 			if err != nil {
 				return nil, l.errorf(at, "%q is no number", f)
 			}
-			values = append(values, scale.Units(m))
+			values = append(values, scale.Units(float32(m)))
 		}
 	}
 	return values, nil

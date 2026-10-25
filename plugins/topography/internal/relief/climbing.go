@@ -21,17 +21,17 @@ func (r *Relief) Climb(from, to cell.ID, d cell.Domain, climbing public.Climbing
 		w, h := r.grid.CellBounds()
 		c := r.Corners(to)
 		rise := (dx*float64(c[1]-c[0]+c[3]-c[2]) + dy*float64(c[2]-c[0]+c[3]-c[1])) / 2
-		run := math.Hypot(dx*w, dy*h)
+		run := math.Hypot(dx*float64(w), dy*float64(h))
 		if run <= 0 {
 			return 1
 		}
 		return climbing.Factor(rise / run)
 	}
-	run := r.grid.NeighborCost(from, to) * r.Step()
+	run := r.grid.NeighborCost(from, to) * float64(r.Step())
 	if run <= 0 {
 		return 1
 	}
-	return climbing.Factor((r.Altitude(to) - r.Altitude(from)) / run)
+	return climbing.Factor(float64(r.Altitude(to)-r.Altitude(from)) / run)
 }
 
 // -1, 0 or 1, across the seam where the grid wraps
@@ -53,14 +53,15 @@ func (r *Relief) SlopeAt(p, dir geom.Vec) float64 {
 		if !ok {
 			return 0
 		}
-		w, h := r.grid.CellBounds()
+		cw, ch := r.grid.CellBounds()
+		w, h := float64(cw), float64(ch)
 		x, y, _ := r.grid.Coords(c)
-		u, v := p.X/w-float64(x), p.Y/h-float64(y)
+		u, v := float64(p.X)/w-float64(x), float64(p.Y)/h-float64(y)
 		u, v = u-math.Floor(u), v-math.Floor(v) // a wrapped p lies a whole board away
 		k := r.Corners(c)
 		gx := ((1-v)*float64(k[1]-k[0]) + v*float64(k[3]-k[2])) / w
 		gy := ((1-u)*float64(k[2]-k[0]) + u*float64(k[3]-k[1])) / h
-		return gx*dir.X + gy*dir.Y
+		return gx*float64(dir.X) + gy*float64(dir.Y)
 	}
 	half := r.Step() / 2
 	if half <= 0 {
@@ -68,5 +69,5 @@ func (r *Relief) SlopeAt(p, dir geom.Vec) float64 {
 	}
 	ahead := r.GroundAt(geom.NewVec(p.X+dir.X*half, p.Y+dir.Y*half))
 	behind := r.GroundAt(geom.NewVec(p.X-dir.X*half, p.Y-dir.Y*half))
-	return (ahead - behind) / (2 * half)
+	return float64((ahead - behind) / (2 * half))
 }

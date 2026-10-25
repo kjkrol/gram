@@ -8,7 +8,9 @@ import (
 )
 
 func inBounds(b contract.AABB, x, y float32) bool {
-	return float64(x) >= b.TopLeft.X-1e-2 && float64(x) <= b.BottomRight.X+1e-2 && float64(y) >= b.TopLeft.Y-1e-2 && float64(y) <= b.BottomRight.Y+1e-2
+	return float32(x) >= b.TopLeft.X-1e-2 && float32(x) <= b.BottomRight.X+1e-2 &&
+		float32(y) >= b.TopLeft.Y-1e-2 &&
+		float32(y) <= b.BottomRight.Y+1e-2
 }
 
 func onWorld(x, y float32) bool { return x >= 0 && x <= 640 && y >= 0 && y <= 640 }
@@ -33,7 +35,7 @@ func TestIsoCamera_BoundsHoldTheGroundTheScreenShowsAtAnyHeight(t *testing.T) {
 	if sx, sy := c.Project(x, y, 0); sy <= 300 || !onWorld(x, y) {
 		t.Fatalf("the hill at (%v, %v) has its foot drawn at (%v, %v), want on the world and below the screen for the case to hold", x, y, sx, sy)
 	}
-	box := geom.NewAABBAt(geom.NewVec(float64(x)-2, float64(y)-2), 4, 4)
+	box := geom.NewAABBAt(geom.NewVec(float32(x)-2, float32(y)-2), 4, 4)
 	if !c.Visible(box) || !inBounds(b, x, y) {
 		t.Error("a unit on a hill 150 up drawn at the bottom of the screen is not Visible, or its ground not in Bounds")
 	}
@@ -97,7 +99,7 @@ func TestPerspCamera_BoundsHoldTheGroundTheScreenShowsAtAnyHeight(t *testing.T) 
 		t.Errorf("inside a unit looking level, the ground 150 ahead (%v, %v) is outside Bounds %v", x, y, c.Bounds())
 	}
 	x, y, _ := c.cast(200, 280, 100) // the hillside near the bottom of the screen
-	if !c.Visible(geom.NewAABBAt(geom.NewVec(float64(x)-2, float64(y)-2), 4, 4)) {
+	if !c.Visible(geom.NewAABBAt(geom.NewVec(float32(x)-2, float32(y)-2), 4, 4)) {
 		t.Error("inside a unit, a walker on the hill 100 up near the bottom of the screen is not Visible")
 	}
 	up := testPersp(nil, nil)

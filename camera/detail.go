@@ -4,13 +4,13 @@ package camera
 // without end), the last Fog of them fading into the fog, and Coarse the screen units a world
 // unit spans below which what it shows is drawn coarsely (zero, never).
 type Detail struct {
-	Sight  float64
-	Fog    float64
+	Sight  float32
+	Fog    float32
 	Coarse float32
 }
 
 // Widened is d seeing factor times as far; a sight without end stays so.
-func (d Detail) Widened(factor float64) Detail {
+func (d Detail) Widened(factor float32) Detail {
 	d.Sight *= factor
 	return d
 }

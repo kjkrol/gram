@@ -2,7 +2,6 @@ package minimap
 
 import (
 	"image/color"
-	"math"
 	"testing"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
@@ -24,7 +24,7 @@ import (
 	"github.com/kjkrol/gram/render/gputest"
 )
 
-func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
+func near(a, b float32) bool { return f32.Abs(float32(a-b)) < 1e-3 }
 
 func TestLens_LaysItsMiddleInThePicturesAndAheadUpIt(t *testing.T) {
 	l := newLens(geom.NewVec(1000, 1000), false, false, 100)
@@ -215,7 +215,7 @@ func TestOutline_IsWhatTheCameraShowsOfTheGround(t *testing.T) {
 		}
 	})
 	// a line's quad runs a pixel and its width past its ends, to smooth its edges
-	within := func(got, want float32) bool { return math.Abs(float64(got-want)) <= 2 }
+	within := func(got, want float32) bool { return f32.Abs(float32(got-want)) <= 2 }
 	if len(xs) == 0 || !within(minOf(xs), 50) || !within(maxOf(xs), 150) ||
 		!within(minOf(ys), 75) || !within(maxOf(ys), 125) {
 		t.Errorf("the outline spans x %v..%v, y %v..%v; want 50..150 and 75..125", minOf(xs),
@@ -224,7 +224,7 @@ func TestOutline_IsWhatTheCameraShowsOfTheGround(t *testing.T) {
 }
 
 func minOf(v []float32) float32 {
-	m := float32(math.Inf(1))
+	m := float32(f32.Inf(1))
 	for _, x := range v {
 		m = min(m, x)
 	}
@@ -232,14 +232,14 @@ func minOf(v []float32) float32 {
 }
 
 func maxOf(v []float32) float32 {
-	m := float32(math.Inf(-1))
+	m := float32(f32.Inf(-1))
 	for _, x := range v {
 		m = max(m, x)
 	}
 	return m
 }
 
-type spot struct{ x, y float64 }
+type spot struct{ x, y float32 }
 
 var (
 	markRed  = color.RGBA{R: 255, A: 255}
@@ -413,17 +413,17 @@ func TestCompass_HangsOnTheCirclesEdgePointingNorthTurningWithTheMinimap(t *test
 	surface := &compass{m: p.maps[0]}
 	side := 220 + 2*Overhang
 	surface.Resize(side, side)
-	out := 110 + float64(northTall)*(northOut-0.5)
-	mid := float64(side) / 2
+	out := 110 + float32(northTall)*(northOut-0.5)
+	mid := float32(side) / 2
 	x, y := surface.at()
-	if dx, dy := float64(x)-mid, float64(y)-mid; math.Abs(dx) > 0.5 || math.Abs(dy+out) > 0.5 {
+	if dx, dy := float32(x)-mid, float32(y)-mid; f32.Abs(dx) > 0.5 || f32.Abs(dy+out) > 0.5 {
 		t.Errorf("north up, the triangle's middle is (%.1f, %.1f) from the box's middle, want "+
 			"(0, %.1f): straight up, a quarter of it in", dx, dy, -out)
 	}
 	p.maps[0].of = turned{cam, 1, 0}
 	p.maps[0].follow(true)
 	x, y = surface.at()
-	if dx, dy := float64(x)-mid, float64(y)-mid; math.Abs(dx+out) > 0.5 || math.Abs(dy) > 0.5 {
+	if dx, dy := float32(x)-mid, float32(y)-mid; f32.Abs(dx+out) > 0.5 || f32.Abs(dy) > 0.5 {
 		t.Errorf("headed east, the triangle's middle is (%.1f, %.1f) from the box's middle, want "+
 			"(%.1f, 0): on the left", dx, dy, -out)
 	}
@@ -525,7 +525,7 @@ func TestCompass_PointsAsPublishedWhileTheMinimapsAreHidden(t *testing.T) {
 	allMarks{p}.Swap()
 	m.of = turned{cam, 0, 1}
 	m.follow(true)
-	if dx, dy := (&compass{m: m}).north(); math.Abs(dx+1) > 1e-9 || math.Abs(dy) > 1e-9 {
+	if dx, dy := (&compass{m: m}).north(); f32.Abs(dx+1) > f32.Eps(1) || f32.Abs(dy) > f32.Eps(1) {
 		t.Errorf("hidden, headed east as published and south since, north runs (%.2f, %.2f), "+
 			"want (-1, 0): as published", dx, dy)
 	}

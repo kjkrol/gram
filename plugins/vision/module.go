@@ -36,8 +36,8 @@ func newModule(space *aabbworld.SpaceRead, host *host.PairRules[Sighting], heigh
 
 type heights struct {
 	groundOf func() ground.Heights
-	step     float64
-	bend     float64 // per d², world.Scale.Bend
+	step     float32
+	bend     float32 // per d², world.Scale.Bend
 }
 
 func (m *module) RegSystems(ecs *goke.ECS) {

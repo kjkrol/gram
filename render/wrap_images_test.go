@@ -23,7 +23,7 @@ func images(box plane.AABB, w, h float32) []image {
 	return out
 }
 
-func wrapped(toroidal bool, x, y, w, h float64) plane.AABB {
+func wrapped(toroidal bool, x, y, w, h float32) plane.AABB {
 	cfg := aabbworld.Config{Width: 1000, Height: 1000, BucketSize: 64}
 	if toroidal {
 		cfg.Edges = aabbworld.Torus

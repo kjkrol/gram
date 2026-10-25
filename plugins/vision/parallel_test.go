@@ -12,7 +12,7 @@ func TestScan_ObserversScannedTogetherSeeWhatTheyDoOneByOne(t *testing.T) {
 	for name, r := range map[string]*relief{"flat": nil, "hill": {ground: plateau{}, step: 10}} {
 		var spawns []spawn
 		for i := range 40 {
-			s := spawn{x: float64(40 + (i%8)*50), y: float64(40 + (i/8)*50), sight: eastward(math.Pi/3, 400), outline: i%2 == 0}
+			s := spawn{x: float32(40 + (i%8)*50), y: float32(40 + (i/8)*50), sight: eastward(math.Pi/3, 400), outline: i%2 == 0}
 			if r != nil {
 				s.z, s.sight.Eye.Height = z(0, 2), 1.5
 			}

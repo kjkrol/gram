@@ -1,7 +1,6 @@
 package atmosphere_test
 
 import (
-	"math"
 	"testing"
 	"time"
 
@@ -9,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/internal/engine"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/atmosphere"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
@@ -61,7 +61,7 @@ func TestAtmosphere_TheAirMassesOutlastASaveThroughTheEngine(t *testing.T) {
 	// from the horizon the wind blows from, where the clouds are born, over the world
 	for x := float32(-6000); x < 1600; x += 40 {
 		a, b := was.a.Read(0).Air().At(x, 240), now.a.Read(0).Air().At(x, 240)
-		if math.Abs(float64(a.Cover-b.Cover)) > 1e-3 {
+		if f32.Abs(float32(a.Cover-b.Cover)) > 1e-3 {
 			t.Errorf("at %v the cover is %v, read back from a save %v", x, a.Cover, b.Cover)
 		}
 		clouded = clouded || a.Cover > 0.1

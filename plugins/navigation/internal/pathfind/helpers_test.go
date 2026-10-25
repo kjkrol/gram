@@ -50,7 +50,7 @@ func (f testFinder) price(from, to cell.ID, kind cell.Kind, d cell.Domain) (floa
 
 func chebyshev(grid grid.Grid, a, b cell.ID) float64 {
 	ca, cb := grid.CellCenter(a), grid.CellCenter(b)
-	return max(abs(ca.X-cb.X), abs(ca.Y-cb.Y)) / float64(grid.CellSpan())
+	return max(abs(float64(ca.X-cb.X)), abs(float64(ca.Y-cb.Y))) / float64(grid.CellSpan())
 }
 
 func abs(v float64) float64 {

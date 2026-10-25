@@ -3,10 +3,6 @@ package navigation
 import (
 	"cmp"
 	"fmt"
-	"github.com/kjkrol/gram/plugins/navigation/internal/routes"
-	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
-	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
-	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 	"time"
 
 	"github.com/kjkrol/ceremony/act"
@@ -23,6 +19,10 @@ import (
 	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/motion/steering"
+	"github.com/kjkrol/gram/plugins/navigation/internal/routes"
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/sector"
@@ -112,7 +112,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.board = brd
 
 	w, h := brd.CellBounds()
-	p.spacing = p.spacing.resolve(float64(p.worldPlugin.Res.Config.Entities.MaxSize), min(w, h))
+	p.spacing = p.spacing.resolve(float32(p.worldPlugin.Res.Config.Entities.MaxSize), min(w, h))
 	// routes are planned blind to the others: the keeping answers what a route runs into; the
 	// routing plans the routes, the traffic searches but round a unit, each with its own
 	keeping := func(answers *spacing.Answers) (*spacing.Finder, spacing.Keeping) {

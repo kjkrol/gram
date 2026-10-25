@@ -123,7 +123,7 @@ func (a *arena) defineEffects() {
 	effects := a.world.Write().Effects()
 	effects.Define(FrozenEf, effect.Spec{
 		effect.Described("Frozen stiff: stood dead still, an immovable block."),
-		effect.Alter(func(p *collision.Physics) { p.Mass = math.Inf(1) }),
+		effect.Alter(func(p *collision.Physics) { p.Mass = float32(math.Inf(1)) }),
 		effect.Alter(func(st *steering.Steering) { st.Halted = true }),
 	})
 	effects.Define(SlipEf, effect.Spec{
@@ -182,7 +182,7 @@ func units(b *board.Plugin) *board.Units[unitRow] {
 		func(u unitRow) geom.Vec { return b.Read(0).Board().CellCenter(u.Start) })
 }
 
-func profile(brake float64) steering.Steering {
+func profile(brake float32) steering.Steering {
 	return steering.Steering{
 		MaxSpeed: unitSpeed,
 		Accel:    unitSpeed * 2,

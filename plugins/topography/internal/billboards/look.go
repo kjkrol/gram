@@ -70,11 +70,11 @@ func (l Look) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world
 		return
 	}
 	if a.Sway > 0 { // from above the top leans as far as the entity is wide
-		sizeX, sizeY := float32(box.Size.X), float32(box.Size.Y)
-		cx, cy := float32(box.TopLeft.X)+sizeX/2, float32(box.TopLeft.Y)+sizeY/2
+		sizeX, sizeY := box.Size.X, box.Size.Y
+		cx, cy := box.TopLeft.X+sizeX/2, box.TopLeft.Y+sizeY/2
 		lx, ly := l.sky.Air().Sway(f.Time(), cx, cy, a.Sway)
 		rise := max(sizeX, sizeY)
-		box = plane.NewAABB(geom.NewVec(box.TopLeft.X+float64(lx*rise), box.TopLeft.Y+float64(ly*rise)), box.Size.X, box.Size.Y)
+		box = plane.NewAABB(geom.NewVec(box.TopLeft.X+(lx*rise), box.TopLeft.Y+(ly*rise)), box.Size.X, box.Size.Y)
 	}
 	a.Sway = 0 // leant here already
 	l.flat.Sprite(f, cam, box, z, atlas, a, lit)
@@ -103,12 +103,12 @@ func (l Look) Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geom.V
 	if l.gpu.on {
 		m := geom.NewVec(box.TopLeft.X+box.Size.X/2, box.TopLeft.Y+box.Size.Y/2)
 		c := lie.Corners(m, dir)
-		alt, deep := float32(z.Altitude), float32(z.Height)
+		alt, deep := z.Altitude, z.Height
 		l.gpu.level(cam, c, alt, atlas, a.SpriteID, lit)
 		l.gpu.upright(cam, c[1], c[0], alt-deep, deep, atlas, a.SpriteID, lit)
 		l.gpu.upright(cam, c[2], c[3], alt-deep, deep, atlas, a.SpriteID, lit)
 		if lie.Edged {
-			high := float32(lie.Edge)
+			high := lie.Edge
 			l.gpu.upright(cam, c[1], c[0], alt, high, atlas, edge, lit)
 			l.gpu.upright(cam, c[2], c[3], alt, high, atlas, edge, lit)
 		}
@@ -130,7 +130,7 @@ func (l Look) Upright(f *render.Frame, cam camera.Camera, box plane.AABB, z worl
 	x1, y1 := box.BottomRight.X, box.BottomRight.Y
 	tl, tr := geom.NewVec(x0, y0), geom.NewVec(x1, y0)
 	bl, br := geom.NewVec(x0, y1), geom.NewVec(x1, y1)
-	alt, high := float32(z.Altitude), tall(z, float32(y0), float32(y1))
+	alt, high := z.Altitude, tall(z, y0, y1)
 	if !l.gpu.on {
 		a.Sway = 0
 		l.flat.Sprite(f, cam, box, z, atlas, a, lit)

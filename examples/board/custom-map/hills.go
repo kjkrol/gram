@@ -33,7 +33,7 @@ const (
 )
 
 // a hill: its top at (x, y), r round, h high
-type peak struct{ x, y, r, h float64 }
+type peak struct{ x, y, r, h float32 }
 
 var peaks = []peak{
 	{10 * CellSize, 8 * CellSize, 6 * CellSize, 90},
@@ -42,10 +42,10 @@ var peaks = []peak{
 }
 
 // height is the ground's at p: every hill's, smoothly down to nothing at its foot
-func height(p geom.Vec) float64 {
-	z := 0.0
+func height(p geom.Vec) float32 {
+	z := float32(0)
 	for _, k := range peaks {
-		if d := math.Hypot(p.X-k.x, p.Y-k.y) / k.r; d < 1 {
+		if d := float32(math.Hypot(float64(p.X-k.x), float64(p.Y-k.y))) / k.r; d < 1 {
 			z += k.h * (1 - d*d) * (1 - d*d)
 		}
 	}
@@ -56,17 +56,17 @@ func (*hills) Look() look.Look           { return look.Flat }
 func (*hills) Heights() ground.Heights   { return heights{} }
 func (m *hills) Dressing() look.Dressing { return m }
 
-func (m *hills) Top(c cell.ID, h float64) (corners [4]float32, level float32) {
-	at, half := m.grid.CellCenter(c), CellSize/2.0
+func (m *hills) Top(c cell.ID, h float32) (corners [4]float32, level float32) {
+	at, half := m.grid.CellCenter(c), float32(CellSize)/2
 	for i, d := range [4]geom.Vec{{X: -half, Y: -half}, {X: half, Y: -half}, {X: -half, Y: half},
 		{X: half, Y: half}} {
-		corners[i] = float32(height(at.Add(d)) + h)
+		corners[i] = height(at.Add(d)) + h
 	}
-	return corners, float32(height(at))
+	return corners, height(at)
 }
 
 func (m *hills) Climb(from, to cell.ID, _ cell.Domain) float64 {
-	rise := height(m.grid.CellCenter(to)) - height(m.grid.CellCenter(from))
+	rise := float64(height(m.grid.CellCenter(to)) - height(m.grid.CellCenter(from)))
 	return 1 + climbCost*max(rise, 0)/CellSize
 }
 
@@ -74,7 +74,7 @@ func (*hills) Least(cell.Domain) float64 { return 1 }
 
 func (*hills) Slope(p, dir geom.Vec, _ cell.Domain) float64 {
 	const run = CellSize / 4
-	rise := height(geom.NewVec(p.X+dir.X*run, p.Y+dir.Y*run)) - height(p)
+	rise := float64(height(geom.NewVec(p.X+dir.X*run, p.Y+dir.Y*run)) - height(p))
 	return 1 + climbCost*max(rise, 0)/run
 }
 
@@ -98,5 +98,5 @@ func (m *hills) Base(c cell.ID, own render.SpriteID) render.SpriteID {
 // heights are the hills' ground for whatever reads it: sight, routes, the weather
 type heights struct{}
 
-func (heights) At(p geom.Vec) float64 { return height(p) }
-func (heights) Step() float64         { return CellSize / 4 }
+func (heights) At(p geom.Vec) float32 { return height(p) }
+func (heights) Step() float32         { return CellSize / 4 }

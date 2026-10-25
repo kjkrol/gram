@@ -8,6 +8,7 @@
 package terrain
 
 import (
+	"embed"
 	"fmt"
 	"image"
 	"image/color"
@@ -20,8 +21,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
-
-	"embed"
 )
 
 //go:embed shaders/*.wgsl
@@ -560,7 +559,7 @@ func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 func skirtReach(cols, rows int, cell float32, scale world.Scale) float32 {
 	diag := math.Hypot(float64(cols-1), float64(rows-1)) * float64(cell)
 	reach := 20 * diag
-	if h := scale.Horizon(scale.Units(air.CloudBase)); !math.IsInf(h, 0) && h > reach {
+	if h := float64(scale.Horizon(scale.Units(air.CloudBase))); !math.IsInf(h, 0) && h > reach {
 		reach = min(h, 200*diag)
 	}
 	return float32(reach / (diag / 2))

@@ -27,7 +27,7 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target cell.ID, marks boo
 	t.Helper()
 	ew := &enteredWorld{entered: map[uid.UID64]cell.ID{}, hasOrder: map[uid.UID64]bool{}}
 	g := grid.DefaultGrids{}.Square(w, h, legCellSize)
-	profile := steering.Steering{MaxSpeed: float64(legCellSize * 2)}
+	profile := steering.Steering{MaxSpeed: float32(legCellSize * 2)}
 
 	var statesComp goke.OptComp[tag.Tags[unit.States]]
 	var orderComp goke.OptComp[MoveOrder]

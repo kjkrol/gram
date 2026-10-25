@@ -20,7 +20,7 @@ func TestRelief_KeepRoadsTakesBackWhatBreaksARoad(t *testing.T) {
 		brdW.SetWay(g.At(x, 1), cell.Way{Kind: road, Width: 6, Links: east | west})
 	}
 	r := New(brd, brdW.Touch)
-	lift := func(x, y float64) {
+	lift := func(x, y float32) {
 		r.KeepRoads(func() { r.Lift(geom.NewVec(x*32, y*32), 5, 0) })
 	}
 	lift(1, 1) // a corner under the road: one cell's ramp, the next's too, neither even

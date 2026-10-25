@@ -47,7 +47,7 @@ func (s *flatSource) Compose(f *render.Frame, cam camera.Camera) {
 		if s.slant != (k == 0) {
 			continue
 		}
-		box := plane.NewAABB(geom.NewVec(40030, 29960+float64(k)*60), 10, 10)
+		box := plane.NewAABB(geom.NewVec(40030, 29960+float32(k)*60), 10, 10)
 		s.look.(world.LyingLook).Lay(
 			f,
 			cam,

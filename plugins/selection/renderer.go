@@ -113,7 +113,7 @@ func (r *Renderer) Publish() {
 			}
 			e := highlit{box: bases[i].Pos.AABB.AABB, h: DefaultHighlight}
 			if zs != nil {
-				e.alt = float32(zs[i].Altitude)
+				e.alt = zs[i].Altitude
 			}
 			if apps != nil {
 				if st, ok := render.StyleOf[Highlight](styles, apps[i].SpriteID); ok {

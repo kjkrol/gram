@@ -17,10 +17,11 @@
 // system also pushes every movable collider out of the solid ground on its world.Layers and, with
 // heights, in its [Band]. A contact with the ground bounces off it as off an infinite mass and is
 // recorded as a [Contact] with Terrain set and the Cell; a sensor is told and never pushed. A
-// pair parted that still touches stays met, a [Contact] at rest (Resting) on both sides with no
-// impulse and no strike, until the two come apart. A
-// unit a hand drives (steering.Driven, the keys held or not) is never turned by a wall, only
-// slowed.
+// pair parted that still touches stays met, a [Contact] at rest (Resting) on both sides, leaving
+// by the face they touch at, with no impulse and no strike, until the two come apart. A unit a
+// hand drives (steering.Driven, the keys held or not) is never turned by a wall, only slowed.
+// What an impulse takes from a steered entity's speed stays taken: its steering.Course goes on
+// from what is left.
 //
 // A push apart never puts a collider further over ground that does not take it (water to a
 // walker, a hole; Field.Overhang): that side holds where it is and bounces as off the ground, the
@@ -53,10 +54,11 @@
 // [Collider] is all it takes to take part; it also holds what the entity struck the tick before
 // ([Collider.Contacts], at most [MaxContacts]). Two colliders touch only where their
 // world.Layers meet. [Physics] makes an entity pushed out of overlaps and bouncing, by Mass
-// (non-positive weighs [DefaultMass], +Inf is a wall) and Restitution; one without Physics is
-// only ever detected. Separation is always an even split. Collision brings a Collider and a
-// Physics to every unit through the world's roster; a game drops the Physics of a unit nothing
-// pushes with comp.Without.
+// (non-positive weighs the box's area, +Inf is a wall) and Restitution; one without Physics is
+// only ever detected. A push apart is shared by weight, the lighter side moved the further, a
+// wall and a side held over ground that does not take it not at all. Collision brings a Collider
+// and a Physics to every unit through the world's roster; a game drops the Physics of a unit
+// nothing pushes with comp.Without.
 //
 // # Meeting and Struck
 //

@@ -2,10 +2,10 @@ package bridges
 
 import (
 	"image/color"
-	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/render"
 )
@@ -62,7 +62,7 @@ func (r *renderer) Publish() {
 		if !h.marked {
 			continue
 		}
-		e := inHand{deck: float32(r.p.ground(h.t).level(h.from)), fill: standsFill,
+		e := inHand{deck: r.p.ground(h.t).level(h.from), fill: standsFill,
 			line: standsLine}
 		if !h.aimed || h.err != nil {
 			e.fill, e.line = refusedFill, refusedLine
@@ -72,7 +72,7 @@ func (r *renderer) Publish() {
 			e.cells[1] = r.outlined(b, h.to)
 			a, c := brd.CellCenter(h.from), brd.CellCenter(h.to)
 			d := geom.NewVec(c.X-a.X, c.Y-a.Y)
-			if length := math.Hypot(d.X, d.Y); length > 0 {
+			if length := f32.Hypot(d.X, d.Y); length > 0 {
 				half := h.t.spec.Width / 2
 				n := geom.NewVec(-d.Y/length*half, d.X/length*half)
 				e.span = [4]geom.Vec{
@@ -110,9 +110,9 @@ func (r *renderer) Compose(f *render.Frame, cam camera.Camera) {
 		}
 		var q render.Corners
 		for i, p := range h.span {
-			q[i][0], q[i][1] = cam.Project(float32(p.X), float32(p.Y), h.deck)
+			q[i][0], q[i][1] = cam.Project(p.X, p.Y, h.deck)
 		}
-		at := f.Lifted(float32(h.middle.X), float32(h.middle.Y), h.deck, handLift)
+		at := f.Lifted(h.middle.X, h.middle.Y, h.deck, handLift)
 		f.Quad(at, q, [4]color.RGBA{h.fill, h.fill, h.fill, h.fill})
 		for _, e := range [4][2]int{{0, 1}, {1, 3}, {3, 2}, {2, 0}} {
 			f.Line(at, q[e[0]][0], q[e[0]][1], q[e[1]][0], q[e[1]][1], 2, h.line)
@@ -122,11 +122,11 @@ func (r *renderer) Compose(f *render.Frame, cam camera.Camera) {
 
 func (r *renderer) cell(f *render.Frame, cam camera.Camera, outline []geom.Vec, mid geom.Vec,
 	deck float32, line color.RGBA) {
-	at := f.Lifted(float32(mid.X), float32(mid.Y), deck, handLift)
+	at := f.Lifted(mid.X, mid.Y, deck, handLift)
 	for i, p := range outline {
 		n := outline[(i+1)%len(outline)]
-		x0, y0 := cam.Project(float32(p.X), float32(p.Y), deck)
-		x1, y1 := cam.Project(float32(n.X), float32(n.Y), deck)
+		x0, y0 := cam.Project(p.X, p.Y, deck)
+		x1, y1 := cam.Project(n.X, n.Y, deck)
 		f.Line(at, x0, y0, x1, y1, 2, line)
 	}
 }

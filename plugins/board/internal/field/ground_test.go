@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/collide"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -46,7 +47,7 @@ func TestGround_AUnitPushedByAnotherStaysOutOfTheWall(t *testing.T) {
 		bw.AssertClear(tick, bw.Snapshot(), walls)
 	}
 	units := bw.Snapshot()
-	if start := float64(boardtest.CellSize) + (boardtest.CellSize-boardtest.UnitSize)/2; units[1].TopLeft.X < start+5 {
+	if start := float32(boardtest.CellSize) + (boardtest.CellSize-boardtest.UnitSize)/2; units[1].TopLeft.X < start+5 {
 		t.Errorf("the pusher never moved: %v behind %v", units[1], units[0])
 	}
 }
@@ -69,7 +70,7 @@ func TestGround_AHexIsCoveredAndKeepsAUnitOut(t *testing.T) {
 	}
 	units := bw.Snapshot()
 	center := grid.CellCenter(hex)
-	if units[0].BottomRight.X < center.X-math.Sqrt(3)/2*boardtest.CellSize-1 {
+	if units[0].BottomRight.X < center.X-f32.Sqrt(3)/2*boardtest.CellSize-1 {
 		t.Errorf("unit ends at %v, never reached the hex round %v", units[0], center)
 	}
 }
@@ -87,7 +88,7 @@ func TestGround_AGapKnockedInTheWallLetsAUnitThroughOnTheNextTick(t *testing.T) 
 	for range 90 {
 		bw.Tick()
 	}
-	if units := bw.Snapshot(); units[0].TopLeft.X < float64(4*boardtest.CellSize) {
+	if units := bw.Snapshot(); units[0].TopLeft.X < float32(4*boardtest.CellSize) {
 		t.Errorf("unit ends at %v, want it through the gap", units[0])
 	}
 	if got := bw.World.Res.Telemetry.Count; got != before || got != 1 {
@@ -152,7 +153,7 @@ func TestGround_ASolidCellWithNoVeilLetsSightThrough(t *testing.T) {
 	}
 }
 
-func forestColumn(grid grid.Grid, veil float64, solid bool) func(*board.BoardWrite) {
+func forestColumn(grid grid.Grid, veil float32, solid bool) func(*board.BoardWrite) {
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	return func(brd *board.BoardWrite) {
 		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
@@ -180,7 +181,7 @@ func TestGround_AFullyVeiledCellOnlyBlocksSight(t *testing.T) {
 	for range 90 {
 		walker.Tick()
 	}
-	if units := walker.Snapshot(); units[0].TopLeft.X < float64(4*boardtest.CellSize) {
+	if units := walker.Snapshot(); units[0].TopLeft.X < float32(4*boardtest.CellSize) {
 		t.Errorf("unit ends at %v, want it past the forest column", units[0])
 	}
 }
@@ -192,7 +193,7 @@ func TestGround_AVeilDimsSightByItsDepth(t *testing.T) {
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	forest := forestColumn(grid, 0.6, false)
 	target := boardtest.Mover{Here: cellAt(5, 7)}
-	look := func(radius float64, blockers world.Layers) uint8 {
+	look := func(radius float32, blockers world.Layers) uint8 {
 		observer := boardtest.Mover{Here: cellAt(1, 7), Sight: &vision.Sight{Facing: east, Radius: radius, Blockers: blockers}, Eye: world.Eye{Angle: 2 * math.Pi / 8}}
 		bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize, forest, []boardtest.Mover{observer, target})
 		bw.Tick()
@@ -238,7 +239,7 @@ func TestGround_AForestThatIsSolidAndVeiledStopsAndDimsUntilItIsCut(t *testing.T
 	if seen, _ := bw.Seen(); seen.Count != 1 {
 		t.Errorf("saw %d across the cut forest, want the target", seen.Count)
 	}
-	if units := bw.Snapshot(); units[2].TopLeft.X < float64(4*boardtest.CellSize) {
+	if units := bw.Snapshot(); units[2].TopLeft.X < float32(4*boardtest.CellSize) {
 		t.Errorf("the walker ends at %v, want it through where the forest stood", units[2])
 	}
 }
@@ -284,7 +285,7 @@ func TestGround_OpensOnlyTheSidesFacingGroundTheEntityMayStandOn(t *testing.T) {
 	bw, gap := boardtest.SquareWorld(t, boardtest.Mover{})
 	w := bw.World.Res.Config.Space.Width
 	var mid collision.FieldBox
-	bw.Board.Read(0).Cover().(collision.Field).Solid(world.Layers(cell.Land), collision.Everywhere, geom.NewAABBAt(geom.NewVec(0, 7*boardtest.CellSize), float64(w), boardtest.CellSize), func(fb collision.FieldBox) bool {
+	bw.Board.Read(0).Cover().(collision.Field).Solid(world.Layers(cell.Land), collision.Everywhere, geom.NewAABBAt(geom.NewVec(0, 7*boardtest.CellSize), float32(w), boardtest.CellSize), func(fb collision.FieldBox) bool {
 		if fb.Cell == uint64(gap) {
 			mid = fb
 		}
@@ -301,7 +302,7 @@ func TestGround_AVeiledHexCutsSightAcrossIt(t *testing.T) {
 	from := grid.At(0, 1)
 	to := grid.At(4, 1)
 	observer := boardtest.Mover{Here: from, Sight: &vision.Sight{Facing: east, Radius: 300}, Eye: world.Eye{Angle: 2 * math.Pi / 32}}
-	look := func(veil float64) uint8 {
+	look := func(veil float32) uint8 {
 		bw := boardtest.NewWorld(t, grid, 400, 200, func(brd *board.BoardWrite) {
 			brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 			brd.Set(hex, cell.Kind{Name: cell.Named("forest"), Cost: 1, Allows: cell.Land, Veil: veil})
@@ -332,7 +333,7 @@ func TestGround_AUnitPushedByAnotherHoldsAtTheWater(t *testing.T) {
 			brd.Set(cellAt(3, y), water)
 		}
 	}, []boardtest.Mover{{Here: cellAt(2, 7), Brakes: true}, {Here: cellAt(1, 7), Heading: east}, {Here: cellAt(1, 12), Brakes: true}})
-	shore := float64(3 * boardtest.CellSize)
+	shore := float32(3 * boardtest.CellSize)
 	for tick := range 120 {
 		bw.Tick()
 		if units := bw.Snapshot(); units[0].BottomRight.X > shore+1e-6 {

@@ -114,7 +114,7 @@ func (k *keptBoard) holders(c cell.ID) []uid.UID64 {
 func TestOccupancy_HoldsAUnitsCellOnTheLevelOfItsFeet(t *testing.T) {
 	k := newKeptBoard(t, [2]uint32{2, 1})
 	mid := k.g.At(2, 1)
-	standAt := func(alt float64) {
+	standAt := func(alt float32) {
 		k.each(func(_ uid.UID64, _ *world.Base, z *world.Z, _ *unit.At, _ *tag.Tags[unit.States]) {
 			z.Altitude = alt
 		})

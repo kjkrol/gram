@@ -2,7 +2,6 @@ package gravity
 
 import (
 	"fmt"
-	"github.com/kjkrol/gram/plugins/motion"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -14,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/gravity/internal/planar"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/uid"
@@ -42,7 +42,7 @@ type planeSystem struct {
 	normals []geom.Vec
 	walking struct {
 		ids    []uid.UID64
-		speeds []float64
+		speeds []float32
 	}
 	landingAt func(i int) Landing
 	landsAt   func(i int) bool
@@ -79,7 +79,7 @@ func (s *planeSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	if hosted {
 		t = s.tickOf.Of(d)
 	}
-	dt := d.Seconds()
+	dt := float32(d.Seconds())
 	for s.bodies.Paced(d); s.bodies.Next(); {
 		cur := s.bodies.Cursor()
 		bases, drifts, marks, colls := s.base.Slice(cur), s.drift.Slice(cur), s.marks.Slice(cur),

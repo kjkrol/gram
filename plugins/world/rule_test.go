@@ -25,7 +25,7 @@ import (
 type roles struct{}
 
 type spot struct {
-	x, vx  float64
+	x, vx  float32
 	bullet bool
 }
 
@@ -117,7 +117,7 @@ func (g *triggerStage) Stack() game.Scenes {
 	return g.stack
 }
 
-func (g *triggerStage) each(e effect.Effect, fn func(id uid.UID64, x float64, bullet bool, under bool)) {
+func (g *triggerStage) each(e effect.Effect, fn func(id uid.UID64, x float32, bullet bool, under bool)) {
 	for g.query.All(); g.query.Next(); {
 		cur := g.query.Cursor()
 		states, marks := g.states.Slice(cur), g.marks.Slice(cur)
@@ -161,7 +161,7 @@ func TestRule_PlayingNarrowsToTheRolesPlayers(t *testing.T) {
 		})
 	}
 	runTriggers(t, g, 300*time.Millisecond)
-	g.each(marked, func(_ uid.UID64, _ float64, bullet bool, under bool) {
+	g.each(marked, func(_ uid.UID64, _ float32, bullet bool, under bool) {
 		if under != bullet {
 			t.Errorf("the bullet %v is marked %v; want the bullet marked alone", bullet, under)
 		}
@@ -182,7 +182,7 @@ func TestRule_OnOtherActsOnWhomTheEntityMet(t *testing.T) {
 		})
 	}
 	runTriggers(t, g, 700*time.Millisecond)
-	g.each(marked, func(_ uid.UID64, _ float64, bullet bool, under bool) {
+	g.each(marked, func(_ uid.UID64, _ float32, bullet bool, under bool) {
 		if under == bullet {
 			t.Errorf("the bullet %v is marked %v; want the target marked alone", bullet, under)
 		}
@@ -220,7 +220,7 @@ func TestRule_OrdersCommands(t *testing.T) {
 	}
 	runTriggers(t, g, 200*time.Millisecond)
 	n := 0
-	g.each(effect.Effect{}, func(_ uid.UID64, _ float64, bullet bool, _ bool) {
+	g.each(effect.Effect{}, func(_ uid.UID64, _ float32, bullet bool, _ bool) {
 		n++
 		if bullet {
 			t.Error("the bullet is still in the world, want it despawned by its own command")
@@ -255,7 +255,7 @@ func TestRule_AnEffectsMarkerFiltersInAnotherPlugin(t *testing.T) {
 			})
 		}
 		runTriggers(t, g, 700*time.Millisecond)
-		g.each(burning, func(_ uid.UID64, _ float64, bullet bool, under bool) {
+		g.each(burning, func(_ uid.UID64, _ float32, bullet bool, under bool) {
 			if under != ignite {
 				t.Errorf("ignited %v: the bullet %v is burning %v; want %v", ignite, bullet, under, ignite)
 			}

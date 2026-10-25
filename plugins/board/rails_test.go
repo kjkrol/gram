@@ -1,7 +1,6 @@
 package board_test
 
 import (
-	"math"
 	"math/bits"
 	"testing"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -18,7 +18,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-func deckWorld(t *testing.T, width float64) (collision.Field, grid.Grid) {
+func deckWorld(t *testing.T, width float32) (collision.Field, grid.Grid) {
 	t.Helper()
 	g := grid.DefaultGrids{}.Square(5, 3, 10)
 	west, _ := grid.Direction(g, -1, 0)
@@ -152,7 +152,7 @@ func TestField_RailingsKeepAWalkerOnTheDeck(t *testing.T) {
 		t.Fatalf("a walker on the deck meets %d railings, want two edges of three cells", len(on))
 	}
 	for _, w := range on {
-		if w.A.Y != w.B.Y || math.Abs(w.A.Y-15) != 3 {
+		if w.A.Y != w.B.Y || f32.Abs(w.A.Y-15) != 3 {
 			t.Errorf("a railing from %v to %v, want it along y 12 or 18", w.A, w.B)
 		}
 		want := collide.Ends(0)
@@ -174,7 +174,7 @@ func TestField_RailingsKeepAWalkerOnTheDeck(t *testing.T) {
 
 func bitsOf(e collide.Ends) int { return bits.OnesCount8(uint8(e)) }
 
-func side(b geom.AABB) (float64, float64) {
+func side(b geom.AABB) (float32, float32) {
 	return b.BottomRight.X - b.TopLeft.X, b.BottomRight.Y - b.TopLeft.Y
 }
 
@@ -198,7 +198,7 @@ func TestField_OverWaterOnlyTheBandTakesAWalker(t *testing.T) {
 		name  string
 		field collision.Field
 		box   geom.AABB
-		want  float64
+		want  float32
 	}{
 		{"on the band", straight, geom.NewAABBAt(geom.NewVec(23, 13), 4, 4), 0},
 		{"pushed off its side", straight, geom.NewAABBAt(geom.NewVec(23, 17), 4, 4), 12},
@@ -206,7 +206,7 @@ func TestField_OverWaterOnlyTheBandTakesAWalker(t *testing.T) {
 		{"on a slantwise band's corner", slantwise, geom.NewAABBAt(geom.NewVec(18, 18), 4, 4), 0},
 		{"beside a slantwise band", slantwise, geom.NewAABBAt(geom.NewVec(10, 18), 2, 2), 4},
 	} {
-		if got := c.field.Overhang(land, c.box); math.Abs(got-c.want) > 1e-9 {
+		if got := c.field.Overhang(land, c.box); f32.Abs(got-c.want) > f32.Eps(c.want) {
 			t.Errorf("%s: overhang %v, want %v", c.name, got, c.want)
 		}
 	}

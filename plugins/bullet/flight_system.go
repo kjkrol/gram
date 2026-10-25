@@ -1,14 +1,14 @@
 package bullet
 
 import (
-	cgoke "github.com/kjkrol/ceremony/goke"
-	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
@@ -18,8 +18,6 @@ import (
 
 // landBack lays a shot short of the first touch, so its box overlaps nothing.
 const landBack = 0.01
-
-const edgeEps = 1e-6
 
 // rangeEps absorbs a step's rounding short of the Range.
 const rangeEps = 1e-3
@@ -124,7 +122,7 @@ func (s *flightSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 				cb.RemoveCompOne(id, s.sweepID)
 				cb.RemoveCompOne(id, s.collID)
 			case !f.Landed:
-				s.fly(f, bodies[i], &bases[i], sw, z, dt.Seconds())
+				s.fly(f, bodies[i], &bases[i], sw, z, float32(dt.Seconds()))
 			}
 		}
 		s.landings.RunWhere(t, s.landCols.Row(cur), len(cur.IDs), s.landsAt, s.landingAt)
@@ -161,7 +159,8 @@ func (s *flightSystem) struck(f *Flight, base *world.Base, sw *collision.Sweep, 
 	return true
 }
 
-func (s *flightSystem) fly(f *Flight, body Body, base *world.Base, sw *collision.Sweep, z *world.Z, dt float64) {
+func (s *flightSystem) fly(f *Flight, body Body, base *world.Base, sw *collision.Sweep, z *world.Z, dt float32,
+) {
 	run := min(body.Speed*dt, f.Range-f.Flown)
 	base.Vel.Dir = f.Dir // for a Turning look; Value stays 0, the flight moves it
 	if sw != nil {
@@ -178,7 +177,7 @@ func (s *flightSystem) fly(f *Flight, body Body, base *world.Base, sw *collision
 	switch {
 	case !in:
 		f.Ending = Left
-	case math.Abs(f.At.X-want.X) > edgeEps || math.Abs(f.At.Y-want.Y) > edgeEps:
+	case f32.Abs(f.At.X-want.X) > f32.Eps(want.X) || f32.Abs(f.At.Y-want.Y) > f32.Eps(want.Y):
 		f.Ending = Edge
 	case thrown && z.Altitude <= groundAt(s.groundOf, f.At):
 		z.Altitude = groundAt(s.groundOf, f.At)

@@ -26,6 +26,6 @@ func (m *randomVelocity) initialVelocity(index int) world.Velocity {
 	}
 
 	var vel world.Velocity
-	vel.SetDelta(geom.NewVec(float64(dx), float64(dy)))
+	vel.SetDelta(geom.NewVec(float32(dx), float32(dy)))
 	return vel
 }

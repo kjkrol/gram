@@ -15,11 +15,11 @@ const MaxContacts = 8
 // detected; Resting that the two, parted before, still touch: no push, no strike.
 type Contact struct {
 	Other   uid.UID64
-	Impact  float64
+	Impact  float32
 	Normal  geom.Vec
 	Terrain bool
 	Cell    uint64
-	Along   float64
+	Along   float32
 	Sensed  bool
 	Resting bool
 }

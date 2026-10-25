@@ -68,7 +68,7 @@ func standing(b *testing.B, bodies, bands bool) {
 				extra = append(extra, comp.Const(gravity.Body{}))
 			}
 			p.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-			topo.Write().Relief().SetHeights(ground.MeanOfCells(g, func(c cell.ID) float64 {
+			topo.Write().Relief().SetHeights(ground.MeanOfCells(g, func(c cell.ID) float32 {
 				if x, y, _ := g.Coords(c); (x/4+y/4)%2 == 0 {
 					return 12
 				}

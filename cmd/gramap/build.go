@@ -163,12 +163,12 @@ func (w *chart) rim(c cell.ID, i int) []int {
 }
 
 func (w *chart) corner(p geom.Vec) int {
-	return int(math.Round(p.Y/w.size))*(w.cols+1) + int(math.Round(p.X/w.size))
+	return int(math.Round(float64(p.Y)/w.size))*(w.cols+1) + int(math.Round(float64(p.X)/w.size))
 }
 
 // world units, in CellOutline's order
-func (w *chart) outline(c cell.ID) []float64 {
-	var heights []float64
+func (w *chart) outline(c cell.ID) []float32 {
+	var heights []float32
 	for _, p := range w.grid.CellOutline(c, nil) {
 		heights = append(heights, w.heights(p))
 	}
@@ -183,18 +183,18 @@ func (w *chart) level(c cell.ID) float64 {
 	return sum / 4
 }
 
-func (w *chart) heights(p geom.Vec) float64 {
-	x := min(max(int(math.Round(p.X/w.size)), 0), w.cols)
-	y := min(max(int(math.Round(p.Y/w.size)), 0), w.rows)
-	return w.corners[y*(w.cols+1)+x] / w.perUnit
+func (w *chart) heights(p geom.Vec) float32 {
+	x := min(max(int(math.Round(float64(p.X)/w.size)), 0), w.cols)
+	y := min(max(int(math.Round(float64(p.Y)/w.size)), 0), w.rows)
+	return float32(w.corners[y*(w.cols+1)+x] / w.perUnit)
 }
 
 func (w *chart) drain() error {
 	rv := w.r.Rivers
 	cellsOf := func(km2 float64) float64 { return km2 * 1e6 / (w.r.Area.Cell * w.r.Area.Cell) }
-	var rain func(float64) float64
+	var rain func(float32) float64
 	if rv.Rain > 0 {
-		rain = func(level float64) float64 { return 1 + level*w.perUnit/rv.Rain }
+		rain = func(level float32) float64 { return 1 + float64(level)*w.perUnit/rv.Rain }
 	}
 	n, err := water.Drain(w.grid, w.heights, func(c cell.ID) bool { return !w.isLand(c) },
 		water.Config{
@@ -202,13 +202,13 @@ func (w *chart) drain() error {
 			StreamAt:     cellsOf(rv.Stream),
 			RiverAt:      cellsOf(rv.River),
 			Rain:         rain,
-			BrookDepth:   rv.Depth[0] / w.perUnit,
-			StreamDepth:  rv.Depth[1] / w.perUnit,
-			RiverDepth:   rv.Depth[2] / w.perUnit,
+			BrookDepth:   float32(rv.Depth[0] / w.perUnit),
+			StreamDepth:  float32(rv.Depth[1] / w.perUnit),
+			RiverDepth:   float32(rv.Depth[2] / w.perUnit),
 			FordEvery:    rv.Ford.Every,
-			FordSlope:    rv.Ford.Slope,
-			WidthPerRoot: rv.Width,
-			Meander:      rv.Meander / w.perUnit,
+			FordSlope:    float32(rv.Ford.Slope),
+			WidthPerRoot: float32(rv.Width),
+			Meander:      float32(rv.Meander / w.perUnit),
 		})
 	if err != nil {
 		return err
@@ -217,8 +217,10 @@ func (w *chart) drain() error {
 	carved := n.Carved(w.heights)
 	for y := range w.rows + 1 {
 		for x := range w.cols + 1 {
-			p := geom.NewVec(float64(x)*w.size, float64(y)*w.size)
-			w.corners[y*(w.cols+1)+x] = carved(p) * w.perUnit
+			p := geom.NewVec(float32(float64(x)*w.size), float32(float64(y)*w.size))
+			if b := carved(p); b != w.heights(p) {
+				w.corners[y*(w.cols+1)+x] = float64(b) * w.perUnit
+			}
 		}
 	}
 	return nil

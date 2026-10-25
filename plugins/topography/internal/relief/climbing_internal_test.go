@@ -17,7 +17,7 @@ func reliefOf(cols, rows, size uint32) (*Relief, grid.Grid) {
 
 func TestClimb_ReadsTheSlopeOffTheCorners(t *testing.T) {
 	r, grid := reliefOf(3, 3, 10)
-	r.SetHeights(func(p geom.Vec) float64 { return 0.5 * p.X })
+	r.SetHeights(func(p geom.Vec) float32 { return 0.5 * p.X })
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	mid := at(1, 1)
 	for _, c := range []struct {

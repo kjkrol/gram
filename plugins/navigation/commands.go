@@ -1,10 +1,9 @@
 package navigation
 
 import (
-	"math"
-
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugin"
 )
 
@@ -31,7 +30,7 @@ func (Routes) Command() {}
 const clickSlop = 4
 
 func dragged(c control.Context) bool {
-	return math.Hypot(c.Cursor.X-c.Start.X, c.Cursor.Y-c.Start.Y) > clickSlop
+	return f32.Hypot(c.Cursor.X-c.Start.X, c.Cursor.Y-c.Start.Y) > clickSlop
 }
 
 // Queues are the queues of every command the plugin carries out, for the players plugin.
@@ -51,7 +50,7 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 			}
 			at, z, picked := c.Point(c.Cursor)
 			if !picked {
-				cell, ok := brd.CellFor(at, math.Inf(1), 0)
+				cell, ok := brd.CellFor(at, f32.Inf(1), 0)
 				return MoveTo{Cell: cell, At: at, Append: appendIt}, ok
 			}
 			cell, deck, ok := brd.LevelFor(at, z, pickReach)

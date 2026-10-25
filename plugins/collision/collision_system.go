@@ -1,17 +1,17 @@
 package collision
 
 import (
-	cgoke "github.com/kjkrol/ceremony/goke"
 	"log"
-	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/collide"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/collision/internal/response"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
@@ -63,6 +63,7 @@ type collisionSystem struct {
 	lookupZ        goke.OptComp[world.Z]
 	lookupSweep    goke.OptComp[Sweep]
 	lookupDriven   goke.OptComp[steering.Driven]
+	lookupCourse   goke.OptComp[steering.Course]
 	lookupHot      bool
 
 	pair     pairSides
@@ -108,7 +109,7 @@ type prior struct {
 
 type handler collisionSystem
 
-func (h *handler) Touch(a, b uid.UID64, pen geom.Vec) (geom.Vec, bool) {
+func (h *handler) Touch(a, b uid.UID64, pen geom.Vec) (geom.Vec, float32, bool) {
 	return (*collisionSystem)(h).resolve(a, b, pen)
 }
 func (h *handler) Contact(_, _ uid.UID64, pen geom.Vec) { (*collisionSystem)(h).contact(pen) }
@@ -131,7 +132,7 @@ type solidField struct {
 
 	swept          bool
 	from, to, half geom.Vec
-	along          float64
+	along          float32
 	normal         geom.Vec
 	inner          func(collide.FieldBox) bool
 	hit            func(collide.FieldBox) bool // the method value, bound once
@@ -139,7 +140,7 @@ type solidField struct {
 	held       bool
 	stopped    bool
 	best       collide.FieldBox
-	bestAlong  float64
+	bestAlong  float32
 	bestNormal geom.Vec
 
 	innerWall func(collide.FieldWall) bool
@@ -257,7 +258,7 @@ func newCollisionSystem(space *aabbworld.Space, between *host.PairRules[Meeting]
 	d := &collisionSystem{space: space, between: between, each: each, fieldOf: fieldOf}
 	d.met = make(map[restingPair]struct{}, 256)
 	d.struckAt, d.hitAt = d.struck, d.hit
-	d.ground.physics = Physics{Mass: math.Inf(1)}
+	d.ground.physics = Physics{Mass: f32.Inf(1)}
 	d.field.d = d
 	d.field.hit = d.field.segment
 	d.field.hitWall = d.field.segmentWall
@@ -289,7 +290,8 @@ func (d *collisionSystem) Init(si *goke.SysInit) {
 		Build()
 
 	seek := si.NewQueryBuilder(&d.lookupBase, &d.lookupCollider).
-		Optional(&d.lookupPhysics, &d.lookupLayers, &d.lookupZ, &d.lookupSweep, &d.lookupDriven)
+		Optional(&d.lookupPhysics, &d.lookupLayers, &d.lookupZ, &d.lookupSweep, &d.lookupDriven).
+		Optional(&d.lookupCourse)
 	d.seekCols = cgoke.NewColumns(seek)
 	d.between.Bind(d.seekCols)
 	d.lookup = seek.Build()
@@ -481,7 +483,7 @@ func (d *collisionSystem) rest() {
 		if d.heights && !a.Band.Meets(b.Band) {
 			continue
 		}
-		normal := between(b.Base, a.Base)
+		normal := faceOf(b.Base, a.Base)
 		a.Collider.add(Contact{Other: b.Entity, Normal: normal, Along: 1, Resting: true})
 		b.Collider.add(Contact{Other: a.Entity, Normal: geom.NewVec(-normal.X, -normal.Y),
 			Along: 1, Resting: true})
@@ -497,9 +499,9 @@ type pairSides struct {
 	A, B         contactSide
 	tagsA, tagsB host.Marks
 
-	impact float64
+	impact float32
 	normal geom.Vec
-	along  float64 // where along a swept side's step, 1 for none swept
+	along  float32 // where along a swept side's step, 1 for none swept
 	// a held side stays where it is: the push would put it over ground that does not take it
 	holdA, holdB bool
 }
@@ -527,7 +529,7 @@ type pendingContact struct {
 type nearest struct {
 	id    uid.UID64
 	at    int
-	along float64
+	along float32
 }
 
 type contactSide struct {
@@ -539,68 +541,80 @@ type contactSide struct {
 	Band     Band
 	Sweep    *Sweep
 	Steered  bool
+	Course   *steering.Course
 }
 
 func (s contactSide) side() response.Side {
-	return response.Side{
-		InvMass: s.Physics.inverseMass(),
+	side := response.Side{
+		InvMass: s.Physics.inverseMass(s.Base.Pos.Size),
 		Bounce:  s.Physics.bounce(),
 		Vel:     &s.Base.Vel,
 		Steered: s.Steered,
 	}
+	if s.Course != nil {
+		side.Speed = &s.Course.Speed
+	}
+	return side
 }
 
 func (s contactSide) body() response.Body {
 	return response.Body{Layers: s.Layers, Box: s.Base.Pos.AABB.AABB, Immovable: s.Physics.immovable()}
 }
 
-func (d *collisionSystem) resolve(a, b uid.UID64, pen geom.Vec) (geom.Vec, bool) {
+// the share is a's part of the push apart; a pair with a swept side is never pushed
+func (d *collisionSystem) resolve(a, b uid.UID64, pen geom.Vec) (geom.Vec, float32, bool) {
 	sideA, tagsA, ok := d.side(a)
 	if !ok {
-		return pen, false
+		return pen, 0.5, false
 	}
 	sideB, tagsB, ok := d.side(b)
 	if !ok {
-		return pen, false
+		return pen, 0.5, false
 	}
 	if !sideA.Layers.Meets(sideB.Layers) || !sideA.Band.Meets(sideB.Band) {
-		return pen, false
+		return pen, 0.5, false
 	}
 	d.pair = pairSides{A: sideA, B: sideB, tagsA: tagsA, tagsB: tagsB, along: 1}
 	if sideA.Sweep == nil && sideB.Sweep == nil {
-		return d.footing(pen), true
+		return pen, d.footing(pen), true
 	}
 	if sideA.Sweep != nil && sideB.Sweep != nil {
-		return pen, false
+		return pen, 0.5, false
 	}
 	mover, other, moverIsA := sideA, sideB, true
 	if sideB.Sweep != nil {
 		mover, other, moverIsA = sideB, sideA, false
 	}
 	if mover.Sweep.Ignoring && mover.Sweep.Ignore == other.Entity {
-		return pen, false
+		return pen, 0.5, false
 	}
 	along, normal, hit := response.Sweep(mover.Sweep.From, mover.Base.Pos.Center(),
 		halfOf(mover.Base.Pos), d.before(other.Entity))
 	if !hit {
-		return pen, false
+		return pen, 0.5, false
 	}
 	d.pair.along = along
 	if !moverIsA {
 		normal = geom.NewVec(-normal.X, -normal.Y)
 	}
-	return geom.NewVec(normal.X*sweptPen, normal.Y*sweptPen), true
+	return geom.NewVec(normal.X*sweptPen, normal.Y*sweptPen), 0.5, true
 }
 
-func (d *collisionSystem) footing(pen geom.Vec) geom.Vec {
+// a's part of the push apart by weight, none for a side it would put over worse ground
+func (d *collisionSystem) footing(pen geom.Vec) float32 {
 	p := &d.pair
-	if d.field.field == nil || p.detectOnly() {
-		return pen
+	if p.detectOnly() {
+		return 0.5
+	}
+	share := response.Share(p.A.Physics.inverseMass(p.A.Base.Pos.Size),
+		p.B.Physics.inverseMass(p.B.Base.Pos.Size))
+	if d.field.field == nil {
+		return share
 	}
 	a, b := p.A.body(), p.B.body()
 	a.Box, b.Box = d.before(p.A.Entity), d.before(p.B.Entity)
-	pen, p.holdA, p.holdB = response.Footing(d.field.field, a, b, pen)
-	return pen
+	share, p.holdA, p.holdB = response.Footing(d.field.field, a, b, pen, share)
+	return share
 }
 
 func (d *collisionSystem) side(id uid.UID64) (contactSide, host.Marks, bool) {
@@ -618,6 +632,7 @@ func (d *collisionSystem) side(id uid.UID64) (contactSide, host.Marks, bool) {
 		// a hand's unit keeps its heading, the keys held or not; one under orders glances
 		// along a wall, as navigation needs to come round its end
 		Steered: d.lookupDriven.At(cur) != nil,
+		Course:  d.lookupCourse.At(cur),
 	}
 	if s.Sweep = d.lookupSweep.At(cur); s.Sweep != nil {
 		s.Physics = nil
@@ -654,7 +669,7 @@ func (d *collisionSystem) contact(pen geom.Vec) {
 	sides := d.pair
 
 	normal, aligned := response.Normal(pen)
-	var impact float64
+	var impact float32
 	if aligned && !sides.detectOnly() {
 		a, b := sides.A, sides.B
 		if sides.holdA {
@@ -676,7 +691,7 @@ func (d *collisionSystem) contactGround(id uid.UID64, cell uint64, pen geom.Vec)
 	}
 	ground := contactSide{Base: &d.ground.base, Physics: &d.ground.physics}
 	normal, aligned := response.Normal(pen)
-	var impact float64
+	var impact float32
 	if aligned && self.Physics != nil {
 		impact = bounce(self, ground, normal)
 	}
@@ -745,15 +760,28 @@ func (d *collisionSystem) moved(id uid.UID64, box plane.AABB) {
 	}
 }
 
-func bounce(a, b contactSide, normal geom.Vec) float64 {
+func bounce(a, b contactSide, normal geom.Vec) float32 {
 	return response.Exchange(a.side(), b.side(), normal)
+}
+
+// faceOf is the way from a to b along the axis they touch on, as a struck pair's normal is; not
+// the line between their middles, which a small box off the middle of a big one's face slants
+func faceOf(a, b *world.Base) geom.Vec {
+	ba, bb := a.Pos.AABB.AABB, b.Pos.AABB.AABB
+	gapX := max(ba.TopLeft.X-bb.BottomRight.X, bb.TopLeft.X-ba.BottomRight.X)
+	gapY := max(ba.TopLeft.Y-bb.BottomRight.Y, bb.TopLeft.Y-ba.BottomRight.Y)
+	ca, cb := a.Pos.Center(), b.Pos.Center()
+	if gapX >= gapY {
+		return geom.NewVec(f32.Copysign(1, cb.X-ca.X), 0)
+	}
+	return geom.NewVec(0, f32.Copysign(1, cb.Y-ca.Y))
 }
 
 // the unit vector from a's middle to b's; zero for one middle
 func between(a, b *world.Base) geom.Vec {
 	ca, cb := a.Pos.Center(), b.Pos.Center()
 	dx, dy := cb.X-ca.X, cb.Y-ca.Y
-	l := math.Hypot(dx, dy)
+	l := f32.Hypot(dx, dy)
 	if l == 0 {
 		return geom.Vec{}
 	}

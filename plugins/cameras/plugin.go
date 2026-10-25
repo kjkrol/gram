@@ -173,7 +173,7 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 // a camera of the plugin's, seeing as far as it is told
 type seeing interface {
 	SetDetail(d camera.Detail)
-	See(factor float64)
+	See(factor float32)
 }
 
 // fitsWhole reports whether cam keeps the whole world in view: a minimap's

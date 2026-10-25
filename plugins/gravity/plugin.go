@@ -2,7 +2,6 @@ package gravity
 
 import (
 	"fmt"
-	"github.com/kjkrol/gram/plugins/motion"
 	"time"
 
 	"github.com/kjkrol/ceremony/command"
@@ -12,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/ground"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 )
 

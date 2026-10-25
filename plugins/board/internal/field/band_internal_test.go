@@ -1,11 +1,11 @@
 package field
 
 import (
-	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/collide"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/terrain"
@@ -13,7 +13,8 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-func bandWorld(t *testing.T, height float64, level func(cell.ID) float64) (*Field, func(x uint32) cell.ID) {
+func bandWorld(t *testing.T, height float32, level func(cell.ID) float32,
+) (*Field, func(x uint32) cell.ID) {
 	t.Helper()
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)
@@ -36,7 +37,7 @@ func solid(f *Field, band collision.Band) map[uint64]collide.Sides {
 }
 
 func TestBand_ASolidCellStandsFromBelowUpToItsHeight(t *testing.T) {
-	flat := func(cell.ID) float64 { return 0 }
+	flat := func(cell.ID) float32 { return 0 }
 	f, cellAt := bandWorld(t, 10, flat)
 	if got := solid(f, collision.Band{Bottom: 0, Top: 20}); len(got) != 2 {
 		t.Errorf("a walker on the ground: %d solid cells, want the two of the wall", len(got))
@@ -48,7 +49,7 @@ func TestBand_ASolidCellStandsFromBelowUpToItsHeight(t *testing.T) {
 		t.Errorf("one of no height: %d solid cells, want the two of the wall", len(got))
 	}
 
-	raised := func(c cell.ID) float64 {
+	raised := func(c cell.ID) float32 {
 		if c == cellAt(3) || c == cellAt(4) {
 			return 12
 		}
@@ -72,7 +73,7 @@ func TestBand_ASolidCellStandsFromBelowUpToItsHeight(t *testing.T) {
 	if f.solidBand(cellAt(3), 0) != collision.Everywhere {
 		t.Error("a wall of no height stands at every height")
 	}
-	if got := f.solidBand(cellAt(3), 10); got.Bottom != math.Inf(-1) || got.Top != 10 {
+	if got := f.solidBand(cellAt(3), 10); got.Bottom != f32.Inf(-1) || got.Top != 10 {
 		t.Errorf("a wall of 10 on the flat spans %v, want from below up to 10", got)
 	}
 }
@@ -80,7 +81,7 @@ func TestBand_ASolidCellStandsFromBelowUpToItsHeight(t *testing.T) {
 func TestBand_ASideIsOpenTowardsANeighbourUnderTheEntity(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)
-	f := newField(grid, cells, func(cell.ID) float64 { return 0 })
+	f := newField(grid, cells, func(cell.ID) float32 { return 0 })
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	cellAt := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
 	cells.Set(cellAt(3), cell.Kind{Name: cell.Named("low"), Cost: 1, Solid: true, Height: 10})
@@ -102,7 +103,7 @@ func TestBand_ASideIsOpenTowardsANeighbourUnderTheEntity(t *testing.T) {
 func TestBand_AFlatWorldHasEveryCellEverywhere(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)
-	f := newField(grid, cells, func(cell.ID) float64 { return 0 })
+	f := newField(grid, cells, func(cell.ID) float32 { return 0 })
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	cellAt := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
 	cells.Set(cellAt(3), cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true})

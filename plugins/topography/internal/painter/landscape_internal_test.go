@@ -2,12 +2,12 @@ package painter
 
 import (
 	"image/color"
-	"math"
 	"strings"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -31,9 +31,9 @@ func (m testMap) Top(c cell.ID) (corners [4]float32, level float32) {
 	t := m.d.topOf(c)
 	return t.z, t.alt
 }
-func (testMap) Climb(cell.ID, cell.ID, cell.Domain) float64   { return 1 }
-func (testMap) Least(cell.Domain) float64                     { return 1 }
-func (testMap) Slope(geom.Vec, geom.Vec, cell.Domain) float64 { return 1 }
+func (testMap) Climb(cell.ID, cell.ID, cell.Domain) float32   { return 1 }
+func (testMap) Least(cell.Domain) float32                     { return 1 }
+func (testMap) Slope(geom.Vec, geom.Vec, cell.Domain) float32 { return 1 }
 
 // one a board, so a board's heights and its Painter meet on the same relief
 var (
@@ -150,10 +150,10 @@ func TestBake_RunningWaterRunsDownItsSlopeAndNotIntoItsBanks(t *testing.T) {
 	brdW.Set(g.At(0, 1), styled(st, cell.Kind{Name: cell.Named("k2"), Allows: cell.Water,
 		SpriteID: 2}, Style{Shine: 1}))
 	// falling 0.4 southward, the banks rising half as fast away from the stream
-	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 40 - 0.4*p.Y + 0.5*math.Abs(p.X-48) })
+	reliefFor(brd).SetHeights(func(p geom.Vec) float32 { return 40 - 0.4*p.Y + 0.5*f32.Abs(p.X-48) })
 	d := New(brd, fixed(reliefFor(brd)), true, st)
 	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 2: blue}), 32)
-	south := 0.5 + 10*math.Sqrt(0.4)/(2*water.FlowSpan)
+	south := 0.5 + 10*f32.Sqrt(0.4)/(2*water.FlowSpan)
 	if f := b.waterAt(water.FlowLayer, 49, 49); !close(f, color.RGBA{128,
 		uint8(south*255 + 0.5), 255, 255}, 2) {
 		t.Errorf("the stream flows %v, want south, down the valley, not into a bank", f)
@@ -173,7 +173,7 @@ func TestBake_AWayStraightAcrossIsOneBandFromSideToSide(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(3, 3, 32)
 	brd, brdW := newBoard(g)
 	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
-	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 40 - 0.5*p.X }) // falling east
+	reliefFor(brd).SetHeights(func(p geom.Vec) float32 { return 40 - 0.5*p.X }) // falling east
 	stream := styled(st, cell.Kind{Name: cell.Named("k3"), Allows: cell.Land | cell.Water,
 		SpriteID: 2}, Style{Shine: 1, Flow: 10})
 	west, east := cell.Links(1<<2), cell.Links(1<<3)
@@ -190,7 +190,7 @@ func TestBake_AWayStraightAcrossIsOneBandFromSideToSide(t *testing.T) {
 			t.Errorf("at %v, %v the albedo is %v, want %v", c.x, c.y, got, c.want)
 		}
 	}
-	run := 0.5 + 10*math.Sqrt(0.5)/(2*water.FlowSpan)
+	run := 0.5 + 10*f32.Sqrt(0.5)/(2*water.FlowSpan)
 	if f := b.waterAt(water.FlowLayer, 49, 49); !close(f, color.RGBA{uint8(run*255 + 0.5), 128,
 		255, 255}, 2) {
 		t.Errorf("the way's water flows %v, want east, down the slope", f)
@@ -244,8 +244,8 @@ func TestBake_AWayFadingOutShowsLessAndRunsOnTheWayItFades(t *testing.T) {
 	}
 	// level water runs on the way the way fades: east
 	f := b.waterAt(water.FlowLayer, 49, 17)
-	if run := float64(f.R) / float64(f.B); f.B == 0 ||
-		math.Abs(run-(0.5+40*0.1/(2*water.FlowSpan))) > 0.02 {
+	if run := float32(f.R) / float32(f.B); f.B == 0 ||
+		f32.Abs(run-(0.5+40*0.1/(2*water.FlowSpan))) > 0.02 {
 		t.Errorf("the fading way's water flows %v, want east at %v", f, 40*0.1)
 	}
 }
@@ -380,7 +380,7 @@ func TestTile_AShinyCellShines(t *testing.T) {
 		d := New(brd, fixed(reliefFor(brd)), heights, st)
 		d.Above()
 		s, ok := d.cellTile(sea).Shine()
-		if ok != heights || heights && math.Abs(float64(s-0.8)) > 1e-6 {
+		if ok != heights || heights && f32.Abs(float32(s-0.8)) > 1e-6 {
 			t.Errorf("with heights %v the sea shines %v, %v; want its kind's 0.8 in relief alone",
 				heights, s, ok)
 		}
@@ -569,7 +569,7 @@ func TestPainter_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
 	for y := uint32(1); y < 4; y++ {
 		brdW.SetWay(g.At(2, y), cell.Way{Kind: river, Width: 8, Links: cell.Links(1<<0 | 1<<1)})
 	}
-	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 40 - p.Y/4 }) // falling south
+	reliefFor(brd).SetHeights(func(p geom.Vec) float32 { return 40 - p.Y/4 }) // falling south
 	d := New(brd, fixed(reliefFor(brd)), true, st)
 	_, sheet, _, wpx := d.Surface(solids(map[render.SpriteID]color.RGBA{1: green, 2: blue,
 		3: brown}))
@@ -654,7 +654,7 @@ func TestShores_FollowTheShineNotTheRelief(t *testing.T) {
 		t.Errorf("a corner four cells from the land holds %v, want open water", c)
 	}
 	_, _, v := d.Shores(nil)
-	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return p.X / 8 })
+	reliefFor(brd).SetHeights(func(p geom.Vec) float32 { return p.X / 8 })
 	if _, _, w := d.Shores(nil); w != v {
 		t.Error("the ground raised moved the coast")
 	}
@@ -665,4 +665,4 @@ func TestShores_FollowTheShineNotTheRelief(t *testing.T) {
 	}
 }
 
-func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
+func near(a, b float32) bool { return f32.Abs(float32(a-b)) < 1e-3 }

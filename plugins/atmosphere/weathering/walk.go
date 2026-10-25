@@ -101,11 +101,11 @@ func (s *system) walk(d time.Duration) {
 			if (s.walked+s.walks)%anew == 0 || s.walks == 0 {
 				s.heights[s.walked] = 0
 				if heights != nil {
-					s.heights[s.walked] = float32(heights.At(p))
+					s.heights[s.walked] = heights.At(p)
 				}
-				s.bases[s.walked], _ = s.air.LowBand(float32(p.X), float32(p.Y))
+				s.bases[s.walked], _ = s.air.LowBand(p.X, p.Y)
 			}
-			s.w.land.Note(float32(p.X), float32(p.Y), s.heights[s.walked], wrings[i].Falls,
+			s.w.land.Note(p.X, p.Y, s.heights[s.walked], wrings[i].Falls,
 				wrings[i].Gathers)
 			s.walked++
 			s.to++
@@ -128,7 +128,7 @@ func (s *system) walk(d time.Duration) {
 func (s *system) overhead(i int) Overhead {
 	c := s.plots[i].Cell
 	p := s.w.board.Read(0).Board().CellCenter(c)
-	m := s.air.At(float32(p.X), float32(p.Y))
+	m := s.air.At(p.X, p.Y)
 	o := Overhead{ID: s.ids[i], Cell: c, Air: m, Low: s.air.Share(m, air.Low).Cover, Hour: s.hour}
 	if k := s.at + i - s.from; s.bases[k] > 0 {
 		o.Reach = s.heights[k] / s.bases[k]

@@ -30,7 +30,7 @@ func (*button) place(e *Element, box geom.AABB) { e.children[0].lay(box) }
 
 func (*button) draw(*Element, *render.Image) {}
 
-func (*button) needs(e *Element) (w, h float64) { return e.children[0].needs() }
+func (*button) needs(e *Element) (w, h float32) { return e.children[0].needs() }
 
 func (b *button) press(s *Scene, _ *Element, _ geom.Vec, about uid.UID64, pinned bool) {
 	for _, cmd := range b.cmds {

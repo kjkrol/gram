@@ -1,10 +1,10 @@
 package terrain
 
 import (
-	"math"
 	"math/bits"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/grids"
@@ -19,7 +19,7 @@ type Deck struct {
 }
 
 // RailHalf is half how thick a railing along a band is on a grid of cells span wide.
-func RailHalf(span float32) float64 { return float64(span) / 32 }
+func RailHalf(span float32) float32 { return span / 32 }
 
 func banded(b *cell.Built) bool {
 	return b != nil && b.Floor.Allows != 0 && b.Floor.Width > 0 && b.Floor.Links != 0
@@ -48,10 +48,10 @@ func (t *Cells) inBand(f cell.Floor, q geom.Vec) bool {
 			continue
 		}
 		s := t.grid.Step(i)
-		l := math.Hypot(s.X, s.Y)
+		l := f32.Hypot(s.X, s.Y)
 		ux, uy := s.X/l, s.Y/l
 		along := q.X*ux + q.Y*uy
-		if along >= 0 && along <= l/2 && math.Abs(q.Y*ux-q.X*uy) <= half {
+		if along >= 0 && along <= l/2 && f32.Abs(q.Y*ux-q.X*uy) <= half {
 			return true
 		}
 	}
@@ -60,28 +60,28 @@ func (t *Cells) inBand(f cell.Floor, q geom.Vec) bool {
 
 // BandArea is how much of r the band f runs as covers, the middle of its cell at m. The round of
 // its middle is left out: a head's tile takes whoever comes onto the bridge.
-func (rd *Read) BandArea(f cell.Floor, m geom.Vec, r geom.AABB) float64 {
+func (rd *Read) BandArea(f cell.Floor, m geom.Vec, r geom.AABB) float32 {
 	t := rd.t
-	var area float64
+	var area float32
 	for i := range t.grid.Directions() {
 		if !f.Links.Has(i) {
 			continue
 		}
 		s := t.grid.Step(i)
-		l := math.Hypot(s.X, s.Y)
+		l := f32.Hypot(s.X, s.Y)
 		area += stripArea(r, m, geom.NewVec(s.X/l, s.Y/l), l/2, f.Width/2)
 	}
 	return area
 }
 
-func stripArea(r geom.AABB, o, u geom.Vec, long, half float64) float64 {
+func stripArea(r geom.AABB, o, u geom.Vec, long, half float32) float32 {
 	var in, out [8]geom.Vec
 	in[0] = geom.NewVec(r.TopLeft.X-o.X, r.TopLeft.Y-o.Y)
 	in[1] = geom.NewVec(r.BottomRight.X-o.X, r.TopLeft.Y-o.Y)
 	in[2] = geom.NewVec(r.BottomRight.X-o.X, r.BottomRight.Y-o.Y)
 	in[3] = geom.NewVec(r.TopLeft.X-o.X, r.BottomRight.Y-o.Y)
 	n := 4
-	for _, h := range [4]struct{ x, y, d float64 }{
+	for _, h := range [4]struct{ x, y, d float32 }{
 		{-u.X, -u.Y, 0},
 		{u.X, u.Y, long},
 		{-u.Y, u.X, half},
@@ -106,12 +106,12 @@ func stripArea(r geom.AABB, o, u geom.Vec, long, half float64) float64 {
 			return 0
 		}
 	}
-	var twice float64
+	var twice float32
 	for i := range n {
 		p, q := in[i], in[(i+1)%n]
 		twice += p.X*q.Y - q.X*p.Y
 	}
-	return math.Abs(twice) / 2
+	return f32.Abs(twice) / 2
 }
 
 // DecksOver calls visit with the floors over p in c, till it returns false: c's own — the whole
@@ -250,10 +250,10 @@ func (r *Read) railCrosses(c cell.ID, b *cell.Built, off, s geom.Vec, d cell.Dom
 	if _, through, _ := r.t.run(b.Floor); !ok || !through {
 		return false
 	}
-	l := math.Hypot(e.X-a.X, e.Y-a.Y)
+	l := f32.Hypot(e.X-a.X, e.Y-a.Y)
 	half := b.Floor.Width / 2
 	nx, ny := -(e.Y-a.Y)/l*half, (e.X-a.X)/l*half
-	for _, side := range [2]float64{-1, 1} {
+	for _, side := range [2]float32{-1, 1} {
 		ra := geom.NewVec(a.X+side*nx, a.Y+side*ny)
 		rb := geom.NewVec(e.X+side*nx, e.Y+side*ny)
 		if crosses(geom.Vec{}, s, ra, rb) {
@@ -295,15 +295,15 @@ func (r *Read) Fenced(from, to cell.ID, d cell.Domain, deck bool) bool {
 
 // an end of the railing counts: where two railings join, each ends on the step
 func crosses(p, q, a, b geom.Vec) bool {
-	side := func(o, e, x geom.Vec) float64 { return (e.X-o.X)*(x.Y-o.Y) - (e.Y-o.Y)*(x.X-o.X) }
+	side := func(o, e, x geom.Vec) float32 { return (e.X-o.X)*(x.Y-o.Y) - (e.Y-o.Y)*(x.X-o.X) }
 	return side(p, q, a)*side(p, q, b) <= 0 && side(a, b, p)*side(a, b, q) < 0
 }
 
 // p may lie in c anywhere round a wrapping square grid
 func (t *Cells) local(c cell.ID, p geom.Vec) geom.Vec {
 	if sq, ok := t.grid.(*grids.Square); ok {
-		size := float64(sq.CellSize)
-		x, y := math.Floor(p.X/size), math.Floor(p.Y/size)
+		size := float32(sq.CellSize)
+		x, y := f32.Floor(p.X/size), f32.Floor(p.Y/size)
 		if in, ok := sq.Fold(int64(x), int64(y)); ok && in == c {
 			return geom.NewVec(p.X-(x+0.5)*size, p.Y-(y+0.5)*size)
 		}
@@ -316,9 +316,9 @@ func (t *Cells) local(c cell.ID, p geom.Vec) geom.Vec {
 // runs along it: the narrower of the two less its railings keeping d off, +Inf where no band
 // narrows the step. A raised band counts on the decks' level, deck, one lying on the ground on
 // the ground's.
-func (r *Read) Lane(from, to cell.ID, d cell.Domain, deck bool) float64 {
+func (r *Read) Lane(from, to cell.ID, d cell.Domain, deck bool) float32 {
 	t := r.t
-	lane := math.Inf(1)
+	lane := f32.Inf(1)
 	if t.bands == 0 || r.store == nil {
 		return lane
 	}

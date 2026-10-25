@@ -1,10 +1,10 @@
 package field
 
 import (
-	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/terrain"
@@ -14,30 +14,30 @@ import (
 func TestField_TheCoverFollowsEveryChangeOfACell(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)
-	f := newField(grid, cells, func(cell.ID) float64 { return 0 })
+	f := newField(grid, cells, func(cell.ID) float32 { return 0 })
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	forest := cell.Kind{Cost: 1, Allows: cell.Land, Veil: 0.5, Veils: cell.Land}
 	c3 := grid.At(3, 0)
 	c6 := grid.At(6, 0)
 	cells.Set(c3, forest)
-	walk := func() (stretches [][2]float64) {
-		f.Walk(geom.NewVec(0, 5), geom.NewVec(1, 0), 80, world.Layers(cell.Land), func(near, far, _, _, tau float64) bool {
-			stretches = append(stretches, [2]float64{near, far})
+	walk := func() (stretches [][2]float32) {
+		f.Walk(geom.NewVec(0, 5), geom.NewVec(1, 0), 80, world.Layers(cell.Land), func(near, far, _, _, tau float32) bool {
+			stretches = append(stretches, [2]float32{near, far})
 			return true
 		})
 		return stretches
 	}
-	if got := walk(); len(got) != 1 || got[0] != [2]float64{30, 40} {
+	if got := walk(); len(got) != 1 || got[0] != [2]float32{30, 40} {
 		t.Fatalf("walked through %v, want the forest cell from 30 to 40", got)
 	}
 	cells.Set(c6, forest)
-	if got := walk(); len(got) != 2 || got[1] != [2]float64{60, 70} {
+	if got := walk(); len(got) != 2 || got[1] != [2]float32{60, 70} {
 		t.Errorf("walked through %v after a second forest, want it from 60 to 70 too", got)
 	}
 }
 
 // a field kept by the cells as they change, as a board keeps its own
-func newField(g grid.Grid, cells *terrain.Cells, altitude func(cell.ID) float64) *Field {
+func newField(g grid.Grid, cells *terrain.Cells, altitude func(cell.ID) float32) *Field {
 	f := New(g, cells.Read(), altitude)
 	cells.Notify(f.Veil, f.Veils)
 	return f
@@ -50,16 +50,16 @@ func TestGround_OverhangIsTheAreaOverGroundThatDoesNotTakeTheEntity(t *testing.T
 	grid := grid.DefaultGrids{}.Square(4, 4, size)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	cells := terrain.New(grid)
-	f := newField(grid, cells, func(cell.ID) float64 { return 0 })
+	f := newField(grid, cells, func(cell.ID) float32 { return 0 })
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	cells.Set(cellAt(2, 1), water)
-	edge := float64(2 * size)
+	edge := float32(2 * size)
 	box := geom.NewAABBAt(geom.NewVec(edge-6, size+2), 10, 10) // 4 of its 10 across over the water
 	for _, c := range []struct {
 		layers world.Layers
-		want   float64
+		want   float32
 	}{{world.Layers(cell.Land), 40}, {world.Layers(cell.Water), 60}, {world.Layers(cell.Land | cell.Water), 0}, {0, 0}} { // no layers: every plane
-		if got := f.Overhang(c.layers, box); math.Abs(got-c.want) > 1e-9 {
+		if got := f.Overhang(c.layers, box); f32.Abs(got-c.want) > f32.Eps(c.want) {
 			t.Errorf("layers %v: overhang %v, want %v", c.layers, got, c.want)
 		}
 	}
@@ -71,7 +71,7 @@ func TestGround_OverhangIsTheAreaOverGroundThatDoesNotTakeTheEntity(t *testing.T
 func TestField_VersionAndChangesAreTheCells(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)
-	f := newField(grid, cells, func(cell.ID) float64 { return 0 })
+	f := newField(grid, cells, func(cell.ID) float32 { return 0 })
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	same := func() {
 		t.Helper()

@@ -122,7 +122,7 @@ func (*farOff) Box(i int) geom.AABB {
 	}
 	return geom.NewAABB(geom.NewVec(512, 512), geom.NewVec(512, 512))
 }
-func (g *farOff) Of(float64, float64) int { return g.at }
+func (g *farOff) Of(float32, float32) int { return g.at }
 func (*farOff) Off(int) bool              { return false }
 
 type middled struct{ downward }

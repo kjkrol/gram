@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/motion"
@@ -21,16 +22,16 @@ import (
 
 type flight struct {
 	Dir     geom.Vec
-	Step    float64
+	Step    float32
 	Through bool
 }
 
 type shooter struct{}
 
 type piece struct {
-	x, y, size float64
+	x, y, size float32
 	fly        *flight
-	mass       float64 // 0: no Physics
+	mass       float32 // 0: no Physics
 	shooter    bool
 }
 
@@ -172,10 +173,11 @@ func TestSweep_AFastShotStrikesWhatLiesOnItsPath(t *testing.T) {
 		t.Fatalf("the shot has %d contacts and the target %d, want one each", len(shot.contacts), len(target.contacts))
 	}
 	hit := shot.contacts[0]
-	if hit.Other != target.id || !hit.Sensed || math.Abs(hit.Along-26.0/60) > 1e-9 || hit.Normal != geom.NewVec(-1, 0) {
+	if hit.Other != target.id || !hit.Sensed || f32.Abs(hit.Along-26.0/60) > f32.Eps(1) || hit.Normal != geom.NewVec(-1, 0) {
 		t.Errorf("the shot's contact is %+v, want the target, sensed, 26/60 along, the way back west", hit)
 	}
-	if got := target.contacts[0]; got.Other != shot.id || !got.Sensed || math.Abs(got.Along-26.0/60) > 1e-9 || got.Normal != geom.NewVec(1, 0) {
+	if got := target.contacts[0]; got.Other != shot.id || !got.Sensed ||
+		f32.Abs(got.Along-26.0/60) > f32.Eps(1) || got.Normal != geom.NewVec(1, 0) {
 		t.Errorf("the target's contact is %+v, want the shot, sensed, 26/60 along, the way east", got)
 	}
 	if target.base.Pos.TopLeft.X != 130 {
@@ -308,7 +310,7 @@ func (f *boxesField) Solid(_ world.Layers, _ collision.Band, box geom.AABB, visi
 	}
 }
 
-func (f *boxesField) Overhang(world.Layers, geom.AABB) float64 { return 0 }
+func (f *boxesField) Overhang(world.Layers, geom.AABB) float32 { return 0 }
 func (f *boxesField) Walls(_ world.Layers, _ collision.Band, box geom.AABB,
 	visit func(collide.FieldWall) bool) {
 	for _, w := range f.walls {
@@ -334,7 +336,7 @@ func TestSweep_TheGroundNearerThanTheBoxWins(t *testing.T) {
 		t.Fatalf("the shot has %d contacts, want the wall's alone", len(shot.contacts))
 	}
 	hit := shot.contacts[0]
-	if !hit.Terrain || hit.Cell != 7 || !hit.Sensed || math.Abs(hit.Along-16.0/60) > 1e-9 || hit.Normal != geom.NewVec(-1, 0) {
+	if !hit.Terrain || hit.Cell != 7 || !hit.Sensed || f32.Abs(hit.Along-16.0/60) > f32.Eps(1) || hit.Normal != geom.NewVec(-1, 0) {
 		t.Errorf("the shot's contact is %+v, want the wall, sensed, 16/60 along, the way back west", hit)
 	}
 	if len(box.contacts) != 0 {
@@ -362,7 +364,7 @@ func TestSweep_ACellOfSeveralBoxesIsStruckWhereTheSegmentCrossesIt(t *testing.T)
 	if len(got) != 1 || !got[0].Terrain || got[0].Cell != 7 {
 		t.Fatalf("the shot's contacts are %+v, want the cell struck once", got)
 	}
-	if want := 16 * math.Sqrt2 / 60; math.Abs(got[0].Along-want) > 1e-9 {
+	if want := float32(16 * math.Sqrt2 / 60); f32.Abs(got[0].Along-want) > f32.Eps(1) {
 		t.Errorf("struck %v along the step, want %v: where the segment reaches the box on it", got[0].Along, want)
 	}
 }
@@ -381,7 +383,7 @@ func TestSweep_ACellOfSeveralBoxesIsStruckAtItsNearest(t *testing.T) {
 	if len(shot.contacts) != 1 || !shot.contacts[0].Terrain || shot.contacts[0].Cell != 7 {
 		t.Fatalf("the shot's contacts are %+v, want the cell alone", shot.contacts)
 	}
-	if hit := shot.contacts[0]; math.Abs(hit.Along-16.0/60) > 1e-9 || hit.Normal != geom.NewVec(-1, 0) {
+	if hit := shot.contacts[0]; f32.Abs(hit.Along-16.0/60) > f32.Eps(1) || hit.Normal != geom.NewVec(-1, 0) {
 		t.Errorf("struck %v along the step, the way out %v; want 16/60 at the cap, the way back west", hit.Along, hit.Normal)
 	}
 	for _, c := range box.contacts {
@@ -397,7 +399,7 @@ func TestSweep_ACellOfSeveralBoxesIsStruckAtItsNearest(t *testing.T) {
 func TestSweep_AnImmovableSweptEntityIsASensor(t *testing.T) {
 	wall := &boxesField{boxes: []collision.FieldBox{{Box: geom.NewAABBAt(geom.NewVec(150, 0), 32, 1000), Cell: 7, Open: allSides}}}
 	out, _ := sweptRun(t, 0, wall, 1,
-		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}, mass: math.Inf(1)},
+		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}, mass: f32.Inf(1)},
 		piece{x: 120, y: 498, size: 10, mass: 1},
 	)
 	shot, box := out[0], out[1]
@@ -408,7 +410,7 @@ func TestSweep_AnImmovableSweptEntityIsASensor(t *testing.T) {
 		t.Errorf("the shot's contacts are %+v, want the box alone, sensed, no impact", shot.contacts)
 	}
 	out, _ = sweptRun(t, 0, wall, 1,
-		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}, mass: math.Inf(1)},
+		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}, mass: f32.Inf(1)},
 	)
 	if got := out[0].contacts; len(got) != 1 || !got[0].Terrain {
 		t.Errorf("the shot's contacts are %+v, want the wall's", got)
@@ -434,9 +436,9 @@ func TestSweep_AShotStrikesASlantedWall(t *testing.T) {
 		t.Fatalf("the shot has %d contacts, want the wall's", len(out[0].contacts))
 	}
 	hit := out[0].contacts[0]
-	r := math.Sqrt2 / 2
-	if !hit.Terrain || hit.Cell != 9 || math.Abs(hit.Normal.X+r) > 1e-9 ||
-		math.Abs(hit.Normal.Y-r) > 1e-9 || hit.Along <= 0 || hit.Along >= 1 {
+	r := float32(math.Sqrt2 / 2)
+	if !hit.Terrain || hit.Cell != 9 || f32.Abs(hit.Normal.X+r) > f32.Eps(1) ||
+		f32.Abs(hit.Normal.Y-r) > f32.Eps(1) || hit.Along <= 0 || hit.Along >= 1 {
 		t.Errorf("the shot's contact is %+v, want the wall's, on the way, square to it", hit)
 	}
 }

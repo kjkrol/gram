@@ -104,7 +104,7 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.BoardWrite, [
 	walkers := kind.Named[walker](w.Kinds(), "walker")
 	entries := make([]kind.Entry, terrainUnits)
 	for i := range entries {
-		at := geom.NewVec(3+rng.Float64()*(side-16), 3+rng.Float64()*(side-16))
+		at := geom.NewVec(float32(3+rng.Float64()*(side-16)), float32(3+rng.Float64()*(side-16)))
 		cell, _ := grid.CellAt(at)
 		entries[i] = walkers.Entry(walker{pos: world.Position{AABB: plane.NewAABB(at, 10, 10)}, vel: randomVelocity(rng), cell: cell})
 	}

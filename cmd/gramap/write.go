@@ -189,7 +189,7 @@ func (w *chart) writeWays(b *bytes.Buffer) {
 				kind = kk
 				item += ", kind: " + kind
 			}
-			item += ", width: " + number(w.rivers.Width(c, w.size)) + "}"
+			item += ", width: " + number(float64(w.rivers.Width(c, float32(w.size)))) + "}"
 			items = append(items, item)
 		}
 		writeList(b, "    - ", items)

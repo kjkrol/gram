@@ -21,9 +21,9 @@ type halves struct{}
 func (halves) Len() int  { return 2 }
 func (halves) Cols() int { return 2 }
 func (halves) Box(i int) geom.AABB {
-	return geom.NewAABB(geom.NewVec(float64(i)*512, 0), geom.NewVec(float64(i+1)*512, 1000))
+	return geom.NewAABB(geom.NewVec(float32(i)*512, 0), geom.NewVec(float32(i+1)*512, 1000))
 }
-func (halves) Of(x, _ float64) int { return min(max(int(x/512), 0), 1) }
+func (halves) Of(x, _ float32) int { return min(max(int(x/512), 0), 1) }
 func (halves) Off(int) bool        { return false }
 
 type farther struct {
@@ -76,7 +76,7 @@ func drawStanding(t *testing.T, d camera.Detail, stands bool, rules ...Rule) *st
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		var items []aabbworld.Item
-		for _, x := range []float64{100, 700, 900} {
+		for _, x := range []float32{100, 700, 900} {
 			f := si.NewFactory(&base, &appearance)
 			if x == 900 {
 				f = si.NewFactory(&base, &appearance, &z)
@@ -116,7 +116,7 @@ func TestRenderer_Compose_HandsTheLookTheFogOfEachEntity(t *testing.T) {
 }
 
 func TestRenderer_Compose_RunsTheRulesOnAChunkInViewAlone(t *testing.T) {
-	var ran []float64
+	var ran []float32
 	saw := Show(func(b Base) bool {
 		ran = append(ran, b.Pos.TopLeft.X)
 		return true

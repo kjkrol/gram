@@ -103,8 +103,8 @@ func newSectorsView(p *Plugin) *sectorsView {
 		Side:   g.Side(),
 		Cols:   g.Cols(),
 		Rows:   g.Rows(),
-		Width:  float64(space.Width),
-		Height: float64(space.Height),
+		Width:  float32(space.Width),
+		Height: float32(space.Height),
 		WrapX:  space.Edges.WrapsX(),
 		WrapY:  space.Edges.WrapsY(),
 	})
@@ -147,7 +147,7 @@ func (v *sectorsView) Compose(f *render.Frame, cam camera.Camera) {
 		box := g.Box(i)
 		midX := (box.TopLeft.X + box.BottomRight.X) / 2
 		midY := (box.TopLeft.Y + box.BottomRight.Y) / 2
-		at := f.Lifted(float32(midX), float32(midY), 0, sectorLift)
+		at := f.Lifted(midX, midY, 0, sectorLift)
 		inside := c
 		inside.A = uint8(float32(c.A) * sectorLine.Inside)
 		edge := c

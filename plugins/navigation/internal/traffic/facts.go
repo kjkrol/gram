@@ -1,10 +1,10 @@
 package traffic
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"time"
 
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 )
 
 func blockedOf(t order.Touch, cell cell.ID) order.Blocked {

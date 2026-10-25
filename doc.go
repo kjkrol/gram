@@ -78,6 +78,12 @@
 // plugin's Serializable, or anything a Stage handed to ctx.Track. Resources are matched by name,
 // never by position, so a save survives plugins being added, removed or reordered.
 //
+// # Numbers
+//
+// Every number of the world's geometry and of the screen is a float32, as aabbworld's boxes and
+// the GPU have them: positions, sizes, speeds, heights, angles, pixels. Whole units are exact up
+// to 2^24, and at 16,384 units off the origin a coordinate steps about a thousandth of a unit.
+//
 // # Package dependencies
 //
 // The packages form a strict acyclic graph; each imports only layers below it:

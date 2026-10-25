@@ -1,10 +1,10 @@
 package grid_test
 
 import (
-	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 )
@@ -47,7 +47,8 @@ func TestDirections_AreTheGrids(t *testing.T) {
 				t.Errorf("%s: %d's opposite %d does not lead back", name, i, g.Opposite(i))
 			}
 			from, to, s := g.CellCenter(c), g.CellCenter(n), g.Step(i)
-			if math.Abs(to.X-from.X-s.X) > 1e-9 || math.Abs(to.Y-from.Y-s.Y) > 1e-9 {
+			if eps := f32.Eps(max(to.X, to.Y, from.X, from.Y)); f32.Abs(to.X-from.X-s.X) > eps ||
+				f32.Abs(to.Y-from.Y-s.Y) > eps {
 				t.Errorf("%s: step %d is %v, the middles %v apart", name, i, s, to.Sub(from))
 			}
 			da, db := g.Offset(i)
@@ -81,7 +82,8 @@ func TestDirections_AreTheGrids(t *testing.T) {
 			ra, rb := grid.Rim(g, c, i)
 			e := grid.Exit(g, c, i)
 			mid := geom.NewVec((corners[ra].X+corners[rb].X)/2, (corners[ra].Y+corners[rb].Y)/2)
-			if math.Hypot(mid.X-e.X, mid.Y-e.Y) > 1e-9 || (ra == rb) != g.Corner(i) {
+			if f32.Hypot(mid.X-e.X, mid.Y-e.Y) > f32.Eps(max(e.X, e.Y)) ||
+				(ra == rb) != g.Corner(i) {
 				t.Errorf("%s: %d leaves by corners %d, %d, not at its exit %v", name, i, ra, rb, e)
 			}
 		}

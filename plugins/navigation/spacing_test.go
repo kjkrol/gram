@@ -4,7 +4,7 @@ import "testing"
 
 func TestSpacing_AutoKeepsBodiesApartForUnitsAThirdOfACellOrLess(t *testing.T) {
 	for _, c := range []struct {
-		largest, cell float64
+		largest, cell float32
 		want          Spacing
 	}{{3, 32, BodySpacing}, {10, 32, BodySpacing}, {22, 32, CellSpacing}, {24, 48, CellSpacing}, {0, 32, CellSpacing}} {
 		if got := AutoSpacing.resolve(c.largest, c.cell); got != c.want {

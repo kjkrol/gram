@@ -45,7 +45,7 @@ type CenterOn struct {
 // screen, fastening it to nothing: a click on a minimap.
 type CenterAt struct {
 	Camera camera.Camera
-	X, Y   float64
+	X, Y   float32
 }
 
 // View has Camera switch between the orthographic view and the perspective, keeping the foot of
@@ -93,7 +93,7 @@ type Turn struct {
 // so.
 type Sight struct {
 	Camera camera.Camera
-	Factor float64
+	Factor float32
 }
 
 // Tilt leans Camera's stick about its foot by Angle radians, towards straight down as it grows and

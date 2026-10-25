@@ -1,9 +1,9 @@
 package moments
 
 import (
-	cgoke "github.com/kjkrol/ceremony/goke"
 	"time"
 
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/uid"

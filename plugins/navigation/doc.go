@@ -30,7 +30,8 @@
 //
 // Under either a unit routes over the ground alone, not knowing where the others stand, and learns
 // of them only by touching them: a step into a held cell refused, or its box striking theirs
-// ([Plugin.WithCollision]).
+// ([Plugin.WithCollision]). Under BodySpacing it never moves into one it touches: facing into them
+// it turns on the spot, and with its way straight through them it stands.
 //
 // # Crowd
 //

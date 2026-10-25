@@ -1,10 +1,9 @@
 package motion
 
 import (
-	"math"
-
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
@@ -34,7 +33,7 @@ func Still() cond.Word[Moving] {
 func Braking() cond.Word[Moving] {
 	return cond.NewWord("braking", func(m Moving) bool {
 		return m.Course != nil && m.Course.Speed != 0 &&
-			math.Abs(m.Course.WantSpeed) < math.Abs(m.Course.Speed)
+			f32.Abs(m.Course.WantSpeed) < f32.Abs(m.Course.Speed)
 	})
 }
 

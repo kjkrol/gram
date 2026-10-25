@@ -1,10 +1,10 @@
 package steering
 
 import (
-	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 )
 
 // Driven is an entity steered by hand, written every tick by whoever steers it. Ahead is 1 to
@@ -20,7 +20,7 @@ type Driven struct {
 	Face        geom.Vec
 	Look        geom.Vec
 	Flown       bool
-	Climb       float64
+	Climb       float32
 	Held        time.Duration
 }
 
@@ -29,12 +29,12 @@ const steepest = 0.985
 
 // Slope is how the way a flown entity is steered parts its speed: rise the share going up, run
 // the share along the ground; not Flown, all along the ground.
-func (d Driven) Slope() (rise, run float64) {
+func (d Driven) Slope() (rise, run float32) {
 	if !d.Flown {
 		return 0, 1
 	}
 	rise = min(max(d.Climb, -steepest), steepest)
-	return rise, math.Sqrt(1 - rise*rise)
+	return rise, f32.Sqrt(1 - rise*rise)
 }
 
 // Steers reports whether anything steers the entity this step.

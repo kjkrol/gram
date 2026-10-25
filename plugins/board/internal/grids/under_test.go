@@ -20,7 +20,11 @@ func TestSquareGrid_CellsUnderIsWhatTheLatticeFinds(t *testing.T) {
 			geom.NewAABBAt(geom.NewVec(65, 45), 20, 20),  // off the bottom right
 		}
 		for range 200 {
-			boxes = append(boxes, geom.NewAABBAt(geom.NewVec(rng.Float64()*120-30, rng.Float64()*90-20), rng.Float64()*40, rng.Float64()*40))
+			boxes = append(boxes, geom.NewAABBAt(geom.NewVec(float32(rng.Float64()*120-30), float32(rng.Float64()*90-20)),
+				float32(rng.Float64()*40),
+				float32(rng.Float64()*40),
+			),
+			)
 		}
 		for _, box := range boxes {
 			var got, want []cell.ID
@@ -41,11 +45,11 @@ func latticeUnder(g *Square, box geom.AABB) []cell.ID {
 		}
 		return 0
 	}
-	w, h := float64(g.Width*g.CellSize), float64(g.Height*g.CellSize)
+	w, h := float32(g.Width*g.CellSize), float32(g.Height*g.CellSize)
 	var out []cell.ID
 	for sy := -laps(g.WrapY); sy <= laps(g.WrapY); sy++ {
 		for sx := -laps(g.WrapX); sx <= laps(g.WrapX); sx++ {
-			shift := geom.NewVec(float64(sx)*w, float64(sy)*h)
+			shift := geom.NewVec(float32(sx)*w, float32(sy)*h)
 			image := geom.NewAABB(box.TopLeft.Add(shift), box.BottomRight.Add(shift))
 			cellsUnder(g, image, func(c cell.ID) {
 				if !slices.Contains(out, c) {

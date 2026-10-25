@@ -27,8 +27,8 @@ type carrierStage struct {
 	motion    *motion.Plugin
 	collision *collision.Plugin
 	players   *players.Plugin
-	leaver    kind.Of[float64]
-	box       kind.Of[float64]
+	leaver    kind.Of[float32]
+	box       kind.Of[float32]
 	units     *goke.Query
 	base      goke.Comp[world.Base]
 	stack     game.Scenes
@@ -49,10 +49,10 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 		Then: act.Self.Do(world.Despawn{}),
 	})
 	fragile := s.world.Roles().Named("fragile")
-	at := func(x float64) world.Position {
+	at := func(x float32) world.Position {
 		return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
 	}
-	kind.Define[float64](s.world.Kinds(), "leaver", kind.Spec{
+	kind.Define[float32](s.world.Kinds(), "leaver", kind.Spec{
 		comp.Load(at),
 		comp.Const(world.Velocity{}),
 		plan.New("leaver", plan.Steps(
@@ -60,14 +60,14 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 			plan.Self.Do(world.Despawn{}),
 		)),
 	})
-	s.leaver = kind.Named[float64](s.world.Kinds(), "leaver")
-	kind.Define[float64](s.world.Kinds(), "box", kind.Spec{
+	s.leaver = kind.Named[float32](s.world.Kinds(), "leaver")
+	kind.Define[float32](s.world.Kinds(), "box", kind.Spec{
 		comp.Load(at),
 		comp.Const(world.Velocity{}),
 		comp.Const(collision.Collider{}),
 		ceremony.Plays(fragile),
 	})
-	s.box = kind.Named[float64](s.world.Kinds(), "box")
+	s.box = kind.Named[float32](s.world.Kinds(), "box")
 	s.players = players.NewPlugin(s.world)
 	s.players.Local("first")
 	ctx.Setup(carrierProbe{s})

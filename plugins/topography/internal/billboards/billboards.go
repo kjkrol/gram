@@ -11,19 +11,26 @@ import (
 // as tall as the box is long without a Height
 func tall(z world.Z, y0, y1 float32) float32 {
 	if z.Height > 0 {
-		return float32(z.Height)
+		return z.Height
 	}
 	return y1 - y0
 }
 
 func drawn(cam camera.Camera, box geom.AABB, z world.Z) render.Corners {
-	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
-	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
-	return billboard(cam, (x0+x1)/2, (y0+y1)/2, float32(z.Altitude), x1-x0, tall(z, y0, y1))
+	x0, y0 := box.TopLeft.X, box.TopLeft.Y
+	x1, y1 := box.BottomRight.X, box.BottomRight.Y
+	return billboard(cam, (x0+x1)/2, (y0+y1)/2, z.Altitude, x1-x0, tall(z, y0, y1))
 }
 
 func footprint(cam camera.Camera, box geom.AABB, alt float32, dst []render.Corners) []render.Corners {
-	return append(dst, render.ProjectCorners(cam, float32(box.TopLeft.X), float32(box.TopLeft.Y), float32(box.BottomRight.X), float32(box.BottomRight.Y), alt))
+	return append(dst, render.ProjectCorners(cam,
+		box.TopLeft.X,
+		box.TopLeft.Y,
+		box.BottomRight.X,
+		box.BottomRight.Y,
+		alt,
+	),
+	)
 }
 
 // faceLit is the light on an upright face whose normal is (nx, ny, nz): the sun's on it and the

@@ -30,7 +30,7 @@ func (l *Painter) Shores(atlas render.AtlasSource) (*render.Image, float32, uint
 		return nil, 0, 0
 	}
 	c := &l.shoreMap
-	reach := shoreReach * float32(l.sq.Cell)
+	reach := shoreReach * l.sq.Cell
 	if c.seen == l.board.Changes()+1 && c.img != nil {
 		return c.img, reach, c.version
 	}

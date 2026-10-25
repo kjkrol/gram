@@ -1,23 +1,24 @@
 package collision_test
 
 import (
-	"math"
 	"testing"
 	"time"
 
-	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/collision"
-	"github.com/kjkrol/gram/plugins/world"
-
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
 
-const epsilon = 1e-9
+// at the scale of the speeds and impacts compared, up to 12
+var epsilon = f32.Eps(12)
 
 type thing struct {
-	x       float64
+	x       float32
+	side    float32 // 0: 10
 	delta   geom.Vec
 	physics *collision.Physics // nil: only ever detected
 	first   bool               // spawned before the others
@@ -27,7 +28,7 @@ type thing struct {
 	contacts []collision.Contact
 }
 
-func elastic(mass float64) *collision.Physics {
+func elastic(mass float32) *collision.Physics {
 	return &collision.Physics{Mass: mass, Restitution: 1}
 }
 
@@ -52,7 +53,11 @@ func detectTick(t *testing.T, things ...*thing) {
 			f.Create(1)
 			f.Next()
 			th.id = f.IDs[0]
-			placed := world.Base{Pos: posAt(th.x, 100, 10, 10)}
+			side := th.side
+			if side == 0 {
+				side = 10
+			}
+			placed := world.Base{Pos: posAt(th.x, 100, side, side)}
 			placed.Vel.SetDelta(th.delta)
 			base.Slice(&f.Cursor)[0] = placed
 			if th.physics != nil {
@@ -86,9 +91,9 @@ func detectTick(t *testing.T, things ...*thing) {
 	}
 }
 
-func (th *thing) left() float64 { return float64(th.base.Pos.TopLeft.X) }
+func (th *thing) left() float32 { return float32(th.base.Pos.TopLeft.X) }
 
-func (th *thing) speedX() float64 { return th.base.Vel.Delta().X }
+func (th *thing) speedX() float32 { return th.base.Vel.Delta().X }
 
 func TestCollisionSystem_PhysicalPair_IsPushedApart(t *testing.T) {
 	a := &thing{x: 100, physics: elastic(1)}
@@ -103,7 +108,7 @@ func TestCollisionSystem_PhysicalPair_IsPushedApart(t *testing.T) {
 
 func TestCollisionSystem_ImmovableSide_StaysPutAndReflectsTheOther(t *testing.T) {
 	ball := &thing{x: 100, delta: geom.NewVec(4, 0), physics: elastic(1)}
-	wall := &thing{x: 105, physics: elastic(math.Inf(1))}
+	wall := &thing{x: 105, physics: elastic(f32.Inf(1))}
 
 	detectTick(t, ball, wall)
 
@@ -113,16 +118,16 @@ func TestCollisionSystem_ImmovableSide_StaysPutAndReflectsTheOther(t *testing.T)
 	if ball.left() != 95 {
 		t.Errorf("the ball is at %v, want it pushed the whole 5 units out, to 95", ball.left())
 	}
-	if math.Abs(ball.speedX()+4) > epsilon {
+	if f32.Abs(ball.speedX()+4) > epsilon {
 		t.Errorf("the ball moves at %v, want -4 — straight back off the wall", ball.speedX())
 	}
-	if len(ball.contacts) != 1 || math.Abs(ball.contacts[0].Impact-8) > epsilon {
+	if len(ball.contacts) != 1 || f32.Abs(ball.contacts[0].Impact-8) > epsilon {
 		t.Errorf("contacts = %+v, want one at impact 8", ball.contacts)
 	}
 }
 
 func TestCollisionSystem_ImmovableSpawnedFirst_StillStopsWhatRunsIntoIt(t *testing.T) {
-	wall := &thing{x: 105, physics: elastic(math.Inf(1))}
+	wall := &thing{x: 105, physics: elastic(f32.Inf(1))}
 	ball := &thing{x: 100, delta: geom.NewVec(4, 0), physics: elastic(1)}
 
 	detectTick(t, wall, ball)
@@ -133,7 +138,7 @@ func TestCollisionSystem_ImmovableSpawnedFirst_StillStopsWhatRunsIntoIt(t *testi
 	if wall.left() != 105 {
 		t.Errorf("the wall moved to %v, want it left at 105", wall.left())
 	}
-	if ball.left() != 95 || math.Abs(ball.speedX()+4) > epsilon {
+	if ball.left() != 95 || f32.Abs(ball.speedX()+4) > epsilon {
 		t.Errorf("the ball is at %v moving %v, want 95 and -4", ball.left(), ball.speedX())
 	}
 }
@@ -155,7 +160,7 @@ func TestCollisionSystem_SideWithoutPhysics_IsDetectedButNeverPushed(t *testing.
 			if walker.left() != 100 || town.left() != 105 {
 				t.Errorf("walker at %v, town at %v — want neither pushed", walker.left(), town.left())
 			}
-			if math.Abs(walker.speedX()-4) > epsilon {
+			if f32.Abs(walker.speedX()-4) > epsilon {
 				t.Errorf("the walker moves at %v, want its 4 untouched", walker.speedX())
 			}
 			for who, th := range map[string]*thing{"walker": walker, "town": town} {
@@ -181,7 +186,8 @@ func TestCollisionSystem_KeepsIteratingWhileSeparationCreatesNewOverlap(t *testi
 		name string
 		l, r *thing
 	}{{"A/B", a, b}, {"B/C", b, c}, {"A/C", a, c}} {
-		if d := overlapDepth(pair.l.base.Pos, pair.r.base.Pos); d > 1e-6 {
+		// what overlaps within float32's rounding of where it lies touches
+		if d := overlapDepth(pair.l.base.Pos, pair.r.base.Pos); d > f32.Eps(114) {
 			t.Errorf("%s still overlap by %v after the solver ran", pair.name, d)
 		}
 	}
@@ -194,8 +200,8 @@ func TestCollisionSystem_SqueezedEntity_BouncesOffBothNeighboursInTurn(t *testin
 
 	detectTick(t, left, middle, right)
 
-	for i, want := range []float64{0, -5, 5} {
-		if got := []*thing{left, middle, right}[i].speedX(); math.Abs(got-want) > epsilon {
+	for i, want := range []float32{0, -5, 5} {
+		if got := []*thing{left, middle, right}[i].speedX(); f32.Abs(got-want) > epsilon {
 			t.Errorf("entity %d leaves the tick at %v, want %v", i, got, want)
 		}
 	}
@@ -204,9 +210,10 @@ func TestCollisionSystem_SqueezedEntity_BouncesOffBothNeighboursInTurn(t *testin
 	}
 	for i, want := range []struct {
 		other  uid.UID64
-		impact float64
+		impact float32
 	}{{left.id, 5}, {right.id, 10}} {
-		if got := middle.contacts[i]; got.Other != want.other || math.Abs(got.Impact-want.impact) > epsilon {
+		if got := middle.contacts[i]; got.Other != want.other ||
+			f32.Abs(got.Impact-want.impact) > epsilon {
 			t.Errorf("contact %d = (%v, impact %v), want (%v, %v)", i, got.Other, got.Impact, want.other, want.impact)
 		}
 	}
@@ -218,10 +225,11 @@ func TestCollisionSystem_EqualMasses_ExchangeVelocitiesAlongTheNormal(t *testing
 
 	detectTick(t, a, b)
 
-	if math.Abs(a.speedX()+5) > epsilon || math.Abs(b.speedX()-5) > epsilon {
+	if f32.Abs(a.speedX()+5) > epsilon || f32.Abs(b.speedX()-5) > epsilon {
 		t.Errorf("X = (%v, %v), want (-5, 5) swapped", a.speedX(), b.speedX())
 	}
-	if ay, by := a.base.Vel.Delta().Y, b.base.Vel.Delta().Y; math.Abs(ay-2) > epsilon || math.Abs(by-2) > epsilon {
+	if ay, by := a.base.Vel.Delta().Y, b.base.Vel.Delta().Y; f32.Abs(ay-2) > epsilon ||
+		f32.Abs(by-2) > epsilon {
 		t.Errorf("Y = (%v, %v), want both left at 2 — nothing acts across the normal", ay, by)
 	}
 }
@@ -234,10 +242,10 @@ func TestCollisionSystem_HeavyAgainstLight_ConservesMomentumAndEnergy(t *testing
 	detectTick(t, heavy, light)
 
 	h, l := heavy.speedX(), light.speedX()
-	if got, want := heavyMass*h+lightMass*l, float64(heavyMass*2+lightMass*-2); math.Abs(got-want) > epsilon {
+	if got, want := heavyMass*h+lightMass*l, float32(heavyMass*2+lightMass*-2); f32.Abs(got-want) > epsilon {
 		t.Errorf("momentum = %v, want %v", got, want)
 	}
-	if got, want := heavyMass*h*h+lightMass*l*l, float64(heavyMass*4+lightMass*4); math.Abs(got-want) > epsilon {
+	if got, want := heavyMass*h*h+lightMass*l*l, float32(heavyMass*4+lightMass*4); f32.Abs(got-want) > epsilon {
 		t.Errorf("kinetic energy (x2) = %v, want %v", got, want)
 	}
 	if h <= 0 || l <= 0 {
@@ -247,8 +255,8 @@ func TestCollisionSystem_HeavyAgainstLight_ConservesMomentumAndEnergy(t *testing
 
 func TestCollisionSystem_Restitution_DampsTheBounce(t *testing.T) {
 	cases := map[string]struct {
-		restitutionA, restitutionB float64
-		wantA, wantB               float64
+		restitutionA, restitutionB float32
+		wantA, wantB               float32
 	}{
 		"perfectly elastic":   {1, 1, 4, -3},
 		"half, from A":        {0.5, 1, 2.25, -1.25},
@@ -262,8 +270,55 @@ func TestCollisionSystem_Restitution_DampsTheBounce(t *testing.T) {
 
 			detectTick(t, a, b)
 
-			if math.Abs(a.speedX()-c.wantA) > epsilon || math.Abs(b.speedX()-c.wantB) > epsilon {
+			if f32.Abs(a.speedX()-c.wantA) > epsilon || f32.Abs(b.speedX()-c.wantB) > epsilon {
 				t.Errorf("speeds = (%v, %v), want (%v, %v)", a.speedX(), b.speedX(), c.wantA, c.wantB)
+			}
+		})
+	}
+}
+
+func TestCollisionSystem_UnnamedMass_IsTheBoxsArea(t *testing.T) {
+	for name, c := range map[string]struct {
+		side, want float32
+	}{
+		// the light one's speed shared by weight, as neither bounces
+		"a small one into a big one": {28, 96.0 * 36 / (36 + 784)},
+		"two of a size":              {6, 48},
+	} {
+		t.Run(name, func(t *testing.T) {
+			light := &thing{x: 100, side: 6, delta: geom.NewVec(96, 0),
+				physics: &collision.Physics{}}
+			other := &thing{x: 105, side: c.side, physics: &collision.Physics{}}
+
+			detectTick(t, light, other)
+
+			e := f32.Eps(c.want)
+			if f32.Abs(other.speedX()-c.want) > e || f32.Abs(light.speedX()-c.want) > e {
+				t.Errorf("speeds = (%v, %v), want both %v", light.speedX(), other.speedX(), c.want)
+			}
+		})
+	}
+}
+
+// overlapping by 1, the two are pushed apart by it, the lighter the more
+func TestCollisionSystem_SeparationIsSharedByWeight(t *testing.T) {
+	for name, c := range map[string]struct {
+		side, wantSmall, wantOther float32
+	}{
+		"a small one in a big one": {28, 784.0 / 820, 36.0 / 820},
+		"two of a size":            {6, 0.5, 0.5},
+	} {
+		t.Run(name, func(t *testing.T) {
+			small := &thing{x: 100, side: 6, physics: &collision.Physics{}}
+			other := &thing{x: 105, side: c.side, physics: &collision.Physics{}}
+
+			detectTick(t, small, other)
+
+			gotSmall, gotOther := 100-small.left(), other.left()-105
+			e := f32.Eps(133)
+			if f32.Abs(gotSmall-c.wantSmall) > e || f32.Abs(gotOther-c.wantOther) > e {
+				t.Errorf("the small one moved %v and the other %v, want %v and %v", gotSmall,
+					gotOther, c.wantSmall, c.wantOther)
 			}
 		})
 	}
@@ -271,11 +326,11 @@ func TestCollisionSystem_Restitution_DampsTheBounce(t *testing.T) {
 
 func TestCollisionSystem_Material_IsReadPerSide(t *testing.T) {
 	a := &thing{x: 100, delta: geom.NewVec(5, 0), physics: &collision.Physics{Mass: 4, Restitution: 0.5}}
-	b := &thing{x: 105, delta: geom.NewVec(-5, 0), physics: &collision.Physics{Restitution: 1}}
+	b := &thing{x: 105, delta: geom.NewVec(-5, 0), physics: &collision.Physics{Mass: 1, Restitution: 1}}
 
 	detectTick(t, a, b)
 
-	if len(a.contacts) != 1 || math.Abs(a.contacts[0].Impact-12) > epsilon {
+	if len(a.contacts) != 1 || f32.Abs(a.contacts[0].Impact-12) > epsilon {
 		t.Errorf("contacts = %+v, want one at impact 12", a.contacts)
 	}
 }
@@ -288,7 +343,7 @@ func TestCollisionSystem_Contacts_PublishedToBothSides(t *testing.T) {
 
 	for _, side := range []struct {
 		self, other *thing
-		leaves      float64
+		leaves      float32
 	}{{a, b, -1}, {b, a, 1}} {
 		if len(side.self.contacts) != 1 {
 			t.Fatalf("entity %v recorded %d contacts, want 1", side.self.id, len(side.self.contacts))
@@ -297,7 +352,7 @@ func TestCollisionSystem_Contacts_PublishedToBothSides(t *testing.T) {
 		if got.Other != side.other.id {
 			t.Errorf("entity %v recorded a contact with %v, want %v", side.self.id, got.Other, side.other.id)
 		}
-		if math.Abs(got.Impact-10) > epsilon {
+		if f32.Abs(got.Impact-10) > epsilon {
 			t.Errorf("entity %v recorded impact %v, want 10", side.self.id, got.Impact)
 		}
 		if got.Normal.X != side.leaves || got.Normal.Y != 0 {
@@ -384,7 +439,7 @@ func countContacts(q *goke.Query, comp goke.Comp[collision.Collider]) int {
 	return n
 }
 
-func overlapDepth(l, r world.Position) float64 {
+func overlapDepth(l, r world.Position) float32 {
 	x := min(l.BottomRight.X, r.BottomRight.X) - max(l.TopLeft.X, r.TopLeft.X)
 	y := min(l.BottomRight.Y, r.BottomRight.Y) - max(l.TopLeft.Y, r.TopLeft.Y)
 	return min(x, y)

@@ -16,17 +16,17 @@ type Element struct {
 	name     string
 	hidden   bool
 	holds    bool
-	w, h     float64
-	fw, fh   float64
-	margin   float64
-	padding  float64
+	w, h     float32
+	fw, fh   float32
+	margin   float32
+	padding  float32
 	fill     color.RGBA
 	border   color.RGBA
-	stroke   float64
+	stroke   float32
 	filled   bool
 	bordered bool
 	steady   bool
-	kept     struct{ w, h float64 }
+	kept     struct{ w, h float32 }
 	style    style
 	theme    *Theme
 	mask     Mask
@@ -41,7 +41,7 @@ type Element struct {
 type content interface {
 	place(e *Element, box geom.AABB)
 	draw(e *Element, dst *render.Image)
-	needs(e *Element) (w, h float64)
+	needs(e *Element) (w, h float32)
 }
 
 type container interface{ container() }
@@ -101,7 +101,7 @@ func (e *Element) Show() { e.hidden = false }
 func (e *Element) Hide() { e.hidden = true }
 
 // Size asks for w by h pixels: what an anchor places, what Fit takes.
-func (e *Element) Size(w, h float64) *Element {
+func (e *Element) Size(w, h float32) *Element {
 	e.w, e.h = w, h
 	return e
 }
@@ -109,19 +109,19 @@ func (e *Element) Size(w, h float64) *Element {
 // Fraction asks for w and h of the box its parent gives it, so the element keeps its share as
 // the window changes. An axis asked for as 0 follows the proportions of the picture it shows,
 // else its own size.
-func (e *Element) Fraction(w, h float64) *Element {
+func (e *Element) Fraction(w, h float32) *Element {
 	e.fw, e.fh = w, h
 	return e
 }
 
 // Margin keeps the element px pixels inside the box its parent gives it, on every side.
-func (e *Element) Margin(px float64) *Element {
+func (e *Element) Margin(px float32) *Element {
 	e.margin = px
 	return e
 }
 
 // Padding keeps the element's children px pixels inside its own box, on every side.
-func (e *Element) Padding(px float64) *Element {
+func (e *Element) Padding(px float32) *Element {
 	e.padding = px
 	return e
 }
@@ -133,7 +133,7 @@ func (e *Element) Fill(c color.RGBA) *Element {
 }
 
 // Border outlines the element in c, width pixels wide.
-func (e *Element) Border(c color.RGBA, width float64) *Element {
+func (e *Element) Border(c color.RGBA, width float32) *Element {
 	e.border, e.stroke, e.bordered = c, width, true
 	return e
 }
@@ -195,7 +195,7 @@ func (e *Element) hitsHere(p geom.Vec) bool {
 	return e.mask == nil || e.mask.contains(e.box, p)
 }
 
-func (e *Element) needs() (w, h float64) {
+func (e *Element) needs() (w, h float32) {
 	if e.absent() {
 		return 0, 0
 	}
@@ -264,7 +264,7 @@ func (e *Element) background(dst *render.Image) {
 // edge strokes the border inside the box: none of it is lost to a clip at the box's edge
 func (e *Element) edge(dst *render.Image) {
 	if border := e.borderColor(); border.A > 0 && e.stroke > 0 {
-		dst.StrokePolygon(outline(shrink(e.box, e.stroke/2), e.mask), float32(e.stroke),
+		dst.StrokePolygon(outline(shrink(e.box, e.stroke/2), e.mask), e.stroke,
 			border)
 	}
 }
@@ -280,12 +280,12 @@ func inside(box geom.AABB, p geom.Vec) bool {
 	return p.X >= box.TopLeft.X && p.X < box.BottomRight.X && p.Y >= box.TopLeft.Y && p.Y < box.BottomRight.Y
 }
 
-func size(box geom.AABB) (w, h float64) {
+func size(box geom.AABB) (w, h float32) {
 	d := box.BottomRight.Sub(box.TopLeft)
 	return d.X, d.Y
 }
 
-func shrink(box geom.AABB, by float64) geom.AABB {
+func shrink(box geom.AABB, by float32) geom.AABB {
 	if by == 0 {
 		return box
 	}

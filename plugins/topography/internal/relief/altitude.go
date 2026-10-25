@@ -1,10 +1,10 @@
 package relief
 
 import (
-	"math"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/unit"
@@ -54,7 +54,7 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 		for i := range cursor.IDs {
 			m := &movers[i]
 			at := bases[i].Pos.Center()
-			var ground float64
+			var ground float32
 			if s.surfaces != nil {
 				ground, _ = s.surfaces.Surface(at, m.Domain, zs[i].Altitude-m.Lift, zs[i].Reach())
 			} else {
@@ -66,7 +66,8 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 				alt = zs[i].Altitude
 				if rise, run := drivens[i].Slope(); rise != 0 && courses != nil {
 					speed := courses[i].Speed
-					along := math.Copysign(min(math.Abs(speed)*d.Seconds(), bases[i].Pos.MaxStep()), speed)
+					step := min(f32.Abs(speed)*float32(d.Seconds()), bases[i].Pos.MaxStep())
+					along := f32.Copysign(step, speed)
 					alt += along * rise / run
 				}
 			}
@@ -91,7 +92,7 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 }
 
 // the ground wins over the Ceiling
-func held(m *unit.Mover, alt, ground float64) float64 {
+func held(m *unit.Mover, alt, ground float32) float32 {
 	if m.Ceiling > 0 {
 		alt = min(alt, m.Ceiling)
 	}

@@ -1,13 +1,13 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
-	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 )
 
 type module struct {

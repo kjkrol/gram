@@ -6,10 +6,9 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	cgoke "github.com/kjkrol/ceremony/goke"
-	"github.com/kjkrol/gram/plugins/world/view"
-
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -94,9 +93,9 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 		if v == nil || !v.Contains(e.id) {
 			continue
 		}
-		box, z := e.box(), e.stands()
+		box, z := e.box, e.z
 		mid := Position{AABB: box}.Center()
-		at := f.Lifted(float32(mid.X), float32(mid.Y), e.alt, FigureLift)
+		at := f.Lifted(mid.X, mid.Y, z.Altitude, FigureLift)
 		if !any || at.Before(lowest) {
 			lowest, any = at, true
 		}
@@ -107,8 +106,7 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			foggy.Fog(v.Fog(mid.X, mid.Y))
 		}
 		layers := figs.layers[e.from : e.from+int32(e.n)]
-		lit := f.Lit(float32(box.TopLeft.X+box.Size.X/2), float32(box.TopLeft.Y+box.Size.Y/2),
-			e.alt, e.shadow.Take)
+		lit := f.Lit(mid.X, mid.Y, z.Altitude, e.shadow.Take)
 		f.Cast(box.AABB, z.Altitude, z.Height, e.shadow, s.atlas, layers[0].SpriteID)
 		for _, l := range layers {
 			if m, ok := s.shaded[l.SpriteID]; ok {
@@ -119,8 +117,7 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 				lain := figs.lies[e.lie-1]
 				edge, ok := s.edges[l.SpriteID]
 				lain.Edged = lain.Edged && ok && !coarse
-				dir := geom.Vec{X: float64(e.dx), Y: float64(e.dy)}
-				lies.Lay(f, cam, box, dir, lain, z, s.atlas, l.Appearance, edge, lit)
+				lies.Lay(f, cam, box, e.dir, lain, z, s.atlas, l.Appearance, edge, lit)
 				continue
 			}
 			if lies != nil && s.lying[l.SpriteID] {
@@ -156,10 +153,11 @@ func (s *renderer) material(
 	f *render.Frame, cam camera.Camera, e *figure, at render.At, m render.MaterialID,
 	progress float32,
 ) {
-	x0, y0, x1, y1 := e.x0, e.y0, e.x1, e.y1
+	x0, y0 := e.box.TopLeft.X, e.box.TopLeft.Y
+	x1, y1 := e.box.BottomRight.X, e.box.BottomRight.Y
 	angle := float32(0)
-	if e.dx != 0 || e.dy != 0 {
-		angle = angleOf(geom.Vec{X: float64(e.dx), Y: float64(e.dy)}) * math.Pi / 180
+	if e.dir != (geom.Vec{}) {
+		angle = angleOf(e.dir) * math.Pi / 180
 	}
 	speed := float32(0)
 	if side := x1 - x0; side > 0 {

@@ -48,7 +48,7 @@ type hold struct {
 }
 
 // Height is how high the point p of the cell c lies on the ground, or on the raised deck over c.
-type Height func(c cell.ID, p geom.Vec, deck bool) float64
+type Height func(c cell.ID, p geom.Vec, deck bool) float32
 
 const (
 	// of the way to the cell's middle; a deck's further in
@@ -145,16 +145,16 @@ func (v *View) takeHold(e uid.UID64, _ cell.Domain, deck bool) {
 	c, b := v.at, v.back
 	v.outline = v.grid.CellOutline(c, v.outline[:0])
 	mid := v.grid.CellCenter(c)
-	inset, col := groundInset, holderColor(e)
+	inset, col := float32(groundInset), holderColor(e)
 	if deck {
 		inset, col = deckInset, lighter(col)
 	}
-	h := hold{mid: [3]float32{float32(mid.X), float32(mid.Y), float32(v.height(c, mid, deck))},
+	h := hold{mid: [3]float32{mid.X, mid.Y, v.height(c, mid, deck)},
 		color: col, from: int32(len(b.points)), n: int32(len(v.outline))}
 	for _, p := range v.outline {
 		p = geom.NewVec(p.X+(mid.X-p.X)*inset, p.Y+(mid.Y-p.Y)*inset)
-		b.points = append(b.points, [3]float32{float32(p.X), float32(p.Y),
-			float32(v.height(c, p, deck))})
+		b.points = append(b.points, [3]float32{p.X, p.Y,
+			v.height(c, p, deck)})
 	}
 	b.all = append(b.all, h)
 }

@@ -429,7 +429,7 @@ func (d *drawing) Lay(w, h int) {
 		d.Publish()
 		d.Swap()
 	}
-	d.scene.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(float64(w), float64(h))))
+	d.scene.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(float32(w), float32(h))))
 	d.laid = true
 }
 
@@ -441,8 +441,8 @@ func (d *drawing) Draw(screen *render.Image) {
 	}
 	if !d.laid {
 		b := screen.Bounds()
-		d.scene.Lay(geom.NewAABB(geom.NewVec(float64(b.Min.X), float64(b.Min.Y)),
-			geom.NewVec(float64(b.Max.X), float64(b.Max.Y))))
+		d.scene.Lay(geom.NewAABB(geom.NewVec(float32(b.Min.X), float32(b.Min.Y)),
+			geom.NewVec(float32(b.Max.X), float32(b.Max.Y))))
 	}
 	d.laid = false
 	root.paint(screen)

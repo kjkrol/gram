@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gogpu/gogpu"
+	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/parallel"
@@ -176,6 +177,11 @@ func (e *Engine) Init() error {
 // until it quits.
 func (e *Engine) Run() {
 	render.Windowed()
+	if aabbworld.SIMD() {
+		log.Print("gram: SIMD on: the collision sweep tests eight boxes at a time (AVX2)")
+	} else {
+		log.Print("gram: SIMD off: it takes GOEXPERIMENT=simd on amd64 and a CPU with AVX2")
+	}
 	if err := e.Init(); err != nil {
 		log.Fatal(err)
 	}

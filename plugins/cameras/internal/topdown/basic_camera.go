@@ -2,13 +2,13 @@ package topdown
 
 import (
 	"fmt"
-	"math"
 	"slices"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	contract "github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 )
 
 type basicCamera struct {
@@ -100,7 +100,7 @@ func (c *basicCamera) Detail() contract.Detail { return c.detail }
 func (c *basicCamera) SetDetail(d contract.Detail) { c.detail = d }
 
 // See has the camera see factor times as far.
-func (c *basicCamera) See(factor float64) { c.detail = c.detail.Widened(factor) }
+func (c *basicCamera) See(factor float32) { c.detail = c.detail.Widened(factor) }
 
 // Fasten fastens the camera to an entity, or to nothing.
 func (c *basicCamera) Fasten(f contract.Fastening) { c.fastening = f }
@@ -127,9 +127,9 @@ func NewFromSpace(width, height uint32, edges aabbworld.Edges, viewport ...contr
 		vp = viewport[0]
 	}
 	if vp.Equals(contract.AABB{}) {
-		vp = geom.NewAABBAt(geom.NewVec(0, 0), float64(width), float64(height))
+		vp = geom.NewAABBAt(geom.NewVec(0, 0), float32(width), float32(height))
 	}
-	return newBasicCamera(geom.NewVec(float64(width), float64(height)), vp, edges)
+	return newBasicCamera(geom.NewVec(float32(width), float32(height)), vp, edges)
 }
 
 // NewFromSpaceWithConfig is a top-down camera over a width x height world as cfg says it starts,
@@ -154,7 +154,7 @@ func limited(cam contract.Camera, cfg contract.Config) contract.Camera {
 }
 
 func wrapRelative(v, ref, size float32) float32 {
-	rel := float32(math.Mod(float64(v-ref), float64(size)))
+	rel := f32.Mod(v-ref, size)
 	if rel < 0 {
 		rel += size
 	}
@@ -162,7 +162,7 @@ func wrapRelative(v, ref, size float32) float32 {
 }
 
 func wrapMod(v, size float32) float32 {
-	v = float32(math.Mod(float64(v), float64(size)))
+	v = f32.Mod(v, size)
 	if v < 0 {
 		v += size
 	}
@@ -216,12 +216,12 @@ func (c *basicCamera) Crop(win contract.Window, s float32) {
 	}
 	c.Uncrop()
 	c.cropped = &frame{viewportSize: c.viewportSize, res: c.res, effective: c.effective, win: win}
-	zoom := float64(c.zoom)
-	at := geom.NewVec(c.effective.TopLeft.X+float64(win.X)/zoom,
-		c.effective.TopLeft.Y+float64(win.Y)/zoom)
-	c.viewportSize = geom.NewVec(float64(win.W), float64(win.H))
+	zoom := c.zoom
+	at := geom.NewVec(c.effective.TopLeft.X+win.X/zoom,
+		c.effective.TopLeft.Y+win.Y/zoom)
+	c.viewportSize = geom.NewVec(win.W, win.H)
 	c.res = s
-	c.effective = plane.NewAABB(at, float64(win.W)/zoom, float64(win.H)/zoom)
+	c.effective = plane.NewAABB(at, win.W/zoom, win.H/zoom)
 }
 
 // Uncrop puts the frame back as it was before Crop.
@@ -242,21 +242,21 @@ func (c *basicCamera) Frame() (float32, float32) {
 	if c.cropped != nil {
 		size = c.cropped.viewportSize
 	}
-	return float32(size.X), float32(size.Y)
+	return size.X, size.Y
 }
 
 func (c *basicCamera) Window() contract.Window {
 	if c.cropped != nil {
 		return c.cropped.win
 	}
-	return contract.Window{W: float32(c.viewportSize.X), H: float32(c.viewportSize.Y)}
+	return contract.Window{W: c.viewportSize.X, H: c.viewportSize.Y}
 }
 
 // camera pixels a world unit
 func (c *basicCamera) px() float32 { return c.zoom * c.res }
 
 func (c *basicCamera) Viewport() (float32, float32) {
-	return float32(c.viewportSize.X) * c.res, float32(c.viewportSize.Y) * c.res
+	return c.viewportSize.X * c.res, c.viewportSize.Y * c.res
 }
 
 func (c *basicCamera) SetViewport(w, h float32) {
@@ -264,19 +264,19 @@ func (c *basicCamera) SetViewport(w, h float32) {
 		return
 	}
 	if c.whole {
-		c.viewportSize = geom.NewVec(float64(w), float64(h))
+		c.viewportSize = geom.NewVec(w, h)
 		c.fit()
 		return
 	}
 	cx := c.effective.TopLeft.X + c.effective.Size.X/2
 	cy := c.effective.TopLeft.Y + c.effective.Size.Y/2
-	c.viewportSize = geom.NewVec(float64(w), float64(h))
+	c.viewportSize = geom.NewVec(w, h)
 	zoom := max(c.zoom, c.minZoom())
 	if c.maxZoom > 0 {
 		zoom = min(zoom, max(c.maxZoom, c.minZoom()))
 	}
 	c.zoom = zoom
-	vw, vh := c.viewportSize.X/float64(zoom), c.viewportSize.Y/float64(zoom)
+	vw, vh := c.viewportSize.X/zoom, c.viewportSize.Y/zoom
 	c.place(cx-vw/2, cy-vh/2, vw, vh)
 }
 
@@ -288,13 +288,13 @@ func (c *basicCamera) Depth(_, y, _ float32) float32 { return y }
 
 func (c *basicCamera) ToScreen(x, y float32) (float32, float32) {
 	if c.edges.WrapsX() {
-		x = wrapRelative(x, float32(c.effective.TopLeft.X), float32(c.world.X))
+		x = wrapRelative(x, c.effective.TopLeft.X, c.world.X)
 	}
 	if c.edges.WrapsY() {
-		y = wrapRelative(y, float32(c.effective.TopLeft.Y), float32(c.world.Y))
+		y = wrapRelative(y, c.effective.TopLeft.Y, c.world.Y)
 	}
 	px := c.px()
-	return (x - float32(c.effective.TopLeft.X)) * px, (y - float32(c.effective.TopLeft.Y)) * px
+	return (x - c.effective.TopLeft.X) * px, (y - c.effective.TopLeft.Y) * px
 }
 
 func (c *basicCamera) ToScreenQuads(x0, y0, x1, y1 float32, dst []contract.Quad) []contract.Quad {
@@ -312,8 +312,8 @@ func (c *basicCamera) ToScreenQuads(x0, y0, x1, y1 float32, dst []contract.Quad)
 	v1 := v0 + (y1 - y0)
 
 	var xs, ys [2]rangePiece
-	for _, xp := range axisPieces(u0, u1, float32(c.world.X), c.edges.WrapsX(), &xs) {
-		for _, yp := range axisPieces(v0, v1, float32(c.world.Y), c.edges.WrapsY(), &ys) {
+	for _, xp := range axisPieces(u0, u1, c.world.X, c.edges.WrapsX(), &xs) {
+		for _, yp := range axisPieces(v0, v1, c.world.Y, c.edges.WrapsY(), &ys) {
 			sx0 := xp.screenLo * px
 			sx1 := sx0 + (xp.hi-xp.lo)*px
 			sy0 := yp.screenLo * px
@@ -331,19 +331,19 @@ func (c *basicCamera) ToScreenQuads(x0, y0, x1, y1 float32, dst []contract.Quad)
 type rangePiece struct{ lo, hi, screenLo float32 }
 
 func (c *basicCamera) offsetX(x float32) float32 {
-	ref := float32(c.effective.TopLeft.X)
+	ref := c.effective.TopLeft.X
 	if !c.edges.WrapsX() {
 		return x - ref
 	}
-	return windowOffset(x, ref, float32(c.world.X), float32(c.effective.Size.X))
+	return windowOffset(x, ref, c.world.X, c.effective.Size.X)
 }
 
 func (c *basicCamera) offsetY(y float32) float32 {
-	ref := float32(c.effective.TopLeft.Y)
+	ref := c.effective.TopLeft.Y
 	if !c.edges.WrapsY() {
 		return y - ref
 	}
-	return windowOffset(y, ref, float32(c.world.Y), float32(c.effective.Size.Y))
+	return windowOffset(y, ref, c.world.Y, c.effective.Size.Y)
 }
 
 func axisPieces(u0, u1, size float32, wraps bool, buf *[2]rangePiece) []rangePiece {
@@ -357,40 +357,40 @@ func axisPieces(u0, u1, size float32, wraps bool, buf *[2]rangePiece) []rangePie
 
 func (c *basicCamera) FromScreen(sx, sy float32) (float32, float32) {
 	px := c.px()
-	x := sx/px + float32(c.effective.TopLeft.X)
-	y := sy/px + float32(c.effective.TopLeft.Y)
+	x := sx/px + c.effective.TopLeft.X
+	y := sy/px + c.effective.TopLeft.Y
 	if c.edges.WrapsX() {
-		x = wrapMod(x, float32(c.world.X))
+		x = wrapMod(x, c.world.X)
 	}
 	if c.edges.WrapsY() {
-		y = wrapMod(y, float32(c.world.Y))
+		y = wrapMod(y, c.world.Y)
 	}
 	return x, y
 }
 
 // Visible is false for a box only touching the window's edge.
 func (c *basicCamera) Visible(box contract.AABB) bool {
-	tlX, tlY := float32(box.TopLeft.X), float32(box.TopLeft.Y)
-	brX, brY := float32(box.BottomRight.X), float32(box.BottomRight.Y)
+	tlX, tlY := box.TopLeft.X, box.TopLeft.Y
+	brX, brY := box.BottomRight.X, box.BottomRight.Y
 	if c.edges.WrapsX() {
 		width := brX - tlX
-		tlX = float32(c.effective.TopLeft.X) + c.offsetX(tlX)
+		tlX = c.effective.TopLeft.X + c.offsetX(tlX)
 		brX = tlX + width
 	}
 	if c.edges.WrapsY() {
 		height := brY - tlY
-		tlY = float32(c.effective.TopLeft.Y) + c.offsetY(tlY)
+		tlY = c.effective.TopLeft.Y + c.offsetY(tlY)
 		brY = tlY + height
 	}
 	far := c.Bounds()
-	return brX > float32(c.effective.TopLeft.X) && tlX < float32(far.BottomRight.X) &&
-		brY > float32(c.effective.TopLeft.Y) && tlY < float32(far.BottomRight.Y)
+	return brX > c.effective.TopLeft.X && tlX < far.BottomRight.X &&
+		brY > c.effective.TopLeft.Y && tlY < far.BottomRight.Y
 }
 
 // Focus is the middle of the window, at the ground.
 func (c *basicCamera) Focus() (float32, float32, float32) {
-	return float32(c.effective.TopLeft.X + c.effective.Size.X/2),
-		float32(c.effective.TopLeft.Y + c.effective.Size.Y/2), 0
+	return c.effective.TopLeft.X + c.effective.Size.X/2,
+		c.effective.TopLeft.Y + c.effective.Size.Y/2, 0
 }
 
 // Bounds is the visible window, which on a torus may run past the world's own size.
@@ -405,28 +405,28 @@ func (c *basicCamera) Bounds() contract.AABB {
 }
 
 // CenterOn puts (x, y) in the middle of the window.
-func (c *basicCamera) CenterOn(x, y, _ float64) {
+func (c *basicCamera) CenterOn(x, y, _ float32) {
 	w, h := c.effective.Size.X, c.effective.Size.Y
 	c.place(x-w/2, y-h/2, w, h)
 }
 
 // MoveTo puts the visible window's top-left corner at (x, y), keeping its size.
-func (c *basicCamera) MoveTo(x, y float64) {
+func (c *basicCamera) MoveTo(x, y float32) {
 	c.Translate(x-c.effective.TopLeft.X, y-c.effective.TopLeft.Y)
 }
 
 // Translate shifts the visible window by a delta in world units.
-func (c *basicCamera) Translate(dx, dy float64) {
+func (c *basicCamera) Translate(dx, dy float32) {
 	c.place(c.effective.TopLeft.X+dx, c.effective.TopLeft.Y+dy, c.effective.Size.X, c.effective.Size.Y)
 }
 
 // Pan shifts the visible window by a delta in camera pixels.
 func (c *basicCamera) Pan(dx, dy float32) {
-	px := float64(c.px())
-	c.Translate(float64(dx)/px, float64(dy)/px)
+	px := c.px()
+	c.Translate(dx/px, dy/px)
 }
 
-func (c *basicCamera) place(x, y, w, h float64) {
+func (c *basicCamera) place(x, y, w, h float32) {
 	if c.whole {
 		return
 	}
@@ -435,11 +435,11 @@ func (c *basicCamera) place(x, y, w, h float64) {
 	c.effective = plane.NewAABB(geom.NewVec(x, y), w, h)
 }
 
-func fitAxis(lo, length, world float64, wraps bool) float64 {
+func fitAxis(lo, length, world float32, wraps bool) float32 {
 	if !wraps {
 		return min(max(lo, 0), max(world-length, 0))
 	}
-	lo = math.Mod(lo, world)
+	lo = f32.Mod(lo, world)
 	if lo < 0 {
 		lo += world
 	}
@@ -471,8 +471,8 @@ func (c *basicCamera) ZoomIn(factor float32, anchorX, anchorY float32) {
 
 	afterX, afterY := c.ToScreen(anchorX, anchorY)
 	px := c.px()
-	dx := float64((afterX - beforeX) / px)
-	dy := float64((afterY - beforeY) / px)
+	dx := (afterX - beforeX) / px
+	dy := (afterY - beforeY) / px
 	if dx != 0 || dy != 0 {
 		c.Translate(dx, dy)
 	}
@@ -482,8 +482,8 @@ func (c *basicCamera) setZoom(zoom float32) {
 	cx := c.effective.TopLeft.X + c.effective.Size.X/2
 	cy := c.effective.TopLeft.Y + c.effective.Size.Y/2
 
-	w := c.viewportSize.X / float64(zoom)
-	h := c.viewportSize.Y / float64(zoom)
+	w := c.viewportSize.X / zoom
+	h := c.viewportSize.Y / zoom
 
 	c.zoom = zoom
 	c.place(cx-w/2, cy-h/2, w, h)
@@ -491,20 +491,20 @@ func (c *basicCamera) setZoom(zoom float32) {
 
 // Fits reports whether the camera keeps the whole world in view, and the world's size.
 func (c *basicCamera) Fits() (float32, float32, bool) {
-	return float32(c.world.X), float32(c.world.Y), c.whole
+	return c.world.X, c.world.Y, c.whole
 }
 
 func (c *basicCamera) fit() {
-	c.zoom = float32(min(c.viewportSize.X/c.world.X, c.viewportSize.Y/c.world.Y))
+	c.zoom = min(c.viewportSize.X/c.world.X, c.viewportSize.Y/c.world.Y)
 	// the world whole, rounding notwithstanding
-	w := max(c.viewportSize.X/float64(c.zoom), c.world.X)
-	h := max(c.viewportSize.Y/float64(c.zoom), c.world.Y)
+	w := max(c.viewportSize.X/c.zoom, c.world.X)
+	h := max(c.viewportSize.Y/c.zoom, c.world.Y)
 	c.effective = plane.NewAABB(geom.NewVec((c.world.X-w)/2, (c.world.Y-h)/2), w, h)
 }
 
 func (c *basicCamera) minZoom() float32 {
-	byW := float32(c.viewportSize.X) / float32(c.world.X)
-	byH := float32(c.viewportSize.Y) / float32(c.world.Y)
+	byW := c.viewportSize.X / c.world.X
+	byH := c.viewportSize.Y / c.world.Y
 	floor := byW
 	if byH > floor {
 		floor = byH
@@ -552,7 +552,7 @@ func (c *basicCamera) Restore() {
 func (c *basicCamera) Rays() (contract.RayField, bool) {
 	k := 1 / c.px()
 	return contract.RayField{
-		Origin: [3]float32{float32(c.effective.TopLeft.X), float32(c.effective.TopLeft.Y), basicEye},
+		Origin: [3]float32{c.effective.TopLeft.X, c.effective.TopLeft.Y, basicEye},
 		DX:     [3]float32{k, 0, 0}, DY: [3]float32{0, k, 0}, Dir: [3]float32{0, 0, -1},
 	}, true
 }

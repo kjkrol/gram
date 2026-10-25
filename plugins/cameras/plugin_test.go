@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/gob"
 	"log"
-	"math"
 	"os"
 	"slices"
 	"strings"
@@ -18,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
@@ -119,8 +119,8 @@ func TestCameras_InReliefAreSavedAsTheirStick(t *testing.T) {
 	carried(t, saved, loaded)
 	for _, q := range [][3]float32{{400, 500, 30}, {420, 470, 0}} {
 		bx, by := cam.Project(q[0], q[1], q[2])
-		if ax, ay := again.Project(q[0], q[1], q[2]); math.Abs(float64(ax-bx)) > 1e-3 ||
-			math.Abs(float64(ay-by)) > 1e-3 {
+		if ax, ay := again.Project(q[0], q[1], q[2]); f32.Abs(float32(ax-bx)) > 1e-3 ||
+			f32.Abs(float32(ay-by)) > 1e-3 {
 			t.Errorf("loaded, %v is drawn at (%v, %v), want (%v, %v) as saved", q, ax, ay, bx, by)
 		}
 	}
@@ -607,13 +607,13 @@ func ridden(t *testing.T, tactical, riding cameras.Knobs) (p *cameras.Plugin, ca
 	})
 	cam = p.Write().New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(400, 300)
-	kind.Define[float64](w.Kinds(), "rider", kind.Spec{
-		comp.Load(func(x float64) world.Position {
+	kind.Define[float32](w.Kinds(), "rider", kind.Spec{
+		comp.Load(func(x float32) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(x, x), 10, 10)}
 		}),
 		comp.Const(world.Velocity{}),
 	})
-	rider := kind.Named[float64](w.Kinds(), "rider")
+	rider := kind.Named[float32](w.Kinds(), "rider")
 	w.Write().Seed(rider.Entry(500).Told(cameras.Follow{Camera: cam}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)

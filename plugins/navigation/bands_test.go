@@ -21,7 +21,7 @@ var _ sector.Anchors = anchor{}
 func TestNavigation_GoesOnInAFartherBandAndStandsBeyondTheLast(t *testing.T) {
 	const cols, rows = 128, 4
 	g := grid.DefaultGrids{}.Square(cols, rows, legCellSize)
-	profile := steering.Steering{MaxSpeed: float64(legCellSize * 2)}
+	profile := steering.Steering{MaxSpeed: float32(legCellSize * 2)}
 	walker := func(from, to uint32) navUnit {
 		start := g.At(from, 1)
 		return navUnit{box: cellBox(g, start, legEntitySize), at: start, profile: &profile,
@@ -39,8 +39,8 @@ func TestNavigation_GoesOnInAFartherBandAndStandsBeyondTheLast(t *testing.T) {
 		},
 	}, func(w *world.Plugin, _ *board.Plugin) { w.Write().Anchor(anchor{x: 80, y: 48}) },
 		goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base).Build() }})
-	xs := func() map[int]float64 {
-		got := map[int]float64{}
+	xs := func() map[int]float32 {
+		got := map[int]float32{}
 		for q.All(); q.Next(); {
 			cur := q.Cursor()
 			for i, id := range cur.IDs {
@@ -58,7 +58,7 @@ func TestNavigation_GoesOnInAFartherBandAndStandsBeyondTheLast(t *testing.T) {
 		nw.ecs.Tick(time.Second / 60)
 	}
 	after := xs()
-	if cell := float64(legCellSize); after[0] <= before[0]+cell || after[1] <= before[1]+cell {
+	if cell := float32(legCellSize); after[0] <= before[0]+cell || after[1] <= before[1]+cell {
 		t.Errorf("near from %v to %v, in the second band from %v to %v; want both on their way",
 			before[0], after[0], before[1], after[1])
 	}

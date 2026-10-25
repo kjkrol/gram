@@ -55,7 +55,7 @@ type Mover struct {
 	Sight   *vision.Sight
 	Eye     world.Eye // how wide the sight sees, with it
 	Domain  cell.Domain
-	Offset  float64 // shifts the box right, to straddle two cells
+	Offset  float32 // shifts the box right, to straddle two cells
 	Brakes  bool    // standing, it brakes to rest as a unit does
 }
 
@@ -209,7 +209,7 @@ func (bw *World) Snapshot() []geom.AABB {
 func (bw *World) Solid(layers world.Layers) []geom.AABB {
 	var out []geom.AABB
 	w, h := bw.World.Res.Config.Space.Width, bw.World.Res.Config.Space.Height
-	bw.Board.Read(0).Cover().(collision.Field).Solid(layers, collision.Everywhere, geom.NewAABBAt(geom.NewVec(0, 0), float64(w), float64(h)), func(fb collision.FieldBox) bool {
+	bw.Board.Read(0).Cover().(collision.Field).Solid(layers, collision.Everywhere, geom.NewAABBAt(geom.NewVec(0, 0), float32(w), float32(h)), func(fb collision.FieldBox) bool {
 		out = append(out, fb.Box)
 		return true
 	})
@@ -312,8 +312,8 @@ func (c *InstallCtx) Systems() []goke.System {
 // CellBox is the size x size box centred on cell c.
 func CellBox(g grid.Grid, c cell.ID, size uint32) plane.AABB {
 	at := g.CellCenter(c)
-	half := float64(size) / 2
-	return plane.NewAABB(geom.NewVec(at.X-half, at.Y-half), float64(size), float64(size))
+	half := float32(size) / 2
+	return plane.NewAABB(geom.NewVec(at.X-half, at.Y-half), float32(size), float32(size))
 }
 
 // OneStageGame is a minimal game.Game wrapping a single Stage.

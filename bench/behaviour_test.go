@@ -85,7 +85,7 @@ func newBehaviour(b *testing.B, n int, define func(bh *behaviour) kind.Spec) *be
 	}
 	entries := make([]kind.Entry, 0, n)
 	for i := range n {
-		entries = append(entries, movers.Entry(mover{float64(10 + (i%side)*30), float64(10 + (i/side)*30)}))
+		entries = append(entries, movers.Entry(mover{float32(10 + (i%side)*30), float32(10 + (i/side)*30)}))
 	}
 	bh.w.Write().Seed(entries...)
 	if err := bh.ctx.Deliver(bh.w.Kinds().Played()...); err != nil {

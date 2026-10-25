@@ -1,11 +1,10 @@
 package view
 
 import (
-	"math"
-
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 )
 
 // Level is how finely a camera draws what lies in a sector: Exact, Coarse, Fogged (coarsely and
@@ -26,7 +25,7 @@ type Sectors interface {
 	Len() int
 	Cols() int
 	Box(i int) geom.AABB
-	Of(x, y float64) int
+	Of(x, y float32) int
 	Off(i int) bool
 }
 
@@ -40,7 +39,7 @@ func NewSeen(cam camera.Camera, sectors Sectors) *View {
 
 // Level is how finely what stands at the world point (x, y) is drawn; Exact in a View of no
 // sectors.
-func (v *View) Level(x, y float64) Level {
+func (v *View) Level(x, y float32) Level {
 	if v.sectors == nil {
 		return Exact
 	}
@@ -62,14 +61,14 @@ func (v *View) Grid() Sectors { return v.sectors }
 
 // Fog is how far into the fog before the camera's sight the world point (x, y) lies, 0 short of
 // it to 1 at the sight's end.
-func (v *View) Fog(x, y float64) float32 {
+func (v *View) Fog(x, y float32) float32 {
 	if !v.sighted || v.detail.Fog <= 0 {
 		return 0
 	}
 	from := v.detail.Sight - v.detail.Fog
-	t := (math.Hypot(x-v.from.X, y-v.from.Y) - from) / v.detail.Fog
+	t := (f32.Hypot(x-v.from.X, y-v.from.Y) - from) / v.detail.Fog
 	t = min(max(t, 0), 1)
-	return float32(t * t * (3 - 2*t))
+	return t * t * (3 - 2*t)
 }
 
 // Fogging is the fog before the camera's sight ends as a shader takes it: from where (x, y), where
@@ -78,8 +77,8 @@ func (v *View) Fogging() [4]float32 {
 	if !v.sighted {
 		return [4]float32{}
 	}
-	return [4]float32{float32(v.from.X), float32(v.from.Y),
-		float32(v.detail.Sight - v.detail.Fog), float32(v.detail.Sight)}
+	return [4]float32{v.from.X, v.from.Y,
+		v.detail.Sight - v.detail.Fog, v.detail.Sight}
 }
 
 // the sectors the camera's picture covers within its sight, at their levels, and who is in them
@@ -87,13 +86,13 @@ func (v *View) Fogging() [4]float32 {
 func (v *View) see(space *aabbworld.Space) {
 	v.detail = camera.DetailOf(v.cam)
 	x, y, ok := camera.Viewpoint(v.cam)
-	v.from, v.sighted = geom.NewVec(float64(x), float64(y)), ok && v.detail.Sight > 0
+	v.from, v.sighted = geom.NewVec(x, y), ok && v.detail.Sight > 0
 	v.Bounds, v.Culled = v.cam.Bounds(), true
 	v.In.Clear()
 	// on a torus the bounds may run past the world's edge: their copies a world away meet the
 	// sectors across the seam
 	cfg := space.Config
-	wx, wy := float64(cfg.Width), float64(cfg.Height)
+	wx, wy := float32(cfg.Width), float32(cfg.Height)
 	for i := range v.levels {
 		v.levels[i] = v.level(i)
 		if v.levels[i] == Hidden {
@@ -105,7 +104,7 @@ func (v *View) see(space *aabbworld.Space) {
 				if kx != 0 && !cfg.Edges.WrapsX() || ky != 0 && !cfg.Edges.WrapsY() {
 					continue
 				}
-				by := geom.NewVec(float64(kx)*wx, float64(ky)*wy)
+				by := geom.NewVec(float32(kx)*wx, float32(ky)*wy)
 				seen := geom.NewAABB(v.Bounds.TopLeft.Add(by), v.Bounds.BottomRight.Add(by))
 				if in, ok := overlap(box, seen); ok {
 					space.Query(in, aabbworld.AnyCapability, v.add)
@@ -129,7 +128,7 @@ func (v *View) level(i int) Level {
 	}
 	near := nearest(box, v.from)
 	if v.sighted {
-		d := math.Hypot(near.X-v.from.X, near.Y-v.from.Y)
+		d := f32.Hypot(near.X-v.from.X, near.Y-v.from.Y)
 		switch {
 		case d > v.detail.Sight:
 			return Hidden
@@ -144,7 +143,7 @@ func (v *View) level(i int) Level {
 		return Hidden
 	}
 	// behind the eye the scale is 0: a sector reaching under it is seen near
-	if s := camera.ScaleAt(v.cam, float32(near.X), float32(near.Y), 0); v.detail.Coarse > 0 &&
+	if s := camera.ScaleAt(v.cam, near.X, near.Y, 0); v.detail.Coarse > 0 &&
 		s > 0 && s < v.detail.Coarse {
 		return Coarse
 	}

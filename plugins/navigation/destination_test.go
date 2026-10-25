@@ -1,8 +1,6 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
-	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 	"time"
 
@@ -12,16 +10,18 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/uid"
 )
 
-func chebyshev(grid grid.Grid, a, b cell.ID) float64 {
+func chebyshev(grid grid.Grid, a, b cell.ID) float32 {
 	ca, cb := grid.CellCenter(a), grid.CellCenter(b)
-	return max(abs(ca.X-cb.X), abs(ca.Y-cb.Y)) / float64(grid.CellSpan())
+	return max(abs(ca.X-cb.X), abs(ca.Y-cb.Y)) / float32(grid.CellSpan())
 }
 
-func abs(v float64) float64 {
+func abs(v float32) float32 {
 	if v < 0 {
 		return -v
 	}

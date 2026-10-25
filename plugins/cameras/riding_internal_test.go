@@ -1,12 +1,12 @@
 package cameras
 
 import (
-	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
@@ -39,7 +39,7 @@ func TestRiding_ReadsAndWritesTheEntityTheKeeperFollows(t *testing.T) {
 	if !ok || got.X != 105 || got.Y != 210 || got.Alt != 5 || got.Level != 6 {
 		t.Errorf("the entity is %+v (%v), want its middle (105, 210) at 5, its eye at 6", got, ok)
 	}
-	if math.Abs(got.Dir.X-0.6) > 1e-9 || math.Abs(got.Dir.Y-0.8) > 1e-9 {
+	if f32.Abs(got.Dir.X-0.6) > f32.Eps(1) || f32.Abs(got.Dir.Y-0.8) > f32.Eps(1) {
 		t.Errorf("it faces %v, want (0.6, 0.8): its way of length 1", got.Dir)
 	}
 	if !got.Eyed || got.Across != 0.5 || got.Tilt != 0.1 || !got.Turning {

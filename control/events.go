@@ -34,7 +34,7 @@ type InputEvents struct {
 
 	ClickQueue  []ClickEvent
 	KeyEvents   []KeyEvent
-	ScrollDelta float64
+	ScrollDelta float32
 }
 
 func (e *InputEvents) ResetTransient() {
@@ -50,7 +50,7 @@ func (e *InputEvents) AddKeyEvent(key Key, action KeyAction) {
 
 func (e *InputEvents) AddClickEvent(x, y int, button MouseButton, action KeyAction) {
 	e.ClickQueue = append(e.ClickQueue, ClickEvent{
-		Pos:    geom.NewVec(float64(x), float64(y)),
+		Pos:    geom.NewVec(float32(x), float32(y)),
 		Button: button,
 		Action: action,
 	})

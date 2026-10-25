@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/vec"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/topography/internal/relief"
@@ -78,12 +79,12 @@ func (s *sprites) begin(cam camera.Camera) {
 
 func (s *sprites) add(cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource,
 	id render.SpriteID, lit render.Illumination, sway, t float32) {
-	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
-	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
+	x0, y0 := box.TopLeft.X, box.TopLeft.Y
+	x1, y1 := box.BottomRight.X, box.BottomRight.Y
 	if ridden(cam, x0, y0, x1, y1) {
 		return // an eye does not see what it rides in
 	}
-	alt, h := float32(z.Altitude), tall(z, y0, y1)
+	alt, h := z.Altitude, tall(z, y0, y1)
 	cx, cy := (x0+x1)/2, (y0+y1)/2
 	sun, weather := s.sky.Distant(), s.sky.Air()
 	var lx, ly float32
@@ -101,11 +102,11 @@ func (s *sprites) add(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 // angle in degrees; wherever the ground stands higher, the sprite lies on the ground
 func (s *sprites) lay(cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource,
 	id render.SpriteID, angle float32, lit render.Illumination) {
-	hw, hh := float32(box.Size.X)/2, float32(box.Size.Y)/2
-	cx, cy := float32(box.TopLeft.X)+hw, float32(box.TopLeft.Y)+hh
-	sin, cos := math.Sincos(float64(angle) * math.Pi / 180)
-	s32, c32 := float32(sin), float32(cos)
-	alt := float32(z.Altitude)
+	hw, hh := box.Size.X/2, box.Size.Y/2
+	cx, cy := box.TopLeft.X+hw, box.TopLeft.Y+hh
+	sin, cos := f32.Sincos(angle * math.Pi / 180)
+	s32, c32 := sin, cos
+	alt := z.Altitude
 	b := batchOf(&s.lain, atlas)
 	for _, k := range [4][2]float32{{-hw, -hh}, {hw, -hh}, {-hw, hh}, {hw, hh}} {
 		x, y := cx+k[0]*c32+k[1]*s32, cy+k[1]*c32-k[0]*s32
@@ -131,15 +132,15 @@ func (s *sprites) level(cam camera.Camera, c [4]geom.Vec, alt float32, atlas ren
 	id render.SpriteID, lit render.Illumination) {
 	b := batchOf(&s.lain, atlas)
 	for _, p := range c {
-		x, y := float32(p.X), float32(p.Y)
+		x, y := p.X, p.Y
 		b.inst = append(b.inst, x, y, alt, s.groundAt(x, y))
 	}
-	mx, my := float32(c[0].X+c[3].X)/2, float32(c[0].Y+c[3].Y)/2
+	mx, my := (c[0].X+c[3].X)/2, (c[0].Y+c[3].Y)/2
 	u0, v0, u1, v1 := atlas.UV(id)
 	sun := s.sky.Distant()
 	l := lit.Light
-	short := float32(min(math.Hypot(c[1].X-c[0].X, c[1].Y-c[0].Y),
-		math.Hypot(c[2].X-c[0].X, c[2].Y-c[0].Y)))
+	short := min(f32.Hypot(c[1].X-c[0].X, c[1].Y-c[0].Y),
+		f32.Hypot(c[2].X-c[0].X, c[2].Y-c[0].Y))
 	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.hazeAt(mx, my, alt),
 		directShare(sun, 0, 0, 1), lyingSoft*short/2, float32(lit.Takes), 0)
 }
@@ -151,12 +152,12 @@ func (s *sprites) upright(cam camera.Camera, a, b geom.Vec, alt, high float32,
 		return
 	}
 	bt := batchOf(&s.lain, atlas)
-	ax, ay, bx, by := float32(a.X), float32(a.Y), float32(b.X), float32(b.Y)
+	ax, ay, bx, by := a.X, a.Y, b.X, b.Y
 	top := alt + high
 	ga, gb := s.groundAt(ax, ay), s.groundAt(bx, by)
 	bt.inst = append(bt.inst, ax, ay, top, ga, bx, by, top, gb, ax, ay, alt, ga, bx, by, alt, gb)
 	dx, dy := bx-ax, by-ay
-	n := float32(math.Hypot(float64(dx), float64(dy)))
+	n := f32.Hypot(dx, dy)
 	sky := s.sky.Distant()
 	sun := faceLit(sky, -dy/n, dx/n, 0, lit)
 	u0, v0, u1, v1 := atlas.UV(id)
@@ -176,7 +177,7 @@ func batchOf(batches *[]spriteBatch, atlas render.AtlasSource) *spriteBatch {
 }
 
 func (s *sprites) groundAt(x, y float32) float32 {
-	return float32(s.relief.GroundAt(geom.NewVec(float64(x), float64(y))))
+	return s.relief.GroundAt(geom.NewVec(x, y))
 }
 
 func (s *sprites) draw(t render.Target, cam camera.Camera, u render.Uniforms) {

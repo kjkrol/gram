@@ -15,7 +15,7 @@ type Position struct {
 const StepReach = 0.5
 
 // MaxStep is the furthest this entity moves in a single tick, whatever its Velocity says.
-func (p Position) MaxStep() float64 { return StepReach * min(p.Size.X, p.Size.Y) }
+func (p Position) MaxStep() float32 { return StepReach * min(p.Size.X, p.Size.Y) }
 
 // Center is the middle of the entity's rectangle.
 func (p Position) Center() geom.Vec {
@@ -23,4 +23,4 @@ func (p Position) Center() geom.Vec {
 }
 
 // MaxSpeed is the fastest this entity can travel, in world units a second, at tps ticks a second.
-func (p Position) MaxSpeed(tps int) float64 { return p.MaxStep() * float64(tps) }
+func (p Position) MaxSpeed(tps int) float32 { return p.MaxStep() * float32(tps) }

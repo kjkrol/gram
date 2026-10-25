@@ -50,7 +50,7 @@ func (v *View) CopyInto(dst *View) {
 	dst.levels = append(dst.levels[:0], v.levels...)
 }
 
-func (v *View) refresh(space *aabbworld.Space, worldArea float64) {
+func (v *View) refresh(space *aabbworld.Space, worldArea float32) {
 	if v.sectors != nil {
 		v.see(space)
 		return

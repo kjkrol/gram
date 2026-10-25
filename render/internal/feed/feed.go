@@ -59,10 +59,10 @@ func (f *Feed) Picture() Picture { return f.picture }
 
 // Proportions are the width and height of the world the feed shows whole, when its camera keeps
 // the whole world in view.
-func (f *Feed) Proportions() (w, h float64, ok bool) {
+func (f *Feed) Proportions() (w, h float32, ok bool) {
 	if c, is := f.cam.(camera.Fitting); is {
 		if cw, ch, whole := c.Fits(); whole {
-			return float64(cw), float64(ch), true
+			return cw, ch, true
 		}
 	}
 	return 0, 0, false

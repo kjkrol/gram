@@ -1,16 +1,15 @@
 package response
 
 import (
-	"math"
-
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 )
 
 // Sweep tests the path of a box of half sides half, its centre going from from to to, against
 // box: where along the path (0 to 1) the two first touch, the way out through the face the path
 // enters by, and whether they touch at all. A path starting inside box touches at 0, the way out
 // the shortest; one only grazing an edge does not touch.
-func Sweep(from, to, half geom.Vec, box geom.AABB) (along float64, normal geom.Vec, ok bool) {
+func Sweep(from, to, half geom.Vec, box geom.AABB) (along float32, normal geom.Vec, ok bool) {
 	lo := geom.NewVec(box.TopLeft.X-half.X, box.TopLeft.Y-half.Y)
 	hi := geom.NewVec(box.BottomRight.X+half.X, box.BottomRight.Y+half.Y)
 	d := geom.NewVec(to.X-from.X, to.Y-from.Y)
@@ -36,12 +35,12 @@ func Sweep(from, to, half geom.Vec, box geom.AABB) (along float64, normal geom.V
 	return entry, geom.NewVec(0, faceY), true
 }
 
-func slab(at, d, lo, hi float64) (entry, exit, face float64, ok bool) {
+func slab(at, d, lo, hi float32) (entry, exit, face float32, ok bool) {
 	if d == 0 {
 		if at <= lo || at >= hi {
 			return 0, 0, 0, false
 		}
-		return math.Inf(-1), math.Inf(1), 0, true
+		return f32.Inf(-1), f32.Inf(1), 0, true
 	}
 	t1, t2 := (lo-at)/d, (hi-at)/d
 	if d > 0 {
@@ -52,7 +51,7 @@ func slab(at, d, lo, hi float64) (entry, exit, face float64, ok bool) {
 
 func wayOut(p, lo, hi geom.Vec) geom.Vec {
 	ways := [4]struct {
-		depth float64
+		depth float32
 		dir   geom.Vec
 	}{
 		{p.X - lo.X, geom.NewVec(-1, 0)},
@@ -71,21 +70,21 @@ func wayOut(p, lo, hi geom.Vec) geom.Vec {
 
 // SweepWall is Sweep against a wall thick either side of the segment from a to b. From a path
 // starting inside the wall the way out is across it, to the side its centre is on.
-func SweepWall(from, to, half, a, b geom.Vec, thick float64) (along float64, normal geom.Vec,
+func SweepWall(from, to, half, a, b geom.Vec, thick float32) (along float32, normal geom.Vec,
 	ok bool) {
 	vx, vy := b.X-a.X, b.Y-a.Y
-	length := math.Hypot(vx, vy)
-	dx, dy := 1.0, 0.0
+	length := f32.Hypot(vx, vy)
+	dx, dy := float32(1), float32(0)
 	if length > 0 {
 		dx, dy = vx/length, vy/length
 	}
 	d, n := geom.NewVec(dx, dy), geom.NewVec(-dy, dx)
 	mx, my := from.X-(a.X+b.X)/2, from.Y-(a.Y+b.Y)/2
 	step := geom.NewVec(to.X-from.X, to.Y-from.Y)
-	entry, exit := math.Inf(-1), math.Inf(1)
+	entry, exit := f32.Inf(-1), f32.Inf(1)
 	for _, u := range [4]geom.Vec{geom.NewVec(1, 0), geom.NewVec(0, 1), n, d} {
-		r := half.X*math.Abs(u.X) + half.Y*math.Abs(u.Y) + length/2*math.Abs(d.X*u.X+d.Y*u.Y) +
-			thick*math.Abs(n.X*u.X+n.Y*u.Y)
+		r := half.X*f32.Abs(u.X) + half.Y*f32.Abs(u.Y) + length/2*f32.Abs(d.X*u.X+d.Y*u.Y) +
+			thick*f32.Abs(n.X*u.X+n.Y*u.Y)
 		in, out, face, ok := slab(mx*u.X+my*u.Y, step.X*u.X+step.Y*u.Y, -r, r)
 		if !ok {
 			return 0, geom.Vec{}, false

@@ -31,7 +31,7 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 			Delta:       scaled(ev.CursorDelta, k),
 			Wheel:       ev.ScrollDelta,
 			Screen:      screenOf(pl),
-			Resolution:  float64(k),
+			Resolution:  k,
 			Mods:        mods,
 			FillsScreen: ev.WindowFillsScreen,
 		}
@@ -259,7 +259,7 @@ func holds(bindings []control.Binding, key control.Key) bool {
 func screenOf(pl *Player) geom.Vec {
 	if cam := pl.pic.camera; cam != nil {
 		w, h := cam.Viewport()
-		return geom.NewVec(float64(w), float64(h))
+		return geom.NewVec(w, h)
 	}
 	return pl.pic.area.BottomRight.Sub(pl.pic.area.TopLeft)
 }
@@ -278,5 +278,5 @@ func localPoint(pl *Player, at geom.Vec) geom.Vec {
 
 // shown pixels in the camera's, k of them a shown one
 func scaled(v geom.Vec, k float32) geom.Vec {
-	return geom.NewVec(v.X*float64(k), v.Y*float64(k))
+	return geom.NewVec(v.X*k, v.Y*k)
 }

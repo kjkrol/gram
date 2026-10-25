@@ -440,7 +440,7 @@ func TestCamera_MiddleDragPansOneToOneWithTheCursor(t *testing.T) {
 		r.move(&control.InputEvents{MousePos: geom.NewVec(100, 100), MiddleDown: true, CursorDelta: geom.NewVec(10, 0)}, ecs)
 
 		after := cam.Bounds()
-		if want := before.TopLeft.X - 10/float64(zoom); after.TopLeft.X != want {
+		if want := before.TopLeft.X - 10/float32(zoom); after.TopLeft.X != want {
 			t.Errorf("zoom %v: TopLeft.X after a 10-pixel drag = %v, want %v", zoom, after.TopLeft.X, want)
 		}
 	}
@@ -458,8 +458,8 @@ func TestCamera_EdgeScrollIsTheSameOnScreenAtAnyZoom(t *testing.T) {
 		// near the right edge of the 200-pixel window
 		r.move(&control.InputEvents{MousePos: geom.NewVec(190, 100)}, ecs)
 
-		moved := (cam.Bounds().TopLeft.X - before.TopLeft.X) * float64(zoom)
-		if moved != float64(cameras.DefaultScrollSpeed) {
+		moved := (cam.Bounds().TopLeft.X - before.TopLeft.X) * float32(zoom)
+		if moved != float32(cameras.DefaultScrollSpeed) {
 			t.Errorf("zoom %v: an edge scroll moved %v pixels of world, want %v", zoom, moved, cameras.DefaultScrollSpeed)
 		}
 	}
@@ -556,7 +556,7 @@ func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
 		return order{int(c.Delta.X)}, true
 	}).In(camera.Inside))
 	move := func(x, y int) []command.Issued[order] {
-		ev := &control.InputEvents{MousePos: geom.NewVec(float64(x), float64(y)), CursorDelta: geom.NewVec(7, 0)}
+		ev := &control.InputEvents{MousePos: geom.NewVec(float32(x), float32(y)), CursorDelta: geom.NewVec(7, 0)}
 		r.handle(ev)
 		return r.drained()
 	}

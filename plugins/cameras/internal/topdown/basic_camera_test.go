@@ -3,15 +3,15 @@ package topdown
 import (
 	"bytes"
 	"encoding/gob"
-	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	contract "github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 )
 
-func testViewport(x, y, w, h float64) contract.AABB {
+func testViewport(x, y, w, h float32) contract.AABB {
 	return geom.NewAABBAt(geom.NewVec(x, y), w, h)
 }
 
@@ -242,7 +242,8 @@ func TestWholeCamera_KeepsTheWholeWorldCentred(t *testing.T) {
 		if x0 < -1e-3 || y0 < -1e-3 || x1 > size[0]+1e-3 || y1 > size[1]+1e-3 {
 			t.Errorf("in %v the world lies (%v, %v)-(%v, %v), want all of it on the screen", size, x0, y0, x1, y1)
 		}
-		if gx, gy := size[0]-x1-x0, size[1]-y1-y0; math.Abs(float64(gx)) > 1e-3 || math.Abs(float64(gy)) > 1e-3 {
+		if gx, gy := size[0]-x1-x0, size[1]-y1-y0; f32.Abs(float32(gx)) > 1e-3 ||
+			f32.Abs(float32(gy)) > 1e-3 {
 			t.Errorf("in %v the world lies (%v, %v)-(%v, %v), want it centred", size, x0, y0, x1, y1)
 		}
 		if (x1-x0)/400 != (y1-y0)/200 {

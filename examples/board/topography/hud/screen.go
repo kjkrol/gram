@@ -79,10 +79,10 @@ const (
 // on either side, so e stays centred as the word comes and goes
 func beside(e *ui.Element, is func() bool) *ui.Element {
 	w, _ := ui.DefaultTheme().Bold.Measure("PAUSED")
-	slot := float64(w) + 2*pausedPad + pausedGap
+	slot := w + 2*pausedPad + pausedGap
 	word := ui.HeadingOf(ui.While(is, "PAUSED")).Padding(pausedPad).Fill(pausedColor)
 	return ui.Columns(room(slot), ui.Fit(e), ui.Fixed(slot, ui.MiddleRight(word)))
 }
 
 // room is a strip px tall, or wide, that, unlike a Blank, takes no click
-func room(px float64) ui.Part { return ui.Fixed(px, ui.Layers()) }
+func room(px float32) ui.Part { return ui.Fixed(px, ui.Layers()) }

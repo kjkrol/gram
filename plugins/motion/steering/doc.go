@@ -6,7 +6,8 @@
 // profile. It is a knob an effect may Alter. Its [Course] is what it is asked and how far it has
 // come; whoever steers holds both as a [Helm] and asks for a heading or a speed through it. The
 // [System], run by motion before it moves, turns the heading by at most TurnRate a tick and
-// writes the base speed from the profile.
+// writes the base speed from the profile. A collision slows the Course's Speed with the velocity,
+// so what a strike takes stays taken.
 //
 // # Commands
 //

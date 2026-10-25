@@ -2,9 +2,9 @@ package ui
 
 import (
 	"image"
-	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -15,10 +15,10 @@ import (
 func Scroll(e *Element) *Element { return newElement(&scroll{}, e) }
 
 type scroll struct {
-	offset   float64 // the pixels of the content scrolled past the top
-	tall     float64 // the content's height
+	offset   float32 // the pixels of the content scrolled past the top
+	tall     float32 // the content's height
 	dragging bool
-	grip     float64 // how far into the thumb the drag took hold
+	grip     float32 // how far into the thumb the drag took hold
 }
 
 // pixels: the bar's width and the thumb's least length
@@ -31,7 +31,7 @@ const (
 var _ pressable = (*scroll)(nil)
 var _ dragged = (*scroll)(nil)
 
-func (sc *scroll) needs(e *Element) (w, h float64) {
+func (sc *scroll) needs(e *Element) (w, h float32) {
 	w, h = e.children[0].needs()
 	return w + scrollBar, h
 }
@@ -42,18 +42,18 @@ func (sc *scroll) place(e *Element, box geom.AABB) {
 	sc.offset = sc.clamped(sc.offset, h)
 	top := box.TopLeft.Y - sc.offset
 	e.children[0].lay(geom.NewAABB(geom.NewVec(box.TopLeft.X, top),
-		geom.NewVec(box.BottomRight.X-scrollBar, top+math.Max(sc.tall, h))))
+		geom.NewVec(box.BottomRight.X-scrollBar, top+max(sc.tall, h))))
 }
 
-func (sc *scroll) clamped(offset, shown float64) float64 {
-	return math.Max(0, math.Min(offset, sc.tall-shown))
+func (sc *scroll) clamped(offset, shown float32) float32 {
+	return max(0, min(offset, sc.tall-shown))
 }
 
 // clip is the part of dst the content is drawn into: the box less the bar
 func (sc *scroll) clip(e *Element, dst *render.Image) *render.Image {
 	box := shrink(e.box, e.padding)
-	return dst.SubImage(image.Rect(int(math.Floor(box.TopLeft.X)), int(math.Floor(box.TopLeft.Y)),
-		int(math.Ceil(box.BottomRight.X-scrollBar)), int(math.Ceil(box.BottomRight.Y))))
+	return dst.SubImage(image.Rect(int(f32.Floor(box.TopLeft.X)), int(f32.Floor(box.TopLeft.Y)),
+		int(f32.Ceil(box.BottomRight.X-scrollBar)), int(f32.Ceil(box.BottomRight.Y))))
 }
 
 func (sc *scroll) draw(e *Element, dst *render.Image) {
@@ -63,16 +63,16 @@ func (sc *scroll) draw(e *Element, dst *render.Image) {
 		return
 	}
 	th := e.look()
-	x := float32(box.BottomRight.X - scrollBar/2)
-	dst.StrokeLine(x, float32(box.TopLeft.Y), x, float32(box.BottomRight.Y), 2, th.Border)
+	x := box.BottomRight.X - scrollBar/2
+	dst.StrokeLine(x, box.TopLeft.Y, x, box.BottomRight.Y, 2, th.Border)
 	y0, y1 := sc.thumb(box)
-	dst.StrokeLine(x, float32(y0), x, float32(y1), scrollBar-4, th.Accent)
+	dst.StrokeLine(x, y0, x, y1, scrollBar-4, th.Accent)
 }
 
 // thumb is where the bar's thumb lies: its share of the bar the box's of the content
-func (sc *scroll) thumb(box geom.AABB) (y0, y1 float64) {
+func (sc *scroll) thumb(box geom.AABB) (y0, y1 float32) {
 	_, h := size(box)
-	span := math.Max(scrollThumb, h*h/sc.tall)
+	span := max(scrollThumb, h*h/sc.tall)
 	y0 = box.TopLeft.Y + sc.offset/(sc.tall-h)*(h-span)
 	return y0, y0 + span
 }
@@ -110,7 +110,7 @@ func (sc *scroll) drag(_ *Scene, e *Element, at geom.Vec) {
 func (sc *scroll) drop() { sc.dragging = false }
 
 // wheel scrolls a notch: down for a wheel rolled down (a delta below zero)
-func (sc *scroll) wheel(_ *Scene, e *Element, delta float64) {
+func (sc *scroll) wheel(_ *Scene, e *Element, delta float32) {
 	_, h := size(shrink(e.box, e.padding))
-	sc.offset = sc.clamped(sc.offset-math.Copysign(scrollStep, delta), h)
+	sc.offset = sc.clamped(sc.offset-f32.Copysign(scrollStep, delta), h)
 }

@@ -13,12 +13,12 @@ var _ goke.System = (*System)(nil)
 type System struct {
 	space     *aabbworld.Space
 	views     *[]*View
-	worldArea float64
+	worldArea float32
 }
 
 // NewSystem builds the system over space, refreshing the Views listed at views.
 func NewSystem(space *aabbworld.Space, views *[]*View, worldW, worldH uint32) *System {
-	return &System{space: space, views: views, worldArea: float64(worldW) * float64(worldH)}
+	return &System{space: space, views: views, worldArea: float32(worldW) * float32(worldH)}
 }
 
 func (s *System) Init(*goke.SysInit) {}

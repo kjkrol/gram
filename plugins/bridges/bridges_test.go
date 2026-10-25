@@ -1,7 +1,6 @@
 package bridges_test
 
 import (
-	"math"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -11,6 +10,7 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
@@ -106,14 +106,14 @@ func newDale(t *testing.T) *dale {
 	return d
 }
 
-func valley(p geom.Vec) float64 {
+func valley(p geom.Vec) float32 {
 	if p.X > 30 && p.X < 60 {
 		return 0
 	}
 	return 20
 }
 
-func (d *dale) start(heights func(geom.Vec) float64) {
+func (d *dale) start(heights func(geom.Vec) float32) {
 	d.t.Helper()
 	d.topo.Write().Seed(heights)
 	ctx := &installer{ecs: goke.New()}
@@ -196,7 +196,7 @@ func (d *dale) pierPoints() []geom.Vec {
 
 func TestTool_APlayerLaysABridgeOutAndBuildsIt(t *testing.T) {
 	d := newDale(t)
-	d.start(func(p geom.Vec) float64 {
+	d.start(func(p geom.Vec) float32 {
 		if p.X >= 70 {
 			return 23 // the far head's east side, 3 over the deck
 		}
@@ -227,7 +227,7 @@ func TestTool_APlayerLaysABridgeOutAndBuildsIt(t *testing.T) {
 		t.Errorf("the middle span carries %+v, want a graded deck 20 over the valley", f)
 	}
 	piers := d.pierPoints()
-	if len(piers) != 2 || piers[0].Y != 35 || math.Abs(piers[0].X+piers[1].X-90) > 1e-9 {
+	if len(piers) != 2 || piers[0].Y != 35 || f32.Abs(piers[0].X+piers[1].X-90) > f32.Eps(90) {
 		t.Errorf("piers stand at %v, want at (40, 35) and (50, 35)", piers)
 	}
 	if h := d.topo.Write().Relief().At(geom.NewVec(70, 30)); h != 20 {
@@ -263,7 +263,7 @@ func TestTool_TheBridgeInHandLiesOverItsCells(t *testing.T) {
 	n := 0
 	f.Each(func(at render.At, _ []render.Vertex) {
 		n++
-		if at.Top() || math.Abs(float64(at.Z())-20.9) > 1e-4 {
+		if at.Top() || f32.Abs(float32(at.Z())-20.9) > 1e-4 {
 			t.Errorf("the bridge in hand lies at %v, want over its head's ground at 20", at)
 		}
 	})

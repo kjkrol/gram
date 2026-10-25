@@ -77,7 +77,7 @@ type liking struct{ N int8 }
 type sacks struct{ N int8 }
 
 type who struct {
-	x  float64
+	x  float32
 	by command.Issuer
 }
 
@@ -165,7 +165,7 @@ func newRig(t *testing.T) *rig {
 		w.Write().Clock().Replay(rc, dt)
 		rc.Sync()
 	})
-	byX := map[float64]uid.UID64{}
+	byX := map[float32]uid.UID64{}
 	for q.All(); q.Next(); {
 		cur := q.Cursor()
 		for i, id := range cur.IDs {

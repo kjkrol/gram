@@ -1,11 +1,10 @@
 package bodies
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/order"
-
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/navigation/internal/pathfind"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
@@ -22,10 +21,12 @@ type Member struct {
 	Pos    world.Position
 	Vel    geom.Vec // world units a second
 	Facing geom.Vec // the way it faces, standing too
-	Z      world.Z
-	Lift   float64
-	Brake  float64 // world units a second²
-	Order  *order.MoveOrder
+	// the way off the units it touches, an axis at a time: -1, 0 or 1, and 0 between two
+	Touching geom.Vec
+	Z        world.Z
+	Lift     float32
+	Brake    float32 // world units a second²
+	Order    *order.MoveOrder
 	// who came at m last tick, a step into m's cell refused
 	PressedBy uid.UID64
 	Pressed   bool

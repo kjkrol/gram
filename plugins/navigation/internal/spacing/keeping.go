@@ -2,16 +2,16 @@ package spacing
 
 import (
 	"cmp"
-	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
-	"github.com/kjkrol/gram/plugins/navigation/internal/order"
-	"math"
 	"slices"
 	"sync"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/motion/steering"
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/navigation/internal/pathfind"
 	"github.com/kjkrol/uid"
 )
@@ -30,12 +30,12 @@ type Keeping interface {
 	// Lost: wait on, or settle on dest along path, or with neither give up
 	Lost(m bodies.Member, from cell.ID, o *order.MoveOrder, waited time.Duration) (dest cell.ID, path order.Path, wait, ok bool)
 	// a zero dir keeps the heading m has
-	Steer(m bodies.Member, st steering.Helm, dir geom.Vec, speed float64)
+	Steer(m bodies.Member, st steering.Helm, dir geom.Vec, speed float32)
 	Watch(m bodies.Member, o *order.MoveOrder, toward cell.ID, want geom.Vec, d time.Duration)
 	Bump(m bodies.Member, o *order.MoveOrder) BumpAnswer
 	Blocked(m bodies.Member, o *order.MoveOrder, c cell.ID, deck bool,
 		d time.Duration) (holder uid.UID64, known bool)
-	Within(m bodies.Member) float64
+	Within(m bodies.Member) float32
 	On(m bodies.Member, c cell.ID, level order.Level) bool
 	// near is the caller's scratch for the bodies near, nil for the keeping's own
 	MayStep(m bodies.Member, ahead cell.ID, deck bool, heading geom.Vec, near *bodies.Nearby) bool
@@ -338,7 +338,7 @@ func (k *CellKeeping) On(m bodies.Member, c cell.ID, level order.Level) bool {
 	return k.finder.on(m, c, level)
 }
 
-func (k *CellKeeping) Steer(_ bodies.Member, st steering.Helm, dir geom.Vec, speed float64) {
+func (k *CellKeeping) Steer(_ bodies.Member, st steering.Helm, dir geom.Vec, speed float32) {
 	if dir != (geom.Vec{}) {
 		st.Request(dir)
 	}
@@ -393,7 +393,7 @@ func (k *CellKeeping) Bump(m bodies.Member, o *order.MoveOrder) BumpAnswer {
 	return CarryOn
 }
 
-func (k *CellKeeping) Within(bodies.Member) float64 { return ArrivalEpsilon }
+func (k *CellKeeping) Within(bodies.Member) float32 { return ArrivalEpsilon }
 
 func (k *CellKeeping) MayStep(m bodies.Member, ahead cell.ID, deck bool, _ geom.Vec,
 	_ *bodies.Nearby) bool {
@@ -404,7 +404,7 @@ func (k *CellKeeping) Other(id uid.UID64) (bodies.Body, bool) { return k.index.O
 
 type scored struct {
 	c     cell.ID
-	score float64
+	score float32
 }
 
 // across the comer's way first, then behind, a slantwise step last; never ahead of it. Whether m
@@ -421,7 +421,7 @@ func (k *CellKeeping) aside(m bodies.Member, from cell.ID, way geom.Vec) []score
 		}
 		c := grid.CellCenter(n)
 		d := geom.NewVec(c.X-hc.X, c.Y-hc.Y)
-		l := math.Hypot(d.X, d.Y)
+		l := f32.Hypot(d.X, d.Y)
 		if l == 0 {
 			continue
 		}
@@ -429,7 +429,7 @@ func (k *CellKeeping) aside(m bodies.Member, from cell.ID, way geom.Vec) []score
 		if dot > 0.3 {
 			continue
 		}
-		score := math.Abs(dot)
+		score := f32.Abs(dot)
 		if _, _, diagonal := grid.DiagonalNeighbors(home, n); diagonal {
 			score++
 		}
@@ -444,7 +444,7 @@ func (k *CellKeeping) wayFrom(m bodies.Member, asker bodies.Body) (cell.ID, geom
 	from, _ := grid.CellAt(asker.At)
 	a, b := grid.CellCenter(from), grid.CellCenter(m.Cell)
 	d := geom.NewVec(b.X-a.X, b.Y-a.Y)
-	if l := math.Hypot(d.X, d.Y); l > 0 {
+	if l := f32.Hypot(d.X, d.Y); l > 0 {
 		d = geom.NewVec(d.X/l, d.Y/l)
 	}
 	return from, d

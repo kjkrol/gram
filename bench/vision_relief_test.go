@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -29,7 +30,7 @@ type sampled struct{ ground.Heights }
 func Benchmark_Vision_Relief(b *testing.B) {
 	for _, c := range []struct {
 		name  string
-		step  float64 // metres; 0, the relief's profile
+		step  float32 // metres; 0, the relief's profile
 		every float64
 	}{
 		{"step=50m", 50, 0},
@@ -69,8 +70,8 @@ func Benchmark_Vision_Relief(b *testing.B) {
 				b.Fatal(err)
 			}
 			p.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-			topo.Write().Relief().SetHeights(func(q geom.Vec) float64 {
-				return scale.Units(600 + 500*math.Sin(q.X/150)*math.Cos(q.Y/110))
+			topo.Write().Relief().SetHeights(func(q geom.Vec) float32 {
+				return scale.Units(600 + 500*f32.Sin(q.X/150)*f32.Cos(q.Y/110))
 			})
 			units := board.NewUnits(p, board.Shape{Size: 3, Height: 9},
 				func(r walkerRow) geom.Vec { return g.CellCenter(r.At) })

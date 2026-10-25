@@ -49,14 +49,14 @@ func weatherOf(t *testing.T, cfg Config, season calendar.Season) *rig {
 // a weather read back from the save at path, or a fresh one when path is empty; over the ground
 // the first of ground gives, if any
 func loaded(t *testing.T, cfg Config, season calendar.Season, path string,
-	ground ...func() (low, peaks float64)) *rig {
+	ground ...func() (low, peaks float32)) *rig {
 	t.Helper()
 	return sized(t, cfg, season, path, 640, 480, ground...)
 }
 
 // a weather over a world width by height
 func sized(t *testing.T, cfg Config, season calendar.Season, path string, width, height uint32,
-	ground ...func() (low, peaks float64)) *rig {
+	ground ...func() (low, peaks float32)) *rig {
 	t.Helper()
 	r := &rig{w: world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: width, Height: height},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}}),
@@ -503,7 +503,7 @@ func TestWeather_TheMassesOutlastASave(t *testing.T) {
 	}
 	// a sky reaching less far keeps the levels of the save it has, the others gone; one reaching
 	// further is laid anew
-	for _, horizon := range []float64{100, 60000} {
+	for _, horizon := range []float32{100, 60000} {
 		other := longClouds()
 		other.Horizon = horizon
 		r := loaded(t, other, calendar.Summer, path)
@@ -543,7 +543,7 @@ func TestWeather_IsAComponentOfFixedSizeWithoutPointers(t *testing.T) {
 }
 
 func TestWeather_HangsTheLowCloudsOverTheGround(t *testing.T) {
-	over := loaded(t, twoStates(), calendar.Summer, "", func() (low, peaks float64) {
+	over := loaded(t, twoStates(), calendar.Summer, "", func() (low, peaks float32) {
 		return 20, 1880
 	})
 	over.tick(time.Millisecond)

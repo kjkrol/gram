@@ -32,7 +32,7 @@ var (
 // Shaping is how Raise, Lower and Level move the ground: Step per Raise or Lower, and at most
 // MaxStep between two corners along a cell's edge (two neighbouring cells on a hex grid), the
 // ground round about following as in Transport Tycoon. MaxStep zero lets any slope stand.
-type Shaping struct{ Step, MaxStep float64 }
+type Shaping struct{ Step, MaxStep float32 }
 
 type shaper struct {
 	relief *irelief.Relief

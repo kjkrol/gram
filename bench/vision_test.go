@@ -11,12 +11,13 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-type watcher struct{ x, y float64 }
+type watcher struct{ x, y float32 }
 
 // workers 0: every CPU
 func benchVision(b *testing.B, n int, outlines bool, workers int) *goke.ECS {
@@ -47,10 +48,10 @@ func benchVision(b *testing.B, n int, outlines bool, workers int) *goke.ECS {
 	}
 	kind.Define[watcher](w.Kinds(), "watcher", spec)
 	watchers := kind.Named[watcher](w.Kinds(), "watcher")
-	side := int(math.Ceil(math.Sqrt(float64(n))))
+	side := int(f32.Ceil(f32.Sqrt(float32(n))))
 	entries := make([]kind.Entry, 0, n)
 	for i := range n {
-		entries = append(entries, watchers.Entry(watcher{float64(100 + (i%side)*120), float64(100 + (i/side)*120)}))
+		entries = append(entries, watchers.Entry(watcher{float32(100 + (i%side)*120), float32(100 + (i/side)*120)}))
 	}
 	w.Write().Seed(entries...)
 	return ctx.start(b, func(rc goke.RunCtx, d time.Duration) {

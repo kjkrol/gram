@@ -1,9 +1,8 @@
 package relief
 
 import (
-	"math"
-
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
@@ -12,12 +11,12 @@ const shapeTolerance = 1e-3
 
 // Lift moves the ground at p by `by`, then the ground round it until no two neighbouring
 // corners differ by more than maxStep (zero: any).
-func (r *Relief) Lift(p geom.Vec, by, maxStep float64) {
+func (r *Relief) Lift(p geom.Vec, by, maxStep float32) {
 	v, ok := r.vertexAt(p)
 	if !ok || by == 0 {
 		return
 	}
-	if r.setValue(v, float32(r.heightAt(v)+by)) {
+	if r.setValue(v, r.heightAt(v)+by) {
 		r.settle([]vertex{v}, maxStep)
 		r.changed()
 	}
@@ -25,12 +24,12 @@ func (r *Relief) Lift(p geom.Vec, by, maxStep float64) {
 
 // Flatten brings the ground between from and to to the height at from, then the ground round
 // it within maxStep, as Lift.
-func (r *Relief) Flatten(from, to geom.Vec, maxStep float64) {
+func (r *Relief) Flatten(from, to geom.Vec, maxStep float32) {
 	v0, ok := r.vertexAt(from)
 	if !ok {
 		return
 	}
-	h := float32(r.heightAt(v0))
+	h := r.heightAt(v0)
 	var set []vertex
 	if !r.square {
 		lo, hi := geom.NewVec(min(from.X, to.X), min(from.Y, to.Y)), geom.NewVec(max(from.X, to.X), max(from.Y, to.Y))
@@ -59,18 +58,18 @@ func (r *Relief) Flatten(from, to geom.Vec, maxStep float64) {
 }
 
 // Level lays the cell c flat at h, then the ground round it within maxStep, as Lift.
-func (r *Relief) Level(c cell.ID, h, maxStep float64) {
+func (r *Relief) Level(c cell.ID, h, maxStep float32) {
 	var set []vertex
 	if !r.square {
 		if i, ok := r.grid.Ordinal(c); ok {
-			if v := (vertex{x: i}); r.setValue(v, float32(h)) {
+			if v := (vertex{x: i}); r.setValue(v, h) {
 				set = append(set, v)
 			}
 		}
 	} else {
 		var buf [4]geom.Vec
 		for _, p := range r.grid.CellOutline(c, buf[:0]) {
-			if v, ok := r.corner(r.lattice(p)); ok && r.setValue(v, float32(h)) {
+			if v, ok := r.corner(r.lattice(p)); ok && r.setValue(v, h) {
 				set = append(set, v)
 			}
 		}
@@ -81,7 +80,7 @@ func (r *Relief) Level(c cell.ID, h, maxStep float64) {
 	}
 }
 
-func (r *Relief) settle(queue []vertex, maxStep float64) {
+func (r *Relief) settle(queue []vertex, maxStep float32) {
 	if maxStep <= 0 {
 		return
 	}
@@ -92,7 +91,7 @@ func (r *Relief) settle(queue []vertex, maxStep float64) {
 		h := r.heightAt(v)
 		ns = r.vertexNeighbours(v, ns[:0])
 		for _, n := range ns {
-			hn, want := r.heightAt(n), 0.0
+			hn, want := r.heightAt(n), float32(0)
 			switch {
 			case hn < h-maxStep-shapeTolerance:
 				want = h - maxStep
@@ -101,7 +100,7 @@ func (r *Relief) settle(queue []vertex, maxStep float64) {
 			default:
 				continue
 			}
-			if r.setValue(n, float32(want)) {
+			if r.setValue(n, want) {
 				queue = append(queue, n)
 			}
 		}
@@ -111,7 +110,7 @@ func (r *Relief) settle(queue []vertex, maxStep float64) {
 // unfolded
 func (r *Relief) lattice(p geom.Vec) (x, y int64) {
 	w, h := r.grid.CellBounds()
-	return int64(math.Round(p.X / w)), int64(math.Round(p.Y / h))
+	return int64(f32.Round(p.X / w)), int64(f32.Round(p.Y / h))
 }
 
 func (r *Relief) vertexAt(p geom.Vec) (vertex, bool) {
@@ -126,7 +125,7 @@ func (r *Relief) vertexAt(p geom.Vec) (vertex, bool) {
 	return r.corner(r.lattice(p))
 }
 
-func (r *Relief) heightAt(v vertex) float64 { return float64(r.values[r.index(v)]) }
+func (r *Relief) heightAt(v vertex) float32 { return r.values[r.index(v)] }
 
 func (r *Relief) vertexNeighbours(v vertex, dst []vertex) []vertex {
 	if !r.square {

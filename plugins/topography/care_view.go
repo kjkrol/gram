@@ -2,10 +2,10 @@ package topography
 
 import (
 	"image/color"
-	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/topography/internal/terrain"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
@@ -57,8 +57,8 @@ func (v *careView) Compose(f *render.Frame, cam camera.Camera) {
 			return
 		}
 		colour := careColors[c]
-		x0, y0 := min(float32(box.TopLeft.X), wide), min(float32(box.TopLeft.Y), high)
-		x1, y1 := min(float32(box.BottomRight.X), wide), min(float32(box.BottomRight.Y), high)
+		x0, y0 := min(box.TopLeft.X, wide), min(box.TopLeft.Y, high)
+		x1, y1 := min(box.BottomRight.X, wide), min(box.BottomRight.Y, high)
 		if x1 <= x0 || y1 <= y0 {
 			return
 		}
@@ -102,7 +102,7 @@ func (l careLines) draw(ax, ay, bx, by float32, c color.RGBA) {
 	}
 	x, y := point(from)
 	sx, sy, z := l.at(x, y)
-	for k := int(math.Floor(float64(from / l.cell))); from < to; k++ {
+	for k := int(f32.Floor(from / l.cell)); from < to; k++ {
 		next := min(float32(k+1)*l.cell, to)
 		nx, ny := point(next)
 		sx1, sy1, z1 := l.at(nx, ny)
@@ -114,7 +114,7 @@ func (l careLines) draw(ax, ay, bx, by float32, c color.RGBA) {
 
 // at is the screen point and the height of the care line over the ground at (x, y)
 func (l careLines) at(x, y float32) (sx, sy, z float32) {
-	z = float32(l.p.drawnRelief().GroundAt(geom.NewVec(float64(x), float64(y)))) + careLift
+	z = l.p.drawnRelief().GroundAt(geom.NewVec(x, y)) + careLift
 	sx, sy = l.cam.Project(x, y, z)
 	return sx, sy, z
 }

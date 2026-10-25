@@ -1,8 +1,7 @@
 package stick
 
 import (
-	"math"
-
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/vec"
 )
 
@@ -36,7 +35,7 @@ func (s sight) pick(solid func(x, y, z float32) (float32, bool),
 		return s.o[0], s.o[1], top, n != 0 && t1 > 0
 	}
 	dt := step / n
-	fall := float32(math.Abs(float64(s.d[2])))
+	fall := f32.Abs(s.d[2])
 	lo := float32(0)
 	for {
 		hi := min(lo+dt, t1)

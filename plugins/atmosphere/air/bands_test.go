@@ -1,9 +1,9 @@
 package air_test
 
 import (
-	"math"
 	"testing"
 
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/world"
 )
@@ -11,7 +11,7 @@ import (
 // a metre a tenth of a world unit
 var tenth = world.Scale{Metres: 10}
 
-func over(low, peaks float64, ceilings [3]float32, drift [2]float32) air.Weather {
+func over(low, peaks float32, ceilings [3]float32, drift [2]float32) air.Weather {
 	relief := air.ReliefOf(tenth, low, peaks)
 	return air.Weather{Relief: relief, Bases: air.BasesOver(tenth, relief), Ceilings: ceilings,
 		Drift: drift}
@@ -29,7 +29,7 @@ func TestLowBand_HangsAsSharesOfTheRelief(t *testing.T) {
 			(mt - madeira.Relief[0]) / madeira.Relief[1]}
 		a := [2]float32{(ab - alps.Relief[0]) / alps.Relief[1],
 			(at - alps.Relief[0]) / alps.Relief[1]}
-		if math.Abs(float64(m[0]-a[0])) > 1e-5 || math.Abs(float64(m[1]-a[1])) > 1e-5 {
+		if f32.Abs(float32(m[0]-a[0])) > 1e-5 || f32.Abs(float32(m[1]-a[1])) > 1e-5 {
 			t.Fatalf("at (%v, %v) the low clouds hang %v of a relief 1860 m high and %v of one "+
 				"4000 m high, want alike", x, y, m, a)
 		}
@@ -58,8 +58,8 @@ func TestLowBand_OneShareHangsEverywhereInItsBand(t *testing.T) {
 		for i := range 400 {
 			x, y := float32(i)*53-7000, float32(i)*41-3000
 			base, top := w.LowBand(x, y)
-			if math.Abs(float64(base-200*c.base)) > 1e-3 ||
-				math.Abs(float64(top-200*c.top)) > 1e-3 {
+			if f32.Abs(float32(base-200*c.base)) > 1e-3 ||
+				f32.Abs(float32(top-200*c.top)) > 1e-3 {
 				t.Fatalf("shares %v: at (%v, %v) the low clouds hang from %v to %v, want %v to %v",
 					c.shares, x, y, base, top, 200*c.base, 200*c.top)
 			}
@@ -73,7 +73,7 @@ func TestLowBand_ChangesWithoutJumps(t *testing.T) {
 	low, high := was, was
 	for x := float32(-20000); x < 20000; x++ {
 		base, _ := w.LowBand(x, 77)
-		if math.Abs(float64(base-was)) > 0.005*200 {
+		if f32.Abs(float32(base-was)) > 0.005*200 {
 			t.Fatalf("a world unit on to (%v, 77) the low clouds' base jumps from %v to %v",
 				x, was, base)
 		}
@@ -94,11 +94,11 @@ func TestLowBand_DriftsSlowerThanTheClouds(t *testing.T) {
 		x, y := float32(i)*67-9000, float32(i)*13
 		was, _ := still.LowBand(x, y)
 		now, _ := blown.LowBand(x+600, y)
-		if math.Abs(float64(now-was)) > 1e-3 {
+		if f32.Abs(float32(now-was)) > 1e-3 {
 			t.Fatalf("the wind carried the clouds 1000 on: the base at (%v, %v) is %v, 600 on "+
 				"%v; want the bands carried 600", x, y, was, now)
 		}
-		if carried, _ := blown.LowBand(x+1000, y); math.Abs(float64(carried-was)) > 1 {
+		if carried, _ := blown.LowBand(x+1000, y); f32.Abs(float32(carried-was)) > 1 {
 			moved++
 		}
 	}
@@ -120,8 +120,8 @@ func TestBasesOver_HangsTheHighCloudsOverTheLowOnes(t *testing.T) {
 			"want the high ones 1 km over them", alps.Bases[air.High], top)
 	}
 	lowest, highest := alps.BaseSpan(air.Low)
-	if lowest != alps.Base(air.Low) || math.Abs(float64(lowest-450*0.68)) > 1e-3 ||
-		math.Abs(float64(highest-450*1.05)) > 1e-3 {
+	if lowest != alps.Base(air.Low) || f32.Abs(float32(lowest-450*0.68)) > 1e-3 ||
+		f32.Abs(float32(highest-450*1.05)) > 1e-3 {
 		t.Errorf("over peaks 4500 m up the low clouds' bases span %v to %v, want %v to %v",
 			lowest, highest, 450*0.68, 450*1.05)
 	}

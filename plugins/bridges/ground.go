@@ -13,7 +13,7 @@ import (
 
 type boardGround struct {
 	brd     *board.BoardRead
-	heights func(p geom.Vec) float64 // nil: flat at 0
+	heights func(p geom.Vec) float32 // nil: flat at 0
 	allows  cell.Domain
 	hex     bool
 	laid    []site.Bridge // a level's, before its entities are
@@ -22,7 +22,7 @@ type boardGround struct {
 
 var _ site.Ground = (*boardGround)(nil)
 
-func newGround(brd *board.BoardRead, heights func(p geom.Vec) float64,
+func newGround(brd *board.BoardRead, heights func(p geom.Vec) float32,
 	allows cell.Domain) *boardGround {
 	shape, _ := grid.ShapeOf(brd.Grid)
 	return &boardGround{brd: brd, heights: heights, allows: allows, hex: shape.Hex}
@@ -30,7 +30,7 @@ func newGround(brd *board.BoardRead, heights func(p geom.Vec) float64,
 
 func (g *boardGround) Grid() grid.Grid { return g.brd.Grid }
 
-func (g *boardGround) Heights(c cell.ID, dst []float64) []float64 {
+func (g *boardGround) Heights(c cell.ID, dst []float32) []float32 {
 	if g.hex || g.heights == nil {
 		return append(dst, g.at(g.brd.CellCenter(c)))
 	}
@@ -41,21 +41,21 @@ func (g *boardGround) Heights(c cell.ID, dst []float64) []float64 {
 	return dst
 }
 
-func (g *boardGround) at(p geom.Vec) float64 {
+func (g *boardGround) at(p geom.Vec) float32 {
 	if g.heights == nil {
 		return 0
 	}
 	return g.heights(p)
 }
 
-func (g *boardGround) level(c cell.ID) float64 {
-	var buf [4]float64
+func (g *boardGround) level(c cell.ID) float32 {
+	var buf [4]float32
 	hs := g.Heights(c, buf[:0])
-	sum := 0.0
+	sum := float32(0)
 	for _, h := range hs {
 		sum += h
 	}
-	return sum / float64(len(hs))
+	return sum / float32(len(hs))
 }
 
 func (g *boardGround) Takes(c cell.ID) bool {

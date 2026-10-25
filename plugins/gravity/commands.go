@@ -16,8 +16,8 @@ type Leap struct{}
 // first. It is host.Aimed: thrown away from the subject of the moment it is given on, else
 // back from the way it faces.
 type Away struct {
-	Speed float64
-	Rise  float64
+	Speed float32
+	Rise  float32
 
 	from  uid.UID64
 	aimed bool

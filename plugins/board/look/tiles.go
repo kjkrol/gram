@@ -2,9 +2,9 @@ package look
 
 import (
 	"image"
-	"math"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	_ "github.com/kjkrol/gram/plugins/atmosphere/air" // the Wind the shaders lean the tiles in
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/render"
@@ -469,8 +469,8 @@ func (g *tiles) draw(t render.Target, v seeing, u render.Uniforms, l *Renderer, 
 	g.set("TileDeep", flag(deep))
 	shape, _ := l.board.Shape()
 	g.set("TileHex", flag(shape.Hex))
-	g.set("TileBox", float32(l.cellW), float32(l.cellH))
-	g.set("TileSide", float32(shape.Cell))
+	g.set("TileBox", l.cellW, l.cellH)
+	g.set("TileSide", shape.Cell)
 	g.set("TileCells", float32(shape.Cols), float32(shape.Rows))
 	g.set("TileWrap", flag(l.space.Edges.WrapsX()), flag(l.space.Edges.WrapsY()))
 	g.set("TileLit", flag(lit))
@@ -549,8 +549,8 @@ func (l *Renderer) copies(cam camera.Camera) (x0, x1, y0, y1 int) {
 		if !wraps || size == 0 {
 			return 0, 0
 		}
-		s := float64(size)
-		return int(math.Floor(float64(lo) / s)), int(math.Floor(float64(hi) / s))
+		s := float32(size)
+		return int(f32.Floor(lo / s)), int(f32.Floor(hi / s))
 	}
 	x0, x1 = along(left, right, l.space.Width, l.space.Edges.WrapsX())
 	y0, y1 = along(top, bottom, l.space.Height, l.space.Edges.WrapsY())

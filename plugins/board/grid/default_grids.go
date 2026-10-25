@@ -18,6 +18,6 @@ func (DefaultGrids) Square(width, height, cellSize uint32) Grid {
 
 // Hex is a grid of width x height pointy-top hexagonal cells of the given size, addressed by axial
 // coordinates.
-func (DefaultGrids) Hex(width, height uint32, size float64) Grid {
+func (DefaultGrids) Hex(width, height uint32, size float32) Grid {
 	return grids.NewHex(width, height, size)
 }

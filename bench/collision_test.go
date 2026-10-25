@@ -2,7 +2,6 @@ package bench_test
 
 import (
 	"fmt"
-	"math"
 	"math/rand/v2"
 	"testing"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
@@ -25,8 +25,8 @@ const (
 	sceneTPS    = 120
 )
 
-func countFor(rect uint32, percent float64) int {
-	return int(math.Floor(percent / 100.0 * float64(sceneWidth*sceneHeight) / float64(rect*rect)))
+func countFor(rect uint32, percent float32) int {
+	return int(f32.Floor(percent / 100.0 * float32(sceneWidth*sceneHeight) / float32(rect*rect)))
 }
 
 type body struct {
@@ -43,11 +43,12 @@ func randomVelocity(rng *rand.Rand) world.Velocity {
 		dx = -10
 	}
 	var vel world.Velocity
-	vel.SetDelta(geom.NewVec(float64(dx), float64(dy)))
+	vel.SetDelta(geom.NewVec(float32(dx), float32(dy)))
 	return vel
 }
 
-func benchCollision(b *testing.B, rect uint32, percent float64) (*goke.ECS, int, *collision.ContactStats) {
+func benchCollision(b *testing.B, rect uint32, percent float32,
+) (*goke.ECS, int, *collision.ContactStats) {
 	b.Helper()
 	count := countFor(rect, percent)
 	rng := rand.New(rand.NewPCG(0x5eed, 0xc0ffee))
@@ -97,7 +98,7 @@ func Benchmark_Collision_Tick(b *testing.B) {
 	for _, sc := range []struct {
 		name    string
 		rect    uint32
-		percent float64
+		percent float32
 	}{
 		{"rect=20,fill=20%", 20, 20},
 		{"rect=10,fill=20%", 10, 20},
@@ -123,7 +124,7 @@ func Benchmark_Collision_Tick(b *testing.B) {
 
 type flight struct {
 	Dir  geom.Vec
-	Step float64
+	Step float32
 }
 
 // flyer turns the boxes back at the edges too: the world is closed, as the sweeps need, and a
@@ -220,7 +221,7 @@ func benchSwept(b *testing.B, shots int) (*goke.ECS, *collision.ContactStats) {
 		entries = append(entries, boxes.Entry(body{pos: placement.Place(i, count), vel: randomVelocity(rng)}))
 	}
 	for i := range shots {
-		y := float64(i+1) * sceneHeight / float64(shots+1)
+		y := float32(i+1) * sceneHeight / float32(shots+1)
 		var pos world.Position
 		pos.AABB = plane.NewAABB(geom.NewVec(2, y), 4, 4)
 		entries = append(entries, bullets.Entry(shot{pos: pos, dir: geom.NewVec(1, 0)}))

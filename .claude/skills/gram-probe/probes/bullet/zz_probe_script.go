@@ -32,7 +32,8 @@ func (p *probe) play() {
 				continue
 			}
 			c := b.Pos.Center()
-			at := geom.NewVec(c.X+(rand.Float64()*2-1)*8*CellSize, c.Y+(rand.Float64()*2-1)*8*CellSize)
+			at := geom.NewVec(c.X+float32(rand.Float64()*2-1)*8*CellSize,
+				c.Y+float32(rand.Float64()*2-1)*8*CellSize)
 			p.a.world.Write().Carrier().PutFrom(cur.IDs[i], bullet.Shoot{Ammo: ammo, At: at, Targeted: true})
 		}
 	}

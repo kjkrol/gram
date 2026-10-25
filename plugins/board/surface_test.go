@@ -2,7 +2,6 @@ package board_test
 
 import (
 	"image/color"
-	"math"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/internal/engine"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -129,12 +129,12 @@ func holdWidth(t *testing.T, b *board.Plugin) float32 {
 	var f render.Frame
 	f.Reset(cam)
 	view.Compose(&f, cam)
-	var across float64
+	var across float32
 	f.Each(func(_ render.At, v []render.Vertex) {
-		across = math.Hypot(float64(v[0].DstX-v[2].DstX), float64(v[0].DstY-v[2].DstY))
+		across = f32.Hypot(float32(v[0].DstX-v[2].DstX), float32(v[0].DstY-v[2].DstY))
 	})
 	if across == 0 {
 		t.Fatal("the holds view drew nothing of a cell held")
 	}
-	return float32(math.Round(across)) - 1
+	return float32(f32.Round(across)) - 1
 }

@@ -60,7 +60,7 @@ func TestRead_TheWorkersReadWhomThePlayersChoseAtOnceAsTheGameDoes(t *testing.T)
 	for by := range 6 {
 		for i := range 2 {
 			selected := by < 4 && i == 0 || by == 4
-			w.Write().Seed(k.Entry(unit{x: float64(20 + 150*by + 60*i),
+			w.Write().Seed(k.Entry(unit{x: float32(20 + 150*by + 60*i),
 				by: command.Issuer(by + 1), selected: selected}))
 		}
 	}

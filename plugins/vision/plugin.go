@@ -24,7 +24,7 @@ type Plugin struct {
 	worldPlugin  *world.Plugin
 	module       *module
 	renderer     *Renderer
-	groundStep   float64
+	groundStep   float32
 	heights      func() ground.Heights
 	drawnHeights func() ground.Heights    // the frame's, what the views are drawn over
 	covers       func(w int) ground.Cover // worker w's
@@ -176,7 +176,7 @@ func (p *Plugin) coverOn(w int) ground.Cover {
 
 // WithGroundStep sets how far apart a scan with heights samples a ground without a
 // ground.Profile along a ray, in place of the board's cell; call before Use.
-func (p *Plugin) WithGroundStep(step float64) *Plugin {
+func (p *Plugin) WithGroundStep(step float32) *Plugin {
 	p.groundStep = step
 	p.renderer.WithGroundStep(step)
 	return p

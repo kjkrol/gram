@@ -2,8 +2,69 @@
 
 ## Unreleased
 
-Needs aabbworld v1.16.0: built with `GOEXPERIMENT=simd` and run on a CPU with AVX2, the
-collision's pair sweep tests a crowded cell four boxes at a time, finding the same pairs.
+Needs aabbworld v1.18.0: its geometry in float32, a box 32 bytes; two boxes overlapping within
+float32's rounding touching, not pushed; `collide.Handler.Touch` handing the share of a push;
+`SIMD()`. Built with `GOEXPERIMENT=simd` and run on a CPU with AVX2, the
+collision's pair sweep tests a crowded cell eight boxes at a time, finding the same pairs; a game
+logs when it starts whether it does (`gram: SIMD on` or `off`).
+
+**The world's numbers in float32** (2026-10-25, branch `feat/aabbworld-float32`)
+- Breaking: every number of the world's geometry and of the screen is a float32, as aabbworld's
+  and the GPU's: `world.Position`, `Velocity`'s `Value` and `Side`, `Z`, `Drift`, `Eye`, `Lie`;
+  `camera.Camera`'s `MoveTo`, `CenterOn` and `Translate`, `camera.Detail`; `control.Context`'s
+  `Wheel` and `Resolution`, `Edges.Depth`, `CornerSide`; ui's sizes (`Size`, `Fraction`,
+  `Margin`, `Padding`, `Border`, `Share`, `Fixed`); `world.Scale`, `sector.Band`; the steering's
+  `Steering`, `Course`, `Driven` and `Pace`; `collision.Field.Overhang`, `Band`, `Contact`,
+  `Physics`; the board's `ground.Heights`, `Cover`, `Profile` and `Surfaces`,
+  `grid.Grid.CellBounds`, `grid.Shape`, `board.Shape`, `board.Map.Top`, `cell.Floor`, `Wall`,
+  `Rail`, `cell.Kind`'s `Height`, `Veil` and `Sway`, `unit.Mover`; `vision.Sight`,
+  `Transparency`; the bullets' `Body`, `Flight`, `Shoot.Power`, `Burst`; gravity's `Pull`,
+  `Body` and `Landing`; `minimap.Config.Reach`; the bridges' specs and rules;
+  `air.Weather.Sight` and `Visibility`, `climate.Config.Horizon`, `weathering.Config.Swaying`;
+  the heights a map is built from (`board.Level.Heights`, `ground.MeanOfCells`, the
+  topography's `Seed` and `SetHeights`, `water.Drain` and `Carved`, the depths, widths and
+  meander of `water.Config`, `network.Node`'s `Width` and `Fade`). Costs and time ratios stay
+  float64 (`cell.Kind.Cost`, `grid.Grid.NeighborCost` and `Distance`, `board.Map.Climb`, `Least`
+  and `Slope`, `relief.Climbing`), as do the water gathered (`water.Network.Gathered`), a
+  setting's value (`control.Range`, `ui.Slider`) and how often sight scans
+  (`vision.WithFrequency`).
+- Breaking: a save made before does not load, goke refusing components of another size
+  (`world.Base` 104 → 52 bytes); the plugins' resources would load as they were.
+- What sums works in float64 and answers in float32: the board's cover and the relief's profile
+  along a ray, the relief's ground at a point, the draining of a relief, the mean of the cells
+  round a corner; the ortho camera keeps its stick in float64.
+- What compared coordinates to 1e-9 goes by float32's rounding (`internal/f32.Eps`): a shot
+  stopped at a closed edge, a heading's guards in navigation, a unit snapped onto its spot, the
+  cells under a box on a hex board, a bridge's ends, the cells a relief's corner is the mean of.
+- A map's relief is read as float32, as the topography keeps it; the hex routes among equally
+  short ways may go by another cell, the cells' middles rounded.
+- `Benchmark_World_Tick` 5,000 entities 43.6 → 37.3 µs (−14.5%), 1,000 10.2 → 9.4 µs;
+  `Collision_Tick` 4–14% less (5×5 boxes over 20%: 2.95 → 2.55 ms); `Sectors_Expanse` 13% less,
+  a third fewer allocations; `World_Publish` 7–12% less; `Navigation_Tick` 3–6% less; sight
+  0–5% more, aabbworld's rays reading float32 heights.
+
+**A unit struck, not pushed along** (2026-10-25, branch `feat/aabbworld-float32`)
+- Breaking: a `collision.Physics` without a `Mass` weighs its box's area, not 1, and
+  `collision.DefaultMass` is gone. A small unit striking a big one loses nearly all its speed
+  along the normal, a big one striking a small one hardly any.
+- A push apart is shared by weight: collision hands aabbworld each pair's share, the lighter
+  side moved the further (it was half each). A side held over ground that does not take it gets
+  none, in place of a push doubled and the held box put back.
+- What an impulse takes from a steered entity's speed stays taken: collision lowers its
+  `steering.Course` `Speed` in the same share, and its steering sets off again from what is
+  left, by its `Accel`; it gave the speed back the next tick. The ground's walls too: a unit or a
+  hero pressing into a wall holds no speed, one sliding along it goes on at what it kept.
+- A contact at rest leaves by the face the two touch at (`Contact.Normal`, `Meeting.Normal`), as
+  a struck one does, not along the line between their middles.
+- Navigation: a unit never moves into one it touches, struck or at rest. Facing into them it
+  turns on the spot, a way straight through them leaves it standing till navigation's last word,
+  and a turn that would swing it through them goes round their far side.
+- In a lane with no way round, a unit moves the one standing in it 0.09 instead of 6.52; with no
+  rules of `Touch` it stops at the one in the way (1.07, the two of a weight) instead of pushing
+  it to its goal. The Madeira demo's 36 units, all of a weight, sent to one cell push each other
+  790 times instead of 1,800 in the first 100 s, the standing ones moved 9.0 instead of 14.2.
+- `Collision_Tick` 2–5% more, each impulse reading the steering's course and each pair weighing
+  its share; `Navigation_Tick` as it was.
 
 **The renderer's boundary** (2026-10-23, branch `feat/render-boundary`)
 - Breaking: the device is render's own, `render/internal/gpu`; the engine reaches it through

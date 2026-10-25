@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	contract "github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/vec"
 )
 
@@ -107,12 +108,12 @@ func newPerspCamera(
 // width fills across
 func (c *perspCamera) focal() float32 {
 	if c.inside && c.across > 0 {
-		return float32(c.viewportSize.X/c.crop.X) / 2 / float32(math.Tan(float64(c.across)/2))
+		return (c.viewportSize.X / c.crop.X) / 2 / f32.Tan(c.across/2)
 	}
-	return float32(c.viewportSize.Y/c.crop.Y) / 2 / float32(math.Tan(float64(c.fov)/2))
+	return (c.viewportSize.Y / c.crop.Y) / 2 / f32.Tan(c.fov/2)
 }
 
-func (c *perspCamera) far() float32 { return 4 * float32(max(c.world.X, c.world.Y)) }
+func (c *perspCamera) far() float32 { return 4 * max(c.world.X, c.world.Y) }
 
 // riding, the eye may stand but a unit's height over the ground
 func (c *perspCamera) near() float32 {
@@ -167,15 +168,15 @@ func (c *perspCamera) eye() [3]float32 { return c.proj.eye }
 
 // the way from the foot up the stick to the eye
 func (c *perspCamera) out() [3]float32 {
-	s, k := math.Sincos(float64(c.heading) + math.Pi/4)
-	sp, cp := math.Sincos(float64(c.pitch))
-	return [3]float32{float32(cp * s), float32(cp * k), float32(sp)}
+	s, k := f32.Sincos(c.heading + math.Pi/4)
+	sp, cp := f32.Sincos(c.pitch)
+	return [3]float32{cp * s, cp * k, sp}
 }
 
 // the stick's length within the zoom's bounds: a cell at the shortest, the world's diagonal at the
 // longest
 func (c *perspCamera) bounded(length float32) float32 {
-	shortest, longest := c.cell, float32(math.Hypot(c.world.X, c.world.Y))
+	shortest, longest := c.cell, f32.Hypot(c.world.X, c.world.Y)
 	if c.maxZoom > 0 {
 		shortest = max(shortest, c.focal()/(c.maxZoom*c.res))
 	}
@@ -196,7 +197,7 @@ func (c *perspCamera) look() {
 	var e, at [3]float32
 	if c.inside {
 		c.pitch = min(max(c.pitch, -maxPitch), maxPitch)
-		e = [3]float32{float32(c.origin.X), float32(c.origin.Y), c.alt}
+		e = [3]float32{c.origin.X, c.origin.Y, c.alt}
 		// far along the way looked, for the frame's precision
 		at = vec.Add(e, vec.Scale(c.out(), -c.far()))
 	} else {
@@ -211,7 +212,7 @@ func (c *perspCamera) look() {
 		}
 		e[2] += c.lift
 		// the foot as the eye sees it, sunk by the ground's curve
-		h := float32(math.Hypot(float64(e[0]-c.foot[0]), float64(e[1]-c.foot[1])))
+		h := f32.Hypot(e[0]-c.foot[0], e[1]-c.foot[1])
 		at = [3]float32{c.foot[0], c.foot[1], c.foot[2] + c.bend*h*h}
 	}
 	c.proj = newPerspective(e, at, c.heading, c.focal()*c.narrow, c.near(), c.far(), c.cell)
@@ -290,8 +291,8 @@ func (c *perspCamera) plant() {
 
 // the foot kept over the world
 func (c *perspCamera) confine() {
-	c.foot[0] = min(max(c.foot[0], 0), float32(c.world.X))
-	c.foot[1] = min(max(c.foot[1], 0), float32(c.world.Y))
+	c.foot[0] = min(max(c.foot[0], 0), c.world.X)
+	c.foot[1] = min(max(c.foot[1], 0), c.world.Y)
 }
 
 func (c *perspCamera) Pick(sx, sy float32) (float32, float32, float32, bool) {
@@ -307,21 +308,21 @@ func (c *perspCamera) Pick(sx, sy float32) (float32, float32, float32, bool) {
 
 // heading stays as given for an eye straight over the target
 func anglesOf(eye, target [3]float32, heading float32) (float32, float32) {
-	hx, hy := float64(eye[0]-target[0]), float64(eye[1]-target[1])
-	h, dz := math.Hypot(hx, hy), float64(eye[2]-target[2])
+	hx, hy := eye[0]-target[0], eye[1]-target[1]
+	h, dz := f32.Hypot(hx, hy), eye[2]-target[2]
 	if h > 1e-6 {
-		heading = float32(math.Atan2(hx, hy) - math.Pi/4)
+		heading = f32.Atan2(hx, hy) - math.Pi/4
 	}
-	return wrapAngle(heading), float32(math.Atan2(dz, h))
+	return wrapAngle(heading), f32.Atan2(dz, h)
 }
 
 // 0 up to 2π
 func wrapAngle(a float32) float32 {
-	h := math.Mod(float64(a), 2*math.Pi)
+	h := f32.Mod(a, 2*math.Pi)
 	if h < 0 {
 		h += 2 * math.Pi
 	}
-	return float32(h)
+	return h
 }
 
 // the eye put at (x, y, z), looking at the foot
@@ -350,7 +351,7 @@ func (c *perspCamera) LookAt(x, y, z float32) {
 // across is radians, 0 the camera's own field
 func (c *perspCamera) enterInside(eye [3]float32, heading, across float32) {
 	c.inside, c.narrow, c.across = true, 1, across
-	c.origin, c.alt = geom.NewVec(float64(eye[0]), float64(eye[1])), eye[2]
+	c.origin, c.alt = geom.NewVec(eye[0], eye[1]), eye[2]
 	c.heading, c.pitch = heading, 0
 	c.look()
 }
@@ -418,20 +419,20 @@ func (c *perspCamera) ScaleAt(x, y, z float32) float32 {
 func (c *perspCamera) Projection() contract.Projection { return c.projection }
 
 func (c *perspCamera) Viewport() (float32, float32) {
-	return float32(c.viewportSize.X), float32(c.viewportSize.Y)
+	return c.viewportSize.X, c.viewportSize.Y
 }
 
 func (c *perspCamera) SetViewport(w, h float32) {
 	if w <= 0 || h <= 0 {
 		return
 	}
-	c.viewportSize = geom.NewVec(float64(w*c.res), float64(h*c.res))
+	c.viewportSize = geom.NewVec(w*c.res, h*c.res)
 	c.look()
 }
 
 // SetResolution has the camera drawn at s of the pixels it is shown at; its window stays.
 func (c *perspCamera) SetResolution(s float32) {
-	k := float64(s / c.res)
+	k := s / c.res
 	c.viewportSize = geom.NewVec(c.viewportSize.X*k, c.viewportSize.Y*k)
 	c.res = s
 	c.look()
@@ -449,10 +450,10 @@ func (c *perspCamera) Crop(win contract.Window, s float32) {
 	c.cropped = &perspFrame{viewportSize: c.viewportSize, res: c.res, crop: c.crop,
 		proj: c.proj, projection: c.projection, win: win}
 	fw, fh := c.Frame()
-	c.crop = geom.NewVec(float64(win.W*c.res)/c.viewportSize.X,
-		float64(win.H*c.res)/c.viewportSize.Y)
+	c.crop = geom.NewVec((win.W*c.res)/c.viewportSize.X,
+		(win.H*c.res)/c.viewportSize.Y)
 	c.pp = [2]float32{(fw/2 - win.X) * s, (fh/2 - win.Y) * s}
-	c.viewportSize = geom.NewVec(float64(win.W*s), float64(win.H*s))
+	c.viewportSize = geom.NewVec(win.W*s, win.H*s)
 	c.res = s
 	c.proj.focal = c.focal() * c.narrow
 	c.projection = c.proj
@@ -476,7 +477,7 @@ func (c *perspCamera) Frame() (float32, float32) {
 	if c.cropped != nil {
 		size, res = c.cropped.viewportSize, c.cropped.res
 	}
-	return float32(size.X) / res, float32(size.Y) / res
+	return size.X / res, size.Y / res
 }
 
 func (c *perspCamera) Window() contract.Window {
@@ -490,7 +491,7 @@ func (c *perspCamera) Window() contract.Window {
 // where the line of sight through the frame's middle meets the viewport, in camera pixels
 func (c *perspCamera) centre() (float32, float32) {
 	if c.cropped == nil {
-		return float32(c.viewportSize.X / 2), float32(c.viewportSize.Y / 2)
+		return c.viewportSize.X / 2, c.viewportSize.Y / 2
 	}
 	return c.pp[0], c.pp[1]
 }
@@ -523,8 +524,8 @@ func (c *perspCamera) ToScreenQuads(x0, y0, x1, y1 float32, dst []contract.Quad)
 }
 
 func (c *perspCamera) rect(x0, y0, x1, y1, z0, z1 float32) (minX, minY, maxX, maxY float32) {
-	minX, minY = float32(math.Inf(1)), float32(math.Inf(1))
-	maxX, maxY = float32(math.Inf(-1)), float32(math.Inf(-1))
+	minX, minY = f32.Inf(1), f32.Inf(1)
+	maxX, maxY = f32.Inf(-1), f32.Inf(-1)
 	for _, z := range [2]float32{z0, z1} {
 		for _, corner := range [4][2]float32{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}} {
 			sx, sy := c.Project(corner[0], corner[1], z)
@@ -537,8 +538,12 @@ func (c *perspCamera) rect(x0, y0, x1, y1, z0, z1 float32) (minX, minY, maxX, ma
 
 func (c *perspCamera) Visible(box contract.AABB) bool {
 	low, high := c.layer()
-	minX, minY, maxX, maxY := c.rect(float32(box.TopLeft.X), float32(box.TopLeft.Y), float32(box.BottomRight.X), float32(box.BottomRight.Y), low, high)
-	return maxX > 0 && minX < float32(c.viewportSize.X) && maxY > 0 && minY < float32(c.viewportSize.Y)
+	minX, minY, maxX, maxY := c.rect(
+		box.TopLeft.X,
+		box.TopLeft.Y,
+		box.BottomRight.X,
+		box.BottomRight.Y, low, high)
+	return maxX > 0 && minX < c.viewportSize.X && maxY > 0 && minY < c.viewportSize.Y
 }
 
 // Along an edge of the screen the lines of sight meet each height on a straight line, so the
@@ -549,8 +554,8 @@ func (c *perspCamera) Bounds() contract.AABB {
 	e, far := c.proj.eye, c.proj.far
 	// the ground's curve sinks what lies far off: bound it straight, lower
 	low -= c.bend * (2 * far) * (2 * far)
-	minX, minY := float32(math.Inf(1)), float32(math.Inf(1))
-	maxX, maxY := float32(math.Inf(-1)), float32(math.Inf(-1))
+	minX, minY := f32.Inf(1), f32.Inf(1)
+	maxX, maxY := f32.Inf(-1), f32.Inf(-1)
 	along := func(d [3]float32) { // the stretch of the line of sight d within the layer
 		in, out := float32(0), far
 		if d[2] == 0 {
@@ -570,7 +575,7 @@ func (c *perspCamera) Bounds() contract.AABB {
 			minY, maxY = min(minY, y), max(maxY, y)
 		}
 	}
-	w, h := float32(c.viewportSize.X), float32(c.viewportSize.Y)
+	w, h := c.viewportSize.X, c.viewportSize.Y
 	cx, cy := c.centre()
 	corners := [4][2]float32{{0, 0}, {w, 0}, {w, h}, {0, h}}
 	for k, a := range corners {
@@ -592,34 +597,34 @@ func (c *perspCamera) Bounds() contract.AABB {
 }
 
 // the world point (x, y) in the screen's top-left corner, at the foot's height
-func (c *perspCamera) MoveTo(x, y float64) {
+func (c *perspCamera) MoveTo(x, y float32) {
 	if c.inside {
 		c.origin = geom.NewVec(x, y)
 		c.look()
 		return
 	}
 	if tx, ty, hit := c.cast(0, 0, c.foot[2]); hit {
-		c.foot[0] += float32(x) - tx
-		c.foot[1] += float32(y) - ty
+		c.foot[0] += x - tx
+		c.foot[1] += y - ty
 	}
 	c.confine()
 	c.look()
 }
 
-func (c *perspCamera) CenterOn(x, y, z float64) {
+func (c *perspCamera) CenterOn(x, y, z float32) {
 	if c.inside {
-		c.origin, c.alt = geom.NewVec(x, y), float32(z)
+		c.origin, c.alt = geom.NewVec(x, y), z
 		c.look()
 		return
 	}
-	c.foot = [3]float32{float32(x), float32(y), float32(z)}
+	c.foot = [3]float32{x, y, z}
 	c.confine()
 	c.look()
 }
 
-func (c *perspCamera) Translate(dx, dy float64) {
-	c.foot[0] += float32(dx)
-	c.foot[1] += float32(dy)
+func (c *perspCamera) Translate(dx, dy float32) {
+	c.foot[0] += dx
+	c.foot[1] += dy
 	c.confine()
 	c.look()
 }

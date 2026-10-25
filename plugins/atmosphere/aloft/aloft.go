@@ -210,7 +210,7 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	r.set("AloftMiddle", mx, my)
 	r.set("AloftShown", shownAt)
 	r.set("AloftOrtho", flag(f.DDX == ([3]float32{}) && f.DDY == ([3]float32{})))
-	r.set("AloftSeeing", float32(r.air().Visibility(air.Under(cam))))
+	r.set("AloftSeeing", r.air().Visibility(air.Under(cam)))
 	r.set("AloftUnder", flag(under))
 	r.set("AloftViewProj", tr.M[:]...)
 	r.set("AloftEye", tr.Eye[:]...)
@@ -276,7 +276,7 @@ func (r *Renderer) reach(cam camera.Camera) float32 {
 		return 0
 	}
 	if sight := camera.DetailOf(cam).Sight; sight > 0 {
-		return float32(sight) * r.bodiesTo
+		return sight * r.bodiesTo
 	}
 	return 0
 }

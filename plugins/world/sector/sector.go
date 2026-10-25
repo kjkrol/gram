@@ -4,7 +4,7 @@ package sector
 // anchor and not of a nearer band, their systems going a step every Pace of the world's (the
 // first band's every one).
 type Band struct {
-	Reach float64
+	Reach float32
 	Pace  int
 }
 

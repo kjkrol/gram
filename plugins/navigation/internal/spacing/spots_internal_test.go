@@ -1,8 +1,6 @@
 package spacing
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
-	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -10,6 +8,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -18,7 +18,7 @@ type placeRig struct {
 	grid    grid.Grid
 	terrain *cell.TerrainMap
 	keep    *BodyKeeping
-	heights func(p geom.Vec) float64
+	heights func(p geom.Vec) float32
 }
 
 func newPlaceRig() *placeRig {
@@ -34,25 +34,25 @@ func newPlaceRig() *placeRig {
 	return r
 }
 
-type groundFunc func(p geom.Vec) float64
+type groundFunc func(p geom.Vec) float32
 
-func (g groundFunc) At(p geom.Vec) float64 { return g(p) }
-func (g groundFunc) Step() float64         { return 1 }
+func (g groundFunc) At(p geom.Vec) float32 { return g(p) }
+func (g groundFunc) Step() float32         { return 1 }
 
 func (r *placeRig) at(x, y uint32) cell.ID { c := r.grid.At(x, y); return c }
 
 // the i-th stands in the cell (0, i % 5), 20 nearer the point than the one before
-func (r *placeRig) units(n int, side float64) []bodies.Member {
+func (r *placeRig) units(n int, side float32) []bodies.Member {
 	var out []bodies.Member
 	for i := range n {
 		c := r.grid.CellCenter(r.at(0, uint32(i%5)))
-		pos := world.Position{AABB: plane.NewAABB(geom.NewVec(c.X-side/2+float64(i%3), c.Y-side/2), side, side)}
+		pos := world.Position{AABB: plane.NewAABB(geom.NewVec(c.X-side/2+float32(i%3), c.Y-side/2), side, side)}
 		out = append(out, bodies.Member{ID: uid.UID64(i + 1), Cell: r.at(0, uint32(i%5)), From: r.at(0, uint32(i%5)), Domain: cell.Land, Pos: pos, Z: world.Z{Height: 6}})
 	}
 	return out
 }
 
-func checkApart(t *testing.T, got []placed, side float64) {
+func checkApart(t *testing.T, got []placed, side float32) {
 	t.Helper()
 	for i := range got {
 		for j := i + 1; j < len(got); j++ {
@@ -134,7 +134,7 @@ func TestPlace_NoSpotOverGroundTheUnitCannotTakeOrOnAStep(t *testing.T) {
 	r.terrain.Set(r.at(4, 2), cell.Kind{Cost: 1, Allows: cell.Water})            // water east
 	r.terrain.Set(r.at(3, 1), cell.Kind{Cost: 1, Allows: cell.Land, Height: 10}) // a rock north
 	centre := r.grid.CellCenter(target)
-	r.heights = func(geom.Vec) float64 { return 0 }
+	r.heights = func(geom.Vec) float32 { return 0 }
 	corner := geom.NewVec(centre.X+14, centre.Y-14) // the north-east corner, by the water and the rock
 	got, _ := r.keep.place(r.units(6, 8), corner, target, order.EitherLevel)
 	for _, p := range got {

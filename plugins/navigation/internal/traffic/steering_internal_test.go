@@ -10,7 +10,7 @@ func TestLookahead(t *testing.T) {
 	have := geom.NewVec(0, 0)
 	route := []geom.Vec{geom.NewVec(10, 0), geom.NewVec(10, 10)}
 	for name, tc := range map[string]struct {
-		reach float64
+		reach float32
 		want  geom.Vec
 	}{
 		"no reach aims at the first waypoint":     {0, geom.NewVec(10, 0)},
@@ -31,7 +31,7 @@ func TestTurnFactor(t *testing.T) {
 	east, west, north := geom.NewVec(1, 0), geom.NewVec(-1, 0), geom.NewVec(0, 1)
 	for name, tc := range map[string]struct {
 		heading, dir geom.Vec
-		want         float64
+		want         float32
 	}{
 		"straight on keeps full speed": {east, east, 1},
 		"a right angle crawls":         {east, north, TurnCrawl},

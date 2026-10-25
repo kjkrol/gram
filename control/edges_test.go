@@ -1,17 +1,17 @@
 package control_test
 
 import (
-	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/internal/f32"
 )
 
 func TestEdges_ACornerIsOneEdgeWithinCornerReachOfTheNext(t *testing.T) {
 	ctx := control.Context{Screen: geom.NewVec(1000, 800)}
 	for _, c := range []struct {
-		x, y   float64
+		x, y   float32
 		corner control.Corner
 		sx, sy float32
 	}{
@@ -52,7 +52,7 @@ func TestEdges_ACornerIsOneEdgeWithinCornerReachOfTheNext(t *testing.T) {
 func TestEdges_TheMarginsAreInShownPixelsAtAResolution(t *testing.T) {
 	ctx := control.Context{Screen: geom.NewVec(2000, 1600), Resolution: 2}
 	for _, c := range []struct {
-		x, y   float64
+		x, y   float32
 		left   bool
 		corner control.Corner
 	}{
@@ -83,8 +83,8 @@ func TestEdges_TheMarginsAreInShownPixelsAtAResolution(t *testing.T) {
 func TestEdges_TheDepthGrowsFromTheStripsInnerBoundToTheWindowsEdge(t *testing.T) {
 	ctx := control.Context{Screen: geom.NewVec(1000, 800)}
 	for _, c := range []struct {
-		x, y  float64
-		depth float64
+		x, y  float32
+		depth float32
 	}{
 		{60, 400, 0},    // the strip's inner bound, no edge
 		{59, 400, 0.02}, // just in
@@ -99,7 +99,7 @@ func TestEdges_TheDepthGrowsFromTheStripsInnerBoundToTheWindowsEdge(t *testing.T
 		{60, 60, 60.0 / 110},
 	} {
 		ctx.Cursor = geom.NewVec(c.x, c.y)
-		if e := ctx.Edges(); math.Abs(e.Depth-c.depth) > 1e-9 {
+		if e := ctx.Edges(); f32.Abs(e.Depth-c.depth) > f32.Eps(c.depth) {
 			t.Errorf("at (%v, %v) the depth is %v, want %v", c.x, c.y, e.Depth, c.depth)
 		}
 	}

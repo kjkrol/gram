@@ -31,7 +31,7 @@ var Hill = cell.Kind{Name: cell.Named("hill"), Cost: 1, Allows: cell.Land | cell
 
 // RaiseHills puts the hill cells at 12 and the rest at 0, each corner at the mean of its cells.
 func RaiseHills(r topography.Relief, grid grid.Grid, hills ...cell.ID) {
-	r.SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
+	r.SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float32 {
 		for _, h := range hills {
 			if c == h {
 				return 12

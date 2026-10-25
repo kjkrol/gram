@@ -19,7 +19,7 @@ type Shoot struct {
 	At       geom.Vec
 	Targeted bool
 	Camera   camera.Camera
-	Power    float64
+	Power    float32
 
 	target uid.UID64
 	aimed  bool
@@ -32,7 +32,7 @@ func (s *Shoot) Aim(who uid.UID64) { s.target, s.aimed = who, true }
 
 // Burst is the command a landed shot gives itself to burst: every entity within Radius of its
 // centre is told a Blast, and the shot is gone.
-type Burst struct{ Radius float64 }
+type Burst struct{ Radius float32 }
 
 func (Shoot) Command() {}
 func (Burst) Command() {}

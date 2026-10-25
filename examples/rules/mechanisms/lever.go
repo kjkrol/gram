@@ -44,7 +44,8 @@ func (lever) Rules(b *board.Plugin) { b.Read(0).World().Roles().Define(LeverRole
 func (lever) Define(b *board.Plugin) {
 	board.NewEntities(b, board.Shape{Size: leverSize}, standingAt).Define(LeverKind,
 		comp.Const(collision.Collider{}),
-		comp.Const(collision.Physics{Mass: math.Inf(1)}), // a post: the hero walks up to it
+		// a post: the hero walks up to it
+		comp.Const(collision.Physics{Mass: float32(math.Inf(1))}),
 		ceremony.Plays(b.Read(0).World().Roles().Named(LeverRole)))
 }
 

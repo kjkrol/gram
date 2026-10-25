@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 )
 
 // Haze is how much of what lies at the world point (x, y, z) the air over the eye of cam hides
@@ -15,7 +16,7 @@ func (w Weather) Haze(cam camera.Camera, x, y, z float32) float32 {
 // Hazer is the air's haze through a camera, worked out once for everything one frame draws.
 type Hazer struct {
 	eye   [3]float32
-	sight float64 // how far one sees from the eye; 0 for no haze
+	sight float32 // how far one sees from the eye; 0 for no haze
 }
 
 // Hazer is w's haze through cam (Haze).
@@ -40,7 +41,7 @@ func (h Hazer) At(x, y, z float32) float32 {
 		return 0
 	}
 	dx, dy, dz := x-h.eye[0], y-h.eye[1], z-h.eye[2]
-	return float32(1 - math.Exp(-math.Sqrt(float64(dx*dx+dy*dy+dz*dz))/h.sight))
+	return 1 - f32.Exp(-f32.Sqrt(dx*dx+dy*dy+dz*dz)/h.sight)
 }
 
 // Under is the world point the air is felt at through cam: under its eye, or in the middle of its
@@ -65,7 +66,7 @@ func (w Weather) Seen(cam camera.Camera, hazed bool) (seeing, up float32, way [3
 	}
 	if e, ok := cam.(camera.Eyed); ok {
 		if _, _, _, ok := e.Eye(); ok {
-			return float32(w.Visibility(Under(cam))), 0, way
+			return w.Visibility(Under(cam)), 0, way
 		}
 	}
 	rays, ok := cam.(camera.Rays)
@@ -78,5 +79,5 @@ func (w Weather) Seen(cam camera.Camera, hazed bool) (seeing, up float32, way [3
 		return 0, 0, way // a perspective without an eye: none to haze from
 	}
 	way = [3]float32{f.Dir[0] / n, f.Dir[1] / n, f.Dir[2] / n}
-	return float32(w.Visibility(Under(cam))), w.Base(High), way
+	return w.Visibility(Under(cam)), w.Base(High), way
 }

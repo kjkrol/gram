@@ -226,7 +226,7 @@ func TestMotion_AnEffectOnTheSteeringTellsTheStepItBegins(t *testing.T) {
 		step(rc, d)
 	})
 
-	was := 500.0
+	was := float32(500)
 	for tick := 1; tick <= 4; tick++ {
 		ecs.Tick(time.Second / 60)
 		for all.All(); all.Next(); {

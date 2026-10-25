@@ -95,7 +95,7 @@ func middle(cam camera.Camera) (float32, float32) {
 
 func TestMinimapInAScene_TheCursorAtTheEdgeOverItScrollsNothing(t *testing.T) {
 	scene, cam, tick := minimapScene(t)
-	at := func(x, y float64) {
+	at := func(x, y float32) {
 		scene.HandleEvents(&control.InputEvents{MousePos: geom.NewVec(x, y),
 			WindowFillsScreen: true}, nil, nil)
 		tick()

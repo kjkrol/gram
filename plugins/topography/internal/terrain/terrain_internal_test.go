@@ -2,10 +2,10 @@ package terrain
 
 import (
 	"image/color"
-	"math"
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/light"
@@ -21,7 +21,8 @@ func TestEncode_HoldsTheHeightsWithinTheSpan(t *testing.T) {
 		t.Fatalf("low %v, span %v, %d bytes; want -12.5, 192.5 and four a corner", low, span, len(buf))
 	}
 	for i, h := range heights {
-		if got := decode(buf[4*i], buf[4*i+1], low, span); math.Abs(float64(got-h)) > float64(span)/65535 {
+		if got := decode(buf[4*i], buf[4*i+1], low, span); f32.Abs(
+			float32(got-h)) > float32(span)/65535 {
 			t.Errorf("corner %d encoded as %v, want %v", i, got, h)
 		}
 		if buf[4*i+3] != 255 {
@@ -92,7 +93,7 @@ func TestTriangles_SplitEachCellAlongItsNearerDiagonal(t *testing.T) {
 	for c, k := range cells {
 		tri := got[6*c : 6*c+6]
 		h := func(i uint32) float32 { return heights[i] }
-		nearer03 := math.Abs(float64(h(k[0])-h(k[3]))) < math.Abs(float64(h(k[1])-h(k[2])))
+		nearer03 := f32.Abs(float32(h(k[0])-h(k[3]))) < f32.Abs(float32(h(k[1])-h(k[2])))
 		shared := map[uint32]int{}
 		for _, i := range tri {
 			shared[i]++
@@ -116,7 +117,7 @@ func TestNormals_LeanAwayFromTheRidge(t *testing.T) {
 		t.Fatalf("%d bytes for %d corners, want four each", len(buf), cols*rows)
 	}
 	at := func(x, y int) [3]float32 { i := 4 * (y*cols + x); return decodeNormal(buf[i], buf[i+1], buf[i+2]) }
-	near := func(a, b float32) bool { return math.Abs(float64(a-b)) < 0.02 }
+	near := func(a, b float32) bool { return f32.Abs(float32(a-b)) < 0.02 }
 	if n := at(8, 5); !near(n[0], 0) || !near(n[1], 0) || !near(n[2], 1) {
 		t.Errorf("the ridge's crest faces %v, want straight up", n)
 	}

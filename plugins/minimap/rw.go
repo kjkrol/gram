@@ -36,7 +36,7 @@ func (w *Write) SetTurning(on bool) { w.p.Res.Settings.Turning = on }
 
 // SetReach has the minimaps show reach round their cameras, from the frame drawn after the next
 // publish; past the world's last band panics.
-func (w *Write) SetReach(reach float64) {
+func (w *Write) SetReach(reach float32) {
 	checkReach(w.p.w, reach)
 	w.p.cfg.Reach = reach
 }

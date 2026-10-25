@@ -54,6 +54,10 @@ Wave 3 (2026-10-21, medians of 5, alternately): a chunk's boxes moved in one cal
 (digests over 600 ticks of motion/collision, motion/expanse, motion/bullet, navigation/spawn);
 the collision ticks within the noise.
 
+With aabbworld v1.17.0 and the world's numbers in float32 (2026-10-25, the tree before and after
+alternately, the lower of two runs): 1,000 boxes 10.2 → 9.4 µs, 5,000 boxes 43.6 → 37.3 µs, 0
+allocs/op; a `Base` is 52 bytes instead of 104.
+
 ### A tick with a frame — `Benchmark_World_TickDraw`
 
 A tick of the world and a frame of its 5,000 sprites, the camera over all, a quarter or a
@@ -152,6 +156,11 @@ In motion/collision (8,388 boxes, the rules and the light on) the drawing went f
 to 1.2–1.28 ms beside 0.40–0.46 ms of publishing. Done one after the other the copy is a price; it
 is meant to be paid on the ticks' side once the frame is drawn beside them.
 
+With aabbworld v1.17.0 and the world's numbers in float32 (2026-10-25, the tree before and after
+alternately, the lower of two runs): the whole view 67.8 → 62.2 µs, a quarter 26.2 → 23.2, a
+twentieth 12.3 → 11.5, two cameras a quarter each 45.3 → 40.0, 2,809 of 50,000 128.7 → 115.1; the
+figure keeps the box, heading, speed and `Z` as they are, no longer turned to float32 and back.
+
 #### Publishing in parts, from the views, by index — tried, not kept (2026-10-25)
 
 The cases are named by the boxes in view since; a world of 50000 is new. Three ways to publish
@@ -206,6 +215,15 @@ The cost follows the entity count more than the contact count: at the same cover
 the box side quadruples the population and roughly quadruples the tick, while doubling the
 coverage at one size quadruples the contacts and the tick alike.
 
+With aabbworld v1.17.0 and the world's numbers in float32 (2026-10-25, the tree before and after
+alternately, the lower of two runs): 10×10 over 20% 572 → 533 µs, over 40% 2.09 → 1.85 ms, 5×5 over
+20% 2.95 → 2.55 ms, 20×20 over 40% 432 → 376 µs, the allocations unchanged.
+
+A unit struck, not pushed along (2026-10-25, the same method against that tree): every impulse
+reads the steering's course and every pair weighs its share of the push apart, 1–4% more — 10×10
+over 20% 524 → 542 µs, over 40% 1.82 → 1.89 ms, 5×5 over 20% 2.62 → 2.70 ms, 20×20 over 40%
+372 → 380 µs, 8×8 876 → 888 µs.
+
 ## Bands — `Benchmark_Sectors_Expanse`
 
 One tick of world, motion and collision at the expanse demo's scale: a 16384×16384 torus, a
@@ -220,6 +238,10 @@ switched off (`SetBanded(false)`), every box moving and colliding.
 
 With the bands on about 1,600 boxes go every step and 4,400 a step in four; the rest lie out of
 the space at no cost but the supervisor's pass over the bands near.
+
+With aabbworld v1.17.0 and the world's numbers in float32 (2026-10-25, the tree before and after
+alternately, the lower of two runs): banded 2.17 → 1.89 ms, unbanded 15.6 → 13.5 ms, a third fewer
+allocations (3,091 → 2,042 and 215,080 → 159,051).
 
 ## Sight — `Benchmark_Vision_*`
 
@@ -264,6 +286,11 @@ step of a cell misses a crest between its samples. In board-topography at 2560×
 from 14–95 ms (every 50 m, the engine catching up on several ticks a frame) to 2–3 ms with the
 profile at 15 a second, the frame bound by the GPU.
 
+With aabbworld v1.17.0 and the world's numbers in float32 (2026-10-25, the tree before and after
+alternately, the lower of two runs): sampled every 50 m 6.47 → 6.59 ms, every cell 1.35 → 1.36,
+along the profile 1.66 → 1.69, at 15 Hz 0.665 → 0.692; the plain scans within 1% but one observer at
+a time 5% longer: aabbworld's rays read float32 heights.
+
 ### The views' copy — `Benchmark_Views_Copy`
 
 One frame's copy of the ground and the cover for the views of the observers (the sight overlay
@@ -297,6 +324,10 @@ replaced, the two trees run alternately six times each.
 
 The seek is the smaller part of a read; the rest is finding the cell, which a square grid now does
 straight from the point.
+
+With aabbworld v1.17.0 and the world's numbers in float32 (2026-10-25, the tree before and after
+alternately, the lower of two runs): as fast or faster, 2.66 → 2.28 µs in the same run, the ground
+at a point worked out in float64 and rounded once.
 
 ## Standing — `Benchmark_Board_Altitude`, `Benchmark_Gravity_Standing`
 
@@ -611,6 +642,12 @@ one run each, 12.8 → 8.7 ms on average. A step onto a cell no longer allocates
 `400x` 20 → 14 allocations a tick, the time unchanged. The routing on the pool against the
 routing on one goroutine, crowded 1,000: 8.27 → 8.45 ms, one run; the twelve ticks hold few
 asks, so no benchmark shows yet what the pool gains.
+
+With aabbworld v1.17.0 and the world's numbers in float32 (2026-10-25, the tree before and after
+alternately, the lower of two runs): open with 100 units 389 → 373 µs, with 1,000 3.10 → 2.93 ms,
+crowded with 100 572 → 555 µs, with 1,000 10.6 → 10.2 ms. A unit struck, not pushed along
+(2026-10-25: a unit never moves into one it touches) changed none of these within the noise
+(−0.6…+0.9%).
 
 ### A route — `Benchmark_Navigation_Path`
 

@@ -1,10 +1,10 @@
 package light_test
 
 import (
-	"math"
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/light"
@@ -12,7 +12,7 @@ import (
 	"github.com/kjkrol/gram/render/gputest"
 )
 
-func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
+func near(a, b float32) bool { return f32.Abs(float32(a-b)) < 1e-3 }
 
 func TestDefaultSun_KeepsTheLookOfTheIsometricView(t *testing.T) {
 	sun := sky.DefaultSun
@@ -21,7 +21,7 @@ func TestDefaultSun_KeepsTheLookOfTheIsometricView(t *testing.T) {
 		want float32
 	}{{[3]float32{0, 0, 1}, 0.92}, {[3]float32{1, 0, 0}, 0.72}, {[3]float32{0, 1, 0}, 0.55}} {
 		got := sun.Light(c.n[0], c.n[1], c.n[2])
-		if math.Abs(float64(got[0]-c.want)) > 0.01 || got[0] != got[1] || got[1] != got[2] {
+		if f32.Abs(float32(got[0]-c.want)) > 0.01 || got[0] != got[1] || got[1] != got[2] {
 			t.Errorf("a surface facing %v is lit %v, want %v", c.n, got, c.want)
 		}
 	}

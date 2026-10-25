@@ -1,11 +1,10 @@
 package traffic
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/order"
-	"math"
-
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 )
 
 // Bumps is which of the units' strikes the system reacts to: none, any, or the ground's alone.
@@ -51,8 +50,8 @@ func struck(o *order.MoveOrder, contacts []collision.Contact) {
 			n = geom.NewVec(n.X+c.Normal.X, n.Y+c.Normal.Y)
 		}
 	}
-	l := math.Hypot(n.X, n.Y)
-	if l < 1e-9 {
+	l := f32.Hypot(n.X, n.Y)
+	if l < f32.Eps(1) {
 		return // no ground struck, or squeezed from both sides
 	}
 	o.Bumped, o.Struck, o.Hit, o.HitUnit = true, geom.NewVec(n.X/l, n.Y/l), 0, false

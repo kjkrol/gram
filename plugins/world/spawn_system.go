@@ -2,19 +2,19 @@ package world
 
 import (
 	"fmt"
-	"github.com/kjkrol/ceremony"
-	"github.com/kjkrol/ceremony/command"
-	cgoke "github.com/kjkrol/ceremony/goke"
-	"github.com/kjkrol/gram/render"
 	"log"
 	"reflect"
 	"slices"
 	"time"
 
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/comp"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
 	ikinds "github.com/kjkrol/gram/plugins/world/internal/kinds"
+	"github.com/kjkrol/gram/render"
 )
 
 var _ goke.System = (*spawnSystem)(nil)
@@ -142,7 +142,7 @@ func (w *module) spawnRows(factory *goke.Factory, base *goke.Comp[Base], label *
 }
 
 func (w *module) sizeOf(pos Position) error {
-	min, max := float64(w.config.Entities.MinSize), float64(w.config.Entities.MaxSize)
+	min, max := float32(w.config.Entities.MinSize), float32(w.config.Entities.MaxSize)
 	if pos.Size.X < min || pos.Size.X > max || pos.Size.Y < min || pos.Size.Y > max {
 		return fmt.Errorf("size %vx%v outside declared bounds [%d, %d]", pos.Size.X, pos.Size.Y, w.config.Entities.MinSize, w.config.Entities.MaxSize)
 	}

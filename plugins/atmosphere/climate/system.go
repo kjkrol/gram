@@ -45,7 +45,7 @@ type weatherSystem struct {
 	part   int         // of the dome's patches, settling next
 	setNow bool
 
-	ground  func() (low, peaks float64) // nil over no ground in particular
+	ground  func() (low, peaks float32) // nil over no ground in particular
 	land    *air.Land                   // nil without
 	places  *places
 	spread  Spread
@@ -82,7 +82,7 @@ func (s *weatherSystem) hang() {
 	if s.relief[1] > 0 {
 		return
 	}
-	var low, peaks float64
+	var low, peaks float32
 	if s.ground != nil {
 		low, peaks = s.ground()
 	}
@@ -129,7 +129,7 @@ func (s *weatherSystem) Init(si *goke.SysInit) {
 	width, height := float32(space.Width), float32(space.Height)
 	s.middle = [2]float32{width / 2, height / 2}
 	scale := s.world.Read(0).Scale()
-	s.dome = air.NewDome(width, height, float32(scale.Units(s.cfg.Horizon)))
+	s.dome = air.NewDome(width, height, scale.Units(s.cfg.Horizon))
 	s.lanesOf(scale)
 	s.query = si.NewQueryBuilder(&s.now).Build()
 	s.patches = si.NewQueryBuilder(&s.patch).Build()
@@ -199,7 +199,7 @@ func (s *weatherSystem) lanesOf(scale world.Scale) {
 	r := s.dome.Reach()
 	half := float32(math.Hypot(float64(max(s.middle[0]-r[0], r[2]-s.middle[0])),
 		float64(max(s.middle[1]-r[1], r[3]-s.middle[1]))))
-	s.width = max(float32(scale.Units(air.ClearAir/2)), 2*half/(MaxLanes-1))
+	s.width = max(scale.Units(air.ClearAir/2), 2*half/(MaxLanes-1))
 	s.lanes = min(int(math.Ceil(float64(half/s.width-0.5))), (MaxLanes-1)/2)
 }
 

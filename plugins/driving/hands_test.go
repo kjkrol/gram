@@ -1,7 +1,6 @@
 package driving_test
 
 import (
-	"math"
 	"testing"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
@@ -196,8 +196,8 @@ func (f *field) tick(n int) {
 type seen struct {
 	driven  *steering.Driven
 	driving bool
-	speed   float64
-	side    float64
+	speed   float32
+	side    float32
 	at      geom.Vec
 	dir     geom.Vec
 }
@@ -303,7 +303,7 @@ func TestHand_LetGoAtAFenceItStandsWhereTheFenceHeldIt(t *testing.T) {
 	}
 	f.tick(30)
 	s := f.read()[id]
-	if math.Hypot(s.at.X-held.at.X, s.at.Y-held.at.Y) > 1e-3 || s.driving || s.speed != 0 {
+	if f32.Hypot(s.at.X-held.at.X, s.at.Y-held.at.Y) > 1e-3 || s.driving || s.speed != 0 {
 		t.Errorf("let go at the fence: at %v, Driving %v, speed %v; want standing at %v, let go",
 			s.at, s.driving, s.speed, held.at)
 	}
@@ -374,7 +374,7 @@ func TestHand_TowardDrivesTheUnitThatWay(t *testing.T) {
 		f.tick(1)
 	}
 	after := f.read()[id]
-	if after.at.Y <= before.Y+4 || math.Abs(after.at.X-before.X) > 4 {
+	if after.at.Y <= before.Y+4 || f32.Abs(after.at.X-before.X) > 4 {
 		t.Errorf("driven south from %v the unit is at %v, want it gone down the screen", before, after.at)
 	}
 	if after.driven == nil || after.driven.Face != geom.NewVec(0, 1) {

@@ -42,7 +42,7 @@ const (
 // Bases is how high each Layer of clouds hangs on a world of scale, in world units, over no
 // ground in particular.
 func Bases(scale world.Scale) [2]float32 {
-	return [2]float32{float32(scale.Units(CloudLow)), float32(scale.Units(CloudBase))}
+	return [2]float32{scale.Units(CloudLow), scale.Units(CloudBase)}
 }
 
 // LeastRelief is the least relief the low clouds hang over, in metres: lower hills are taken as
@@ -51,17 +51,16 @@ const LeastRelief = 1000.0
 
 // ReliefOf is the ground from low up to its peaks, metres over the world's zero in world units
 // on a world of scale, as Weather.Relief has it: where it begins and how high it rises.
-func ReliefOf(scale world.Scale, low, peaks float64) [2]float32 {
-	span := max(peaks-low, scale.Units(LeastRelief))
-	return [2]float32{float32(low), float32(span)}
+func ReliefOf(scale world.Scale, low, peaks float32) [2]float32 {
+	return [2]float32{low, max(peaks-low, scale.Units(LeastRelief))}
 }
 
 // BasesOver is how high each Layer of clouds hangs over the relief (ReliefOf) on a world of
 // scale, as Weather.Bases has it: the low ones' lowest base, the high ones over their tops.
 func BasesOver(scale world.Scale, relief [2]float32) [2]float32 {
-	floor := float64(relief[0] + relief[1]*bandOver[1])
+	floor := relief[0] + relief[1]*bandOver[1]
 	high := max(scale.Units(CloudBase), floor+scale.Units(highOverLow))
-	return [2]float32{relief[0] + relief[1]*bandUnder[0], float32(high)}
+	return [2]float32{relief[0] + relief[1]*bandUnder[0], high}
 }
 
 // metres the high clouds' base stands at least over the low ones' decks

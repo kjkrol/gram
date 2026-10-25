@@ -16,7 +16,8 @@ func (p *Plugin) Write() *Write { return &p.write }
 // line.
 func (w *Write) Spawn(level *board.Level) error {
 	p := w.p
-	g := newGround(p.board.Read(0).Board(), level.Heights(), 0)
+	heights := level.Heights()
+	g := newGround(p.board.Read(0).Board(), heights, 0)
 	gr := g.Grid()
 	return board.Each(level, func(name string, r Row, at string) error {
 		t := p.types.Named(name)
@@ -28,7 +29,7 @@ func (w *Write) Spawn(level *board.Level) error {
 		if level.Heights() != nil {
 			b.Piers = site.Piers(gr, spans)
 		}
-		p.laid = append(p.laid, laid{t: t, plan: b, at: at, heights: level.Heights()})
+		p.laid = append(p.laid, laid{t: t, plan: b, at: at, heights: heights})
 		p.worldPlugin.Write().Seed(p.parts(t, b, g)...)
 		return nil
 	})

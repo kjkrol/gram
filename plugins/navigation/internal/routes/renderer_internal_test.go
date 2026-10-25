@@ -1,24 +1,24 @@
 package routes
 
 import (
+	"image/color"
+	"testing"
+
 	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/board/unit"
-	"github.com/kjkrol/gram/plugins/navigation/internal/order"
-	"github.com/kjkrol/gram/plugins/selection"
-	"image/color"
-	"math"
-	"testing"
-
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
+	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -29,21 +29,21 @@ func ends(v []render.Vertex) (x0, y0, x1, y1 float32) {
 	return (v[0].DstX + v[2].DstX) / 2, (v[0].DstY + v[2].DstY) / 2, (v[1].DstX + v[3].DstX) / 2, (v[1].DstY + v[3].DstY) / 2
 }
 
-func near32(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-2 }
+func near32(a, b float32) bool { return f32.Abs(a-b) < 1e-2 }
 
 type sampled struct {
-	at   func(p geom.Vec) float64
-	step float64
+	at   func(p geom.Vec) float32
+	step float32
 }
 
-func (s sampled) At(p geom.Vec) float64 { return s.at(p) }
-func (s sampled) Step() float64         { return s.step }
+func (s sampled) At(p geom.Vec) float32 { return s.at(p) }
+func (s sampled) Step() float32         { return s.step }
 
 func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd, brdW := board.NewBoard(grid)
 	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	land := sampled{step: 32, at: ground.MeanOfCells(grid, func(c cell.ID) float64 { // a ridge down the right half
+	land := sampled{step: 32, at: ground.MeanOfCells(grid, func(c cell.ID) float32 { // a ridge down the right half
 		if x, _, _ := grid.Coords(c); x >= 2 {
 			return 10
 		}
@@ -66,7 +66,7 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 	}
 	r := NewRenderer(brd, RouteStyle{}, 0).WithHeights(func() ground.Heights { return land })
 	pieces, lies := drawn(r)
-	want := int(math.Ceil(64 / land.Step()))
+	want := int(f32.Ceil(64 / land.Step()))
 	if len(pieces) != want {
 		t.Fatalf("%d pieces over 64 units with a step of %v, want %d", len(pieces), land.Step(), want)
 	}
@@ -116,7 +116,7 @@ func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 		if len(starts) != 4 {
 			t.Fatalf("%d lines for a goal, want its outline's 4", len(starts))
 		}
-		for _, corner := range [4][2]float64{{-5, -5}, {5, -5}, {5, 5}, {-5, 5}} {
+		for _, corner := range [4][2]float32{{-5, -5}, {5, -5}, {5, 5}, {-5, 5}} {
 			wx, wy := cam.Project(float32(tc.centre.X+corner[0]), float32(tc.centre.Y+corner[1]), 0)
 			found := false
 			for _, s := range starts {

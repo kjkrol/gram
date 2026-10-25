@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/bridges/site"
 	"github.com/kjkrol/uid"
@@ -96,14 +97,14 @@ func (p *Plugin) endAt(from cell.ID, at geom.Vec) (cell.ID, bool) {
 	g := p.board.Read(0).Board().Grid
 	m := g.CellCenter(from)
 	off := geom.NewVec(at.X-m.X, at.Y-m.Y)
-	best, steps, along := -1, 0, -math.MaxFloat64
+	best, steps, along := -1, 0, float32(-math.MaxFloat32)
 	for i := range g.Directions() {
 		s := g.Step(i)
-		length := math.Hypot(s.X, s.Y)
-		cos := (off.X*s.X + off.Y*s.Y) / (length * max(math.Hypot(off.X, off.Y), 1e-9))
+		length := f32.Hypot(s.X, s.Y)
+		cos := (off.X*s.X + off.Y*s.Y) / (length * max(f32.Hypot(off.X, off.Y), 1e-9))
 		if cos > along {
 			best, along = i, cos
-			steps = int(math.Round((off.X*s.X + off.Y*s.Y) / (length * length)))
+			steps = int(f32.Round((off.X*s.X + off.Y*s.Y) / (length * length)))
 		}
 	}
 	if best < 0 || steps < 1 {

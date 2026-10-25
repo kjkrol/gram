@@ -2,8 +2,6 @@ package navigation
 
 import (
 	"cmp"
-	"github.com/kjkrol/gram/plugins/navigation/internal/order"
-	"math"
 	"slices"
 	"testing"
 	"time"
@@ -11,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -19,6 +18,7 @@ import (
 	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/motion/steering"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
@@ -47,8 +47,8 @@ func valleyBridgeTo(t *testing.T, at geom.Vec, target cell.ID, level Level,
 	t.Helper()
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
 	slantwise := bridgeSite{
-		heights: func(p geom.Vec) float64 {
-			if math.Abs((p.X+p.Y)/32-7) < 2 {
+		heights: func(p geom.Vec) float32 {
+			if f32.Abs((p.X+p.Y)/32-7) < 2 {
 				return 0
 			}
 			return 10
@@ -60,7 +60,7 @@ func valleyBridgeTo(t *testing.T, at geom.Vec, target cell.ID, level Level,
 }
 
 type bridgeSite struct {
-	heights  func(geom.Vec) float64
+	heights  func(geom.Vec) float32
 	wet      []cell.ID
 	from, to cell.ID
 	cells    bool
@@ -206,7 +206,7 @@ func TestNavigation_ByASlantwiseBridgesCornerItCrossesWithoutCircling(t *testing
 				}
 			}
 		}
-		if d := math.Hypot(c.X-goal.X, c.Y-goal.Y); d > 4 {
+		if d := f32.Hypot(c.X-goal.X, c.Y-goal.Y); d > 4 {
 			t.Errorf("from %v: after 20 s the walker stands at %v, %.1f off the goal across",
 				at, c, d)
 		}
@@ -215,7 +215,7 @@ func TestNavigation_ByASlantwiseBridgesCornerItCrossesWithoutCircling(t *testing
 
 func TestNavigation_ToACellUnderABridgeOnTheLevelAsked(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
-	for level, want := range map[Level]float64{OnDeck: 10, OnGround: 0} {
+	for level, want := range map[Level]float32{OnDeck: 10, OnGround: 0} {
 		var z goke.Comp[world.Z]
 		var base goke.Comp[world.Base]
 		var q *goke.Query
@@ -231,7 +231,7 @@ func TestNavigation_ToACellUnderABridgeOnTheLevelAsked(t *testing.T) {
 				if b.Pos.Size.X != 3 {
 					continue
 				}
-				if alt := z.Slice(q.Cursor())[i].Altitude; math.Abs(alt-want) > 0.5 {
+				if alt := z.Slice(q.Cursor())[i].Altitude; f32.Abs(alt-want) > 0.5 {
 					t.Errorf("sent to level %v, the walker stands %.1f up at %v, want %v", level,
 						alt, b.Pos.Center(), want)
 				}
@@ -246,7 +246,7 @@ func TestNavigation_ToACellUnderABridgeOnTheLevelAsked(t *testing.T) {
 
 func TestNavigation_FromABridgeDownUnderIt(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
-	valley := func(p geom.Vec) float64 {
+	valley := func(p geom.Vec) float32 {
 		if p.X <= 64 || p.X >= 160 {
 			return 10
 		}
@@ -280,7 +280,7 @@ func TestNavigation_FromABridgeDownUnderIt(t *testing.T) {
 		ecs, w := tc.bridge(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 			q = si.NewQueryBuilder(&base, &z).Build()
 		}})
-		walker := func() (uid.UID64, geom.Vec, float64) {
+		walker := func() (uid.UID64, geom.Vec, float32) {
 			for q.All(); q.Next(); {
 				for i, b := range base.Slice(q.Cursor()) {
 					if b.Pos.Size.X == 3 {
@@ -295,7 +295,7 @@ func TestNavigation_FromABridgeDownUnderIt(t *testing.T) {
 			ecs.Tick(time.Second / 60)
 		}
 		id, at, alt := walker()
-		if c, _ := g.CellAt(at); c != tc.stand || math.Abs(alt-10) > 0.5 {
+		if c, _ := g.CellAt(at); c != tc.stand || f32.Abs(alt-10) > 0.5 {
 			t.Fatalf("%s: the walker stands %.1f up at %v, want on the deck over %v", name, alt,
 				at, tc.stand)
 		}
@@ -306,7 +306,7 @@ func TestNavigation_FromABridgeDownUnderIt(t *testing.T) {
 		for range 60 * 40 {
 			ecs.Tick(time.Second / 60)
 		}
-		if _, at, alt = walker(); math.Abs(alt) > 0.5 {
+		if _, at, alt = walker(); f32.Abs(alt) > 0.5 {
 			t.Errorf("%s: sent down under the bridge, the walker stands %.1f up at %v, want on "+
 				"the valley's floor", name, alt, at)
 		}
@@ -321,7 +321,7 @@ func TestNavigation_KeptACellEachUnderAWalkerOnADeck(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
 	goal := g.At(3, 3)
 	site := bridgeSite{
-		heights: func(p geom.Vec) float64 {
+		heights: func(p geom.Vec) float32 {
 			if p.X <= 64 || p.X >= 160 {
 				return 10
 			}
@@ -342,7 +342,7 @@ func TestNavigation_KeptACellEachUnderAWalkerOnADeck(t *testing.T) {
 	for range 60 * 20 {
 		ecs.Tick(time.Second / 60)
 	}
-	var alts []float64
+	var alts []float32
 	for q.All(); q.Next(); {
 		for i, b := range base.Slice(q.Cursor()) {
 			if b.Pos.Size.X != 3 {
@@ -356,7 +356,7 @@ func TestNavigation_KeptACellEachUnderAWalkerOnADeck(t *testing.T) {
 		}
 	}
 	slices.Sort(alts)
-	if len(alts) != 2 || math.Abs(alts[0]) > 0.5 || math.Abs(alts[1]-10) > 0.5 {
+	if len(alts) != 2 || f32.Abs(alts[0]) > 0.5 || f32.Abs(alts[1]-10) > 0.5 {
 		t.Errorf("the walkers stand %v up, want one under the deck and one on it", alts)
 	}
 }

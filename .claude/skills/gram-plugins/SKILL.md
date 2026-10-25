@@ -746,10 +746,15 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`motion.Plugin.Leave`).
   Overlapping boxes touch: the box is the shape. **A pair parted stays met while it touches**:
   the pairs of the tick before that the engine did not push but whose boxes lie within `restGap`,
-  layers and bands meeting, neither swept, get a `Contact` with `Resting` on both sides, no
-  impulse, and a `Meeting`; a resting contact is no strike and no count. An entity carrying
-  `Physics` (`Mass`, `Restitution`) is pushed out and bounces (an infinite `Mass` is a wall); one
-  without is only detected (a trigger). With a `collision.Field` (the board's solid cells,
+  layers and bands meeting, neither swept, get a `Contact` with `Resting` on both sides, its
+  `Normal` the face they touch at (`faceOf`, as a struck pair's), no impulse, and a `Meeting`; a
+  resting contact is no strike and no count. An entity carrying `Physics` (`Mass`, `Restitution`)
+  is pushed out and bounces (an infinite `Mass` is a wall, an unnamed one weighs the box's area,
+  `Physics.weight`); one without is only detected (a trigger). The push apart is shared by weight:
+  `Touch` hands aabbworld the first side's share (`response.Share` of the inverse masses), and a
+  side `Footing` holds over worse ground gets share 0. An impulse that slows a steered
+  entity slows its `steering.Course.Speed` in the same share (`response.Side.Speed`), walls too:
+  the steering goes on from what is left, the ground's `Pace` kept apart. With a `collision.Field` (the board's solid cells,
   `Config.Field`) the engine pushes every movable collider out of the solid ground on its `Layers`
   and in its `Band`, recording a `Contact{Terrain: true, Cell}`. A push apart never puts a unit
   further over ground that does not take it (`Field.Overhang`; `footing` in `resolve` holds that
@@ -854,7 +859,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   another is rules of the moment `Touch` navigation hosts (a `host.PairRules[Touch]`; words
   `PushedByAlly()`, `Blocks()`, `WaitedLong()`…; `crowd()`, StarCraft II's, added at Install unless
   `WithCrowd(rules...)`): `BodySpacing` the Collider's contacts (a `Resting` or `Sensed` contact
-  bumps nobody), `CellSpacing` a step refused; handed `GivingWay`, `LastGoal`, `Ally`, `Groupmate`
+  bumps nobody; every unit touched, struck or at rest, is `bodies.Member.Touching`, and
+  `bodyKeeping.Steer`'s `clearOf` never moves the unit into them: facing into them it turns on
+  the spot, straight through them it stands, a turn through them goes round their far side), `CellSpacing` a step refused; handed `GivingWay`, `LastGoal`, `Ally`, `Groupmate`
   (`LastOrder.Group`), `OnMyGoal`, `HeadOn`, `Room`, `WaitedOut`/`Cornered`. The rules' commands
   (`StepAside`, `Detour`, `Pass`, `Hold`, `Settle`, `Stop`; `Aimed` at the other) are carried out
   for that unit alone, the engine's rules kept there: `stepAside` goes where the ground takes the
@@ -885,7 +892,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   *Course}` what steers (`Request(heading)`, `RequestSpeed`, `RequestSprint`, `RequestBack`,
   `RequestSide`). `steering.System` runs in motion's every step before it moves: turns `Vel.Dir`
   towards `Want` by at most `TurnRate` a tick after `Reflex` ticks (`TurnRate` 0 turns at once),
-  writes `Vel.Value` from the profile; `Halted` holds speed at 0. `steering.Driven{Ahead, Turn,
+  writes `Vel.Value` from the profile (collision lowers `Course.Speed` with the speed an impulse
+  takes); `Halted` holds speed at 0. `steering.Driven{Ahead, Turn,
   Sprint, Face, Side, Look, Flown, Climb}` is an entity steered by hand, two writers: the driving
   the hand's (`Ahead`, `Turn`, `Sprint`, `Face`, `Side`), the topography's camera system the eye's
   (`Look`, `Flown`, `Climb`); `Steers()`. `steering.Pace{Share}` the ground's share of the speed.

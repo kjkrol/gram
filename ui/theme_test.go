@@ -4,9 +4,8 @@ import (
 	"image/color"
 	"testing"
 
-	"golang.org/x/image/font/gofont/goregular"
-
 	"github.com/kjkrol/gram/render"
+	"golang.org/x/image/font/gofont/goregular"
 )
 
 var red = color.RGBA{R: 255, A: 255}
@@ -40,7 +39,7 @@ func TestTheme_ALabelMeasuresInTheThemesFont(t *testing.T) {
 	s.Drawers()
 	w, h := label.needs()
 	small, _ := DefaultTheme().Font.Measure("Cześć")
-	if w <= float64(small) || h < 40 {
+	if w <= float32(small) || h < 40 {
 		t.Fatalf("the label needs %vx%v, want the big font's size", w, h)
 	}
 }

@@ -2,8 +2,6 @@ package gravity
 
 import (
 	"fmt"
-	"github.com/kjkrol/gram/plugins/motion"
-	"math"
 	"time"
 
 	"github.com/kjkrol/ceremony/command"
@@ -11,9 +9,11 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/gravity/internal/vertical"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/uid"
@@ -42,7 +42,7 @@ type fallSystem struct {
 
 	walking struct {
 		ids    []uid.UID64
-		speeds []float64
+		speeds []float32
 	}
 	landingAt func(i int) Landing
 	landsAt   func(i int) bool
@@ -85,13 +85,13 @@ func (s *fallSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			continue
 		}
 		step := s.bodies.Dt()
-		dt := step.Seconds()
+		dt := float32(step.Seconds())
 		bases, drifts, marks, movers := s.base.Slice(cur), s.drift.Slice(cur), s.marks.Slice(cur),
 			s.mover.Slice(cur)
 		s.walking.ids, s.walking.speeds = cur.IDs, s.walking.speeds[:0]
 		for i := range cur.IDs {
 			z := &zs[i]
-			floor, ceiling := 0.0, math.Inf(1)
+			floor, ceiling := float32(0), f32.Inf(1)
 			// read with its feet before the step, so a fast fall lands on a deck it came over
 			if surfaces != nil {
 				floor, ceiling = surfaces.Surface(bases[i].Pos.Center(), unit.DomainAt(movers, i),
@@ -118,7 +118,7 @@ func (s *fallSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	}
 }
 
-func (s *fallSystem) throw(g float64) {
+func (s *fallSystem) throw(g float32) {
 	s.p.leaps.Drain(func(i command.Issued[Leap]) {
 		if !i.ByEntity || !s.bodies.Seek(i.Entity) {
 			return

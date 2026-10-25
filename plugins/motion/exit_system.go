@@ -3,10 +3,9 @@ package motion
 import (
 	"time"
 
-	cgoke "github.com/kjkrol/ceremony/goke"
-
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
@@ -67,8 +66,8 @@ func (s *exitSystem) at(i int) Leaving { return Leaving{ID: s.ids[i], Base: &s.b
 func inside(space *aabbworld.Space, box geom.AABB) bool {
 	width, height, edges := space.Bounds()
 	outX := edges&aabbworld.OpenX != 0 &&
-		(box.BottomRight.X <= 0 || box.TopLeft.X >= float64(width))
+		(box.BottomRight.X <= 0 || box.TopLeft.X >= float32(width))
 	outY := edges&aabbworld.OpenY != 0 &&
-		(box.BottomRight.Y <= 0 || box.TopLeft.Y >= float64(height))
+		(box.BottomRight.Y <= 0 || box.TopLeft.Y >= float32(height))
 	return !outX && !outY
 }

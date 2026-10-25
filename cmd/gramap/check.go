@@ -36,7 +36,7 @@ func (w *chart) check(data []byte) (err error) {
 			MaxSize:  units,
 		},
 		Heights: true,
-		Scale:   world.Scale{Metres: w.perUnit},
+		Scale:   world.Scale{Metres: float32(w.perUnit)},
 	})
 	g := grid.DefaultGrids{}.Square(uint32(w.cols), uint32(w.rows), uint32(units))
 	b := board.NewPlugin(g, &cell.MultipleOccupancy{}, wp)
@@ -63,13 +63,13 @@ func (w *chart) check(data []byte) (err error) {
 	plugins = append(plugins, br)
 	br.Types().Define(k.Bridge, bridges.Spec{
 		Allows:    cell.Land,
-		Width:     w.deck(),
-		Thickness: w.r.Roads.Thickness / w.perUnit,
+		Width:     float32(w.deck()),
+		Thickness: float32(w.r.Roads.Thickness / w.perUnit),
 		Cost:      1,
 		Rail:      cell.Rail{Keeps: cell.Land},
 		Pier:      1,
 	})
-	fords := board.NewEntities(b, board.Shape{Size: w.size},
+	fords := board.NewEntities(b, board.Shape{Size: float32(w.size)},
 		func(r fordRow) cell.ID { return r.At })
 	fords.Define(k.Ford, comp.Const(cell.Floor{Allows: cell.Land}))
 	level, err := b.Lay(fstest.MapFS{"map.yaml": {Data: data}}, "map.yaml")

@@ -160,7 +160,7 @@ func TestTiles_LayAHexBoardsTilesInTheOrderOfItsCells(t *testing.T) {
 			top := -1
 			for i := range brd.CellCount() {
 				mid := brd.CellCenter(brd.At(uint32(i%8), uint32(i/8)))
-				dx, dy := float64(x)-mid.X, float64(y)-mid.Y
+				dx, dy := float32(x)-mid.X, float32(y)-mid.Y
 				ex, ey := w/2-max(dx, -dx), h/2-max(dy, -dy)
 				if ex > -1 && ey > -1 && (ex < 1 || ey < 1) {
 					continue pixels

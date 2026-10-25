@@ -32,7 +32,7 @@ func TestWeathering_SnowFallsOnlyUnderTheSnowingMass(t *testing.T) {
 	var under, beyond float32
 	for x := range 20 {
 		for y := range 15 {
-			c, _ := brd.Read(0).Board().CellAt(geom.NewVec(float64(x*32+16), float64(y*32+16)))
+			c, _ := brd.Read(0).Board().CellAt(geom.NewVec(float32(x*32+16), float32(y*32+16)))
 			s := wt.snowing(weather, c)
 			switch {
 			case x*32+32 <= 1.5*air.BoardCell:

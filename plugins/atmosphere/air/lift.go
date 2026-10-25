@@ -1,6 +1,10 @@
 package air
 
-import "math"
+import (
+	"math"
+
+	"github.com/kjkrol/gram/internal/f32"
+)
 
 // Land is the ground under the air masses as the air feels it: in squares of BoardCell over the
 // world, the highest ground in each, world units up, and what the places in it wring out of the
@@ -224,7 +228,7 @@ func (h *holding) base(l *domeLevel, gx, gy int) float32 {
 // than a whole sky of them: in the world the clouds over a ridge stand still, or slow down, and
 // pile up before it.
 func (h *holding) hold(l *domeLevel, w Weather) {
-	across := abs(w.Wind[0]) / (abs(w.Wind[0]) + abs(w.Wind[1]))
+	across := f32.Abs(w.Wind[0]) / (f32.Abs(w.Wind[0]) + f32.Abs(w.Wind[1]))
 	share := [2]float32{across, 1 - across}
 	for k := range h.cells {
 		e := &h.cells[k]

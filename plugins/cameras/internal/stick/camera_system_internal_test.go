@@ -3,7 +3,6 @@ package stick
 import (
 	"bytes"
 	"encoding/gob"
-	"math"
 	"testing"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/command"
 	contract "github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
@@ -58,19 +58,19 @@ func (ws walkers) Of(id uid.UID64) (Target, bool) {
 		Eyed:    true,
 		Turning: w.driven.Turn != 0,
 	}
-	if n := math.Hypot(w.base.Vel.Dir.X, w.base.Vel.Dir.Y); n > 0 {
+	if n := f32.Hypot(w.base.Vel.Dir.X, w.base.Vel.Dir.Y); n > 0 {
 		t.Dir = geom.NewVec(w.base.Vel.Dir.X/n, w.base.Vel.Dir.Y/n)
 	}
 	return t, true
 }
 
-func (ws walkers) Drive(id uid.UID64, look geom.Vec, flown bool, climb float64) {
+func (ws walkers) Drive(id uid.UID64, look geom.Vec, flown bool, climb float32) {
 	if w, ok := ws[id]; ok {
 		w.driven.Look, w.driven.Flown, w.driven.Climb = look, flown, climb
 	}
 }
 
-func (ws walkers) Tilt(id uid.UID64, tilt float64) {
+func (ws walkers) Tilt(id uid.UID64, tilt float32) {
 	if w, ok := ws[id]; ok {
 		w.eye.Tilt = tilt
 	}
@@ -94,7 +94,7 @@ func newFollowRig(t *testing.T) *followRig {
 		r.walkers[n] = id
 		r.ents[id] = &walker{
 			base: world.Base{Pos: world.Position{
-				AABB: plane.NewAABB(geom.NewVec(300+float64(n)*100, 300), 10, 10),
+				AABB: plane.NewAABB(geom.NewVec(300+float32(n)*100, 300), 10, 10),
 			}},
 			z:   world.Z{Altitude: 5, Height: 2},
 			eye: world.Eye{Height: 2}, // the top, as without one
@@ -105,7 +105,7 @@ func newFollowRig(t *testing.T) *followRig {
 
 func (r *followRig) tick(d time.Duration) { r.sys.Update(d, r.ents) }
 
-func (r *followRig) walk(x, y, dx, dy float64) {
+func (r *followRig) walk(x, y, dx, dy float32) {
 	b := &r.ents[r.walkers[0]].base
 	b.Pos.AABB = plane.NewAABB(geom.NewVec(x, y), 10, 10)
 	b.Vel.Dir, b.Vel.Value = geom.NewVec(dx, dy), 20
@@ -141,7 +141,7 @@ func (r *followRig) centredOn(x, y float32) bool {
 func (r *followRig) upTheScreen(x, y, dx, dy float32) bool {
 	ax, ay := r.cam.Project(x, y, 0)
 	bx, by := r.cam.Project(x+dx*10, y+dy*10, 0)
-	return math.Abs(float64(bx-ax)) < 0.05*math.Abs(float64(by-ay)) && by < ay
+	return f32.Abs(float32(bx-ax)) < 0.05*f32.Abs(float32(by-ay)) && by < ay
 }
 
 func TestBehind_FastensTheCameraBehindTheWalkerWhereverItHeads(t *testing.T) {
@@ -170,21 +170,21 @@ func TestBehind_IsNearNothingZoomsItAndLettingGoGivesTheTacticalViewBack(t *test
 	r.walk(300, 300, 1, 0)
 	r.behind()
 	arm := r.cam.persp.focal() / (behindArm * 32)
-	if z := r.cam.Zoom(); math.Abs(float64(z-arm)) > 1e-3 || !r.centredOn(305, 305) {
+	if z := r.cam.Zoom(); f32.Abs(float32(z-arm)) > 1e-3 || !r.centredOn(305, 305) {
 		t.Errorf("behind the walker the zoom is %v, want the arm's %v, the walker in the middle",
 			z, arm)
 	}
 	r.cam.ZoomIn(2, 305, 305)
 	r.cam.ZoomOut(3, 305, 305)
 	r.tick(time.Second / 60)
-	if z := r.cam.Zoom(); math.Abs(float64(z-arm)) > 1e-3 {
+	if z := r.cam.Zoom(); f32.Abs(float32(z-arm)) > 1e-3 {
 		t.Errorf("zoomed behind the walker, the zoom is %v, want %v as it was", z, arm)
 	}
 	r.letGo()
 	if z := r.cam.Zoom(); z != tactical {
 		t.Errorf("let go, the zoom is %v, want the tactical %v back", z, tactical)
 	}
-	if r.cam.ZoomIn(2, 305, 305); math.Abs(float64(r.cam.Zoom()-2*tactical)) > 1e-3 {
+	if r.cam.ZoomIn(2, 305, 305); f32.Abs(float32(r.cam.Zoom()-2*tactical)) > 1e-3 {
 		t.Errorf("let go, zoomed in twice the zoom is %v, want %v", r.cam.Zoom(), 2*tactical)
 	}
 }

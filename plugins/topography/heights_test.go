@@ -15,10 +15,10 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/internal/topotest"
 )
 
-func coverAcross(qw *topotest.QuasiWorld) [][5]float64 {
-	var out [][5]float64
-	qw.Board.Read(0).Cover().Walk(geom.NewVec(1, 3*32+16), geom.NewVec(1, 0), 126, 0, func(near, far, bottom, top, tau float64) bool {
-		out = append(out, [5]float64{near, far, bottom, top, tau})
+func coverAcross(qw *topotest.QuasiWorld) [][5]float32 {
+	var out [][5]float32
+	qw.Board.Read(0).Cover().Walk(geom.NewVec(1, 3*32+16), geom.NewVec(1, 0), 126, 0, func(near, far, bottom, top, tau float32) bool {
+		out = append(out, [5]float32{near, far, bottom, top, tau})
 		return true
 	})
 	return out
@@ -37,7 +37,7 @@ func TestCover_SpansTheCellsBandAndFollowsItsGround(t *testing.T) {
 	qw.Topo.Write().Relief().(*irelief.Relief).SetCorners(wallCell, irelief.Corners{12, 12, 12, 12})
 	qw.ECS.Tick(time.Second / 60)
 
-	if got := coverAcross(qw); len(got) != 1 || got[0] != [5]float64{95, 126, 12, 22, 0} {
+	if got := coverAcross(qw); len(got) != 1 || got[0] != [5]float32{95, 126, 12, 22, 0} {
 		t.Errorf("cover along the row %v, want the wall from 95 on, 12 to 22, opaque", got)
 	}
 	qw.Topo.Write().Relief().(*irelief.Relief).SetCorners(wallCell, irelief.Corners{20, 20, 20, 20})

@@ -4,6 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
@@ -11,10 +14,6 @@ import (
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
-
-	"github.com/kjkrol/aabbworld"
-	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/uid"
 )
 
@@ -30,12 +29,12 @@ func testSpace(t *testing.T) *aabbworld.Space {
 	return space
 }
 
-func posAt(x, y, w, h float64) world.Position {
+func posAt(x, y, w, h float32) world.Position {
 	return world.Position{AABB: plane.NewAABB(geom.NewVec(x, y), w, h)}
 }
 
 type placed struct {
-	x, y     float64
+	x, y     float32
 	vel      world.Velocity
 	collides bool
 }

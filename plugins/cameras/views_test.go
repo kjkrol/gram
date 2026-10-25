@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/players"
@@ -139,19 +140,19 @@ func TestNew_FromAboveInReliefIsTheMapsCamera(t *testing.T) {
 		for _, q := range [][3]float32{{0, 0, 0}, {100, 40, 0}, {13.5, 250, 30}} {
 			sx, sy := stick.Project(q[0], q[1], q[2])
 			px, py := plain.Project(q[0], q[1], q[2])
-			if math.Abs(float64(sx-px)) > 1e-3 || math.Abs(float64(sy-py)) > 1e-3 {
+			if f32.Abs(float32(sx-px)) > 1e-3 || f32.Abs(float32(sy-py)) > 1e-3 {
 				t.Errorf("%s: %v is drawn at (%v, %v), want the map camera's (%v, %v)",
 					when, q, sx, sy, px, py)
 			}
 			x, y := stick.Unproject(sx, sy, q[2])
-			if math.Abs(float64(x-q[0])) > 1e-3 || math.Abs(float64(y-q[1])) > 1e-3 {
+			if f32.Abs(float32(x-q[0])) > 1e-3 || f32.Abs(float32(y-q[1])) > 1e-3 {
 				t.Errorf("%s: (%v, %v) is seen at (%v, %v), want %v", when, sx, sy, x, y, q)
 			}
 		}
 		sb, pb := stick.Bounds(), plain.Bounds()
-		for _, d := range []float64{sb.TopLeft.X - pb.TopLeft.X, sb.TopLeft.Y - pb.TopLeft.Y,
+		for _, d := range []float32{sb.TopLeft.X - pb.TopLeft.X, sb.TopLeft.Y - pb.TopLeft.Y,
 			sb.BottomRight.X - pb.BottomRight.X, sb.BottomRight.Y - pb.BottomRight.Y} {
-			if math.Abs(d) > 1e-3 {
+			if f32.Abs(d) > 1e-3 {
 				t.Errorf("%s: Bounds %v, want the map camera's %v", when, sb, pb)
 				break
 			}
@@ -175,7 +176,7 @@ func TestNew_FromAboveInReliefIsTheMapsCamera(t *testing.T) {
 func TestNew_IsometricallyTheZoomIsWhatTheDiamondSpans(t *testing.T) {
 	p := cameras.NewPlugin(reliefWorld(), cameras.Config{Turn: true, Cell: 32})
 	cam := p.Write().New(cameras.Isometrically, camera.Config{})
-	if want := float32(64 / (math.Sqrt2 * 32)); math.Abs(float64(cam.Zoom()-want)) > 1e-6 {
+	if want := float32(64 / (math.Sqrt2 * 32)); f32.Abs(float32(cam.Zoom()-want)) > 1e-6 {
 		t.Errorf("a 64-wide diamond of a 32 cell begins at zoom %v, want %v: screen pixels a "+
 			"world unit", cam.Zoom(), want)
 	}

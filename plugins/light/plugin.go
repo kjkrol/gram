@@ -2,7 +2,6 @@ package light
 
 import (
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -11,6 +10,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -34,7 +34,7 @@ type Config struct {
 // count of the heights' changes.
 type Relief interface {
 	Lattice() (cols, rows int, cell float32, heights []float32, ok bool)
-	GroundAt(p geom.Vec) float64
+	GroundAt(p geom.Vec) float32
 	Version() uint64
 }
 
@@ -212,10 +212,10 @@ func (p *Plugin) refresh() {
 			c := bases[i].Pos.Center()
 			var alt float32
 			if zs != nil {
-				alt = float32(zs[i].Altitude + zs[i].Height/2)
+				alt = zs[i].Altitude + zs[i].Height/2
 			}
 			col := white(s.Color)
-			p.lamps = append(p.lamps, Lamp{X: float32(c.X), Y: float32(c.Y), Z: alt,
+			p.lamps = append(p.lamps, Lamp{X: c.X, Y: c.Y, Z: alt,
 				Reach: s.Reach, Color: render.Light{col[0] * s.Strength, col[1] * s.Strength,
 					col[2] * s.Strength}})
 		}
@@ -264,7 +264,7 @@ func (p *Plugin) drawn() *render.Lights {
 
 // the ground under a point, the relief's
 func (p *Plugin) ground(x, y float32) float32 {
-	return float32(p.relief.GroundAt(geom.NewVec(float64(x), float64(y))))
+	return p.relief.GroundAt(geom.NewVec(x, y))
 }
 
 // lattice is the ground the shade is baked over: the relief's, or level ground under the world
@@ -278,12 +278,12 @@ func (p *Plugin) lattice(standing bool) (render.Lattice, bool) {
 			return render.Lattice{}, false
 		}
 		space := p.w.Res.Config.Space
-		w, h := float64(space.Width), float64(space.Height)
+		w, h := float32(space.Width), float32(space.Height)
 		cell := max(w, h) / flatCells
 		p.lat = render.Lattice{
-			Cols: int(math.Ceil(w/cell)) + 1,
-			Rows: int(math.Ceil(h/cell)) + 1,
-			Cell: float32(cell),
+			Cols: int(f32.Ceil(w/cell)) + 1,
+			Rows: int(f32.Ceil(h/cell)) + 1,
+			Cell: cell,
 		}
 		return p.lat, true
 	}
@@ -294,7 +294,7 @@ func (p *Plugin) lattice(standing bool) (render.Lattice, bool) {
 			p.lat = render.Lattice{}
 			return p.lat, false
 		}
-		low, high := float32(math.Inf(1)), float32(math.Inf(-1))
+		low, high := f32.Inf(1), f32.Inf(-1)
 		for _, h := range heights {
 			low, high = min(low, h), max(high, h)
 		}
@@ -320,20 +320,20 @@ func (p *Plugin) standing(dst []render.Block) []render.Block {
 			if s.Cast != Baked {
 				continue
 			}
-			box, alt := bases[i].Pos.AABB, float32(zs[i].Altitude)
+			box, alt := bases[i].Pos.AABB, zs[i].Altitude
 			if lies != nil && lies[i].Length > 0 {
 				dst = append(dst, lying(bases[i].Pos.Center(), bases[i].Vel.Dir, lies[i],
-					alt-float32(zs[i].Height), alt))
+					alt-zs[i].Height, alt))
 				continue
 			}
 			dst = append(dst, render.Block{
-				X:      float32(box.TopLeft.X + box.Size.X/2),
-				Y:      float32(box.TopLeft.Y + box.Size.Y/2),
+				X:      box.TopLeft.X + box.Size.X/2,
+				Y:      box.TopLeft.Y + box.Size.Y/2,
 				UX:     1,
-				Along:  float32(box.Size.X / 2),
-				Wide:   float32(box.Size.Y / 2),
+				Along:  box.Size.X / 2,
+				Wide:   box.Size.Y / 2,
 				Bottom: alt,
-				Top:    alt + float32(zs[i].Height),
+				Top:    alt + zs[i].Height,
 			})
 		}
 	}
@@ -342,19 +342,19 @@ func (p *Plugin) standing(dst []render.Block) []render.Block {
 
 func lying(m, dir geom.Vec, lie world.Lie, bottom, top float32) render.Block {
 	c := lie.Corners(m, dir)
-	length := math.Hypot(c[1].X-c[0].X, c[1].Y-c[0].Y)
-	width := math.Hypot(c[2].X-c[0].X, c[2].Y-c[0].Y)
+	length := f32.Hypot(c[1].X-c[0].X, c[1].Y-c[0].Y)
+	width := f32.Hypot(c[2].X-c[0].X, c[2].Y-c[0].Y)
 	b := render.Block{
-		X:      float32((c[0].X + c[3].X) / 2),
-		Y:      float32((c[0].Y + c[3].Y) / 2),
+		X:      (c[0].X + c[3].X) / 2,
+		Y:      (c[0].Y + c[3].Y) / 2,
 		UX:     1,
-		Along:  float32(length / 2),
-		Wide:   float32(width / 2),
+		Along:  length / 2,
+		Wide:   width / 2,
 		Bottom: bottom,
 		Top:    top,
 	}
 	if length > 0 {
-		b.UX, b.UY = float32((c[1].X-c[0].X)/length), float32((c[1].Y-c[0].Y)/length)
+		b.UX, b.UY = (c[1].X-c[0].X)/length, (c[1].Y-c[0].Y)/length
 	}
 	return b
 }

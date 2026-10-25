@@ -84,7 +84,7 @@ type Weather struct {
 	Rain, Snow  float32
 	Temperature float32
 	Drift       [2]float32
-	Sight       float64
+	Sight       float32
 	Bases       [2]float32
 	Relief      [2]float32
 	Ceilings    [3]float32
@@ -140,7 +140,7 @@ const ClearAir = 40000.0
 
 // Sight is how far one sees through clear air on a world of scale, in world units; 0, without
 // end, on a world without a scale.
-func Sight(scale world.Scale) float64 {
+func Sight(scale world.Scale) float32 {
 	if scale.Metres <= 0 {
 		return 0
 	}
@@ -149,14 +149,14 @@ func Sight(scale world.Scale) float64 {
 
 // Visibility is how far one sees through the air over the world point (x, y), its mass's clouds
 // and what falls from them, in world units; 0 without end.
-func (w Weather) Visibility(x, y float32) float64 {
+func (w Weather) Visibility(x, y float32) float32 {
 	if w.Sight <= 0 {
 		return 0
 	}
 	m := w.At(x, y)
 	rain, snow := w.Falls(m)
 	clouds, rain, snow := clamp01(m.Cover), clamp01(rain), clamp01(snow)
-	return w.Sight * (1 - 0.35*float64(clouds)) / (1 + 8*float64(rain) + 20*float64(snow))
+	return w.Sight * (1 - 0.35*clouds) / (1 + 8*rain + 20*snow)
 }
 
 func clamp01(v float32) float32 { return min(max(v, 0), 1) }

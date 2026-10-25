@@ -22,10 +22,10 @@ func TestDistant_LightsBySquareOnTheSurfaceFacesIt(t *testing.T) {
 	}
 }
 
-func shadowsOf(alt, height float64, sun Distant) (middles []geom.Vec) {
+func shadowsOf(alt, height float32, sun Distant) (middles []geom.Vec) {
 	if p, ok := sun.ShadowOf(geom.NewAABBAt(geom.NewVec(100, 100), 10, 10), alt, height,
 		nil); ok {
-		middles = append(middles, geom.NewVec(float64(p.X), float64(p.Y)))
+		middles = append(middles, geom.NewVec(p.X, p.Y))
 	}
 	return middles
 }

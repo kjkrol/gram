@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/collision/internal/response"
 )
 
@@ -13,7 +14,7 @@ func TestSweep_WhereThePathFirstTouchesTheBox(t *testing.T) {
 	half := geom.NewVec(2, 2)
 	cases := map[string]struct {
 		from, to geom.Vec
-		along    float64
+		along    float32
 		normal   geom.Vec
 		ok       bool
 	}{
@@ -40,7 +41,7 @@ func TestSweep_WhereThePathFirstTouchesTheBox(t *testing.T) {
 			if !ok {
 				return
 			}
-			if math.Abs(along-tc.along) > 1e-3 {
+			if f32.Abs(along-tc.along) > 1e-3 {
 				t.Errorf("along = %v, want %v", along, tc.along)
 			}
 			if normal != tc.normal {
@@ -65,20 +66,20 @@ func TestSweepWall_WhereThePathFirstTouchesTheWall(t *testing.T) {
 	} {
 		wantAlong, wantNormal, wantOK := response.Sweep(path[0], path[1], half, box)
 		along, normal, ok := response.SweepWall(path[0], path[1], half, a, b, 5)
-		if ok != wantOK || math.Abs(along-wantAlong) > 1e-9 || normal != wantNormal {
+		if ok != wantOK || f32.Abs(along-wantAlong) > f32.Eps(1) || normal != wantNormal {
 			t.Errorf("%v: %v %v %v, want %v %v %v as against the box", path, along, normal, ok,
 				wantAlong, wantNormal, wantOK)
 		}
 	}
 	along, normal, ok := response.SweepWall(geom.NewVec(0, 100), geom.NewVec(200, 100), half,
 		geom.NewVec(50, 50), geom.NewVec(150, 150), 1)
-	r := math.Sqrt2 / 2
-	if !ok || math.Abs(normal.X+r) > 1e-9 || math.Abs(normal.Y-r) > 1e-9 {
+	r := float32(math.Sqrt2 / 2)
+	if !ok || f32.Abs(normal.X+r) > f32.Eps(1) || f32.Abs(normal.Y-r) > f32.Eps(1) {
 		t.Errorf("east into a slanted wall: %v %v %v, want the way out back square to it", along,
 			normal, ok)
 	}
 	// the box's corner meets the wall's face 2·2·r + 1 off its line, the line at x 100
-	if want := (100 - (4*r+1)/r) / 200; math.Abs(along-want) > 1e-9 {
+	if want := (100 - (4*r+1)/r) / 200; f32.Abs(along-want) > f32.Eps(1) {
 		t.Errorf("east into a slanted wall it touches at %v, want %v", along, want)
 	}
 }

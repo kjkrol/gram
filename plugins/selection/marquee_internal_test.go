@@ -1,11 +1,11 @@
 package selection
 
 import (
-	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/render"
 )
@@ -43,7 +43,7 @@ func TestMarquees_ComposeTheBoxInThePixelsOfEveryLayersPass(t *testing.T) {
 		})
 		return
 	}
-	near := func(a, b float32) bool { return math.Abs(float64(a-b)) <= 1 }
+	near := func(a, b float32) bool { return f32.Abs(float32(a-b)) <= 1 }
 	f.Reset(cam)
 	m.compose(&f, cam)
 	if x0, y0, x1, y1 := bounds(); !near(x0, 100) || !near(y0, 100) || !near(x1, 200) ||

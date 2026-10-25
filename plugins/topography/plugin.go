@@ -38,7 +38,7 @@ type Atmosphere interface {
 }
 
 // clear air seen as far as the world's scale lets one see
-type stillSky struct{ sight float64 }
+type stillSky struct{ sight float32 }
 
 func (s stillSky) DrawnAir() air.Weather { return air.Weather{Sight: s.sight} }
 
@@ -84,7 +84,7 @@ type Plugin struct {
 	sky         Atmosphere
 	climbing    relief.Climbing
 	shaper      *shaper
-	seeded      func(p geom.Vec) float64
+	seeded      func(p geom.Vec) float32
 
 	// nil off a square grid, where hexes draws the ground
 	ground   *terrain.Renderer
@@ -191,8 +191,8 @@ func (p *Plugin) DrawnHeights() ground.Heights { return drawnHeights{p} }
 // drawnHeights is the frame's relief, for what draws on it
 type drawnHeights struct{ p *Plugin }
 
-func (h drawnHeights) At(at geom.Vec) float64 { return h.p.drawnRelief().At(at) }
-func (h drawnHeights) Step() float64          { return h.p.drawnRelief().Step() }
+func (h drawnHeights) At(at geom.Vec) float32 { return h.p.drawnRelief().At(at) }
+func (h drawnHeights) Step() float32          { return h.p.drawnRelief().Step() }
 
 // drawnGround is the relief the terrain draws, the frame's
 type drawnGround struct{ p *Plugin }
@@ -213,7 +213,7 @@ func (r lightRelief) Lattice() (cols, rows int, cell float32, heights []float32,
 
 func (r lightRelief) Version() uint64 { return r.p.relief.Version() }
 
-func (r lightRelief) GroundAt(at geom.Vec) float64 { return r.p.drawnRelief().GroundAt(at) }
+func (r lightRelief) GroundAt(at geom.Vec) float32 { return r.p.drawnRelief().GroundAt(at) }
 
 // NewPlugin puts boardPlugin, over worldPlugin, in relief as cfg says, lit by lightPlugin (nil,
 // light.White), whose shadows fall on the relief from then on: the topography is the
@@ -306,7 +306,7 @@ func (p *Plugin) takes() ([]render.Taking, []float32, uint64) {
 				for x := range shape.Cols {
 					k := brd.Kind(brd.At(x, y))
 					p.taking = append(p.taking, k.Takes)
-					p.swaying = append(p.swaying, float32(k.Sway))
+					p.swaying = append(p.swaying, k.Sway)
 				}
 			}
 		}
@@ -336,8 +336,8 @@ func (p *Plugin) WithAtmosphere(a Atmosphere) *Plugin {
 // and all of them at once from a function.
 type Relief interface {
 	ground.Heights
-	Altitude(c cell.ID) float64
-	SetHeights(heights func(p geom.Vec) float64)
+	Altitude(c cell.ID) float32
+	SetHeights(heights func(p geom.Vec) float32)
 }
 
 // Style sets how the kind named name looks in relief beyond its sprite; a kind without one is
@@ -421,7 +421,7 @@ func (p *Plugin) Dressing() look.Dressing { return p.painter }
 func (p *Plugin) Heights() ground.Heights { return p.relief }
 
 // Top is c's corners with height standing on them, and its ground level.
-func (p *Plugin) Top(c cell.ID, height float64) (corners [4]float32, level float32) {
+func (p *Plugin) Top(c cell.ID, height float32) (corners [4]float32, level float32) {
 	return p.relief.Top(c, height)
 }
 

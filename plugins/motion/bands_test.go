@@ -1,7 +1,6 @@
 package motion_test
 
 import (
-	"math"
 	"testing"
 	"time"
 
@@ -9,13 +8,14 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/motion/internal/motiontest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/sector"
 )
 
-type walker struct{ x float64 }
+type walker struct{ x float32 }
 
 type anchor struct{ x, y float32 }
 
@@ -55,19 +55,19 @@ func TestMove_InAFartherBandGoesAsFarInAsLongAndNotAtAllBeyond(t *testing.T) {
 	for range 8 {
 		ecs.Tick(time.Second / 60)
 	}
-	gone := map[float64]float64{}
+	gone := map[float32]float32{}
 	for all.All(); all.Next(); {
 		for _, b := range base.Slice(all.Cursor()) {
 			x := b.Pos.TopLeft.X
-			for _, from := range []float64{100, 1200, 2000} {
+			for _, from := range []float32{100, 1200, 2000} {
 				if x >= from && x < from+50 {
 					gone[from] = x - from
 				}
 			}
 		}
 	}
-	want := 8 * 30 * (time.Second / 60).Seconds()
-	if math.Abs(gone[100]-want) > 1e-6 || math.Abs(gone[1200]-want) > 1e-6 || gone[2000] != 0 {
+	want, eps := float32(8*30*(time.Second/60).Seconds()), f32.Eps(1200)
+	if f32.Abs(gone[100]-want) > eps || f32.Abs(gone[1200]-want) > eps || gone[2000] != 0 {
 		t.Errorf("gone near %v, in the second band %v, beyond %v; want %v, %v and 0",
 			gone[100], gone[1200], gone[2000], want, want)
 	}

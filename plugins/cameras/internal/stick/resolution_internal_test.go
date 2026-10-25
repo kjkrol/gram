@@ -1,17 +1,17 @@
 package stick
 
 import (
-	"math"
 	"testing"
 
 	contract "github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/vec"
 )
 
 func sameBox(a, b contract.AABB) bool {
-	return math.Abs(a.TopLeft.X-b.TopLeft.X) < 1e-2 && math.Abs(a.TopLeft.Y-b.TopLeft.Y) < 1e-2 &&
-		math.Abs(a.BottomRight.X-b.BottomRight.X) < 1e-2 &&
-		math.Abs(a.BottomRight.Y-b.BottomRight.Y) < 1e-2
+	return f32.Abs(a.TopLeft.X-b.TopLeft.X) < 1e-2 && f32.Abs(a.TopLeft.Y-b.TopLeft.Y) < 1e-2 &&
+		f32.Abs(a.BottomRight.X-b.BottomRight.X) < 1e-2 &&
+		f32.Abs(a.BottomRight.Y-b.BottomRight.Y) < 1e-2
 }
 
 func TestOrthoCamera_AtAResolutionItsPixelsAreTheShownOnesTimesIt(t *testing.T) {
@@ -329,8 +329,8 @@ func TestPerspCamera_CroppedOffCentreTheLineOfSightThroughTheMiddleStays(t *test
 	}
 	b := c.Bounds()
 	for _, p := range [][2]float32{{x0, y0}, {x1, y1}} {
-		if float64(p[0]) < b.TopLeft.X-1e-2 || float64(p[0]) > b.BottomRight.X+1e-2 ||
-			float64(p[1]) < b.TopLeft.Y-1e-2 || float64(p[1]) > b.BottomRight.Y+1e-2 {
+		if float32(p[0]) < b.TopLeft.X-1e-2 || float32(p[0]) > b.BottomRight.X+1e-2 ||
+			float32(p[1]) < b.TopLeft.Y-1e-2 || float32(p[1]) > b.BottomRight.Y+1e-2 {
 			t.Errorf("the window's bounds %v leave out %v, a corner of it on the ground", b, p)
 		}
 	}

@@ -21,7 +21,7 @@ type sectors struct {
 	grid    *sector.Grid
 	anchors []sector.Anchors
 	at      []geom.Vec
-	margin  float64
+	margin  float32
 	// the bands switched off: the anchors left out, every sector in the first
 	unbanded bool
 	// by band: the first's none, Beyond's Off
@@ -54,7 +54,7 @@ func newSectors(w *module) *sectors {
 	if buckets == 0 {
 		buckets = defaultSectorBuckets
 	}
-	side := float64(buckets) * float64(w.space.BucketSize)
+	side := float32(buckets) * float32(w.space.BucketSize)
 	space := w.config.Space
 	s.grid = sector.NewGrid(space.Width, space.Height, space.Edges.WrapsX(), space.Edges.WrapsY(),
 		side, cfg.Bands)
@@ -135,7 +135,7 @@ func (s *sectors) Update(cb *goke.CmdBuf, _ time.Duration) {
 		if s.unbanded {
 			break
 		}
-		a.Anchors(func(x, y float32) { s.at = append(s.at, geom.NewVec(float64(x), float64(y))) })
+		a.Anchors(func(x, y float32) { s.at = append(s.at, geom.NewVec(x, y)) })
 	}
 	s.woke = s.woke[:0]
 	beyond := s.grid.Beyond()
@@ -243,7 +243,7 @@ var _ view.Sectors = seenSectors{}
 func (s seenSectors) Len() int            { return s.s.grid.Len() }
 func (s seenSectors) Cols() int           { return s.s.grid.Cols() }
 func (s seenSectors) Box(i int) geom.AABB { return s.s.grid.Box(i) }
-func (s seenSectors) Of(x, y float64) int { return s.s.grid.Of(x, y) }
+func (s seenSectors) Of(x, y float32) int { return s.s.grid.Of(x, y) }
 func (s seenSectors) Off(i int) bool      { return s.s.grid.Band(i) == s.s.grid.Beyond() }
 
 type seenReport struct{ w *module }

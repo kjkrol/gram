@@ -44,7 +44,7 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 		if cam == nil {
 			return
 		}
-		x, y := float32(i.Command.At.X), float32(i.Command.At.Y)
+		x, y := i.Command.At.X, i.Command.At.Y
 		if i.Command.Factor >= 1 {
 			cam.ZoomIn(i.Command.Factor, x, y)
 		} else {
@@ -120,9 +120,9 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 		}
 		var z float32
 		if s.p.ground != nil {
-			z = s.p.ground(float32(i.Command.X), float32(i.Command.Y))
+			z = s.p.ground(i.Command.X, i.Command.Y)
 		}
-		cam.CenterOn(i.Command.X, i.Command.Y, float64(z))
+		cam.CenterOn(i.Command.X, i.Command.Y, z)
 	})
 	s.start()
 	s.keep()
@@ -182,7 +182,7 @@ func (s *cameraSystem) keep() {
 func (s *cameraSystem) centre(cam camera.Camera) {
 	cur := s.query.Cursor()
 	box := s.base.At(cur).Pos.AABB
-	var alt float64
+	var alt float32
 	if z := s.z.At(cur); z != nil {
 		alt = z.Altitude
 	}

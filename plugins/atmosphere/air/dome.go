@@ -5,6 +5,7 @@ import (
 	"math"
 	"slices"
 
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -337,8 +338,8 @@ func (l *domeLevel) settle(slot int, p *Patch, drift [2]float32,
 			i := row + gx
 			c := &p.Cells[i]
 			// within half a step of the picture's 8 bits it has settled
-			if p.States[i] == s && max(abs(m.Cover-c.Cover), abs(m.Billow-c.Billow),
-				abs(m.Falls-c.Falls), abs(m.Damp-c.Damp)) < 1.0/512 {
+			if p.States[i] == s && max(f32.Abs(m.Cover-c.Cover), f32.Abs(m.Billow-c.Billow),
+				f32.Abs(m.Falls-c.Falls), f32.Abs(m.Damp-c.Damp)) < 1.0/512 {
 				continue
 			}
 			c.Cover += (m.Cover - c.Cover) * k
@@ -351,8 +352,6 @@ func (l *domeLevel) settle(slot int, p *Patch, drift [2]float32,
 	}
 	return changed
 }
-
-func abs(v float32) float32 { return max(v, -v) }
 
 // the most of every level's patches
 func (d *Dome) gather() {

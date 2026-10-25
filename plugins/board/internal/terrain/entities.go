@@ -2,13 +2,13 @@ package terrain
 
 import (
 	"fmt"
-	"github.com/kjkrol/ceremony"
-	cgoke "github.com/kjkrol/ceremony/goke"
 	"reflect"
 	"time"
 
+	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/effect"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"

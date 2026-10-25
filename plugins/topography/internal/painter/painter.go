@@ -22,8 +22,8 @@ type Painter struct {
 	sq      grid.Shape
 
 	camera camera.Camera
-	cellW  float64
-	cellH  float64
+	cellW  float32
+	cellH  float32
 	cellPx float32
 	varies bool // a perspective draws a world unit larger near than far
 	tile   tile
@@ -106,7 +106,7 @@ func (t *tile) px() float32 {
 			for k, p := range [4][2]float32{{t.X0, t.Y0}, {t.X1, t.Y0}, {t.X0, t.Y1}, {t.X1, t.Y1}} {
 				scale = max(scale, camera.ScaleAt(cam, p[0], p[1], z[k]))
 			}
-			t.pixels = float32(min(t.r.cellW, t.r.cellH)) * scale
+			t.pixels = min(t.r.cellW, t.r.cellH) * scale
 		}
 	}
 	return t.pixels
@@ -131,7 +131,7 @@ type cellTop struct {
 func (l *Painter) Begin(f *render.Frame, cam camera.Camera) {
 	l.camera, l.tile = cam, tile{}
 	l.tables()
-	l.cellPx = float32(min(l.cellW, l.cellH)) * cam.Zoom()
+	l.cellPx = min(l.cellW, l.cellH) * cam.Zoom()
 	w, h := cam.Viewport()
 	x, y := cam.Unproject(w/2, 0, 0)
 	far := camera.ScaleAt(cam, x, y, 0)
@@ -144,7 +144,7 @@ func (l *Painter) Begin(f *render.Frame, cam camera.Camera) {
 func (l *Painter) Above() {
 	l.camera, l.tile = nil, tile{}
 	l.tables()
-	l.cellPx, l.varies = float32(min(l.cellW, l.cellH)), false
+	l.cellPx, l.varies = min(l.cellW, l.cellH), false
 }
 
 // Overlay is the still water glinting over c's top where its kind shines, off a square grid,
@@ -186,7 +186,7 @@ func (l *Painter) topOf(c cell.ID) *cellTop {
 	kind := l.board.Kind(c)
 	style := l.styles[kind.Name]
 	r := l.ground().Corners(c)
-	t.alt, t.sprite, t.ver = float32(r.Level()), kind.SpriteID, v
+	t.alt, t.sprite, t.ver = r.Level(), kind.SpriteID, v
 	t.shine, t.flow, t.spread, t.under, t.raised = style.Shine, style.Flow, style.Spread, style.Under, kind.Height > 0
 	t.way = l.laneOf(l.board.Way(c))
 	if l.square {
@@ -195,7 +195,7 @@ func (l *Painter) topOf(c cell.ID) *cellTop {
 		t.ground = [4]float32{t.alt, t.alt, t.alt, t.alt}
 	}
 	for k := range t.z {
-		t.z[k] = t.ground[k] + float32(kind.Height)
+		t.z[k] = t.ground[k] + kind.Height
 	}
 	return t
 }

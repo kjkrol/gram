@@ -1,13 +1,13 @@
 package motion
 
 import (
-	"math"
 	"slices"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/uid"
@@ -49,7 +49,7 @@ func (s *moveSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	for s.moveQuery.Paced(d); s.moveQuery.Next(); {
 		cursor, step := s.moveQuery.Cursor(), s.moveQuery.Dt()
 		// a longer step reaches as many steps' worth
-		dt, reach := step.Seconds(), float64(max(step/d, 1))
+		dt, reach := float32(step.Seconds()), float32(max(step/d, 1))
 		bases, drifts := s.base.Slice(cursor), s.drift.Slice(cursor)
 		s.steps = slices.Grow(s.steps[:0], len(bases))
 		by := s.steps[:len(bases)]
@@ -82,11 +82,11 @@ func (s *moveSystem) rebuild() {
 	s.space.RebuildRuns(s.runs, nil)
 }
 
-func clampStep(step geom.Vec, max float64) geom.Vec {
+func clampStep(step geom.Vec, max float32) geom.Vec {
 	sq := step.X*step.X + step.Y*step.Y
 	if sq <= max*max || sq == 0 {
 		return step
 	}
-	scale := max / math.Sqrt(sq)
+	scale := max / f32.Sqrt(sq)
 	return geom.NewVec(step.X*scale, step.Y*scale)
 }

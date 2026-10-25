@@ -11,9 +11,8 @@ var _ ground.Profile = (*Relief)(nil)
 
 // Along calls visit with every point of the ray from origin along the unit dir, up to length,
 // where the ground's slope changes, and with length itself: the ground.Profile contract.
-func (r *Relief) Along(origin, dir geom.Vec, length float64, visit func(d, alt float64) bool) {
-	size := r.sq.Cell
-	if !r.square || size == 0 {
+func (r *Relief) Along(origin, dir geom.Vec, length float32, visit func(d, alt float32) bool) {
+	if !r.square || r.sq.Cell == 0 {
 		step := r.Step()
 		for d := step; d < length; d += step {
 			if !visit(d, r.GroundAt(geom.NewVec(origin.X+dir.X*d, origin.Y+dir.Y*d))) {
@@ -23,22 +22,23 @@ func (r *Relief) Along(origin, dir geom.Vec, length float64, visit func(d, alt f
 		visit(length, r.GroundAt(geom.NewVec(origin.X+dir.X*length, origin.Y+dir.Y*length)))
 		return
 	}
-	fx, fy := origin.X/size, origin.Y/size
+	// the walk sums t cell after cell, so in float64
+	size, end := float64(r.sq.Cell), float64(length)
+	fx, fy := float64(origin.X)/size, float64(origin.Y)/size
 	cx, cy := math.Floor(fx), math.Floor(fy)
-	bx, by := dir.X/size, dir.Y/size // cells a unit along the ray
+	bx, by := float64(dir.X)/size, float64(dir.Y)/size // cells a unit along the ray
 	stepX, nextX, deltaX := lattice(fx, bx)
 	stepY, nextY, deltaY := lattice(fy, by)
 	h := r.cellCorners(int64(cx), int64(cy))
 	for t := 0.0; ; {
 		ax, ay := fx-cx, fy-cy
 		exit := min(nextX, nextY)
-		end := min(exit, length)
-		if fold, alt, ok := folded(h, ax, ay, bx, by); ok && fold > t && fold < end {
-			if !visit(fold, alt) {
+		if fold, alt, ok := folded(h, ax, ay, bx, by); ok && fold > t && fold < min(exit, end) {
+			if !visit(float32(fold), float32(alt)) {
 				return
 			}
 		}
-		if exit >= length {
+		if exit >= end {
 			visit(length, r.GroundAt(geom.NewVec(origin.X+dir.X*length, origin.Y+dir.Y*length)))
 			return
 		}
@@ -55,7 +55,7 @@ func (r *Relief) Along(origin, dir geom.Vec, length float64, visit func(d, alt f
 		default:
 			alt = h[0] + u*(h[1]-h[0])
 		}
-		if !visit(exit, alt) {
+		if !visit(float32(exit), float32(alt)) {
 			return
 		}
 		acrossX := nextX <= nextY
@@ -68,7 +68,8 @@ func (r *Relief) Along(origin, dir geom.Vec, length float64, visit func(d, alt f
 		}
 		// off the board's edge the ground drops to 0: the step down, or up, is a second point
 		h = r.cellCorners(int64(cx), int64(cy))
-		if entry := entered(h, acrossX, stepX, stepY, u, v); entry != alt && !visit(exit, entry) {
+		if entry := entered(h, acrossX, stepX, stepY, u, v); entry != alt &&
+			!visit(float32(exit), float32(entry)) {
 			return
 		}
 		t = exit

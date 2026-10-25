@@ -2,10 +2,10 @@ package site
 
 import (
 	"fmt"
-	"math"
 	"slices"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
@@ -16,7 +16,7 @@ type Ground interface {
 	Grid() grid.Grid
 	// Heights are the ground's heights at c's outline, in CellOutline's order; on a grid of level
 	// cells one, its level.
-	Heights(c cell.ID, dst []float64) []float64
+	Heights(c cell.ID, dst []float32) []float32
 	// Takes reports whether a bridge's head may stand on c: ground its road may take.
 	Takes(c cell.ID) bool
 	// Wet reports whether water runs under c.
@@ -38,10 +38,10 @@ type Part struct {
 // ground moved no more than Reshape to lie flat at the deck, something Under the deck crossed.
 type Rules struct {
 	Longest   int
-	Under     float64
-	Clearance float64
-	Reshape   float64
-	High      float64
+	Under     float32
+	Clearance float32
+	Reshape   float32
+	High      float32
 	Heights   bool
 }
 
@@ -50,14 +50,14 @@ type Rules struct {
 type Bridge struct {
 	From, To cell.ID
 	Way      int
-	Deck     float64
+	Deck     float32
 	Spans    []cell.ID
 	Piers    []geom.Vec
 }
 
 // Plan is the bridge from the head from to the head to with its deck at deck, or a Refusal
 // saying why none may stand there.
-func Plan(g Ground, r Rules, from, to cell.ID, deck float64) (Bridge, error) {
+func Plan(g Ground, r Rules, from, to cell.ID, deck float32) (Bridge, error) {
 	gr := g.Grid()
 	b := Bridge{From: from, To: to, Deck: deck}
 	way, spans, err := Line(gr, from, to, r.Longest)
@@ -73,7 +73,7 @@ func Plan(g Ground, r Rules, from, to cell.ID, deck float64) (Bridge, error) {
 			return Bridge{}, refusal(gr, h, "a head stands on another bridge")
 		}
 	}
-	var buf []float64
+	var buf []float32
 	var at, ends []geom.Vec
 	ends = gr.CellOutline(from, ends)
 	ends = gr.CellOutline(to, ends)
@@ -97,15 +97,15 @@ func Plan(g Ground, r Rules, from, to cell.ID, deck float64) (Bridge, error) {
 		at = gr.CellOutline(s, at[:0])
 		if len(buf) > 1 {
 			for k := range buf {
-				if on(at[k], ends, float64(gr.CellSpan())) {
+				if on(at[k], ends, gr.CellSpan()) {
 					buf[k] = deck // a head's, levelled
 				}
 			}
 		}
-		lo, hi := math.Inf(1), middle(buf)
+		lo, hi := f32.Inf(1), middle(buf)
 		for k, h := range buf {
 			lo = min(lo, h)
-			if len(buf) == 1 || !on(at[k], ends, float64(gr.CellSpan())) {
+			if len(buf) == 1 || !on(at[k], ends, gr.CellSpan()) {
 				hi = max(hi, h)
 			}
 		}
@@ -165,10 +165,10 @@ func Line(g grid.Grid, from, to cell.ID, longest int) (int, []cell.ID, error) {
 	}
 	a, b := g.CellCenter(from), g.CellCenter(to)
 	off := geom.NewVec(b.X-a.X, b.Y-a.Y)
-	way, best := 0, math.Inf(-1)
+	way, best := 0, f32.Inf(-1)
 	for i := range g.Directions() {
 		st := g.Step(i)
-		if cos := (off.X*st.X + off.Y*st.Y) / math.Hypot(st.X, st.Y); cos > best {
+		if cos := (off.X*st.X + off.Y*st.Y) / f32.Hypot(st.X, st.Y); cos > best {
 			way, best = i, cos
 		}
 	}
@@ -195,11 +195,11 @@ func Line(g grid.Grid, from, to cell.ID, longest int) (int, []cell.ID, error) {
 	return 0, nil, refusal(g, to, "lies off every line from the other head")
 }
 
-func level(g Ground, r Rules, h cell.ID, deck float64) error {
-	var buf [4]float64
+func level(g Ground, r Rules, h cell.ID, deck float32) error {
+	var buf [4]float32
 	heights := g.Heights(h, buf[:0])
 	for _, v := range heights {
-		if d := math.Abs(v - deck); d > r.Reshape+1e-6*max(1, math.Abs(deck)) {
+		if d := f32.Abs(v - deck); d > r.Reshape+1e-6*max(1, f32.Abs(deck)) {
 			return refusal(g.Grid(), h, "a head's ground lies %.1f off the deck, %.1f at most", d,
 				r.Reshape)
 		}
@@ -208,7 +208,7 @@ func level(g Ground, r Rules, h cell.ID, deck float64) error {
 }
 
 // roads refuses levelling h where a road beside it would lie as Transport Tycoon would not lay it.
-func roads(g Ground, h cell.ID, deck float64, heights []float64) error {
+func roads(g Ground, h cell.ID, deck float32, heights []float32) error {
 	gr := g.Grid()
 	if len(heights) == 1 {
 		for i := range gr.Directions() {
@@ -223,7 +223,7 @@ func roads(g Ground, h cell.ID, deck float64, heights []float64) error {
 		return nil
 	}
 	moved := gr.CellOutline(h, nil)
-	run := float64(gr.CellSpan())
+	run := gr.CellSpan()
 	var outline []geom.Vec
 	for i := range gr.Directions() {
 		n, ok := gr.Toward(h, i)
@@ -249,7 +249,7 @@ func roads(g Ground, h cell.ID, deck float64, heights []float64) error {
 	return nil
 }
 
-func under(g Ground, r Rules, s cell.ID, way int, deck float64, heights []float64) error {
+func under(g Ground, r Rules, s cell.ID, way int, deck float32, heights []float32) error {
 	gr := g.Grid()
 	links := g.Road(s)
 	if links == 0 {
@@ -276,23 +276,24 @@ func under(g Ground, r Rules, s cell.ID, way int, deck float64, heights []float6
 }
 
 // a square cell's top is folded along one of its diagonals, its middle halfway along it
-func middle(heights []float64) float64 {
+func middle(heights []float32) float32 {
 	if len(heights) != 4 {
 		return heights[0]
 	}
 	return max((heights[0]+heights[2])/2, (heights[1]+heights[3])/2)
 }
 
-func on(p geom.Vec, ends []geom.Vec, run float64) bool {
+func on(p geom.Vec, ends []geom.Vec, run float32) bool {
 	return slices.ContainsFunc(ends, func(q geom.Vec) bool {
-		return math.Abs(p.X-q.X) < 1e-6*run && math.Abs(p.Y-q.Y) < 1e-6*run
+		return f32.Abs(p.X-q.X) < max(1e-6*run, f32.Eps(q.X)) &&
+			f32.Abs(p.Y-q.Y) < max(1e-6*run, f32.Eps(q.Y))
 	})
 }
 
 func square(g grid.Grid, a, b int) bool {
 	sa, sb := g.Step(a), g.Step(b)
 	dot := sa.X*sb.X + sa.Y*sb.Y
-	return math.Abs(dot) <= 1e-9*math.Hypot(sa.X, sa.Y)*math.Hypot(sb.X, sb.Y)
+	return f32.Abs(dot) <= f32.Eps(1)*f32.Hypot(sa.X, sa.Y)*f32.Hypot(sb.X, sb.Y)
 }
 
 // Refusal is why a bridge may not stand where it was planned, of the cell At.

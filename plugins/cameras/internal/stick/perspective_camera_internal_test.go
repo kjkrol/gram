@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/vec"
 )
 
@@ -29,7 +30,7 @@ func TestPerspCamera_TheFootIsInTheMiddleTheEyeUpTheStick(t *testing.T) {
 		t.Fatalf("Projection is %T, want perspective", c.Projection())
 	}
 	for _, foot := range [][3]float32{{320, 320, 0}, {330, 310, 12}} {
-		c.CenterOn(float64(foot[0]), float64(foot[1]), float64(foot[2]))
+		c.CenterOn(float32(foot[0]), float32(foot[1]), float32(foot[2]))
 		if sx, sy := c.Project(foot[0], foot[1], foot[2]); !near(sx, 200) || !near(sy, 150) {
 			t.Errorf("the foot %v is drawn at (%v, %v), want the middle (200, 150)", foot, sx, sy)
 		}
@@ -136,7 +137,7 @@ func TestPerspCamera_ZoomShortensTheStickAboutTheCursor(t *testing.T) {
 		t.Errorf("zoomed far in the stick is %v long, want a cell, 32", c.length)
 	}
 	c.ZoomOut(1e6, ax, ay)
-	if diagonal := float32(math.Hypot(640, 640)); !near(c.length, diagonal) {
+	if diagonal := float32(f32.Hypot(640, 640)); !near(c.length, diagonal) {
 		t.Errorf("zoomed far out the stick is %v long, want the world's diagonal %v", c.length,
 			diagonal)
 	}
@@ -231,10 +232,11 @@ func TestPerspCamera_BoundsHoldTheGroundShownAndVisibleTheBoxesOnTheScreen(t *te
 	}
 	e := c.eye()
 	behind := vec.Add(e, vec.Scale(c.proj.forward, -50))
-	if c.Visible(geom.NewAABBAt(geom.NewVec(float64(behind[0])-2, float64(behind[1])-2), 4, 4)) {
+	if c.Visible(geom.NewAABBAt(geom.NewVec(float32(behind[0])-2, float32(behind[1])-2), 4, 4)) {
 		t.Error("a box behind the eye is Visible")
 	}
-	if sx, sy := c.Project(behind[0], behind[1], behind[2]); math.Abs(float64(sx-200)) < 1e4 && math.Abs(float64(sy-150)) < 1e4 {
+	if sx, sy := c.Project(behind[0], behind[1], behind[2]); f32.Abs(float32(sx-200)) < 1e4 &&
+		f32.Abs(float32(sy-150)) < 1e4 {
 		t.Errorf("a point behind the eye is drawn at (%v, %v), want far off the screen", sx, sy)
 	}
 }
