@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 // the clouds' tile read along a line of world points a unit apart: shreds in red, cores in green

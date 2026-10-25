@@ -11,7 +11,8 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// Benchmark_Views_Copy is one frame's copy of the ground and the cover for the views, over a
+// Benchmark_Views_Copy is one frame's copy of the ground and the cover for the views, published
+// and drawn, over a
 // 192x96 board of 32-px cells: in relief and flat, warm (nothing changed since the last frame)
 // and with a cell changed every frame.
 func Benchmark_Views_Copy(b *testing.B) {
@@ -45,8 +46,9 @@ func Benchmark_Views_Copy(b *testing.B) {
 				name = sc.name + ",changed"
 			}
 			b.Run(name, func(b *testing.B) {
-				v := newViews()
-				v.copy(heights, cover, cols*size, rows*size, size, [2]bool{})
+				v, c := newViews(), &coverCopy{}
+				c.update(heights, cover, cols*size, rows*size, size, [2]bool{})
+				v.copy(heights, c, cols*size, rows*size, size, [2]bool{})
 				b.ReportAllocs()
 				for i := 0; b.Loop(); i++ {
 					if changed {
@@ -56,7 +58,8 @@ func Benchmark_Views_Copy(b *testing.B) {
 							brd.Write().Board().Set(far, plain)
 						}
 					}
-					v.copy(heights, cover, cols*size, rows*size, size, [2]bool{})
+					c.update(heights, cover, cols*size, rows*size, size, [2]bool{})
+					v.copy(heights, c, cols*size, rows*size, size, [2]bool{})
 				}
 			})
 		}

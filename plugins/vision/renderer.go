@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/uid"
 )
 
 // ConePoint is a point of a view's outline on screen, where the view lies there over the ground
@@ -87,7 +88,7 @@ var _ render.Direct = (*Renderer)(nil)
 // Renderer draws the views, lying over the ground under what stands on it: through a camera with
 // Rays and in the default style every observer's on the GPU, the ground out of sight veiled in a
 // Shadow; otherwise, as a render.Source, the outline of every entity carrying SightOutline in a
-// ConeStyle.
+// ConeStyle. The observers are published once a frame.
 type Renderer struct {
 	camera camera.Camera
 	frame  *render.Frame
@@ -112,7 +113,7 @@ type Renderer struct {
 	app        goke.OptComp[render.Appearance]
 	out        goke.OptComp[SightOutline]
 	z          goke.OptComp[world.Z]
-	drawing    *render.Rules
+	drawing    *world.Rules
 	shown      []bool
 	groundStep float32 // world units; 0 the ground's own
 
@@ -122,12 +123,37 @@ type Renderer struct {
 	onGPU   bool
 	placed  bool // the views drawn on the GPU have their place this frame
 	coverOf func() ground.Cover
-	cover   ground.Cover
 	bend    float64
 	custom  bool
 	wrap    [2]bool
-	// what a camera sees of the world, so an observer out of it draws no view
-	seen func(camera.Camera) *view.View
+	// what a camera sees of the world, so an observer out of it draws no view, and whether any
+	// does, so one out of every camera's is not published
+	seen   func(camera.Camera) *view.View
+	inView func(uid.UID64) bool
+	drawn  render.Buffered[observed]
+}
+
+// observed is what the Renderer draws: every observer in some camera's sight whose view is drawn,
+// the outlines of those with one, and the cover their views are held back by
+type observed struct {
+	hidden   bool
+	all      []watcher
+	outlines []SightOutline
+	cover    coverCopy
+}
+
+// watcher is an observer: where it stands and looks, its sprite where it has one, its outline
+// observed.outlines[outline-1] (0 for none)
+type watcher struct {
+	id      uid.UID64
+	pos     world.Position
+	z       world.Z
+	eye     world.Eye
+	sight   Sight
+	facing  geom.Vec
+	sprite  render.SpriteID
+	styled  bool
+	outline int32
 }
 
 // NewRenderer builds a Renderer drawing every kind in DefaultCone and DefaultShadow over space.
@@ -142,6 +168,12 @@ func NewRenderer(space *aabbworld.SpaceRead) *Renderer {
 // WithSeen has the views drawn only of the observers in what a camera sees, as seen says.
 func (r *Renderer) WithSeen(seen func(camera.Camera) *view.View) *Renderer {
 	r.seen = seen
+	return r
+}
+
+// WithInView has only the observers some camera sees published, as inView says.
+func (r *Renderer) WithInView(inView func(uid.UID64) bool) *Renderer {
+	r.inView = inView
 	return r
 }
 
@@ -199,9 +231,9 @@ func (r *Renderer) WithGroundStep(step float64) *Renderer {
 	return r
 }
 
-// WithDrawing has only the views of the observers a render.Show rule picks drawn; with none,
+// WithDrawing has only the views of the observers a world.Show rule picks drawn; with none,
 // every one is.
-func (r *Renderer) WithDrawing(rules *render.Rules) *Renderer {
+func (r *Renderer) WithDrawing(rules *world.Rules) *Renderer {
 	r.drawing = rules
 	return r
 }
@@ -210,12 +242,12 @@ func (r *Renderer) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&r.base, &r.sight, &r.eye).
 		Optional(&r.app).Optional(&r.out).Optional(&r.z)
 	if r.drawing != nil {
-		render.Own(r.drawing, &r.base)
-		render.Own(r.drawing, &r.sight)
-		render.Own(r.drawing, &r.eye)
-		render.Own(r.drawing, &r.app)
-		render.Own(r.drawing, &r.out)
-		render.Own(r.drawing, &r.z)
+		world.Own(r.drawing, &r.base)
+		world.Own(r.drawing, &r.sight)
+		world.Own(r.drawing, &r.eye)
+		world.Own(r.drawing, &r.app)
+		world.Own(r.drawing, &r.out)
+		world.Own(r.drawing, &r.z)
 		r.drawing.Bind(qb)
 	}
 	r.query = qb.Build()
@@ -226,10 +258,36 @@ const levelStep = 8
 
 // Draw draws the views Compose noted on the GPU; nothing where it composed them.
 func (r *Renderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
-	if r.hidden || !r.onGPU {
+	if !r.onGPU {
 		return
 	}
-	r.gpu.draw(t, cam, r.ground, r.cover, r.worldW, r.worldH, r.step, r.wrap, r.bend, r.shadow)
+	r.gpu.draw(t, cam, r.ground, &r.drawn.Front().cover, r.worldW, r.worldH, r.step, r.wrap,
+		r.bend, r.shadow)
+}
+
+// stepOf is how far apart the views sample ground and its cover: the renderer's own step, else
+// the ground's
+func (r *Renderer) stepOf(ground ground.Heights) float32 {
+	if r.groundStep > 0 {
+		return r.groundStep
+	}
+	if ground != nil {
+		return float32(ground.Step())
+	}
+	return levelStep
+}
+
+// publishCover walks the cover into c as it stands, where it changed
+func (r *Renderer) publishCover(c *coverCopy) {
+	var g ground.Heights
+	if r.groundOf != nil {
+		g = r.groundOf()
+	}
+	var cover ground.Cover
+	if r.coverOf != nil {
+		cover = r.coverOf()
+	}
+	c.update(g, cover, r.worldW, r.worldH, r.stepOf(g), r.wrap)
 }
 
 func (r *Renderer) settle(cursor *goke.Cursor) {
@@ -242,10 +300,51 @@ func (r *Renderer) settle(cursor *goke.Cursor) {
 	}
 }
 
+// Publish takes every observer some camera sees whose view is drawn, and the cover where any is,
+// for the frame drawn next; none while hidden.
+func (r *Renderer) Publish() {
+	b := r.drawn.Back()
+	b.hidden, b.all, b.outlines = r.hidden, b.all[:0], b.outlines[:0]
+	if r.hidden {
+		return
+	}
+	for r.query.All(); r.query.Next(); {
+		cursor := r.query.Cursor()
+		bases, sights, eyes := r.base.Slice(cursor), r.sight.Slice(cursor), r.eye.Slice(cursor)
+		apps, outlines, zs := r.app.Slice(cursor), r.out.Slice(cursor), r.z.Slice(cursor)
+		r.settle(cursor)
+		for i, id := range cursor.IDs {
+			if !r.shown[i] || r.inView != nil && !r.inView(id) {
+				continue
+			}
+			e := watcher{id: id, pos: bases[i].Pos, eye: eyes[i], sight: sights[i],
+				facing: sights[i].Looking(bases[i].Vel.Dir)}
+			if zs != nil {
+				e.z = zs[i]
+			}
+			if apps != nil {
+				e.sprite, e.styled = apps[i].SpriteID, true
+			}
+			if outlines != nil && outlines[i].Count >= 2 {
+				b.outlines = append(b.outlines, outlines[i])
+				e.outline = int32(len(b.outlines))
+			}
+			b.all = append(b.all, e)
+		}
+	}
+	if len(b.all) > 0 {
+		r.publishCover(&b.cover)
+	}
+}
+
+// Swap has what was published last drawn.
+func (r *Renderer) Swap() { r.drawn.Swap() }
+
 // Compose hands f every view in sight of cam, or notes them for Draw; nothing while hidden.
 func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	r.onGPU, r.placed = false, false
-	if r.hidden {
+	d := r.drawn.Front()
+	if d.hidden {
 		return
 	}
 	r.frame, r.camera = f, cam
@@ -254,16 +353,7 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		if r.groundOf != nil {
 			r.ground = r.groundOf()
 		}
-		if r.coverOf != nil {
-			r.cover = r.coverOf()
-		}
-		r.step = levelStep
-		if r.ground != nil {
-			r.step = float32(r.ground.Step())
-		}
-		if r.groundStep > 0 {
-			r.step = r.groundStep
-		}
+		r.step = r.stepOf(r.ground)
 	}
 	_, rays := cam.(camera.Rays)
 	r.onGPU = rays && !r.custom
@@ -275,61 +365,46 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	if r.seen != nil {
 		in = r.seen(cam)
 	}
-	r.query.All()
-	for r.query.Next() {
-		cursor := r.query.Cursor()
-		bases := r.base.Slice(cursor)
-		sights := r.sight.Slice(cursor)
-		eyes := r.eye.Slice(cursor)
-		apps := r.app.Slice(cursor)
-		outlines := r.out.Slice(cursor)
-		zs := r.z.Slice(cursor)
-		r.settle(cursor)
-		for i, id := range cursor.IDs {
-			if !r.shown[i] || in != nil && !in.Contains(id) {
-				continue
-			}
-			var z world.Z
-			if zs != nil {
-				z = zs[i]
-			}
-			style, cone := r.style, DefaultCone
-			if r.custom {
-				cone = Cone{}
-			}
-			if apps != nil {
-				if c, ok := render.StyleOf[Cone](styles, apps[i].SpriteID); ok {
-					style, cone = c, c
-				}
-			}
-			// over level ground only the outline holds the entities cutting the view
-			outlined := outlines != nil && outlines[i].Count >= 2
-			if r.onGPU && (r.ground != nil || !outlined) {
-				if r.ground != nil {
-					f.ReadGround() // the views find the ground under them
-				}
-				if !r.placed {
-					f.DrawAt(f.OnGround(sightLift))
-					r.placed = true
-				}
-				ox, oy := centreOf(&bases[i].Pos)
-				f := sights[i].Looking(bases[i].Vel.Dir)
-				r.gpu.look(cam, observer{
-					X: float32(ox), Y: float32(oy), Eye: float32(eyes[i].Level(z)),
-					Reach:  float32(sights[i].Radius),
-					Facing: float32(math.Atan2(f.Y, f.X)), Half: float32(eyes[i].Angle / 2),
-					Color: unitColor(cone.Color),
-					Tilt:  float32(eyes[i].Tilt), VHalf: float32(eyes[i].Vertical / 2),
-				})
-				continue
-			}
-			if !outlined || !r.camera.Visible(bases[i].Pos.AABB.AABB) {
-				continue
-			}
-			look := sights[i]
-			look.Facing = look.Looking(bases[i].Vel.Dir)
-			r.cone(style, &bases[i].Pos, z, eyes[i], &look, &outlines[i])
+	for k := range d.all {
+		e := &d.all[k]
+		if in != nil && !in.Contains(e.id) {
+			continue
 		}
+		style, cone := r.style, DefaultCone
+		if r.custom {
+			cone = Cone{}
+		}
+		if e.styled {
+			if c, ok := render.StyleOf[Cone](styles, e.sprite); ok {
+				style, cone = c, c
+			}
+		}
+		// over level ground only the outline holds the entities cutting the view
+		outlined := e.outline > 0
+		if r.onGPU && (r.ground != nil || !outlined) {
+			if r.ground != nil {
+				f.ReadGround() // the views find the ground under them
+			}
+			if !r.placed {
+				f.DrawAt(f.OnGround(sightLift))
+				r.placed = true
+			}
+			ox, oy := centreOf(&e.pos)
+			r.gpu.look(cam, observer{
+				X: float32(ox), Y: float32(oy), Eye: float32(e.eye.Level(e.z)),
+				Reach:  float32(e.sight.Radius),
+				Facing: float32(math.Atan2(e.facing.Y, e.facing.X)), Half: float32(e.eye.Angle / 2),
+				Color: unitColor(cone.Color),
+				Tilt:  float32(e.eye.Tilt), VHalf: float32(e.eye.Vertical / 2),
+			})
+			continue
+		}
+		if !outlined || !r.camera.Visible(e.pos.AABB.AABB) {
+			continue
+		}
+		look := e.sight
+		look.Facing = e.facing
+		r.cone(style, &e.pos, e.z, e.eye, &look, &d.outlines[e.outline-1])
 	}
 }
 

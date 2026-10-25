@@ -90,6 +90,7 @@ func (t *Texture) WritePixels(x, y, w, h int, pix []byte) {
 	if cur == nil && (windowed || !ready()) {
 		if t.cpu == nil {
 			t.cpu = make([]byte, 4*t.w*t.h)
+			waiting = append(waiting, t)
 		}
 		for row := range h {
 			copy(t.cpu[4*((y+row)*t.w+x):], pix[4*row*w:4*(row+1)*w])
@@ -109,6 +110,22 @@ func (t *Texture) WritePixels(x, y, w, h int, pix []byte) {
 	default:
 		d.blitIn(t, x, y, w, h, pix)
 	}
+}
+
+// the textures whose pixels were written before there was a device, for RealizeAll
+var waiting []*Texture
+
+// RealizeAll puts on the GPU every texture whose pixels wait here.
+func RealizeAll() {
+	d := must()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for _, t := range waiting {
+		if !t.released {
+			t.realize(d)
+		}
+	}
+	waiting = nil
 }
 
 // the most pixels a write puts in place by drawing them, a draw's uniforms at a time

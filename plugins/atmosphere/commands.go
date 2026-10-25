@@ -88,6 +88,22 @@ type Settings struct {
 	AdaptiveClouds bool
 }
 
+// the coarse the clouds are drawn at, coarses' first for none
+func (s Settings) coarse() int {
+	if s.CloudCoarse > 0 {
+		return s.CloudCoarse
+	}
+	return coarses[0]
+}
+
+// the share of the sight the clouds are bodies out to, all of it for none
+func (s Settings) reach() float32 {
+	if s.CloudReach > 0 {
+		return s.CloudReach
+	}
+	return 1
+}
+
 // Resources is what the atmosphere publishes: its Settings.
 type Resources struct {
 	Settings Settings

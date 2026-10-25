@@ -6,7 +6,6 @@ import (
 	"math"
 	"sync"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
@@ -179,13 +178,13 @@ func (b *Renderer) look() Clouds {
 	return b.clouds()
 }
 
-func (*Renderer) Init(*goke.SysInit) {}
-
-// Compose hands the frame the sun, the weather over cam's eye and the air masses, and has the
-// sky drawn Direct, behind the whole world.
+// Compose hands the frame the sun unless it is lit already, the weather over cam's eye and the
+// air masses, and has the sky drawn Direct, behind the whole world.
 func (b *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	day := b.sun()
-	day.Frame(f)
+	if !f.Uniformed("LightWay") {
+		day.Frame(f)
+	}
 	x, y := air.Under(cam)
 	w := b.air()
 	w.Frame(f, day, x, y)
@@ -270,6 +269,7 @@ func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	b.set("Visibility", p.Seeing)
 	for i, piece := range b.dome.pieces() {
 		if len(piece.part.Source) > 0 && piece.part.Feed != nil {
+			b.values[i].heavens = p.Heavens
 			piece.part.Feed(&b.values[i])
 		}
 	}

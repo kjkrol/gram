@@ -104,7 +104,7 @@ func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 		var f render.Frame
 		f.Reset(cam)
 		r.Compose(&f, cam)
-		r.goal(geom.NewVec(10, 10), c, tc.spot, 0)
+		r.goal(geom.NewVec(10, 10), r.point(c, tc.spot), 0)
 		var starts [][2]float32
 		f.Each(func(at render.At, v []render.Vertex) {
 			if at.Top() || at.Z() != goalLift {
@@ -146,7 +146,11 @@ func TestPathRenderer_OutlinesNoStepAside(t *testing.T) {
 		var f render.Frame
 		f.Reset(cam)
 		r.Compose(&f, cam)
-		r.goals(geom.NewVec(10, 10), cell.Land, &o)
+		var p planned
+		r.goals(&p, nil, cell.Land, &o)
+		for _, g := range p.goals {
+			r.goal(geom.NewVec(10, 10), g.at, g.alt)
+		}
 		n := 0
 		f.Each(func(render.At, []render.Vertex) { n++ })
 		if n != tc.lines {
@@ -210,6 +214,8 @@ func TestPathRenderer_OutlinesEachKindsGoalInItsRouteStyle(t *testing.T) {
 		goke.SystemFn{OnInit: r.Init},
 	)
 	cam := isoCamera(128, 128, camera.Config{})
+	r.Publish()
+	r.Swap()
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)

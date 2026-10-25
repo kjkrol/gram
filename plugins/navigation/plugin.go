@@ -90,7 +90,7 @@ func NewPlugin(
 	p.Self = world.NewSelf(worldPlugin, p)
 	drivingPlugin.WithKeeping(&p.handKeeping)
 	p.pathRenderer = routes.NewRenderer(boardPlugin.Read(0).Board(), DefaultRouteStyle, p.selected).
-		WithHeights(boardPlugin.Read(0).Heights).WithLook(worldPlugin.Read(0).Look).
+		WithHeights(boardPlugin.Read(0).Heights).WithDrawnHeights(boardPlugin.Read(0).DrawnHeights).WithLook(worldPlugin.Read(0).Look).
 		WithStyles(worldPlugin.Read(0).Styles)
 	p.pathRenderer.BindSpace(worldPlugin.Write().Space())
 	return p

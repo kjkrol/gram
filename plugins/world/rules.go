@@ -1,51 +1,35 @@
-package render
+package world
 
 import (
 	"errors"
 	"reflect"
 
-	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/render"
 )
-
-// Appearance is the sprite an entity is drawn from and how much it bends in the wind, 0 not at
-// all, 1 as far as the wind blows it.
-type Appearance struct {
-	SpriteID SpriteID
-	Sway     float32
-	// Angle turns the look about the middle of the entity's box, in degrees, 0 east, against the
-	// clock with the screen's y growing down. The box stays axis-aligned: content past the circle
-	// inscribed in it swings outside the box as the sprite turns.
-	Angle float32
-}
-
-// Knob: an effect may turn it (effect.Knob).
-func (Appearance) Knob() {}
-
-var _ effect.Knob = Appearance{}
 
 // Rule is how a renderer draws the entities it draws, settled for each of them every frame, in
 // the order given. A rule reads one component of the entity, T, and holds only for one carrying it.
 type Rule interface {
 	bind(qb *goke.QueryBuilder, cols columns)
-	run(cur *goke.Cursor, layers [][]Appearance, shown []bool)
+	run(cur *goke.Cursor, layers [][]render.Appearance, shown []bool)
 	shows() bool
 }
 
 // Over draws with on top of every entity carrying T, where each of when holds.
-func Over[T any](with Appearance, when ...func(T) bool) Rule {
-	return &dressing[T]{when: when, dress: func(l *[]Appearance, _ T) { *l = append(*l, with) }}
+func Over[T any](with render.Appearance, when ...func(T) bool) Rule {
+	return &dressing[T]{when: when, dress: func(l *[]render.Appearance, _ T) { *l = append(*l, with) }}
 }
 
 // As draws every entity carrying T as with, in place of its own sprite, where each of when holds.
-func As[T any](with Appearance, when ...func(T) bool) Rule {
-	return &dressing[T]{when: when, dress: func(l *[]Appearance, _ T) { (*l)[0] = with }}
+func As[T any](with render.Appearance, when ...func(T) bool) Rule {
+	return &dressing[T]{when: when, dress: func(l *[]render.Appearance, _ T) { (*l)[0] = with }}
 }
 
 // Swap draws every entity carrying T, where each of when holds, as the twin of the sprite it
 // would be drawn with; one with no twin as it is.
-func Swap[T any](twins map[SpriteID]SpriteID, when ...func(T) bool) Rule {
-	return &dressing[T]{when: when, dress: func(l *[]Appearance, _ T) {
+func Swap[T any](twins map[render.SpriteID]render.SpriteID, when ...func(T) bool) Rule {
+	return &dressing[T]{when: when, dress: func(l *[]render.Appearance, _ T) {
 		if id, ok := twins[(*l)[0].SpriteID]; ok {
 			(*l)[0].SpriteID = id
 		}
@@ -54,8 +38,8 @@ func Swap[T any](twins map[SpriteID]SpriteID, when ...func(T) bool) Rule {
 
 // With reworks the sprite of every entity carrying T through fn, which sees the T it carries,
 // where each of when holds.
-func With[T any](fn func(Appearance, T) Appearance, when ...func(T) bool) Rule {
-	return &dressing[T]{when: when, dress: func(l *[]Appearance, t T) { (*l)[0] = fn((*l)[0], t) }}
+func With[T any](fn func(render.Appearance, T) render.Appearance, when ...func(T) bool) Rule {
+	return &dressing[T]{when: when, dress: func(l *[]render.Appearance, t T) { (*l)[0] = fn((*l)[0], t) }}
 }
 
 // Show draws every entity carrying T where each of when holds. Once a Show rule is given, a
@@ -65,14 +49,14 @@ func Show[T any](when ...func(T) bool) Rule { return &dressing[T]{when: when} }
 type dressing[T any] struct {
 	col   func(*goke.Cursor) []T
 	when  []func(T) bool
-	dress func(l *[]Appearance, t T)
+	dress func(l *[]render.Appearance, t T)
 }
 
 func (d *dressing[T]) bind(qb *goke.QueryBuilder, cols columns) { d.col = column[T](qb, cols) }
 
 func (d *dressing[T]) shows() bool { return d.dress == nil }
 
-func (d *dressing[T]) run(cur *goke.Cursor, layers [][]Appearance, shown []bool) {
+func (d *dressing[T]) run(cur *goke.Cursor, layers [][]render.Appearance, shown []bool) {
 	ts := d.col(cur)
 	for i := range ts {
 		if !d.holds(ts[i]) {
@@ -122,7 +106,7 @@ type Rules struct {
 // Add takes rules, run after those taken before. It is an error once the renderer is built.
 func (r *Rules) Add(rules ...Rule) error {
 	if r.bound {
-		return errors.New("render: rules added after the renderer was built")
+		return errors.New("world: rules added after the renderer was built")
 	}
 	for _, rule := range rules {
 		r.shows = r.shows || rule.shows()
@@ -149,9 +133,12 @@ func (r *Rules) Bind(qb *goke.QueryBuilder) {
 	}
 }
 
-// Run settles the chunk under cur: layers[i] begins as its i-th entity's Appearance and ends as
+// ruled reports whether any rule is given: without one every entity is drawn as it is.
+func (r *Rules) ruled() bool { return len(r.rules) > 0 }
+
+// Run settles the chunk under cur: layers[i] begins as its i-th entity's render.Appearance and ends as
 // what it is drawn with, shown[i] whether it is drawn; either may be nil.
-func (r *Rules) Run(cur *goke.Cursor, layers [][]Appearance, shown []bool) {
+func (r *Rules) Run(cur *goke.Cursor, layers [][]render.Appearance, shown []bool) {
 	for i := range shown {
 		shown[i] = !r.shows
 	}

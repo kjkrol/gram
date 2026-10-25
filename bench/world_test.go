@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/motion"
@@ -60,32 +61,89 @@ func benchWorldViewed(b *testing.B, ctx *headless, n int, spacing int, view uint
 	})
 }
 
-// Benchmark_World_Draw composes one frame of the entity renderer over 5000 boxes with the camera
-// viewing all of the world, a quarter or a twentieth.
+// the worlds of n boxes in a grid spacing apart drawn through a camera view wide, or two side by
+// side, named by how many boxes they hold in view: all of 5000, a quarter, a twentieth, a
+// hundredth, a quarter and the one opposite; a twentieth and a hundredth of 50000
+var worldViews = []struct {
+	name       string
+	n, spacing int
+	view       uint32
+	two        bool
+}{{"5000 of 5000 in view", 5000, 56, 4000, false},
+	{"1296 of 5000 in view", 5000, 56, 2000, false},
+	{"256 of 5000 in view", 5000, 56, 900, false},
+	{"49 of 5000 in view", 5000, 56, 400, false},
+	{"1296 and 1190 of 5000 in view, 2 cameras", 5000, 56, 2000, true},
+	{"2809 of 50000 in view", 50000, 17, 900, false},
+	{"529 of 50000 in view", 50000, 17, 400, false}}
+
+// worldDrawn is the world of n boxes spacing apart ticked once, its picture and the cameras it is
+// drawn through
+func worldDrawn(b *testing.B, n, spacing int, view uint32, two bool) (*headless,
+	*render.Composer, []camera.Camera) {
+	ctx := newHeadless()
+	var r *render.Composer
+	var cams []camera.Camera
+	ecs := benchWorldViewed(b, ctx, n, spacing, view, func(w *world.Plugin, movers kind.Of[mover]) {
+		atlas := render.NewAtlas()
+		atlas.Add(movers.SpriteID(), 20, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
+		atlas.Close()
+		w.Write().SetAtlas(atlas)
+		ctx.look()
+		r = w.Read(0).Picture().(*render.Composer)
+		ctx.pending = append(ctx.pending, ctx.bound)
+		cams = append(cams, ctx.cam)
+		if two {
+			cam := ctx.camera(cameras.Config{}, cameras.FromAbove, float32(view), float32(view))
+			cam.MoveTo(float64(view), float64(view))
+			cams = append(cams, cam)
+		}
+	})
+	ecs.Tick(step)
+	return ctx, r, cams
+}
+
+// Benchmark_World_Draw composes one frame of the entity renderer over the boxes published, as
+// worldViews says.
 func Benchmark_World_Draw(b *testing.B) {
-	for _, v := range []struct {
-		name string
-		view uint32
-	}{{"view=100%", 4000}, {"view=25%", 2000}, {"view=5%", 900}} {
+	for _, v := range worldViews {
 		b.Run(v.name, func(b *testing.B) {
-			ctx := newHeadless()
-			var r *render.Composer
-			ecs := benchWorldViewed(b, ctx, 5000, 56, v.view, func(w *world.Plugin, movers kind.Of[mover]) {
-				atlas := render.NewAtlas()
-				atlas.Add(movers.SpriteID(), 20, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
-				atlas.Close()
-				w.Write().SetAtlas(atlas)
-				ctx.look()
-				r = w.Read(0).Picture().(*render.Composer)
-				ctx.pending = append(ctx.pending, func() []goke.System {
-					return []goke.System{goke.SystemFn{OnInit: r.Init}}
-				})
-			})
-			ecs.Tick(step)
-			cam := ctx.cam
+			ctx, r, cams := worldDrawn(b, v.n, v.spacing, v.view, v.two)
+			ctx.publish()
 			b.ReportAllocs()
 			for b.Loop() {
-				r.DrawWorld(nil, cam)
+				for _, cam := range cams {
+					r.DrawWorld(nil, cam)
+				}
+			}
+		})
+	}
+}
+
+// Benchmark_World_Publish is the entity renderer's publishing of what Benchmark_World_Draw draws.
+func Benchmark_World_Publish(b *testing.B) {
+	for _, v := range worldViews {
+		b.Run(v.name, func(b *testing.B) {
+			ctx, _, _ := worldDrawn(b, v.n, v.spacing, v.view, v.two)
+			b.ReportAllocs()
+			for b.Loop() {
+				ctx.publish()
+			}
+		})
+	}
+}
+
+// Benchmark_World_Frame publishes and draws a frame of Benchmark_World_Draw.
+func Benchmark_World_Frame(b *testing.B) {
+	for _, v := range worldViews {
+		b.Run(v.name, func(b *testing.B) {
+			ctx, r, cams := worldDrawn(b, v.n, v.spacing, v.view, v.two)
+			b.ReportAllocs()
+			for b.Loop() {
+				ctx.publish()
+				for _, cam := range cams {
+					r.DrawWorld(nil, cam)
+				}
 			}
 		})
 	}

@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/minimap"
 	"github.com/kjkrol/gram/plugins/players"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
@@ -52,7 +53,7 @@ var (
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
 	a.board.WithAtmosphere(a.atmosphere.Read(0))
-	a.vision.WithViews(render.Show(a.selection.Read(0).IsSelected))
+	a.vision.WithViews(world.Show(a.selection.Read(0).IsSelected))
 
 	paused := func() bool { return a.world.Read(0).Clock().State().Paused }
 	cam := a.cameras.Write().New(cameras.FromAbove, camera.Config{})

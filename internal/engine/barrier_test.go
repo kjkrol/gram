@@ -1,0 +1,186 @@
+package engine
+
+import (
+	"fmt"
+	"slices"
+	"testing"
+	"time"
+
+	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
+)
+
+// a scene whose drawer notes its name as it is drawn
+type notedScene struct {
+	name  string
+	drawn *[]string
+}
+
+func (s notedScene) Name() string { return s.name }
+
+func (s notedScene) Drawers() []render.Renderer { return []render.Renderer{s} }
+
+func (notedScene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
+
+func (notedScene) Focusable() bool { return false }
+
+func (s notedScene) Draw(*render.Image) { *s.drawn = append(*s.drawn, s.name) }
+
+func TestEngine_DrawsTheScenesShownAsTheBarrierFoundThem(t *testing.T) {
+	var drawn []string
+	st := stage.New("meadow").
+		Scenes(func() []game.Scene {
+			return []game.Scene{notedScene{"main", &drawn}, notedScene{"hud", &drawn}}
+		}).
+		Update(func(goke.RunCtx, time.Duration) {})
+	e := NewEngine(oneStageGame{stage: st})
+	if err := e.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	e.current.prepared = true
+	e.barrier(100, 100, false)
+	st.Stack().Composition().Show("hud")
+	e.Draw(nil)
+	if !slices.Equal(drawn, []string{"main"}) {
+		t.Errorf("shown after the barrier, the frame drew %v, want the main scene alone", drawn)
+	}
+	drawn = nil
+	e.barrier(100, 100, false)
+	e.Draw(nil)
+	if !slices.Equal(drawn, []string{"main", "hud"}) {
+		t.Errorf("past the next barrier, the frame drew %v, want both", drawn)
+	}
+}
+
+// a scene whose drawer notes being laid and drawn
+type layingScene struct{ notedScene }
+
+func (s layingScene) Drawers() []render.Renderer { return []render.Renderer{s} }
+
+func (s layingScene) Lay(w, h int) {
+	*s.drawn = append(*s.drawn, fmt.Sprintf("%s laid %dx%d", s.name, w, h))
+}
+
+func TestEngine_LaysTheScenesShownOnTheBarrierBeforeTheyAreDrawn(t *testing.T) {
+	var drawn []string
+	st := stage.New("meadow").
+		Scenes(func() []game.Scene {
+			return []game.Scene{layingScene{notedScene{"main", &drawn}},
+				layingScene{notedScene{"hud", &drawn}}}
+		}).
+		Update(func(goke.RunCtx, time.Duration) {})
+	e := NewEngine(oneStageGame{stage: st})
+	if err := e.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	e.current.prepared = true
+	e.barrier(320, 200, false)
+	e.Draw(nil)
+	if want := []string{"main laid 320x200", "main"}; !slices.Equal(drawn, want) {
+		t.Errorf("a frame went %v, want %v: the shown scene laid on the barrier, then drawn, the "+
+			"hidden one neither", drawn, want)
+	}
+}
+
+// a plugin noting the times it is paced with
+type pacedPlugin struct {
+	stubPlugin
+	paced []plugin.FrameTimes
+}
+
+func (p *pacedPlugin) Pace(t plugin.FrameTimes) { p.paced = append(p.paced, t) }
+
+func TestEngine_PacesThePacedOnTheBarrierWithTheLastFramesTimesOnce(t *testing.T) {
+	paced := &pacedPlugin{stubPlugin: stubPlugin{name: "test.paced"}}
+	st := stage.New("meadow").
+		Plugins(func(made *plugin.Made) { made.Add(paced) }).
+		Scenes(func() []game.Scene { return []game.Scene{notedScene{"main", new([]string)}} }).
+		Update(func(goke.RunCtx, time.Duration) {})
+	e := NewEngine(oneStageGame{stage: st})
+	if err := e.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	e.current.prepared = true
+	e.barrier(100, 100, false)
+	if len(paced.paced) != 0 {
+		t.Fatalf("before any frame was timed it was paced with %v, want nothing", paced.paced)
+	}
+	frame := plugin.FrameTimes{Frame: 20 * time.Millisecond, Simulate: 4 * time.Millisecond,
+		Draw: 9 * time.Millisecond}
+	e.last, e.timed = frame, true
+	e.barrier(100, 100, false)
+	e.barrier(100, 100, false)
+	if len(paced.paced) != 1 || paced.paced[0] != frame {
+		t.Errorf("a frame timed, two barriers paced it with %v, want its times once", paced.paced)
+	}
+}
+
+func TestEngine_ReadiesAStageBeforeTheBarrierLaysItsScenes(t *testing.T) {
+	gputest.Need(t)
+	var drawn []string
+	st := stage.New("meadow").
+		Scenes(func() []game.Scene {
+			return []game.Scene{layingScene{notedScene{"main", &drawn}}}
+		}).
+		Update(func(goke.RunCtx, time.Duration) {})
+	e := NewEngine(oneStageGame{stage: st})
+	if err := e.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	e.window = render.NewImage(320, 200)
+	defer e.window.Deallocate()
+	if readied, _ := e.barrier(320, 200, false); !readied {
+		t.Fatal("the stage's first barrier readied nothing")
+	}
+	e.Draw(nil)
+	if want := []string{"main", "main laid 320x200", "main"}; !slices.Equal(drawn, want) {
+		t.Errorf("the first frame went %v, want %v: the frame readying the stage drawn before "+
+			"the barrier lays the scene for the frame drawn", drawn, want)
+	}
+}
+
+// a scene whose drawer notes being published, swapped and drawn
+type publishingScene struct{ notedScene }
+
+func (s publishingScene) Drawers() []render.Renderer { return []render.Renderer{s} }
+
+func (s publishingScene) Publish() { *s.drawn = append(*s.drawn, s.name+" published") }
+
+func (s publishingScene) Swap() { *s.drawn = append(*s.drawn, s.name+" swapped") }
+
+func TestEngine_PublishesOnTheBarrierTheScenesShownSinceTheFrameWasPublished(t *testing.T) {
+	var noted []string
+	st := stage.New("meadow").
+		Scenes(func() []game.Scene {
+			return []game.Scene{publishingScene{notedScene{"main", &noted}},
+				publishingScene{notedScene{"hud", &noted}}}
+		}).
+		Update(func(goke.RunCtx, time.Duration) {})
+	e := NewEngine(oneStageGame{stage: st})
+	if err := e.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	e.current.prepared = true
+	e.publish()
+	st.Stack().Composition().Show("hud")
+	e.barrier(100, 100, false)
+	e.Draw(nil)
+	want := []string{"main published", "main swapped", "hud published", "hud swapped", "main",
+		"hud"}
+	if !slices.Equal(noted, want) {
+		t.Errorf("a scene shown after the publish, the frame went %v, want %v", noted, want)
+	}
+	noted = nil
+	e.publish()
+	e.barrier(100, 100, false)
+	want = []string{"main published", "hud published", "main swapped", "hud swapped"}
+	if !slices.Equal(noted, want) {
+		t.Errorf("the next frame went %v, want %v: both published once, as the frame is", noted,
+			want)
+	}
+}

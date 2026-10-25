@@ -5,7 +5,6 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/light"
@@ -100,8 +99,6 @@ func lookOf(w air.Weather) dropLook {
 	}
 	return l
 }
-
-func (*Drops) Init(*goke.SysInit) {}
 
 // Overlies: drawn over the figures' ground (render.Overlying).
 func (*Drops) Overlies() {}

@@ -3,7 +3,6 @@ package sky
 import (
 	"fmt"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -11,8 +10,6 @@ import (
 func (s *Sky) Reporter() render.Reporter { return reporter{s} }
 
 type reporter struct{ s *Sky }
-
-func (reporter) Init(*goke.SysInit) {}
 
 func (r reporter) Report(line func(label, value string)) {
 	if !r.s.frozen {

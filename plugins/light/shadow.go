@@ -5,20 +5,18 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Casting is how an entity casts its shadow on the ground.
-type Casting uint8
+// Casting is how an entity casts its shadow on the ground (render.Casting): Patch every frame,
+// away from the light, what moves; Silhouette its own drawn shape, a figure worth the cost;
+// Baked into the ground with the ground's own, what stands still, one lying flat over the
+// rectangle its Lie says, any other over its box; NoShadow none.
+type Casting = render.Casting
 
+// The ways an entity casts its shadow (render.Patch…).
 const (
-	// Patch casts a soft patch every frame, away from the light: what moves.
-	Patch Casting = iota
-	// Silhouette casts the entity's own drawn shape every frame, away from the light: a figure
-	// worth the cost.
-	Silhouette
-	// Baked has the ground bake the shadow of the entity's solid with its own: what stands still,
-	// one lying flat over the rectangle its Lie says, any other over its box.
-	Baked
-	// NoShadow casts none.
-	NoShadow
+	Patch      = render.Patch
+	Silhouette = render.Silhouette
+	Baked      = render.Baked
+	NoShadow   = render.NoShadow
 )
 
 // Shadow is how an entity casts its shadow and which shade it takes (render.Taking), its kind's

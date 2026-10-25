@@ -4,7 +4,6 @@ import (
 	"embed"
 	"math"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/render"
@@ -138,8 +137,6 @@ func (r *Renderer) Bodies(bodies bool) { r.bodies = bodies }
 // BodiesTo has the bodies drawn out to share of the camera's sight from where it looks and flat
 // beyond; 1 or more, everywhere; nothing where the camera has no sight.
 func (r *Renderer) BodiesTo(share float32) { r.bodiesTo = share }
-
-func (*Renderer) Init(*goke.SysInit) {}
 
 // Overlies: drawn over the figures' ground (render.Overlying).
 func (*Renderer) Overlies() {}

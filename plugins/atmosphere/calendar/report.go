@@ -3,7 +3,6 @@ package calendar
 import (
 	"fmt"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -11,8 +10,6 @@ import (
 func (c *Calendar) Reporter() render.Reporter { return reporter{c} }
 
 type reporter struct{ c *Calendar }
-
-func (reporter) Init(*goke.SysInit) {}
 
 func (r reporter) Report(line func(label, value string)) {
 	m := r.c.Now()

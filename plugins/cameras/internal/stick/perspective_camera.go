@@ -58,6 +58,9 @@ type perspCamera struct {
 	crop    geom.Vec
 	pp      [2]float32
 	cropped *perspFrame
+	// a copy's extent, as it stood when the copy was taken
+	still     bool
+	low, high float32
 }
 
 type perspFrame struct {
@@ -125,10 +128,21 @@ func (c *perspCamera) Eye() (float32, float32, float32, bool) {
 }
 
 func (c *perspCamera) layer() (low, high float32) {
-	if c.extent != nil {
+	switch {
+	case c.still:
+		low, high = c.low, c.high
+	case c.extent != nil:
 		low, high = c.extent()
 	}
 	return low, high + c.headroom
+}
+
+// copyInto has dst draw as c does now, its extent still and the cage read no more
+func (c *perspCamera) copyInto(dst *perspCamera) {
+	*dst = *c
+	low, high := c.layer()
+	dst.still, dst.low, dst.high = true, low, high-c.headroom
+	dst.extent, dst.ground, dst.fine, dst.solid, dst.cropped = nil, nil, nil, nil, nil
 }
 
 func (c *perspCamera) Ray(sx, sy float32) (float32, float32, float32, bool) {

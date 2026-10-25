@@ -39,6 +39,17 @@ func New(bounds func() geom.AABB) *View {
 // Contains reports whether id is in view.
 func (v *View) Contains(id uid.UID64) bool { return !v.Culled || v.In.Has(id) }
 
+// CopyInto has dst see what v sees now, keeping dst's memory; no tick refreshes dst.
+func (v *View) CopyInto(dst *View) {
+	dst.Bounds, dst.Culled = v.Bounds, v.Culled
+	dst.In.words = dst.In.words[:0]
+	if v.Culled {
+		dst.In.words = append(dst.In.words, v.In.words...)
+	}
+	dst.sectors, dst.detail, dst.from, dst.sighted = v.sectors, v.detail, v.from, v.sighted
+	dst.levels = append(dst.levels[:0], v.levels...)
+}
+
 func (v *View) refresh(space *aabbworld.Space, worldArea float64) {
 	if v.sectors != nil {
 		v.see(space)

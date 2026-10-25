@@ -38,6 +38,7 @@ type Dome struct {
 	width  int // the picture's
 	height int
 	held   holding
+	of     *Dome // the dome this one copies (CopyInto), nil for one of its own
 }
 
 // BoardCell is the size of level 0's cells, in world units.
@@ -127,6 +128,42 @@ func (d *Dome) Own() {
 	for _, s := range d.Slots() {
 		d.Hold(&Patch{Level: s[0], Slot: s[1]})
 	}
+}
+
+// CopyInto has dst hold d as it stands, in patches of dst's own: all of them for a dome dst did
+// not copy last, else those whose Version differs from dst's.
+func (d *Dome) CopyInto(dst *Dome) {
+	fresh := dst.of != d
+	if fresh {
+		*dst = Dome{of: d, center: d.center, width: d.width, height: d.height,
+			levels: make([]domeLevel, len(d.levels))}
+		for k, l := range d.levels {
+			l.patches, l.most = make([]*Patch, len(l.patches)), make([]Mass, len(l.most))
+			for i := range l.patches {
+				l.patches[i] = &Patch{Level: int32(k), Slot: int32(i)}
+			}
+			dst.levels[k] = l
+		}
+	}
+	dst.drift, dst.most, dst.laid = d.drift, d.most, d.laid
+	for k := range d.levels {
+		l, to := &d.levels[k], &dst.levels[k]
+		to.lo, to.hi = l.lo, l.hi
+		copy(to.most, l.most)
+		for i, p := range l.patches {
+			if p != nil && (fresh || p.Version != to.patches[i].Version) {
+				*to.patches[i] = *p
+			}
+		}
+	}
+}
+
+// the dome d copies, or d itself
+func (d *Dome) source() *Dome {
+	if d.of != nil {
+		return d.of
+	}
+	return d
 }
 
 func floorDiv(a, b int) int {
@@ -417,7 +454,8 @@ func (d *Dome) frame(level int) (a, c [4]float32) {
 // level is written to the GPU as its window moves or a patch of it changes.
 type DomeImage struct {
 	img      *render.Image
-	of       *Dome
+	of       *Dome // a copy's source
+	blocks   []int // where a level's block begins across the picture
 	versions []uint32
 	windows  [][2][2]int // a level's cells written: lo, hi
 	levels   [][]byte    // a level's pixels
@@ -425,13 +463,17 @@ type DomeImage struct {
 }
 
 // Of is the picture of d, the levels changed since it was last written to it the next time a draw
-// reads it.
+// reads it; the copies of a dome (CopyInto) share its picture.
 func (i *DomeImage) Of(d *Dome) *render.Image {
-	if i.of != d {
+	if src := d.source(); i.of != src {
 		if i.img != nil {
 			i.img.Deallocate()
 		}
-		i.img, i.of = render.NewImage(d.width, d.height), d
+		i.img, i.of = render.NewImage(d.width, d.height), src
+		i.blocks = i.blocks[:0]
+		for _, l := range d.levels {
+			i.blocks = append(i.blocks, l.block)
+		}
 		i.versions = i.versions[:0]
 		i.windows = make([][2][2]int, len(d.levels))
 		i.levels = make([][]byte, len(d.levels))
@@ -491,9 +533,8 @@ func (i *DomeImage) put(k int, l *domeLevel) {
 
 func (i *DomeImage) write(dst *render.Image) {
 	for _, k := range i.pending {
-		l := &i.of.levels[k]
-		w := i.windows[k]
-		r := image.Rect(l.block, 0, l.block+w[1][0]-w[0][0]+1, w[1][1]-w[0][1]+1)
+		w, at := i.windows[k], i.blocks[k]
+		r := image.Rect(at, 0, at+w[1][0]-w[0][0]+1, w[1][1]-w[0][1]+1)
 		dst.SubImage(r).WritePixels(i.levels[k])
 	}
 	i.pending = i.pending[:0]

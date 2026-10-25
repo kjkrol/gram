@@ -90,10 +90,13 @@
 // entity is laid on the screen by the world's [Look] ([Read.Look], [Write.SetLook]), flat
 // from above unless a view plugin sets its own; a [DirectLook] draws the sprites itself on the
 // GPU, a [LyingLook] lays some flat, an [UprightLook] stands some true, a [FoggyLook] fades one
-// into the fog before a camera's sight. Each is lit as the [Lighting] says, the light plugin's
-// ([Write.SetLighting]), in white light without one. In a sector a camera sees coarsely an entity
+// into the fog before a camera's sight. Each is marked by the [Lighting], the light plugin's
+// ([Write.SetLighting]), and lit as the frame says (render.Frame.Lit) by the lights the picture
+// is given ([Write.SetLights], [Read.Lights]), in white light without them. In a sector a camera sees coarsely an entity
 // is drawn plainly: no edges, flat where it would stand. [Plugin.WithFog] is the fog's colour in a
-// world without an atmosphere.
+// world without an atmosphere. The entities are published once a frame, after its ticks: the
+// looks' rules settle every one some camera sees, the Lighting marks it, each camera's view is
+// copied, and the frame is drawn of that alone.
 //
 // [Read.Picture] is everything the Stage's plugins draw (plugin.Installer.Draws), one picture
 // for every scene; a scene shows it through a camera, ui.Image(render.NewFeed(camera, it)).
@@ -113,9 +116,10 @@
 //
 // # Views
 //
-// [Write.NewView] makes the view.View of a camera, as the cameras plugin makes the camera, and
-// [Read.ViewFor] reads it; refreshed once a tick after movement, the renderer draws only what
-// the camera's View contains.
+// [Write.NewView] makes the view.View of a camera, as the cameras plugin makes the camera,
+// refreshed once a tick after movement. What publishes for a frame culls by every camera's
+// ([Read.Views], [Read.InView]); what draws reads a camera's as the frame was published
+// ([Read.ViewFor]), one copy a frame for all of it, and draws only what it contains.
 //
 // # Telemetry
 //

@@ -3,6 +3,7 @@ package topography_test
 import (
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 func TestPlugin_ShadesTheGroundWithFullCareAsFarAsTheConfigSays(t *testing.T) {
@@ -58,6 +60,58 @@ func TestReporter_SaysTheReachAndEachCareALine(t *testing.T) {
 	p.Write().SetCare(0)
 	if got := report(); got != "Ground: care everywhere" {
 		t.Errorf("with full care everywhere the panel says %q", got)
+	}
+}
+
+func TestReporter_SaysTheCaresOfTheFrameDrawnAsItIsSwapped(t *testing.T) {
+	gputest.Need(t)
+	const size = 512
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: size, Height: size},
+		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 4, MaxSize: 4},
+		Heights:  true,
+		Sectors:  world.SectorsCfg{Buckets: 4, Bands: []sector.Band{{Reach: 1000}}},
+	})
+	w.Write().Anchor(anchored{size / 2, size / 2})
+	b := board.NewPlugin(grid.DefaultGrids{}.Square(16, 16, 32), &cell.MultipleOccupancy{}, w)
+	b.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+	p := topography.NewPlugin(w, b, nil, topography.Config{Care: 1})
+	ctx := topotest.NewInstallCtx()
+	for _, plugin := range []interface {
+		Install(plugin.Installer) error
+	}{w, b, p} {
+		if err := plugin.Install(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ecs := ctx.ECS()
+	ecs.Setup(ctx.Systems()...)
+	ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+		w.RunPlan(rc, d)
+		b.RunPlan(rc, d)
+		p.RunPlan(rc, d)
+		rc.Sync()
+		w.Write().Clock().Replay(rc, d)
+	})
+	cam := cameratest.NewFromSpace(size, size, 0)
+	w.Write().NewView(cam)
+	ecs.Tick(time.Second / 60)
+	ecs.Tick(time.Second / 60)
+	full := func() string {
+		var got string
+		p.Read(0).Reporter().Report(func(_, value string) { got = value })
+		return strings.Split(got, "\n")[1]
+	}
+	screen := render.NewImage(size, size)
+	defer screen.Deallocate()
+	render.NewComposer(ctx.Sources()...).DrawWorld(screen, cam)
+	if got := full(); got != "everything 0" {
+		t.Errorf("drawn, not yet swapped, the panel says %q, want the cares of no frame", got)
+	}
+	p.Swap()
+	if got := full(); got == "everything 0" {
+		t.Errorf("swapped, the panel says %q, want the sectors the frame drawn shaded with full "+
+			"care", got)
 	}
 }
 

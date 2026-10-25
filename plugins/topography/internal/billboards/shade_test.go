@@ -5,9 +5,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -19,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/internal/topotest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 // the sun 60° up in the west
@@ -27,12 +26,11 @@ var westSun = light.Distant{Dir: [3]float32{-0.5, 0, 0.866}, Strength: 1, Ambien
 type westSky struct{}
 
 func (westSky) Distant() light.Distant { return westSun }
-func (westSky) Air() air.Weather       { return air.Weather{} }
+func (westSky) DrawnAir() air.Weather  { return air.Weather{} }
 
 // hands the frame the west sun before the ground composes
 type sunning struct{}
 
-func (sunning) Init(*goke.SysInit) {}
 func (sunning) Compose(f *render.Frame, _ camera.Camera) {
 	westSun.Frame(f)
 	air.Weather{}.Frame(f, westSun, 0, 0)
@@ -48,7 +46,6 @@ type standing struct {
 	lit    render.Illumination
 }
 
-func (*standing) Init(*goke.SysInit) {}
 func (s *standing) Compose(f *render.Frame, cam camera.Camera) {
 	s.look.Begin(f, cam)
 	box := plane.NewAABB(geom.NewVec(s.at.X-3, s.at.Y-3), 6, 6)
@@ -97,6 +94,9 @@ func TestSprites_StandDarkerInTheReliefsShadow(t *testing.T) {
 		fig := &standing{look: w.Read(0).Look().(world.DirectLook), relief: p.Write().Relief(), at: at,
 			atlas: &magenta{}, lit: render.Illumination{Light: render.Light{1, 1, 1}, Takes: takes}}
 		c := render.NewComposer(append([]render.Source{sunning{}}, append(drawn, fig)...)...)
+		l.Publish()
+		l.Swap()
+		c.Light(w.Read(0).Lights)
 		screen := render.NewImage(320, 240)
 		var pix []byte
 		for range 3 { // the first frame readies the ground, the next bake its shade and show it

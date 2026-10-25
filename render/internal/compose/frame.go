@@ -5,15 +5,15 @@ import (
 	"math"
 	"slices"
 
-	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render/internal/gfx"
+	"github.com/kjkrol/gram/render/internal/light"
 	"github.com/kjkrol/gram/render/internal/wgsl"
 )
 
 // Source is what draws a part of the world by handing its pieces to a Frame.
 type Source interface {
-	Init(*goke.SysInit)
 	Compose(f *Frame, cam camera.Camera)
 }
 
@@ -62,6 +62,7 @@ type Frame struct {
 	overs    int     // the pieces lying over the figures
 	source   int32   // the source composing, one more than its index; 0 none
 	opaque   []int32 // the sources drawing in the opaque pass, one more than their index
+	lighting *lighting
 }
 
 type uniform struct {
@@ -82,7 +83,29 @@ func (f *Frame) Len() int { return f.count }
 func (f *Frame) Reset(cam camera.Camera) {
 	f.cam, f.items, f.verts, f.order, f.count = cam, f.items[:0], f.verts[:0], f.order[:0], 0
 	f.uniforms, f.ground, f.opaque, f.overs = f.uniforms[:0], false, f.opaque[:0], 0
-	f.images = f.images[:0]
+	f.images, f.lighting = f.images[:0], nil
+}
+
+// Lit is the light on what stands at (x, y, z) taking take (zero: every shade, Shines: none), as
+// the composer's lights say through the frame's camera; white light taking every shade without
+// them.
+func (f *Frame) Lit(x, y, z float32, take Taking) light.Illumination {
+	if f.lighting == nil {
+		return light.Illumination{Light: Light{1, 1, 1}, Takes: TakesAll}
+	}
+	return f.lighting.on(x, y, z, taken(take))
+}
+
+// Cast has what stands in box from alt up height cast its live shadow as s says, in the shape of
+// atlas's sprite for a Silhouette, laid on the ground once the frame's sources have composed;
+// nothing without the composer's lights, nor for what is Baked or casts none.
+func (f *Frame) Cast(box geom.AABB, alt, height float64, s light.Shadowing, atlas AtlasSource,
+	sprite SpriteID) {
+	if f.lighting == nil || s.Cast == light.Baked || s.Cast == light.NoShadow {
+		return
+	}
+	f.lighting.casters = append(f.lighting.casters, caster{box: box, alt: alt, height: height,
+		cast: s.Cast, atlas: atlas, sprite: sprite})
 }
 
 // DrawOpaque has the composing Direct draw in the opaque pass, the ground's: tested against the
@@ -207,23 +230,20 @@ func premultiplied(c color.RGBA) [4]float32 {
 	return [4]float32{float32(c.R) / 0xff * a, float32(c.G) / 0xff * a, float32(c.B) / 0xff * a, a}
 }
 
-// Light is a colour of light, red, green and blue, a colour drawn in it is scaled by; 1 each is
-// white.
-type Light [3]float32
+// Light is a colour of light (light.Light).
+type Light = light.Light
 
-// Taking is which shade a drawn thing takes, bits of it: the relief's shadow, the baked blocks',
-// the clouds', and which light, the lamps'. One taking none shines as it is drawn.
-type Taking uint8
+// Taking is which shade a drawn thing takes (light.Taking).
+type Taking = light.Taking
 
+// The shades a drawn thing takes (light.TakesAll…).
 const (
-	TakesRelief Taking = 1 << iota
-	TakesBlocks
-	TakesClouds
-	TakesLamps
-	// Shines takes nothing: the thing is drawn as it is.
-	Shines Taking = 1 << 7
-	// TakesAll takes every shade and the lamps' light, as a zero Taking does.
-	TakesAll = TakesRelief | TakesBlocks | TakesClouds | TakesLamps
+	TakesRelief = light.TakesRelief
+	TakesBlocks = light.TakesBlocks
+	TakesClouds = light.TakesClouds
+	TakesLamps  = light.TakesLamps
+	Shines      = light.Shines
+	TakesAll    = light.TakesAll
 )
 
 // Shade is the light a piece is drawn in at its corners, top-left, top-right, bottom-left,

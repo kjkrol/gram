@@ -65,8 +65,8 @@ func (c *compass) Draw() *render.Image {
 // north is the way north runs on the picture, a unit vector: (0, -1) in the world, on a
 // picture whose up is the lens's ahead (ax, ay), right ahead turned a quarter clockwise
 func (c *compass) north() (float64, float64) {
-	l := c.m.lens
-	dx, dy := -float64(l.ax), float64(l.ay)
+	at := c.m.shown()
+	dx, dy := -float64(at.ax), float64(at.ay)
 	if n := math.Hypot(dx, dy); n > 0 {
 		return dx / n, dy / n
 	}

@@ -20,7 +20,7 @@ import (
 type plainScene struct{ name string }
 
 func (s plainScene) Name() string                                                    { return s.name }
-func (plainScene) Drawers() []render.Drawer                                          { return nil }
+func (plainScene) Drawers() []render.Renderer                                        { return nil }
 func (plainScene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
 func (plainScene) Focusable() bool                                                   { return true }
 

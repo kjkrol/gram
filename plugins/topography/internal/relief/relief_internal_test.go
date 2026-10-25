@@ -192,3 +192,28 @@ func TestRelief_TheGroundIsTheGroundDrawn(t *testing.T) {
 		t.Errorf("the ground near the 10 is %v, want 7.5", got)
 	}
 }
+
+func TestRelief_ACopyHoldsTheHeightsAsCopiedWhileTheReliefIsShaped(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(4, 4, 32)
+	r := onBoard(g)
+	c := g.At(1, 1)
+	raiseHills(r, g, c)
+	at := g.CellCenter(c)
+	var copied Relief
+	r.CopyInto(&copied)
+	raised := copied.GroundAt(at)
+	if raised != r.GroundAt(at) || copied.Version() != r.Version() {
+		t.Fatalf("copied, the ground at the hill is %v at version %d, want the relief's %v at %d",
+			raised, copied.Version(), r.GroundAt(at), r.Version())
+	}
+	raiseHills(r, g)
+	if copied.GroundAt(at) != raised {
+		t.Errorf("the relief levelled, the copy's hill is %v, want still %v", copied.GroundAt(at),
+			raised)
+	}
+	r.CopyInto(&copied)
+	if copied.GroundAt(at) != 0 || copied.Version() != r.Version() {
+		t.Errorf("copied again, the hill is %v at version %d, want level at %d",
+			copied.GroundAt(at), copied.Version(), r.Version())
+	}
+}

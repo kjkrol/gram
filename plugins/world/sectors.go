@@ -248,8 +248,6 @@ func (s seenSectors) Off(i int) bool      { return s.s.grid.Band(i) == s.s.grid.
 
 type seenReport struct{ w *module }
 
-func (seenReport) Init(*goke.SysInit) {}
-
 func (r seenReport) Report(line func(label, value string)) {
 	if r.w.sectors.grid == nil || len(r.w.views) == 0 {
 		return
@@ -261,8 +259,6 @@ func (r seenReport) Report(line func(label, value string)) {
 }
 
 type sectorsReport struct{ w *module }
-
-func (sectorsReport) Init(*goke.SysInit) {}
 
 func (r sectorsReport) Report(line func(label, value string)) {
 	s := r.w.sectors

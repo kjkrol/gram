@@ -21,9 +21,10 @@ sits idle until the player starts the game. A `Stage` is never a `plugin.Plugin`
 plugins. Its `Init` gets a `game.Initializer` (`Use`, `UseWorld`, `Track`, `TPS`, the embedded
 `plugin.Installer`, `Commands`). **A `Stage` has no `HandleEvents`**: input is a `Scene`'s.
 
-Within one active `Stage`, a `game.Scene` is `Name`, `Drawers() []render.Drawer` (built once on
-entering the Stage; a picture or a source listed straight in a scene is refused — the world is
-shown through a `ui.Image` of a `render.Feed` of `world.Read(0).Picture()`), `HandleEvents`,
+Within one active `Stage`, a `game.Scene` is `Name`, `Drawers() []render.Renderer` (built once on
+entering the Stage; a picture or a source is no Renderer — the world is shown through a
+`ui.Image` of a `render.Feed` of `world.Read(0).Picture()`; a drawer that reads the world is a
+`plugin.Bound`, readied once by the engine), `HandleEvents`,
 `Focusable`. `Stage.Stack()` is the
 `Name()`-keyed registry of every `Scene` it can show (`game.NewStack(scenes...)`);
 `Stack.Composition()` the live state — which scenes are visible, in what order, which is
@@ -96,7 +97,8 @@ no `render` rule: the world through a camera is a `render.Feed` (`render.NewFeed
 drawn every frame into an image of the size it is shown at; `ToWorld`/`ToPixels`), which
 `ui.Image(feed)` shows. `ui.NewScene(name, screen)` is a `game.Scene`: `Input(players.Handle)`,
 `Issue(players.IssueAs(pl))` for its buttons and keys, `Keys(bindings...)`, `Theme(th)`,
-`Show`/`Hide`/`Toggle`/`Shown` by name, `Replace(screen)`, `Lay(screen)` (tests call it),
+`Show`/`Hide`/`Toggle`/`Shown` by name, `Replace(screen)` (a tree put in after the frame's
+publish published as the barrier lays the scene out), `Lay(screen)` (tests call it),
 `Laid()` (the screen it was last laid over: a menu built for a size rebuilds itself when the
 next tick finds it laid over another, as the players' settings and shortcuts do); it saves
 which named elements are shown (`Persisted`/`Restore`). **The notation says what it does**:
@@ -107,14 +109,16 @@ wraps its element — `ui.BottomMiddle(el).Size(w, h).Margin(px)`, nine of them.
 theme's `Bold`), `Title` (its `Large`, Go Bold at 20), `Image` (a picture; a source with
 `DrawGlass(dst)`, as a `render.Feed` with a `render.Glass` source, draws on it last of all,
 over whatever lies over the picture), `Window`, `LabelOf`/`ButtonOf`/
-`WindowOf`/`HeadingOf` (their words read off a `ui.Text` every frame; `ui.Of[T]` reads a component of the pinned
+`WindowOf`/`HeadingOf` (their words read off a `ui.Text` once a frame, as the scene's drawer — a
+`plugin.Publisher` — publishes after the ticks, only while the scene is shown, a scene shown
+after the frame's publish on the barrier, the frame laid, drawn and clicked as published; `ui.Of[T]` reads a component of the pinned
 entity, `ui.While(on, text)` says text while `on()`; a Text saying nothing leaves the element out), `Button(label, cmds...)` (the scene's own
 `ui.Show`/`Hide`/`Toggle{Name}`, or any command through `Issue`; no callbacks into the game),
 `Blank`, `Drawer(renderer)`, `Scroll(el)` (an element taller than its box, scrolled by its bar or
 the wheel, its content clipped to the box); the controls `Checkbox(label, get, set)`, `Slider(min, max, step,
 get, set)` (dragged till the button is let go, the wheel over it a step; `Size` its length),
 `Dropdown(options, get, set)` (its options opened over everything, in the scene's overlay; a
-click outside or Esc closes them, `Scene.Unfolded`) — each `get` read every frame, each `set`
+click outside or Esc closes them, `Scene.Unfolded`) — each `get` read once a frame as the scene publishes, each `set`
 building the command for the new value, given like a button's; they read no entity. Any
 element takes `Fill`, `Border`, `Padding`, `Named`, `Hidden`,
 `Modal`, `Masked(ui.Circle | ui.Polygon(...))`, `Fraction(w, h)` (an axis 0 following the
@@ -230,9 +234,9 @@ scratchpad and run it from its directory under `timeout 5s`, exit 124 alive, gre
   one every line; a many-valued line is a value of lines under its label): `render.ActualFPS`
   (set by the engine once a second), `render.Spent()` (where a frame's time went, set beside them),
   `game.TPS.Ticks` (`ctx.TPS()`, stale under pause), `world.Res.Telemetry.Count` (spawned
-  entities), `view.View.In.Len()` per camera when culled. `render.Reporter` needs
-  `Init(*goke.SysInit)` (climate's builds a query), given through a layer's `Init`: the
-  telemetry panel's scene returns such a layer. A demo's screen has no telemetry layer: the
+  entities), `view.View.In.Len()` per camera when culled. A `render.Reporter` that reads
+  the world is a `plugin.Bound` too (climate's builds a query), readied through the telemetry
+  panel's scene. A demo's screen has no telemetry layer: the
   panel is the plugin's scene, shown with `.Shows(MainScene, telemetry.SceneName)`; reporters
   are added in `makePlugins` or the Scenes section (`s.telemetry.With(...)`).
 - The one place to attach a plugin to every Stage with a world is the `World(cfg).Plugins(f)`
@@ -241,7 +245,11 @@ scratchpad and run it from its directory under `timeout 5s`, exit 124 alive, gre
 ## Game / persistence
 
 `internal/engine.Engine` owns the window's loop (every frame `Update`, `Draw` into an image the
-size of the screen, `Present`) and drives one active `Stage` at a time, calling `game.Stages()`
+size of the screen, `Present`; since 2026-10-24 the next frame's ticks and publishing run on a
+goroutine of their own while a frame is drawn, the barrier between taking the input — shown a
+frame later — and laying the scenes out; a stage's first frame, a switch's and every frame with
+`Props.Serial` or `GRAM_SERIAL` set run serially; the game's pool is then one short of the CPUs unless
+`Props.Workers` says) and drives one active `Stage` at a time, calling `game.Stages()`
 whenever it resolves a name. Its `Persistence()` (`Save`/`Load`/`List`) is bound to the active
 Stage's ECS; a tracked `plugin.Serializable`/`PostLoader` is included automatically; saved
 resources are matched by name (`Name()`, or the Go type name), so a save survives plugins being

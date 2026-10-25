@@ -41,6 +41,9 @@ func (t *tracker) calculateSteps(physicsStep time.Duration, maxSteps int) int {
 	return steps
 }
 
+// restart has the steps counted from now, the time before not the world's
+func (t *tracker) restart() { t.lastUpdate, t.accumulator = time.Now(), 0 }
+
 func (t *tracker) processStatsInterval() bool {
 	duration := time.Since(t.lastTPSUpdate)
 	if duration > 2*time.Second {

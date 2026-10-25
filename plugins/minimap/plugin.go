@@ -74,8 +74,11 @@ func checkReach(w *world.Plugin, reach float64) {
 	}
 }
 
-func (p *Plugin) Name() string                       { return "gram.minimap" }
-func (p *Plugin) Install(plugin.Installer) error     { return nil }
+func (p *Plugin) Name() string { return "gram.minimap" }
+func (p *Plugin) Install(ctx plugin.Installer) error {
+	ctx.Setup(allMarks{p})
+	return nil
+}
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
 // Serializable is the minimaps' Settings, kept whole.
@@ -104,7 +107,10 @@ func (p *Plugin) For(cam camera.Camera, issuer command.Issuer) *ui.Element {
 		geom.NewVec(float64(space.Width), float64(space.Height)),
 		space.Edges.WrapsX(), space.Edges.WrapsY(), p.cfg.Reach)}
 	m.follow(p.Res.Settings.Turning)
-	m.element = ui.Image(&paced{Feed: render.NewFeed(m.lens, m.picture())}).Input(&clicks{m: m})
+	m.lens.aim(m.at.cx, m.at.cy, m.at.ax, m.at.ay)
+	picture := m.picture()
+	m.element = ui.Image(&paced{Feed: render.NewFeed(m.lens, picture), marks: m.marks}).
+		Input(&clicks{m: m})
 	if p.Res.Settings.Hidden {
 		m.element.Hidden()
 	}

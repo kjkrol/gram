@@ -23,6 +23,10 @@ func (r *Read) Fork() *Read { return &Read{p: r.p, board: r.board.Fork()} }
 // Board reads the board: its grid and its terrain.
 func (r *Read) Board() *BoardRead { return r.board }
 
+// Drawn is the board as the frame drawn reads it: its cells as last published, the live board
+// before any was.
+func (r *Read) Drawn() Drawn { return r.p.board.drawnBoard() }
+
 // World is the world the board lies over: its registers, for a figure defined over the board.
 func (r *Read) World() *world.Plugin { return r.p.worldPlugin }
 
@@ -31,6 +35,15 @@ func (r *Read) CellKinds() cell.Kinds { return r.p.kinds }
 
 // Heights is the board's ground heights, its Map's; nil on a flat map.
 func (r *Read) Heights() ground.Heights { return r.p.board.mapping.Heights() }
+
+// DrawnHeights is the height of the ground as the frame drawn holds it, for what draws: the
+// Map's DrawnHeights where it has them, its Heights else; nil on a flat map.
+func (r *Read) DrawnHeights() ground.Heights {
+	if d, ok := r.p.board.mapping.(interface{ DrawnHeights() ground.Heights }); ok {
+		return d.DrawnHeights()
+	}
+	return r.p.board.mapping.Heights()
+}
 
 // Footing is where whoever moves over the board stands, the ground or a deck; nil on a flat map.
 func (r *Read) Footing() ground.Surfaces {

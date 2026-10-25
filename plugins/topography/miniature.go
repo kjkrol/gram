@@ -20,7 +20,7 @@ func (w *Write) Miniature() (img *render.Image, perUnit float32) {
 		return nil, 0
 	}
 	albedo, _, px, _ := p.painter.Surface(atlas)
-	_, _, cell, _, _ := p.relief.Lattice()
+	_, _, cell, _, _ := p.drawnRelief().Lattice()
 	if albedo == nil || cell <= 0 {
 		return nil, 0
 	}

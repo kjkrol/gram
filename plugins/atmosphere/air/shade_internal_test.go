@@ -4,9 +4,9 @@ import (
 	"math"
 	"testing"
 
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 // the clouds' shadow along a line of world points U.Step apart, the ground U.Ground up

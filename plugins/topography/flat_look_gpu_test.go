@@ -6,9 +6,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -16,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 type flatSource struct {
@@ -25,8 +24,6 @@ type flatSource struct {
 	slant bool
 	atlas render.AtlasSource
 }
-
-func (*flatSource) Init(*goke.SysInit) {}
 
 func (s *flatSource) Compose(f *render.Frame, cam camera.Camera) {
 	if s.direct {

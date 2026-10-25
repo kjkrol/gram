@@ -46,8 +46,8 @@ const (
 	title
 )
 
-// Text is what an element reads its words off every frame, for the entity it is pinned to.
-// False leaves the element out: it takes no room and nothing hits it.
+// Text is what an element reads its words off once a frame, as its scene is published, for the
+// entity it is pinned to. False leaves the element out: it takes no room and nothing hits it.
 type Text interface {
 	Text(of uid.UID64, pinned bool) (string, bool)
 }
@@ -105,9 +105,19 @@ func (l *label) font(th *Theme) *render.Font {
 	return th.Font
 }
 
+// words are the label's as published for the entity it is drawn for: read now for one not yet
+// published, none for an entity of a pin's not published
 func (l *label) words(e *Element) (string, bool) {
 	if l.src == nil {
 		return l.text, true
+	}
+	if f := e.front(); f != nil {
+		if w, ok := f.words[saying{l, e.of, e.ofPinned}]; ok {
+			return w.text, w.ok
+		}
+		if e.ofPinned {
+			return "", false
+		}
 	}
 	return l.src.Text(e.of, e.ofPinned)
 }
@@ -152,24 +162,36 @@ type picture struct {
 	input Input
 	glass geom.AABB // where the picture was drawn this frame, for its source's glass
 	drawn bool
+	laid  [2]int // the size its source was laid out at
 }
 
 // glassed is a picture's source drawing on the glass over it, last of all (render.Feed)
 type glassed interface{ DrawGlass(dst *render.Image) }
 
+// place sizes the source to its box, or to the screen it is drawn straight onto
 func (p *picture) place(e *Element, box geom.AABB) {
 	w, h := size(box)
-	p.src.Resize(int(math.Round(w)), int(math.Round(h)))
+	if _, ok := p.src.(direct); ok && e.mask == nil && e.d != nil {
+		if sw, sh := size(e.d.scene.laid); sw > 0 && sh > 0 && covers(box, e.d.scene.laid) {
+			w, h = sw, sh
+		}
+	}
+	p.laid = [2]int{int(math.Round(w)), int(math.Round(h))}
+	p.src.Resize(p.laid[0], p.laid[1])
 }
 
 type direct interface{ DrawOn(dst *render.Image) }
 
+// draw paints the source in its box: straight onto a dst it fills at the size it was laid out at,
+// so that drawing resizes nothing
 func (p *picture) draw(e *Element, dst *render.Image) {
 	box := shrink(e.box, e.padding)
 	if _, ok := p.src.(glassed); ok {
 		p.glass, p.drawn = box, true
 	}
-	if d, ok := p.src.(direct); ok && e.mask == nil && fills(box, dst) {
+	b := dst.Bounds()
+	if d, ok := p.src.(direct); ok && e.mask == nil && fills(box, dst) &&
+		b.Dx() == p.laid[0] && b.Dy() == p.laid[1] {
 		d.DrawOn(dst)
 		return
 	}
@@ -196,8 +218,16 @@ func (*picture) needs(*Element) (w, h float64) { return 0, 0 }
 
 func fills(box geom.AABB, dst *render.Image) bool {
 	b := dst.Bounds()
-	return math.Round(box.TopLeft.X) <= float64(b.Min.X) && math.Round(box.TopLeft.Y) <= float64(b.Min.Y) &&
-		math.Round(box.BottomRight.X) >= float64(b.Max.X) && math.Round(box.BottomRight.Y) >= float64(b.Max.Y)
+	return covers(box, geom.NewAABB(geom.NewVec(float64(b.Min.X), float64(b.Min.Y)),
+		geom.NewVec(float64(b.Max.X), float64(b.Max.Y))))
+}
+
+// covers reports whether box, rounded to pixels, covers the whole of screen
+func covers(box, screen geom.AABB) bool {
+	return math.Round(box.TopLeft.X) <= screen.TopLeft.X &&
+		math.Round(box.TopLeft.Y) <= screen.TopLeft.Y &&
+		math.Round(box.BottomRight.X) >= screen.BottomRight.X &&
+		math.Round(box.BottomRight.Y) >= screen.BottomRight.Y
 }
 
 // Window is a panel with a title over its elements, one under another, each as large as it needs.
@@ -239,7 +269,7 @@ func (blank) draw(*Element, *render.Image)  {}
 func (blank) needs(*Element) (w, h float64) { return 0, 0 }
 
 // Drawer is an element drawn by r, a screen renderer drawing in the screen's pixels: the
-// telemetry line.
+// telemetry line. An r that is a plugin.Publisher is published and swapped with the scene.
 func Drawer(r render.Renderer) *Element { return newElement(&layered{r: r}) }
 
 type layered struct{ r render.Renderer }

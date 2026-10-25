@@ -4,10 +4,10 @@ import (
 	"slices"
 	"time"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/internal/gpu"
 	"github.com/kjkrol/gram/render/internal/gfx"
+	"github.com/kjkrol/gram/render/internal/gpu"
+	"github.com/kjkrol/gram/render/internal/light"
 	"github.com/kjkrol/gram/render/internal/wgsl"
 )
 
@@ -46,7 +46,7 @@ type Composer struct {
 	depths   []depths // a pair for each size of target and layer drawn into, the latest last
 	start    time.Time
 	draw     func(screen *Image, verts []Vertex, indices []uint16, sheet *Image, place [4]float32)
-	inited   bool
+	lit      lighting
 }
 
 // a layer drawn apart since Lay: the depth its ground was drawn into and its window in the frame
@@ -71,20 +71,16 @@ func NewComposer(sources ...Source) *Composer {
 		_, over := src.(Overlying)
 		c.overlying = append(c.overlying, over)
 	}
+	c.lit.index = int32(len(c.sources) + 1)
+	c.directs = append(c.directs, &c.lit)
 	c.draw = c.drawTriangles
 	return c
 }
 
-// Init readies the sources once, however many scenes show the picture.
-func (c *Composer) Init(si *goke.SysInit) {
-	if c.inited {
-		return
-	}
-	c.inited = true
-	for _, s := range c.sources {
-		s.Init(si)
-	}
-}
+// Light has the frame lit by the scene's lights lights gives as it is composed, none while it
+// gives nil: the lamps nearest the camera, the light on what the sources draw (Frame.Lit), the
+// shadows they cast (Frame.Cast) and the ground's shade baked.
+func (c *Composer) Light(lights func() *light.Lights) { c.lit.lights = lights }
 
 // DrawWorld composes the frame through cam and draws it; a nil screen only composes.
 func (c *Composer) DrawWorld(screen *Image, cam camera.Camera) {
@@ -174,6 +170,7 @@ func (c *Composer) compose(cam camera.Camera, p part) {
 		c.frame.uniforms = append(c.frame.uniforms, c.keptUniforms...)
 		c.frame.images = append(c.frame.images, c.keptImages...)
 	}
+	c.lit.begin(&c.frame, cam, p)
 	for i, s := range c.sources {
 		if p != wholePart && c.overlying[i] != (p == overPart) {
 			continue
@@ -182,6 +179,7 @@ func (c *Composer) compose(cam camera.Camera, p part) {
 		s.Compose(&c.frame, cam)
 	}
 	c.frame.source = 0
+	c.lit.end(&c.frame)
 	c.sort()
 }
 

@@ -1,35 +1,50 @@
-// Package bake bakes the light on the ground into an image for every shader of a frame to read
-// (render.GroundShade): the shadows of the relief, from the heights the frame holds
-// (render.GroundHeights), and those of the blocks standing on it, over level ground without
-// them. The shade is baked anew as the light turns, a strip a frame, each strip fading from the
-// shade it held before into its own.
-package bake
+package compose
+
+// The ground's shade (GroundShade) baked for every shader of a frame to read: the shadows of the
+// relief, from the heights the frame holds (GroundHeights), and those of the blocks standing on
+// it, over level ground without them. It is baked anew as the light turns, a strip a frame, each
+// strip fading from the shade it held before into its own.
 
 import (
+	"embed"
+	"fmt"
 	"image"
 	"image/color"
 	"math"
 	"slices"
+	"strings"
 
-	_ "github.com/kjkrol/gram/plugins/light/internal/distant" // the light in the shaders
-	"github.com/kjkrol/gram/render"
-
-	"embed"
+	"github.com/kjkrol/gram/render/internal/gfx"
+	"github.com/kjkrol/gram/render/internal/light"
 )
 
 //go:embed shaders/*.wgsl
 var shaders embed.FS
 
-var bakeShade = render.NewShaderWith("ground shade",
-	render.Files(shaders, "shaders/ground.wgsl", "shaders/shade.wgsl"),
-	[]render.Uniform{
+// shaderFiles is the shaders' files named, one after another
+func shaderFiles(names ...string) []byte {
+	var b strings.Builder
+	for _, n := range names {
+		src, err := shaders.ReadFile("shaders/" + n)
+		if err != nil {
+			panic(fmt.Sprintf("render: %v", err))
+		}
+		b.Write(src)
+		b.WriteString("\n")
+	}
+	return []byte(b.String())
+}
+
+var bakeShade = gfx.NewShaderWith("ground shade",
+	shaderFiles("bake_ground.wgsl", "bake_shade.wgsl"),
+	[]gfx.Uniform{
 		{Name: "BakeCell", Size: 1},
 		{Name: "ShadeSpan", Size: 1},
 	})
 
-var bakeBlocks = render.NewMeshShaderWith("blocks' shade",
-	render.Files(shaders, "shaders/ground.wgsl", "shaders/blocks.wgsl"),
-	[]render.Uniform{
+var bakeBlocks = gfx.NewMeshShaderWith("blocks' shade",
+	shaderFiles("bake_ground.wgsl", "bake_blocks.wgsl"),
+	[]gfx.Uniform{
 		{Name: "BakeCell", Size: 1},
 		{Name: "ShadeSpan", Size: 1},
 		{Name: "Strip", Size: 4},
@@ -45,37 +60,29 @@ const (
 // shadeStrips strips, one a frame; a degree leapt bakes all of it at once
 const (
 	shadeTurn   = 0.9999985
-	shadeStrips = render.ShadeBands
+	shadeStrips = ShadeBands
 	shadeLeap   = 0.99985
 )
 
-// shaders/ground.wgsl's: how wide a shadow's penumbra is per unit towards the light
+// shaders/bake_ground.wgsl's: how wide a shadow's penumbra is per unit towards the light
 const shadowSoft = 0.08
 
-// Lattice is the ground the shade is baked over: Cols by Rows corners Cell world units apart
-// from the origin, the lowest Low high and the highest Low+Span; Version counts the changes to
-// the heights. Level ground is a Lattice of no Span.
-type Lattice struct {
-	Cols, Rows int
-	Cell       float32
-	Low, Span  float32
-	Version    uint64
-}
-
-// Block is a solid whose shadow is baked: a rectangle round (X, Y) running (UX, UY), Along from
-// its middle that way and Wide across, standing from Bottom up to Top.
-type Block struct{ X, Y, UX, UY, Along, Wide, Bottom, Top float32 }
+// the ground the shade is baked over, and a solid whose shadow it bakes (light.Lattice, Block)
+type (
+	Lattice = light.Lattice
+	Block   = light.Block
+)
 
 // Baker bakes the shade of one ground.
 type Baker struct {
 	lat Lattice
 
-	// the shade baked, and as it was before each band's last bake (render.GroundShade)
-	baked     *render.Image
-	was       *render.Image
+	// the shade baked, and as it was before each band's last bake (GroundShade)
+	baked     *Image
+	was       *Image
 	fresh     bool // neither filled yet
 	shown     bool // baked once since they were made
-	shade     render.GroundShade
+	shade     GroundShade
 	frames    uint64                 // Plan calls
 	bakedAt   [shadeStrips]uint64    // the frame each band was last baked in
 	plan      struct{ from, to int } // the rows the frame's Bake bakes
@@ -84,18 +91,15 @@ type Baker struct {
 	shadeSun  [3]float32
 	strip     int
 	coarse    bool
-	baking    render.DrawTrianglesShaderOptions
-	blocking  render.DrawMeshOptions
-	bakeVerts []render.Vertex
+	baking    gfx.DrawTrianglesShaderOptions
+	blocking  gfx.DrawMeshOptions
+	bakeVerts []Vertex
 	own       map[string][]float32 // the bake's own uniforms, a slice a name kept between bakes
 
 	blocks   []float32
 	near     []float32
 	blocksAt uint64 // a hash of the blocks as last found; 0 none
 }
-
-// New is a baker of the shade of nothing yet.
-func New() *Baker { return &Baker{} }
 
 // Coarse has the shade baked half as fine a side from the next frame on, or as fine as ever
 // again.
@@ -107,7 +111,7 @@ func (b *Baker) Coarsened() bool { return b.coarse }
 // Plan settles what of the shade over lat the frame's Bake bakes under the light the way sun, with
 // blocks standing on the ground, and how far each band has faded from the shade before into its
 // own since it was last baked. It is the frame's shade, false before any is baked.
-func (b *Baker) Plan(lat Lattice, sun [3]float32, blocks []Block) (render.GroundShade, bool) {
+func (b *Baker) Plan(lat Lattice, sun [3]float32, blocks []Block) (GroundShade, bool) {
 	b.frames++
 	if b.plan.from < b.plan.to { // planned, never drawn: what it would have baked is missing
 		b.shadeAt = 0
@@ -115,7 +119,7 @@ func (b *Baker) Plan(lat Lattice, sun [3]float32, blocks []Block) (render.Ground
 	b.plan.from, b.plan.to = 0, 0
 	if lat.Cols < 2 || lat.Rows < 2 || lat.Cell <= 0 {
 		b.shown = false
-		return render.GroundShade{}, false
+		return GroundShade{}, false
 	}
 	b.lat = lat
 	ks := bakedScale(lat.Cols, lat.Rows, b.coarse)
@@ -125,9 +129,9 @@ func (b *Baker) Plan(lat Lattice, sun [3]float32, blocks []Block) (render.Ground
 			b.baked.Deallocate()
 			b.was.Deallocate()
 		}
-		b.baked, b.was = render.NewImage(ws, h), render.NewImage(ws, h)
+		b.baked, b.was = gfx.NewImage(ws, h), gfx.NewImage(ws, h)
 		b.fresh, b.shown, b.shadeAt = true, false, 0
-		b.bakeVerts = make([]render.Vertex, 4)
+		b.bakeVerts = make([]Vertex, 4)
 		b.baking.Uniforms, b.own = map[string]any{}, map[string][]float32{}
 	}
 	per := (h + shadeStrips - 1) / shadeStrips
@@ -181,7 +185,7 @@ func (b *Baker) fade() {
 // heights from the frame's uniforms u, keeping each band as it was before for the frame to fade
 // from. Over a relief whose heights the frame does not hold yet it bakes nothing, and the next
 // Plan plans the whole anew.
-func (b *Baker) Bake(u render.Uniforms) {
+func (b *Baker) Bake(u Uniforms) {
 	if b.baked == nil {
 		return
 	}
@@ -253,7 +257,7 @@ func (b *Baker) Drop() {
 }
 
 // Shade is the shade as last baked, for a test to read: the image and its area in the world.
-func (b *Baker) Shade() render.GroundShade { return b.shade }
+func (b *Baker) Shade() GroundShade { return b.shade }
 
 // Blocks is how many blocks the shade is baked with, a bridge's deck one however many pieces it
 // is laid in.
@@ -356,7 +360,7 @@ func join(a, b Block) (Block, bool) {
 // each pixel handed its point of the world in its custom values
 func (b *Baker) bakeInto(at image.Rectangle, from, size [2]float32) {
 	for i, c := range [4][2]float32{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
-		b.bakeVerts[i] = render.Vertex{
+		b.bakeVerts[i] = Vertex{
 			DstX:    float32(at.Min.X) + c[0]*float32(at.Dx()),
 			DstY:    float32(at.Min.Y) + c[1]*float32(at.Dy()),
 			ColorR:  1,
@@ -367,10 +371,10 @@ func (b *Baker) bakeInto(at image.Rectangle, from, size [2]float32) {
 			Custom1: from[1] + c[1]*size[1],
 		}
 	}
-	b.baked.SubImage(at).DrawTrianglesShader(b.bakeVerts, quad, bakeShade, &b.baking)
+	b.baked.SubImage(at).DrawTrianglesShader(b.bakeVerts, bakeQuad, bakeShade, &b.baking)
 }
 
-var quad = []uint16{0, 1, 2, 1, 2, 3}
+var bakeQuad = []uint16{0, 1, 2, 1, 2, 3}
 
 func bakedScale(cols, rows int, coarse bool) int {
 	shade := max(min(shadePx, maxBaked/max(cols-1, 1), maxBaked/max(rows-1, 1)), 2)

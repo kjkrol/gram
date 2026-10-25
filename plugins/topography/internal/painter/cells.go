@@ -75,7 +75,7 @@ func (l *Painter) refresh(atlas render.AtlasSource) bool {
 	if g.at == l.board.Changes()+1 && g.styled == l.styleVersion && g.atlas == atlas {
 		return false
 	}
-	low, high := l.relief.Extent()
+	low, high := l.ground().Extent()
 	all := g.at == 0 || g.styled != l.styleVersion || g.atlas != atlas || len(g.vers) != n ||
 		float32(low) != g.low || float32(high-low) != g.span
 	if g.atlas != atlas {

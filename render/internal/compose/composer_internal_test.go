@@ -8,12 +8,11 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/internal/gpu"
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
+	"github.com/kjkrol/gram/render/gputest"
 	"github.com/kjkrol/gram/render/internal/gfx"
+	"github.com/kjkrol/gram/render/internal/gpu"
 	"github.com/kjkrol/gram/render/internal/wgsl"
 )
 
@@ -25,7 +24,6 @@ func (sheet) White() (u, v float32)                    { return 40, 40 }
 
 type items func(f *Frame)
 
-func (items) Init(*goke.SysInit)                  {}
 func (s items) Compose(f *Frame, _ camera.Camera) { s(f) }
 
 var (
@@ -228,23 +226,6 @@ func TestComposer_SplitsACallBeforeItsIndicesOverflow(t *testing.T) {
 	c.render(nil, false, 0)
 	if len(sizes) != 2 || sizes[0] != chunkVertices || sizes[1] != 20 {
 		t.Errorf("calls of %v vertices, want %d then 20", sizes, chunkVertices)
-	}
-}
-
-type counted struct {
-	items
-	inits int
-}
-
-func (c *counted) Init(*goke.SysInit) { c.inits++ }
-
-func TestComposer_InitsItsSourcesOnceHoweverManyScenesShowIt(t *testing.T) {
-	src := &counted{}
-	c := NewComposer(src)
-	c.Init(nil)
-	c.Init(nil)
-	if src.inits != 1 {
-		t.Errorf("the source was readied %d times, want once", src.inits)
 	}
 }
 
@@ -551,7 +532,6 @@ type direct struct {
 	sun    []float32
 }
 
-func (*direct) Init(*goke.SysInit) {}
 func (d *direct) Compose(f *Frame, _ camera.Camera) {
 	if d.opaque {
 		f.DrawOpaque()
@@ -586,9 +566,9 @@ func TestComposer_ADirectDrawsWhereItAskedAndOnlyThere(t *testing.T) {
 	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) { calls++ }
 	c.compose(topDown(), wholePart)
 	c.render(nil, false, 0)
-	if len(c.sources) != 7 || len(c.directs) != 7 {
-		t.Fatalf("%d sources, %d directs, want the nil layer left out", len(c.sources),
-			len(c.directs))
+	if len(c.sources) != 7 || len(c.directs) != 8 {
+		t.Fatalf("%d sources, %d directs, want the nil layer left out, the light's own last",
+			len(c.sources), len(c.directs))
 	}
 	if got := ground.drawn; len(got) != 1 || got[0] != 0 || ground.passes[0] != Opaque {
 		t.Errorf("the ground drew after %v calls in %v, want once before all, in the opaque pass",
@@ -694,7 +674,6 @@ type staged struct {
 	u        Uniforms
 }
 
-func (*staged) Init(*goke.SysInit) {}
 func (s *staged) Compose(f *Frame, _ camera.Camera) {
 	s.composed++
 	*s.log = append(*s.log, s.name+" composed")

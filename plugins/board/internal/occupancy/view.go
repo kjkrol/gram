@@ -5,29 +5,46 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
-// View draws the cells an Occupancy holds while shown: every hold its cell's outline lying over
-// it at its level, in its holder's colour.
+// View draws the cells an Occupancy holds while shown, as published once a frame: every hold its
+// cell's outline lying over it at its level, in its holder's colour.
 type View struct {
 	grid      grid.Grid
 	occupancy cell.Occupancy
 	height    Height
+	views     func() []*view.View
 	shown     bool
 	width     float32
+	drawn     render.Buffered[holds]
 
-	frame   *render.Frame
-	cam     camera.Camera
+	back    *holds
+	visited []uint64 // the cells published, by ordinal
 	at      cell.ID
 	outline []geom.Vec
 	cell    func(cell.ID)                      // inCell, bound once
-	hold    func(uid.UID64, cell.Domain, bool) // drawHold, bound once
+	once    func(cell.ID)                      // inCell once a cell, bound once
+	hold    func(uid.UID64, cell.Domain, bool) // takeHold, bound once
+}
+
+// holds are what the View draws: every hold, its points holds.points[from:from+n] round it in the
+// world, and how wide
+type holds struct {
+	all    []hold
+	points [][3]float32
+	width  float32
+}
+
+type hold struct {
+	mid     [3]float32
+	color   color.RGBA
+	from, n int32
 }
 
 // Height is how high the point p of the cell c lies on the ground, or on the raised deck over c.
@@ -43,11 +60,11 @@ const (
 
 var _ render.Source = (*View)(nil)
 
-// NewView is a View, hidden, of o's holds over g, each drawn at the height height says, in no
-// line till Width.
-func NewView(g grid.Grid, o cell.Occupancy, height Height) *View {
-	v := &View{grid: g, occupancy: o, height: height}
-	v.cell, v.hold = v.inCell, v.drawHold
+// NewView is a View, hidden, of o's holds over g under what the cameras' views see (every cell
+// with none), each drawn at the height height says, in no line till Width.
+func NewView(g grid.Grid, o cell.Occupancy, height Height, views func() []*view.View) *View {
+	v := &View{grid: g, occupancy: o, height: height, views: views}
+	v.cell, v.once, v.hold = v.inCell, v.inCellOnce, v.takeHold
 	return v
 }
 
@@ -60,14 +77,63 @@ func (v *View) Show(shown bool) { v.shown = shown }
 // Shown reports whether the holds are shown.
 func (v *View) Shown() bool { return v.shown }
 
-func (v *View) Init(*goke.SysInit) {}
-
-func (v *View) Compose(f *render.Frame, cam camera.Camera) {
+// Publish takes every hold of the cells under what the cameras see, for the frame drawn next.
+func (v *View) Publish() {
+	b := v.drawn.Back()
+	b.all, b.points, b.width = b.all[:0], b.points[:0], v.width
 	if !v.shown || v.occupancy == nil {
 		return
 	}
-	v.frame, v.cam = f, cam
-	v.grid.CellsUnder(cam.Bounds(), v.cell)
+	v.back = b
+	var views []*view.View
+	if v.views != nil {
+		views = v.views()
+	}
+	if len(views) == 0 {
+		v.grid.EachCell(v.cell)
+		return
+	}
+	if n := (v.grid.CellCount() + 63) / 64; len(v.visited) != n {
+		v.visited = make([]uint64, n)
+	}
+	clear(v.visited)
+	for _, seen := range views {
+		v.grid.CellsUnder(seen.Bounds, v.once)
+	}
+}
+
+// Swap has what was published last drawn.
+func (v *View) Swap() { v.drawn.Swap() }
+
+func (v *View) Compose(f *render.Frame, cam camera.Camera) {
+	d := v.drawn.Front()
+	for _, h := range d.all {
+		at := f.Lifted(h.mid[0], h.mid[1], h.mid[2], holdLift)
+		pts := d.points[h.from : h.from+h.n]
+		var x0, y0, xp, yp float32
+		for i, p := range pts {
+			x, y := cam.Project(p[0], p[1], p[2])
+			if i == 0 {
+				x0, y0 = x, y
+			} else {
+				f.Line(at, xp, yp, x, y, d.width, h.color)
+			}
+			xp, yp = x, y
+		}
+		if len(pts) > 1 {
+			f.Line(at, xp, yp, x0, y0, d.width, h.color)
+		}
+	}
+}
+
+func (v *View) inCellOnce(c cell.ID) {
+	if k, ok := v.grid.Ordinal(c); ok {
+		if v.visited[k/64]&(1<<(k%64)) != 0 {
+			return
+		}
+		v.visited[k/64] |= 1 << (k % 64)
+	}
+	v.inCell(c)
 }
 
 func (v *View) inCell(c cell.ID) {
@@ -75,30 +141,22 @@ func (v *View) inCell(c cell.ID) {
 	v.occupancy.Holders(c, v.hold)
 }
 
-func (v *View) drawHold(e uid.UID64, _ cell.Domain, deck bool) {
-	c := v.at
+func (v *View) takeHold(e uid.UID64, _ cell.Domain, deck bool) {
+	c, b := v.at, v.back
 	v.outline = v.grid.CellOutline(c, v.outline[:0])
 	mid := v.grid.CellCenter(c)
 	inset, col := groundInset, holderColor(e)
 	if deck {
 		inset, col = deckInset, lighter(col)
 	}
-	z := float32(v.height(c, mid, deck))
-	at := v.frame.Lifted(float32(mid.X), float32(mid.Y), z, holdLift)
-	var x0, y0, xp, yp float32
-	for i, p := range v.outline {
+	h := hold{mid: [3]float32{float32(mid.X), float32(mid.Y), float32(v.height(c, mid, deck))},
+		color: col, from: int32(len(b.points)), n: int32(len(v.outline))}
+	for _, p := range v.outline {
 		p = geom.NewVec(p.X+(mid.X-p.X)*inset, p.Y+(mid.Y-p.Y)*inset)
-		x, y := v.cam.Project(float32(p.X), float32(p.Y), float32(v.height(c, p, deck)))
-		if i == 0 {
-			x0, y0 = x, y
-		} else {
-			v.frame.Line(at, xp, yp, x, y, v.width, col)
-		}
-		xp, yp = x, y
+		b.points = append(b.points, [3]float32{float32(p.X), float32(p.Y),
+			float32(v.height(c, p, deck))})
 	}
-	if len(v.outline) > 1 {
-		v.frame.Line(at, xp, yp, x0, y0, v.width, col)
-	}
+	b.all = append(b.all, h)
 }
 
 // hues a golden angle apart by index, so neighbours differ

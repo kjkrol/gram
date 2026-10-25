@@ -44,7 +44,6 @@ type views struct {
 	wrap          [2]bool
 	low, span     float32
 	heights       []float64
-	covers        []coverTexel
 	pix, bandPix  []byte
 
 	sight            *render.Image
@@ -66,6 +65,68 @@ type observer struct {
 
 type coverTexel struct{ tau, bottom, top float64 }
 
+// coverCopy is the cover as a Publish walked it, a texel every step over a grid nx by ny: what
+// the views drawn are held back by
+type coverCopy struct {
+	at        [2]uint64 // the ground's and the cover's versions walked
+	nx, ny    int
+	step      float32
+	texels    []coverTexel // nil for no cover
+	low, high float64      // the bands walked, ±Inf for none
+}
+
+// update walks cover into c over a world w by h, a texel every step, anew where it, the ground or
+// the grid changed since c was walked
+func (c *coverCopy) update(
+	ground ground.Heights, cover ground.Cover, w, h, step float32, wrap [2]bool,
+) {
+	nx, ny := groundCount(w, h, step, wrap)
+	at := [2]uint64{versionOf(ground), versionOf(cover)}
+	if c.texels != nil && at[0] != 0 && at[1] != 0 && at == c.at && nx == c.nx && ny == c.ny &&
+		step == c.step {
+		return
+	}
+	c.at, c.nx, c.ny, c.step = at, nx, ny, step
+	c.low, c.high = math.Inf(1), math.Inf(-1)
+	if cover == nil {
+		c.texels = nil
+		return
+	}
+	c.texels = resizeCover(c.texels, nx*ny)
+	for k := range c.texels {
+		c.texels[k] = coverTexel{tau: 1}
+	}
+	y := func(j int) float64 { return math.Min(float64(j)*float64(step), float64(h)-1e-3) }
+	var row []coverTexel
+	visit := func(near, far, bottom, top, tau float64) bool {
+		first := max(int(math.Ceil(near/float64(step))), 0)
+		for i := first; i < nx && float64(i)*float64(step) <= far; i++ {
+			if tau < row[i].tau {
+				row[i] = coverTexel{tau: math.Max(tau, 0), bottom: bottom, top: top}
+			}
+		}
+		if !math.IsInf(bottom, 0) && !math.IsInf(top, 0) {
+			c.low, c.high = math.Min(c.low, bottom), math.Max(c.high, top)
+		}
+		return true
+	}
+	for j := range ny {
+		row = c.texels[j*nx : (j+1)*nx]
+		cover.Walk(geom.NewVec(0, y(j)), geom.NewVec(1, 0), float64(w), 0, visit)
+	}
+}
+
+// groundCount is how many texels a step apart the ground's copy has across a world w by h
+func groundCount(w, h, step float32, wrap [2]bool) (nx, ny int) {
+	count := func(size float32, wraps bool) int {
+		if wraps {
+			return min(max(int(size/step+0.5), 1), maxGround)
+		}
+		return min(int(size/step)+1, maxGround)
+	}
+	return count(w, wrap[0]), count(h, wrap[1])
+}
+
 func newViews() *views {
 	v := &views{bakeOwn: map[string][]float32{}, drawOwn: map[string][]float32{}}
 	v.baking.Uniforms = map[string]any{}
@@ -82,7 +143,7 @@ func (v *views) look(cam camera.Camera, o observer) {
 }
 
 func (v *views) draw(
-	t render.Target, cam camera.Camera, ground ground.Heights, cover ground.Cover, w, h,
+	t render.Target, cam camera.Camera, ground ground.Heights, cover *coverCopy, w, h,
 	step float32, wrap [2]bool, bend float64, shadow Shadow,
 ) {
 	defer func() { v.observers = v.observers[:0] }()
@@ -247,21 +308,21 @@ func set(u map[string]any, own map[string][]float32, name string, vals ...float3
 	copy(s, vals)
 }
 
-func (v *views) copy(ground ground.Heights, cover ground.Cover, w, h, step float32, wrap [2]bool) {
-	count := func(size float32, wraps bool) int {
-		if wraps {
-			return min(max(int(size/step+0.5), 1), maxGround)
-		}
-		return min(int(size/step)+1, maxGround)
+// copy has the ground's texture hold ground and the cover as published, cover nil for none
+func (v *views) copy(ground ground.Heights, cover *coverCopy, w, h, step float32, wrap [2]bool) {
+	nx, ny := groundCount(w, h, step, wrap)
+	var covers []coverTexel
+	at := [2]uint64{versionOf(ground), versionOf(nil)}
+	if cover != nil && cover.texels != nil && cover.nx == nx && cover.ny == ny &&
+		cover.step == step {
+		covers, at[1] = cover.texels, cover.at[1]
 	}
-	nx, ny := count(w, wrap[0]), count(h, wrap[1])
-	at := [2]uint64{versionOf(ground), versionOf(cover)}
 	if v.ground != nil && nx == v.nx && ny == v.ny && step == v.step && wrap == v.wrap && at[0] != 0 && at[1] != 0 && at == v.groundAt {
 		return
 	}
 	v.groundAt, v.nx, v.ny, v.step, v.wrap = at, nx, ny, step, wrap
 	n := nx * ny
-	v.heights, v.covers = resize(v.heights, n), resizeCover(v.covers, n)
+	v.heights = resize(v.heights, n)
 	x := func(i int) float64 { return math.Min(float64(i)*float64(step), float64(w)-1e-3) }
 	y := func(j int) float64 { return math.Min(float64(j)*float64(step), float64(h)-1e-3) }
 	low, high := math.Inf(1), math.Inf(-1)
@@ -275,24 +336,8 @@ func (v *views) copy(ground ground.Heights, cover ground.Cover, w, h, step float
 			low, high = math.Min(low, g), math.Max(high, g)
 		}
 	}
-	for k := range v.covers {
-		v.covers[k] = coverTexel{tau: 1}
-	}
-	if cover != nil {
-		for j := range ny {
-			row := v.covers[j*nx : (j+1)*nx]
-			cover.Walk(geom.NewVec(0, y(j)), geom.NewVec(1, 0), float64(w), 0, func(near, far, bottom, top, tau float64) bool {
-				for i := max(int(math.Ceil(near/float64(step))), 0); i < nx && float64(i)*float64(step) <= far; i++ {
-					if tau < row[i].tau {
-						row[i] = coverTexel{tau: math.Max(tau, 0), bottom: bottom, top: top}
-					}
-				}
-				if !math.IsInf(bottom, 0) && !math.IsInf(top, 0) {
-					low, high = math.Min(low, bottom), math.Max(high, top)
-				}
-				return true
-			})
-		}
+	if covers != nil {
+		low, high = math.Min(low, cover.low), math.Max(high, cover.high)
 	}
 	if math.IsInf(low, 0) {
 		low, high = 0, 0
@@ -305,7 +350,10 @@ func (v *views) copy(ground ground.Heights, cover ground.Cover, w, h, step float
 	}
 	for k := range n {
 		hi, lo := enc(v.heights[k])
-		c := v.covers[k]
+		c := coverTexel{tau: 1}
+		if covers != nil {
+			c = covers[k]
+		}
 		// a band without end, a cover of no height, has it all: alpha none
 		whole := byte(255)
 		if math.IsInf(c.bottom, 0) || math.IsInf(c.top, 0) {

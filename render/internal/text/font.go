@@ -14,8 +14,8 @@ import (
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
 
-	"github.com/kjkrol/gram/internal/gpu"
 	"github.com/kjkrol/gram/render/internal/gfx"
+	"github.com/kjkrol/gram/render/internal/gpu"
 )
 
 // Font is a typeface at a size, its glyphs drawn on demand into a sheet of its own.

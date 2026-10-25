@@ -14,7 +14,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/sector"
-	"github.com/kjkrol/gram/render"
 )
 
 // Plugin wires vision into a Stage over the world's space. It publishes what entities can see;
@@ -22,19 +21,20 @@ import (
 type Plugin struct {
 	*world.Self
 
-	worldPlugin *world.Plugin
-	module      *module
-	renderer    *Renderer
-	groundStep  float64
-	heights     func() ground.Heights
-	covers      func(w int) ground.Cover // worker w's
-	workers     int
-	frequency   float64
-	log         *log.Logger
-	cones       command.Queue[Cones]
+	worldPlugin  *world.Plugin
+	module       *module
+	renderer     *Renderer
+	groundStep   float64
+	heights      func() ground.Heights
+	drawnHeights func() ground.Heights    // the frame's, what the views are drawn over
+	covers       func(w int) ground.Cover // worker w's
+	workers      int
+	frequency    float64
+	log          *log.Logger
+	cones        command.Queue[Cones]
 
 	sightings host.PairRules[Sighting]
-	drawing   render.Rules
+	drawing   world.Rules
 	kept      *plugin.Kept[Settings]
 
 	Res   Resources
@@ -55,7 +55,7 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.renderer = NewRenderer(worldPlugin.Read(0).Space()).WithGround(p.groundOf).WithCover(p.coverOf).
 		WithScale(worldPlugin.Read(0).Scale()).WithDrawing(&p.drawing).
-		WithStyles(worldPlugin.Read(0).Styles).WithSeen(worldPlugin.Read(0).ViewFor)
+		WithStyles(worldPlugin.Read(0).Styles).WithSeen(worldPlugin.Read(0).ViewFor).WithInView(worldPlugin.Read(0).InView)
 	p.renderer.Hide(true)
 	return p
 }
@@ -65,7 +65,7 @@ func (p *Plugin) Name() string { return "gram.vision" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	var h *heights
 	if p.worldPlugin.Read(0).HasHeights() {
-		h = &heights{groundOf: p.groundOf, step: p.groundStep, bend: p.worldPlugin.Read(0).Scale().Bend()}
+		h = &heights{groundOf: p.scanned, step: p.groundStep, bend: p.worldPlugin.Read(0).Scale().Bend()}
 	}
 	p.module = newModule(p.worldPlugin.Read(0).Space(), &p.sightings, h, p.coverOn, p.workers)
 	p.module.sys.Pool(ctx.Pool())
@@ -97,9 +97,9 @@ func (p *Plugin) Restore() {
 	p.setHidden(!p.Res.Settings.Cones)
 }
 
-// WithViews has only the views of the observers a render.Show rule picks drawn; with none, every
+// WithViews has only the views of the observers a world.Show rule picks drawn; with none, every
 // one is. Call it in the scene, before the first frame.
-func (p *Plugin) WithViews(rules ...render.Rule) *Plugin {
+func (p *Plugin) WithViews(rules ...world.Rule) *Plugin {
 	if err := p.drawing.Add(rules...); err != nil {
 		panic(fmt.Errorf("%w in %s", err, p.Name()))
 	}
@@ -124,9 +124,11 @@ func (p *Plugin) WithShadow(shadow Shadow) *Plugin {
 	return p
 }
 
-// WithBoard has sight follow brd's ground and be held back by its cover; call before Use.
+// WithBoard has sight follow brd's ground and be held back by its cover, and the views drawn
+// over the ground as the frame drawn holds it; call before Use.
 func (p *Plugin) WithBoard(brd *board.Plugin) *Plugin {
 	p.covers = func(w int) ground.Cover { return brd.Read(w).Cover() }
+	p.drawnHeights = brd.Read(0).DrawnHeights
 	return p.WithHeights(brd.Read(0).Heights)
 }
 
@@ -146,7 +148,16 @@ func (p *Plugin) WithCover(cover func() ground.Cover) *Plugin {
 	return p
 }
 
+// the ground the views are drawn over: the frame's where the board gives it
 func (p *Plugin) groundOf() ground.Heights {
+	if p.drawnHeights != nil {
+		return p.drawnHeights()
+	}
+	return p.scanned()
+}
+
+// the ground sight scans: as it stands
+func (p *Plugin) scanned() ground.Heights {
 	if p.heights == nil {
 		return nil
 	}

@@ -6,7 +6,12 @@
 //
 // A [Scene] is a game.Scene whose screen is a tree of elements, made by [NewScene] once the world
 // is there. [Scene.Input] hands its input to the players' bindings; [Scene.Show], [Scene.Hide] and
-// [Scene.Toggle] show and hide elements by name ([Element.Named]).
+// [Scene.Toggle] show and hide elements by name ([Element.Named]). Its drawer is a
+// plugin.Publisher: once a frame, after the ticks, it reads off the game where its pinned
+// elements' entities stand, every Text's words, every control's value and what is hidden, and
+// the frame is laid, drawn and clicked as that says; an element put in since reads them as it
+// is laid. It is laid on the frame's barrier, where nothing ticks or draws (game.Laying), and
+// drawing only paints it.
 //
 // # Layout
 //

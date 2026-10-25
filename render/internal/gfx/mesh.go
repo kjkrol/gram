@@ -2,7 +2,7 @@ package gfx
 
 import (
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/internal/gpu"
+	"github.com/kjkrol/gram/render/internal/gpu"
 )
 
 // Depth is a depth buffer for meshes, reversed (1 nearest), the size of the whole texture the

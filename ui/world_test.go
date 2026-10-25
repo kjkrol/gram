@@ -85,13 +85,13 @@ func TestPin_UnderAnEffectFollowsTheEntitiesItIsOn(t *testing.T) {
 	tick(1)
 	w.Write().Carrier().Put(command.Nobody, ceremony.Put(frozen).On(ceremony.Named("bob")))
 	tick(2)
-	d.find()
+	d.find(d.spots)
 	spots := d.spots[label]
 	if len(spots) != 1 || !spots[0].placed || spots[0].x != 105 || spots[0].y != 100 {
 		t.Fatalf("spots %+v, want bob alone, at the top middle of its box (105, 100)", spots)
 	}
 	tick(12)
-	d.find()
+	d.find(d.spots)
 	if n := len(d.spots[label]); n != 0 {
 		t.Fatalf("%d spots after the effect ended, want none", n)
 	}
@@ -136,7 +136,7 @@ func TestPin_WhereTaggedFollowsTheEntitiesCarryingTheTag(t *testing.T) {
 	ctx.ecs.Setup(append(systems, goke.SystemFn{OnInit: d.Init})...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, dt time.Duration) { w.RunPlan(rc, dt); rc.Sync() })
 	ctx.ecs.Tick(time.Second / 10)
-	d.find()
+	d.find(d.spots)
 	spots := d.spots[label]
 	if len(spots) != 1 || spots[0].x != 105 {
 		t.Fatalf("spots %+v, want the marked unit alone, at x 105", spots)

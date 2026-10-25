@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -23,8 +22,6 @@ type reporter struct {
 	tps   *int
 	rate  perSecond
 }
-
-func (*reporter) Init(*goke.SysInit) {}
 
 func (r *reporter) Report(line func(label, value string)) {
 	perSec := r.rate.observe(r.stats.Counter, time.Now())

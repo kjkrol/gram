@@ -5,7 +5,6 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/render"
 )
 
 type ecsHost struct {
@@ -16,11 +15,11 @@ type ecsHost struct {
 	loaded       map[string][]byte // the last Load's groups, for values tracked after it
 	pendingSetup []func() []goke.System
 	names        map[string]bool
-	drawers      map[render.Drawer]bool // registered, when comparable
+	bound        map[any]bool // registered, when comparable
 }
 
 func newECSHost() *ecsHost {
-	return &ecsHost{ecs: goke.New(), resources: newStorage(), drawers: map[render.Drawer]bool{}}
+	return &ecsHost{ecs: goke.New(), resources: newStorage(), bound: map[any]bool{}}
 }
 
 func (h *ecsHost) track(v any) { h.tracked = append(h.tracked, v) }
@@ -60,14 +59,15 @@ func (h *ecsHost) regSys(factory func() goke.System) goke.Runnable {
 	return h.ecs.RegSys(factory())
 }
 
-func (h *ecsHost) registerDrawer(l render.Drawer) {
-	if reflect.TypeOf(l).Comparable() {
-		if h.drawers[l] {
+// registerBound has b readied once at the stage's Setup
+func (h *ecsHost) registerBound(b plugin.Bound) {
+	if reflect.TypeOf(b).Comparable() {
+		if h.bound[b] {
 			return
 		}
-		h.drawers[l] = true
+		h.bound[b] = true
 	}
-	sys := goke.SystemFn{OnInit: func(si *goke.SysInit) { l.Init(si) }}
+	sys := goke.SystemFn{OnInit: b.Init}
 	h.addPendingSetup(func() []goke.System { return []goke.System{sys} })
 }
 
