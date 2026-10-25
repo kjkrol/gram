@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.5.0 — 2026-10-25
 
 Needs aabbworld v1.18.0: its geometry in float32, a box 32 bytes; two boxes overlapping within
 float32's rounding touching, not pushed; `collide.Handler.Touch` handing the share of a push;
