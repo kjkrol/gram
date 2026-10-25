@@ -430,6 +430,7 @@ func TestCompass_HangsOnTheCirclesEdgePointingNorthTurningWithTheMinimap(t *test
 	if pts := surface.points(); pts[0][0] >= float32(mid-out) {
 		t.Errorf("headed east, the tip at %v points %v, want left, past the base", pts[0], pts[1:])
 	}
+	gputest.Need(t)
 	if img := surface.Draw(); img == nil || img.Bounds().Dx() != side {
 		t.Errorf("the compass drew %v, want a picture %d wide", img, side)
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
+	"github.com/kjkrol/gram/render/gputest"
 	"github.com/kjkrol/gram/render/internal/gfx"
 )
 
@@ -154,6 +155,7 @@ func (f *figured) SetSharpFigures(on bool) { f.sharp = on }
 func (f *figured) SharpFigures() bool      { return f.sharp }
 
 func TestFeed_DrawsItsPictureThroughItsCameraAtItsSize(t *testing.T) {
+	gputest.Need(t)
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	picture := &recording{}
 	feed := NewFeed(cam, picture)
@@ -171,6 +173,7 @@ func TestFeed_DrawsItsPictureThroughItsCameraAtItsSize(t *testing.T) {
 }
 
 func TestFeed_DrawsAtItsCamerasResolutionAndSpeaksShownPixels(t *testing.T) {
+	gputest.Need(t)
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	cam.(camera.Resolved).SetResolution(0.5)
 	picture := &recording{}
@@ -197,6 +200,7 @@ func TestFeed_DrawsAtItsCamerasResolutionAndSpeaksShownPixels(t *testing.T) {
 }
 
 func TestFeed_DrawsALayeredCameraALayerARingCoarseToFine(t *testing.T) {
+	gputest.Need(t)
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	cam.(camera.Layered).SetLayers([]camera.Layer{
 		{Share: 1, Resolution: 0.5},
@@ -233,6 +237,7 @@ func TestFeed_DrawsALayeredCameraALayerARingCoarseToFine(t *testing.T) {
 }
 
 func TestFeed_DrawsAFootedCameraALayerOnTheBottomEdge(t *testing.T) {
+	gputest.Need(t)
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	cam.(camera.Layered).SetLayers([]camera.Layer{
 		{Share: 1, Resolution: 0.5},
@@ -265,6 +270,7 @@ func TestFeed_DrawsAFootedCameraALayerOnTheBottomEdge(t *testing.T) {
 }
 
 func TestFeed_LeavesOutOfEachLayerTheNextOnesWindowInsideItsFeather(t *testing.T) {
+	gputest.Need(t)
 	const f = LayerFeather
 	layers := []camera.Layer{
 		{Share: 1, Resolution: 0.5},
@@ -324,6 +330,7 @@ func TestFeed_FadesOnlyTheSidesInsideTheFrame(t *testing.T) {
 }
 
 func TestFeed_DrawsACameraOfOneRingAsAResolvedOne(t *testing.T) {
+	gputest.Need(t)
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	cam.(camera.Layered).SetLayers([]camera.Layer{{Share: 1, Resolution: 0.5}}, camera.Inset)
 	cam.(camera.Resolved).SetResolution(0.5)
@@ -338,6 +345,7 @@ func TestFeed_DrawsACameraOfOneRingAsAResolvedOne(t *testing.T) {
 }
 
 func TestFeed_DrawOnDrawsTheWholeFrameAtEveryPixelStraightOntoTheTarget(t *testing.T) {
+	gputest.Need(t)
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	cam.(camera.Layered).SetLayers([]camera.Layer{
 		{Share: 1, Resolution: 1},
@@ -364,6 +372,7 @@ func TestFeed_DrawOnDrawsTheWholeFrameAtEveryPixelStraightOntoTheTarget(t *testi
 }
 
 func TestFeed_DrawsTheGroundAtItsResolutionAndTheFiguresAtEveryPixel(t *testing.T) {
+	gputest.Need(t)
 	cam := newFigured(true)
 	cam.SetResolution(0.5)
 	picture := &recording{}
@@ -393,6 +402,7 @@ func TestFeed_DrawsTheGroundAtItsResolutionAndTheFiguresAtEveryPixel(t *testing.
 }
 
 func TestFeed_DrawsWholeWithTheFiguresSoftOrEveryPixelDrawn(t *testing.T) {
+	gputest.Need(t)
 	cam := newFigured(false)
 	cam.SetResolution(0.5)
 	picture := &recording{}
@@ -429,6 +439,7 @@ func layered(cam *figured) *recording {
 }
 
 func TestFeed_DrawsALayeredCameraSharpFromOneComposition(t *testing.T) {
+	gputest.Need(t)
 	cam := newFigured(true)
 	picture := layered(cam)
 	want := []pass{
@@ -449,6 +460,7 @@ func TestFeed_DrawsALayeredCameraSharpFromOneComposition(t *testing.T) {
 }
 
 func TestFeed_DrawsALayeredCameraSoftFromOneComposition(t *testing.T) {
+	gputest.Need(t)
 	picture := layered(newFigured(false))
 	want := []pass{
 		{"lay", call{0, 0, 64, 48}, camera.Window{}},
@@ -474,6 +486,7 @@ func TestFeed_DrawsALayeredCameraSoftFromOneComposition(t *testing.T) {
 }
 
 func TestFeed_DrawOnDrawsWhatLiesOverTheFiguresStraightOntoTheTarget(t *testing.T) {
+	gputest.Need(t)
 	cam := newFigured(true)
 	cam.SetResolution(0.5)
 	picture := &recording{}

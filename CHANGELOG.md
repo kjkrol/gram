@@ -136,6 +136,10 @@ collision's pair sweep tests a crowded cell four boxes at a time, finding the sa
   thread left a core (`Props.Workers` says otherwise). `GRAM_FPS_LOG` notes how long a frame
   awaited its ticks. A minimap hidden still publishes where it looks, for its compass; a ui
   picture is drawn straight onto a target only at the size it was laid out at.
+- A game's own board map shown: `examples/board/custom-map` (hills of the game's own, shaded by
+  height, walked round and climbed slower) and `ExamplePlugin_WithMap`. The tests that draw skip
+  where there is no GPU, so CI passes again; Codecov counts no coverage of `examples/`, `bench/`
+  or `cmd/`.
 - `Benchmark_World_Publish`, `_Draw` and `_Frame` name their cases by the boxes in view, a world
   of 50000 besides; publishing in parts on the pool, from the cameras' views or by the entities'
   indexes was measured and not kept (BENCHMARKS.md).
