@@ -318,6 +318,7 @@ demo opens a window; what it shows is tested in the library's package that does 
 | Demo | Shows | Run |
 |:---|:---|:---|
 | [`board/atlas`](examples/board/atlas) | A small flat board drawn from the game's own atlas, the water a material shimmering per pixel, a road laid as a way | `make demo-board-atlas` |
+| [`board/custom-map`](examples/board/custom-map) | A board drawn and priced by a map of the game's own (`board.Plugin.WithMap`): hills rising out of the grass, shaded by how high they lie; the walkers go round the steep and slow down climbing | `make demo-board-custom-map` |
 | [`board/flat`](examples/board/flat) | Madeira on the simple map out of `cmd/gramap`: the island in its colours, rivers and roads as bands, bridges and fords standing on it, a day and the weather going by, a minimap north up | `make demo-board-flat` |
 | [`board/topography`](examples/board/topography) | Madeira in relief, its true heights, a cell 333 m: lit by the sun, water running, roads laid as Transport Tycoon lays them, bridges on piers (Shift+B builds one), the ground shaped under the cursor; the camera on a stick turned (Q, E) and leaned (R, F) from straight down to isometric and flatter, orthographic or in perspective (Tab); a minimap turning with it, a click on it taking the camera there; the ground textured from photographs (`make demo-board-topography`) or painted, the light in bands (`make demo-board-topography-ghibli`); the hour, the date and the weather in a bar or apart by the corners (`make demo-board-topography-widgets`) | `make demo-board-topography` |
 

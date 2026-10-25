@@ -188,7 +188,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `look.Map`, its drawing half: `Look`, `Heights`, `Dressing`, `Top`): a game gives its own
   map through it — topography is one, the board's windy map another. Its methods stay even
   where no plugin of the repo calls one (`look.Renderer` reads only `Look` and `Dressing`
-  today); never treat them as dead code — a point with no example gets one under `examples/`;
+  today); never treat them as dead code — a point with no example gets one under `examples/`
+  (the `Map`'s: `examples/board/custom-map`, `ExamplePlugin_WithMap`);
   what draws reads the cells **as published** (2026-10-24): the plugin publishes them once a
   frame (`drawn.go`: two buffers, each brought up to the board where a cell's version differs,
   a cell 32 bytes, its kinds and way interned), read through `board.Read.Drawn()` (a

@@ -1,0 +1,7 @@
+board:
+  default: grass
+units: # each bound across the hills
+  - {kind: unit, side: player, start: [1, 8], target: [30, 8]}
+  - {kind: unit, side: player, start: [1, 17], target: [30, 2]}
+  - {kind: unit, side: player, start: [30, 18], target: [1, 1]}
+  - {kind: unit, side: player, start: [16, 1], target: [16, 18]}
