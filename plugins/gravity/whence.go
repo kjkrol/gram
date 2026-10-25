@@ -1,10 +1,9 @@
 package gravity
 
 import (
-	"math"
-
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -24,7 +23,7 @@ func (w *whence) away(id uid.UID64, a Away) (geom.Vec, bool) {
 	at, facing := b.Pos.Center(), b.Vel.Dir
 	if a.aimed && a.from != id && w.others.Seek(a.from) {
 		from := w.obase.At(w.others.Cursor()).Pos.Center()
-		if l := math.Hypot(at.X-from.X, at.Y-from.Y); l > 0 {
+		if l := f32.Hypot(at.X-from.X, at.Y-from.Y); l > 0 {
 			return geom.NewVec((at.X-from.X)/l, (at.Y-from.Y)/l), true
 		}
 	}

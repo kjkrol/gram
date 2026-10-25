@@ -130,7 +130,7 @@ func TestOrthoCamera_ZoomKeepsTheAnchorAndBoundsStayInTheWorld(t *testing.T) {
 		t.Errorf("Bounds %v does not contain the ground under the screen centre (%v, %v)",
 			b, cx, cy)
 	}
-	if !cam.Visible(geom.NewAABBAt(geom.NewVec(float64(cx)-5, float64(cy)-5), 10, 10)) {
+	if !cam.Visible(geom.NewAABBAt(geom.NewVec(float32(cx)-5, float32(cy)-5), 10, 10)) {
 		t.Error("a box under the screen centre is not Visible")
 	}
 	if cam.Visible(geom.NewAABBAt(geom.NewVec(0, 0), 1, 1)) && !inBounds(b, 0, 0) {

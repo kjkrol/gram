@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/ground"
@@ -93,18 +94,18 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			}
 			switch {
 			case facing:
-				n := math.Hypot(face.X, face.Y)
+				n := f32.Hypot(face.X, face.Y)
 				heading = geom.NewVec(face.X/n, face.Y/n)
 			case in.Turn != 0:
-				a := float64(in.Turn) * driveTurn
-				sin, cos := math.Sincos(a)
+				a := float32(in.Turn) * driveTurn
+				sin, cos := f32.Sincos(a)
 				heading = geom.NewVec(heading.X*cos-heading.Y*sin, heading.X*sin+heading.Y*cos)
 			}
 			if in.Turn != 0 || in.Ahead != 0 || facing {
 				st.Request(heading) // what it faces now, not a heading an order left behind
 			}
 			// a flyer steered up or down goes the less along the ground, the more steeply
-			level := 1.0
+			level := float32(1)
 			if domain&cell.Air != 0 {
 				_, level = in.Slope()
 			}
@@ -117,12 +118,12 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			}
 			right := geom.NewVec(-heading.Y, heading.X)
 			switch {
-			case in.Side != 0 && s.open(w, geom.NewVec(right.X*float64(in.Side), right.Y*float64(in.Side))):
+			case in.Side != 0 && s.open(w, geom.NewVec(right.X*float32(in.Side), right.Y*float32(in.Side))):
 				side := st.MaxSpeed * level
 				if in.Sprint {
 					side *= max(st.Sprint, 1)
 				}
-				st.RequestSide(float64(in.Side) * side)
+				st.RequestSide(float32(in.Side) * side)
 			default:
 				st.RequestSide(0) // at the water's edge beside it too
 			}
@@ -163,7 +164,7 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 // the cosine of the least turn a walking unit brakes for: 45 degrees off its way
 const turnBrake = 0.7
 
-func backing(st *steering.Steering) float64 {
+func backing(st *steering.Steering) float32 {
 	if st.V0 > 0 {
 		return st.V0
 	}
@@ -175,7 +176,7 @@ func (s *driveSystem) follow(id uid.UID64, at *unit.At, pos world.Position, z *w
 	if s.board == nil {
 		return false
 	}
-	feet, reach := math.Inf(-1), 0.0
+	feet, reach := f32.Inf(-1), float32(0)
 	if z != nil {
 		feet, reach = z.Altitude, z.Reach()
 	}
@@ -211,7 +212,7 @@ func (s *driveSystem) open(w walker, heading geom.Vec) bool {
 		return true
 	}
 	// as far as the box runs out the way it heads, an oblong unit's side across its length
-	reach := (w.pos.Size.X*math.Abs(heading.X)+w.pos.Size.Y*math.Abs(heading.Y))/2 + driveMargin
+	reach := (w.pos.Size.X*f32.Abs(heading.X)+w.pos.Size.Y*f32.Abs(heading.Y))/2 + driveMargin
 	centre := w.pos.Center()
 	point := geom.NewVec(centre.X+heading.X*reach, centre.Y+heading.Y*reach)
 	ahead, ok := s.board.CellAt(point)

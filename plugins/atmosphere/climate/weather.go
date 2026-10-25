@@ -56,7 +56,7 @@ type Config struct {
 	Start    string
 	Seed     uint64
 	Blend    time.Duration
-	Horizon  float64
+	Horizon  float32
 	Patchy   bool
 	OneLayer bool
 }

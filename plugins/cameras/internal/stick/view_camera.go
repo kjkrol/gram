@@ -103,7 +103,7 @@ func (c *viewCamera) Detail() contract.Detail { return c.detail }
 func (c *viewCamera) SetDetail(d contract.Detail) { c.detail = d }
 
 // See has the camera see factor times as far.
-func (c *viewCamera) See(factor float64) { c.detail = c.detail.Widened(factor) }
+func (c *viewCamera) See(factor float32) { c.detail = c.detail.Widened(factor) }
 
 // In the parallel view all one way, from Headroom over the highest ground.
 func (c *viewCamera) Rays() (contract.RayField, bool) {
@@ -161,10 +161,10 @@ func (c *viewCamera) Vanish(dx, dy, dz float32) (float32, float32, bool) {
 
 // never turned inside out: a rectangle off the world is an empty one at its edge
 func worldBox(minX, minY, maxX, maxY float32, size geom.Vec) contract.AABB {
-	w, h := float32(size.X), float32(size.Y)
+	w, h := size.X, size.Y
 	x0, y0 := min(max(minX, 0), w), min(max(minY, 0), h)
 	x1, y1 := max(min(maxX, w), x0), max(min(maxY, h), y0)
-	return contract.AABB{TopLeft: geom.NewVec(float64(x0), float64(y0)), BottomRight: geom.NewVec(float64(x1), float64(y1))}
+	return contract.AABB{TopLeft: geom.NewVec(x0, y0), BottomRight: geom.NewVec(x1, y1)}
 }
 
 func (c *viewCamera) Fasten(f contract.Fastening) { c.fastening = f }
@@ -201,8 +201,8 @@ func newCamera(
 		panic("cameras: a camera in relief cannot keep the whole world in view " +
 			"(camera.Config.Whole): that is a top-down camera's")
 	}
-	vp := geom.NewAABBAt(geom.NewVec(float64(width)/2-0.5, float64(height)/2-0.5), 1, 1)
-	world := geom.NewVec(float64(width), float64(height))
+	vp := geom.NewAABBAt(geom.NewVec(float32(width)/2-0.5, float32(height)/2-0.5), 1, 1)
+	world := geom.NewVec(float32(width), float32(height))
 	ortho := newOrthoCamera(o, start, world, vp, edges)
 	if cfg.Zoom > 0 {
 		ortho.scale = cfg.Zoom
@@ -259,7 +259,7 @@ func (c *viewCamera) toOrtho() {
 	o.look()
 	o.scale = o.limited(p.focal() / p.length / o.res)
 	c.inPersp, c.cur = false, o
-	o.CenterOn(float64(p.foot[0]), float64(p.foot[1]), float64(p.foot[2]))
+	o.CenterOn(p.foot[0], p.foot[1], p.foot[2])
 }
 
 func (c *viewCamera) Turn(angle float32) {
@@ -287,7 +287,7 @@ func (c *viewCamera) Heading() float32 {
 
 func (c *viewCamera) Ahead() (x, y float32) {
 	f := facing(c.Heading())
-	return float32(f.X), float32(f.Y)
+	return f.X, f.Y
 }
 
 func (c *viewCamera) Pitch() float32 {
@@ -340,11 +340,11 @@ func (c *viewCamera) leaveInside() {
 	at := c.persp.underEye()
 	c.persp.setPose(c.was)
 	if c.wasPersp {
-		c.persp.CenterOn(float64(at[0]), float64(at[1]), float64(at[2]))
+		c.persp.CenterOn(at[0], at[1], at[2])
 		return
 	}
 	c.inPersp, c.cur = false, c.ortho
-	c.ortho.CenterOn(float64(at[0]), float64(at[1]), float64(at[2]))
+	c.ortho.CenterOn(at[0], at[1], at[2])
 }
 
 func (c *viewCamera) ScaleAt(x, y, z float32) float32 {
@@ -370,9 +370,9 @@ func (c *viewCamera) ToScreenQuads(x0, y0, x1, y1 float32, dst []contract.Quad) 
 }
 func (c *viewCamera) Visible(box contract.AABB) bool { return c.cur.Visible(box) }
 func (c *viewCamera) Bounds() contract.AABB          { return c.cur.Bounds() }
-func (c *viewCamera) MoveTo(x, y float64)            { c.cur.MoveTo(x, y) }
-func (c *viewCamera) CenterOn(x, y, z float64)       { c.cur.CenterOn(x, y, z) }
-func (c *viewCamera) Translate(dx, dy float64)       { c.cur.Translate(dx, dy) }
+func (c *viewCamera) MoveTo(x, y float32)            { c.cur.MoveTo(x, y) }
+func (c *viewCamera) CenterOn(x, y, z float32)       { c.cur.CenterOn(x, y, z) }
+func (c *viewCamera) Translate(dx, dy float32)       { c.cur.Translate(dx, dy) }
 
 func (c *viewCamera) Pan(dx, dy float32) { c.cur.Pan(dx, dy) }
 

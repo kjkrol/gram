@@ -1,10 +1,6 @@
 package cameras_test
 
 import (
-	"github.com/kjkrol/ceremony/host"
-	"github.com/kjkrol/gram/internal/parallel"
-	"github.com/kjkrol/gram/ui"
-	"math"
 	"testing"
 	"time"
 
@@ -12,16 +8,20 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/ui"
 	"github.com/kjkrol/uid"
 )
 
@@ -60,20 +60,20 @@ type camp struct {
 	q        *goke.Query
 }
 
-func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.Entry) *camp {
+func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float32]) []kind.Entry) *camp {
 	t.Helper()
 	c := &camp{t: t}
 	c.w = world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 10, MaxSize: 10},
 	})
-	kind.Define[float64](c.w.Kinds(), "unit", kind.Spec{
-		comp.Load(func(x float64) world.Position {
+	kind.Define[float32](c.w.Kinds(), "unit", kind.Spec{
+		comp.Load(func(x float32) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
 		}),
 		comp.Const(world.Velocity{}),
 	})
-	unit := kind.Named[float64](c.w.Kinds(), "unit")
+	unit := kind.Named[float32](c.w.Kinds(), "unit")
 	c.sel = selection.NewPlugin(c.w)
 	c.cams = cameras.NewPlugin(c.w, cameras.Config{})
 	c.players = players.NewPlugin(c.w, c.cams, c.sel)
@@ -134,8 +134,8 @@ func (c *camp) tick() {
 	}
 }
 
-func (c *camp) ids() map[float64]uid.UID64 {
-	out := map[float64]uid.UID64{}
+func (c *camp) ids() map[float32]uid.UID64 {
+	out := map[float32]uid.UID64{}
 	for c.q.All(); c.q.Next(); {
 		cur := c.q.Cursor()
 		for i, id := range cur.IDs {
@@ -145,21 +145,21 @@ func (c *camp) ids() map[float64]uid.UID64 {
 	return out
 }
 
-func (c *camp) moveTo(id uid.UID64, x, y float64) {
+func (c *camp) moveTo(id uid.UID64, x, y float32) {
 	if c.q.Seek(id) {
 		pos := &c.base.At(c.q.Cursor()).Pos
 		pos.AABB = plane.NewAABB(geom.NewVec(x, y), pos.Size.X, pos.Size.Y)
 	}
 }
 
-func centred(c *camp, x, y float64) bool {
+func centred(c *camp, x, y float32) bool {
 	sx, sy := c.cam.Project(float32(x+5), float32(y+5), 0)
-	return math.Abs(float64(sx-100)) < 0.5 && math.Abs(float64(sy-100)) < 0.5
+	return f32.Abs(float32(sx-100)) < 0.5 && f32.Abs(float32(sy-100)) < 0.5
 }
 
 func fastening(c *camp) camera.Fastening { return c.cam.(camera.Fastenable).Fastening() }
 
-func twoUnits(c *camp, unit kind.Of[float64]) []kind.Entry {
+func twoUnits(c *camp, unit kind.Of[float32]) []kind.Entry {
 	return []kind.Entry{
 		unit.Entry(100).Told(players.Give{To: c.one.ID}, selection.Allow{}),
 		unit.Entry(200).Told(players.Give{To: c.two.ID}, selection.Allow{}),
@@ -192,7 +192,7 @@ func TestFollow_FastensTheCameraOverTheOneSelectedUnitAndKeepsItCentred(t *testi
 }
 
 func TestFollow_PanLetsGoAndSeveralOrAnothersSelectedFastenNone(t *testing.T) {
-	c := newCamp(t, func(c *camp, unit kind.Of[float64]) []kind.Entry {
+	c := newCamp(t, func(c *camp, unit kind.Of[float32]) []kind.Entry {
 		return append(twoUnits(c, unit), unit.Entry(300).Told(players.Give{To: c.one.ID}, selection.Allow{}))
 	})
 	ids := c.ids()
@@ -217,7 +217,7 @@ func TestFollow_PanLetsGoAndSeveralOrAnothersSelectedFastenNone(t *testing.T) {
 }
 
 func TestFollow_ToldAtSpawnFastensTheCameraUntilTheUnitIsGone(t *testing.T) {
-	c := newCamp(t, func(c *camp, unit kind.Of[float64]) []kind.Entry {
+	c := newCamp(t, func(c *camp, unit kind.Of[float32]) []kind.Entry {
 		return []kind.Entry{
 			unit.Entry(100).Told(players.Give{To: c.one.ID}, cameras.Follow{Camera: c.cam, On: true}),
 			unit.Entry(300).Told(cameras.Follow{}),
@@ -251,7 +251,7 @@ func TestLookAt_CentresTheCameraOnceAndLetsGo(t *testing.T) {
 }
 
 func TestNew_ACameraStartsFastenedToTheEntityItsConfigNames(t *testing.T) {
-	c := newCamp(t, func(c *camp, unit kind.Of[float64]) []kind.Entry {
+	c := newCamp(t, func(c *camp, unit kind.Of[float32]) []kind.Entry {
 		return []kind.Entry{unit.Entry(100), unit.Entry(300).Named("scout")}
 	})
 	scout := c.ids()[300]
@@ -263,7 +263,8 @@ func TestNew_ACameraStartsFastenedToTheEntityItsConfigNames(t *testing.T) {
 	}
 	c.moveTo(scout, 600, 500)
 	c.tick()
-	if sx, sy := cam.Project(605, 505, 0); math.Abs(float64(sx-100)) > 0.5 || math.Abs(float64(sy-100)) > 0.5 {
+	if sx, sy := cam.Project(605, 505, 0); f32.Abs(float32(sx-100)) > 0.5 ||
+		f32.Abs(float32(sy-100)) > 0.5 {
 		t.Errorf("the scout is drawn at (%v, %v), want the middle of the screen", sx, sy)
 	}
 }
@@ -307,7 +308,7 @@ func TestSight_HasACameraSeeFartherAndNearer(t *testing.T) {
 	w, p, start, tick := emptyWorld(t, cameras.Config{Detail: camera.Detail{Sight: 1000, Fog: 100}})
 	seeing := p.Write().New(cameras.FromAbove, camera.Config{})
 	start()
-	sight := func(factor float64) float64 {
+	sight := func(factor float32) float32 {
 		w.Write().Carrier().Put(command.Nobody, cameras.Sight{Camera: seeing, Factor: factor})
 		tick()
 		return camera.DetailOf(seeing).Sight
@@ -366,7 +367,7 @@ func TestResolution_StepsTheCamerasResolutionAndAdaptStopsOrStartsFollowingTheBu
 	}
 	w.Write().Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: 1 / cameras.ResolutionStep})
 	tick()
-	if got := camera.ResolutionOf(cam); math.Abs(float64(got-1)) > 1e-6 {
+	if got := camera.ResolutionOf(cam); f32.Abs(float32(got-1)) > 1e-6 {
 		t.Errorf("after a finer step back the camera is drawn at %v, want 1", got)
 	}
 	for range 10 {
@@ -543,7 +544,7 @@ func TestLayerShares_ShapeEveryCamerasLayersAndTheMiddleStaysOverTheInner(t *tes
 		cameras.LayerShares{Profile: cameras.Tactical, Inner: 0.5, Middle: 0.5})
 	tick()
 	if inner, middle := p.Read(0).LayerShares(cameras.Tactical); inner != 0.5 ||
-		math.Abs(float64(middle-0.6)) > 1e-6 {
+		f32.Abs(float32(middle-0.6)) > 1e-6 {
 		t.Errorf("the shares are %v and %v, want the middle a tenth over the inner, 0.5 and 0.6",
 			inner, middle)
 	}
@@ -565,7 +566,7 @@ func TestRedraw_NotesTheLeadCamerasResolutionsIntoTheSettings(t *testing.T) {
 	p.Redraw(cameras.ResolutionStep)
 	outer, middle := p.Read(0).LayerResolutions(cameras.Tactical)
 	centre := p.Read(0).Resolution(cameras.Tactical)
-	if math.Abs(float64(outer-0.51)) > 1e-6 || middle != 0.8 || centre != 1 {
+	if f32.Abs(float32(outer-0.51)) > 1e-6 || middle != 0.8 || centre != 1 {
 		t.Errorf("after a coarser step the Settings say %v/%v/%v, want 0.51/0.8/1: the lead "+
 			"camera's layers", outer, middle, centre)
 	}
@@ -573,7 +574,7 @@ func TestRedraw_NotesTheLeadCamerasResolutionsIntoTheSettings(t *testing.T) {
 		t.Errorf("the minimap is drawn in %v at %v, want whole at all its pixels", got,
 			camera.ResolutionOf(minimap))
 	}
-	if got := camera.LayersOf(lead); math.Abs(float64(got[0].Resolution-0.51)) > 1e-6 {
+	if got := camera.LayersOf(lead); f32.Abs(float32(got[0].Resolution-0.51)) > 1e-6 {
 		t.Errorf("the lead camera is drawn in %v, want its outer layer at 0.51", got)
 	}
 	p.Write().SetStrategy(cameras.Tactical, cameras.Uniform)

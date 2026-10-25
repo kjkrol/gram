@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/uid"
 )
 
@@ -21,7 +22,7 @@ func commanded(t *testing.T, give func(s *System, steered, other uid.UID64)) geo
 	var steer goke.Comp[Steering]
 	var course goke.Comp[Course]
 	var steered, other uid.UID64
-	at := func(x, y float64) entity.Position {
+	at := func(x, y float32) entity.Position {
 		return entity.Position{AABB: plane.NewAABB(geom.NewVec(x-1, y-1), 2, 2)}
 	}
 	var dir geom.Vec
@@ -58,7 +59,9 @@ func put(s *System, id uid.UID64, cmd command.Command) {
 	}
 }
 
-func near(a, b geom.Vec) bool { return math.Abs(a.X-b.X) < 1e-9 && math.Abs(a.Y-b.Y) < 1e-9 }
+func near(a, b geom.Vec) bool {
+	return f32.Abs(a.X-b.X) < f32.Eps(1) && f32.Abs(a.Y-b.Y) < f32.Eps(1)
+}
 
 func TestCommands_HeadTheEntity(t *testing.T) {
 	for name, tc := range map[string]struct {

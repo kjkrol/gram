@@ -1,7 +1,6 @@
 package gravity_test
 
 import (
-	"math"
 	"testing"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
@@ -82,12 +82,12 @@ const hard = 8.0
 
 // a deck over from ≤ x < to, top high and thick, over the ground
 type land struct {
-	ground               func(p geom.Vec) float64
-	from, to, top, thick float64
+	ground               func(p geom.Vec) float32
+	from, to, top, thick float32
 }
 
-func (l land) Surface(p geom.Vec, _ cell.Domain, feet, step float64) (floor, ceiling float64) {
-	floor, ceiling = 0, math.Inf(1)
+func (l land) Surface(p geom.Vec, _ cell.Domain, feet, step float32) (floor, ceiling float32) {
+	floor, ceiling = 0, f32.Inf(1)
 	if l.ground != nil {
 		floor = l.ground(p)
 	}
@@ -104,7 +104,7 @@ func (l land) Surface(p geom.Vec, _ cell.Domain, feet, step float64) (floor, cei
 }
 
 type body struct {
-	x, y, alt float64
+	x, y, alt float32
 	facing    geom.Vec
 }
 
@@ -112,7 +112,7 @@ type body struct {
 type scene struct {
 	level  []string // '#' solid, the rest open
 	land   *land
-	leap   float64
+	leap   float32
 	fence  bool
 	deck   bool // a raised band with railings in cell (1, 1), the board's own surfaces
 	water  bool
@@ -293,7 +293,7 @@ func (r *rig) tick() { r.ecs.Tick(time.Second / tps) }
 
 func (r *rig) leap(k int) { r.w.Write().Carrier().PutFrom(r.ids[k], gravity.Leap{}) }
 
-func (r *rig) walk(k int, speed float64) {
+func (r *rig) walk(k int, speed float32) {
 	r.t.Helper()
 	if !r.q.Seek(r.ids[k]) {
 		r.t.Fatalf("body %d is gone", k)
@@ -336,7 +336,7 @@ func (r *rig) setPull(p gravity.Pull) {
 	}
 }
 
-func awayFrom(from uid.UID64, speed, rise float64) gravity.Away {
+func awayFrom(from uid.UID64, speed, rise float32) gravity.Away {
 	a := gravity.Away{Speed: speed, Rise: rise}
 	a.Aim(from)
 	return a

@@ -1,6 +1,9 @@
 package spacing
 
 import (
+	"iter"
+	"slices"
+
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -9,8 +12,6 @@ import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/navigation/internal/pathfind"
 	"github.com/kjkrol/uid"
-	"iter"
-	"slices"
 )
 
 // Finder searches the board for a unit's route, over its terrain, slopes and occupancy.
@@ -158,31 +159,31 @@ func (p *Finder) tilesRound(target cell.ID, dom, costs cell.Domain) []cell.ID {
 // BoardLevels are the board's decks and its ground as the search reads them.
 type BoardLevels struct{ Read *board.Read }
 
-func (l BoardLevels) Deck(c cell.ID) (top, under float64, carries cell.Domain, ok bool) {
+func (l BoardLevels) Deck(c cell.ID) (top, under float32, carries cell.Domain, ok bool) {
 	f := l.Read.Board().Built(c).Floor
 	if f.Height <= 0 {
 		return 0, 0, 0, false
 	}
 	_, level := l.Read.Board().Map().Top(c)
-	top = float64(level) + f.Height
+	top = level + f.Height
 	return top, top - f.Thickness, f.Allows, true
 }
 
-func (l BoardLevels) Ground(p geom.Vec) float64 {
+func (l BoardLevels) Ground(p geom.Vec) float32 {
 	if h := l.Read.Heights(); h != nil {
 		return h.At(p)
 	}
 	return 0
 }
 
-func (l BoardLevels) Over(p geom.Vec) (under float64, ok bool) {
+func (l BoardLevels) Over(p geom.Vec) (under float32, ok bool) {
 	brd := l.Read.Board()
 	brd.DecksOver(p, func(c cell.ID, f cell.Floor) {
 		if f.Height <= 0 {
 			return
 		}
 		_, level := brd.Map().Top(c)
-		if u := float64(level) + f.Height - f.Thickness; !ok || u < under {
+		if u := level + f.Height - f.Thickness; !ok || u < under {
 			under, ok = u, true
 		}
 	})

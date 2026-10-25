@@ -58,7 +58,7 @@ func hudStage(t *testing.T, cfg Config,
 	return a, scene, tick
 }
 
-func width(e *ui.Element) float64 { return e.Box().BottomRight.X - e.Box().TopLeft.X }
+func width(e *ui.Element) float32 { return e.Box().BottomRight.X - e.Box().TopLeft.X }
 
 func TestTimeOfDay_FollowsTheCalendarsClock(t *testing.T) {
 	// a game minute a second
@@ -105,7 +105,7 @@ func TestDate_ShowsTheMoonBesideTheWordsWhileTheMoonRuns(t *testing.T) {
 	r.Moon = false
 	a.write.SetRunning(r)
 	scene.Lay(hudScreen)
-	line := float64(render.DefaultFont().LineHeight())
+	line := float32(render.DefaultFont().LineHeight())
 	if without := width(date); with-without != line+6 {
 		t.Errorf("the date is %v wide with the moon running and %v without, want the icon's %v "+
 			"between", with, without, line+6)

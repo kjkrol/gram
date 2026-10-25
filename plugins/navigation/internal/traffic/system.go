@@ -1,24 +1,24 @@
 package traffic
 
 import (
-	cgoke "github.com/kjkrol/ceremony/goke"
-	"github.com/kjkrol/ceremony/host"
-	"github.com/kjkrol/ceremony/store"
-	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
-	"github.com/kjkrol/gram/plugins/navigation/internal/order"
-	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
-	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	cgoke "github.com/kjkrol/ceremony/goke"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/ceremony/store"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/motion/steering"
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
@@ -187,14 +187,14 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 		movers, zs := s.mover.Slice(cursor), s.z.Slice(cursor)
 		minds, owned := s.mind.Slice(cursor), s.owners.Slice(cursor)
 		arrived, lasts := s.arrived.Slice(cursor), s.lastOrder.Slice(cursor)
-		hands := s.hand.Slice(cursor)
+		hands, colls := s.hand.Slice(cursor), s.coll.Slice(cursor)
 		arrivedIDs := s.finished[:0]
 
 		for i, id := range cursor.IDs {
 			w := walker{id: id, o: &orders[i], at: &cells[i], base: &bases[i],
 				st:    steering.Helm{Steering: &steers[i], Course: &courses[i]},
 				state: ref(states, i), last: ref(lasts, i), minded: minds != nil}
-			s.begin(&w, ref(zs, i), ref(movers, i), ref(owned, i))
+			s.begin(&w, ref(zs, i), ref(movers, i), ref(owned, i), ref(colls, i))
 			if hands != nil && hands[i].Steers() {
 				if w.o.Leg.Active {
 					s.releaseLeg(w.o.Leg, id)
@@ -266,7 +266,9 @@ func ref[T any](s []T, i int) *T {
 	return &s[i]
 }
 
-func (s *System) begin(w *walker, z *world.Z, mover *unit.Mover, owners *tag.Tags[owner.Family]) {
+func (s *System) begin(w *walker, z *world.Z, mover *unit.Mover, owners *tag.Tags[owner.Family],
+	coll *collision.Collider,
+) {
 	w.domain, w.current = unit.DomainAt(nil, 0), w.at.Cell
 	if mover != nil {
 		w.domain = mover.Domain
@@ -290,6 +292,32 @@ func (s *System) begin(w *walker, z *world.Z, mover *unit.Mover, owners *tag.Tag
 	if owners != nil {
 		w.m.Owners = *owners
 	}
+	if coll != nil {
+		w.m.Touching = waysOff(coll.Contacts())
+	}
+}
+
+// two boxes part, or rest, along one axis, so each contact's way off lies along it
+func waysOff(contacts []collision.Contact) geom.Vec {
+	var lo, hi [2]bool
+	for _, c := range contacts {
+		if c.Terrain || c.Sensed || c.Other == 0 {
+			continue
+		}
+		lo[0], hi[0] = lo[0] || c.Normal.X < 0, hi[0] || c.Normal.X > 0
+		lo[1], hi[1] = lo[1] || c.Normal.Y < 0, hi[1] || c.Normal.Y > 0
+	}
+	return geom.NewVec(side(lo[0], hi[0]), side(lo[1], hi[1]))
+}
+
+func side(lo, hi bool) float32 {
+	switch {
+	case lo && !hi:
+		return -1
+	case hi && !lo:
+		return 1
+	}
+	return 0
 }
 
 type stepped uint8
@@ -416,7 +444,7 @@ func (s *System) walkOn(cb *goke.CmdBuf, d time.Duration) {
 			st:    steering.Helm{Steering: s.steer.At(cur), Course: s.course.At(cur)},
 			state: s.states.At(cur), last: s.lastOrder.At(cur), minded: s.mind.Present(cur),
 			entered: s.askedIn[k]}
-		s.begin(&w, s.z.At(cur), s.mover.At(cur), s.owners.At(cur))
+		s.begin(&w, s.z.At(cur), s.mover.At(cur), s.owners.At(cur), s.coll.At(cur))
 		ask := w.o.Ask
 		w.o.Ask = order.AskNone
 		switch ask {
@@ -440,7 +468,7 @@ func (s *System) tail(w *walker, d time.Duration) {
 	o, st := w.o, w.st
 	p, leg := &o.Path, &o.Leg
 	target := o.Target
-	dt := d.Seconds()
+	dt := float32(d.Seconds())
 
 	if leg.Active && p.Index < p.Length && p.Steps[p.Index] == leg.From {
 		// the route goes back the way the leg came: the same cells held
@@ -498,7 +526,7 @@ func (s *System) tail(w *walker, d time.Duration) {
 	reach := lookaheadReach(st, dt)
 	if final && o.Queued > 0 && o.Linger > 0 {
 		dx, dy := want.X-have.X, want.Y-have.Y
-		if dist, within := math.Hypot(dx, dy), s.keep.Within(w.m); dist > within {
+		if dist, within := f32.Hypot(dx, dy), s.keep.Within(w.m); dist > within {
 			dir := geom.NewVec(dx, dy)
 			s.keep.Steer(w.m, st, dir, approach(st, dist, within)*turnFactor(w.base.Vel.Dir, dir))
 			return
@@ -578,7 +606,7 @@ func (s *System) tail(w *walker, d time.Duration) {
 	}
 
 	dx, dy := want.X-have.X, want.Y-have.Y
-	dist := math.Hypot(dx, dy)
+	dist := f32.Hypot(dx, dy)
 	if within := s.keep.Within(w.m); dist > within {
 		dir := geom.NewVec(dx, dy)
 		s.keep.Steer(w.m, st, dir, approach(st, dist, within)*turnFactor(w.base.Vel.Dir, dir))
@@ -591,7 +619,7 @@ func (s *System) tail(w *walker, d time.Duration) {
 		st.Request(geom.NewVec(face.X-want.X, face.Y-want.Y))
 	}
 
-	if s.space != nil && (dx != 0 || dy != 0) {
+	if s.space != nil && (f32.Abs(dx) > f32.Eps(want.X) || f32.Abs(dy) > f32.Eps(want.Y)) {
 		s.space.Move(&w.base.Pos.AABB, geom.NewVec(dx, dy))
 	}
 
@@ -668,7 +696,7 @@ func (s *System) wayBetween(a, b cell.ID) geom.Vec {
 	from := s.grid.CellCenter(a)
 	to := s.unwrap(from, s.grid.CellCenter(b))
 	d := geom.NewVec(to.X-from.X, to.Y-from.Y)
-	if l := math.Hypot(d.X, d.Y); l > 0 {
+	if l := f32.Hypot(d.X, d.Y); l > 0 {
 		d = geom.NewVec(d.X/l, d.Y/l)
 	}
 	return d
@@ -791,7 +819,7 @@ func (s *System) marksOf(id uid.UID64) host.Marks {
 // way is the way a leaves b
 func headOn(a, b bodies.Body, way geom.Vec) bool {
 	towards := func(v, dir geom.Vec) bool {
-		l := math.Hypot(v.X, v.Y)
+		l := f32.Hypot(v.X, v.Y)
 		return l > 1e-9 && (v.X*dir.X+v.Y*dir.Y)/l > 0.5
 	}
 	return a.Moving && b.Moving && towards(a.Vel, geom.NewVec(-way.X, -way.Y)) && towards(b.Vel, way)
@@ -890,7 +918,7 @@ func (s *System) wayTo(m bodies.Member, c cell.ID) geom.Vec {
 	have := m.Centre()
 	to := s.unwrap(have, s.grid.CellCenter(c))
 	d := geom.NewVec(to.X-have.X, to.Y-have.Y)
-	if l := math.Hypot(d.X, d.Y); l > 0 {
+	if l := f32.Hypot(d.X, d.Y); l > 0 {
 		d = geom.NewVec(d.X/l, d.Y/l)
 	}
 	return d
@@ -973,7 +1001,8 @@ func (s *System) ahead(have, want geom.Vec, p *order.Path, waypoint, target cell
 
 const maxAhead = 8
 
-func (s *System) drive(m bodies.Member, st steering.Helm, heading, have geom.Vec, route []geom.Vec, reach, speed float64) {
+func (s *System) drive(m bodies.Member, st steering.Helm, heading, have geom.Vec, route []geom.Vec, reach, speed float32,
+) {
 	at := lookahead(have, route, reach)
 	if at == have {
 		s.keep.Steer(m, st, geom.Vec{}, speed)
@@ -984,18 +1013,18 @@ func (s *System) drive(m bodies.Member, st steering.Helm, heading, have geom.Vec
 }
 
 // the turning radius at the current speed
-func lookaheadReach(st steering.Helm, dt float64) float64 {
+func lookaheadReach(st steering.Helm, dt float32) float32 {
 	if st.TurnRate <= 0 {
 		return 0
 	}
-	return math.Abs(st.Speed) * dt / st.TurnRate
+	return f32.Abs(st.Speed) * dt / st.TurnRate
 }
 
 // TurnCrawl is the share of speed kept through the sharpest turn.
 const TurnCrawl = 0.2
 
-func turnFactor(heading, dir geom.Vec) float64 {
-	h, d := math.Hypot(heading.X, heading.Y), math.Hypot(dir.X, dir.Y)
+func turnFactor(heading, dir geom.Vec) float32 {
+	h, d := f32.Hypot(heading.X, heading.Y), f32.Hypot(dir.X, dir.Y)
 	if h == 0 || d == 0 {
 		return 1
 	}
@@ -1003,7 +1032,7 @@ func turnFactor(heading, dir geom.Vec) float64 {
 }
 
 // the point reach along the polyline have → route[0] → route[1] …, or its end
-func lookahead(have geom.Vec, route []geom.Vec, reach float64) geom.Vec {
+func lookahead(have geom.Vec, route []geom.Vec, reach float32) geom.Vec {
 	if len(route) == 0 {
 		return have
 	}
@@ -1013,7 +1042,7 @@ func lookahead(have geom.Vec, route []geom.Vec, reach float64) geom.Vec {
 	at := have
 	for _, p := range route {
 		dx, dy := p.X-at.X, p.Y-at.Y
-		d := math.Hypot(dx, dy)
+		d := f32.Hypot(dx, dy)
 		if d >= reach {
 			if d == 0 {
 				return p
@@ -1027,8 +1056,8 @@ func lookahead(have geom.Vec, route []geom.Vec, reach float64) geom.Vec {
 }
 
 // beyond the plane through w perpendicular to from → w, or within reach of w
-func passed(have, w, from geom.Vec, reach float64) bool {
-	if math.Hypot(have.X-w.X, have.Y-w.Y) <= max(reach, spacing.ArrivalEpsilon) {
+func passed(have, w, from geom.Vec, reach float32) bool {
+	if f32.Hypot(have.X-w.X, have.Y-w.Y) <= max(reach, spacing.ArrivalEpsilon) {
 		return true
 	}
 	ax, ay := w.X-from.X, w.Y-from.Y
@@ -1039,12 +1068,12 @@ func passed(have, w, from geom.Vec, reach float64) bool {
 }
 
 // never below the speed braking would leave it at the arrival radius within
-func approach(st steering.Helm, dist, within float64) float64 {
+func approach(st steering.Helm, dist, within float32) float32 {
 	brake := st.Braking()
 	if brake <= 0 {
 		return st.MaxSpeed
 	}
-	v := max(math.Sqrt(2*brake*dist), math.Sqrt(2*brake*within))
+	v := max(f32.Sqrt(2*brake*dist), f32.Sqrt(2*brake*within))
 	return min(v, st.MaxSpeed)
 }
 

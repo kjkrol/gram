@@ -2,9 +2,7 @@ package bridges
 
 import (
 	"fmt"
-	"github.com/kjkrol/gram/plugin"
 	"log"
-	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -12,6 +10,8 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/ground"
@@ -91,7 +91,7 @@ func (p *Plugin) Populate() error {
 	p.laid = nil
 	var g *boardGround
 	rules := p.cfg.Rules
-	rules.Reshape = 1e-3 * float64(p.board.Read(0).Board().Grid.CellSpan())
+	rules.Reshape = 1e-3 * p.board.Read(0).Board().Grid.CellSpan()
 	for _, l := range laid {
 		if g == nil {
 			g = newGround(p.board.Read(0).Board(), l.heights, 0)
@@ -110,13 +110,13 @@ type laid struct {
 	t       Type
 	plan    site.Bridge
 	at      string
-	heights func(geom.Vec) float64
+	heights func(geom.Vec) float32
 }
 
 func (p *Plugin) parts(t Type, b site.Bridge, g *boardGround) []kind.Entry {
 	gr := g.Grid()
 	step := gr.Step(b.Way)
-	length := math.Hypot(step.X, step.Y)
+	length := f32.Hypot(step.X, step.Y)
 	dir := geom.NewVec(step.X/length, step.Y/length)
 	piece := func(c cell.ID, links cell.Links, d geom.Vec) kind.Entry {
 		row := deckRow{At: c, Links: links, Height: b.Deck - g.level(c), Dir: d}
@@ -141,7 +141,7 @@ func (p *Plugin) rules() site.Rules {
 	r := p.cfg.Rules
 	r.Heights = p.board.Read(0).Heights() != nil
 	if p.shaper == nil {
-		r.Reshape = 1e-3 * float64(p.board.Read(0).Board().Grid.CellSpan())
+		r.Reshape = 1e-3 * p.board.Read(0).Board().Grid.CellSpan()
 	}
 	return r
 }
@@ -157,7 +157,7 @@ func (p *Plugin) building() Type {
 }
 
 func (p *Plugin) ground(t Type) *boardGround {
-	var at func(geom.Vec) float64
+	var at func(geom.Vec) float32
 	if h := p.board.Read(0).Heights(); h != nil {
 		at = h.At
 	}

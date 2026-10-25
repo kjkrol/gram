@@ -3,7 +3,6 @@ package board
 import (
 	"fmt"
 	"log"
-	"math"
 	"reflect"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
@@ -77,7 +77,7 @@ type Plugin struct {
 
 // Bridges is what a bridge keeps to besides running straight and level from a head to a head:
 // its deck Clearance over the ground under the middle of every cell between at least.
-type Bridges struct{ Clearance float64 }
+type Bridges struct{ Clearance float32 }
 
 var _ plugin.Publisher = (*Plugin)(nil)
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -184,7 +184,7 @@ func (p *Plugin) Write() *Write { return &p.write }
 func (p *Plugin) dress() {
 	if p.atlas == nil {
 		w, h := p.board.Grid.CellBounds()
-		p.NewAtlas(int(math.Ceil(max(w, h)))).Looks().Close()
+		p.NewAtlas(int(f32.Ceil(max(w, h)))).Looks().Close()
 	}
 }
 
@@ -201,7 +201,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-func (p *Plugin) holdAt(c cell.ID, at geom.Vec, deck bool) float64 {
+func (p *Plugin) holdAt(c cell.ID, at geom.Vec, deck bool) float32 {
 	if deck {
 		return p.board.read.altitude(c) + p.board.read.Built(c).Floor.Height
 	}
@@ -230,7 +230,7 @@ func (p *Plugin) keepBridges() {
 	brd.cells.SetBridges(terrain.Bridges{
 		Clearance: p.bridges.Clearance,
 		Level:     brd.read.altitude,
-		Ground: func(at geom.Vec) float64 {
+		Ground: func(at geom.Vec) float32 {
 			if h := brd.mapping.Heights(); h != nil {
 				return h.At(at)
 			}

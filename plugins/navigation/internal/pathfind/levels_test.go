@@ -27,21 +27,21 @@ func newValley() valley {
 	return valley{g, terrain}
 }
 
-func (v valley) Deck(c cell.ID) (top, under float64, carries cell.Domain, ok bool) {
+func (v valley) Deck(c cell.ID) (top, under float32, carries cell.Domain, ok bool) {
 	if x, y, _ := v.g.Coords(c); y == 2 && x >= 1 && x <= 3 {
 		return 10, 9, cell.Land, true
 	}
 	return 0, 0, 0, false
 }
 
-func (v valley) Ground(p geom.Vec) float64 {
+func (v valley) Ground(p geom.Vec) float32 {
 	if p.X <= 10 || p.X >= 40 {
 		return 10
 	}
 	return 0
 }
 
-func (v valley) Over(p geom.Vec) (float64, bool) {
+func (v valley) Over(p geom.Vec) (float32, bool) {
 	if c, ok := v.g.CellAt(p); ok {
 		if _, under, _, ok := v.Deck(c); ok {
 			return under, true
@@ -74,7 +74,7 @@ func TestFinder_EndsOnTheLevelAsked(t *testing.T) {
 	var steps [64]cell.ID
 	for name, tc := range map[string]struct {
 		from cell.ID
-		feet float64
+		feet float32
 	}{
 		"from the rim":   {v.g.At(0, 2), 10},
 		"from the floor": {v.g.At(1, 0), 0},
@@ -158,7 +158,7 @@ func (f fenced) Reaches(c, n cell.ID) bool { return false }
 
 func (f fenced) Fenced(from, to cell.ID, d cell.Domain, deck bool) bool {
 	p, q := f.g.CellCenter(from), f.g.CellCenter(to)
-	side := func(o, e, x geom.Vec) float64 { return (e.X-o.X)*(x.Y-o.Y) - (e.Y-o.Y)*(x.X-o.X) }
+	side := func(o, e, x geom.Vec) float32 { return (e.X-o.X)*(x.Y-o.Y) - (e.Y-o.Y)*(x.X-o.X) }
 	return !deck && d&cell.Land != 0 &&
 		side(p, q, f.a)*side(p, q, f.b) < 0 && side(f.a, f.b, p)*side(f.a, f.b, q) < 0
 }
@@ -188,16 +188,16 @@ func (w causeway) on(c cell.ID) bool {
 	return x == y && x >= 1 && x <= 3
 }
 
-func (w causeway) Deck(c cell.ID) (top, under float64, carries cell.Domain, ok bool) {
+func (w causeway) Deck(c cell.ID) (top, under float32, carries cell.Domain, ok bool) {
 	if w.on(c) {
 		return 1, 0.5, cell.Land, true
 	}
 	return 0, 0, 0, false
 }
 
-func (w causeway) Ground(geom.Vec) float64 { return 0 }
+func (w causeway) Ground(geom.Vec) float32 { return 0 }
 
-func (w causeway) Over(p geom.Vec) (float64, bool) {
+func (w causeway) Over(p geom.Vec) (float32, bool) {
 	if c, ok := w.g.CellAt(p); ok && w.on(c) {
 		return 0.5, true
 	}

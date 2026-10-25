@@ -66,7 +66,7 @@ func TestSeen_HoldsTheEntitiesOfTheSectorsSeenInThePictureFoggedOnTheWayToTheSig
 	r := sectorWorld(t, twoBands...)
 	r.spawn(100, 900, 1550, 1700, 3000)
 	_, v := seeing(t, r, camera.Detail{Sight: 1000, Fog: 300})
-	seen := map[float64]bool{}
+	seen := map[float32]bool{}
 	for r.all.All(); r.all.Next(); {
 		cur := r.all.Cursor()
 		for i, id := range cur.IDs {
@@ -97,7 +97,7 @@ func TestSeen_HoldsTheEntitiesAcrossTheSeamOfATorus(t *testing.T) {
 	r.anchor.at[0] = geom.NewVec(4000, 256)
 	v := r.p.write.NewView(cam)
 	r.run()
-	seen := map[float64]bool{}
+	seen := map[float32]bool{}
 	for r.all.All(); r.all.Next(); {
 		cur := r.all.Cursor()
 		for i, id := range cur.IDs {

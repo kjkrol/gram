@@ -21,8 +21,8 @@ import (
 )
 
 type pendingSeed struct {
-	x, y, size float64
-	alt        float64
+	x, y, size float32
+	alt        float32
 	id         *uid.UID64
 	plain      bool
 	owner      command.Issuer
@@ -97,17 +97,17 @@ func newHarnessViewed(t *testing.T, cfg world.Config, cam camera.Config, view fu
 	return &harness{t: t, world: w, space: space, players: pl, local: local, cam: camera, sel: sel, sys: sys, handler: pl.EventHandler(), ecs: goke.New(), tags: tags}
 }
 
-func (h *harness) seed(x, y, size float64) *uid.UID64 {
+func (h *harness) seed(x, y, size float32) *uid.UID64 {
 	return h.seedOwned(x, y, size, h.local.ID)
 }
 
-func (h *harness) seedOwned(x, y, size float64, by command.Issuer) *uid.UID64 {
+func (h *harness) seedOwned(x, y, size float32, by command.Issuer) *uid.UID64 {
 	id := new(uid.UID64)
 	h.pending = append(h.pending, pendingSeed{x: x, y: y, size: size, id: id, owner: by})
 	return id
 }
 
-func (h *harness) seedPlain(x, y, size float64) *uid.UID64 {
+func (h *harness) seedPlain(x, y, size float32) *uid.UID64 {
 	id := h.seed(x, y, size)
 	h.pending[len(h.pending)-1].plain = true
 	return id
@@ -185,7 +185,7 @@ func (h *harness) press(key control.Key) {
 	h.ecs.Tick(time.Second)
 }
 
-func (h *harness) moveTo(id uid.UID64, x, y float64) {
+func (h *harness) moveTo(id uid.UID64, x, y float32) {
 	for h.moveQ.All(); h.moveQ.Next(); {
 		cur := h.moveQ.Cursor()
 		for i, got := range cur.IDs {
@@ -225,7 +225,7 @@ func (h *harness) isSelected(id uid.UID64) bool {
 	return false
 }
 
-func (h *harness) seedHigh(x, y, size, alt float64) *uid.UID64 {
+func (h *harness) seedHigh(x, y, size, alt float32) *uid.UID64 {
 	id := h.seed(x, y, size)
 	h.pending[len(h.pending)-1].alt = alt
 	return id
@@ -438,7 +438,7 @@ func TestSystem_Update_ClickPicksWhereTheLookDrawsTheEntity(t *testing.T) {
 	}
 }
 
-func (h *harness) hoverAt(x, y float64) {
+func (h *harness) hoverAt(x, y float32) {
 	at := geom.NewVec(x, y)
 	if err := h.players.Write().Issue(h.local, Hover{At: at, Screen: control.ScreenRect(at, at), Camera: h.cam}); err != nil {
 		h.t.Fatal(err)

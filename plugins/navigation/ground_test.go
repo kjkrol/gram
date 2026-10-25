@@ -87,10 +87,10 @@ func TestNavigation_WeakBrakesStillComeToRestOnTheGoal(t *testing.T) {
 		"firm":     {MaxSpeed: 64, Accel: 128, Brake: 256, V0: 16},
 		"slipping": {MaxSpeed: 64, Accel: 128, Brake: 16, V0: 16},
 	}
-	brakingFrom := map[string]float64{}
+	brakingFrom := map[string]float32{}
 	for name, profile := range runs {
 		pw = newProfiledWorld(t, 8, 1, pw.cellAt(0, 0), MoveOrder{Target: goal}, profile, true)
-		peak, arrived := 0.0, false
+		peak, arrived := float32(0), false
 		for range 60 * 30 {
 			vel, centre, ordered := pw.tick()
 			peak = max(peak, vel.Value)

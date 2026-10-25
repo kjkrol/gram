@@ -150,10 +150,10 @@ func screenSize(scene *ui.Scene, props game.Props) (w, h int) {
 // control; the columns broken by the screen's height where they fit its width, fewer and taller
 // where they do not, scrolled then (ui.Scroll).
 func (s *SettingsScene) listing(w, h int) *ui.Element {
-	width := float64(w) - 2*shortcutsMargin
-	height := float64(h) - 2*shortcutsMargin
+	width := float32(w) - 2*shortcutsMargin
+	height := float32(h) - 2*shortcutsMargin
 	_, titleHeight := titleFont().Measure("Settings")
-	height -= float64(titleHeight) + 2*sectionPadding + shortcutsGap
+	height -= titleHeight + 2*sectionPadding + shortcutsGap
 
 	blocks := s.tree().blocks("", 0, nil)
 	columns := columned(blocks, height)
@@ -172,10 +172,10 @@ func (s *SettingsScene) listing(w, h int) *ui.Element {
 }
 
 // columned is the blocks in columns at most height tall, a block never split
-func columned(blocks []block, height float64) []*ui.Element {
+func columned(blocks []block, height float32) []*ui.Element {
 	var columns []*ui.Element
 	var column []ui.Part
-	used := 0.0
+	used := float32(0)
 	for _, b := range blocks {
 		if used > 0 && used+b.tall > height {
 			columns = append(columns, ui.Rows(column...))
@@ -191,13 +191,13 @@ func columned(blocks []block, height float64) []*ui.Element {
 }
 
 // tallEnough is the least height that holds the blocks in n columns
-func tallEnough(blocks []block, n int) float64 {
-	total, tallest := 0.0, 0.0
+func tallEnough(blocks []block, n int) float32 {
+	total, tallest := float32(0), float32(0)
 	for _, b := range blocks {
 		total += b.tall
 		tallest = max(tallest, b.tall)
 	}
-	height := max(total/float64(n), tallest)
+	height := max(total/float32(n), tallest)
 	for len(columned(blocks, height)) > n {
 		height += settingsRow
 	}
@@ -205,16 +205,16 @@ func tallEnough(blocks []block, n int) float64 {
 }
 
 // widthOf is the columns' width with the gaps between them, measured laid out once
-func widthOf(columns []*ui.Element, width, height float64) float64 {
+func widthOf(columns []*ui.Element, width, height float32) float32 {
 	probe := ui.NewScene("", ui.Columns(spaced(columns)...))
 	probe.Drawers()
 	probe.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(width, height)))
-	w := 0.0
+	w := float32(0)
 	for i := range columns {
 		box := probe.Element(settingsColumn(i)).Box()
 		w += box.BottomRight.X - box.TopLeft.X
 	}
-	return w + float64(len(columns)-1)*shortcutsGap*2
+	return w + float32(len(columns)-1)*shortcutsGap*2
 }
 
 // spaced is the columns as parts, named by their place, a gap between them
@@ -311,11 +311,11 @@ func (n *node) prune() {
 // parent's without entries of its own joined to its first child's) and the lines right under it
 type block struct {
 	parts []ui.Part
-	tall  float64
+	tall  float32
 	bare  bool // headings alone so far
 }
 
-func (b *block) add(part ui.Part, tall float64) {
+func (b *block) add(part ui.Part, tall float32) {
 	b.parts = append(b.parts, part)
 	b.tall += tall
 }
@@ -343,7 +343,7 @@ func (n *node) blocks(path string, level int, dst []block) []block {
 	dst[len(dst)-1].add(n.heading(path, level), settingsRow)
 	for _, st := range n.settings {
 		last := &dst[len(dst)-1]
-		last.add(ui.Fixed(settingsRow, line(st, path, float64(level)*shortcutsGap/2)), settingsRow)
+		last.add(ui.Fixed(settingsRow, line(st, path, float32(level)*shortcutsGap/2)), settingsRow)
 		last.bare = false
 	}
 	for _, group := range n.grouped() {
@@ -360,7 +360,7 @@ func (n *node) blocks(path string, level int, dst []block) []block {
 // section's path, a gap under it
 func framed(blocks []block, path string) block {
 	var parts []ui.Part
-	tall := 0.0
+	tall := float32(0)
 	for _, b := range blocks {
 		parts = append(parts, b.parts...)
 		tall += b.tall
@@ -420,7 +420,7 @@ func twinBlocks(paths []string, level int, twins []*node, dst []block, named boo
 	if i := len(dst) - 1; i < 0 || !dst[i].bare {
 		dst = append(dst, block{bare: true})
 	}
-	indent := float64(level-1) * shortcutsGap / 2
+	indent := float32(level-1) * shortcutsGap / 2
 	if named {
 		names := []ui.Part{ui.Fixed(indent, ui.Blank()), ui.Fixed(settingsLabel, ui.Blank())}
 		for i, c := range twins {
@@ -464,17 +464,17 @@ func (n *node) heading(path string, level int) ui.Part {
 		return ui.Fit(ui.Heading(n.name).Named("section:" + path))
 	}
 	sub := ui.MiddleLeft(ui.Subheading(n.name).Named("section:" + path))
-	return ui.Fixed(settingsRow, indented(float64(level-1)*shortcutsGap/2, sub))
+	return ui.Fixed(settingsRow, indented(float32(level-1)*shortcutsGap/2, sub))
 }
 
-func indented(px float64, e *ui.Element) *ui.Element {
+func indented(px float32, e *ui.Element) *ui.Element {
 	return ui.Columns(ui.Fixed(px, ui.Blank()), ui.Fit(e))
 }
 
 // line is a setting's label and its control, named "setting:", the path of its section and the
 // label ("setting:Picture/Graphics/Shadows"), indent pixels in: a Switch a checkbox, a Choice a
 // dropdown, a Range a slider with the number beside it.
-func line(st control.Setting, path string, indent float64) *ui.Element {
+func line(st control.Setting, path string, indent float32) *ui.Element {
 	if st, ok := st.(control.Switch); ok {
 		return indented(indent,
 			ui.MiddleLeft(ui.Checkbox(st.Label, st.Get, st.Set).Named(settingName(path, st.Label))))

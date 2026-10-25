@@ -47,7 +47,7 @@ func Benchmark_Frame_Flat(b *testing.B) {
 				cameratest.Switch(cam)
 			}
 			cam.SetViewport(frameW, frameH)
-			cam.CenterOn(float64(space.Width)/2, float64(space.Height)/2, 0)
+			cam.CenterOn(float32(space.Width)/2, float32(space.Height)/2, 0)
 			screen := render.NewImage(frameW, frameH)
 			buf := make([]byte, 4*frameW*frameH)
 			composer := render.NewComposer(r)

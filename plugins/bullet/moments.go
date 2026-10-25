@@ -40,7 +40,7 @@ func (r Resting) Who() uid.UID64 { return r.ID }
 // (Self), the one reached (Other) and how far off its centre is.
 type Blast struct {
 	Self, Other uid.UID64
-	Distance    float64
+	Distance    float32
 }
 
 // Who is the shot bursting.
@@ -53,7 +53,7 @@ func (b Blast) Whom(each func(uid.UID64)) { each(b.Other) }
 func (b Blast) Subject() (uid.UID64, bool) { return b.Self, true }
 
 // Within is the word of the one reached being within d of the shot, of the other.
-func Within(d float64) cond.Word[Blast] {
+func Within(d float32) cond.Word[Blast] {
 	return cond.NewWord("within", func(b Blast) bool { return b.Distance < d }).OfOther()
 }
 

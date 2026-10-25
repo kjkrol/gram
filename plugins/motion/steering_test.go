@@ -1,13 +1,13 @@
 package motion_test
 
 import (
-	"math"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/motion/internal/motiontest"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
@@ -36,7 +36,7 @@ func steerTicks(
 	return out
 }
 
-func heading(v geom.Vec) float64 { return math.Atan2(v.Y, v.X) }
+func heading(v geom.Vec) float32 { return f32.Atan2(v.Y, v.X) }
 
 type asking struct {
 	towards geom.Vec
@@ -64,9 +64,9 @@ func speedTicks(
 	st steering.Steering,
 	co steering.Course,
 	vel world.Velocity,
-	share float64,
+	share float32,
 	n int,
-) (speeds, values []float64) {
+) (speeds, values []float32) {
 	t.Helper()
 	comps := []comp.Comp{comp.Const(st), comp.Const(co)}
 	if share != 0 {
@@ -110,8 +110,8 @@ func TestSteering_TurnRateCapsTheSwing(t *testing.T) {
 
 	from := heading(north)
 	for i, d := range dirs {
-		want := from - rate*float64(i+1)
-		if math.Abs(heading(d)-want) > 1e-9 {
+		want := from - rate*float32(i+1)
+		if f32.Abs(heading(d)-want) > f32.Eps(1) {
 			t.Errorf("tick %d heading %.4f, want %.4f — one rate step per tick", i+1, heading(d),
 				want)
 		}
@@ -181,7 +181,7 @@ func TestSteering_KeepsActingOnTheLastDecisionWhileReacting(t *testing.T) {
 		steering.Course{Want: east, Pending: north, Delay: 3}, north, 2)
 
 	for i, d := range dirs {
-		if want := heading(north) - rate*float64(i+1); math.Abs(heading(d)-want) > 1e-9 {
+		if want := heading(north) - rate*float32(i+1); f32.Abs(heading(d)-want) > f32.Eps(1) {
 			t.Errorf("tick %d heading %.4f, want %.4f — still swinging east while north waits "+
 				"its turn", i+1, heading(d), want)
 		}
@@ -205,11 +205,11 @@ func TestSteering_SetsOffAtV0ThenAccelerates(t *testing.T) {
 	speeds, values := speedTicks(t, st, co, world.Velocity{Dir: east}, 0, 40)
 
 	// one tick of Accel at the harness tick length
-	step := 200 * (time.Second / 60).Seconds()
+	step := float32(200 * (time.Second / 60).Seconds())
 	if speeds[0] != 40 {
 		t.Errorf("tick 1: Speed = %v, want V0 = 40 the instant it sets off", speeds[0])
 	}
-	if got, want := speeds[1], 40+step; math.Abs(got-want) > 1e-9 {
+	if got, want := speeds[1], 40+step; f32.Abs(got-want) > f32.Eps(want) {
 		t.Errorf("tick 2: Speed = %v, want %v (V0 plus one tick of Accel)", got, want)
 	}
 	for tick := 1; tick < len(speeds); tick++ {
@@ -234,8 +234,8 @@ func TestSteering_BrakesToAHalt(t *testing.T) {
 	co := steering.Course{Speed: 100, WantSpeed: 0}
 	speeds, _ := speedTicks(t, st, co, world.Velocity{Dir: east, Value: 100}, 0, 40)
 
-	step := 200 * (time.Second / 60).Seconds()
-	if got, want := speeds[0], 100-step; math.Abs(got-want) > 1e-9 {
+	step := float32(200 * (time.Second / 60).Seconds())
+	if got, want := speeds[0], 100-step; f32.Abs(got-want) > f32.Eps(want) {
 		t.Errorf("tick 1: Speed = %v, want %v (one tick of braking)", got, want)
 	}
 	for tick := 1; tick < len(speeds); tick++ {
@@ -275,8 +275,8 @@ func TestSteering_BrakesAtItsOwnRateWhenGivenOne(t *testing.T) {
 	co := steering.Course{Speed: 100, WantSpeed: 0}
 	speeds, _ := speedTicks(t, st, co, world.Velocity{Dir: east, Value: 100}, 0, 2)
 
-	step := 400 * (time.Second / 60).Seconds()
-	if got, want := speeds[0], 100-step; math.Abs(got-want) > 1e-9 {
+	step := float32(400 * (time.Second / 60).Seconds())
+	if got, want := speeds[0], 100-step; f32.Abs(got-want) > f32.Eps(want) {
 		t.Errorf("tick 1: Speed = %v, want %v (one tick of Brake, not Accel)", got, want)
 	}
 	weak := steering.Steering{Accel: 200, Brake: 25}

@@ -21,9 +21,9 @@ var laying = render.NewMeshShaderWith("world sectors",
 // Grid is the world's sectors as Ground lays them: side a side in world units, Cols across and
 // Rows down, over a world Width x Height wrapping as WrapX and WrapY say.
 type Grid struct {
-	Side          float64
+	Side          float32
 	Cols, Rows    int
-	Width, Height float64
+	Width, Height float32
 	WrapX, WrapY  bool
 }
 
@@ -103,8 +103,8 @@ func (g *Ground) Draw(t render.Target, cam camera.Camera, line Line) {
 	g.set("Unproject", unproject[:]...)
 	g.set("ViewSize", vw, vh)
 	g.set("ViewAt", float32(at.X), float32(at.Y))
-	g.set("Sectors", float32(gr.Side), float32(gr.Cols), float32(gr.Rows), 0)
-	g.set("World", float32(gr.Width), float32(gr.Height), flag(gr.WrapX), flag(gr.WrapY))
+	g.set("Sectors", gr.Side, float32(gr.Cols), float32(gr.Rows), 0)
+	g.set("World", gr.Width, gr.Height, flag(gr.WrapX), flag(gr.WrapY))
 	g.set("Line", line.Width, line.Inside, line.Edge, 0)
 	g.opts.Depth = t.Depth
 	g.opts.ReadDepth = t.Ground

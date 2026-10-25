@@ -1,11 +1,11 @@
 package topdown
 
 import (
-	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
 	contract "github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 )
 
 func TestBasicCamera_AtAResolutionItsPixelsAreTheShownOnesTimesIt(t *testing.T) {
@@ -26,8 +26,8 @@ func TestBasicCamera_AtAResolutionItsPixelsAreTheShownOnesTimesIt(t *testing.T) 
 		t.Errorf("(230, 210) is drawn at (%v, %v), want (%v, %v): half of where it was shown",
 			ax, ay, bx/2, by/2)
 	}
-	if x, y := c.Unproject(ax, ay, 0); math.Abs(float64(x-230)) > 1e-3 ||
-		math.Abs(float64(y-210)) > 1e-3 {
+	if x, y := c.Unproject(ax, ay, 0); f32.Abs(float32(x-230)) > 1e-3 ||
+		f32.Abs(float32(y-210)) > 1e-3 {
 		t.Errorf("unprojected back, the point is (%v, %v), want (230, 210)", x, y)
 	}
 	if r, _ := c.Rays(); r.DX[0] != 2*rays.DX[0] || r.DY[1] != 2*rays.DY[1] {

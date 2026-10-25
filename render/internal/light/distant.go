@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 )
 
 // Distant is a light from far off, the same everywhere: Dir points from the ground towards it (z
@@ -87,7 +88,7 @@ type Umbra struct{ X, Y, UX, UY, Along, Wide, Fade, Veil float32 }
 
 // ShadowOf is the shadow of what stands in box from alt up height, on the ground groundAt gives
 // (nil: level at 0). It is false with the light below the horizon or too faint.
-func (s Distant) ShadowOf(box geom.AABB, alt, height float64,
+func (s Distant) ShadowOf(box geom.AABB, alt, height float32,
 	groundAt func(x, y float32) float32) (Umbra, bool) {
 	sx, sy, sz := s.Dir[0], s.Dir[1], s.Dir[2]
 	veil := float32(uint8(shadowVeil*min(s.Strength/shadowFull, 1))) / 255
@@ -95,19 +96,19 @@ func (s Distant) ShadowOf(box geom.AABB, alt, height float64,
 		return Umbra{}, false
 	}
 	ground := float32(0)
-	cx, cy := float32(box.TopLeft.X+box.BottomRight.X)/2, float32(box.TopLeft.Y+box.BottomRight.Y)/2
+	cx, cy := (box.TopLeft.X+box.BottomRight.X)/2, (box.TopLeft.Y+box.BottomRight.Y)/2
 	if groundAt != nil {
 		ground = groundAt(cx, cy)
 	}
-	half := float32(max(box.BottomRight.X-box.TopLeft.X, box.BottomRight.Y-box.TopLeft.Y)) / 2
+	half := max(box.BottomRight.X-box.TopLeft.X, box.BottomRight.Y-box.TopLeft.Y) / 2
 	ux, uy := float32(1), float32(0)
-	across := float32(math.Hypot(float64(sx), float64(sy)))
+	across := f32.Hypot(sx, sy)
 	if across > 0 {
 		ux, uy = -sx/across, -sy/across
 	}
 	reach := min(across/sz, maxShadowReach)
-	above := max(float32(alt)-ground, 0)
-	start, length := above*reach, float32(height)*reach
+	above := max(alt-ground, 0)
+	start, length := above*reach, height*reach
 	mid := start + length/2
 	return Umbra{
 		X:     cx + ux*mid,
@@ -125,23 +126,23 @@ func (s Distant) ShadowOf(box geom.AABB, alt, height float64,
 // ground groundAt gives (nil: level at 0): from its feet away from the light, as long as it
 // stands tall there, as wide as its box across, unfaded. It is false with the light down or too
 // faint.
-func (s Distant) SilhouetteOf(box geom.AABB, alt, height float64,
+func (s Distant) SilhouetteOf(box geom.AABB, alt, height float32,
 	groundAt func(x, y float32) float32) (Umbra, bool) {
 	p, ok := s.ShadowOf(box, alt, height, groundAt)
 	if !ok {
 		return Umbra{}, false
 	}
 	sx, sy, sz := s.Dir[0], s.Dir[1], s.Dir[2]
-	reach := min(float32(math.Hypot(float64(sx), float64(sy)))/sz, maxShadowReach)
-	cx, cy := float32(box.TopLeft.X+box.BottomRight.X)/2, float32(box.TopLeft.Y+box.BottomRight.Y)/2
+	reach := min(f32.Hypot(sx, sy)/sz, maxShadowReach)
+	cx, cy := (box.TopLeft.X+box.BottomRight.X)/2, (box.TopLeft.Y+box.BottomRight.Y)/2
 	ground := float32(0)
 	if groundAt != nil {
 		ground = groundAt(cx, cy)
 	}
-	start := max(float32(alt)-ground, 0) * reach
-	length := max(float32(height)*reach, 1e-3)
+	start := max(alt-ground, 0) * reach
+	length := max(height*reach, 1e-3)
 	mid := start + length/2
 	p.X, p.Y = cx+p.UX*mid, cy+p.UY*mid
-	p.Along, p.Wide, p.Fade = length/2, float32(box.BottomRight.X-box.TopLeft.X)/2, 0
+	p.Along, p.Wide, p.Fade = length/2, (box.BottomRight.X-box.TopLeft.X)/2, 0
 	return p, true
 }

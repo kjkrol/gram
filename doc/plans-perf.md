@@ -1049,3 +1049,33 @@ rundy naprzemiennie z `9939c39a`: cały wypiek 111 / 153 → 22,8 / 24,8 ms, kom
 6,5 / 9,4 → 7,1 / 6,4 ms (tu rządzi część CPU i małe przebiegi). Demo board/topography: ta sama
 scena. Niezrobione z L4: wczesne wyjście wierzchołka z nadmiarowym kawałkiem w shaderze (drogi to
 już ~10% wypieku, zysk ≲1 ms).
+
+## aabbworld v1.17.0: liczby świata w float32 (2026-10-25, gałąź `feat/aabbworld-float32`)
+
+To, co „Co nie wchodzi” odkładało („Zmiana `Base` na float32”), przyszło z aabbworld v1.17.0:
+geometria w float32, pudełko 32 B. W gram każda liczba geometrii świata i ekranu jest float32
+(reguła w `CLAUDE.md`), także wysokości, z których buduje się mapę; float64 zostaje w kosztach,
+ułamkach czasu, wartościach ustawień i w rachunkach sumujących (osłona planszy i profil reliefu
+wzdłuż promienia, odpływ wody, sztywnik kamery ortho). `world.Base` 104 → 52 B; rekord publikacji
+trzyma pudełko, kierunek, prędkość i `Z` bez konwersji. Pomiary (baza i drzewo na przemian,
+niższy z dwóch przebiegów): tick świata 5 000 encji 43,6 → 37,3 µs, kolizje 4–14% mniej,
+`Sectors_Expanse` 13% mniej, publikacja 7–12% mniej, nawigacja 3–6% mniej, wzrok 0–5% więcej.
+Zapisy sprzed zmiany się nie wczytują (goke odrzuca inny rozmiar komponentu).
+
+**Domknięcie (2026-10-25).** Po migracji padały dwa testy nawigacji. Tłum (cztery stojące
+jednostki stykające się przez 99 ticków): solver aabbworld dzielił nałożenie o krok float32 po
+połowie, a połowa tak małej liczby nie ruszała żadnego pudełka, więc nałożenie krążyło po słupku co
+tick; poprawka w aabbworld (kjkrol/aabbworld#23: styk w granicy zaokrąglenia to nie penetracja).
+Pas bez obejścia (blokujący dopychany 6,52 przy progu 6): pięć przyczyn w gram, każda osobno —
+masa domyślna to pole pudełka (`DefaultMass` znika), impuls obniża prędkość steeringu
+(`Course.Speed`) w tej samej proporcji, także od ścian, normalna kontaktu spoczynkowego to
+ściana, a nie linia między środkami, nawigacja nie wjeżdża w nikogo, kogo dotyka
+(`bodies.Member.Touching`, `clearOf` w `BodyKeeping.Steer`), i rozsunięcie pary dzielone
+według wagi przez udział, który handler podaje aabbworld w `Touch` (zmiana łamiąca, aabbworld
+dalej nie zna masy). Wynik: pas 6,52 → 0,09; tłum bez reguł zatrzymany na 1,07 (dwie równe
+wagi); w board/topography 36 jednostek w jedno miejsce 1800 → 790 kontaktów pchających w 100 s,
+stojące przesunięte 14,2 → 9,0. Koszt: `Collision_Tick` 1–4% więcej (impuls czyta `Course`,
+udział liczony na parę), `Navigation_Tick` bez zmian. aabbworld v1.18.0 w `go.mod` (tag
+2026-10-25). Otwarte: stojący
+tej samej wagi dalej bierze połowę nałożenia z każdego uderzenia; zerowanie tego wymagałoby
+kotwicy dla stojącego na hamulcu (strona statyczna, gdy `WantSpeed == 0`).

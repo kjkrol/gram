@@ -30,7 +30,7 @@ const (
 // How wide it sees and from how high is its world.Eye, which the scan needs beside it.
 type Sight struct {
 	Facing geom.Vec // unit vector
-	Radius float64  // world units
+	Radius float32  // world units
 	// Blockers are the world.Layers whose entities and cover cut or dim this sight, every one for
 	// zero; one on none of them is looked over and still seen.
 	Blockers world.Layers
@@ -54,7 +54,7 @@ func (s Sight) Looking(dir geom.Vec) geom.Vec {
 
 // Transparency is how see-through an entity is to a Sight: 0 cuts sight as an entity without it
 // does, 1 is as if absent, between them a ray through it spends 1/Value of its reach per unit.
-type Transparency struct{ Value float64 }
+type Transparency struct{ Value float32 }
 
 // Sighted is what an observer's last scan found, nearest first; vision gives one to an observer
 // that has none. Count says how many of the arrays are in use.

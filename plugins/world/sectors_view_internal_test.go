@@ -2,12 +2,12 @@ package world
 
 import (
 	"image/color"
-	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/plugins/world/view"
@@ -26,12 +26,12 @@ func insides(t *testing.T, p *Plugin, cam camera.Camera) map[int]color.RGBA {
 	got := map[int]color.RGBA{}
 	f.Each(func(_ render.At, v []render.Vertex) {
 		a := v[0].ColorA
-		if math.Abs(float64(a-sectorLine.Inside)) > 0.01 {
+		if f32.Abs(float32(a-sectorLine.Inside)) > 0.01 {
 			return
 		}
-		of := func(c float32) uint8 { return uint8(math.Round(float64(c / a * 255))) }
+		of := func(c float32) uint8 { return uint8(f32.Round(float32(c / a * 255))) }
 		left := min(v[0].DstX, v[1].DstX, v[2].DstX, v[3].DstX)
-		got[int(math.Round(float64(left)))] = color.RGBA{R: of(v[0].ColorR), G: of(v[0].ColorG),
+		got[int(f32.Round(float32(left)))] = color.RGBA{R: of(v[0].ColorR), G: of(v[0].ColorG),
 			B: of(v[0].ColorB), A: 255}
 	})
 	return got

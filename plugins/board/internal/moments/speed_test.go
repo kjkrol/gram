@@ -48,7 +48,7 @@ func TestPace_SparesAGradedKindTheSlope(t *testing.T) {
 		walkers = append(walkers, walker{box: cellBox(grid, at(x), 4), vel: world.Velocity{Dir: geom.NewVec(1, 0), Value: 1}, domain: cell.Land})
 	}
 	got := paces(t, grid, cells, steep, walkers...)
-	for x, want := range map[uint32]float64{0: 0.5, 1: 1} {
+	for x, want := range map[uint32]float32{0: 0.5, 1: 1} {
 		x0 := cellBox(grid, at(x), 4).TopLeft.X
 		if got[x0] != want {
 			t.Errorf("cell %d: pace %v, want %v", x, got[x0], want)
@@ -62,15 +62,15 @@ type walker struct {
 	domain cell.Domain
 }
 
-func paces(t *testing.T, g grid.Grid, cells *terrain.Cells, slope func(p, dir geom.Vec, d cell.Domain) float64, walkers ...walker) map[float64]float64 {
+func paces(t *testing.T, g grid.Grid, cells *terrain.Cells, slope func(p, dir geom.Vec, d cell.Domain) float64, walkers ...walker) map[float32]float32 {
 	t.Helper()
 	return walk(t, New(g, cells, nil, slope, nil), 1, walkers...)
 }
 
-func walk(t *testing.T, r *Rules, steps int, walkers ...walker) map[float64]float64 {
+func walk(t *testing.T, r *Rules, steps int, walkers ...walker) map[float32]float32 {
 	t.Helper()
 	g, sys := r.grid, r.StandingSystem()
-	got := map[float64]float64{}
+	got := map[float32]float32{}
 	var (
 		base  goke.Comp[world.Base]
 		at    goke.Comp[unit.At]
@@ -124,7 +124,7 @@ func TestPace_IsOneOverCost(t *testing.T) {
 		walkers = append(walkers, walker{box: cellBox(grid, at(x), 4), vel: world.Velocity{Value: 1}, domain: cell.Land})
 	}
 	got := paces(t, grid, cells, flat, walkers...)
-	for x, want := range map[uint32]float64{0: 0.5, 1: 2, 2: 1} {
+	for x, want := range map[uint32]float32{0: 0.5, 1: 2, 2: 1} {
 		x0 := cellBox(grid, at(x), 4).TopLeft.X
 		if got[x0] != want {
 			t.Errorf("cell %d: pace %v, want %v", x, got[x0], want)
@@ -141,7 +141,7 @@ func TestPace_ChargesTheEntitysOwnDomainAndSparesTheMoverless(t *testing.T) {
 
 	// told apart by a one-unit offset
 	box := cellBox(grid, c, 4)
-	shifted := func(dx float64) plane.AABB { b := box; b.TopLeft.X += dx; return b }
+	shifted := func(dx float32) plane.AABB { b := box; b.TopLeft.X += dx; return b }
 	got := paces(t, grid, cells, flat,
 		walker{box: shifted(0), vel: world.Velocity{Value: 1}, domain: cell.Land},
 		walker{box: shifted(1), vel: world.Velocity{Value: 1}, domain: cell.Land | frost},
@@ -155,6 +155,6 @@ func TestPace_ChargesTheEntitysOwnDomainAndSparesTheMoverless(t *testing.T) {
 
 func cellBox(g grid.Grid, c cell.ID, size uint32) plane.AABB {
 	at := g.CellCenter(c)
-	half := float64(size) / 2
-	return plane.NewAABB(geom.NewVec(at.X-half, at.Y-half), float64(size), float64(size))
+	half := float32(size) / 2
+	return plane.NewAABB(geom.NewVec(at.X-half, at.Y-half), float32(size), float32(size))
 }

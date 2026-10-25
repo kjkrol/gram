@@ -2,7 +2,6 @@ package control
 
 import (
 	"fmt"
-	"math"
 	"reflect"
 	"time"
 
@@ -111,16 +110,16 @@ type Context struct {
 	Cursor      geom.Vec // where the cursor is, or where a button went down or up
 	Start       geom.Vec // where a Drag began
 	Delta       geom.Vec
-	Wheel       float64
+	Wheel       float32
 	Screen      geom.Vec // the picture's size in the camera's pixels
-	Resolution  float64  // camera pixels a shown pixel; 0 as 1
+	Resolution  float32  // camera pixels a shown pixel; 0 as 1
 	Mods        Mods
 	FillsScreen bool
 	Held        time.Duration // how long a key was held, for KeyReleased
 }
 
 // Pixels is shown pixels in the camera's: a speed in pixels of the screen as the camera has it.
-func (c Context) Pixels(shown float64) float64 { return shown * c.resolution() }
+func (c Context) Pixels(shown float32) float32 { return shown * c.resolution() }
 
 // Shown is v, in the camera's pixels, in the shown ones: a move of the mouse as the hand made it.
 func (c Context) Shown(v geom.Vec) geom.Vec {
@@ -128,7 +127,7 @@ func (c Context) Shown(v geom.Vec) geom.Vec {
 	return geom.NewVec(v.X/k, v.Y/k)
 }
 
-func (c Context) resolution() float64 {
+func (c Context) resolution() float32 {
 	if c.Resolution <= 0 {
 		return 1
 	}
@@ -141,23 +140,21 @@ func (c Context) World(s geom.Vec) geom.Vec {
 	if c.Camera == nil {
 		return s
 	}
-	sx, sy := float32(s.X), float32(s.Y)
 	if p, ok := c.Camera.(camera.Picker); ok {
-		x, y, _, _ := p.Pick(sx, sy)
-		return geom.NewVec(float64(x), float64(y))
+		x, y, _, _ := p.Pick(s.X, s.Y)
+		return geom.NewVec(x, y)
 	}
-	x, y := c.Camera.FromScreen(sx, sy)
-	return geom.NewVec(float64(x), float64(y))
+	return geom.NewVec(c.Camera.FromScreen(s.X, s.Y))
 }
 
 // Point is what screen position s sees and its height, through a camera.Picker's own Pick. Where
 // the camera picks nothing (no Picker, or the sky) picked is false and at is World.
-func (c Context) Point(s geom.Vec) (at geom.Vec, z float64, picked bool) {
+func (c Context) Point(s geom.Vec) (at geom.Vec, z float32, picked bool) {
 	if c.Camera != nil {
 		if p, ok := c.Camera.(camera.Picker); ok {
-			x, y, h, ok := p.Pick(float32(s.X), float32(s.Y))
+			x, y, h, ok := p.Pick(s.X, s.Y)
 			if ok {
-				return geom.NewVec(float64(x), float64(y)), float64(h), true
+				return geom.NewVec(x, y), h, true
 			}
 		}
 	}
@@ -169,15 +166,15 @@ func (c Context) Point(s geom.Vec) (at geom.Vec, z float64, picked bool) {
 func (c Context) WorldBox(a, b geom.Vec) geom.AABB {
 	var x0, y0, x1, y1 float32
 	if c.Camera == nil {
-		x0, y0, x1, y1 = float32(a.X), float32(a.Y), float32(b.X), float32(b.Y)
+		x0, y0, x1, y1 = a.X, a.Y, b.X, b.Y
 	} else if _, picks := c.Camera.(camera.Picker); !picks {
-		x0, y0, x1, y1 = camera.FromScreenRect(c.Camera, float32(a.X), float32(a.Y), float32(b.X), float32(b.Y))
+		x0, y0, x1, y1 = camera.FromScreenRect(c.Camera, a.X, a.Y, b.X, b.Y)
 	} else {
 		pa, pb := c.World(a), c.World(b)
-		x0, y0, x1, y1 = float32(pa.X), float32(pa.Y), float32(pb.X), float32(pb.Y)
+		x0, y0, x1, y1 = pa.X, pa.Y, pb.X, pb.Y
 	}
-	minX, maxX := float64(min(x0, x1)), float64(max(x0, x1))
-	minY, maxY := float64(min(y0, y1)), float64(max(y0, y1))
+	minX, maxX := min(x0, x1), max(x0, x1)
+	minY, maxY := min(y0, y1), max(y0, y1)
 	return geom.NewAABBAt(geom.NewVec(minX, minY), max(maxX-minX, 1), max(maxY-minY, 1))
 }
 
@@ -194,7 +191,7 @@ const (
 
 // CornerSide is the side of a corner's square in a picture w by h pixels: CornerReach, or a
 // quarter of the shorter side where that is less.
-func CornerSide(w, h float64) float64 { return math.Min(CornerReach, math.Min(w, h)/4) }
+func CornerSide(w, h float32) float32 { return min(CornerReach, min(w, h)/4) }
 
 // Corner is which corner of the window a cursor rests in, NoCorner for none.
 type Corner uint8
@@ -228,7 +225,7 @@ func (c Corner) Signs() (x, y float32) {
 type Edges struct {
 	Left, Right, Top, Bottom bool
 	Corner                   Corner
-	Depth                    float64
+	Depth                    float32
 }
 
 // Any reports whether the cursor rests near any edge or in a corner.
@@ -238,11 +235,11 @@ func (e Edges) Any() bool { return e.Left || e.Right || e.Top || e.Bottom || e.C
 // square of CornerReach a side, the margins in shown pixels.
 func (c Context) Edges() Edges {
 	k := c.resolution()
-	dead := float64(EdgeDeadZone) * k
+	dead := float32(EdgeDeadZone) * k
 	if c.FillsScreen {
 		dead = 0
 	}
-	margin := float64(EdgeMargin) * k
+	margin := float32(EdgeMargin) * k
 	x, y := c.Cursor.X, c.Cursor.Y
 	e := Edges{
 		Left:   x >= dead && x < margin,
@@ -282,7 +279,7 @@ func (c Context) Edges() Edges {
 
 // depth is how deep a cursor in pixels from the window's edge stands in a zone reach wide with
 // the dead zone at its edge, 0 to 1
-func depth(in, reach, dead float64) float64 {
+func depth(in, reach, dead float32) float32 {
 	return min(max((reach-in)/(reach-dead), 0), 1)
 }
 

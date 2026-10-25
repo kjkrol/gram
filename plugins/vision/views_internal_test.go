@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -16,13 +17,13 @@ import (
 
 type ridge struct{}
 
-func (ridge) At(p geom.Vec) float64 {
+func (ridge) At(p geom.Vec) float32 {
 	if p.X >= 100 && p.X < 120 {
 		return 30
 	}
 	return 0
 }
-func (ridge) Step() float64   { return 4 }
+func (ridge) Step() float32   { return 4 }
 func (ridge) Version() uint64 { return 7 }
 
 var level = render.NewMeshShaderWith("test level", []byte(`
@@ -70,7 +71,7 @@ func TestViews_VeilTheGroundOutOfSightOnTheGPU(t *testing.T) {
 	// the cone's upper edge, from (40, 128) at -30°: stroked somewhere across it
 	stroked := false
 	for d := -2; d <= 2; d++ {
-		x, y := 40+int(60*math.Cos(math.Pi/6)), 128-int(60*math.Sin(math.Pi/6))+d
+		x, y := 40+int(60*f32.Cos(math.Pi/6)), 128-int(60*f32.Sin(math.Pi/6))+d
 		if c := at(x, y); c < 3*245 {
 			stroked = true
 		}
@@ -86,11 +87,11 @@ func TestViews_VeilTheGroundOutOfSightOnTheGPU(t *testing.T) {
 type wall struct{}
 
 func (wall) Walk(
-	origin, dir geom.Vec, length float64, _ world.Layers,
-	visit func(near, far, bottom, top, tau float64) bool,
+	origin, dir geom.Vec, length float32, _ world.Layers,
+	visit func(near, far, bottom, top, tau float32) bool,
 ) {
 	if dir.X > 0 && origin.X <= 100 && origin.X+length >= 120 {
-		visit(100-origin.X, 120-origin.X, math.Inf(-1), math.Inf(1), 0)
+		visit(100-origin.X, 120-origin.X, f32.Inf(-1), f32.Inf(1), 0)
 	}
 }
 func (wall) Version() uint64 { return 3 }
@@ -165,13 +166,13 @@ func TestViews_AnEyeLookingUpVeilsNoGround(t *testing.T) {
 // counted is a cover over everything, τ tau, counting its walks
 type counted struct {
 	version uint64
-	tau     float64
+	tau     float32
 	walks   int
 }
 
 func (c *counted) Walk(
-	_, _ geom.Vec, length float64, _ world.Layers,
-	visit func(near, far, bottom, top, tau float64) bool,
+	_, _ geom.Vec, length float32, _ world.Layers,
+	visit func(near, far, bottom, top, tau float32) bool,
 ) {
 	c.walks++
 	if c.tau > 0 {

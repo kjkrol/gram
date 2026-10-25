@@ -11,9 +11,9 @@ type halves struct{}
 func (halves) Len() int  { return 2 }
 func (halves) Cols() int { return 2 }
 func (halves) Box(i int) geom.AABB {
-	return geom.NewAABB(geom.NewVec(float64(i)*64, 0), geom.NewVec(float64(i+1)*64, 128))
+	return geom.NewAABB(geom.NewVec(float32(i)*64, 0), geom.NewVec(float32(i+1)*64, 128))
 }
-func (halves) Of(x, _ float64) int { return min(max(int(x/64), 0), 1) }
+func (halves) Of(x, _ float32) int { return min(max(int(x/64), 0), 1) }
 func (halves) Off(int) bool        { return false }
 
 // seeing the left half a unit a pixel, the right a tenth of that, from the left edge's middle

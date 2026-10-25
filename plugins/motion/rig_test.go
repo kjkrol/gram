@@ -54,7 +54,7 @@ func newRig(
 	return r
 }
 
-func box(x, y, side float64) world.Position {
+func box(x, y, side float32) world.Position {
 	return world.Position{AABB: plane.NewAABB(geom.NewVec(x, y), side, side)}
 }
 

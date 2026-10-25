@@ -71,7 +71,7 @@ func (g *gridLines) draw(
 		return
 	}
 	g.set("GridHex", flag(shape.Hex))
-	g.set("GridCell", float32(shape.Cell))
+	g.set("GridCell", shape.Cell)
 	g.set("GridCells", float32(shape.Cols), float32(shape.Rows))
 	g.set("GridWrap", flag(wrapX), flag(wrapY))
 	g.set("GridLine", line[:]...)

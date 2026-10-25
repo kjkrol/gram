@@ -113,7 +113,7 @@ func TestStage_ASyncOutsideTheClockLeavesTheSpaceRightForWhatReadsItNext(t *test
 		}).
 		Spawn(func() {
 			things := kind.Named[geom.Vec](w.Kinds(), "thing")
-			for _, at := range []float64{100, 300, 500} {
+			for _, at := range []float32{100, 300, 500} {
 				w.Write().Seed(things.Entry(geom.NewVec(at, at)))
 			}
 		}).

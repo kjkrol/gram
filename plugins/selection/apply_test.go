@@ -43,7 +43,7 @@ func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c
 func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
 
 type unit struct {
-	x        float64
+	x        float32
 	by       command.Issuer
 	selected bool
 }
@@ -105,7 +105,7 @@ func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 	for range 2 {
 		ctx.ecs.Tick(time.Second / 10)
 	}
-	byX := map[float64]uid.UID64{}
+	byX := map[float32]uid.UID64{}
 	for q.All(); q.Next(); {
 		cur := q.Cursor()
 		for i, id := range cur.IDs {

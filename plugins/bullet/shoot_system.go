@@ -1,7 +1,6 @@
 package bullet
 
 import (
-	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -9,6 +8,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -132,13 +132,13 @@ func (s *shootSystem) fire(cmd Shoot, sh shooter) {
 	if targeted {
 		dir = at.Sub(centre)
 	}
-	l := math.Hypot(dir.X, dir.Y)
-	if l < 1e-9 {
+	l := f32.Hypot(dir.X, dir.Y)
+	if l < f32.Eps(max(f32.Abs(centre.X), f32.Abs(centre.Y))) {
 		return
 	}
 	dir = geom.NewVec(dir.X/l, dir.Y/l)
 	body := cmd.Ammo.Body()
-	off := (max(sh.pos.Size.X, sh.pos.Size.Y)+body.Size)/2/max(math.Abs(dir.X), math.Abs(dir.Y)) + 1
+	off := (max(sh.pos.Size.X, sh.pos.Size.Y)+body.Size)/2/max(f32.Abs(dir.X), f32.Abs(dir.Y)) + 1
 	from := geom.NewVec(centre.X+dir.X*off, centre.Y+dir.Y*off)
 
 	shot := Shot{From: from, Dir: dir, Range: body.Range, Shooter: sh.id, Owners: sh.owners}
@@ -151,7 +151,7 @@ func (s *shootSystem) fire(cmd Shoot, sh shooter) {
 	if body.Gravity > 0 {
 		switch {
 		case targeted:
-			shot.Range = min(math.Hypot(at.X-from.X, at.Y-from.Y), body.Range)
+			shot.Range = min(f32.Hypot(at.X-from.X, at.Y-from.Y), body.Range)
 		case cmd.Power > 0:
 			shot.Range = body.Range * min(cmd.Power, 1)
 		}
@@ -162,7 +162,7 @@ func (s *shootSystem) fire(cmd Shoot, sh shooter) {
 	s.w.Write().Spawn(cmd.Ammo.Entry(shot))
 }
 
-func groundAt(groundOf func() ground.Heights, p geom.Vec) float64 {
+func groundAt(groundOf func() ground.Heights, p geom.Vec) float32 {
 	if groundOf == nil {
 		return 0
 	}

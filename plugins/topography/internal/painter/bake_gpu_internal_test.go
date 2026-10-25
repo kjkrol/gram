@@ -4,11 +4,11 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	"math"
 	"os"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -64,7 +64,7 @@ func bakedBoard(t *testing.T) (*Painter, *board.BoardWrite, render.AtlasSource, 
 	for y := uint32(5); y < 10; y++ {
 		brdW.Set(g.At(12, y), brook) // running down the slope
 	}
-	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 20 + p.X/16 - p.Y/8 })
+	reliefFor(brd).SetHeights(func(p geom.Vec) float32 { return 20 + p.X/16 - p.Y/8 })
 	atlas := render.NewAtlas()
 	for id, c := range map[render.SpriteID]color.RGBA{1: {90, 160, 70, 255},
 		2: {210, 190, 120, 255}, 3: {120, 120, 130, 255}, 4: {40, 80, 170, 255}} {
@@ -215,7 +215,7 @@ func wayBoard(t *testing.T, g grid.Grid) (*Painter, *board.BoardWrite, render.At
 		brdW.SetWay(g.At(14, 3), cell.Way{Kind: road, Width: 4, Links: link(2)})
 		brdW.SetWay(g.At(13, 4), cell.Way{Kind: road, Width: 6, Links: link(0), Fade: 0.3})
 	}
-	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 40 - p.Y/8 + p.X/32 })
+	reliefFor(brd).SetHeights(func(p geom.Vec) float32 { return 40 - p.Y/8 + p.X/32 })
 	atlas := render.NewAtlas()
 	for id, c := range map[render.SpriteID]color.RGBA{1: {90, 160, 70, 255},
 		2: {40, 80, 170, 255}, 3: {150, 110, 70, 255}, 4: {60, 110, 190, 255}} {
@@ -285,24 +285,24 @@ func island(tb testing.TB) (*Painter, *board.BoardWrite, render.AtlasSource, gri
 		"estuary": styled(st, cell.Kind{Name: cell.Named("estuary"), Allows: cell.Water,
 			SpriteID: 6}, Style{Shine: 0.9, Flow: 45}),
 	}
-	inside := func(x, y float64) float64 { // 1 in the middle, 0 at the coast
+	inside := func(x, y float32) float32 { // 1 in the middle, 0 at the coast
 		dx, dy := (x-w/2)/34, (y-h/2)/22
-		return 1 - math.Hypot(dx, dy)*(1+0.1*math.Sin(5*math.Atan2(dy, dx)))
+		return 1 - f32.Hypot(dx, dy)*(1+0.1*f32.Sin(5*f32.Atan2(dy, dx)))
 	}
 	land := map[cell.ID]bool{}
 	g.EachCell(func(c cell.ID) {
 		x, y, _ := g.Coords(c)
-		land[c] = inside(float64(x)+0.5, float64(y)+0.5) > 0
+		land[c] = inside(float32(x)+0.5, float32(y)+0.5) > 0
 	})
-	heights := func(q geom.Vec) float64 {
+	heights := func(q geom.Vec) float32 {
 		x, y := q.X/size, q.Y/size
-		for _, d := range [4][2]float64{{-0.5, -0.5}, {0.5, -0.5}, {-0.5, 0.5}, {0.5, 0.5}} {
+		for _, d := range [4][2]float32{{-0.5, -0.5}, {0.5, -0.5}, {-0.5, 0.5}, {0.5, 0.5}} {
 			if c, ok := g.CellAt(geom.NewVec((x+d[0])*size, (y+d[1])*size)); !ok || !land[c] {
 				return 0
 			}
 		}
 		in := inside(x, y)
-		return 8 + 160*in*in*(0.7+0.3*math.Sin(x/3)*math.Cos(y/4)) + 10*math.Sin(x/2+y/3)
+		return 8 + 160*in*in*(0.7+0.3*f32.Sin(x/3)*f32.Cos(y/4)) + 10*f32.Sin(x/2+y/3)
 	}
 	rivers, err := drain.Drain(g, heights, func(c cell.ID) bool { return !land[c] }, drain.Config{
 		BrookAt: 30, StreamAt: 60, RiverAt: 170, BrookDepth: 1, StreamDepth: 2, RiverDepth: 5,

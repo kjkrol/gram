@@ -14,6 +14,6 @@ func cellAtXY(g grid.Grid, x, y uint32) cell.ID {
 
 func cellBox(g grid.Grid, c cell.ID, size uint32) plane.AABB {
 	at := g.CellCenter(c)
-	half := float64(size) / 2
-	return plane.NewAABB(geom.NewVec(at.X-half, at.Y-half), float64(size), float64(size))
+	half := float32(size) / 2
+	return plane.NewAABB(geom.NewVec(at.X-half, at.Y-half), float32(size), float32(size))
 }

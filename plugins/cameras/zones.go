@@ -60,7 +60,7 @@ func (v *zonesView) DrawGlass(dst *render.Image, cam camera.Camera) {
 	b := dst.Bounds()
 	w, h := float32(b.Dx()), float32(b.Dy())
 	thick := float32(control.EdgeMargin)
-	side := float32(control.CornerSide(float64(w), float64(h)))
+	side := control.CornerSide(w, h)
 	ends := side + zoneGap
 	// each zone's corners top-left, top-right, bottom-left, bottom-right, coloured where they lie
 	// on the picture's edge

@@ -39,7 +39,7 @@ type lighting struct {
 // a thing casting a live shadow, as a source said (Frame.Cast)
 type caster struct {
 	box         geom.AABB
-	alt, height float64
+	alt, height float32
 	cast        light.Casting
 	atlas       AtlasSource
 	sprite      SpriteID
@@ -90,7 +90,7 @@ func (l *lighting) look(cam camera.Camera) {
 	x, y, ok := camera.Viewpoint(cam)
 	if !ok {
 		b := cam.Bounds()
-		x, y = float32(b.TopLeft.X+b.BottomRight.X)/2, float32(b.TopLeft.Y+b.BottomRight.Y)/2
+		x, y = (b.TopLeft.X+b.BottomRight.X)/2, (b.TopLeft.Y+b.BottomRight.Y)/2
 	}
 	l.at = [2]float32{x, y}
 	if l.nearer == nil {
@@ -246,9 +246,9 @@ func (l *lighting) distance(c *caster) float32 {
 	if !l.eyed {
 		return 0
 	}
-	dx := float32(c.box.TopLeft.X+c.box.BottomRight.X)/2 - l.eye[0]
-	dy := float32(c.box.TopLeft.Y+c.box.BottomRight.Y)/2 - l.eye[1]
-	dz := float32(c.alt) - l.eye[2]
+	dx := (c.box.TopLeft.X+c.box.BottomRight.X)/2 - l.eye[0]
+	dy := (c.box.TopLeft.Y+c.box.BottomRight.Y)/2 - l.eye[1]
+	dz := c.alt - l.eye[2]
 	return float32(math.Sqrt(float64(dx*dx + dy*dy + dz*dz)))
 }
 

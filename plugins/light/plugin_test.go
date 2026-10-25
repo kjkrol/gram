@@ -48,7 +48,7 @@ func (c *installCtx) Draws(...render.Source) {}
 func (c *installCtx) Looks(func())           {}
 func (*installCtx) Pool() *parallel.Pool     { return nil }
 
-type spot struct{ x, y float64 }
+type spot struct{ x, y float32 }
 
 // a level world 1000 a side with heights, lit by the plugin, tick a tick of both; after sets up
 // after them
@@ -212,7 +212,7 @@ func TestPlugin_LightsTheFrameByTheLampsNearestTheCamera(t *testing.T) {
 		torch := lampKind(w, "torch", light.Source{Strength: 1, Reach: 50})
 		var entries []kind.Entry
 		for i := range 10 {
-			entries = append(entries, torch.Entry(spot{float64(50 + 90*i), 500}))
+			entries = append(entries, torch.Entry(spot{float32(50 + 90*i), 500}))
 		}
 		w.Write().Seed(entries...)
 	})

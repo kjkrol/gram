@@ -47,7 +47,7 @@ func TestNetwork_ARoadLinksItsCellsBothWays(t *testing.T) {
 func TestNetwork_WaterFlowsDownAndLiesAlongIt(t *testing.T) {
 	river := network.New(g)
 	for y := range uint32(4) {
-		river.Set(at(2, y), network.Node{Kind: "river", Width: 2 + float64(y)})
+		river.Set(at(2, y), network.Node{Kind: "river", Width: 2 + float32(y)})
 	}
 	river.Set(at(1, 1), network.Node{Kind: "brook", Width: 1})
 	for y := range uint32(4) {

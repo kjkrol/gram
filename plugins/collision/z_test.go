@@ -14,11 +14,11 @@ import (
 )
 
 type raised struct {
-	x float64
+	x float32
 	z *world.Z
 }
 
-func zRun(t *testing.T, a, b raised) (met bool, gap float64) {
+func zRun(t *testing.T, a, b raised) (met bool, gap float32) {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
@@ -53,7 +53,7 @@ func zRun(t *testing.T, a, b raised) (met bool, gap float64) {
 	}})
 	ecs.Tick(time.Second / 60)
 
-	var lefts []float64
+	var lefts []float32
 	for q.All(); q.Next(); {
 		for _, b := range base.Slice(q.Cursor()) {
 			lefts = append(lefts, b.Pos.TopLeft.X)
@@ -62,7 +62,7 @@ func zRun(t *testing.T, a, b raised) (met bool, gap float64) {
 	return stats.Counter > 0, max(lefts[0], lefts[1]) - min(lefts[0], lefts[1])
 }
 
-func z(altitude, height float64) *world.Z { return &world.Z{Altitude: altitude, Height: height} }
+func z(altitude, height float32) *world.Z { return &world.Z{Altitude: altitude, Height: height} }
 
 func TestZ_TouchOnlyWhereTheBandsOverlap(t *testing.T) {
 	cases := map[string]struct {

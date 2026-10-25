@@ -64,6 +64,6 @@ func sight() comp.Comp {
 	return comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 200, Ahead: true})
 }
 
-func eye(height float64) comp.Comp {
+func eye(height float32) comp.Comp {
 	return comp.Const(world.Eye{Height: height, Angle: 2 * math.Pi / 5})
 }

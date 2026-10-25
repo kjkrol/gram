@@ -2,7 +2,6 @@ package ui
 
 import (
 	"image/color"
-	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
@@ -10,6 +9,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -40,7 +40,7 @@ type pin struct {
 	on        ceremony.Whom
 	where     Pin
 	placing   placing
-	dx, dy    float64
+	dx, dy    float32
 	off       OffScreen
 	instances []instance
 	gone      map[uid.UID64]bool
@@ -144,7 +144,7 @@ func (e *Element) Beside() *Element {
 }
 
 // Offset moves the pinned element dx, dy pixels from where it stands by its entity.
-func (e *Element) Offset(dx, dy float64) *Element {
+func (e *Element) Offset(dx, dy float32) *Element {
 	p := e.pinned()
 	p.dx, p.dy = dx, dy
 	return e
@@ -246,7 +246,7 @@ func (p *pin) place(e *Element, s spot, vs []view, screen geom.AABB) {
 			first = v
 		}
 		if px, py, _, ok := v.at.ToPixels(s.x, s.y, s.z); ok {
-			box := clamp(p.by(v.box.TopLeft.Add(geom.NewVec(float64(px), float64(py))), w, h), screen)
+			box := clamp(p.by(v.box.TopLeft.Add(geom.NewVec(px, py)), w, h), screen)
 			p.instances = append(p.instances, instance{id: s.id, box: box})
 			seen = true
 		}
@@ -259,11 +259,11 @@ func (p *pin) place(e *Element, s spot, vs []view, screen geom.AABB) {
 	p.instances = append(p.instances, in)
 }
 
-func (p *pin) offScreen(e *Element, v view, s spot, w, h float64, screen geom.AABB,
+func (p *pin) offScreen(e *Element, v view, s spot, w, h float32, screen geom.AABB,
 	in *instance) {
 	in.looker, _ = v.input.(Looker)
 	px, py, _, _ := v.at.ToPixels(s.x, s.y, s.z)
-	target := v.box.TopLeft.Add(geom.NewVec(float64(px), float64(py)))
+	target := v.box.TopLeft.Add(geom.NewVec(px, py))
 	vw, vh := size(v.box)
 	middle := v.box.TopLeft.Add(geom.NewVec(vw/2, vh/2))
 	switch p.off {
@@ -293,7 +293,7 @@ func (e *Element) lookAt(looker Looker, id uid.UID64) {
 	e.d.wished = append(e.d.wished, look{looker, id})
 }
 
-func (p *pin) by(a geom.Vec, w, h float64) geom.AABB {
+func (p *pin) by(a geom.Vec, w, h float32) geom.AABB {
 	var tl geom.Vec
 	switch p.placing {
 	case below:
@@ -312,20 +312,20 @@ func (p *pin) point(b entity.Base, z *entity.Z) (x, y, alt float32) {
 	if z != nil && z.Height > 0 {
 		switch p.placing {
 		case below:
-			return float32(c.X), float32(c.Y), float32(z.Altitude)
+			return c.X, c.Y, z.Altitude
 		case beside:
-			return float32(c.X), float32(c.Y), float32(z.Altitude + z.Height/2)
+			return c.X, c.Y, z.Altitude + z.Height/2
 		default:
-			return float32(c.X), float32(c.Y), float32(z.Top())
+			return c.X, c.Y, z.Top()
 		}
 	}
 	switch p.placing {
 	case below:
-		return float32(c.X), float32(box.BottomRight.Y), 0
+		return c.X, box.BottomRight.Y, 0
 	case beside:
-		return float32(box.BottomRight.X), float32(c.Y), 0
+		return box.BottomRight.X, c.Y, 0
 	default:
-		return float32(c.X), float32(box.TopLeft.Y), 0
+		return c.X, box.TopLeft.Y, 0
 	}
 }
 
@@ -333,12 +333,12 @@ const arrowLength = 14
 
 func towards(middle, target, reach geom.Vec) geom.Vec {
 	d := target.Sub(middle)
-	scale := 1.0
+	scale := float32(1)
 	if d.X != 0 {
-		scale = min(scale, reach.X/math.Abs(d.X))
+		scale = min(scale, reach.X/f32.Abs(d.X))
 	}
 	if d.Y != 0 {
-		scale = min(scale, reach.Y/math.Abs(d.Y))
+		scale = min(scale, reach.Y/f32.Abs(d.Y))
 	}
 	return middle.Add(geom.NewVec(d.X*scale, d.Y*scale))
 }
@@ -347,12 +347,12 @@ func arrow(box geom.AABB, target geom.Vec) []geom.Vec {
 	w, h := size(box)
 	c := box.TopLeft.Add(geom.NewVec(w/2, h/2))
 	d := target.Sub(c)
-	n := math.Hypot(d.X, d.Y)
+	n := f32.Hypot(d.X, d.Y)
 	if n == 0 {
 		return nil
 	}
 	ux, uy := d.X/n, d.Y/n
-	reach := math.Min(w/2/math.Max(math.Abs(ux), 1e-9), h/2/math.Max(math.Abs(uy), 1e-9))
+	reach := min(w/2/max(f32.Abs(ux), 1e-9), h/2/max(f32.Abs(uy), 1e-9))
 	base := c.Add(geom.NewVec(ux*reach, uy*reach))
 	tip := base.Add(geom.NewVec(ux*arrowLength, uy*arrowLength))
 	side := geom.NewVec(-uy*arrowLength/2, ux*arrowLength/2)
@@ -361,9 +361,9 @@ func arrow(box geom.AABB, target geom.Vec) []geom.Vec {
 
 func clamp(box geom.AABB, screen geom.AABB) geom.AABB {
 	w, h := size(box)
-	x := math.Min(math.Max(box.TopLeft.X, screen.TopLeft.X), screen.BottomRight.X-w)
-	y := math.Min(math.Max(box.TopLeft.Y, screen.TopLeft.Y), screen.BottomRight.Y-h)
-	return geom.NewAABBAt(geom.NewVec(math.Max(x, screen.TopLeft.X), math.Max(y, screen.TopLeft.Y)), w, h)
+	x := min(max(box.TopLeft.X, screen.TopLeft.X), screen.BottomRight.X-w)
+	y := min(max(box.TopLeft.Y, screen.TopLeft.Y), screen.BottomRight.Y-h)
+	return geom.NewAABBAt(geom.NewVec(max(x, screen.TopLeft.X), max(y, screen.TopLeft.Y)), w, h)
 }
 
 func (p *pin) each(e *Element, parent geom.AABB, fn func(in *instance)) {
@@ -390,7 +390,7 @@ func paintArrow(dst *render.Image, in *instance, color color.RGBA) {
 	}
 	pts := make([][2]float32, 3)
 	for k, v := range in.arrow {
-		pts[k] = [2]float32{float32(v.X), float32(v.Y)}
+		pts[k] = [2]float32{v.X, v.Y}
 	}
 	dst.FillPolygon(pts, color)
 }

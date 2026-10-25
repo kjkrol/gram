@@ -24,7 +24,7 @@ type level struct{}
 func (level) Lattice() (cols, rows int, cell float32, heights []float32, ok bool) {
 	return 9, 9, 128, make([]float32, 81), true
 }
-func (level) GroundAt(geom.Vec) float64 { return 0 }
+func (level) GroundAt(geom.Vec) float32 { return 0 }
 func (level) Version() uint64           { return 0 }
 
 // a kind 20 tall casting its shadow as cast says, or shining with src given one with a Reach

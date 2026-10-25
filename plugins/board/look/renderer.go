@@ -68,8 +68,8 @@ type Renderer struct {
 	// what lights the tiles, nil for white light
 	lights func() *render.Lights
 	atlas  render.AtlasSource
-	cellW  float64
-	cellH  float64
+	cellW  float32
+	cellH  float32
 	square bool
 	state  RenderState
 	// the toggles as the frame drawn holds them, the live ones before any was published
@@ -182,7 +182,7 @@ func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 
 func (l *Renderer) gridDrawn(cam camera.Camera) bool {
 	_, _, shown := l.drawn().Grid()
-	return shown && float32(min(l.cellW, l.cellH))*cam.Zoom() >= MinGridCell
+	return shown && min(l.cellW, l.cellH)*cam.Zoom() >= MinGridCell
 }
 
 // Draw lays the tiles on the GPU through cam in the opaque pass, under a Lighting lit per pixel by
@@ -291,7 +291,7 @@ func (l *Renderer) topOf(c cell.ID) *cellTop {
 		return t
 	}
 	kind := l.board.Bare(c)
-	t.sway, t.height, t.sprite, t.ver = float32(kind.Sway), float32(kind.Height), kind.SpriteID, v
+	t.sway, t.height, t.sprite, t.ver = kind.Sway, kind.Height, kind.SpriteID, v
 	return t
 }
 

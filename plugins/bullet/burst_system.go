@@ -1,15 +1,15 @@
 package bullet
 
 import (
-	cgoke "github.com/kjkrol/ceremony/goke"
-	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -67,7 +67,7 @@ func (s *burstSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 			}
 			other := s.seek.Cursor()
 			at := s.base.At(other).Pos.Center()
-			d := math.Hypot(at.X-centre.X, at.Y-centre.Y)
+			d := f32.Hypot(at.X-centre.X, at.Y-centre.Y)
 			if d > r {
 				continue
 			}

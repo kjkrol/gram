@@ -1,22 +1,22 @@
 package routes
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
-	"github.com/kjkrol/gram/plugins/navigation/internal/order"
-	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"image/color"
-	"math"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/navigation/internal/pathfind"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -79,7 +79,7 @@ type Renderer struct {
 	heights      func() ground.Heights
 	drawnHeights func() ground.Heights
 	ground       ground.Heights
-	step         float64
+	step         float32
 	// nil: the box as it lies
 	look   func() world.Look
 	routes bool
@@ -302,13 +302,13 @@ func (r *Renderer) goals(b *planned, g ground.Heights, domain cell.Domain, o *or
 
 func standing(g ground.Heights, p geom.Vec, domain cell.Domain, level order.Level) float32 {
 	if s, ok := g.(ground.Surfaces); ok && level != order.OnGround {
-		top, _ := s.Surface(p, domain, math.Inf(1), 0)
-		return float32(top)
+		top, _ := s.Surface(p, domain, f32.Inf(1), 0)
+		return top
 	}
 	if g == nil {
 		return 0
 	}
-	return float32(g.At(p))
+	return g.At(p)
 }
 
 func (r *Renderer) point(c cell.ID, spot geom.Vec) geom.Vec {
@@ -353,10 +353,10 @@ func (r *Renderer) line(a, b geom.Vec) {
 	if r.space != nil && r.space.Edges != 0 {
 		dx := spacing.ShortestAxisDelta(a.X, b.X, r.space.Width, r.space.Edges.WrapsX())
 		dy := spacing.ShortestAxisDelta(a.Y, b.Y, r.space.Height, r.space.Edges.WrapsY())
-		x0, y0 := r.camera.ToScreen(float32(a.X), float32(a.Y))
-		x1, y1 := r.camera.ToScreen(float32(a.X+dx), float32(a.Y+dy))
+		x0, y0 := r.camera.ToScreen(a.X, a.Y)
+		x1, y1 := r.camera.ToScreen(a.X+dx, a.Y+dy)
 		mid := geom.NewVec(a.X+dx/2, a.Y+dy/2)
-		at := r.frame.Lifted(float32(mid.X), float32(mid.Y), 0, routeLift)
+		at := r.frame.Lifted(mid.X, mid.Y, 0, routeLift)
 		r.frame.Line(at, x0, y0, x1, y1, r.Current.Width, r.Current.Line)
 		return
 	}
@@ -364,18 +364,18 @@ func (r *Renderer) line(a, b geom.Vec) {
 		r.gpu.Add(r.camera, a, b, r.groundAt, r.step, r.Current.Width, r.Current.Line)
 		return
 	}
-	length := math.Hypot(b.X-a.X, b.Y-a.Y)
+	length := f32.Hypot(b.X-a.X, b.Y-a.Y)
 	pieces := 1
 	if r.step > 0 && length > r.step {
-		pieces = int(math.Ceil(length / r.step))
+		pieces = int(f32.Ceil(length / r.step))
 	}
 	x0, y0 := r.on(a)
 	for i := 1; i <= pieces; i++ {
-		t := float64(i) / float64(pieces)
+		t := float32(i) / float32(pieces)
 		p := geom.NewVec(a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t)
 		x1, y1 := r.on(p)
-		mid := geom.NewVec(a.X+(b.X-a.X)*(t-0.5/float64(pieces)), a.Y+(b.Y-a.Y)*(t-0.5/float64(pieces)))
-		at := r.frame.Lifted(float32(mid.X), float32(mid.Y), r.groundAt(mid), routeLift)
+		mid := geom.NewVec(a.X+(b.X-a.X)*(t-0.5/float32(pieces)), a.Y+(b.Y-a.Y)*(t-0.5/float32(pieces)))
+		at := r.frame.Lifted(mid.X, mid.Y, r.groundAt(mid), routeLift)
 		r.frame.Line(at, x0, y0, x1, y1, r.Current.Width, r.Current.Line)
 		x0, y0 = x1, y1
 	}
@@ -385,11 +385,11 @@ func (r *Renderer) groundAt(p geom.Vec) float32 {
 	if r.ground == nil {
 		return 0
 	}
-	return float32(r.ground.At(p))
+	return r.ground.At(p)
 }
 
 func (r *Renderer) on(p geom.Vec) (float32, float32) {
-	return r.camera.Project(float32(p.X), float32(p.Y), r.groundAt(p))
+	return r.camera.Project(p.X, p.Y, r.groundAt(p))
 }
 
 func (r *Renderer) goal(size, at geom.Vec, alt float32) {
@@ -399,12 +399,12 @@ func (r *Renderer) goal(size, at geom.Vec, alt float32) {
 		r.footprint = r.look().Footprint(r.camera, box, alt, r.footprint)
 	} else {
 		var q render.Corners
-		for i, p := range [4][2]float32{{float32(box.TopLeft.X), float32(box.TopLeft.Y)}, {float32(box.BottomRight.X), float32(box.TopLeft.Y)}, {float32(box.TopLeft.X), float32(box.BottomRight.Y)}, {float32(box.BottomRight.X), float32(box.BottomRight.Y)}} {
+		for i, p := range [4][2]float32{{box.TopLeft.X, box.TopLeft.Y}, {box.BottomRight.X, box.TopLeft.Y}, {box.TopLeft.X, box.BottomRight.Y}, {box.BottomRight.X, box.BottomRight.Y}} {
 			q[i][0], q[i][1] = r.camera.Project(p[0], p[1], alt)
 		}
 		r.footprint = append(r.footprint, q)
 	}
-	lies := r.frame.Lifted(float32(at.X), float32(at.Y), alt, goalLift)
+	lies := r.frame.Lifted(at.X, at.Y, alt, goalLift)
 	for _, q := range r.footprint {
 		pts := [4][2]float32{q[0], q[1], q[3], q[2]}
 		for i, p := range pts {

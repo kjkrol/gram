@@ -9,7 +9,7 @@ R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
 G=${PROBE_TREE:-$R}
 W=$4/probews
 rm -rf "$W"; mkdir -p "$W/demo"
-cp "$G/$1"/* "$W/demo/"
+cp -r "$G/$1"/* "$W/demo/"
 cp "$2" "$W/demo/zz_probe.go"
 [ -n "$PROBE_SED" ] && sed -i "$PROBE_SED" "$W/demo/demo.go"
 [ -n "$PROBE_SEED" ] && sed -i "s/uint64(time.Now().UnixNano())/$PROBE_SEED/" "$W/demo/demo.go"

@@ -2,20 +2,20 @@
 // surface under its feet and the slab over its head.
 package vertical
 
-import "math"
+import "github.com/kjkrol/gram/internal/f32"
 
 // Body is one body as a step takes it: its feet, height and the reach of its step, the drift it
 // is carried at (X and Y across, Rise up) and whether it is in the air.
 type Body struct {
-	Feet, Height, Reach float64
-	X, Y, Rise          float64
+	Feet, Height, Reach float32
+	X, Y, Rise          float32
 	Airborne            bool
 }
 
 // Step moves b one step of dt under a pull of g down, between floor, the surface under it, and
 // ceiling, the underside of a slab over its head. A standing body follows the floor within its
 // reach; one in the air falls and lands on the floor, landed saying so at speed.
-func Step(b *Body, g, floor, ceiling, dt float64) (speed float64, landed bool) {
+func Step(b *Body, g, floor, ceiling, dt float32) (speed float32, landed bool) {
 	if !b.Airborne {
 		if b.Feet-floor <= b.Reach {
 			b.Feet = floor
@@ -40,27 +40,27 @@ func Step(b *Body, g, floor, ceiling, dt float64) (speed float64, landed bool) {
 }
 
 // Leap throws b up to rise height under a pull of g; a body in the air does not leap.
-func Leap(b *Body, g, height float64) {
+func Leap(b *Body, g, height float32) {
 	if b.Airborne || g <= 0 || height <= 0 {
 		return
 	}
-	b.Rise = math.Sqrt(2 * g * height)
+	b.Rise = f32.Sqrt(2 * g * height)
 	b.Airborne = true
 }
 
 // Throw carries b off at x, y across, rising height up first; one thrown off without rising
 // slides along the ground till the ground holds it.
-func Throw(b *Body, g, x, y, height float64) {
+func Throw(b *Body, g, x, y, height float32) {
 	b.X += x
 	b.Y += y
 	if height > 0 && g > 0 {
-		b.Rise = max(b.Rise, 0) + math.Sqrt(2*g*height)
+		b.Rise = max(b.Rise, 0) + f32.Sqrt(2*g*height)
 		b.Airborne = true
 	}
 }
 
-func brake(x, y, by float64) (float64, float64) {
-	l := math.Hypot(x, y)
+func brake(x, y, by float32) (float32, float32) {
+	l := f32.Hypot(x, y)
 	if l <= by {
 		return 0, 0
 	}

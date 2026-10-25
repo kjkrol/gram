@@ -3,15 +3,14 @@ package ui
 import (
 	"testing"
 
-	"github.com/kjkrol/uid"
-
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/uid"
 )
 
 var screen = geom.NewAABBAt(geom.NewVec(0, 0), 1200, 600)
 
-func box(x, y, w, h float64) geom.AABB { return geom.NewAABBAt(geom.NewVec(x, y), w, h) }
+func box(x, y, w, h float32) geom.AABB { return geom.NewAABBAt(geom.NewVec(x, y), w, h) }
 
 func wantBox(t *testing.T, what string, got, want geom.AABB) {
 	t.Helper()
@@ -112,7 +111,7 @@ func (*sized) Draw() *render.Image { return nil }
 
 type proportioned struct{ sized }
 
-func (*proportioned) Proportions() (float64, float64, bool) { return 4, 3, true }
+func (*proportioned) Proportions() (float32, float32, bool) { return 4, 3, true }
 
 func TestFraction_KeepsTheShareAndThePictureItsProportions(t *testing.T) {
 	for _, box := range []geom.AABB{screen, geom.NewAABBAt(geom.NewVec(0, 0), 800, 1000)} {

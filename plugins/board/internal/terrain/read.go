@@ -41,7 +41,7 @@ func (r *Read) Version() uint64 { return r.t.Version() }
 func (r *Read) Banded() bool { return r.t.bands > 0 }
 
 // Narrowest is how wide the narrowest band is; 0 for none.
-func (r *Read) Narrowest() float64 { return r.t.narrowest }
+func (r *Read) Narrowest() float32 { return r.t.narrowest }
 
 // Thinnest is how thick the thinnest raised band's slab is; 0 for none.
-func (r *Read) Thinnest() float64 { return r.t.thinnest }
+func (r *Read) Thinnest() float32 { return r.t.thinnest }

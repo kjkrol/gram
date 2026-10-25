@@ -7,7 +7,7 @@ import "github.com/kjkrol/gram/plugins/board/internal/grids"
 type Shape struct {
 	Hex          bool
 	Cols, Rows   uint32
-	Cell         float64
+	Cell         float32
 	WrapX, WrapY bool
 }
 
@@ -15,7 +15,7 @@ type Shape struct {
 func ShapeOf(g Grid) (Shape, bool) {
 	switch gr := g.(type) {
 	case *grids.Square:
-		return Shape{Cols: gr.Width, Rows: gr.Height, Cell: float64(gr.CellSize), WrapX: gr.WrapX, WrapY: gr.WrapY}, true
+		return Shape{Cols: gr.Width, Rows: gr.Height, Cell: float32(gr.CellSize), WrapX: gr.WrapX, WrapY: gr.WrapY}, true
 	case *grids.Hex:
 		return Shape{Hex: true, Cols: gr.Width, Rows: gr.Height, Cell: gr.Size, WrapX: gr.WrapX, WrapY: gr.WrapY}, true
 	}

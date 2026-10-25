@@ -77,7 +77,7 @@ func (l *Painter) refresh(atlas render.AtlasSource) bool {
 	}
 	low, high := l.ground().Extent()
 	all := g.at == 0 || g.styled != l.styleVersion || g.atlas != atlas || len(g.vers) != n ||
-		float32(low) != g.low || float32(high-low) != g.span
+		low != g.low || (high-low) != g.span
 	if g.atlas != atlas {
 		g.atlas, g.rects, g.rected = atlas, nil, g.rected[:0]
 	}
@@ -89,7 +89,7 @@ func (l *Painter) refresh(atlas render.AtlasSource) bool {
 	}
 	g.prev = g.at
 	g.at, g.styled = l.board.Changes()+1, l.styleVersion
-	g.low, g.span = float32(low), float32(high-low)
+	g.low, g.span = low, high-low
 	l.tables()
 	if !all {
 		g.changed = g.changed[:0]

@@ -18,7 +18,7 @@ func TestGrid_OfHoldsAPointToTheWorld(t *testing.T) {
 		t.Fatalf("%d sectors over 1000x400 a side 256, want 4x2", g.Len())
 	}
 	for _, c := range []struct {
-		x, y float64
+		x, y float32
 		want int
 	}{
 		{10, 10, 0},

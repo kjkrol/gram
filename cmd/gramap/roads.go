@@ -347,10 +347,10 @@ func (r *roads) rules() site.Rules {
 	per := r.w.perUnit
 	return site.Rules{
 		Longest:   r.longest(),
-		Under:     r.underpass() / per,
-		Clearance: r.clearance() / per,
-		Reshape:   r.cfg.Deep / per,
-		High:      r.cfg.High / per,
+		Under:     float32(r.underpass() / per),
+		Clearance: float32(r.clearance() / per),
+		Reshape:   float32(r.cfg.Deep / per),
+		High:      float32(r.cfg.High / per),
 		Heights:   !r.w.flat,
 	}
 }
@@ -446,7 +446,8 @@ func (r *roads) across(a, b int) bool { return 4*r.turns(a, b) == r.w.grid.Direc
 func (r *roads) turns(a, b int) int {
 	g := r.w.grid
 	sa, sb := g.Step(a), g.Step(b)
-	angle := math.Abs(math.Remainder(math.Atan2(sb.Y, sb.X)-math.Atan2(sa.Y, sa.X), 2*math.Pi))
+	turn := math.Atan2(float64(sb.Y), float64(sb.X)) - math.Atan2(float64(sa.Y), float64(sa.X))
+	angle := math.Abs(math.Remainder(turn, 2*math.Pi))
 	return int(math.Round(angle / (2 * math.Pi / float64(g.Directions()))))
 }
 
@@ -514,7 +515,8 @@ func (r *roads) bridge(a, b cell.ID, way, n int, h float64, laid map[cell.ID]mar
 	if !r.crosses(a, way, n, h) {
 		return 0, false
 	}
-	if _, err := site.Plan(chartGround{r, laid}, r.rules(), a, b, h/r.w.perUnit); err != nil {
+	deck := float32(h / r.w.perUnit)
+	if _, err := site.Plan(chartGround{r, laid}, r.rules(), a, b, deck); err != nil {
 		return 0, false
 	}
 	return cost, true
@@ -558,10 +560,10 @@ type chartGround struct {
 
 func (g chartGround) Grid() grid.Grid { return g.r.w.grid }
 
-func (g chartGround) Heights(c cell.ID, dst []float64) []float64 {
+func (g chartGround) Heights(c cell.ID, dst []float32) []float32 {
 	var buf [4]geom.Vec
 	for _, p := range g.r.w.grid.CellOutline(c, buf[:0]) {
-		dst = append(dst, g.r.height(g.r.w.corner(p))/g.r.w.perUnit)
+		dst = append(dst, float32(g.r.height(g.r.w.corner(p))/g.r.w.perUnit))
 	}
 	return dst
 }
@@ -743,7 +745,7 @@ func (r *roads) ways(rd road, i int) (in, out int) {
 }
 
 func (r *roads) crossings(rd road) {
-	node := network.Node{Kind: r.w.r.Kinds.Road, Width: r.cfg.Width}
+	node := network.Node{Kind: r.w.r.Kinds.Road, Width: float32(r.cfg.Width)}
 	for i, c := range rd.cells {
 		if !rd.over[i] {
 			r.net.Set(c, node)
@@ -967,7 +969,7 @@ func (r *roads) grade() error {
 	}
 	var bad []string
 	for _, j := range jobs {
-		if !ground.RoadFits(w.grid, j.c, w.outline(j.c), j.links, w.size) {
+		if !ground.RoadFits(w.grid, j.c, w.outline(j.c), j.links, float32(w.size)) {
 			x, y := w.xy(j.c)
 			bad = append(bad, fmt.Sprintf("[%d, %d]", x, y))
 		}

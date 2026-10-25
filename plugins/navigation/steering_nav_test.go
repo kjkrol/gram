@@ -1,9 +1,6 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/order"
-	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
-	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 	"math"
 	"testing"
 	"time"
@@ -11,10 +8,14 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/motion/steering"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -65,9 +66,9 @@ func TestNavigation_TurnsBeforeTheBendAndNeverStops(t *testing.T) {
 	pw := newProfiledWorld(t, 6, 6, cell.ID(0), MoveOrder{}, steering.Steering{}, true)
 	pw = newProfiledWorld(t, 6, 6, pw.cellAt(0, 2), MoveOrder{Target: pw.cellAt(5, 4)}, steering.Steering{MaxSpeed: 64, TurnRate: turnRate}, true)
 
-	var prev float64
+	var prev float32
 	haveHeading := false
-	turned := 0.0
+	turned := float32(0)
 	for tick := range 60 * 20 {
 		vel, _, ordered := pw.tick()
 		if tick == 0 {
@@ -82,10 +83,10 @@ func TestNavigation_TurnsBeforeTheBendAndNeverStops(t *testing.T) {
 		if vel.Value <= 0 {
 			t.Fatalf("tick %d: Velocity.Value = %v on the way; a unit must never stop between waypoints", tick, vel.Value)
 		}
-		h := math.Atan2(vel.Dir.Y, vel.Dir.X)
+		h := f32.Atan2(vel.Dir.Y, vel.Dir.X)
 		if haveHeading {
-			delta := math.Abs(math.Mod(h-prev+3*math.Pi, 2*math.Pi) - math.Pi)
-			if delta > turnRate+1e-9 {
+			delta := f32.Abs(f32.Mod(h-prev+3*math.Pi, 2*math.Pi) - math.Pi)
+			if delta > turnRate+f32.Eps(2*math.Pi) {
 				t.Fatalf("tick %d: heading swung by %.3f rad in one tick, want at most TurnRate %.3f", tick, delta, turnRate)
 			}
 			turned += delta
@@ -154,7 +155,7 @@ func TestNavigation_BrakesToRestOnTheGoal(t *testing.T) {
 	target := pw.cellAt(5, 0)
 	pw = newProfiledWorld(t, 6, 1, pw.cellAt(0, 0), MoveOrder{Target: target}, steering.Steering{MaxSpeed: 64, Accel: 128, V0: 16}, true)
 
-	var speeds []float64
+	var speeds []float32
 	for tick := range 60 * 20 {
 		vel, centre, ordered := pw.tick()
 		if tick == 0 {
@@ -201,12 +202,12 @@ func TestNavigation_LeavesAloneAnEntityWithoutSteering(t *testing.T) {
 	}
 }
 
-func geomBox(cx, cy, size float64) plane.AABB {
+func geomBox(cx, cy, size float32) plane.AABB {
 	return plane.NewAABB(geom.NewVec(cx-size/2, cy-size/2), size, size)
 }
 
-func maxOf(xs []float64) float64 {
-	m := math.Inf(-1)
+func maxOf(xs []float32) float32 {
+	m := f32.Inf(-1)
 	for _, x := range xs {
 		m = max(m, x)
 	}
@@ -297,7 +298,7 @@ func TestNavigation_QueuedGoalIsPassedByProjection(t *testing.T) {
 }
 
 // as if already under way
-func (pw *profiledWorld) heading(dir geom.Vec, speed float64) {
+func (pw *profiledWorld) heading(dir geom.Vec, speed float32) {
 	pw.q.All()
 	for pw.q.Next() {
 		cur := pw.q.Cursor()
@@ -315,7 +316,7 @@ func TestNavigation_ASharpTurnSlowsTheUnit(t *testing.T) {
 	pw = newProfiledWorld(t, 8, 1, pw.cellAt(2, 0), MoveOrder{Target: pw.cellAt(7, 0)}, profile, true)
 	pw.heading(geom.NewVec(-1, 0), 64)
 
-	slowest, slowestAt := 64.0, 0
+	slowest, slowestAt := float32(64), 0
 	recovered := false
 	for tick := range 60 * 20 {
 		vel, _, ordered := pw.tick()

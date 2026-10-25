@@ -1,11 +1,10 @@
 package bodies
 
 import (
-	"math"
-
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/tag"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/players/owner"
@@ -35,7 +34,7 @@ type Body struct {
 	Cell      cell.ID
 	Facing    geom.Vec // the way it faces, standing too
 	Z         world.Z
-	Lift      float64
+	Lift      float32
 }
 
 // Member is b as a member of the tick, standing where it is.
@@ -51,7 +50,7 @@ type Index struct {
 	byID    map[uid.UID64]int
 	boxes   [][]int32 // per cell ordinal, the bodies whose box touches the cell
 	touched []int
-	Largest float64
+	Largest float32
 	adding  int32
 	Own     Nearby
 	add     func(cell.ID) // the method value, bound once
@@ -157,6 +156,6 @@ func BoxAt(c, half geom.Vec) geom.AABB {
 
 // Apart reports whether two boxes of half sizes ha and hb, the second d = b − a off the first,
 // stand gap or more apart on either axis.
-func Apart(d, ha, hb geom.Vec, gap float64) bool {
-	return math.Abs(d.X) >= ha.X+hb.X+gap || math.Abs(d.Y) >= ha.Y+hb.Y+gap
+func Apart(d, ha, hb geom.Vec, gap float32) bool {
+	return f32.Abs(d.X) >= ha.X+hb.X+gap || f32.Abs(d.Y) >= ha.Y+hb.Y+gap
 }

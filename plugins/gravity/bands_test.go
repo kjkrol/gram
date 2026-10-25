@@ -1,10 +1,10 @@
 package gravity_test
 
 import (
-	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/sector"
 )
@@ -28,7 +28,7 @@ func TestFall_InAFartherBandComesDownAsFarInAsLong(t *testing.T) {
 		r.tick()
 	}
 	near, far := r.of(0).z.Altitude, r.of(1).z.Altitude
-	if near >= 10 || math.Abs(near-far) > 1e-9 {
+	if near >= 10 || f32.Abs(near-far) > f32.Eps(near) {
 		t.Errorf("fallen to %v near and %v in the second band, want the same below 10", near, far)
 	}
 }

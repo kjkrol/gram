@@ -3,8 +3,6 @@ package navigation
 import (
 	"flag"
 	"fmt"
-	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
-	"math"
 	"math/rand/v2"
 	"os"
 	"strconv"
@@ -16,12 +14,14 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/navigation/internal/pathfind"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
@@ -38,7 +38,7 @@ type routeBoard struct {
 	grid    grid.Grid
 	edges   aabbworld.Edges
 	span    uint32
-	heights func(geom.Vec) float64
+	heights func(geom.Vec) float32
 	lay     func(b testBoard, rng *rand.Rand)
 	bridges []routeSpan
 }
@@ -123,16 +123,16 @@ func squareRoutes() routeBoard {
 		name: "square",
 		grid: g,
 		span: 32,
-		heights: func(p geom.Vec) float64 {
-			if math.Abs((p.X+p.Y)/32-7) < 2 {
+		heights: func(p geom.Vec) float32 {
+			if f32.Abs((p.X+p.Y)/32-7) < 2 {
 				return 0
 			}
-			hx, hy := 26*32.0, 18*32.0
-			if d := math.Hypot(p.X-hx, p.Y-hy) / (5 * 32); d < 1 {
+			hx, hy := float32(26*32), float32(18*32)
+			if d := f32.Hypot(p.X-hx, p.Y-hy) / (5 * 32); d < 1 {
 				return 10 + 24*(1-d)
 			}
 			if p.X > 12*32 {
-				return 10 + 6*math.Sin((p.X-12*32)/50)*math.Cos(p.Y/45)
+				return 10 + 6*f32.Sin((p.X-12*32)/50)*f32.Cos(p.Y/45)
 			}
 			return 10
 		},
@@ -181,8 +181,8 @@ func hexRoutes() routeBoard {
 		name: "hex",
 		grid: g,
 		span: 16,
-		heights: func(p geom.Vec) float64 {
-			return 24 * math.Sin(p.X/60) * math.Cos(p.Y/50)
+		heights: func(p geom.Vec) float32 {
+			return 24 * f32.Sin(p.X/60) * f32.Cos(p.Y/50)
 		},
 		lay: func(b testBoard, rng *rand.Rand) {
 			scatter(b, rng)
@@ -200,12 +200,12 @@ func hexRoutes() routeBoard {
 func newRouteRig(t *testing.T, rb routeBoard) *routeRig {
 	t.Helper()
 	cw, ch := rb.grid.CellBounds()
-	var right, bottom float64
+	var right, bottom float32
 	rb.grid.EachCell(func(c cell.ID) {
 		m := rb.grid.CellCenter(c)
 		right, bottom = max(right, m.X+cw/2), max(bottom, m.Y+ch/2)
 	})
-	width, height := uint32(math.Ceil(right)), uint32(math.Ceil(bottom))
+	width, height := uint32(f32.Ceil(right)), uint32(f32.Ceil(bottom))
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: width, Height: height, Edges: rb.edges},
 		Entities: world.EntitiesCfg{MaxCount: 16, MinSize: 1, MaxSize: rb.span},
@@ -226,7 +226,7 @@ func newRouteRig(t *testing.T, rb routeBoard) *routeRig {
 	}
 	if rb.bridges != nil {
 		g := rb.grid
-		spans := board.NewEntities(brd, board.Shape{Size: float64(rb.span)},
+		spans := board.NewEntities(brd, board.Shape{Size: float32(rb.span)},
 			func(r routeSpan) cell.ID { return r.At })
 		spans.Define("bridge", comp.Load(func(r routeSpan) cell.Floor {
 			back := g.Opposite(r.Ahead)
@@ -306,7 +306,7 @@ func (r *routeRig) cells() []cell.ID {
 	return all
 }
 
-func routeBodies(feet float64) []pathfind.Body {
+func routeBodies(feet float32) []pathfind.Body {
 	return []pathfind.Body{
 		{Feet: feet, Step: 1.5, Height: 3, Size: geom.NewVec(3, 3)},
 		{Feet: feet, Step: 1.5, Height: 3, Size: geom.NewVec(14, 14)},
@@ -380,7 +380,7 @@ func (r *routeRig) record(out *strings.Builder, pairs int) {
 		case i%4 == 3:
 			to = far(from)
 		}
-		var feet float64
+		var feet float32
 		if r.topo != nil {
 			feet = r.topo.Write().Relief().Altitude(from)
 		}

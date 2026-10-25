@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
@@ -85,8 +86,8 @@ func (g *Square) Opposite(i int) int { return squareBack[i] }
 func (g *Square) Offset(i int) (int, int) { return int(squareDirs[i][0]), int(squareDirs[i][1]) }
 
 func (g *Square) Step(i int) geom.Vec {
-	s := float64(g.CellSize)
-	return geom.NewVec(float64(squareDirs[i][0])*s, float64(squareDirs[i][1])*s)
+	s := float32(g.CellSize)
+	return geom.NewVec(float32(squareDirs[i][0])*s, float32(squareDirs[i][1])*s)
 }
 
 func (g *Square) Corner(i int) bool { return i >= 4 }
@@ -114,16 +115,16 @@ func (g *Square) Neighbors(c cell.ID) []cell.ID {
 
 func (g *Square) CellCenter(c cell.ID) geom.Vec {
 	x, y := g.cellXY(c)
-	half := float64(g.CellSize) / 2
-	return geom.NewVec(float64(x)*float64(g.CellSize)+half, float64(y)*float64(g.CellSize)+half)
+	half := float32(g.CellSize) / 2
+	return geom.NewVec(float32(x)*float32(g.CellSize)+half, float32(y)*float32(g.CellSize)+half)
 }
 
 func (g *Square) CellAt(pos geom.Vec) (cell.ID, bool) {
 	if g.CellSize == 0 {
 		return 0, false
 	}
-	x, okX := foldAxis(int64(math.Floor(pos.X/float64(g.CellSize))), int64(g.Width), g.WrapX)
-	y, okY := foldAxis(int64(math.Floor(pos.Y/float64(g.CellSize))), int64(g.Height), g.WrapY)
+	x, okX := foldAxis(int64(f32.Floor(pos.X/float32(g.CellSize))), int64(g.Width), g.WrapX)
+	y, okY := foldAxis(int64(f32.Floor(pos.Y/float32(g.CellSize))), int64(g.Height), g.WrapY)
 	if !okX || !okY {
 		return 0, false
 	}
@@ -132,12 +133,12 @@ func (g *Square) CellAt(pos geom.Vec) (cell.ID, bool) {
 
 func (g *Square) CellSpan() float32 { return float32(g.CellSize) }
 
-func (g *Square) CellBounds() (w, h float64) { return float64(g.CellSize), float64(g.CellSize) }
+func (g *Square) CellBounds() (w, h float32) { return float32(g.CellSize), float32(g.CellSize) }
 
 func (g *Square) CellOutline(c cell.ID, dst []geom.Vec) []geom.Vec {
 	x, y := g.cellXY(c)
-	size := float64(g.CellSize)
-	x0, y0 := float64(x)*size, float64(y)*size
+	size := float32(g.CellSize)
+	x0, y0 := float32(x)*size, float32(y)*size
 	return append(dst, geom.NewVec(x0, y0), geom.NewVec(x0+size, y0), geom.NewVec(x0+size, y0+size), geom.NewVec(x0, y0+size))
 }
 
@@ -147,7 +148,7 @@ func (g *Square) CellsUnder(box geom.AABB, fn func(c cell.ID)) {
 	if g.CellSize == 0 {
 		return
 	}
-	size := float64(g.CellSize)
+	size := float32(g.CellSize)
 	x0, x1, okX := spanOf(box.TopLeft.X, box.BottomRight.X, size, g.Width, g.WrapX)
 	y0, y1, okY := spanOf(box.TopLeft.Y, box.BottomRight.Y, size, g.Height, g.WrapY)
 	if !okX || !okY {
@@ -162,9 +163,11 @@ func (g *Square) CellsUnder(box geom.AABB, fn func(c cell.ID)) {
 	}
 }
 
-func spanOf(a, b, size float64, n uint32, wraps bool) (lo, hi int64, ok bool) {
+// in float64, where eps still counts against a float32 edge lying on a cell's
+func spanOf(a, b, size float32, n uint32, wraps bool) (lo, hi int64, ok bool) {
 	const eps = 1e-9
-	lo, hi = int64(math.Floor((a-eps)/size)), int64(math.Floor((b+eps)/size))
+	lo = int64(math.Floor((float64(a) - eps) / float64(size)))
+	hi = int64(math.Floor((float64(b) + eps) / float64(size)))
 	if wraps {
 		return lo, min(hi, lo+int64(n)-1), true
 	}
@@ -175,8 +178,8 @@ func spanOf(a, b, size float64, n uint32, wraps bool) (lo, hi int64, ok bool) {
 // CellBoxes is the cell's own square.
 func (g *Square) CellBoxes(c cell.ID, dst []geom.AABB) []geom.AABB {
 	x, y := g.cellXY(c)
-	size := float64(g.CellSize)
-	topLeft := geom.NewVec(float64(x)*size, float64(y)*size)
+	size := float32(g.CellSize)
+	topLeft := geom.NewVec(float32(x)*size, float32(y)*size)
 	return append(dst, geom.NewAABB(topLeft, geom.NewVec(topLeft.X+size, topLeft.Y+size)))
 }
 

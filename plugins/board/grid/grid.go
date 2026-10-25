@@ -38,7 +38,7 @@ type Grid interface {
 	// CellSpan is the world-space side length of one cell.
 	CellSpan() float32
 	// CellBounds is the width and height of the rectangle round one cell.
-	CellBounds() (w, h float64)
+	CellBounds() (w, h float32)
 	// CellOutline appends to dst the corners of c, in order round the cell.
 	CellOutline(c cell.ID, dst []geom.Vec) []geom.Vec
 	// CellBoxes appends to dst boxes that together cover c, exactly or from outside.

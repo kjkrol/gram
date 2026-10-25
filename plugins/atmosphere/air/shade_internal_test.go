@@ -87,7 +87,7 @@ func TestShade_TheShadersShadeAsTheCPUDoes(t *testing.T) {
 
 // the low clouds of w hanging over a relief span world units high, their bands shared as
 // ceilings say
-func banded(w Weather, span float64, ceilings [3]float32) Weather {
+func banded(w Weather, span float32, ceilings [3]float32) Weather {
 	w.Relief = ReliefOf(world.Scale{}, 0, span)
 	w.Bases = BasesOver(world.Scale{}, w.Relief)
 	w.Ceilings = ceilings

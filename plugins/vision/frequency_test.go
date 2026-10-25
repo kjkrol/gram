@@ -58,7 +58,7 @@ func TestFrequency_ObserversTakeTurnsAndTheRulesGoOnEveryStep(t *testing.T) {
 	})
 	kind.Define[spawn](w.Kinds(), "target", kind.Spec{comp.Load(at), comp.Const(world.Velocity{})})
 	for i := range observers {
-		row := spawn{x: 100, y: 100 + 50*float64(i)}
+		row := spawn{x: 100, y: 100 + 50*float32(i)}
 		w.Write().Seed(kind.Named[spawn](w.Kinds(), "observer").Entry(row))
 	}
 	w.Write().Seed(kind.Named[spawn](w.Kinds(), "target").Entry(spawn{x: 400, y: 100, size: 400}))

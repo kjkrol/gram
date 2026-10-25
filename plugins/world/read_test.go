@@ -30,8 +30,8 @@ type worldReading struct {
 func readWorld(r *world.Read, ids []uid.UID64, lit effect.Effect,
 	night tag.Tag[clock.Phase]) worldReading {
 	var rd worldReading
-	for y := 0.0; y < 400; y += 100 {
-		for x := 0.0; x < 400; x += 100 {
+	for y := float32(0); y < 400; y += 100 {
+		for x := float32(0); x < 400; x += 100 {
 			var in []uid.UID64
 			r.Space().Query(geom.NewAABBAt(geom.NewVec(x, y), 100, 100), aabbworld.AnyCapability,
 				func(id uid.UID64) { in = append(in, id) })
@@ -62,7 +62,7 @@ func TestRead_TheWorkersReadTheWorldAtOnceAsTheGameDoes(t *testing.T) {
 	})
 	dot := kind.Named[world.Position](w.Kinds(), "dot")
 	for i := range 64 {
-		at := geom.NewVec(float64(i%8)*50+5, float64(i/8)*50+5)
+		at := geom.NewVec(float32(i%8)*50+5, float32(i/8)*50+5)
 		w.Write().Seed(dot.Entry(world.Position{AABB: plane.NewAABB(at, 10, 10)}))
 	}
 	pool := parallel.New(4)

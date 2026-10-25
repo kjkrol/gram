@@ -24,7 +24,7 @@ type guardStage struct {
 
 	world *world.Plugin
 	ecs   *goke.ECS
-	unit  kind.Of[float64]
+	unit  kind.Of[float32]
 	alert effect.Effect
 	base  goke.Comp[world.Base]
 	query *goke.Query
@@ -40,13 +40,13 @@ func (g *guardStage) Init(ctx game.Initializer) error {
 	ctx.Setup(g)
 	g.world.Write().Effects().Define("alert", effect.Spec{effect.Lasts(time.Hour)})
 	g.alert = g.world.Write().Effects().Named("alert")
-	kind.Define[float64](g.world.Kinds(), "unit", kind.Spec{
-		comp.Load(func(x float64) world.Position {
+	kind.Define[float32](g.world.Kinds(), "unit", kind.Spec{
+		comp.Load(func(x float32) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
 		}),
 		comp.Const(world.Velocity{}),
 	})
-	g.unit = kind.Named[float64](g.world.Kinds(), "unit")
+	g.unit = kind.Named[float32](g.world.Kinds(), "unit")
 	g.world.Commands().Define("alert the captain", ceremony.Put(g.alert).On(ceremony.Named("captain")))
 	g.world.Commands().Define("alert the guards", ceremony.Put(g.alert).On(ceremony.Group("guards")))
 	return nil
@@ -86,8 +86,8 @@ func (g *guardStage) give(t *testing.T, cmd command.Command) {
 	}
 }
 
-func (g *guardStage) alerted() map[float64]bool {
-	on := map[float64]bool{}
+func (g *guardStage) alerted() map[float32]bool {
+	on := map[float32]bool{}
 	for g.query.All(); g.query.Next(); {
 		cur := g.query.Cursor()
 		for i, id := range cur.IDs {

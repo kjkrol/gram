@@ -11,8 +11,8 @@ import (
 // the ground rising eastwards, under the sea's level along the west
 type eastwards struct{}
 
-func (eastwards) At(p geom.Vec) float64 { return p.X - 50 }
-func (eastwards) Step() float64         { return 1 }
+func (eastwards) At(p geom.Vec) float32 { return p.X - 50 }
+func (eastwards) Step() float32         { return 1 }
 
 func TestReliefOf_IsTheLowGroundAndTheHighest(t *testing.T) {
 	b, _ := board.NewBoard(grid.DefaultGrids{}.Square(10, 4, 32))

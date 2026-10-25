@@ -1,12 +1,11 @@
 package vision
 
 import (
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/fact"
 	"github.com/kjkrol/ceremony/host"
-	"math"
-
-	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -55,7 +54,7 @@ func (s Sighting) closing() bool {
 		return false
 	}
 	towards := s.Seen[0].Base.Pos.Center().Sub(s.Base.Pos.Center())
-	d := math.Hypot(towards.X, towards.Y)
+	d := f32.Hypot(towards.X, towards.Y)
 	if d == 0 {
 		return false
 	}

@@ -181,7 +181,7 @@ func (s *Scene) drop() {
 	s.held = nil
 }
 
-func (s *Scene) wheel(modal *Element, p geom.Vec, delta float64) {
+func (s *Scene) wheel(modal *Element, p geom.Vec, delta float32) {
 	within := s.root
 	if modal != nil {
 		within = modal

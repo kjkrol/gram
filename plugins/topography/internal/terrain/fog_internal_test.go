@@ -27,7 +27,7 @@ func (one) Cols() int { return 1 }
 func (one) Box(int) geom.AABB {
 	return geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(512, 512))
 }
-func (one) Of(float64, float64) int { return 0 }
+func (one) Of(float32, float32) int { return 0 }
 func (one) Off(int) bool            { return false }
 
 func TestTerrain_TurnsTheGroundPastTheSightIntoTheFog(t *testing.T) {

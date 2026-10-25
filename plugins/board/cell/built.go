@@ -10,12 +10,12 @@ type On struct{ Cell ID }
 // that wide from the cell's middle out to each neighbour its Links name; without, the whole cell.
 type Floor struct {
 	Allows    Domain
-	Height    float64
-	Thickness float64
+	Height    float32
+	Thickness float32
 	Cost      float64
 	Graded    bool
 	Links     Links
-	Width     float64
+	Width     float32
 }
 
 // Knob: an effect may turn it (effect.Knob).
@@ -27,7 +27,7 @@ var _ effect.Knob = Floor{}
 // over its level, 0 at every height: a gate.
 type Wall struct {
 	Keeps  Domain
-	Height float64
+	Height float32
 }
 
 // Knob: an effect may turn it (effect.Knob).
@@ -39,7 +39,7 @@ var _ effect.Knob = Wall{}
 // of the cell's band, up to Height over the deck, 0 at every height: a bridge's railings, a fence.
 type Rail struct {
 	Keeps  Domain
-	Height float64
+	Height float32
 }
 
 // Knob: an effect may turn it (effect.Knob).

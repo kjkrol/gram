@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
@@ -12,12 +13,12 @@ import (
 // coordinates, bounded to a Width x Height parallelogram.
 type Hex struct {
 	Width, Height uint32
-	Size          float64
+	Size          float32
 	WrapX, WrapY  bool
 }
 
 // NewHex is a hex grid of width x height cells of the given size, wrapping along no axis.
-func NewHex(width, height uint32, size float64) *Hex {
+func NewHex(width, height uint32, size float32) *Hex {
 	return &Hex{Width: width, Height: height, Size: size}
 }
 
@@ -45,8 +46,8 @@ func (g *Hex) Opposite(i int) int { return (i + 3) % 6 }
 func (g *Hex) Offset(i int) (int, int) { return int(hexDirs[i][0]), int(hexDirs[i][1]) }
 
 func (g *Hex) Step(i int) geom.Vec {
-	dq, dr := float64(hexDirs[i][0]), float64(hexDirs[i][1])
-	return geom.NewVec(g.Size*(math.Sqrt(3)*dq+math.Sqrt(3)/2*dr), g.Size*1.5*dr)
+	dq, dr := float32(hexDirs[i][0]), float32(hexDirs[i][1])
+	return geom.NewVec(g.Size*(f32.Sqrt(3)*dq+f32.Sqrt(3)/2*dr), g.Size*1.5*dr)
 }
 
 func (g *Hex) Corner(int) bool { return false }
@@ -78,8 +79,8 @@ func (g *Hex) Neighbors(c cell.ID) []cell.ID {
 // CellCenter is the world position of c's centre, with cell (0,0) fully in positive space.
 func (g *Hex) CellCenter(c cell.ID) geom.Vec {
 	q, r := unpackAxial(c)
-	x := g.Size*(math.Sqrt(3)*float64(q)+math.Sqrt(3)/2*float64(r)) + g.Size
-	y := g.Size*(1.5*float64(r)) + g.Size
+	x := g.Size*(f32.Sqrt(3)*float32(q)+f32.Sqrt(3)/2*float32(r)) + g.Size
+	y := g.Size*(1.5*float32(r)) + g.Size
 	return geom.NewVec(x, y)
 }
 
@@ -88,7 +89,7 @@ func (g *Hex) CellAt(pos geom.Vec) (cell.ID, bool) {
 		return 0, false
 	}
 	x, y := pos.X-g.Size, pos.Y-g.Size
-	qf := (math.Sqrt(3)/3*x - 1.0/3*y) / g.Size
+	qf := (f32.Sqrt(3)/3*x - 1.0/3*y) / g.Size
 	rf := (2.0 / 3 * y) / g.Size
 	q, r := axialRound(qf, rf)
 	q, r, ok := g.foldAxial(q, r)
@@ -98,17 +99,17 @@ func (g *Hex) CellAt(pos geom.Vec) (cell.ID, bool) {
 	return packAxial(q, r), true
 }
 
-func (g *Hex) CellSpan() float32 { return float32(g.Size) }
+func (g *Hex) CellSpan() float32 { return g.Size }
 
 // CellBounds is the hex's bounding box: √3·Size wide, 2·Size tall.
-func (g *Hex) CellBounds() (w, h float64) { return math.Sqrt(3) * g.Size, 2 * g.Size }
+func (g *Hex) CellBounds() (w, h float32) { return f32.Sqrt(3) * g.Size, 2 * g.Size }
 
 // CellOutline is the six corners of a pointy-top hex, clockwise from the top.
 func (g *Hex) CellOutline(c cell.ID, dst []geom.Vec) []geom.Vec {
 	center := g.CellCenter(c)
 	for i := range 6 {
-		a := -math.Pi/2 + float64(i)*math.Pi/3
-		dst = append(dst, geom.NewVec(center.X+g.Size*math.Cos(a), center.Y+g.Size*math.Sin(a)))
+		a := -math.Pi/2 + float32(i)*math.Pi/3
+		dst = append(dst, geom.NewVec(center.X+g.Size*f32.Cos(a), center.Y+g.Size*f32.Sin(a)))
 	}
 	return dst
 }
@@ -123,14 +124,14 @@ const capStrips = 3
 func (g *Hex) CellBoxes(c cell.ID, dst []geom.AABB) []geom.AABB {
 	center := g.CellCenter(c)
 	s := g.Size
-	halfW := math.Sqrt(3) / 2 * s
+	halfW := f32.Sqrt(3) / 2 * s
 	dst = append(dst, geom.NewAABB(geom.NewVec(center.X-halfW, center.Y-s/2), geom.NewVec(center.X+halfW, center.Y+s/2)))
 	h := s / 2 / capStrips
 	for j := range capStrips {
-		w := halfW * float64(j+1) / capStrips
-		top := center.Y - s + float64(j)*h
+		w := halfW * float32(j+1) / capStrips
+		top := center.Y - s + float32(j)*h
 		dst = append(dst, geom.NewAABB(geom.NewVec(center.X-w, top), geom.NewVec(center.X+w, top+h)))
-		bottom := center.Y + s - float64(j+1)*h
+		bottom := center.Y + s - float32(j+1)*h
 		dst = append(dst, geom.NewAABB(geom.NewVec(center.X-w, bottom), geom.NewVec(center.X+w, bottom+h)))
 	}
 	return dst
@@ -206,11 +207,11 @@ func (g *Hex) Distance(a, b cell.ID) float64 {
 	return best
 }
 
-func axialRound(qf, rf float64) (int32, int32) {
+func axialRound(qf, rf float32) (int32, int32) {
 	xf, zf := qf, rf
 	yf := -xf - zf
-	x, y, z := math.Round(xf), math.Round(yf), math.Round(zf)
-	dx, dy, dz := math.Abs(x-xf), math.Abs(y-yf), math.Abs(z-zf)
+	x, y, z := f32.Round(xf), f32.Round(yf), f32.Round(zf)
+	dx, dy, dz := f32.Abs(x-xf), f32.Abs(y-yf), f32.Abs(z-zf)
 	switch {
 	case dx > dy && dx > dz:
 		x = -y - z

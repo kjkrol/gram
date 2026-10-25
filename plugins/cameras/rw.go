@@ -222,7 +222,7 @@ func (w *Write) New(start Start, cfg camera.Config) camera.Camera {
 		if start == Isometrically {
 			from = stick.Isometrically
 		}
-		bend := float32(p.worldPlugin.Read(0).Scale().Bend())
+		bend := p.worldPlugin.Read(0).Scale().Bend()
 		made := p.views.Maker(p.viewCfg, from, p.ground, p.extent, bend)
 		cam = made(space.Width, space.Height, space.Edges, cfg)
 	}

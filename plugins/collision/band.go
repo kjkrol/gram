@@ -1,17 +1,16 @@
 package collision
 
 import (
-	"math"
-
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
 // Band is a stretch of height, Bottom to Top, an entity's or a solid cell's; Step is how high an
 // entity steps up. Whatever does not say how high it is spans Everywhere.
-type Band struct{ Bottom, Top, Step float64 }
+type Band struct{ Bottom, Top, Step float32 }
 
 // Everywhere is the band of every height.
-var Everywhere = Band{Bottom: math.Inf(-1), Top: math.Inf(1)}
+var Everywhere = Band{Bottom: f32.Inf(-1), Top: f32.Inf(1)}
 
 // BandOf is the band an entity's Z spans, its bottom to its top; Everywhere for no Z or no Height.
 func BandOf(z *world.Z) Band {

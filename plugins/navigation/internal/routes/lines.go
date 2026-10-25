@@ -3,10 +3,10 @@ package routes
 import (
 	"embed"
 	"image/color"
-	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -58,26 +58,26 @@ func New() *Lines {
 // Add gathers the stretch from a to b over the ground groundAt gives, sampled every step; width
 // is the line's, in pixels, line its colour.
 func (g *Lines) Add(
-	cam camera.Camera, a, b geom.Vec, groundAt func(geom.Vec) float32, step float64,
+	cam camera.Camera, a, b geom.Vec, groundAt func(geom.Vec) float32, step float32,
 	width float32, line color.RGBA,
 ) {
 	w, h := cam.Viewport()
 	g.from = frameOf(cam)
-	x0, y0, x1, y1 := float32(math.Inf(1)), float32(math.Inf(1)), float32(math.Inf(-1)), float32(math.Inf(-1))
+	x0, y0, x1, y1 := f32.Inf(1), f32.Inf(1), f32.Inf(-1), f32.Inf(-1)
 	pieces := 1
-	if length := math.Hypot(b.X-a.X, b.Y-a.Y); step > 0 && length > step {
-		pieces = int(math.Ceil(length / step))
+	if length := f32.Hypot(b.X-a.X, b.Y-a.Y); step > 0 && length > step {
+		pieces = int(f32.Ceil(length / step))
 	}
 	behind := false
 	for i := 0; i <= pieces; i++ {
-		t := float64(i) / float64(pieces)
+		t := float32(i) / float32(pieces)
 		p := geom.NewVec(a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t)
 		z := groundAt(p)
-		if camera.ScaleAt(cam, float32(p.X), float32(p.Y), z) == 0 {
+		if camera.ScaleAt(cam, p.X, p.Y, z) == 0 {
 			behind = true
 			break
 		}
-		sx, sy := cam.Project(float32(p.X), float32(p.Y), z)
+		sx, sy := cam.Project(p.X, p.Y, z)
 		x0, y0, x1, y1 = min(x0, sx), min(y0, sy), max(x1, sx), max(y1, sy)
 	}
 	pad := width + 4
@@ -90,7 +90,7 @@ func (g *Lines) Add(
 	}
 	alpha := float32(line.A) / 255
 	g.stretches = append(g.stretches,
-		float32(a.X), float32(a.Y), float32(b.X), float32(b.Y),
+		a.X, a.Y, b.X, b.Y,
 		rect[0], rect[1], rect[2], rect[3],
 		float32(line.R)/255*alpha, float32(line.G)/255*alpha, float32(line.B)/255*alpha, alpha,
 		width, 0, 0, 0)

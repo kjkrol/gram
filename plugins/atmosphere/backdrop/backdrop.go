@@ -388,7 +388,7 @@ func (b *Renderer) plan(cam camera.Camera) skyPlan {
 	}
 	p.Field, p.Eye = field, [3]float32{ex, ey, ez}
 	p.Clouds = shown && weather.Most().Cover > 0 && ez < weather.Base(air.High)
-	p.Seeing = float32(weather.Visibility(ex, ey))
+	p.Seeing = weather.Visibility(ex, ey)
 	return p
 }
 

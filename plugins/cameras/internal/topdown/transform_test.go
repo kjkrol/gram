@@ -1,10 +1,10 @@
 package topdown
 
 import (
-	"math"
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 )
 
 func TestBasicCamera_ItsTransformDrawsWhereItProjects(t *testing.T) {
@@ -23,7 +23,7 @@ func TestBasicCamera_ItsTransformDrawsWhereItProjects(t *testing.T) {
 	for _, p := range [][2]float32{{120, 90}, {200, 150}, {300, 210}} {
 		wx, wy := c.ToScreen(p[0], p[1])
 		sx, sy, _, ok := tr.Apply(p[0], p[1], 0, 400, 300)
-		if !ok || math.Abs(float64(sx-wx)) > 0.01 || math.Abs(float64(sy-wy)) > 0.01 {
+		if !ok || f32.Abs(float32(sx-wx)) > 0.01 || f32.Abs(float32(sy-wy)) > 0.01 {
 			t.Errorf("%v drawn at (%v, %v), the camera at (%v, %v)", p, sx, sy, wx, wy)
 		}
 	}

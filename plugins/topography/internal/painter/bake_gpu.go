@@ -120,7 +120,7 @@ func (l *Painter) bake(s *groundSheet, atlas render.AtlasSource, at []float32) {
 				dst.SubImage(image.Rect(x, y, x+px, y+px)).Clear()
 			}
 		}
-		l.paintSet(dst, layer, origin, float32(px), float32(px)/float32(l.sq.Cell), 1, !whole)
+		l.paintSet(dst, layer, origin, float32(px), float32(px)/l.sq.Cell, 1, !whole)
 		b := &l.baking
 		b.opts.Images = [4]*render.Image{atlas.Atlas(), l.cells.rects, l.cells.img, b.mask}
 		if layer != layerWater+water.MouthLayer {
@@ -244,7 +244,7 @@ func (l *Painter) paintSet(dst *render.Image, layer int, origin image.Point, px,
 	b.set("PaintOrigin", float32(origin.X), float32(origin.Y))
 	b.set("PaintLayer", float32(layer))
 	b.set("PaintHex", flag(shape.Hex))
-	b.set("PaintCell", float32(shape.Cell))
+	b.set("PaintCell", shape.Cell)
 	b.set("PaintLow", l.cells.low)
 	b.set("PaintSpan", l.cells.span)
 	b.set("PaintFine", flag(l.cellPx >= nearCell || l.square))

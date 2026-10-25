@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/gram/internal/f32"
 	xdraw "golang.org/x/image/draw"
 )
 
@@ -248,15 +249,8 @@ func endpointAt(size int, angleDeg float64) (x, y float32) {
 	rad := angleDeg * math.Pi / 180
 	dx, dy := float32(math.Cos(rad)), -float32(math.Sin(rad))
 	half := float32(size) / 2
-	scale := half / max(abs32(dx), abs32(dy))
+	scale := half / max(f32.Abs(dx), f32.Abs(dy))
 	return cx + dx*scale, cy + dy*scale
-}
-
-func abs32(v float32) float32 {
-	if v < 0 {
-		return -v
-	}
-	return v
 }
 
 func Arrow(angleDeg float64, width float32, c color.RGBA) SpriteDrawer {

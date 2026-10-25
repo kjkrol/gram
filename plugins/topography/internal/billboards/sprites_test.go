@@ -58,7 +58,7 @@ func newHill(t *testing.T) aHill {
 	b.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	terrain := topotest.Drawn(t, p)[0]
-	p.Write().Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
+	p.Write().Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float32 {
 		if x, y, _ := grid.Coords(c); x >= 3 && x <= 4 && y >= 3 && y <= 4 {
 			return 90
 		}
@@ -81,12 +81,12 @@ func newHill(t *testing.T) aHill {
 	vw, vh := cam.Viewport()
 	for sy := float32(0); sy < vh; sy++ {
 		hx, hy, _, ok := picker.Pick(vw/2, sy)
-		if !ok || p.Write().Relief().At(geom.NewVec(float64(hx), float64(hy))) < 20 {
+		if !ok || p.Write().Relief().At(geom.NewVec(float32(hx), float32(hy))) < 20 {
 			continue
 		}
 		ux, uy := cam.Unproject(vw/2, sy, 0)
 		if dx, dy := ux-hx, uy-hy; dx*dx+dy*dy > 60*60 {
-			seen = append(seen, [2]geom.Vec{geom.NewVec(float64(hx), float64(hy)), geom.NewVec(float64(ux), float64(uy))})
+			seen = append(seen, [2]geom.Vec{geom.NewVec(float32(hx), float32(hy)), geom.NewVec(float32(ux), float32(uy))})
 		}
 	}
 	if len(seen) == 0 {
@@ -149,7 +149,7 @@ func TestSprites_ALyingSpriteLiesOnTheGround(t *testing.T) {
 	gputest.Need(t)
 	h := newHill(t)
 	atlas := &magenta{}
-	lie := func(at geom.Vec, alt float64) func(f *render.Frame) {
+	lie := func(at geom.Vec, alt float32) func(f *render.Frame) {
 		return func(f *render.Frame) {
 			box := plane.NewAABB(geom.NewVec(at.X-8, at.Y-8), 16, 16)
 			lies := h.look.(world.LyingLook)
@@ -172,8 +172,8 @@ func TestSprites_ALyingSpriteLiesOnTheGround(t *testing.T) {
 		t.Fatalf("took %d corners lying, want the deck's 4", len(corners))
 	}
 	for _, k := range corners {
-		g := h.relief.At(geom.NewVec(float64(k[0]), float64(k[1])))
-		if float64(k[2]) < g-0.01 || k[2] <= 0 {
+		g := h.relief.At(geom.NewVec(float32(k[0]), float32(k[1])))
+		if float32(k[2]) < g-0.01 || k[2] <= 0 {
 			t.Errorf("a corner of the deck under the slope lies at %v over ground at %.1f, "+
 				"want on it", k, g)
 		}

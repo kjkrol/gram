@@ -35,7 +35,7 @@ func TestCoarse_CoversItsCellsWithoutACrackAgainstWholeNeighbours(t *testing.T) 
 		}
 		w, h := c.x1-c.x0, c.y1-c.y0
 		if area != 2*w*h {
-			t.Errorf("%v: triangles cover %v cells, want %d", c, float64(area)/2, w*h)
+			t.Errorf("%v: triangles cover %v cells, want %d", c, float32(area)/2, w*h)
 		}
 		border := 0
 		for e, n := range edges {
@@ -69,9 +69,9 @@ type pair struct{}
 func (pair) Len() int  { return 2 }
 func (pair) Cols() int { return 2 }
 func (pair) Box(i int) geom.AABB {
-	return geom.NewAABB(geom.NewVec(float64(i)*512, 0), geom.NewVec(float64(i+1)*512, 512))
+	return geom.NewAABB(geom.NewVec(float32(i)*512, 0), geom.NewVec(float32(i+1)*512, 512))
 }
-func (pair) Of(x, _ float64) int { return min(max(int(x/512), 0), 1) }
+func (pair) Of(x, _ float32) int { return min(max(int(x/512), 0), 1) }
 func (pair) Off(int) bool        { return false }
 
 type seeing struct {
@@ -115,10 +115,10 @@ type sheet struct{}
 func (sheet) Len() int  { return 15 }
 func (sheet) Cols() int { return 5 }
 func (sheet) Box(i int) geom.AABB {
-	c, r := float64(i%5), float64(i/5)
+	c, r := float32(i%5), float32(i/5)
 	return geom.NewAABB(geom.NewVec(c*512, r*512), geom.NewVec((c+1)*512, (r+1)*512))
 }
-func (sheet) Of(x, y float64) int {
+func (sheet) Of(x, y float32) int {
 	return min(max(int(y/512), 0), 2)*5 + min(max(int(x/512), 0), 4)
 }
 func (sheet) Off(int) bool { return false }

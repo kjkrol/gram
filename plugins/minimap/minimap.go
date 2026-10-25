@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/view"
@@ -106,7 +107,7 @@ func (m *minimap) middle() (float32, float32) {
 		return x, y
 	}
 	b := m.of.Bounds()
-	return float32(b.TopLeft.X+b.BottomRight.X) / 2, float32(b.TopLeft.Y+b.BottomRight.Y) / 2
+	return (b.TopLeft.X + b.BottomRight.X) / 2, (b.TopLeft.Y + b.BottomRight.Y) / 2
 }
 
 // redraw is how often at most a minimap's marks are published, and the minimap drawn anew: in
@@ -198,8 +199,8 @@ func (g *groundView) Draw(t render.Target, _ camera.Camera, _ render.Uniforms) {
 			var op render.DrawImageOptions
 			op.Filter = render.FilterLinear
 			op.GeoM.Scale(1/float64(perUnit), 1/float64(perUnit))
-			op.GeoM.Translate(float64(kx)*l.world.X-float64(l.cx),
-				float64(ky)*l.world.Y-float64(l.cy))
+			op.GeoM.Translate(float64(kx)*float64(l.world.X)-float64(l.cx),
+				float64(ky)*float64(l.world.Y)-float64(l.cy))
 			op.GeoM.Rotate(turn)
 			op.GeoM.Scale(float64(l.scale), float64(l.scale))
 			op.GeoM.Translate(float64(l.w)/2, float64(l.h)/2)
@@ -227,7 +228,7 @@ type marksView struct {
 type dots struct {
 	all      []dot
 	at       aim
-	reach    float64
+	reach    float32
 	outline  [4][2]float32
 	outlined bool
 	version  uint64
@@ -279,7 +280,7 @@ func (v *marksView) publish(now time.Time, marked bool) {
 			continue
 		}
 		c := v.base.At(cur).Pos.Center()
-		b.all = append(b.all, dot{x: float32(c.X), y: float32(c.Y), mark: mark})
+		b.all = append(b.all, dot{x: c.X, y: c.Y, mark: mark})
 	}
 }
 
@@ -365,12 +366,12 @@ func (m *minimap) ground(sx, sy float32) (float32, float32) {
 		return x, y
 	}
 	cx, cy := m.middle()
-	dx, dy := float64(x-cx), float64(y-cy)
-	n := math.Hypot(dx, dy)
+	dx, dy := x-cx, y-cy
+	n := f32.Hypot(dx, dy)
 	if far := 2 * m.p.cfg.Reach; n > far {
 		dx, dy = dx*far/n, dy*far/n
 	}
-	return cx + float32(dx), cy + float32(dy)
+	return cx + dx, cy + dy
 }
 
 // clicks takes a press on the minimap: its camera goes to the world point under it
@@ -382,18 +383,18 @@ func (c *clicks) Over(geom.AABB, render.Surface) {}
 
 func (c *clicks) Click(at geom.Vec) {
 	l := c.m.lens
-	x, y := l.FromScreen(float32(at.X), float32(at.Y))
+	x, y := l.FromScreen(at.X, at.Y)
 	c.m.p.w.Write().Carrier().Put(c.m.issuer, cameras.CenterAt{
 		Camera: c.m.of,
-		X:      wrapped(float64(x), l.world.X, l.wrapX),
-		Y:      wrapped(float64(y), l.world.Y, l.wrapY),
+		X:      wrapped(x, l.world.X, l.wrapX),
+		Y:      wrapped(y, l.world.Y, l.wrapY),
 	})
 }
 
 // v round into [0, size) where the axis wraps
-func wrapped(v, size float64, wraps bool) float64 {
+func wrapped(v, size float32, wraps bool) float32 {
 	if !wraps {
 		return v
 	}
-	return v - size*math.Floor(v/size)
+	return v - size*f32.Floor(v/size)
 }

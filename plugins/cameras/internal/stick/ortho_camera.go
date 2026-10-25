@@ -26,7 +26,7 @@ type orthoCamera struct {
 	// camera pixels a shown one: the stick and its scale in shown pixels, the screen in these
 	res float32
 	// where the world's origin at sea level lands on the screen, from the stick, in shown pixels
-	pan geom.Vec
+	pan [2]float64
 
 	// the ground the screen covers at a screen unit a world unit and sea level, for the zoom floor
 	spanX, spanY float32
@@ -48,7 +48,7 @@ type orthoCamera struct {
 type orthoFrame struct {
 	viewportSize geom.Vec
 	res          float32
-	pan          geom.Vec
+	pan          [2]float64
 	win          contract.Window
 }
 
@@ -104,7 +104,7 @@ func wrapTurn(a float64) float64 {
 // at a screen unit a world unit the projection is affine, so the footprint scales as one over the
 // scale
 func (c *orthoCamera) measure() {
-	w, h := float32(c.viewportSize.X), float32(c.viewportSize.Y)
+	w, h := c.viewportSize.X, c.viewportSize.Y
 	minX, maxX, minY, maxY := c.under(w, h, c.proj.Unproject)
 	c.spanX, c.spanY = maxX-minX, maxY-minY
 }
@@ -163,7 +163,7 @@ func (c *orthoCamera) Pitch() float32   { return float32(c.pitch) }
 func (c *orthoCamera) Projection() contract.Projection { return c.projection }
 
 func (c *orthoCamera) Viewport() (float32, float32) {
-	return float32(c.viewportSize.X) * c.res, float32(c.viewportSize.Y) * c.res
+	return c.viewportSize.X * c.res, c.viewportSize.Y * c.res
 }
 
 // SetResolution has the camera drawn at s of the pixels it is shown at; its window stays.
@@ -179,9 +179,9 @@ func (c *orthoCamera) Crop(win contract.Window, s float32) {
 	}
 	c.Uncrop()
 	c.cropped = &orthoFrame{viewportSize: c.viewportSize, res: c.res, pan: c.pan, win: win}
-	c.viewportSize = geom.NewVec(float64(win.W), float64(win.H))
+	c.viewportSize = geom.NewVec(win.W, win.H)
 	c.res = s
-	c.pan = geom.NewVec(c.pan.X-float64(win.X), c.pan.Y-float64(win.Y))
+	c.pan = [2]float64{c.pan[0] - float64(win.X), c.pan[1] - float64(win.Y)}
 }
 
 // Uncrop puts the frame back as it was before Crop.
@@ -202,21 +202,21 @@ func (c *orthoCamera) Frame() (float32, float32) {
 	if c.cropped != nil {
 		size = c.cropped.viewportSize
 	}
-	return float32(size.X), float32(size.Y)
+	return size.X, size.Y
 }
 
 func (c *orthoCamera) Window() contract.Window {
 	if c.cropped != nil {
 		return c.cropped.win
 	}
-	return contract.Window{W: float32(c.viewportSize.X), H: float32(c.viewportSize.Y)}
+	return contract.Window{W: c.viewportSize.X, H: c.viewportSize.Y}
 }
 
 func (c *orthoCamera) SetViewport(w, h float32) {
 	if w <= 0 || h <= 0 {
 		return
 	}
-	c.viewportSize = geom.NewVec(float64(w), float64(h))
+	c.viewportSize = geom.NewVec(w, h)
 	c.measure()
 	c.scale = max(c.scale, c.minZoom())
 	c.place()
@@ -224,12 +224,12 @@ func (c *orthoCamera) SetViewport(w, h float32) {
 
 func (c *orthoCamera) Project(x, y, z float32) (float32, float32) {
 	sx, sy := c.proj.Project(x, y, z)
-	return (sx*c.scale + float32(c.pan.X)) * c.res, (sy*c.scale + float32(c.pan.Y)) * c.res
+	return (sx*c.scale + float32(c.pan[0])) * c.res, (sy*c.scale + float32(c.pan[1])) * c.res
 }
 
 func (c *orthoCamera) Unproject(sx, sy, z float32) (float32, float32) {
 	sx, sy = sx/c.res, sy/c.res
-	return c.proj.Unproject((sx-float32(c.pan.X))/c.scale, (sy-float32(c.pan.Y))/c.scale, z)
+	return c.proj.Unproject((sx-float32(c.pan[0]))/c.scale, (sy-float32(c.pan[1]))/c.scale, z)
 }
 
 // where (x, y, z) lands on the screen before the pan, in float64: the stick's own arithmetic
@@ -316,8 +316,8 @@ func (c *orthoCamera) copyInto(dst *orthoCamera) {
 
 func (c *orthoCamera) Visible(box contract.AABB) bool {
 	low, high := c.layer()
-	minX, minY, maxX, maxY := c.rect(float32(box.TopLeft.X), float32(box.TopLeft.Y),
-		float32(box.BottomRight.X), float32(box.BottomRight.Y), low, high)
+	minX, minY, maxX, maxY := c.rect(box.TopLeft.X, box.TopLeft.Y,
+		box.BottomRight.X, box.BottomRight.Y, low, high)
 	w, h := c.Viewport()
 	return maxX > 0 && minX < w && maxY > 0 && minY < h
 }
@@ -340,19 +340,19 @@ func (c *orthoCamera) Bounds() contract.AABB {
 }
 
 // the world point (x, y) at sea level in the screen's top-left corner
-func (c *orthoCamera) MoveTo(x, y float64) {
-	sx, sy := c.screen(x, y, 0)
-	c.slide(sx+c.pan.X, sy+c.pan.Y)
+func (c *orthoCamera) MoveTo(x, y float32) {
+	sx, sy := c.screen(float64(x), float64(y), 0)
+	c.slide(sx+c.pan[0], sy+c.pan[1])
 }
 
-func (c *orthoCamera) CenterOn(x, y, z float64) {
-	c.foot = [3]float64{x, y, z}
+func (c *orthoCamera) CenterOn(x, y, z float32) {
+	c.foot = [3]float64{float64(x), float64(y), float64(z)}
 	c.place()
 }
 
-func (c *orthoCamera) Translate(dx, dy float64) {
-	c.foot[0] += dx
-	c.foot[1] += dy
+func (c *orthoCamera) Translate(dx, dy float32) {
+	c.foot[0] += float64(dx)
+	c.foot[1] += float64(dy)
 	c.place()
 }
 
@@ -374,7 +374,7 @@ func (c *orthoCamera) place() {
 	c.aim()
 	w, h := c.Viewport()
 	minX, maxX, minY, maxY := c.under(w, h, c.Unproject)
-	dx, dy := fitSpan(minX, maxX, float32(c.world.X)), fitSpan(minY, maxY, float32(c.world.Y))
+	dx, dy := fitSpan(minX, maxX, c.world.X), fitSpan(minY, maxY, c.world.Y)
 	if dx != 0 || dy != 0 {
 		c.foot[0] += float64(dx)
 		c.foot[1] += float64(dy)
@@ -384,7 +384,7 @@ func (c *orthoCamera) place() {
 
 func (c *orthoCamera) aim() {
 	sx, sy := c.screen(c.foot[0], c.foot[1], c.foot[2])
-	c.pan = geom.NewVec(c.viewportSize.X/2-sx, c.viewportSize.Y/2-sy)
+	c.pan = [2]float64{float64(c.viewportSize.X)/2 - sx, float64(c.viewportSize.Y)/2 - sy}
 }
 
 func fitSpan(lo, hi, size float32) float32 {
@@ -428,7 +428,7 @@ func (c *orthoCamera) limited(scale float32) float32 {
 
 // the top-down camera's world-fit floor, for the ground the screen covers
 func (c *orthoCamera) minZoom() float32 {
-	floor := max(c.spanX/float32(c.world.X), c.spanY/float32(c.world.Y))
+	floor := max(c.spanX/c.world.X, c.spanY/c.world.Y)
 	return max(floor, c.minZoomCfg)
 }
 

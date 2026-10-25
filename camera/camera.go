@@ -46,12 +46,12 @@ type Camera interface {
 	// Bounds is the visible window in world units.
 	Bounds() AABB
 	// MoveTo puts the visible window's top-left corner at (x, y), keeping its size.
-	MoveTo(x, y float64)
+	MoveTo(x, y float32)
 	// CenterOn puts the world point (x, y) at height z in the middle of the screen, as far as the
 	// window may go. A top-down camera ignores z.
-	CenterOn(x, y, z float64)
+	CenterOn(x, y, z float32)
 	// Translate shifts the visible window by a delta in world units.
-	Translate(dx, dy float64)
+	Translate(dx, dy float32)
 	// Pan shifts the visible window by a delta in screen pixels, the same at any zoom.
 	Pan(dx, dy float32)
 	// Zoom is the current zoom factor, screen pixels a world unit.

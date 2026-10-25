@@ -1,7 +1,6 @@
 package navigation
 
 import (
-	"math"
 	"testing"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -135,7 +135,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		if !u.sensor {
 			physics := collision.Physics{}
 			if u.loose {
-				physics.Mass = math.Inf(1)
+				physics.Mass = f32.Inf(1)
 			}
 			s = append(s, comp.Const(physics))
 		}

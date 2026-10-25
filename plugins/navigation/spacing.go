@@ -18,7 +18,7 @@ const (
 // the most of a cell's shorter side a box may be for AutoSpacing to choose BodySpacing
 const bodyShare = 1.0 / 3
 
-func (s Spacing) resolve(largest, cell float64) Spacing {
+func (s Spacing) resolve(largest, cell float32) Spacing {
 	if s != AutoSpacing {
 		return s
 	}

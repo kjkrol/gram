@@ -90,7 +90,7 @@ func (k Shooter) Bindings() []control.Binding {
 // Bindings are the four keys held into Toward of the camera the player looks through.
 func (k Compass) Bindings() []control.Binding {
 	var out []control.Binding
-	held := func(key control.Key, label string, dx, dy float64) {
+	held := func(key control.Key, label string, dx, dy float32) {
 		if key != control.KeyUnknown {
 			out = append(out, control.Build(control.KeyHeld{Key: key}, label, func(c control.Context) (Toward, bool) {
 				return Toward{Camera: c.Camera, Way: geom.NewVec(dx, dy)}, true

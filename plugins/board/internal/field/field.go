@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/collide"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
@@ -27,7 +28,7 @@ type Field struct {
 	grid     grid.Grid
 	square   *grids.Square // nil for any other grid
 	cells    *terrain.Read
-	altitude func(c cell.ID) float64
+	altitude func(c cell.ID) float32
 	veils    *[]veil // by ordinal, the board's: kept by Veil and Veils as the cells change
 	boxes    []geom.AABB
 	decks    []terrain.Deck
@@ -35,7 +36,7 @@ type Field struct {
 }
 
 // New is the ground of the board over g read through cells, its levels as altitude says.
-func New(g grid.Grid, cells *terrain.Read, altitude func(c cell.ID) float64) *Field {
+func New(g grid.Grid, cells *terrain.Read, altitude func(c cell.ID) float32) *Field {
 	sq, _ := g.(*grids.Square)
 	veils := make([]veil, g.CellCount())
 	return &Field{grid: g, square: sq, cells: cells, altitude: altitude, veils: &veils}
@@ -43,7 +44,7 @@ func New(g grid.Grid, cells *terrain.Read, altitude func(c cell.ID) float64) *Fi
 
 // Fork is the same ground read through cells and altitude of another goroutine, with scratch of
 // its own.
-func (f *Field) Fork(cells *terrain.Read, altitude func(c cell.ID) float64) *Field {
+func (f *Field) Fork(cells *terrain.Read, altitude func(c cell.ID) float32) *Field {
 	return &Field{grid: f.grid, square: f.square, cells: cells, altitude: altitude, veils: f.veils}
 }
 
@@ -54,7 +55,7 @@ func (f *Field) Changes() uint64 { return f.cells.Changes() }
 // Walk is the cover of the board along a ray, the Cover contract: every cell whose kind has a
 // Veil that dims an observer on blockers, in order, with the stretch of the ray inside it, its
 // band (±Inf for a kind of no Height) and τ = 1 − Veil.
-func (f *Field) Walk(origin, dir geom.Vec, length float64, blockers world.Layers, visit func(near, far, bottom, top, tau float64) bool) {
+func (f *Field) Walk(origin, dir geom.Vec, length float32, blockers world.Layers, visit func(near, far, bottom, top, tau float32) bool) {
 	if f.square != nil {
 		f.walkSquare(origin, dir, length, blockers, visit)
 		return
@@ -62,7 +63,7 @@ func (f *Field) Walk(origin, dir geom.Vec, length float64, blockers world.Layers
 	f.walkSteps(origin, dir, length, blockers, visit)
 }
 
-func (f *Field) covers(c cell.ID, blockers world.Layers) (bottom, top, tau float64, ok bool) {
+func (f *Field) covers(c cell.ID, blockers world.Layers) (bottom, top, tau float32, ok bool) {
 	i, ok := f.cells.Ordinal(c)
 	if !ok {
 		return 0, 0, 0, false
@@ -75,7 +76,7 @@ func (f *Field) covers(c cell.ID, blockers world.Layers) (bottom, top, tau float
 }
 
 type veil struct {
-	bottom, top, tau float64
+	bottom, top, tau float32
 	veils            world.Layers
 	ok               bool
 }
@@ -92,7 +93,7 @@ func (f *Field) Veil(c cell.ID) {
 		*v = veil{}
 		return
 	}
-	*v = veil{bottom: math.Inf(-1), top: math.Inf(1), tau: 1 - min(k.Veil, 1), veils: world.Layers(k.Veils), ok: true}
+	*v = veil{bottom: f32.Inf(-1), top: f32.Inf(1), tau: 1 - min(k.Veil, 1), veils: world.Layers(k.Veils), ok: true}
 	// a veil of no height stands at every height, as a wall of none does
 	if k.Height > 0 {
 		v.bottom = f.altitude(c)
@@ -103,19 +104,22 @@ func (f *Field) Veil(c cell.ID) {
 // Veils reads every cell's cover anew, all of them changed; on the goroutine writing the cells.
 func (f *Field) Veils() { f.grid.EachCell(f.Veil) }
 
-func (f *Field) walkSquare(origin, dir geom.Vec, length float64, blockers world.Layers, visit func(near, far, bottom, top, tau float64) bool) {
+// the walk sums t cell after cell, so in float64
+func (f *Field) walkSquare(origin, dir geom.Vec, length float32, blockers world.Layers, visit func(near, far, bottom, top, tau float32) bool) {
 	sq := f.square
 	size := float64(sq.CellSize)
 	if size == 0 {
 		return
 	}
-	cx, cy := int64(math.Floor(origin.X/size)), int64(math.Floor(origin.Y/size))
-	sx, nx, dx := ddaAxis(origin.X, dir.X, cx, size)
-	sy, ny, dy := ddaAxis(origin.Y, dir.Y, cy, size)
-	for t := 0.0; t < length; {
-		exit := min(nx, ny, length)
+	ox, oy, end := float64(origin.X), float64(origin.Y), float64(length)
+	cx, cy := int64(math.Floor(ox/size)), int64(math.Floor(oy/size))
+	sx, nx, dx := ddaAxis(ox, float64(dir.X), cx, size)
+	sy, ny, dy := ddaAxis(oy, float64(dir.Y), cy, size)
+	for t := 0.0; t < end; {
+		exit := min(nx, ny, end)
 		if c, ok := sq.Fold(cx, cy); ok {
-			if bottom, top, tau, ok := f.covers(c, blockers); ok && !visit(t, exit, bottom, top, tau) {
+			if bottom, top, tau, ok := f.covers(c, blockers); ok &&
+				!visit(float32(t), float32(exit), bottom, top, tau) {
 				return
 			}
 		}
@@ -137,30 +141,32 @@ func ddaAxis(o, d float64, c int64, size float64) (step int64, next, delta float
 	return 0, math.Inf(1), math.Inf(1)
 }
 
-func (f *Field) walkSteps(origin, dir geom.Vec, length float64, blockers world.Layers, visit func(near, far, bottom, top, tau float64) bool) {
+func (f *Field) walkSteps(origin, dir geom.Vec, length float32, blockers world.Layers, visit func(near, far, bottom, top, tau float32) bool) {
 	w, h := f.grid.CellBounds()
-	step := min(w, h) / 4
+	step := float64(min(w, h)) / 4
 	if step <= 0 {
 		return
 	}
 	var cur cell.ID
-	have, start := false, 0.0
-	emit := func(end float64) bool {
+	have, start := false, float32(0)
+	emit := func(end float32) bool {
 		if !have {
 			return true
 		}
 		bottom, top, tau, ok := f.covers(cur, blockers)
 		return !ok || visit(start, end, bottom, top, tau)
 	}
-	for t := 0.0; ; t = min(t+step, length) {
-		c, ok := f.grid.CellAt(geom.NewVec(origin.X+dir.X*t, origin.Y+dir.Y*t))
+	ox, oy, end := float64(origin.X), float64(origin.Y), float64(length)
+	for t := 0.0; ; t = min(t+step, end) {
+		at := geom.NewVec(float32(ox+float64(dir.X)*t), float32(oy+float64(dir.Y)*t))
+		c, ok := f.grid.CellAt(at)
 		if !ok || !have || c != cur {
-			if !emit(t) {
+			if !emit(float32(t)) {
 				return
 			}
-			cur, have, start = c, ok, t
+			cur, have, start = c, ok, float32(t)
 		}
-		if t >= length {
+		if t >= end {
 			emit(length)
 			return
 		}
@@ -177,12 +183,12 @@ func (f *Field) Solid(layers world.Layers, band collision.Band, box geom.AABB, v
 		f.solidCells(layers, band, box, visit)
 		return
 	}
-	size := float64(sq.CellSize)
+	size := float32(sq.CellSize)
 	if size == 0 {
 		return
 	}
-	x0, y0 := int64(math.Floor(box.TopLeft.X/size)), int64(math.Floor(box.TopLeft.Y/size))
-	x1, y1 := int64(math.Ceil(box.BottomRight.X/size)), int64(math.Ceil(box.BottomRight.Y/size))
+	x0, y0 := int64(f32.Floor(box.TopLeft.X/size)), int64(f32.Floor(box.TopLeft.Y/size))
+	x1, y1 := int64(f32.Ceil(box.BottomRight.X/size)), int64(f32.Ceil(box.BottomRight.Y/size))
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
 			c, ok := f.square.Fold(x, y)
@@ -198,7 +204,7 @@ func (f *Field) Solid(layers world.Layers, band collision.Band, box geom.AABB, v
 					open |= n.side
 				}
 			}
-			fb := collide.FieldBox{Box: geom.NewAABBAt(geom.NewVec(float64(x)*size, float64(y)*size), size, size), Cell: uint64(c), Open: open}
+			fb := collide.FieldBox{Box: geom.NewAABBAt(geom.NewVec(float32(x)*size, float32(y)*size), size, size), Cell: uint64(c), Open: open}
 			if !visit(fb) {
 				return
 			}
@@ -216,15 +222,15 @@ func (f *Field) Walls(layers world.Layers, band collision.Band, box geom.AABB,
 	}
 	f.seen = f.seen[:0]
 	if sq := f.square; sq != nil {
-		size := float64(sq.CellSize)
-		x0 := int64(math.Floor(box.TopLeft.X / size))
-		y0 := int64(math.Floor(box.TopLeft.Y / size))
-		x1 := int64(math.Ceil(box.BottomRight.X / size))
-		y1 := int64(math.Ceil(box.BottomRight.Y / size))
+		size := float32(sq.CellSize)
+		x0 := int64(f32.Floor(box.TopLeft.X / size))
+		y0 := int64(f32.Floor(box.TopLeft.Y / size))
+		x1 := int64(f32.Ceil(box.BottomRight.X / size))
+		y1 := int64(f32.Ceil(box.BottomRight.Y / size))
 		for y := y0; y < y1; y++ {
 			for x := x0; x < x1; x++ {
 				c, ok := sq.Fold(x, y)
-				m := geom.NewVec((float64(x)+0.5)*size, (float64(y)+0.5)*size)
+				m := geom.NewVec((float32(x)+0.5)*size, (float32(y)+0.5)*size)
 				if ok && !f.wallsOf(c, m, layers, band, visit) {
 					return
 				}
@@ -273,9 +279,9 @@ func (f *Field) wallsOf(c cell.ID, m geom.Vec, layers world.Layers, band collisi
 		}
 		half := terrain.RailHalf(f.grid.CellSpan())
 		nx, ny := b.Y-a.Y, a.X-b.X
-		l := math.Hypot(nx, ny)
+		l := f32.Hypot(nx, ny)
 		nx, ny = nx/l*fl.Width/2, ny/l*fl.Width/2
-		for _, side := range [2]float64{-1, 1} {
+		for _, side := range [2]float32{-1, 1} {
 			w := collide.FieldWall{
 				A:    geom.NewVec(a.X+side*nx, a.Y+side*ny),
 				B:    geom.NewVec(b.X+side*nx, b.Y+side*ny),
@@ -305,22 +311,22 @@ func ends(freeA, freeB bool) collide.Ends {
 // Overhang is how much of box, as area, lies over ground that does not take an entity on layers,
 // a deck taking one left out: the collision.Field contract, a push never makes it more. Off the
 // board is none of it.
-func (f *Field) Overhang(layers world.Layers, box geom.AABB) float64 {
+func (f *Field) Overhang(layers world.Layers, box geom.AABB) float32 {
 	sq := f.square
 	if sq == nil {
 		return f.overhangCells(layers, box)
 	}
-	size := float64(sq.CellSize)
+	size := float32(sq.CellSize)
 	if size == 0 {
 		return 0
 	}
-	var area float64
-	x0, y0 := int64(math.Floor(box.TopLeft.X/size)), int64(math.Floor(box.TopLeft.Y/size))
-	x1, y1 := int64(math.Ceil(box.BottomRight.X/size)), int64(math.Ceil(box.BottomRight.Y/size))
+	var area float32
+	x0, y0 := int64(f32.Floor(box.TopLeft.X/size)), int64(f32.Floor(box.TopLeft.Y/size))
+	x1, y1 := int64(f32.Ceil(box.BottomRight.X/size)), int64(f32.Ceil(box.BottomRight.Y/size))
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
 			if c, ok := f.square.Fold(x, y); ok {
-				at := geom.NewVec(float64(x)*size, float64(y)*size)
+				at := geom.NewVec(float32(x)*size, float32(y)*size)
 				m := geom.NewVec(at.X+size/2, at.Y+size/2)
 				area += f.bare(c, m, layers, box, geom.NewAABBAt(at, size, size))
 			}
@@ -329,8 +335,8 @@ func (f *Field) Overhang(layers world.Layers, box geom.AABB) float64 {
 	return area
 }
 
-func (f *Field) overhangCells(layers world.Layers, box geom.AABB) float64 {
-	var area float64
+func (f *Field) overhangCells(layers world.Layers, box geom.AABB) float32 {
+	var area float32
 	f.grid.CellsUnder(box, func(c cell.ID) {
 		m := f.grid.CellCenter(c)
 		f.boxes = f.grid.CellBoxes(c, f.boxes[:0])
@@ -341,7 +347,7 @@ func (f *Field) overhangCells(layers world.Layers, box geom.AABB) float64 {
 	return area
 }
 
-func (f *Field) bare(c cell.ID, m geom.Vec, layers world.Layers, box, cb geom.AABB) float64 {
+func (f *Field) bare(c cell.ID, m geom.Vec, layers world.Layers, box, cb geom.AABB) float32 {
 	r, ok := meet(box, cb)
 	k := f.cells.KindOf(c)
 	if !ok || k == nil {
@@ -379,7 +385,7 @@ func meet(a, b geom.AABB) (geom.AABB, bool) {
 	return geom.NewAABB(tl, br), br.X > tl.X && br.Y > tl.Y
 }
 
-func overlap(a, b geom.AABB) float64 {
+func overlap(a, b geom.AABB) float32 {
 	w := min(a.BottomRight.X, b.BottomRight.X) - max(a.TopLeft.X, b.TopLeft.X)
 	h := min(a.BottomRight.Y, b.BottomRight.Y) - max(a.TopLeft.Y, b.TopLeft.Y)
 	if w <= 0 || h <= 0 {
@@ -425,11 +431,11 @@ func (f *Field) stops(c cell.ID, layers world.Layers, band collision.Band) bool 
 
 // from below up, so nothing passes under a wall on a slope; a wall of no height stands at every
 // height
-func (f *Field) solidBand(c cell.ID, height float64) collision.Band {
+func (f *Field) solidBand(c cell.ID, height float32) collision.Band {
 	if height <= 0 {
 		return collision.Everywhere
 	}
-	return collision.Band{Bottom: math.Inf(-1), Top: f.altitude(c) + height}
+	return collision.Band{Bottom: f32.Inf(-1), Top: f.altitude(c) + height}
 }
 
 func solidFor(k *cell.Kind, layers world.Layers) bool {

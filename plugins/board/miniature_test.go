@@ -39,7 +39,7 @@ func TestMiniature_IsTheBoardFlatFromAbove(t *testing.T) {
 	}
 	pix := make([]byte, 4*b.Dx()*b.Dy())
 	img.ReadPixels(pix)
-	at := func(x, y float64) [3]byte {
+	at := func(x, y float32) [3]byte {
 		k := 4 * (int(y)*b.Dx() + int(x))
 		return [3]byte{pix[k], pix[k+1], pix[k+2]}
 	}

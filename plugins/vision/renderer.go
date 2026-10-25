@@ -2,12 +2,12 @@ package vision
 
 import (
 	"image/color"
-	"math"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/view"
@@ -123,7 +123,7 @@ type Renderer struct {
 	onGPU   bool
 	placed  bool // the views drawn on the GPU have their place this frame
 	coverOf func() ground.Cover
-	bend    float64
+	bend    float32
 	custom  bool
 	wrap    [2]bool
 	// what a camera sees of the world, so an observer out of it draws no view, and whether any
@@ -226,8 +226,8 @@ func (r *Renderer) WithShadow(shadow Shadow) *Renderer {
 
 // WithGroundStep drapes the views over the ground every step world units, in place of the
 // ground's own step.
-func (r *Renderer) WithGroundStep(step float64) *Renderer {
-	r.groundStep = float32(step)
+func (r *Renderer) WithGroundStep(step float32) *Renderer {
+	r.groundStep = step
 	return r
 }
 
@@ -272,7 +272,7 @@ func (r *Renderer) stepOf(ground ground.Heights) float32 {
 		return r.groundStep
 	}
 	if ground != nil {
-		return float32(ground.Step())
+		return ground.Step()
 	}
 	return levelStep
 }
@@ -391,11 +391,11 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 			}
 			ox, oy := centreOf(&e.pos)
 			r.gpu.look(cam, observer{
-				X: float32(ox), Y: float32(oy), Eye: float32(e.eye.Level(e.z)),
-				Reach:  float32(e.sight.Radius),
-				Facing: float32(math.Atan2(e.facing.Y, e.facing.X)), Half: float32(e.eye.Angle / 2),
+				X: ox, Y: oy, Eye: e.eye.Level(e.z),
+				Reach:  e.sight.Radius,
+				Facing: f32.Atan2(e.facing.Y, e.facing.X), Half: e.eye.Angle / 2,
 				Color: unitColor(cone.Color),
-				Tilt:  float32(e.eye.Tilt), VHalf: float32(e.eye.Vertical / 2),
+				Tilt:  e.eye.Tilt, VHalf: e.eye.Vertical / 2,
 			})
 			continue
 		}
@@ -415,29 +415,29 @@ func (r *Renderer) cone(
 	half := eye.Angle / 2
 
 	if !r.wraps {
-		x, y, alt := float32(ox), float32(oy), float32(z.Altitude)
+		x, y, alt := ox, oy, z.Altitude
 		if ring := r.draped(x, y, alt, half, s, o, eye.Level(z)-z.Altitude, eye); len(ring) > 0 {
 			style.Compose(r.frame, ring)
 		}
 		r.shade(x, y, half, s, o)
 		return
 	}
-	sx, sy := r.camera.ToScreen(float32(ox), float32(oy))
+	sx, sy := r.camera.ToScreen(ox, oy)
 
 	zoom := r.camera.Zoom()
 	box := r.space.WrapAABB(r.coneBox(ox, oy, s.Radius))
-	at := r.frame.Lifted(float32(ox), float32(oy), float32(z.Altitude), sightLift)
+	at := r.frame.Lifted(ox, oy, z.Altitude, sightLift)
 	render.VisitWrapImages(box, r.worldW, r.worldH, func(_ geom.AABB, dx, dy float32) bool {
 		style.Compose(r.frame, r.fan(sx+dx*zoom, sy+dy*zoom, at, half, s, o))
 		return true
 	})
 }
 
-func (r *Renderer) coneBox(ox, oy, radius float64) geom.AABB {
-	w, h := float64(r.worldW), float64(r.worldH)
+func (r *Renderer) coneBox(ox, oy, radius float32) geom.AABB {
+	w, h := r.worldW, r.worldH
 	return geom.NewAABBAt(
 		geom.NewVec(ox-radius, oy-radius),
-		math.Min(2*radius, w), math.Min(2*radius, h),
+		min(2*radius, w), min(2*radius, h),
 	)
 }
 
@@ -445,31 +445,31 @@ func (r *Renderer) coneBox(ox, oy, radius float64) geom.AABB {
 // meets the ground, out to its depths or where the field leaves the ground (the eye above level
 // ground); nothing while the whole field lies above the horizon
 func (r *Renderer) draped(
-	ox, oy, alt float32, half float64, s *Sight, o *SightOutline, above float64, eye world.Eye,
+	ox, oy, alt float32, half float32, s *Sight, o *SightOutline, above float32, eye world.Eye,
 ) []ConePoint {
-	facing := math.Atan2(s.Facing.Y, s.Facing.X)
-	step := 2 * half / float64(o.Count-1)
+	facing := f32.Atan2(s.Facing.Y, s.Facing.X)
+	step := 2 * half / float32(o.Count-1)
 	n := int(o.Count)
-	near, far := float32(0), float32(math.Inf(1))
+	near, far := float32(0), f32.Inf(1)
 	if eye.Vertical > 0 && above > 0 {
 		lo, hi := eye.Tilt-eye.Vertical/2, eye.Tilt+eye.Vertical/2
 		if lo >= 0 {
 			return r.pts[:0]
 		}
-		near = float32(above / math.Tan(-lo))
+		near = above / f32.Tan(-lo)
 		if hi < 0 {
-			far = float32(above / math.Tan(-hi))
+			far = above / f32.Tan(-hi)
 		}
 	}
 	depth := func(i int) float32 { return min(o.Depths[i], far) }
-	first, last := facing-half, facing-half+float64(n-1)*step
+	first, last := facing-half, facing-half+float32(n-1)*step
 	r.pts = r.pts[:0]
 	if near > 0 {
 		for i := range n {
-			r.pts = append(r.pts, r.onGround(ox, oy, first+float64(i)*step, near))
+			r.pts = append(r.pts, r.onGround(ox, oy, first+float32(i)*step, near))
 		}
 		for i := n - 1; i >= 0; i-- {
-			r.pts = append(r.pts, r.onGround(ox, oy, first+float64(i)*step, max(depth(i), near)))
+			r.pts = append(r.pts, r.onGround(ox, oy, first+float32(i)*step, max(depth(i), near)))
 		}
 		return r.pts
 	}
@@ -480,7 +480,7 @@ func (r *Renderer) draped(
 		r.pts = append(r.pts, r.onGround(ox, oy, first, d))
 	}
 	for i := range n {
-		r.pts = append(r.pts, r.onGround(ox, oy, first+float64(i)*step, depth(i)))
+		r.pts = append(r.pts, r.onGround(ox, oy, first+float32(i)*step, depth(i)))
 	}
 	back := len(r.pts)
 	for d := r.step; r.step > 0 && d < depth(n-1); d += r.step {
@@ -493,19 +493,19 @@ func (r *Renderer) draped(
 	return r.pts
 }
 
-func (r *Renderer) shade(ox, oy float32, half float64, s *Sight, o *SightOutline) {
+func (r *Renderer) shade(ox, oy float32, half float32, s *Sight, o *SightOutline) {
 	n := int(o.Count)
 	if n < 2 {
 		return
 	}
-	facing := math.Atan2(s.Facing.Y, s.Facing.X)
-	step := 2 * half / float64(n-1)
+	facing := f32.Atan2(s.Facing.Y, s.Facing.X)
+	step := 2 * half / float32(n-1)
 	for i := range n {
 		for _, b := range o.Shadows[i] {
 			if b == (Band{}) {
 				continue
 			}
-			a := facing - half + float64(i)*step
+			a := facing - half + float32(i)*step
 			lo, hi := max(a-step/2, facing-half), min(a+step/2, facing+half)
 			piece := b.To - b.From
 			if r.step > 0 {
@@ -555,11 +555,11 @@ func shadowed(o *SightOutline, i int, d0, d1 float32) bool {
 	return false
 }
 
-func (r *Renderer) onGround(ox, oy float32, a float64, dist float32) ConePoint {
-	x, y := ox+dist*float32(math.Cos(a)), oy+dist*float32(math.Sin(a))
+func (r *Renderer) onGround(ox, oy float32, a float32, dist float32) ConePoint {
+	x, y := ox+dist*f32.Cos(a), oy+dist*f32.Sin(a)
 	z := float32(0)
 	if r.ground != nil {
-		z = float32(r.ground.At(geom.NewVec(float64(x), float64(y))))
+		z = r.ground.At(geom.NewVec(x, y))
 	}
 	sx, sy := r.camera.Project(x, y, z)
 	return ConePoint{X: sx, Y: sy,
@@ -567,27 +567,27 @@ func (r *Renderer) onGround(ox, oy float32, a float64, dist float32) ConePoint {
 }
 
 func (r *Renderer) fan(
-	sx, sy float32, at render.At, half float64, s *Sight, o *SightOutline,
+	sx, sy float32, at render.At, half float32, s *Sight, o *SightOutline,
 ) []ConePoint {
-	facing := math.Atan2(s.Facing.Y, s.Facing.X)
-	step := 2 * half / float64(o.Count-1)
+	facing := f32.Atan2(s.Facing.Y, s.Facing.X)
+	step := 2 * half / float32(o.Count-1)
 	zoom := r.camera.Zoom()
 
 	r.pts = append(r.pts[:0], ConePoint{X: sx, Y: sy, At: at})
 	for i := range int(o.Count) {
-		a := facing - half + float64(i)*step
-		d := float64(o.Depths[i])
+		a := facing - half + float32(i)*step
+		d := o.Depths[i]
 		r.pts = append(r.pts, ConePoint{
-			X:  sx + float32(d*math.Cos(a))*zoom,
-			Y:  sy + float32(d*math.Sin(a))*zoom,
+			X:  sx + (d*f32.Cos(a))*zoom,
+			Y:  sy + (d*f32.Sin(a))*zoom,
 			At: at,
 		})
 	}
 	return r.pts
 }
 
-func centreOf(p *world.Position) (float64, float64) {
+func centreOf(p *world.Position) (float32, float32) {
 	box := p.AABB.AABB
-	return (float64(box.TopLeft.X) + float64(box.BottomRight.X)) / 2,
-		(float64(box.TopLeft.Y) + float64(box.BottomRight.Y)) / 2
+	return (box.TopLeft.X + box.BottomRight.X) / 2,
+		(box.TopLeft.Y + box.BottomRight.Y) / 2
 }

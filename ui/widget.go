@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -29,7 +30,7 @@ type checkbox struct {
 
 const checkGap = 6
 
-func (c *checkbox) side(e *Element) float64 {
+func (c *checkbox) side(e *Element) float32 {
 	_, h := e.children[0].needs()
 	return h
 }
@@ -43,8 +44,8 @@ func (c *checkbox) draw(e *Element, dst *render.Image) {
 	box := shrink(e.box, e.padding)
 	side := c.side(e)
 	_, h := size(box)
-	x, y := float32(box.TopLeft.X), float32(box.TopLeft.Y+(h-side)/2)
-	s := float32(side)
+	x, y := box.TopLeft.X, box.TopLeft.Y+(h-side)/2
+	s := side
 	th := e.look()
 	// half a pixel in: a one-pixel stroke on whole pixels
 	dst.StrokeRect(x+0.5, y+0.5, s-1, s-1, 1, th.Border)
@@ -64,7 +65,7 @@ func (c *checkbox) ticked(e *Element) bool {
 	return c.get()
 }
 
-func (c *checkbox) needs(e *Element) (w, h float64) {
+func (c *checkbox) needs(e *Element) (w, h float32) {
 	w, h = e.children[0].needs()
 	return w + c.side(e) + checkGap, h
 }
@@ -98,7 +99,7 @@ const (
 
 func (*slider) place(*Element, geom.AABB) {}
 
-func (sl *slider) needs(*Element) (w, h float64) { return sliderLength, sliderHeight }
+func (sl *slider) needs(*Element) (w, h float32) { return sliderLength, sliderHeight }
 
 // shown is the number the knob stands at: dragged, its own, else as published, read now before
 func (sl *slider) shown(e *Element) float64 {
@@ -117,17 +118,17 @@ func (sl *slider) at(box geom.AABB, v float64) float32 {
 	w, h := size(box)
 	r := h / 2
 	if sl.max <= sl.min {
-		return float32(box.TopLeft.X + r)
+		return box.TopLeft.X + r
 	}
-	f := math.Min(1, math.Max(0, (v-sl.min)/(sl.max-sl.min)))
-	return float32(box.TopLeft.X + r + f*(w-2*r))
+	f := float32(min(1, max(0, (v-sl.min)/(sl.max-sl.min))))
+	return box.TopLeft.X + r + f*(w-2*r)
 }
 
-func (sl *slider) valueAt(box geom.AABB, x float64) float64 {
+func (sl *slider) valueAt(box geom.AABB, x float32) float64 {
 	w, h := size(box)
 	r := h / 2
-	f := (x - box.TopLeft.X - r) / (w - 2*r)
-	v := sl.min + math.Min(1, math.Max(0, f))*(sl.max-sl.min)
+	f := float64((x - box.TopLeft.X - r) / (w - 2*r))
+	v := sl.min + min(1, max(0, f))*(sl.max-sl.min)
 	return sl.quantized(v)
 }
 
@@ -135,19 +136,19 @@ func (sl *slider) quantized(v float64) float64 {
 	if sl.step > 0 {
 		v = sl.min + math.Round((v-sl.min)/sl.step)*sl.step
 	}
-	return math.Min(sl.max, math.Max(sl.min, v))
+	return min(sl.max, max(sl.min, v))
 }
 
 func (sl *slider) draw(e *Element, dst *render.Image) {
 	box := shrink(e.box, e.padding)
 	w, h := size(box)
 	th := e.look()
-	left, right := float32(box.TopLeft.X+h/2), float32(box.TopLeft.X+w-h/2)
-	mid := float32(box.TopLeft.Y + h/2)
+	left, right := box.TopLeft.X+h/2, box.TopLeft.X+w-h/2
+	mid := box.TopLeft.Y + h/2
 	knob := sl.at(box, sl.shown(e))
 	dst.StrokeLine(left, mid, right, mid, 2, th.Border)
 	dst.StrokeLine(left, mid, knob, mid, 2, th.Accent)
-	dst.FillCircle(knob, mid, float32(h/2), th.Accent)
+	dst.FillCircle(knob, mid, h/2, th.Accent)
 }
 
 func (sl *slider) press(s *Scene, e *Element, at geom.Vec, about uid.UID64, pinned bool) {
@@ -167,12 +168,12 @@ func (sl *slider) drag(s *Scene, e *Element, at geom.Vec) {
 
 func (sl *slider) drop() { sl.dragging = false }
 
-func (sl *slider) wheel(s *Scene, e *Element, delta float64) {
+func (sl *slider) wheel(s *Scene, e *Element, delta float32) {
 	step := sl.step
 	if step == 0 {
 		step = (sl.max - sl.min) / 20
 	}
-	v := sl.quantized(sl.get() + math.Copysign(step, delta))
+	v := sl.quantized(sl.get() + math.Copysign(step, float64(delta)))
 	if v != sl.get() {
 		s.giveAbout(sl.set(v), e.of, e.ofPinned)
 	}
@@ -215,16 +216,16 @@ func (d *dropdown) place(e *Element, box geom.AABB) {
 func (d *dropdown) draw(e *Element, dst *render.Image) {
 	box := shrink(e.box, e.padding)
 	_, h := size(box)
-	x, y := float32(box.BottomRight.X-arrowRoom+3), float32(box.TopLeft.Y+h/2-3)
+	x, y := box.BottomRight.X-arrowRoom+3, box.TopLeft.Y+h/2-3
 	dst.FillPolygon([][2]float32{{x, y}, {x + 10, y}, {x + 5, y + 6}}, e.look().Text)
 }
 
-func (d *dropdown) needs(e *Element) (w, h float64) {
+func (d *dropdown) needs(e *Element) (w, h float32) {
 	l := e.children[0].content.(*label)
 	font := l.font(e.look())
 	for _, o := range d.options {
 		ow, oh := font.Measure(o)
-		w, h = math.Max(w, math.Ceil(float64(ow))), math.Max(h, math.Ceil(float64(oh)))
+		w, h = max(w, f32.Ceil(ow)), max(h, f32.Ceil(oh))
 	}
 	return w + arrowRoom, h
 }
@@ -249,7 +250,7 @@ func (*option) place(e *Element, box geom.AABB) { e.children[0].lay(box) }
 
 func (*option) draw(*Element, *render.Image) {}
 
-func (*option) needs(e *Element) (w, h float64) { return e.children[0].needs() }
+func (*option) needs(e *Element) (w, h float32) { return e.children[0].needs() }
 
 func (o *option) press(s *Scene, _ *Element, _ geom.Vec, _ uid.UID64, _ bool) {
 	s.close()

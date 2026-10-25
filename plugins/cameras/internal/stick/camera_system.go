@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/vec"
 	"github.com/kjkrol/uid"
 )
@@ -16,19 +17,19 @@ type Entities interface {
 	Of(id uid.UID64) (Target, bool)
 	// Drive writes the eye's part of what drives the entity id, where it looks, whether it is
 	// flown and how steeply it climbs; nothing for one driven by nothing.
-	Drive(id uid.UID64, look geom.Vec, flown bool, climb float64)
+	Drive(id uid.UID64, look geom.Vec, flown bool, climb float32)
 	// Tilt tilts the eye of the entity id by tilt radians, down for a positive one.
-	Tilt(id uid.UID64, tilt float64)
+	Tilt(id uid.UID64, tilt float32)
 }
 
 // Target is an entity as a camera follows it: X and Y its middle, Alt the height it stands at,
 // Level its eye's, Dir the way it faces (of length 1, or none), Across how wide its eye sees in
 // radians, Tilt how its eye is tilted (Eyed: it has one), Turning whether a hand turns it.
 type Target struct {
-	X, Y, Alt, Level float64
+	X, Y, Alt, Level float32
 	Dir              geom.Vec
 	Across           float32
-	Tilt             float64
+	Tilt             float32
 	Eyed, Turning    bool
 }
 
@@ -55,7 +56,7 @@ type following struct {
 	// behind, in perspective: how far the arm reaches, shortened by what stands between
 	reach float32
 	// inside: the unit's own Eye.Tilt, given back on letting go
-	tilt0  float64
+	tilt0  float32
 	tilted bool
 }
 
@@ -236,7 +237,7 @@ func (s *Keeper) comeOut(cam *viewCamera) {
 }
 
 // the eye's part of what drives it alone; the hand's part is whoever drives it
-func (s *Keeper) write(id uid.UID64, look geom.Vec, flown bool, climb float64) {
+func (s *Keeper) write(id uid.UID64, look geom.Vec, flown bool, climb float32) {
 	s.ents.Drive(id, look, flown, climb)
 }
 
@@ -262,14 +263,14 @@ func (s *Keeper) look(f *following, dx, dy float32) {
 	if !f.aiming {
 		from = facing(f.cam.Heading())
 	}
-	sn, cs := math.Sincos(float64(dx * LookStep))
+	sn, cs := f32.Sincos(dx * LookStep)
 	f.aim, f.aiming = geom.NewVec(from.X*cs-from.Y*sn, from.X*sn+from.Y*cs), true
-	f.cam.Turn(behind(float32(f.aim.X), float32(f.aim.Y)) - f.cam.Heading())
+	f.cam.Turn(behind(f.aim.X, f.aim.Y) - f.cam.Heading())
 }
 
 // the inverse of behind
 func facing(heading float32) geom.Vec {
-	s, c := math.Sincos(float64(heading) + math.Pi/4)
+	s, c := f32.Sincos(heading + math.Pi/4)
 	return geom.NewVec(-s, -c)
 }
 
@@ -284,20 +285,20 @@ func (s *Keeper) keep(f *following, d time.Duration) bool {
 		// the keys turn it: the look goes with it again
 		if t.Turning {
 			f.aiming = false
-		} else if faces && math.Abs(math.Atan2(dir.X*f.aim.Y-dir.Y*f.aim.X,
+		} else if faces && f32.Abs(f32.Atan2(dir.X*f.aim.Y-dir.Y*f.aim.X,
 			dir.X*f.aim.X+dir.Y*f.aim.Y)) < 1e-3 {
 			f.aiming = false // it faces the way the eye looks: pinned to it again
 		}
 	}
 	if !f.inside {
 		if faces {
-			by := ease(behind(float32(dir.X), float32(dir.Y))-f.cam.Heading(), d)
-			if math.Abs(float64(by)) > 1e-4 {
+			by := ease(behind(dir.X, dir.Y)-f.cam.Heading(), d)
+			if f32.Abs(by) > 1e-4 {
 				f.cam.Turn(by)
 			}
 		}
 		if f.cam.inPersp {
-			s.hold(f, [3]float32{float32(cx), float32(cy), float32(t.Alt)}, d)
+			s.hold(f, [3]float32{cx, cy, t.Alt}, d)
 			return true
 		}
 		// as near as the arm: the scale the perspective has, its eye on it
@@ -311,21 +312,21 @@ func (s *Keeper) keep(f *following, d time.Duration) bool {
 	if f.aiming {
 		look = f.aim
 	}
-	s.ents.Drive(f.target, look, true, -math.Sin(float64(f.cam.Pitch())))
+	s.ents.Drive(f.target, look, true, -f32.Sin(f.cam.Pitch()))
 	// the rider's head is the unit's eye: it looks up and down as the rider does
 	if t.Eyed {
 		if !f.tilted {
 			f.tilt0, f.tilted = t.Tilt, true
 		}
-		s.ents.Tilt(f.target, -float64(f.cam.Pitch()))
+		s.ents.Tilt(f.target, -f.cam.Pitch())
 	}
 	way, looks := dir, faces
 	if f.aiming {
 		way, looks = f.aim, true
 	}
 	if looks {
-		by := ease(behind(float32(way.X), float32(way.Y))-f.cam.Heading(), 0)
-		if math.Abs(float64(by)) > 1e-5 {
+		by := ease(behind(way.X, way.Y)-f.cam.Heading(), 0)
+		if f32.Abs(by) > 1e-5 {
 			f.cam.Turn(by)
 		}
 	}
@@ -370,9 +371,9 @@ func (s *Keeper) enter(cam *viewCamera, id uid.UID64) bool {
 	}
 	heading := cam.Heading()
 	if dir.X != 0 || dir.Y != 0 {
-		heading = behind(float32(dir.X), float32(dir.Y))
+		heading = behind(dir.X, dir.Y)
 	}
-	eye[2] = float32(s.riding(float64(eye[0]), float64(eye[1]), float64(eye[2]), cam.persp.cell))
+	eye[2] = s.riding(eye[0], eye[1], eye[2], cam.persp.cell)
 	return cam.enterInside(eye, heading, across)
 }
 
@@ -382,30 +383,30 @@ func (s *Keeper) eyeOf(id uid.UID64) (eye [3]float32, across float32, dir geom.V
 	if !ok {
 		return eye, across, dir, false
 	}
-	return [3]float32{float32(t.X), float32(t.Y), float32(t.Level)}, t.Across, t.Dir, true
+	return [3]float32{t.X, t.Y, t.Level}, t.Across, t.Dir, true
 }
 
 // never in what is solid there, nor within a hair of it
-func (s *Keeper) riding(x, y, top float64, cell float32) float64 {
-	if s.free == nil || s.free(float32(x), float32(y), float32(top)) {
+func (s *Keeper) riding(x, y, top, cell float32) float32 {
+	if s.free == nil || s.free(x, y, top) {
 		return top
 	}
-	return float64(rise(s.free, float32(x), float32(y), float32(top), cell)) + float64(cell)/256
+	return rise(s.free, x, y, top, cell) + cell/256
 }
 
 // the heading from which the way (dx, dy) runs up the screen
 func behind(dx, dy float32) float32 {
-	return float32(math.Atan2(float64(-dx), float64(-dy))) - math.Pi/4
+	return f32.Atan2(-dx, -dy) - math.Pi/4
 }
 
 // the shorter way round; all of it for d zero, the first centring
 func ease(by float32, d time.Duration) float32 {
-	return float32(math.Remainder(float64(by), 2*math.Pi)) * eased(d)
+	return f32.Remainder(by, 2*math.Pi) * eased(d)
 }
 
 func eased(d time.Duration) float32 {
 	if d <= 0 {
 		return 1
 	}
-	return float32(1 - math.Exp(-float64(d)/float64(followEase)))
+	return 1 - f32.Exp(-float32(d)/float32(followEase))
 }

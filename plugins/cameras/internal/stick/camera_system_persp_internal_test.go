@@ -1,13 +1,13 @@
 package stick
 
 import (
-	"math"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
 	contract "github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/vec"
 )
 
@@ -25,7 +25,7 @@ func (g *ridge) at(x float32) float32 {
 		}
 		return 0
 	}
-	c := float32(math.Floor(float64(x / 32)))
+	c := float32(f32.Floor(float32(x / 32)))
 	f := x/32 - c
 	return corner(c*32)*(1-f) + corner((c+1)*32)*f
 }
@@ -220,8 +220,8 @@ func TestLook_TurnsTheViewAtOnceAndTheWalkerToFaceIt(t *testing.T) {
 	east := r.cam.Heading()
 	r.looks.Add(command.Nobody, Look{Camera: r.cam, Dx: 200, Dy: -100})
 	r.tick(time.Second / 60)
-	a := float64(200 * LookStep)
-	want := geom.NewVec(math.Cos(a), math.Sin(a)) // east turned clockwise, to the right
+	a := float32(200 * LookStep)
+	want := geom.NewVec(f32.Cos(a), f32.Sin(a)) // east turned clockwise, to the right
 	if h := r.cam.Heading(); !near(h, wrapAngle(behind(float32(want.X), float32(want.Y)))) || near(h, east) {
 		t.Errorf("after the mouse went right the view looks from %v, want %v at once", h, wrapAngle(behind(float32(want.X), float32(want.Y))))
 	}
@@ -229,13 +229,13 @@ func TestLook_TurnsTheViewAtOnceAndTheWalkerToFaceIt(t *testing.T) {
 		t.Errorf("after the mouse went up the pitch is %v, want %v: the head raised", p, -100*LookStep)
 	}
 	d, ok := r.drivenOf(r.walkers[0])
-	if !ok || math.Abs(d.Look.X-want.X) > 1e-4 || math.Abs(d.Look.Y-want.Y) > 1e-4 || d.Ahead != 0 || d.Turn != 0 {
+	if !ok || f32.Abs(d.Look.X-want.X) > 1e-4 || f32.Abs(d.Look.Y-want.Y) > 1e-4 || d.Ahead != 0 || d.Turn != 0 {
 		t.Errorf("the walker is driven %+v, want to face %v", d, want)
 	}
 	if !d.Flown {
 		t.Error("ridden, the walker is not flown from inside")
 	}
-	if rise := math.Sin(100 * LookStep); math.Abs(d.Climb-rise) > 1e-4 {
+	if rise := f32.Sin(100 * LookStep); f32.Abs(d.Climb-rise) > 1e-4 {
 		t.Errorf("the head raised, the walker is steered at a rise of %v, want the look's %v", d.Climb, rise)
 	}
 	// the walker still faces east: the view stays where the eye looks, the walker turning to it

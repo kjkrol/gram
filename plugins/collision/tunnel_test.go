@@ -15,8 +15,8 @@ import (
 )
 
 type runner struct {
-	x, side float64
-	heading float64 // +1 or -1 along x
+	x, side float32
+	heading float32 // +1 or -1 along x
 }
 
 func TestWorldAndCollisions_MixedSizes_NeverTunnel(t *testing.T) {
@@ -47,7 +47,7 @@ func TestWorldAndCollisions_MixedSizes_NeverTunnel(t *testing.T) {
 		q = si.NewQueryBuilder(&base).Build()
 	}})
 
-	where := func() (smallX, bigX float64) {
+	where := func() (smallX, bigX float32) {
 		for q.All(); q.Next(); {
 			for _, b := range base.Slice(q.Cursor()) {
 				if b.Pos.Size.X == small.side {

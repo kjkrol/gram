@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 )
 
 func TestViewCamera_ItsTransformDrawsWhereItProjects(t *testing.T) {
@@ -28,7 +29,7 @@ func TestViewCamera_ItsTransformDrawsWhereItProjects(t *testing.T) {
 		for _, p := range [][3]float32{{1600, 1600, 0}, {1580, 1650, 20}, {1650, 1560, 45}} {
 			wx, wy := cam.Project(p[0], p[1], p[2])
 			sx, sy, _, ok := tr.Apply(p[0], p[1], p[2], 400, 300)
-			if !ok || math.Abs(float64(sx-wx)) > 0.05 || math.Abs(float64(sy-wy)) > 0.05 {
+			if !ok || f32.Abs(float32(sx-wx)) > 0.05 || f32.Abs(float32(sy-wy)) > 0.05 {
 				t.Errorf("view %d (perspective %v): %v drawn at (%v, %v), projected at (%v, %v)", view, cam.inPersp, p, sx, sy, wx, wy)
 			}
 		}
@@ -56,7 +57,7 @@ func TestViewCamera_ItsTransformDrawsWhereItProjectsCroppedOffCentre(t *testing.
 		for _, p := range [][3]float32{{1600, 1600, 0}, {1580, 1650, 20}, {1650, 1560, 45}} {
 			wx, wy := cam.Project(p[0], p[1], p[2])
 			sx, sy, _, ok := tr.Apply(p[0], p[1], p[2], w, h)
-			if !ok || math.Abs(float64(sx-wx)) > 0.05 || math.Abs(float64(sy-wy)) > 0.05 {
+			if !ok || f32.Abs(float32(sx-wx)) > 0.05 || f32.Abs(float32(sy-wy)) > 0.05 {
 				t.Errorf("view %d (perspective %v): %v drawn at (%v, %v), projected at (%v, %v)",
 					view, cam.inPersp, p, sx, sy, wx, wy)
 			}

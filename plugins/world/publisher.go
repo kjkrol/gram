@@ -25,32 +25,18 @@ type figures struct {
 	lies    []Lie
 }
 
-// figure is an entity drawn, in float32: its box's corners, size and how far it runs past the
-// world's far edges, its heading and speed, its Z, its layers figures.layers[from:from+n], its
-// Lie figures.lies[lie-1] (0 for none), its shadow as the Lighting says
+// figure is an entity drawn: its box, its heading and speed, its Z, its layers
+// figures.layers[from:from+n], its Lie figures.lies[lie-1] (0 for none), its shadow as the
+// Lighting says
 type figure struct {
-	id                   uid.UID64
-	x0, y0, x1, y1, w, h float32
-	ox, oy               float32
-	dx, dy, speed        float32
-	alt, height, step    float32
-	from, lie            int32
-	n                    uint16
-	shadow               render.Shadowing
-}
-
-// the box of e as the Look takes it
-func (e *figure) box() plane.AABB {
-	return plane.AABB{
-		AABB: geom.AABB{TopLeft: geom.Vec{X: float64(e.x0), Y: float64(e.y0)},
-			BottomRight: geom.Vec{X: float64(e.x1), Y: float64(e.y1)}},
-		Size:     geom.Vec{X: float64(e.w), Y: float64(e.h)},
-		Overhang: geom.Vec{X: float64(e.ox), Y: float64(e.oy)},
-	}
-}
-
-func (e *figure) stands() Z {
-	return Z{Altitude: float64(e.alt), Height: float64(e.height), Step: float64(e.step)}
+	id        uid.UID64
+	box       plane.AABB
+	dir       geom.Vec
+	speed     float32
+	z         Z
+	from, lie int32
+	n         uint16
+	shadow    render.Shadowing
 }
 
 // layer is a sprite an entity is drawn with and how far the effect its material is under has run
@@ -132,17 +118,11 @@ func (s *renderer) publish(b *figures, cur *goke.Cursor) {
 		n := len(b.all)
 		b.all = slices.Grow(b.all, 1)[:n+1]
 		e := &b.all[n]
-		box, vel := &bases[i].Pos.AABB, &bases[i].Vel
-		e.id = id
-		e.x0, e.y0 = float32(box.TopLeft.X), float32(box.TopLeft.Y)
-		e.x1, e.y1 = float32(box.BottomRight.X), float32(box.BottomRight.Y)
-		e.w, e.h, e.ox, e.oy = float32(box.Size.X), float32(box.Size.Y),
-			float32(box.Overhang.X), float32(box.Overhang.Y)
-		e.dx, e.dy, e.speed = float32(vel.Dir.X), float32(vel.Dir.Y), float32(vel.Value)
-		e.alt, e.height, e.step, e.lie, e.shadow = 0, 0, 0, 0, render.Shadowing{}
+		e.id, e.box = id, bases[i].Pos.AABB
+		e.dir, e.speed = bases[i].Vel.Dir, bases[i].Vel.Value
+		e.z, e.lie, e.shadow = Z{}, 0, render.Shadowing{}
 		if zs != nil {
-			e.alt, e.height, e.step = float32(zs[i].Altitude), float32(zs[i].Height),
-				float32(zs[i].Step)
+			e.z = zs[i]
 		}
 		if lies != nil && lies[i].Length > 0 {
 			b.lies = append(b.lies, lies[i])

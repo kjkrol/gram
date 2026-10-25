@@ -1,9 +1,9 @@
 package air_test
 
 import (
-	"math"
 	"testing"
 
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/world"
 )
@@ -26,8 +26,8 @@ func TestMass_WithLowKeepsTheHighLayer(t *testing.T) {
 		got := c.m.WithLow(c.low)
 		low, high := got.Layer(air.Low).Cover, got.Layer(air.High).Cover
 		want := c.m.Layer(air.High).Cover
-		if math.Abs(float64(low-c.low)) > 1e-4 ||
-			c.kept && math.Abs(float64(high-want)) > 5e-3 {
+		if f32.Abs(float32(low-c.low)) > 1e-4 ||
+			c.kept && f32.Abs(float32(high-want)) > 5e-3 {
 			t.Errorf("%+v with low clouds %v is %+v: low %v, high %v; want low %v, the high %v "+
 				"kept %v", c.m, c.low, got, low, high, c.low, want, c.kept)
 		}
@@ -95,7 +95,7 @@ func TestDome_LiftHoldsTheLowCloudsBackBeforeARidge(t *testing.T) {
 	still := newRidged(born, [2]float32{}, 0, 0)
 	still.run(40)
 	for _, x := range []float32{900, 1200, 1600} {
-		if got := still.low(x); math.Abs(float64(got-was)) > 1e-3 {
+		if got := still.low(x); f32.Abs(float32(got-was)) > 1e-3 {
 			t.Errorf("without wind the low clouds at %v east are %v, want them as born, %v", x,
 				got, was)
 		}
@@ -105,7 +105,7 @@ func TestDome_LiftHoldsTheLowCloudsBackBeforeARidge(t *testing.T) {
 func TestDome_LiftGathersDampIntoCloudsNeverOutOfNothing(t *testing.T) {
 	dry := newRidged(air.Mass{Cover: 0.2, Billow: 1}, [2]float32{}, 0, 0.1)
 	dry.run(10)
-	if got := dry.low(1660); math.Abs(float64(got-0.2)) > 1e-3 {
+	if got := dry.low(1660); f32.Abs(float32(got-0.2)) > 1e-3 {
 		t.Errorf("gathering dry air: low clouds %v, want them as they were, 0.2", got)
 	}
 	damp := newRidged(air.Mass{Cover: 0.2, Billow: 1, Damp: 0.6}, [2]float32{}, 0, 0.1)
@@ -114,7 +114,7 @@ func TestDome_LiftGathersDampIntoCloudsNeverOutOfNothing(t *testing.T) {
 		t.Errorf("gathering air 0.6 damp for 10 s: low clouds %v, damp %v; want more clouds "+
 			"and less damp", got, m.Damp)
 	}
-	if got := damp.low(500); math.Abs(float64(got-0.2)) > 1e-3 {
+	if got := damp.low(500); f32.Abs(float32(got-0.2)) > 1e-3 {
 		t.Errorf("away from where the land gathers the low clouds are %v, want 0.2", got)
 	}
 }

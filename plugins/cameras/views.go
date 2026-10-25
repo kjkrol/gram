@@ -78,7 +78,7 @@ func viewBindings(cfg Config) []control.Binding {
 	}
 	look := func(c control.Context) (Look, bool) {
 		d := c.Shown(c.Delta)
-		return Look{Camera: c.Camera, Dx: float32(d.X), Dy: float32(d.Y)}, true
+		return Look{Camera: c.Camera, Dx: d.X, Dy: d.Y}, true
 	}
 	view := func(c control.Context) (View, bool) { return View{Camera: c.Camera}, true }
 	ride := func(c control.Context) (Ride, bool) { return Ride{Camera: c.Camera}, true }

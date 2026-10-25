@@ -10,9 +10,9 @@ type At struct{ Cell cell.ID }
 // An entity on the board without one moves on Land.
 type Mover struct {
 	Domain    cell.Domain
-	Lift      float64
-	Clearance float64
-	Ceiling   float64
+	Lift      float32
+	Clearance float32
+	Ceiling   float32
 }
 
 // DomainAt is the domain of the i-th entity of a chunk whose Mover column may be absent.

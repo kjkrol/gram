@@ -3,10 +3,10 @@ package vision
 import (
 	"embed"
 	"image/color"
-	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/render"
 )
@@ -43,7 +43,7 @@ type views struct {
 	step          float32
 	wrap          [2]bool
 	low, span     float32
-	heights       []float64
+	heights       []float32
 	pix, bandPix  []byte
 
 	sight            *render.Image
@@ -63,7 +63,7 @@ type observer struct {
 	Tilt, VHalf                    float32
 }
 
-type coverTexel struct{ tau, bottom, top float64 }
+type coverTexel struct{ tau, bottom, top float32 }
 
 // coverCopy is the cover as a Publish walked it, a texel every step over a grid nx by ny: what
 // the views drawn are held back by
@@ -72,7 +72,7 @@ type coverCopy struct {
 	nx, ny    int
 	step      float32
 	texels    []coverTexel // nil for no cover
-	low, high float64      // the bands walked, ±Inf for none
+	low, high float32      // the bands walked, ±Inf for none
 }
 
 // update walks cover into c over a world w by h, a texel every step, anew where it, the ground or
@@ -87,7 +87,7 @@ func (c *coverCopy) update(
 		return
 	}
 	c.at, c.nx, c.ny, c.step = at, nx, ny, step
-	c.low, c.high = math.Inf(1), math.Inf(-1)
+	c.low, c.high = f32.Inf(1), f32.Inf(-1)
 	if cover == nil {
 		c.texels = nil
 		return
@@ -96,23 +96,23 @@ func (c *coverCopy) update(
 	for k := range c.texels {
 		c.texels[k] = coverTexel{tau: 1}
 	}
-	y := func(j int) float64 { return math.Min(float64(j)*float64(step), float64(h)-1e-3) }
+	y := func(j int) float32 { return min(float32(j)*step, h-1e-3) }
 	var row []coverTexel
-	visit := func(near, far, bottom, top, tau float64) bool {
-		first := max(int(math.Ceil(near/float64(step))), 0)
-		for i := first; i < nx && float64(i)*float64(step) <= far; i++ {
+	visit := func(near, far, bottom, top, tau float32) bool {
+		first := max(int(f32.Ceil(near/step)), 0)
+		for i := first; i < nx && float32(i)*step <= far; i++ {
 			if tau < row[i].tau {
-				row[i] = coverTexel{tau: math.Max(tau, 0), bottom: bottom, top: top}
+				row[i] = coverTexel{tau: max(tau, 0), bottom: bottom, top: top}
 			}
 		}
-		if !math.IsInf(bottom, 0) && !math.IsInf(top, 0) {
-			c.low, c.high = math.Min(c.low, bottom), math.Max(c.high, top)
+		if !f32.IsInf(bottom, 0) && !f32.IsInf(top, 0) {
+			c.low, c.high = min(c.low, bottom), max(c.high, top)
 		}
 		return true
 	}
 	for j := range ny {
 		row = c.texels[j*nx : (j+1)*nx]
-		cover.Walk(geom.NewVec(0, y(j)), geom.NewVec(1, 0), float64(w), 0, visit)
+		cover.Walk(geom.NewVec(0, y(j)), geom.NewVec(1, 0), w, 0, visit)
 	}
 }
 
@@ -135,8 +135,8 @@ func newViews() *views {
 }
 
 func (v *views) look(cam camera.Camera, o observer) {
-	r := float64(o.Reach)
-	if len(v.observers) >= maxViews || !cam.Visible(geom.NewAABBAt(geom.NewVec(float64(o.X)-r, float64(o.Y)-r), 2*r, 2*r)) {
+	r := o.Reach
+	if len(v.observers) >= maxViews || !cam.Visible(geom.NewAABBAt(geom.NewVec(o.X-r, o.Y-r), 2*r, 2*r)) {
 		return
 	}
 	v.observers = append(v.observers, o)
@@ -144,7 +144,7 @@ func (v *views) look(cam camera.Camera, o observer) {
 
 func (v *views) draw(
 	t render.Target, cam camera.Camera, ground ground.Heights, cover *coverCopy, w, h,
-	step float32, wrap [2]bool, bend float64, shadow Shadow,
+	step float32, wrap [2]bool, bend float32, shadow Shadow,
 ) {
 	defer func() { v.observers = v.observers[:0] }()
 	if t.Screen == nil || ground != nil && t.Ground == nil || len(v.observers) == 0 || step <= 0 {
@@ -230,7 +230,7 @@ func (v *views) draw(
 }
 
 func (v *views) covered(tr camera.Transform, o observer, w, h float32) [4]float32 {
-	x0, y0, x1, y1 := float32(math.Inf(1)), float32(math.Inf(1)), float32(math.Inf(-1)), float32(math.Inf(-1))
+	x0, y0, x1, y1 := f32.Inf(1), f32.Inf(1), f32.Inf(-1), f32.Inf(-1)
 	take := func(x, y float32) bool {
 		for _, z := range [3]float32{v.low, v.low + v.span, o.Eye} {
 			sx, sy, _, ok := tr.Apply(x, y, z, w, h)
@@ -247,8 +247,8 @@ func (v *views) covered(tr camera.Transform, o observer, w, h float32) [4]float3
 	}
 	const rim = 16
 	for i := range rim + 1 {
-		a := float64(o.Facing - o.Half + 2*o.Half*float32(i)/rim)
-		if !take(o.X+o.Reach*float32(math.Cos(a)), o.Y+o.Reach*float32(math.Sin(a))) {
+		a := o.Facing - o.Half + 2*o.Half*float32(i)/rim
+		if !take(o.X+o.Reach*f32.Cos(a), o.Y+o.Reach*f32.Sin(a)) {
 			return all
 		}
 	}
@@ -257,10 +257,10 @@ func (v *views) covered(tr camera.Transform, o observer, w, h float32) [4]float3
 }
 
 func length(a [3]float32) float32 {
-	return float32(math.Sqrt(float64(a[0]*a[0] + a[1]*a[1] + a[2]*a[2])))
+	return f32.Sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2])
 }
 
-func (v *views) bake(bend float64) {
+func (v *views) bake(bend float32) {
 	n := len(v.observers)
 	if height := rings * n; v.sight == nil || v.sight.Bounds().Dy() < height {
 		if v.sight != nil {
@@ -281,7 +281,7 @@ func (v *views) bake(bend float64) {
 	}
 	u, own := v.baking.Uniforms, v.bakeOwn
 	v.groundUniforms(u, own)
-	set(u, own, "SightBend", float32(bend))
+	set(u, own, "SightBend", bend)
 	set(u, own, "March", v.step/2)
 	v.baking.Images = [4]*render.Image{v.ground, v.bands, nil, nil}
 	v.sight.DrawTrianglesShader(v.verts, v.indices, sighted, &v.baking)
@@ -323,29 +323,29 @@ func (v *views) copy(ground ground.Heights, cover *coverCopy, w, h, step float32
 	v.groundAt, v.nx, v.ny, v.step, v.wrap = at, nx, ny, step, wrap
 	n := nx * ny
 	v.heights = resize(v.heights, n)
-	x := func(i int) float64 { return math.Min(float64(i)*float64(step), float64(w)-1e-3) }
-	y := func(j int) float64 { return math.Min(float64(j)*float64(step), float64(h)-1e-3) }
-	low, high := math.Inf(1), math.Inf(-1)
+	x := func(i int) float32 { return min(float32(i)*step, w-1e-3) }
+	y := func(j int) float32 { return min(float32(j)*step, h-1e-3) }
+	low, high := f32.Inf(1), f32.Inf(-1)
 	for j := range ny {
 		for i := range nx {
-			g := 0.0
+			g := float32(0)
 			if ground != nil {
 				g = ground.At(geom.NewVec(x(i), y(j)))
 			}
 			v.heights[j*nx+i] = g
-			low, high = math.Min(low, g), math.Max(high, g)
+			low, high = min(low, g), max(high, g)
 		}
 	}
 	if covers != nil {
-		low, high = math.Min(low, cover.low), math.Max(high, cover.high)
+		low, high = min(low, cover.low), max(high, cover.high)
 	}
-	if math.IsInf(low, 0) {
+	if f32.IsInf(low, 0) {
 		low, high = 0, 0
 	}
-	v.low, v.span = float32(low), float32(math.Max(high-low, 1))
+	v.low, v.span = low, max(high-low, 1)
 	v.pix, v.bandPix = v.pix[:0], v.bandPix[:0]
-	enc := func(z float64) (byte, byte) {
-		q := uint32(math.Min(math.Max((z-low)/float64(v.span), 0), 1)*65535 + 0.5)
+	enc := func(z float32) (byte, byte) {
+		q := uint32(min(max((z-low)/v.span, 0), 1)*65535 + 0.5)
 		return byte(q >> 8), byte(q & 255)
 	}
 	for k := range n {
@@ -356,10 +356,10 @@ func (v *views) copy(ground ground.Heights, cover *coverCopy, w, h, step float32
 		}
 		// a band without end, a cover of no height, has it all: alpha none
 		whole := byte(255)
-		if math.IsInf(c.bottom, 0) || math.IsInf(c.top, 0) {
+		if f32.IsInf(c.bottom, 0) || f32.IsInf(c.top, 0) {
 			whole = 0
 		}
-		v.pix = append(v.pix, hi, lo, byte(math.Min(c.tau, 1)*255+0.5), whole)
+		v.pix = append(v.pix, hi, lo, byte(min(c.tau, 1)*255+0.5), whole)
 		th, tl := enc(c.top)
 		bh, bl := enc(c.bottom)
 		v.bandPix = append(v.bandPix, th, tl, bh, bl)
@@ -391,9 +391,9 @@ func versionOf(x any) uint64 {
 	return v
 }
 
-func resize(s []float64, n int) []float64 {
+func resize(s []float32, n int) []float32 {
 	if cap(s) < n {
-		return make([]float64, n)
+		return make([]float32, n)
 	}
 	return s[:n]
 }

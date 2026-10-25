@@ -2,12 +2,12 @@ package bench_test
 
 import (
 	"image/color"
-	"math"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
@@ -56,7 +56,7 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	brdW := p.Write().Board()
 	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	relief := topo.Write().Relief()
-	relief.SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
+	relief.SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float32 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
 			return 12
 		}
@@ -65,10 +65,10 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
 
 	origin := geom.NewVec(1000.5, 1000.5)
-	var sum float64
+	var sum float32
 	for b.Loop() {
 		for i := range 64 {
-			d := float64(i) * size / 4
+			d := float32(i) * size / 4
 			sum += relief.At(geom.NewVec(origin.X+d*0.8, origin.Y+d*0.6))
 		}
 	}
@@ -99,7 +99,7 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	}
 	brdW := p.Write().Board()
 	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	topo.Write().Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
+	topo.Write().Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float32 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
 			return 20
 		}
@@ -264,24 +264,24 @@ func islandWith(b *testing.B, view string, far bool, shine, lit, sectored bool) 
 	if err := ctx.Use(topo); err != nil {
 		b.Fatal(err)
 	}
-	inside := func(x, y float64) float64 { // 1 in the middle, 0 at the coast
+	inside := func(x, y float32) float32 { // 1 in the middle, 0 at the coast
 		dx, dy := (x-w/2)/34, (y-h/2)/22
-		return 1 - math.Hypot(dx, dy)*(1+0.1*math.Sin(5*math.Atan2(dy, dx)))
+		return 1 - f32.Hypot(dx, dy)*(1+0.1*f32.Sin(5*f32.Atan2(dy, dx)))
 	}
 	land := map[cell.ID]bool{}
 	grid.EachCell(func(c cell.ID) {
 		x, y, _ := grid.Coords(c)
-		land[c] = inside(float64(x)+0.5, float64(y)+0.5) > 0
+		land[c] = inside(float32(x)+0.5, float32(y)+0.5) > 0
 	})
-	heights := func(q geom.Vec) float64 {
+	heights := func(q geom.Vec) float32 {
 		x, y := q.X/size, q.Y/size
-		for _, d := range [4][2]float64{{-0.5, -0.5}, {0.5, -0.5}, {-0.5, 0.5}, {0.5, 0.5}} {
+		for _, d := range [4][2]float32{{-0.5, -0.5}, {0.5, -0.5}, {-0.5, 0.5}, {0.5, 0.5}} {
 			if c, ok := grid.CellAt(geom.NewVec((x+d[0])*size, (y+d[1])*size)); !ok || !land[c] {
 				return 0
 			}
 		}
 		in := inside(x, y)
-		return 8 + 160*in*in*(0.7+0.3*math.Sin(x/3)*math.Cos(y/4)) + 10*math.Sin(x/2+y/3)
+		return 8 + 160*in*in*(0.7+0.3*f32.Sin(x/3)*f32.Cos(y/4)) + 10*f32.Sin(x/2+y/3)
 	}
 	rivers, err := water.Drain(grid, heights, func(c cell.ID) bool { return !land[c] }, water.Config{
 		BrookAt: 30, StreamAt: 60, RiverAt: 170, BrookDepth: 1, StreamDepth: 2, RiverDepth: 5,

@@ -299,27 +299,27 @@ func (s *Shortcuts) build(w, h int) {
 func (s *Shortcuts) listing(w, h int) *ui.Element {
 	font := ui.DefaultTheme().Font
 	glyph, line := font.Measure("abcdefghij")
-	glyphWidth, lineHeight := float64(glyph)/10, float64(line)
-	width := float64(w) - 2*shortcutsMargin
-	height := float64(h) - 2*shortcutsMargin
+	glyphWidth, lineHeight := glyph/10, line
+	width := float32(w) - 2*shortcutsMargin
+	height := float32(h) - 2*shortcutsMargin
 
 	var rows []ui.Part
 	if d := s.description; d != "" {
 		lines := wrapped(d, int(width/glyphWidth))
 		rows = append(rows, ui.Fit(ui.Label(strings.Join(lines, "\n")).Named("shortcuts.about")),
 			ui.Fixed(shortcutsGap, ui.Blank()))
-		height -= float64(len(lines))*lineHeight + shortcutsGap
+		height -= float32(len(lines))*lineHeight + shortcutsGap
 	}
 	rows = append(rows, ui.Fit(ui.Title(s.title()).Named("shortcuts.title")),
 		ui.Fixed(shortcutsGap, ui.Blank()))
 	_, titleHeight := ui.DefaultTheme().Large.Measure(s.title())
-	height -= float64(titleHeight) + shortcutsGap
+	height -= titleHeight + shortcutsGap
 
 	var columns []ui.Part
 	var column []ui.Part
-	used := 0.0
+	used := float32(0)
 	for _, g := range s.groups() {
-		tall := float64(len(g.lines)+1) * lineHeight
+		tall := float32(len(g.lines)+1) * lineHeight
 		if used > 0 && used+tall > height {
 			columns = append(columns, ui.Fit(ui.Rows(column...).Named(columnName(len(columns)))),
 				ui.Fixed(shortcutsGap*2, ui.Blank()))

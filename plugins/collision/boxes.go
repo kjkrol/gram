@@ -130,7 +130,7 @@ func (v *boxesView) Publish() {
 				z = zs[i]
 			}
 			b.all = append(b.all, boxOf{id: id, box: bases[i].Pos.AABB.AABB,
-				mid: bases[i].Pos.Center(), alt: float32(z.Altitude), top: float32(z.Top())})
+				mid: bases[i].Pos.Center(), alt: z.Altitude, top: z.Top()})
 		}
 	}
 }
@@ -149,7 +149,7 @@ func (v *boxesView) Compose(f *render.Frame, cam camera.Camera) {
 		if in != nil && !in.Contains(e.id) {
 			continue
 		}
-		at := f.Lifted(float32(e.mid.X), float32(e.mid.Y), e.alt, boxLift)
+		at := f.Lifted(e.mid.X, e.mid.Y, e.alt, boxLift)
 		if d.shown == Solids {
 			v.solid(f, cam, at.OverFigures(), e.box, e.alt, e.top)
 			continue
@@ -168,8 +168,8 @@ func (v *boxesView) Compose(f *render.Frame, cam camera.Camera) {
 // solid draws the twelve edges of the box from alt up to top
 func (v *boxesView) solid(f *render.Frame, cam camera.Camera, at render.At, box geom.AABB,
 	alt, top float32) {
-	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
-	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
+	x0, y0 := box.TopLeft.X, box.TopLeft.Y
+	x1, y1 := box.BottomRight.X, box.BottomRight.Y
 	floor := [4][2]float32{{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}
 	var low, high [4][2]float32
 	for k, p := range floor {

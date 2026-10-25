@@ -59,7 +59,7 @@ func TestPainter_DrawsAHexBoardsTopsOnTheGPU(t *testing.T) {
 			Mix: float32(r) / 5})
 	}
 	brdW.SetWay(g.At(4, 3), cell.Way{Kind: road, Width: 5, Links: east | west | southEast})
-	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 40 - p.Y/8 })
+	reliefFor(brd).SetHeights(func(p geom.Vec) float32 { return 40 - p.Y/8 })
 	colours := map[render.SpriteID]color.RGBA{1: {90, 150, 70, 255}, 2: {150, 170, 80, 255},
 		3: {40, 80, 170, 255}, 4: {60, 110, 190, 255}, 5: {150, 110, 70, 255}}
 	atlas := render.NewAtlas()

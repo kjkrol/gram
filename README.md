@@ -219,10 +219,10 @@ func (a *arena) spawnUnits() {
 	entries := make([]kind.Entry, boxCount)
 	for i := range entries {
 		var vel world.Velocity
-		vel.SetDelta(geom.NewVec(rng.Float64()*200-100, rng.Float64()*200-100))
+		vel.SetDelta(geom.NewVec(rng.Float32()*200-100, rng.Float32()*200-100))
 		entries[i] = boxKind.Entry(boxRow{pos: placement.Place(i, boxCount), vel: vel})
 	}
-	a.world.Seed(entries...)
+	a.world.Write().Seed(entries...)
 }
 
 func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {

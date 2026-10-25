@@ -1,10 +1,6 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/order"
-	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
-	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
-	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 	"testing"
 	"time"
 
@@ -15,6 +11,10 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/motion/steering"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
@@ -48,7 +48,7 @@ func newLegWorld(t *testing.T, w, h uint32, units ...legUnit) *legWorld {
 	t.Helper()
 	lw := &legWorld{}
 	g := grid.DefaultGrids{}.Square(w, h, legCellSize)
-	profile := steering.Steering{MaxSpeed: float64(legCellSize * 2)}
+	profile := steering.Steering{MaxSpeed: float32(legCellSize * 2)}
 	rows := make([]navUnit, len(units))
 	for i, u := range units {
 		rows[i] = navUnit{box: cellBox(g, u.start, legEntitySize), at: u.start, profile: &profile, owner: u.owner}

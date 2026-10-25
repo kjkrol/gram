@@ -1,10 +1,10 @@
 package spacing
 
 import (
-	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/world"
@@ -18,9 +18,9 @@ const ArrivalEpsilon = 2.0
 
 // Footing is a terrain whose cells have levels: the cell and the kind under feet at a point.
 type Footing interface {
-	CellFor(p geom.Vec, feet, reach float64) (cell.ID, bool)
-	LevelFor(p geom.Vec, feet, reach float64) (c cell.ID, deck, ok bool)
-	KindFor(c cell.ID, p geom.Vec, feet, reach float64) cell.Kind
+	CellFor(p geom.Vec, feet, reach float32) (cell.ID, bool)
+	LevelFor(p geom.Vec, feet, reach float32) (c cell.ID, deck, ok bool)
+	KindFor(c cell.ID, p geom.Vec, feet, reach float32) cell.Kind
 }
 
 // nil z: the ground's
@@ -30,12 +30,12 @@ func CellOf(g grid.Grid, t cell.Terrain, p geom.Vec, z *world.Z) (cell.ID, bool)
 }
 
 // ShortestAxisDelta is want − have along an axis of size, the shorter way round where it wraps.
-func ShortestAxisDelta(have, want float64, size uint32, wraps bool) float64 {
+func ShortestAxisDelta(have, want float32, size uint32, wraps bool) float32 {
 	d := want - have
 	if !wraps || size == 0 {
 		return d
 	}
-	s := float64(size)
+	s := float32(size)
 	if d > s/2 {
 		d -= s
 	} else if d < -s/2 {
@@ -52,7 +52,7 @@ func LevelOf(g grid.Grid, t cell.Terrain, p geom.Vec, z *world.Z) (c cell.ID, de
 		return c, false, ok
 	}
 	if z == nil {
-		return f.LevelFor(p, math.Inf(-1), 0)
+		return f.LevelFor(p, f32.Inf(-1), 0)
 	}
 	return f.LevelFor(p, z.Altitude, z.Reach())
 }

@@ -71,13 +71,13 @@ func (w *Write) Relief() Relief { return w.p.relief }
 // Flatten lays the cell c flat at h, the ground round it following within the Shaping's
 // MaxStep, and reports whether it did. Nothing moves where a road would be left lying as
 // Transport Tycoon would not lay it.
-func (w *Write) Flatten(c cell.ID, h float64) bool {
+func (w *Write) Flatten(c cell.ID, h float32) bool {
 	p := w.p
 	return p.relief.KeepRoads(func() { p.relief.Level(c, h, p.cfg.Shaping.MaxStep) })
 }
 
 // Seed sets the ground's heights raised when the Stage starts fresh.
-func (w *Write) Seed(heights func(p geom.Vec) float64) {
+func (w *Write) Seed(heights func(p geom.Vec) float32) {
 	if err := w.p.worldPlugin.InSection("the ground's heights seeded", section.Spawn); err != nil {
 		panic("topography: " + err.Error())
 	}

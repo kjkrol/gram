@@ -2,13 +2,13 @@ package bullet
 
 import (
 	"fmt"
-	"github.com/kjkrol/ceremony/effect"
-	"github.com/kjkrol/ceremony/fact"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/fact"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/collision"
@@ -22,7 +22,7 @@ import (
 // it flies, whether it is thrown (Gravity > 0) and whether it Lands where its flight ends. A shot
 // that is to Burst must Land.
 type Body struct {
-	Size, Speed, Range, Gravity float64
+	Size, Speed, Range, Gravity float32
 	Lands                       bool
 }
 
@@ -34,9 +34,9 @@ var _ effect.Knob = Body{}
 // Shot is the row a kind of shot spawns from; the plugin builds it as it fires.
 type Shot struct {
 	From, Dir geom.Vec
-	Altitude  float64
-	Climb     float64
-	Range     float64
+	Altitude  float32
+	Climb     float32
+	Range     float32
 	Shooter   uid.UID64
 	Owners    tag.Tags[owner.Family]
 }
@@ -45,7 +45,7 @@ type Shot struct {
 // flight ends and whether it lies Landed.
 type Flight struct {
 	At, Dir             geom.Vec
-	Range, Flown, Climb float64
+	Range, Flown, Climb float32
 	Shooter             uid.UID64
 	Ending              End
 	Other               uid.UID64

@@ -1,11 +1,10 @@
 package collision
 
 import (
-	"math"
-
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/uid"
 )
 
@@ -14,7 +13,7 @@ import (
 // middle to Other's.
 type Meeting struct {
 	Self, Other uid.UID64
-	Impact      float64
+	Impact      float32
 	Normal      geom.Vec
 	Heading     geom.Vec
 	Toward      geom.Vec
@@ -22,9 +21,9 @@ type Meeting struct {
 
 // Facing is the word of a meeting in which Self is turned towards Other, within the angle in
 // radians of the way to it.
-func Facing(within float64) cond.Word[Meeting] {
+func Facing(within float32) cond.Word[Meeting] {
 	return cond.NewWord("facing", func(m Meeting) bool {
-		return m.Heading.X*m.Toward.X+m.Heading.Y*m.Toward.Y >= math.Cos(within)
+		return m.Heading.X*m.Toward.X+m.Heading.Y*m.Toward.Y >= f32.Cos(within)
 	})
 }
 

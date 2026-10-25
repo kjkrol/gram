@@ -3,7 +3,6 @@ package relief_test
 import (
 	"bytes"
 	"log"
-	"math"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -39,7 +39,7 @@ func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 	if got := zs[walker.ID()]; len(got) != 2 || got[0].Height != 2 || got[1].Height != 2 {
 		t.Fatalf("walkers' Z = %v, want two, each 2 tall", got)
 	}
-	alts := map[float64]bool{}
+	alts := map[float32]bool{}
 	for _, z := range zs[walker.ID()] {
 		alts[z.Altitude] = true
 	}
@@ -107,20 +107,20 @@ func TestAltitude_ADeckIsSteppedOntoWithinAStep(t *testing.T) {
 	}
 	qw := topotest.NewQuasiWorldWith(t, false, define)
 	deck := qw.Topo.Write().Relief().Altitude(qw.Grid.At(1, 2)) + 10
-	step := func(alt float64) float64 {
+	step := func(alt float32) float32 {
 		flown(qw, func(_ *world.Base, z *world.Z, _ *unit.Mover, _ *steering.Driven,
 			_ *steering.Course) {
 			z.Altitude = alt
 		})
 		qw.ECS.Tick(time.Second / 60)
-		var got float64
+		var got float32
 		flown(qw, func(_ *world.Base, z *world.Z, _ *unit.Mover, _ *steering.Driven,
 			_ *steering.Course) {
 			got = z.Altitude
 		})
 		return got
 	}
-	reach := 2.0 / 4 // a quarter of the walker's Height
+	reach := float32(2.0 / 4) // a quarter of the walker's Height
 	if got := step(0); got == deck {
 		t.Errorf("standing on the ground under the deck it went up onto it")
 	}
@@ -179,7 +179,7 @@ func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
 			b.Pos.AABB = plane.NewAABB(geom.NewVec(at.X-10, at.Y-10), 20, 20)
 		}
 	}
-	step := func(fn func(b *world.Base, z *world.Z, m *unit.Mover, d *steering.Driven, st *steering.Course)) (alt, lift float64) {
+	step := func(fn func(b *world.Base, z *world.Z, m *unit.Mover, d *steering.Driven, st *steering.Course)) (alt, lift float32) {
 		flown(qw, fn)
 		qw.ECS.Tick(time.Second / 60)
 		flown(qw, func(_ *world.Base, z *world.Z, m *unit.Mover, _ *steering.Driven, _ *steering.Course) {
@@ -205,7 +205,7 @@ func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
 	alt, _ := step(func(_ *world.Base, _ *world.Z, _ *unit.Mover, d *steering.Driven, st *steering.Course) {
 		d.Climb, st.Speed, st.WantSpeed = 0.6, 10, 10
 	})
-	if want := 40 + 10*0.75/60; math.Abs(alt-want) > 1e-6 {
+	if want := float32(40 + 10*0.75/60); f32.Abs(alt-want) > f32.Eps(want) {
 		t.Errorf("flown at 10 a second at a rise of 0.6: at %v after a tick, want %v", alt, want)
 	}
 	if alt, _ := step(func(b *world.Base, _ *world.Z, m *unit.Mover, d *steering.Driven, st *steering.Course) {
@@ -246,7 +246,7 @@ func TestAltitude_AFlyerKeepsUnderItsCeiling(t *testing.T) {
 		t.Fatalf("the hill stands %v high: too low to test the ceiling on", hill)
 	}
 	zs := qw.Zs()
-	alts := map[float64]bool{}
+	alts := map[float32]bool{}
 	for _, z := range zs[hawk.ID()] {
 		alts[z.Altitude] = true
 	}
@@ -276,7 +276,7 @@ func flown(qw *topotest.QuasiWorld, fn func(b *world.Base, z *world.Z, m *unit.M
 	}
 }
 
-func standAt(qw *topotest.QuasiWorld, d cell.Domain, alt float64) {
+func standAt(qw *topotest.QuasiWorld, d cell.Domain, alt float32) {
 	var z goke.Comp[world.Z]
 	var mover goke.Comp[unit.Mover]
 	var q *goke.Query
@@ -295,7 +295,7 @@ func standAt(qw *topotest.QuasiWorld, d cell.Domain, alt float64) {
 
 type slantRow struct {
 	At  cell.ID
-	Top float64
+	Top float32
 }
 
 func TestSurface_ASlantwiseDeckCarriesOverTheCornerItCuts(t *testing.T) {
@@ -339,7 +339,7 @@ func TestSurface_ASlantwiseDeckCarriesOverTheCornerItCuts(t *testing.T) {
 		if c.deck {
 			want = top
 		}
-		if math.Abs(floor-want) > 1e-9 {
+		if f32.Abs(floor-want) > f32.Eps(want) {
 			t.Errorf("%s: a walker on the deck's level stands at %v, want %v", c.name, floor, want)
 		}
 	}

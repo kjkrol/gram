@@ -1,12 +1,12 @@
 package gravity_test
 
 import (
-	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/motion"
 )
@@ -20,7 +20,7 @@ func TestFall_ALeapRisesToItsHeightAndLandsOnce(t *testing.T) {
 	r := newRig(t, scene{leap: 3, bodies: []body{{x: 15, y: 15}}, rules: []act.Rule{landing()}})
 	r.tick()
 	r.leap(0)
-	top := 0.0
+	top := float32(0)
 	for range 2 * tps {
 		r.tick()
 		s := r.of(0)
@@ -29,7 +29,7 @@ func TestFall_ALeapRisesToItsHeightAndLandsOnce(t *testing.T) {
 			t.Fatalf("at %.3f up, not in the air", s.z.Altitude)
 		}
 	}
-	if math.Abs(top-3) > 0.01 {
+	if f32.Abs(top-3) > 0.01 {
 		t.Errorf("leapt %.3f high, want 3", top)
 	}
 	if s := r.of(0); s.z.Altitude != 0 || s.airborne || s.drift.Z != 0 {
@@ -68,7 +68,7 @@ func TestFall_OffADecksSideItFallsAndLands(t *testing.T) {
 }
 
 func TestFall_DownASlopeItNeverLeavesTheGround(t *testing.T) {
-	slope := &land{ground: func(p geom.Vec) float64 { return 20 - p.X/2 }}
+	slope := &land{ground: func(p geom.Vec) float32 { return 20 - p.X/2 }}
 	r := newRig(t, scene{land: slope, bodies: []body{{x: 5, y: 15, alt: 17.5, facing: east}},
 		rules: []act.Rule{landing()}})
 	r.walk(0, 5)
@@ -78,7 +78,7 @@ func TestFall_DownASlopeItNeverLeavesTheGround(t *testing.T) {
 		if s.airborne {
 			t.Fatalf("at %v in the air going downhill", s.at)
 		}
-		if want := 20 - s.at.X/2; math.Abs(s.z.Altitude-want) > 0.1 {
+		if want := 20 - s.at.X/2; f32.Abs(s.z.Altitude-want) > 0.1 {
 			t.Fatalf("at %v %.3f up, want on the ground at %.3f", s.at, s.z.Altitude, want)
 		}
 	}
@@ -95,12 +95,12 @@ func TestFall_AHeadStrikesTheSlabOverIt(t *testing.T) {
 	r := newRig(t, scene{land: low, leap: 3, bodies: []body{{x: 15, y: 15}}})
 	r.tick()
 	r.leap(0)
-	top := 0.0
+	top := float32(0)
 	for range 2 * tps {
 		r.tick()
 		top = max(top, r.of(0).z.Top())
 	}
-	if top > 4+1e-9 {
+	if top > 4+f32.Eps(4) {
 		t.Errorf("its head rose to %.3f, through a slab whose underside is 4", top)
 	}
 	if s := r.of(0); s.airborne || s.z.Altitude != 0 {
@@ -122,12 +122,12 @@ func TestFall_OneLeapIsOneLeapAtAnyTempo(t *testing.T) {
 			c.shift(r)
 			r.tick()
 			r.leap(0)
-			top := 0.0
+			top := float32(0)
 			for range 4 * tps {
 				r.tick()
 				top = max(top, r.of(0).z.Altitude)
 			}
-			if math.Abs(top-3) > 0.02 {
+			if f32.Abs(top-3) > 0.02 {
 				t.Errorf("leapt %.3f high, want 3", top)
 			}
 			if got := r.heard.given(); len(got) != 1 {
@@ -160,7 +160,7 @@ func TestFall_AwayThrowsItOffFromAnother(t *testing.T) {
 
 func TestFall_ALeapClearsARailingOnlyHigherThanIt(t *testing.T) {
 	for _, c := range []struct {
-		leap  float64
+		leap  float32
 		clear bool
 	}{{0.5, false}, {2, true}} {
 		r := newRig(t, scene{leap: c.leap, fence: true,

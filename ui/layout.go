@@ -18,7 +18,7 @@ func (layers) place(e *Element, box geom.AABB) {
 
 func (layers) draw(*Element, *render.Image) {}
 
-func (layers) needs(e *Element) (w, h float64) {
+func (layers) needs(e *Element) (w, h float32) {
 	for _, c := range e.children {
 		cw, ch := c.needs()
 		w, h = max(w, cw), max(h, ch)
@@ -29,17 +29,17 @@ func (layers) needs(e *Element) (w, h float64) {
 // Part is an element's part of a split: a share of what is left, fixed pixels, or what it needs.
 type Part struct {
 	element *Element
-	share   float64
-	fixed   float64
+	share   float32
+	fixed   float32
 	fit     bool
 }
 
 // Share is n parts of what the fixed and fitted leave: two Share(1, …) are halves, Share(2, …)
 // beside Share(1, …) two thirds.
-func Share(n float64, e *Element) Part { return Part{element: e, share: n} }
+func Share(n float32, e *Element) Part { return Part{element: e, share: n} }
 
 // Fixed is px pixels.
-func Fixed(px float64, e *Element) Part { return Part{element: e, fixed: px} }
+func Fixed(px float32, e *Element) Part { return Part{element: e, fixed: px} }
 
 // Fit is what the element needs: its Size, else its content's.
 func Fit(e *Element) Part { return Part{element: e, fit: true} }
@@ -69,8 +69,8 @@ func (s *splitting) place(e *Element, box geom.AABB) {
 	if s.across {
 		room = w
 	}
-	lengths := make([]float64, len(s.parts))
-	shares := 0.0
+	lengths := make([]float32, len(s.parts))
+	shares := float32(0)
 	for i, p := range s.parts {
 		switch {
 		case p.fit:
@@ -106,7 +106,7 @@ func (s *splitting) place(e *Element, box geom.AABB) {
 
 func (*splitting) draw(*Element, *render.Image) {}
 
-func (s *splitting) needs(e *Element) (w, h float64) {
+func (s *splitting) needs(e *Element) (w, h float32) {
 	for i, c := range e.children {
 		cw, ch := c.needs()
 		if p := s.parts[i]; p.fixed > 0 {
@@ -125,9 +125,9 @@ func (s *splitting) needs(e *Element) (w, h float64) {
 	return w, h
 }
 
-type anchoring struct{ x, y float64 } // 0 left/top, 0.5 middle, 1 right/bottom
+type anchoring struct{ x, y float32 } // 0 left/top, 0.5 middle, 1 right/bottom
 
-func anchor(x, y float64, e *Element) *Element { return newElement(anchoring{x, y}, e) }
+func anchor(x, y float32, e *Element) *Element { return newElement(anchoring{x, y}, e) }
 
 func (a anchoring) place(e *Element, box geom.AABB) {
 	c := e.children[0]
@@ -146,7 +146,7 @@ func (a anchoring) place(e *Element, box geom.AABB) {
 	c.lay(geom.NewAABBAt(at, cw, ch))
 }
 
-func (e *Element) share(w, h float64, c *Element) (float64, float64) {
+func (e *Element) share(w, h float32, c *Element) (float32, float32) {
 	sw, sh := e.fw*w, e.fh*h
 	if pw, ph, ok := c.proportions(); ok && pw > 0 && ph > 0 {
 		switch {
@@ -169,13 +169,13 @@ func (e *Element) share(w, h float64, c *Element) (float64, float64) {
 	return sw, sh
 }
 
-func (e *Element) proportions() (w, h float64, ok bool) {
+func (e *Element) proportions() (w, h float32, ok bool) {
 	p, is := e.content.(*picture)
 	if !is {
 		return 0, 0, false
 	}
 	if s, says := p.src.(interface {
-		Proportions() (float64, float64, bool)
+		Proportions() (float32, float32, bool)
 	}); says {
 		return s.Proportions()
 	}
@@ -186,7 +186,7 @@ func (anchoring) draw(*Element, *render.Image) {}
 
 func (anchoring) absent(e *Element) bool { return e.children[0].gone() }
 
-func (anchoring) needs(e *Element) (w, h float64) { return e.children[0].needs() }
+func (anchoring) needs(e *Element) (w, h float32) { return e.children[0].needs() }
 
 // TopLeft and the anchors below place their element at their point of the box, kept Margin
 // pixels from the edges.

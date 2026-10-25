@@ -2,9 +2,9 @@ package minimap
 
 import (
 	"image/color"
-	"math"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
@@ -64,10 +64,10 @@ func (c *compass) Draw() *render.Image {
 
 // north is the way north runs on the picture, a unit vector: (0, -1) in the world, on a
 // picture whose up is the lens's ahead (ax, ay), right ahead turned a quarter clockwise
-func (c *compass) north() (float64, float64) {
+func (c *compass) north() (float32, float32) {
 	at := c.m.shown()
-	dx, dy := -float64(at.ax), float64(at.ay)
-	if n := math.Hypot(dx, dy); n > 0 {
+	dx, dy := -at.ax, at.ay
+	if n := f32.Hypot(dx, dy); n > 0 {
 		return dx / n, dy / n
 	}
 	return 0, -1
@@ -77,18 +77,18 @@ func (c *compass) north() (float64, float64) {
 // radius and the triangle's quarter out
 func (c *compass) at() (float32, float32) {
 	dx, dy := c.north()
-	radius := float64(min(c.w, c.h))/2 - Overhang
+	radius := float32(min(c.w, c.h))/2 - Overhang
 	d := radius + northTall*(northOut-0.5)
-	return float32(float64(c.w)/2 + dx*d), float32(float64(c.h)/2 + dy*d)
+	return float32(c.w)/2 + dx*d, float32(c.h)/2 + dy*d
 }
 
 // points is the triangle: its tip north of its middle, its base across
 func (c *compass) points() [][2]float32 {
 	dx, dy := c.north()
 	mx, my := c.at()
-	tip := [2]float32{mx + float32(dx*northTall/2), my + float32(dy*northTall/2)}
-	bx, by := mx-float32(dx*northTall/2), my-float32(dy*northTall/2)
+	tip := [2]float32{mx + (dx * northTall / 2), my + (dy * northTall / 2)}
+	bx, by := mx-(dx*northTall/2), my-(dy*northTall/2)
 	// across is north turned a quarter
-	ax, ay := float32(-dy*northWide/2), float32(dx*northWide/2)
+	ax, ay := -dy*northWide/2, dx*northWide/2
 	return [][2]float32{tip, {bx + ax, by + ay}, {bx - ax, by - ay}}
 }

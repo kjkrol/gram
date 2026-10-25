@@ -1,7 +1,6 @@
 package world
 
 import (
-	"github.com/kjkrol/gram/render"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -9,13 +8,14 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/render"
 )
 
 type spawnerTag struct{}
 
 type spawnerStat struct{ HP int }
 
-type propData struct{ x float64 }
+type propData struct{ x float32 }
 
 func spawnerTestPos() Position {
 	return Position{AABB: plane.NewAABB(geom.NewVec(0, 0), 10, 10)}
@@ -89,7 +89,7 @@ func TestPopulate_KindsWithDifferentRowsAndComponents(t *testing.T) {
 	var stat goke.Comp[spawnerStat]
 	var tagBase goke.Comp[Base]
 	var units int
-	var propX []float64
+	var propX []float32
 	setupWorld(p.module, func(si *goke.SysInit) {
 		uq := si.NewQueryBuilder(&stat).Build()
 		for uq.All(); uq.Next(); {

@@ -15,8 +15,8 @@ import (
 type Corners [4]float32
 
 // Level is the mean of the corners.
-func (c Corners) Level() float64 {
-	return (float64(c[0]) + float64(c[1]) + float64(c[2]) + float64(c[3])) / 4
+func (c Corners) Level() float32 {
+	return (c[0] + c[1] + c[2] + c[3]) / 4
 }
 
 // HeightsRun is how many of the ground's heights one of the topography's entities carries.
@@ -77,7 +77,7 @@ func (r *Relief) Lattice() (cols, rows int, cell float32, heights []float32, ok 
 	if !r.square {
 		return 0, 0, 0, nil, false
 	}
-	return r.cols, r.rows, float32(r.sq.Cell), r.values, true
+	return r.cols, r.rows, r.sq.Cell, r.values, true
 }
 
 // CopyInto has dst hold the heights r holds now, copied where its version differs, keeping its
@@ -100,7 +100,7 @@ func (r *Relief) Sloped() bool { return r.square }
 func (r *Relief) Version() uint64 { return r.version }
 
 // Extent is the relief's lowest ground, sea level at most, and its highest.
-func (r *Relief) Extent() (low, high float64) { return float64(r.low), float64(r.high) }
+func (r *Relief) Extent() (low, high float32) { return r.low, r.high }
 
 // changed counts a change to the heights and takes their extent anew
 func (r *Relief) changed() {
@@ -113,7 +113,7 @@ func (r *Relief) changed() {
 }
 
 // Highest is the relief's highest ground.
-func (r *Relief) Highest() float64 {
+func (r *Relief) Highest() float32 {
 	_, high := r.Extent()
 	return high
 }
@@ -234,23 +234,23 @@ func (r *Relief) setValue(v vertex, h float32) bool {
 }
 
 // Altitude is c's ground level, the mean of its corners.
-func (r *Relief) Altitude(c cell.ID) float64 { return r.Corners(c).Level() }
+func (r *Relief) Altitude(c cell.ID) float32 { return r.Corners(c).Level() }
 
 // SetHeights sets the ground to heights, sampled at every corner on a square grid and at every
 // cell's centre on any other.
-func (r *Relief) SetHeights(heights func(p geom.Vec) float64) {
+func (r *Relief) SetHeights(heights func(p geom.Vec) float32) {
 	changed := false
 	if r.square {
 		for y := range r.rows {
 			for x := range r.cols {
-				h := float32(heights(geom.NewVec(float64(x)*r.sq.Cell, float64(y)*r.sq.Cell)))
+				h := heights(geom.NewVec(float32(x)*r.sq.Cell, float32(y)*r.sq.Cell))
 				changed = r.setValue(vertex{x, y}, h) || changed
 			}
 		}
 	} else {
 		r.grid.EachCell(func(c cell.ID) {
 			if i, ok := r.grid.Ordinal(c); ok {
-				changed = r.setValue(vertex{x: i}, float32(heights(r.grid.CellCenter(c)))) || changed
+				changed = r.setValue(vertex{x: i}, heights(r.grid.CellCenter(c))) || changed
 			}
 		})
 	}
@@ -260,19 +260,20 @@ func (r *Relief) SetHeights(heights func(p geom.Vec) float64) {
 }
 
 // GroundAt is the ground height under p as it is drawn, 0 off the board.
-func (r *Relief) GroundAt(p geom.Vec) float64 {
+func (r *Relief) GroundAt(p geom.Vec) float32 {
 	if !r.square {
 		c, ok := r.grid.CellAt(p)
 		if !ok {
 			return 0
 		}
-		return float64(r.Corners(c)[0])
+		return r.Corners(c)[0]
 	}
-	size := r.sq.Cell
+	// in float64, the ground's own reading of where p lies in its cell, rounded once
+	size := float64(r.sq.Cell)
 	if size == 0 {
 		return 0
 	}
-	fx, fy := p.X/size, p.Y/size
+	fx, fy := float64(p.X)/size, float64(p.Y)/size
 	x0, y0 := math.Floor(fx), math.Floor(fy)
 	cx, okX := foldAxis(int64(x0), int64(r.sq.Cols), r.sq.WrapX)
 	cy, okY := foldAxis(int64(y0), int64(r.sq.Rows), r.sq.WrapY)
@@ -284,7 +285,8 @@ func (r *Relief) GroundAt(p geom.Vec) float64 {
 		v, _ := r.corner(cx+d[0], cy+d[1])
 		hs[k] = r.values[r.index(v)]
 	}
-	return drawnAt(float64(hs[0]), float64(hs[1]), float64(hs[2]), float64(hs[3]), fx-x0, fy-y0)
+	return float32(drawnAt(float64(hs[0]), float64(hs[1]), float64(hs[2]), float64(hs[3]), fx-x0,
+		fy-y0))
 }
 
 // two flat triangles split along the diagonal whose corners stand nearer in height, as
@@ -312,20 +314,20 @@ func foldAxis(v, n int64, wraps bool) (int64, bool) {
 var _ ground.Heights = (*Relief)(nil)
 
 // At is GroundAt, the ground.Heights contract.
-func (r *Relief) At(p geom.Vec) float64 { return r.GroundAt(p) }
+func (r *Relief) At(p geom.Vec) float32 { return r.GroundAt(p) }
 
 // Step is how far apart sight samples the ground: the shorter side of a cell.
-func (r *Relief) Step() float64 {
+func (r *Relief) Step() float32 {
 	w, h := r.grid.CellBounds()
 	return min(w, h)
 }
 
 // Top is c's corners with height standing on them, and its level.
-func (r *Relief) Top(c cell.ID, height float64) (corners [4]float32, level float32) {
+func (r *Relief) Top(c cell.ID, height float32) (corners [4]float32, level float32) {
 	k := r.Corners(c)
-	level = float32(k.Level())
+	level = k.Level()
 	for i := range k {
-		k[i] += float32(height)
+		k[i] += height
 	}
 	return k, level
 }

@@ -164,8 +164,8 @@ func (l *Painter) around8(i int, fn func(j int)) {
 func (l *Painter) cellTile(c cell.ID) *tile {
 	center := l.board.CellCenter(c)
 	l.scratch = box{ID: c,
-		X0: float32(center.X - l.cellW/2), Y0: float32(center.Y - l.cellH/2),
-		X1: float32(center.X + l.cellW/2), Y1: float32(center.Y + l.cellH/2)}
+		X0: center.X - l.cellW/2, Y0: center.Y - l.cellH/2,
+		X1: center.X + l.cellW/2, Y1: center.Y + l.cellH/2}
 	l.bakeTile = tile{box: &l.scratch, r: l, id: c}
 	return &l.bakeTile
 }

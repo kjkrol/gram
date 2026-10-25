@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/motion"
@@ -17,7 +18,7 @@ import (
 )
 
 func TestBounce_AWallTurnsNoUnitAHandSteers(t *testing.T) {
-	heading := geom.NewVec(math.Cos(2*math.Pi/180), math.Sin(2*math.Pi/180))
+	heading := geom.NewVec(f32.Cos(2*math.Pi/180), f32.Sin(2*math.Pi/180))
 	hands := map[string]*steering.Driven{
 		"by hand":                {Ahead: 1},
 		"by a hand off the keys": {},
@@ -64,7 +65,7 @@ func TestBounce_AWallTurnsNoUnitAHandSteers(t *testing.T) {
 					dir = b.Vel.Dir
 				}
 			}
-			kept := math.Abs(dir.X-heading.X) < 1e-9 && math.Abs(dir.Y-heading.Y) < 1e-9
+			kept := f32.Abs(dir.X-heading.X) < f32.Eps(1) && f32.Abs(dir.Y-heading.Y) < f32.Eps(1)
 			if kept != driven {
 				t.Errorf("after the wall it faces %v: kept its heading %v = %v, want %v",
 					dir, heading, kept, driven)

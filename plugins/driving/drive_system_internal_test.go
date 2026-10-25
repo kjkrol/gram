@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -105,7 +106,7 @@ func (r *driveRig) drive(in steering.Driven) {
 	r.ecs.Tick(time.Second / 60)
 }
 
-func (r *driveRig) place(x float64) {
+func (r *driveRig) place(x float32) {
 	r.with(func(_ *unit.At, b *world.Base, _ steering.Helm, _ *steering.Driven, _ bool) {
 		b.Pos.AABB = plane.NewAABB(geom.NewVec(x-2, 3), 4, 4)
 	})
@@ -127,7 +128,8 @@ func TestDrive_WalksOnTheWayItFacesAndTurnsByHand(t *testing.T) {
 	}
 	r.drive(steering.Driven{Turn: 1})
 	st := r.steering()
-	if want := geom.NewVec(math.Cos(driveTurn), math.Sin(driveTurn)); math.Abs(st.Want.X-want.X) > 1e-9 || math.Abs(st.Want.Y-want.Y) > 1e-9 || st.WantSpeed != 0 {
+	if want := geom.NewVec(f32.Cos(driveTurn), f32.Sin(driveTurn)); f32.Abs(st.Want.X-want.X) > f32.Eps(1) ||
+		f32.Abs(st.Want.Y-want.Y) > f32.Eps(1) || st.WantSpeed != 0 {
 		t.Errorf("Right held alone: asks %v at %v, want turning clockwise by %v and standing", st.WantSpeed, st.Want, driveTurn)
 	}
 }
@@ -189,7 +191,7 @@ func TestDrive_StopsAtTheWaterAndAtACellTakenAndBrakesWithNoHand(t *testing.T) {
 // 4 across and 8 down, facing east: its side, not its length, runs out ahead
 func TestDrive_AnOblongWalkerLooksAheadFromItsSideTheWayItGoes(t *testing.T) {
 	r := newDriveRig(t)
-	at := func(x float64) {
+	at := func(x float32) {
 		r.with(func(_ *unit.At, b *world.Base, _ steering.Helm, _ *steering.Driven, _ bool) {
 			b.Pos.AABB = plane.NewAABB(geom.NewVec(x, 1), 4, 8)
 		})
@@ -243,7 +245,8 @@ func TestDrive_FaceAndLookTurnItToFaceAWay(t *testing.T) {
 		t.Errorf("driven to face north: asks %v at %v, want north, standing", st.WantSpeed, st.Want)
 	}
 	r.drive(steering.Driven{Face: geom.NewVec(1, 1), Ahead: 1})
-	if st := r.steering(); math.Abs(st.Want.X-math.Sqrt2/2) > 1e-9 || math.Abs(st.Want.Y-math.Sqrt2/2) > 1e-9 || st.WantSpeed != 20 {
+	if st := r.steering(); f32.Abs(st.Want.X-math.Sqrt2/2) > f32.Eps(1) ||
+		f32.Abs(st.Want.Y-math.Sqrt2/2) > f32.Eps(1) || st.WantSpeed != 20 {
 		t.Errorf("driven on to face south-east: asks %v at %v, want its top speed south-east", st.WantSpeed, st.Want)
 	}
 	r.drive(steering.Driven{Face: geom.NewVec(1, 0), Look: geom.NewVec(0, 2)})
@@ -276,8 +279,8 @@ func TestDrive_BrakesThenBacksAwayFacingOn(t *testing.T) {
 	}
 }
 
-func (r *driveRig) lift() float64 {
-	var lift float64
+func (r *driveRig) lift() float32 {
+	var lift float32
 	r.q.All()
 	for r.q.Next() {
 		if movers := r.mover.Slice(r.q.Cursor()); movers != nil {
@@ -310,11 +313,11 @@ func TestDrive_AFlyerFlownUpGoesTheLessAlongTheGround(t *testing.T) {
 	})
 	r.place(35)
 	r.drive(steering.Driven{Ahead: 1, Flown: true, Climb: 0.6})
-	if st := r.steering(); math.Abs(st.WantSpeed-16) > 1e-9 {
+	if st := r.steering(); f32.Abs(st.WantSpeed-16) > f32.Eps(16) {
 		t.Errorf("flown up at a rise of 0.6: asks %v along the ground, want 20 times 0.8", st.WantSpeed)
 	}
 	r.drive(steering.Driven{Ahead: 1, Sprint: true, Flown: true, Climb: -0.6})
-	if st := r.steering(); math.Abs(st.WantSpeed-64) > 1e-9 {
+	if st := r.steering(); f32.Abs(st.WantSpeed-64) > f32.Eps(64) {
 		t.Errorf("flown down at a rise of -0.6, sprinting: asks %v along the ground, want 80 times 0.8", st.WantSpeed)
 	}
 	if lift := r.lift(); lift != 10 {

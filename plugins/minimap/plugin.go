@@ -19,7 +19,7 @@ import (
 type Config struct {
 	// Reach is how far from the camera's middle a minimap shows, to its picture's nearer edge,
 	// in world units; never past a world's last band.
-	Reach float64
+	Reach float32
 	// Turning has a minimap turn with its camera, the way the camera looks running up it; else
 	// north is up.
 	Turning bool
@@ -66,7 +66,7 @@ func NewPlugin(w *world.Plugin, ground Ground, cfg Config) *Plugin {
 	return p
 }
 
-func checkReach(w *world.Plugin, reach float64) {
+func checkReach(w *world.Plugin, reach float32) {
 	bands := w.Res.Config.Sectors.Bands
 	if len(bands) > 0 && reach > bands[len(bands)-1].Reach {
 		panic(fmt.Sprintf("minimap: a reach of %v past the world's last band, %v", reach,
@@ -104,7 +104,7 @@ func (p *Plugin) RunPlan(goke.RunCtx, time.Duration) {
 func (p *Plugin) For(cam camera.Camera, issuer command.Issuer) *ui.Element {
 	space := p.w.Res.Config.Space
 	m := &minimap{p: p, of: cam, issuer: issuer, lens: newLens(
-		geom.NewVec(float64(space.Width), float64(space.Height)),
+		geom.NewVec(float32(space.Width), float32(space.Height)),
 		space.Edges.WrapsX(), space.Edges.WrapsY(), p.cfg.Reach)}
 	m.follow(p.Res.Settings.Turning)
 	m.lens.aim(m.at.cx, m.at.cy, m.at.ax, m.at.ay)

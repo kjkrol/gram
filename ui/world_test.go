@@ -47,13 +47,13 @@ func TestPin_UnderAnEffectFollowsTheEntitiesItIsOn(t *testing.T) {
 	})
 	w.Write().Effects().Define("frozen", effect.Spec{effect.Lasts(time.Second)})
 	frozen := w.Write().Effects().Named("frozen")
-	kind.Define[float64](w.Kinds(), "unit", kind.Spec{
-		comp.Load(func(x float64) world.Position {
+	kind.Define[float32](w.Kinds(), "unit", kind.Spec{
+		comp.Load(func(x float32) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
 		}),
 		comp.Const(world.Velocity{}),
 	})
-	unit := kind.Named[float64](w.Kinds(), "unit")
+	unit := kind.Named[float32](w.Kinds(), "unit")
 	w.Write().Seed(unit.Entry(100).Named("bob"), unit.Entry(300))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
@@ -105,19 +105,19 @@ func TestPin_WhereTaggedFollowsTheEntitiesCarryingTheTag(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
 	})
 	mark := w.Kinds().DefineTag[marked]("marked")
-	kind.Define[float64](w.Kinds(), "unit", kind.Spec{
-		comp.Load(func(x float64) world.Position {
+	kind.Define[float32](w.Kinds(), "unit", kind.Spec{
+		comp.Load(func(x float32) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
 		}),
 		comp.Const(world.Velocity{}),
-		comp.Load(func(x float64) tag.Tags[marked] {
+		comp.Load(func(x float32) tag.Tags[marked] {
 			if x < 200 {
 				return tag.Tags[marked](0).With(mark)
 			}
 			return 0
 		}),
 	})
-	unit := kind.Named[float64](w.Kinds(), "unit")
+	unit := kind.Named[float32](w.Kinds(), "unit")
 	w.Write().Seed(unit.Entry(100), unit.Entry(300))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
@@ -150,12 +150,12 @@ func TestText_OfReadsTheComponentOfTheEntityPinned(t *testing.T) {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
 	})
-	at := func(x float64) comp.Comp {
+	at := func(x float32) comp.Comp {
 		return comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)})
 	}
 	kind.Define[int8](w.Kinds(), "scored", kind.Spec{
 		comp.Load(func(n int8) world.Position {
-			return world.Position{AABB: plane.NewAABB(geom.NewVec(100*float64(n), 100), 10, 10)}
+			return world.Position{AABB: plane.NewAABB(geom.NewVec(100*float32(n), 100), 10, 10)}
 		}),
 		comp.Const(world.Velocity{}),
 		comp.Load(func(n int8) score { return score{N: n} }),
@@ -182,7 +182,7 @@ func TestText_OfReadsTheComponentOfTheEntityPinned(t *testing.T) {
 		q = si.NewQueryBuilder(&base).Build()
 	}})
 	ctx.ecs.Setup(systems...)
-	said := map[float64]string{}
+	said := map[float32]string{}
 	for q.All(); q.Next(); {
 		cur := q.Cursor()
 		for i, id := range cur.IDs {

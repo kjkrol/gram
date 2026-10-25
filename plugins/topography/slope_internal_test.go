@@ -16,10 +16,10 @@ func TestSlope_SlowsAClimbAndASteepDescent(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 1, 10)
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	p := NewPlugin(w, b, nil, Config{})
-	p.write.Relief().SetHeights(func(q geom.Vec) float64 { return 0.2 * q.X })
+	p.write.Relief().SetHeights(func(q geom.Vec) float32 { return 0.2 * q.X })
 	east, west := geom.NewVec(1, 0), geom.NewVec(-1, 0)
 	for _, c := range []struct {
-		x    float64
+		x    float32
 		dir  geom.Vec
 		d    cell.Domain
 		want float64

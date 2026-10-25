@@ -54,14 +54,14 @@ func TestImage_AFeedAtAResolutionFillsItsBox(t *testing.T) {
 	feed := render.NewFeed(cam, filling{})
 	dst := render.NewImage(64, 64)
 	for name, c := range map[string]struct {
-		box      [4]float64
+		box      [4]float32
 		red, off [2]int
 		masked   bool
 	}{
-		"in a box":   {box: [4]float64{0, 0, 40, 40}, red: [2]int{39, 39}, off: [2]int{41, 41}},
-		"the screen": {box: [4]float64{0, 0, 64, 64}, red: [2]int{63, 63}, off: [2]int{-1, -1}},
+		"in a box":   {box: [4]float32{0, 0, 40, 40}, red: [2]int{39, 39}, off: [2]int{41, 41}},
+		"the screen": {box: [4]float32{0, 0, 64, 64}, red: [2]int{63, 63}, off: [2]int{-1, -1}},
 		"in a circle": {
-			box:    [4]float64{0, 0, 64, 64},
+			box:    [4]float32{0, 0, 64, 64},
 			red:    [2]int{32, 32},
 			off:    [2]int{1, 1},
 			masked: true,

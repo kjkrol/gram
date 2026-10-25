@@ -1,9 +1,6 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
-	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
-	"math"
 	"testing"
 	"time"
 
@@ -14,8 +11,11 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/plan"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -167,7 +167,7 @@ func TestCrowd_BodiesGoRoundAStrangerAndAnAllyMakesWay(t *testing.T) {
 		if gaveWay != c.yields {
 			t.Errorf("owned by player %d the one standing gave way %v, want %v", c.owner, gaveWay, c.yields)
 		}
-		if at, o := fw.centre(0); o != nil || math.Hypot(at.X-goal.X, at.Y-goal.Y) > 1 {
+		if at, o := fw.centre(0); o != nil || f32.Hypot(at.X-goal.X, at.Y-goal.Y) > 1 {
 			t.Errorf("past player %d's unit the traveller stands at %v with order %v, want at %v", c.owner, at, o != nil, goal)
 		}
 		at, o := fw.centre(1)
@@ -175,7 +175,7 @@ func TestCrowd_BodiesGoRoundAStrangerAndAnAllyMakesWay(t *testing.T) {
 			t.Errorf("player %d's unit still has an order %+v, want it standing", c.owner, o)
 		}
 		// a stranger is only nudged by the collision; an ally stands aside, off the way
-		if off := math.Abs(at.Y - home.Y); c.yields != (off > 6) {
+		if off := f32.Abs(at.Y - home.Y); c.yields != (off > 6) {
 			t.Errorf("player %d's unit stands %v off the way, at %v; want aside %v", c.owner, off, at, c.yields)
 		}
 	}
@@ -192,7 +192,7 @@ func TestCrowd_BodiesOfTwoStrangersHeadOnPass(t *testing.T) {
 		t.Fatal("the two strangers have not arrived")
 	}
 	for i, want := range []geom.Vec{goal0, goal1} {
-		if at, _ := fw.centre(i); math.Hypot(at.X-want.X, at.Y-want.Y) > 1 {
+		if at, _ := fw.centre(i); f32.Hypot(at.X-want.X, at.Y-want.Y) > 1 {
 			t.Errorf("unit %d stands at %v, want %v", i, at, want)
 		}
 	}
@@ -396,7 +396,7 @@ func TestCrowd_AGameGivesItsOwnRules(t *testing.T) {
 		if gaveWay != c.yields {
 			t.Errorf("player %d's unit standing gave way %v, want %v", c.standing, gaveWay, c.yields)
 		}
-		if at, o := fw.centre(0); o != nil || math.Hypot(at.X-goal.X, at.Y-goal.Y) > 1 {
+		if at, o := fw.centre(0); o != nil || f32.Hypot(at.X-goal.X, at.Y-goal.Y) > 1 {
 			t.Errorf("past player %d's unit the traveller stands at %v with order %v, want at %v", c.standing, at, o != nil, goal)
 		}
 	}
@@ -421,6 +421,26 @@ func TestCrowd_WithNoRulesTheOrderStillEnds(t *testing.T) {
 	t.Fatal("the one on the move still has its order after 30 s")
 }
 
+func TestCrowd_WithNoRulesTheOneInTheWayIsStruckNotPushedAlong(t *testing.T) {
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
+	from, goal := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80)
+	home := geom.NewVec(5*fieldCell, 80)
+	fw := newFieldWorldWith(t, 10, 5, BodySpacing, nil, []fieldUnit{
+		{at: from, side: 6, order: probe.standAt(goal)},
+		{at: home, side: 6},
+	}, func(p *Plugin) { p.WithCrowd() })
+	for range 30 * 60 {
+		fw.ecs.Tick(time.Second / 60)
+		if _, o := fw.centre(0); o == nil {
+			break
+		}
+	}
+	// half the strike's overlap and the ticks it takes to stop: 1.07
+	if at, _ := fw.centre(1); f32.Hypot(at.X-home.X, at.Y-home.Y) > 1.5 {
+		t.Errorf("the one in the way stands at %v, from %v: struck, not pushed along", at, home)
+	}
+}
+
 func TestCrowd_NobodyIsPushedOverTheWater(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	lay := func(b testBoard, at func(x, y uint32) cell.ID) {
@@ -431,7 +451,7 @@ func TestCrowd_NobodyIsPushedOverTheWater(t *testing.T) {
 		b.Set(at(4, 2), cell.Kind{Cost: 1, Solid: true})
 		b.Set(at(6, 2), cell.Kind{Cost: 1, Solid: true})
 	}
-	shore := float64(3 * fieldCell)
+	shore := float32(3 * fieldCell)
 	stander := geom.NewVec(5*fieldCell+16, shore-15) // a box 28 a side, a pixel off the water
 	for _, rules := range []bool{true, false} {
 		fw := newFieldWorldWith(t, 10, 5, BodySpacing, lay, []fieldUnit{

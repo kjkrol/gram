@@ -11,8 +11,8 @@ type read struct {
 	carries cell.Domain
 	ground  step
 	bare    step
-	top     float64
-	under   float64
+	top     float32
+	under   float32
 }
 
 const (
@@ -81,7 +81,7 @@ func (p *Finder) bareOf(r *read) step {
 }
 
 // Levels' Deck of r's cell
-func (p *Finder) deckOf(r *read) (top, under float64, carries cell.Domain, ok bool) {
+func (p *Finder) deckOf(r *read) (top, under float32, carries cell.Domain, ok bool) {
 	if r.has&hasDeck == 0 {
 		r.has |= hasDeck
 		if r.top, r.under, r.carries, ok = p.levels.Deck(r.c); ok {

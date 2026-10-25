@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/vision"
 )
 
@@ -22,7 +23,7 @@ func TestScan_AVeilShortensTheReachAndIsSeen(t *testing.T) {
 		t.Errorf("saw %v at %v through the forest at 290, want the forest alone", seen[0].IDs[:seen[0].Count], seen[0].Dists[:seen[0].Count])
 	}
 	mid := outlines[0].Depths[outlines[0].Count/2]
-	if math.Abs(float64(mid)-230) > 2 { // 290 less the 60 the forest took
+	if f32.Abs(float32(mid)-230) > 2 { // 290 less the 60 the forest took
 		t.Errorf("outline straight ahead reaches %.1f, want about 230", mid)
 	}
 
@@ -39,7 +40,7 @@ func TestScan_BlockersLookOverWhatIsOnOtherLayers(t *testing.T) {
 	if seen[0].Count != 2 {
 		t.Errorf("saw %d over the forest, want the forest and the target", seen[0].Count)
 	}
-	if mid := outlines[0].Depths[outlines[0].Count/2]; math.Abs(float64(mid)-235) > 1 {
+	if mid := outlines[0].Depths[outlines[0].Count/2]; f32.Abs(float32(mid)-235) > 1 {
 		t.Errorf("outline straight ahead reaches %.1f, want the target at 235", mid)
 	}
 }

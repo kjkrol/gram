@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/water"
@@ -13,14 +14,14 @@ import (
 
 const size = 10
 
-func valley() (grid.Grid, func(geom.Vec) float64, func(cell.ID) bool) {
+func valley() (grid.Grid, func(geom.Vec) float32, func(cell.ID) bool) {
 	g := grid.DefaultGrids{}.Square(12, 24, size)
-	heights := func(p geom.Vec) float64 {
+	heights := func(p geom.Vec) float32 {
 		if p.Y >= 20*size {
 			return 0
 		}
-		h := 8 + 0.4*(20*size-p.Y) + 0.3*math.Abs(p.X-6*size)
-		if d := math.Hypot(p.X-6*size, p.Y-10*size); d < 2*size {
+		h := 8 + 0.4*(20*size-p.Y) + 0.3*f32.Abs(p.X-6*size)
+		if d := f32.Hypot(p.X-6*size, p.Y-10*size); d < 2*size {
 			h -= 10 * (1 - d/(2*size)) // the hollow
 		}
 		return h
@@ -71,11 +72,11 @@ func TestCarved_CutsABedFallingToTheSea(t *testing.T) {
 	g, heights, sea := valley()
 	n, _ := water.Drain(g, heights, sea, cfg)
 	carved := n.Carved(heights)
-	level := func(c cell.ID) float64 {
+	level := func(c cell.ID) float32 {
 		x, y, _ := g.Coords(c)
-		sum := 0.0
-		for _, d := range [4][2]float64{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
-			sum += carved(geom.NewVec((float64(x)+d[0])*size, (float64(y)+d[1])*size))
+		sum := float32(0)
+		for _, d := range [4][2]float32{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
+			sum += carved(geom.NewVec((float32(x)+d[0])*size, (float32(y)+d[1])*size))
 		}
 		return sum / 4
 	}
@@ -84,11 +85,11 @@ func TestCarved_CutsABedFallingToTheSea(t *testing.T) {
 		if k == water.Dry {
 			continue
 		}
-		if d := n.Down[c]; !sea(d) && level(d) > level(c)+1e-9 {
+		if d := n.Down[c]; !sea(d) && level(d) > level(c)+f32.Eps(level(c)) {
 			t.Errorf("the bed rises from %v at %v to %v downstream", level(c), c, level(d))
 		}
 		x, y, _ := g.Coords(c)
-		p := geom.NewVec(float64(x)*size, float64(y)*size)
+		p := geom.NewVec(float32(x)*size, float32(y)*size)
 		cut = cut || carved(p) < heights(p)
 	}
 	if !cut {
@@ -123,18 +124,18 @@ func TestDrain_FordsCrossTheRiverWhereItIsGentle(t *testing.T) {
 
 func TestDrain_RefusesAGridOtherThanSquare(t *testing.T) {
 	g := grid.DefaultGrids{}.Hex(6, 6, size)
-	if _, err := water.Drain(g, func(geom.Vec) float64 { return 1 }, func(cell.ID) bool { return false }, cfg); !errors.Is(err, water.ErrNotSquare) {
+	if _, err := water.Drain(g, func(geom.Vec) float32 { return 1 }, func(cell.ID) bool { return false }, cfg); !errors.Is(err, water.ErrNotSquare) {
 		t.Errorf("Drain over a hex grid: %v, want ErrNotSquare", err)
 	}
 }
 
 func TestDrain_ARiverRunsSlantwiseDownASlantingValley(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(20, 20, size)
-	heights := func(p geom.Vec) float64 {
+	heights := func(p geom.Vec) float32 {
 		if p.X+p.Y >= 34*size {
 			return 0
 		}
-		return 8 + 0.4*(34*size-p.X-p.Y) + 0.6*math.Abs(p.X-p.Y)
+		return 8 + 0.4*(34*size-p.X-p.Y) + 0.6*f32.Abs(p.X-p.Y)
 	}
 	sea := func(c cell.ID) bool { x, y, _ := g.Coords(c); return x+y >= 33 }
 	n, err := water.Drain(g, heights, sea, cfg)
@@ -166,7 +167,7 @@ func TestNet_LinksACourseUpAndDownAndWidensItWithItsWater(t *testing.T) {
 	for c, k := range n.Courses {
 		kinds[k]++
 		links := net.Links(c)
-		if node, _ := net.Node(c); node.Kind != names[k] || float64(node.Width) != n.Width(c, size) {
+		if node, _ := net.Node(c); node.Kind != names[k] || node.Width != n.Width(c, size) {
 			t.Errorf("course %v is laid as %+v, want a %s %v wide", c, node, names[k], n.Width(c, size))
 		}
 		if l, _ := grid.Link(g, c, n.Down[c]); links&l == 0 {
@@ -179,7 +180,8 @@ func TestNet_LinksACourseUpAndDownAndWidensItWithItsWater(t *testing.T) {
 				}
 			}
 		}
-		if w := n.Width(c, size); w <= 0 || w > size || w != min(math.Sqrt(n.Gathered[c]), size) {
+		w := n.Width(c, size)
+		if w <= 0 || w > size || w != min(float32(math.Sqrt(n.Gathered[c])), size) {
 			t.Errorf("course %v gathering %v runs %v wide", c, n.Gathered[c], w)
 		}
 	}

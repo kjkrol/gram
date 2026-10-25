@@ -55,9 +55,9 @@ func (a *DesktopAdapter) Capture(e *control.InputEvents) {
 				e.AddKeyEvent(k, action)
 			}
 		case gpucontext.PointerEvent:
-			moved = geom.NewVec(moved.X+ev.DeltaX, moved.Y+ev.DeltaY)
+			moved = geom.NewVec(moved.X+float32(ev.DeltaX), moved.Y+float32(ev.DeltaY))
 			if !a.captured {
-				pos = geom.NewVec(ev.X, ev.Y)
+				pos = geom.NewVec(float32(ev.X), float32(ev.Y))
 			}
 			if b, ok := buttonOf(ev.Button); ok && (ev.Type == gpucontext.PointerDown || ev.Type == gpucontext.PointerUp) {
 				action := control.ActionRelease
@@ -67,7 +67,7 @@ func (a *DesktopAdapter) Capture(e *control.InputEvents) {
 				e.AddClickEvent(int(ev.X), int(ev.Y), b, action)
 			}
 		case gpucontext.ScrollEvent:
-			scroll = geom.NewVec(scroll.X+ev.DeltaX, scroll.Y+ev.DeltaY)
+			scroll = geom.NewVec(scroll.X+float32(ev.DeltaX), scroll.Y+float32(ev.DeltaY))
 		}
 	})
 	if a.captured {

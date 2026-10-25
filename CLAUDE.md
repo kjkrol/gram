@@ -75,8 +75,9 @@ make test                                                       # every test
 ```
 
 The Makefile builds, tests, benches and runs with `GOEXPERIMENT=simd` (aabbworld's pair sweep
-four boxes at a time on a CPU with AVX2); `GOEXPERIMENT=` on its command line goes without it,
-and a plain `go` command goes without it unless the variable is set.
+eight boxes at a time on a CPU with AVX2; a game logs `gram: SIMD on` or `off` as it starts);
+`GOEXPERIMENT=` on its command line goes without it, and a plain `go` command goes without it
+unless the variable is set. aabbworld is joined by `go.work` too (`/home/karol/CODE/aabbworld`).
 
 Only `render` (its device in `render/internal/gpu`) and `internal/engine` import gogpu (and wgpu,
 gputypes); plugins see `render` and `control`. Tests that draw ready a headless device
@@ -263,6 +264,12 @@ Decisions the user has made; they are not up for revisiting in passing.
   view (motion/platformer) is a world with heights, gravity pulling along Y, Z its depth. A
   world without a board (motion/collision, start/minimal, start/scenes, rules/vision) stays
   flat.
+- **A world number is a float32** (2026-10-25), as aabbworld's and the GPU's: what a component,
+  a resource or a seam between packages holds of positions, sizes, speeds, heights, angles and
+  pixels, the heights a map is built from among them. float64 stays inside a computation that
+  sums (a walk along a ray, the draining of a relief, the ortho camera's stick), in costs and time
+  ratios, in a setting's value and in time. Math on float32 goes through `internal/f32`, a
+  tolerance by `f32.Eps`, never a 1e-9 sized for float64.
 - **Examples are self-contained** (a demo keeps its `hero.go` and `hero.png`; no shared package
   under `examples/`), **not tested** (what a demo shows is tested in the library's package; no
   `_test.go` in `examples/`), **grouped by what they show** (`start`, `look`, `rules`, `board`,

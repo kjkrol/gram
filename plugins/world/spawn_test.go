@@ -15,7 +15,7 @@ import (
 )
 
 type thing struct {
-	x, y, size float64
+	x, y, size float32
 }
 
 func spawnWorld(t *testing.T, edges aabbworld.Edges, n int) (*Plugin, kind.Of[thing], *goke.ECS, *goke.Query, *goke.Comp[Base]) {
@@ -206,7 +206,7 @@ func TestSpawn_AStepsGroupsReuseTheArraysOfTheLast(t *testing.T) {
 	ecs.RegSys(s)
 	batch := func(n int) {
 		for i := range n {
-			p.write.Spawn(things.Entry(thing{x: 100 + 20*float64(i), y: 100, size: 10}))
+			p.write.Spawn(things.Entry(thing{x: 100 + 20*float32(i), y: 100, size: 10}))
 		}
 		s.Update(nil, 0)
 	}

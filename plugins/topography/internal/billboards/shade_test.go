@@ -73,7 +73,7 @@ func TestSprites_StandDarkerInTheReliefsShadow(t *testing.T) {
 	drawn := append(topotest.Drawn(t, l), topotest.Drawn(t, p)...)
 	// a wall 120 high west of x 96: its shadow reaches 69 east over the level ground, towards the
 	// eye, which looks from the south-east
-	p.Write().Relief().SetHeights(ground.MeanOfCells(g, func(c cell.ID) float64 {
+	p.Write().Relief().SetHeights(ground.MeanOfCells(g, func(c cell.ID) float32 {
 		if x, _, _ := g.Coords(c); x <= 2 {
 			return 120
 		}

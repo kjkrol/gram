@@ -20,36 +20,36 @@ func TestRoadFits(t *testing.T) {
 	}
 	n, s, w, e := way(0, -1), way(0, 1), way(-1, 0), way(1, 0)
 	nw, ne, sw, se := way(-1, -1), way(1, -1), way(-1, 1), way(1, 1)
-	steep := run * math.Tan(ground.RoadSlope)
+	steep := run * float32(math.Tan(ground.RoadSlope))
 	for name, tc := range map[string]struct {
-		corners [2][2]float64 // the top row's corners, then the bottom row's
+		corners [2][2]float32 // the top row's corners, then the bottom row's
 		links   cell.Links
 		want    bool
 	}{
-		"no road":                  {[2][2]float64{{0, 9}, {3, 1}}, 0, true},
-		"level, a fork":            {[2][2]float64{{5, 5}, {5, 5}}, n | e | s, true},
-		"level, an end":            {[2][2]float64{{5, 5}, {5, 5}}, w, true},
-		"ramp north to south":      {[2][2]float64{{2, 2}, {5, 5}}, n | s, true},
-		"ramp west to east":        {[2][2]float64{{2, 5}, {2, 5}}, w | e, true},
-		"ramp, the road across it": {[2][2]float64{{2, 2}, {5, 5}}, w | e, false},
-		"ramp, a bend":             {[2][2]float64{{2, 2}, {5, 5}}, n | e, false},
-		"ramp, an end":             {[2][2]float64{{2, 2}, {5, 5}}, s, false},
-		"ramp at the steepest":     {[2][2]float64{{0, 0}, {steep, steep}}, n | s, true},
+		"no road":                  {[2][2]float32{{0, 9}, {3, 1}}, 0, true},
+		"level, a fork":            {[2][2]float32{{5, 5}, {5, 5}}, n | e | s, true},
+		"level, an end":            {[2][2]float32{{5, 5}, {5, 5}}, w, true},
+		"ramp north to south":      {[2][2]float32{{2, 2}, {5, 5}}, n | s, true},
+		"ramp west to east":        {[2][2]float32{{2, 5}, {2, 5}}, w | e, true},
+		"ramp, the road across it": {[2][2]float32{{2, 2}, {5, 5}}, w | e, false},
+		"ramp, a bend":             {[2][2]float32{{2, 2}, {5, 5}}, n | e, false},
+		"ramp, an end":             {[2][2]float32{{2, 2}, {5, 5}}, s, false},
+		"ramp at the steepest":     {[2][2]float32{{0, 0}, {steep, steep}}, n | s, true},
 		"ramp too steep": {
-			[2][2]float64{{0, 0}, {steep + 1, steep + 1}}, n | s, false,
+			[2][2]float32{{0, 0}, {steep + 1, steep + 1}}, n | s, false,
 		},
-		"uneven":                      {[2][2]float64{{2, 3}, {5, 5}}, n | s, false},
-		"slantwise on a level cell":   {[2][2]float64{{4, 4}, {4, 4}}, nw | se, true},
-		"slantwise on three level":    {[2][2]float64{{4, 4}, {9, 4}}, nw | se, false},
-		"slantwise, the low one left": {[2][2]float64{{4, 1}, {4, 4}}, nw | se, false},
-		"slantwise on two level":      {[2][2]float64{{4, 6}, {9, 4}}, nw | se, false},
-		"slantwise across the slope":  {[2][2]float64{{4, 4}, {9, 4}}, ne | sw, false},
-		"other diagonal, level":       {[2][2]float64{{4, 4}, {4, 4}}, ne | sw, true},
-		"other diagonal":              {[2][2]float64{{7, 4}, {4, 4}}, ne | sw, false},
-		"a bend onto a diagonal":      {[2][2]float64{{4, 4}, {9, 4}}, w | se, false},
+		"uneven":                      {[2][2]float32{{2, 3}, {5, 5}}, n | s, false},
+		"slantwise on a level cell":   {[2][2]float32{{4, 4}, {4, 4}}, nw | se, true},
+		"slantwise on three level":    {[2][2]float32{{4, 4}, {9, 4}}, nw | se, false},
+		"slantwise, the low one left": {[2][2]float32{{4, 1}, {4, 4}}, nw | se, false},
+		"slantwise on two level":      {[2][2]float32{{4, 6}, {9, 4}}, nw | se, false},
+		"slantwise across the slope":  {[2][2]float32{{4, 4}, {9, 4}}, ne | sw, false},
+		"other diagonal, level":       {[2][2]float32{{4, 4}, {4, 4}}, ne | sw, true},
+		"other diagonal":              {[2][2]float32{{7, 4}, {4, 4}}, ne | sw, false},
+		"a bend onto a diagonal":      {[2][2]float32{{4, 4}, {9, 4}}, w | se, false},
 	} {
 		middle := g.CellCenter(c)
-		var corners []float64
+		var corners []float32
 		for _, p := range g.CellOutline(c, nil) {
 			corners = append(corners, tc.corners[below(p, middle)][right(p, middle)])
 		}

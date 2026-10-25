@@ -17,7 +17,7 @@ import (
 )
 
 type facer struct {
-	x   float64
+	x   float32
 	dir geom.Vec
 }
 
@@ -53,7 +53,7 @@ func TestMeeting_FacingIsTheWordOfTheOneTurnedTowardsTheOther(t *testing.T) {
 	}
 	ecs := collisiontest.Start(t, w, m, c)
 	ecs.Tick(time.Second / 60)
-	var told []float64
+	var told []float32
 	for _, h := range orders.given() {
 		told = append(told, 0)
 		_ = h

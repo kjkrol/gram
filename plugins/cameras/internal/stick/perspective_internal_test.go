@@ -4,13 +4,14 @@ import (
 	"math"
 	"testing"
 
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/vec"
 )
 
 func testPerspective(heading float32) perspective {
 	target := [3]float32{320, 320, 0}
-	s, c := math.Sincos(float64(heading) + math.Pi/4)
-	cp, sp := math.Cos(math.Pi/6), math.Sin(math.Pi/6)
+	s, c := f32.Sincos(float32(heading) + math.Pi/4)
+	cp, sp := f32.Cos(math.Pi/6), f32.Sin(math.Pi/6)
 	eye := [3]float32{320 + 200*float32(cp*s), 320 + 200*float32(cp*c), 200 * float32(sp)}
 	return newPerspective(eye, target, heading, 400, 8, 4000, 32)
 }
@@ -71,14 +72,15 @@ func TestPerspective_WhatLiesBehindTheEyeOrOverTheHorizonStaysFinite(t *testing.
 	// well behind the eye along the way it looks from
 	behind := vec.Add(p.eye, vec.Scale(p.forward, -100))
 	sx, sy := p.Project(behind[0], behind[1], behind[2])
-	if math.IsNaN(float64(sx)) || math.IsInf(float64(sx), 0) || math.IsNaN(float64(sy)) || math.IsInf(float64(sy), 0) {
+	if math.IsNaN(float64(sx)) || f32.IsInf(float32(sx), 0) || math.IsNaN(float64(sy)) ||
+		f32.IsInf(float32(sy), 0) {
 		t.Errorf("a point behind the eye projects to (%v, %v)", sx, sy)
 	}
 	x, y, hit := p.cast(0, -400, 0) // 45° up from the middle: over the horizon at a pitch of 30°
 	if hit {
 		t.Errorf("a screen point over the horizon hit the ground at (%v, %v)", x, y)
 	}
-	if d := math.Hypot(float64(x-320), float64(y-320)); d < 1000 || math.IsInf(d, 0) || math.IsNaN(d) {
+	if d := f32.Hypot(float32(x-320), float32(y-320)); d < 1000 || f32.IsInf(d, 0) || math.IsNaN(float64(d)) {
 		t.Errorf("over the horizon the ground point is %v off, want far and finite", d)
 	}
 }
@@ -113,7 +115,8 @@ func TestPerspective_VanishIsWhereEverythingFarAlongADirectionIsDrawn(t *testing
 		t.Fatalf("a way right of and above the middle vanishes at (%v, %v) %v, want right of and above it", vx, vy, ok)
 	}
 	far := vec.Add(p.eye, vec.Scale(dir, 1e5))
-	if sx, sy := p.Project(far[0], far[1], far[2]); math.Abs(float64(sx-vx)) > 0.5 || math.Abs(float64(sy-vy)) > 0.5 {
+	if sx, sy := p.Project(far[0], far[1], far[2]); f32.Abs(float32(sx-vx)) > 0.5 ||
+		f32.Abs(float32(sy-vy)) > 0.5 {
 		t.Errorf("a point far along the way is drawn at (%v, %v), want where it vanishes (%v, %v)", sx, sy, vx, vy)
 	}
 }
@@ -133,13 +136,14 @@ func TestPerspective_TheGroundCurvesAwayUnderTheHorizon(t *testing.T) {
 			t.Errorf("point %v is drawn at (%v, %v), want (%v, %v): sunk by the curve", q, sx, sy, wx, wy)
 		}
 		// float32 through the projection and back: a hundred-thousandth of the way off
-		tol := 1e-5 * math.Hypot(float64(dx), float64(dy))
-		if x, y, hit := curved.cast(sx, sy, q[2]); !hit || math.Abs(float64(x-q[0])) > tol || math.Abs(float64(y-q[1])) > tol {
+		tol := 1e-5 * f32.Hypot(float32(dx), float32(dy))
+		if x, y, hit := curved.cast(sx, sy, q[2]); !hit || f32.Abs(float32(x-q[0])) > tol ||
+			f32.Abs(float32(y-q[1])) > tol {
 			t.Errorf("point %v drawn at (%v, %v) is found back at (%v, %v) %v", q, sx, sy, x, y, hit)
 		}
 	}
 	h := curved.eye[2]
-	horizon := float32(math.Sqrt(float64(h / curved.bend)))
+	horizon := float32(f32.Sqrt(float32(h / curved.bend)))
 	// how far under level, per d
 	under := func(d float32) float32 { return (h + curved.bend*d*d) / d }
 	if under(horizon) >= under(horizon*0.8) || under(horizon) >= under(horizon*1.25) {

@@ -46,7 +46,7 @@ func (r *Relief) roadFits(c cell.ID, links cell.Links) bool {
 		return true
 	}
 	var buf [4]geom.Vec
-	var corners [4]float64
+	var corners [4]float32
 	for k, p := range r.grid.CellOutline(c, buf[:0]) {
 		corners[k] = r.GroundAt(p)
 	}

@@ -1,9 +1,8 @@
 package grid
 
 import (
-	"math"
-
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
@@ -49,10 +48,10 @@ func Direction(g Grid, da, db int) (int, bool) {
 
 // Nearest is the direction whose Step runs nearest the way v points.
 func Nearest(g Grid, v geom.Vec) int {
-	best, most := 0, math.Inf(-1)
+	best, most := 0, f32.Inf(-1)
 	for i := range g.Directions() {
 		s := g.Step(i)
-		if d := (s.X*v.X + s.Y*v.Y) / math.Hypot(s.X, s.Y); d > most {
+		if d := (s.X*v.X + s.Y*v.Y) / f32.Hypot(s.X, s.Y); d > most {
 			best, most = i, d
 		}
 	}
@@ -71,7 +70,7 @@ func Rim(g Grid, c cell.ID, i int) (a, b int) {
 	var buf [8]geom.Vec
 	corners := g.CellOutline(c, buf[:0])
 	e := Exit(g, c, i)
-	far := func(k int) float64 { return math.Hypot(corners[k].X-e.X, corners[k].Y-e.Y) }
+	far := func(k int) float32 { return f32.Hypot(corners[k].X-e.X, corners[k].Y-e.Y) }
 	a, b = 0, -1
 	for k := range corners {
 		switch {

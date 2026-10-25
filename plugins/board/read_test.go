@@ -17,7 +17,7 @@ type reading struct {
 	built                    cell.Built
 	way                      cell.Way
 	along, reaches, fenced   bool
-	lane                     float64
+	lane                     float32
 	decks                    int
 	top                      [4]float32
 	level                    float32
@@ -37,7 +37,7 @@ func readAll(r *board.Read, g grid.Grid, out []reading) {
 		brd.DecksOver(at, func(cell.ID, cell.Floor) { rd.decks++ })
 		rd.top, rd.level = brd.Map().Top(c)
 		r.Cover().Walk(at, geom.NewVec(1, 0), 64, world.Layers(cell.Land),
-			func(_, _, _, _, _ float64) bool { rd.veiled++; return true })
+			func(_, _, _, _, _ float32) bool { rd.veiled++; return true })
 		out[i] = rd
 	})
 }

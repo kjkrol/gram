@@ -51,7 +51,7 @@ type MoveOrder struct {
 	Avoids        uint8
 	Stalled       time.Duration
 	Toward        cell.ID
-	Closest       float64
+	Closest       float32
 	Stalls        uint8
 	Held          bool
 	// Linger is how long the entity stands on its Target before it goes on to the next queued goal;

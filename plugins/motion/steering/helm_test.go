@@ -1,10 +1,10 @@
 package steering_test
 
 import (
-	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 )
 
@@ -13,7 +13,7 @@ var (
 	north = geom.NewVec(0.0, 1.0)
 )
 
-func heading(v geom.Vec) float64 { return math.Atan2(v.Y, v.X) }
+func heading(v geom.Vec) float32 { return f32.Atan2(v.Y, v.X) }
 
 func TestSteering_RequestIsRefusedWhileStillReacting(t *testing.T) {
 	s := steering.Helm{Steering: &steering.Steering{Reflex: 3}, Course: &steering.Course{}}
@@ -33,10 +33,10 @@ func TestSteering_RequestNormalisesWhateverItIsHanded(t *testing.T) {
 	s := steering.Helm{Steering: &steering.Steering{}, Course: &steering.Course{}}
 	s.Request(geom.NewVec(3.0, 4.0))
 
-	if n := math.Hypot(s.Want.X, s.Want.Y); math.Abs(n-1) > 1e-12 {
+	if n := f32.Hypot(s.Want.X, s.Want.Y); f32.Abs(n-1) > f32.Eps(1) {
 		t.Errorf("|Want| = %v, want 1", n)
 	}
-	if math.Abs(heading(s.Want)-math.Atan2(4, 3)) > 1e-12 {
+	if f32.Abs(heading(s.Want)-f32.Atan2(4, 3)) > f32.Eps(1) {
 		t.Errorf("Want points at %v, want the direction it was handed", heading(s.Want))
 	}
 }

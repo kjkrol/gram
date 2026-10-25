@@ -1,10 +1,10 @@
 package order
 
 import (
-	"github.com/kjkrol/ceremony/fact"
 	"time"
 
 	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/fact"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/uid"
 )

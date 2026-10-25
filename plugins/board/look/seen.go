@@ -27,8 +27,8 @@ func (s *seenSectors) see(v *view.View) {
 	s.cols = max(g.Cols(), 1)
 	s.rows = (g.Len() + s.cols - 1) / s.cols
 	box := g.Box(0)
-	s.side = [2]float32{float32(box.BottomRight.X - box.TopLeft.X),
-		float32(box.BottomRight.Y - box.TopLeft.Y)}
+	s.side = [2]float32{box.BottomRight.X - box.TopLeft.X,
+		box.BottomRight.Y - box.TopLeft.Y}
 	s.fogging = v.Fogging()
 	n := 4 * s.cols * s.rows
 	if len(s.pix) != n {

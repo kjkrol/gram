@@ -125,4 +125,4 @@ func TestWidgets_DrawTheirMarksInTheAccent(t *testing.T) {
 	}
 }
 
-func box_(x, y, w, h float64) geom.AABB { return box(x, y, w, h) }
+func box_(x, y, w, h float32) geom.AABB { return box(x, y, w, h) }

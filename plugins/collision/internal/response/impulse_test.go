@@ -1,22 +1,22 @@
 package response
 
 import (
-	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
 func TestExchange(t *testing.T) {
-	elastic := func(mass float64) Side { return Side{InvMass: 1 / mass, Bounce: 1} }
+	elastic := func(mass float32) Side { return Side{InvMass: 1 / mass, Bounce: 1} }
 	wall := Side{Bounce: 1}
 
 	cases := map[string]struct {
 		a, b           Side
 		deltaA, deltaB geom.Vec
 		n              geom.Vec
-		want           float64
+		want           float32
 	}{
 		"equal masses, head-on":    {elastic(1), elastic(1), geom.NewVec(-3, 0), geom.NewVec(4, 0), geom.NewVec(1, 0), 7},
 		"already separating":       {elastic(1), elastic(1), geom.NewVec(3, 0), geom.NewVec(-4, 0), geom.NewVec(1, 0), 0},
@@ -34,7 +34,7 @@ func TestExchange(t *testing.T) {
 			velA.SetDelta(c.deltaA)
 			velB.SetDelta(c.deltaB)
 			c.a.Vel, c.b.Vel = &velA, &velB
-			if got := Exchange(c.a, c.b, c.n); math.Abs(got-c.want) > 1e-9 {
+			if got := Exchange(c.a, c.b, c.n); f32.Abs(got-c.want) > f32.Eps(c.want) {
 				t.Errorf("Exchange = %v, want %v", got, c.want)
 			}
 		})

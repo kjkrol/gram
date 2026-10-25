@@ -1,8 +1,6 @@
 package terrain
 
 import (
-	"math"
-
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/cond"
@@ -10,6 +8,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/grids"
@@ -30,8 +29,8 @@ type Cells struct {
 	built     int    // a board of none seeks none
 	railed    int
 	bands     int
-	narrowest float64
-	thinnest  float64
+	narrowest float32
+	thinnest  float32
 	reached   []bool // by ordinal: a neighbour's band reaches into the cell
 	bridges   Bridges
 	fresh     bool // made afresh, not found after a load
@@ -118,8 +117,8 @@ func (r *Read) KindAt(c cell.ID, deck bool) cell.Kind {
 
 // KindFor is c's kind at p for whoever stands with its feet at feet and steps reach high: a Floor
 // over p within its reach, else the ground under the decks. ground gives a cell's level.
-func (r *Read) KindFor(c cell.ID, p geom.Vec, feet, reach float64,
-	ground func(cell.ID) float64) cell.Kind {
+func (r *Read) KindFor(c cell.ID, p geom.Vec, feet, reach float32,
+	ground func(cell.ID) float32) cell.Kind {
 	t := r.t
 	if r.store == nil {
 		return t.seed.Ways[c].Over(t.seed.Kind(c))
@@ -158,21 +157,21 @@ func (r *Read) KindFor(c cell.ID, p geom.Vec, feet, reach float64,
 
 // CellFor is the cell whoever stands at p with its feet at feet and steps reach high is on: the
 // highest Floor over p within its reach, else the cell under p. ground gives a cell's level.
-func (r *Read) CellFor(p geom.Vec, feet, reach float64,
-	ground func(cell.ID) float64) (cell.ID, bool) {
+func (r *Read) CellFor(p geom.Vec, feet, reach float32,
+	ground func(cell.ID) float32) (cell.ID, bool) {
 	c, _, ok := r.LevelFor(p, feet, reach, ground)
 	return c, ok
 }
 
 // LevelFor is CellFor and whether whoever stands there stands on a raised deck.
-func (r *Read) LevelFor(p geom.Vec, feet, reach float64,
-	ground func(cell.ID) float64) (cell.ID, bool, bool) {
+func (r *Read) LevelFor(p geom.Vec, feet, reach float32,
+	ground func(cell.ID) float32) (cell.ID, bool, bool) {
 	t := r.t
 	c, ok := t.grid.CellAt(p)
 	if !ok || t.built == 0 || r.store == nil {
 		return c, false, ok
 	}
-	best, top, raised := c, math.Inf(-1), false
+	best, top, raised := c, f32.Inf(-1), false
 	r.DecksOver(c, p, func(d Deck) bool {
 		f := d.Built.Floor
 		h := f.Height

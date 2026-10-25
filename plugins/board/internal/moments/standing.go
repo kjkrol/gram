@@ -1,15 +1,14 @@
 package moments
 
 import (
-	cgoke "github.com/kjkrol/ceremony/goke"
-	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
-
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
@@ -88,7 +87,7 @@ func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	}
 }
 
-func (s *standingSystem) share(i int) float64 {
+func (s *standingSystem) share(i int) float32 {
 	b := &s.bases[i]
 	at := b.Pos.Center()
 	c, ok := s.r.grid.CellAt(at)
@@ -97,9 +96,9 @@ func (s *standingSystem) share(i int) float64 {
 	}
 	feet, reach := s.feet(i)
 	kind, d := s.r.cells.Read().KindFor(c, at, feet, reach, s.r.level), unit.DomainAt(s.movers, i)
-	share := 1.0
+	share := float32(1)
 	if cost := kind.CostFor(d); cost > 0 {
-		share /= cost
+		share /= float32(cost)
 	}
 	if kind.Graded || s.r.slope == nil {
 		return share
@@ -109,7 +108,7 @@ func (s *standingSystem) share(i int) float64 {
 		dir = geom.NewVec(-dir.X, -dir.Y)
 	}
 	if sl := s.r.slope(at, dir, d); sl > 0 && sl != 1 {
-		share /= sl
+		share /= float32(sl)
 	}
 	return share
 }
@@ -134,7 +133,7 @@ func (s *standingSystem) standing(i int) unit.Standing {
 	}
 	cells := s.r.cells.Read()
 	feet, reach := s.feet(i)
-	level := 0.0
+	level := float32(0)
 	if s.r.level != nil {
 		level = s.r.level(c)
 	}
@@ -145,9 +144,9 @@ func (s *standingSystem) standing(i int) unit.Standing {
 		Reach: reach}
 }
 
-func (s *standingSystem) feet(i int) (float64, float64) {
+func (s *standingSystem) feet(i int) (float32, float32) {
 	if s.zs == nil {
-		return math.Inf(-1), 0
+		return f32.Inf(-1), 0
 	}
 	return s.zs[i].Altitude, s.zs[i].Reach()
 }

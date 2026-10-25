@@ -1,11 +1,11 @@
 package pathfind
 
 import (
-	"math"
 	"slices"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/uid"
@@ -28,11 +28,11 @@ func newBridged() bridged {
 	return bridged{terrain, g}
 }
 
-func (b bridged) Lane(from, to cell.ID, d cell.Domain, deck bool) float64 {
+func (b bridged) Lane(from, to cell.ID, d cell.Domain, deck bool) float32 {
 	x0, y0, _ := b.g.Coords(from)
 	x1, y1, _ := b.g.Coords(to)
 	if d&cell.Land == 0 || deck || y0 != 1 || y1 != 1 || max(x0, x1) < 2 || min(x0, x1) > 2 {
-		return math.Inf(1)
+		return f32.Inf(1)
 	}
 	return 6
 }

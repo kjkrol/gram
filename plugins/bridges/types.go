@@ -2,12 +2,12 @@ package bridges
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/collision"
@@ -20,11 +20,11 @@ import (
 // wide and thick its deck is, its railings and how wide a pier is.
 type Spec struct {
 	Allows    cell.Domain
-	Width     float64
-	Thickness float64
+	Width     float32
+	Thickness float32
 	Cost      float64
 	Rail      cell.Rail
-	Pier      float64
+	Pier      float32
 }
 
 // Row is a bridge as a level's file writes it: from the head From to the head To.
@@ -36,13 +36,13 @@ type Row struct {
 type deckRow struct {
 	At     cell.ID
 	Links  cell.Links
-	Height float64
+	Height float32
 	Dir    geom.Vec
 }
 
 type pierRow struct {
 	At          geom.Vec
-	Bottom, Top float64
+	Bottom, Top float32
 }
 
 // Types is the register of the kinds of bridges, defined on the Stage's kinds.
@@ -63,7 +63,7 @@ func (t *Types) Define(name string, spec Spec) {
 		panic(fmt.Sprintf("bridges: bridge %q is defined twice", name))
 	}
 	w, brd := t.p.worldPlugin, t.p.board
-	span := float64(brd.Read(0).Board().Grid.CellSpan())
+	span := brd.Read(0).Board().Grid.CellSpan()
 	kind.Define[Row](w.Kinds(), name, kind.Spec{
 		comp.Load(func(r Row) world.Position {
 			m := brd.Read(0).Board().CellCenter(r.From)
@@ -101,7 +101,7 @@ func (t *Types) Define(name string, spec Spec) {
 			return world.Z{Altitude: r.Bottom, Height: max(r.Top-r.Bottom, 0)}
 		}),
 		comp.Const(collision.Collider{}),
-		comp.Const(collision.Physics{Mass: math.Inf(1)}),
+		comp.Const(collision.Physics{Mass: f32.Inf(1)}),
 		comp.Const(light.Shadow{Cast: light.Baked}),
 	})
 	if t.specs == nil {

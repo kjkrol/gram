@@ -43,7 +43,7 @@ func TestCollision_FarOffBoxesRestUntilTheBandComesNear(t *testing.T) {
 		comp.Const(collision.Collider{}),
 	})
 	colliders := kind.Named[placed](w.Kinds(), "collider")
-	for _, x := range []float64{100, 105, 1200, 1205} {
+	for _, x := range []float32{100, 105, 1200, 1205} {
 		w.Write().Seed(colliders.Entry(placed{x: x, y: 250}))
 	}
 	if err := w.Populate(); err != nil {
@@ -56,7 +56,7 @@ func TestCollision_FarOffBoxesRestUntilTheBandComesNear(t *testing.T) {
 		q = si.NewQueryBuilder(&base, &coll).Build()
 	}})
 	// whether the boxes about x touch and collide
-	touching := func(x float64) (touches, collides bool) {
+	touching := func(x float32) (touches, collides bool) {
 		for q.All(); q.Next(); {
 			cur := q.Cursor()
 			for i, b := range base.Slice(cur) {

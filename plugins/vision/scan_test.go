@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/vision"
@@ -44,9 +45,9 @@ func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c
 func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
 
 type spawn struct {
-	x, y    float64
-	size    float64
-	tau     float64
+	x, y    float32
+	size    float32
+	tau     float32
 	layers  world.Layers
 	z       *world.Z
 	sight   *look
@@ -62,7 +63,7 @@ type look struct {
 
 type relief struct {
 	ground ground.Heights
-	step   float64
+	step   float32
 	scale  world.Scale
 }
 
@@ -180,7 +181,7 @@ func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID
 
 func kindName(i int) string { return string(rune('a' + i)) }
 
-func eastward(half, radius float64) *look {
+func eastward(half, radius float32) *look {
 	return &look{Sight: vision.Sight{Facing: geom.NewVec(1.0, 0.0), Radius: radius}, Eye: world.Eye{Angle: 2 * half}}
 }
 
@@ -215,7 +216,7 @@ func TestScan_ASightAheadLooksTheWayItMoves(t *testing.T) {
 			spawn{x: 800, y: 500},  // east of it, 300 off
 			spawn{x: 500, y: 1000}, // north of it, 500 off
 		)
-		if seen[0].Count != 1 || math.Abs(float64(seen[0].Dists[0]-c.want)) > 15 {
+		if seen[0].Count != 1 || f32.Abs(float32(seen[0].Dists[0]-c.want)) > 15 {
 			t.Errorf("heading %v: saw %d, the nearest %v off; want one, %v off", c.heading, seen[0].Count, seen[0].Dists[0], c.want)
 		}
 	}
@@ -247,7 +248,7 @@ func TestScan_IgnoresWhatFallsOutsideTheCone(t *testing.T) {
 func TestScan_KeepsAtMostMaxSeen(t *testing.T) {
 	spawns := []spawn{{x: 200, y: 500, sight: eastward(math.Pi/3, 900)}}
 	for i := range vision.MaxSeen + 4 {
-		spawns = append(spawns, spawn{x: float64(400 + i*40), y: float64(480 + i*8)})
+		spawns = append(spawns, spawn{x: float32(400 + i*40), y: float32(480 + i*8)})
 	}
 
 	_, seen, _ := scene(t, spawns...)
@@ -311,13 +312,13 @@ func TestScan_OutlineNeverOverrunsItsBuffer(t *testing.T) {
 }
 
 func TestMaxSamples_IsTheSmallestThatHoldsTheTolerance(t *testing.T) {
-	half := float64(vision.MaxHalfAngleMilli) / 1000
+	half := float32(vision.MaxHalfAngleMilli) / 1000
 	arc := vision.MaxSightRadius * 2 * half
 
-	if drift := arc / float64(vision.MaxSamples-1); drift > vision.EdgeTolerance {
+	if drift := arc / float32(vision.MaxSamples-1); drift > vision.EdgeTolerance {
 		t.Errorf("a full-size cone drifts %.3f units at full range, over EdgeTolerance (%d)", drift, vision.EdgeTolerance)
 	}
-	if drift := arc / float64(vision.MaxSamples-2); drift <= vision.EdgeTolerance {
+	if drift := arc / float32(vision.MaxSamples-2); drift <= vision.EdgeTolerance {
 		t.Errorf("one sample fewer still drifts only %.3f — MaxSamples (%d) is bigger than it needs to be", drift, vision.MaxSamples)
 	}
 }

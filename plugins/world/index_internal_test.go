@@ -68,14 +68,14 @@ func TestIndex_ANewcomerTakingTheSlotOfOneGoneInTheSameStepIsFoundWhereItStands(
 		things.Entry(thing{x: 300, y: 100, size: 10}),
 	)
 	run(ecs, wm, func(*goke.CmdBuf) {})
-	at := map[float64]uid.UID64{}
+	at := map[float32]uid.UID64{}
 	for q.All(); q.Next(); {
 		cursor := q.Cursor()
 		for i, b := range base.Slice(cursor) {
 			at[b.Pos.TopLeft.X] = cursor.IDs[i]
 		}
 	}
-	finds := func(x float64) []uid.UID64 {
+	finds := func(x float32) []uid.UID64 {
 		var found []uid.UID64
 		wm.space.Query(geom.NewAABBAt(geom.NewVec(x, 100), 10, 10), aabbworld.AnyCapability,
 			func(id uid.UID64) { found = append(found, id) })
@@ -98,7 +98,7 @@ func TestIndex_ANewcomerTakingTheSlotOfOneGoneInTheSameStepIsFoundWhereItStands(
 			}
 		}
 	}
-	for x, want := range map[float64][]uid.UID64{100: {at[100]}, 300: nil, 800: {newcomer}} {
+	for x, want := range map[float32][]uid.UID64{100: {at[100]}, 300: nil, 800: {newcomer}} {
 		if found := finds(x); !slices.Equal(found, want) {
 			t.Errorf("at %v the space finds %v, want %v", x, found, want)
 		}

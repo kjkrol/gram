@@ -11,8 +11,8 @@ func TestGridPlacement_Place_SquareCount(t *testing.T) {
 
 	cases := []struct {
 		index int
-		wantX float64
-		wantY float64
+		wantX float32
+		wantY float32
 	}{
 		{0, 20, 20},
 		{1, 70, 20},
@@ -32,8 +32,8 @@ func TestGridPlacement_Place_NonSquareCount(t *testing.T) {
 
 	cases := []struct {
 		index int
-		wantX float64
-		wantY float64
+		wantX float32
+		wantY float32
 	}{
 		{0, 11, 20},
 		{4, 44, 70},

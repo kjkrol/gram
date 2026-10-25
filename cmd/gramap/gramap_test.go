@@ -68,7 +68,7 @@ func TestBuild_RoadsLieAsTransportTycoonLaysThem(t *testing.T) {
 	}
 	for _, cl := range c.roads.net.Cells() {
 		units := c.outline(cl)
-		if !ground.RoadFits(c.grid, cl, units, c.roads.net.Links(cl), c.size) {
+		if !ground.RoadFits(c.grid, cl, units, c.roads.net.Links(cl), float32(c.size)) {
 			x, y := c.xy(cl)
 			t.Errorf("the road at [%d, %d] lies on ground no road may: %v", x, y, units)
 		}

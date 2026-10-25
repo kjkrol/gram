@@ -133,11 +133,11 @@ func TestPathFinder_Find_StartsOffTheGrid(t *testing.T) {
 // one level everywhere
 type flat struct{ terrain cell.Terrain }
 
-func (flat) Deck(cell.ID) (top, under float64, carries cell.Domain, ok bool) {
+func (flat) Deck(cell.ID) (top, under float32, carries cell.Domain, ok bool) {
 	return 0, 0, 0, false
 }
-func (flat) Ground(geom.Vec) float64              { return 0 }
-func (flat) Over(geom.Vec) (float64, bool)        { return 0, false }
+func (flat) Ground(geom.Vec) float32              { return 0 }
+func (flat) Over(geom.Vec) (float32, bool)        { return 0, false }
 func (f flat) KindAt(c cell.ID, _ bool) cell.Kind { return f.terrain.Kind(c) }
 
 func TestFinder_FindAllocatesNothingOnceItsRoutesFit(t *testing.T) {

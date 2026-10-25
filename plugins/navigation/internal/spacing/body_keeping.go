@@ -1,18 +1,18 @@
 package spacing
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
-	"github.com/kjkrol/gram/plugins/navigation/internal/order"
-	"math"
 	"slices"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/motion/steering"
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/uid"
 )
 
@@ -94,16 +94,16 @@ func (k *BodyKeeping) fold(p geom.Vec) geom.Vec {
 	}
 	w, h, e := k.space.Bounds()
 	if e.WrapsX() {
-		p = geom.NewVec(wrapAxis(p.X, float64(w)), p.Y)
+		p = geom.NewVec(wrapAxis(p.X, float32(w)), p.Y)
 	}
 	if e.WrapsY() {
-		p = geom.NewVec(p.X, wrapAxis(p.Y, float64(h)))
+		p = geom.NewVec(p.X, wrapAxis(p.Y, float32(h)))
 	}
 	return p
 }
 
-func wrapAxis(v, size float64) float64 {
-	v = math.Mod(v, size)
+func wrapAxis(v, size float32) float32 {
+	v = f32.Mod(v, size)
 	if v < 0 {
 		v += size
 	}
@@ -139,7 +139,7 @@ func (k *BodyKeeping) On(m bodies.Member, c cell.ID, level order.Level) bool {
 func (k *BodyKeeping) Look(m bodies.Member, at geom.Vec) order.MoveOrder {
 	here := m.Centre()
 	stop := here
-	if v := math.Hypot(m.Vel.X, m.Vel.Y); v > 0 && m.Brake > 0 {
+	if v := f32.Hypot(m.Vel.X, m.Vel.Y); v > 0 && m.Brake > 0 {
 		d := v / (2 * m.Brake)
 		stop = k.fold(geom.NewVec(here.X+m.Vel.X*d, here.Y+m.Vel.Y*d))
 	}
@@ -198,23 +198,30 @@ func (k *BodyKeeping) Lost(m bodies.Member, from cell.ID, o *order.MoveOrder, wa
 	return 0, order.Path{}, false, false
 }
 
-// while m steps round someone it struck it never leans back into them, and still facing into
-// them it turns on the spot
-func (k *BodyKeeping) Steer(m bodies.Member, st steering.Helm, dir geom.Vec, speed float64) {
+// while m steps round someone it struck, or touches someone, it never moves into them
+func (k *BodyKeeping) Steer(m bodies.Member, st steering.Helm, dir geom.Vec, speed float32) {
 	if o := m.Order; o != nil && o.AsideFor > 0 {
-		if o.Aside == (geom.Vec{}) || m.Facing.X*o.Struck.X+m.Facing.Y*o.Struck.Y < -0.01 {
+		if o.Aside == (geom.Vec{}) {
 			speed = 0
 		}
 		d := o.Aside
-		if n := math.Hypot(dir.X, dir.Y); n > 0 {
+		if n := f32.Hypot(dir.X, dir.Y); n > 0 {
 			d = geom.NewVec(d.X+dir.X/n*asideGoal, d.Y+dir.Y/n*asideGoal)
 		}
 		if into := -(d.X*o.Struck.X + d.Y*o.Struck.Y); into > 0 {
 			d = geom.NewVec(d.X+o.Struck.X*into, d.Y+o.Struck.Y*into)
 		}
-		if n := math.Hypot(d.X, d.Y); n > 1e-9 && k.takes(m, geom.NewVec(d.X/n, d.Y/n)) {
+		n := f32.Hypot(d.X, d.Y)
+		if n > f32.Eps(asideGoal) && k.takes(m, geom.NewVec(d.X/n, d.Y/n)) {
 			dir = geom.NewVec(d.X/n, d.Y/n)
 		}
+		dir, speed = clearOf(m.Facing, dir, speed, o.Struck)
+	}
+	if m.Touching.X != 0 {
+		dir, speed = clearOf(m.Facing, dir, speed, geom.NewVec(m.Touching.X, 0))
+	}
+	if m.Touching.Y != 0 {
+		dir, speed = clearOf(m.Facing, dir, speed, geom.NewVec(0, m.Touching.Y))
 	}
 	if dir != (geom.Vec{}) {
 		st.Request(dir)
@@ -222,12 +229,43 @@ func (k *BodyKeeping) Steer(m bodies.Member, st steering.Helm, dir geom.Vec, spe
 	st.RequestSpeed(speed)
 }
 
+// the way and speed that keep clear of one touched, n leading off them: facing into them it turns
+// on the spot, a way straight through them is none, and a turn that would swing it through them
+// sets off round their far side
+func clearOf(facing, dir geom.Vec, speed float32, n geom.Vec) (geom.Vec, float32) {
+	facingInto := facing.X*n.X+facing.Y*n.Y < -0.01
+	if facingInto {
+		speed = 0
+	}
+	l := f32.Hypot(dir.X, dir.Y)
+	if l == 0 {
+		return dir, speed
+	}
+	if into := -(dir.X*n.X + dir.Y*n.Y); into > 0 {
+		dir = geom.NewVec(dir.X+n.X*into, dir.Y+n.Y*into)
+	}
+	along := f32.Hypot(dir.X, dir.Y)
+	if along < 0.01*l {
+		return geom.Vec{}, 0
+	}
+	dir = geom.NewVec(dir.X/along, dir.Y/along)
+	if facingInto || facing == (geom.Vec{}) {
+		return dir, speed
+	}
+	// the steering turns the short way, which half round runs through them
+	mid := geom.NewVec(facing.X+dir.X, facing.Y+dir.Y)
+	if w := f32.Hypot(mid.X, mid.Y); w < 1e-3 || mid.X*n.X+mid.Y*n.Y < -0.01*w {
+		return n, speed
+	}
+	return dir, speed
+}
+
 func (k *BodyKeeping) Watch(m bodies.Member, o *order.MoveOrder, toward cell.ID, want geom.Vec, d time.Duration) {
 	if o.AsideFor = max(o.AsideFor-d, 0); o.AsideFor == 0 {
 		o.Aside, o.Struck = geom.Vec{}, geom.Vec{}
 	}
 	c := m.Centre()
-	dist := math.Hypot(want.X-c.X, want.Y-c.Y)
+	dist := f32.Hypot(want.X-c.X, want.Y-c.Y)
 	if m.Cell == o.Toward && toward != o.Toward {
 		o.Stalls = 0
 	}
@@ -249,7 +287,7 @@ func (k *BodyKeeping) Bump(m bodies.Member, o *order.MoveOrder) BumpAnswer {
 		if o.Stalls++; o.Stalls > maxStalls {
 			return GiveUp
 		}
-		o.Path, o.Leg, o.Closest = order.Path{}, order.Leg{}, math.Inf(1)
+		o.Path, o.Leg, o.Closest = order.Path{}, order.Leg{}, f32.Inf(1)
 		return CarryOn
 	}
 	k.stepRound(m, o, o.Struck)
@@ -289,23 +327,25 @@ func (k *BodyKeeping) Pass(m bodies.Member, o *order.MoveOrder, other bodies.Bod
 func (k *BodyKeeping) wayOff(m bodies.Member, other bodies.Body) geom.Vec {
 	d := k.delta(other.At, m.Centre())
 	h := half(m)
-	intoX := h.X + other.Half.X - math.Abs(d.X)
-	intoY := h.Y + other.Half.Y - math.Abs(d.Y)
+	intoX := h.X + other.Half.X - f32.Abs(d.X)
+	intoY := h.Y + other.Half.Y - f32.Abs(d.Y)
 	switch {
 	case d == (geom.Vec{}):
 		return geom.Vec{}
 	case intoX < intoY:
-		return geom.NewVec(math.Copysign(1, d.X), 0)
+		return geom.NewVec(f32.Copysign(1, d.X), 0)
 	default:
-		return geom.NewVec(0, math.Copysign(1, d.Y))
+		return geom.NewVec(0, f32.Copysign(1, d.Y))
 	}
 }
 
 // head on, to the left of the way off, so two meeting head on pass
 func (k *BodyKeeping) stepRound(m bodies.Member, o *order.MoveOrder, n geom.Vec) {
-	goal := k.delta(m.Centre(), k.goalOf(o))
+	at := m.Centre()
+	goal := k.delta(at, k.goalOf(o))
 	aside := geom.NewVec(-n.Y, n.X)
-	if l := math.Hypot(goal.X, goal.Y); l > 1e-9 && (aside.X*goal.X+aside.Y*goal.Y)/l < -0.2 {
+	l := f32.Hypot(goal.X, goal.Y)
+	if l > f32.Eps(max(f32.Abs(at.X), f32.Abs(at.Y))) && (aside.X*goal.X+aside.Y*goal.Y)/l < -0.2 {
 		aside = geom.NewVec(-aside.X, -aside.Y)
 	}
 	if !k.takes(m, aside) {
@@ -325,7 +365,7 @@ func (k *BodyKeeping) takes(m bodies.Member, dir geom.Vec) bool {
 	k.taker, k.taken = m, true
 	k.grid.CellsUnder(bodies.BoxAt(at, h), k.take)
 	ok := k.taken
-	for _, s := range [4][2]float64{{-1, -1}, {1, -1}, {-1, 1}, {1, 1}} {
+	for _, s := range [4][2]float32{{-1, -1}, {1, -1}, {-1, 1}, {1, 1}} {
 		if _, in := k.grid.CellAt(k.fold(geom.NewVec(at.X+s[0]*h.X, at.Y+s[1]*h.Y))); !in {
 			ok = false
 		}
@@ -367,7 +407,7 @@ func (k *BodyKeeping) Blocked(bodies.Member, *order.MoveOrder, cell.ID, bool,
 
 func (k *BodyKeeping) ByContact() bool { return true }
 
-func (k *BodyKeeping) Within(m bodies.Member) float64 {
+func (k *BodyKeeping) Within(m bodies.Member) float32 {
 	return min(ArrivalEpsilon, min(m.Pos.Size.X, m.Pos.Size.Y)/4)
 }
 
@@ -402,7 +442,7 @@ func (k *BodyKeeping) Other(id uid.UID64) (bodies.Body, bool) { return k.index.O
 func (k *BodyKeeping) asides(m bodies.Member, asker bodies.Body) [2]geom.Vec {
 	here, h := m.Centre(), half(m)
 	way := k.delta(asker.At, here)
-	if l := math.Hypot(way.X, way.Y); l > 1e-9 {
+	if l := f32.Hypot(way.X, way.Y); l > f32.Eps(max(f32.Abs(here.X), f32.Abs(here.Y))) {
 		way = geom.NewVec(way.X/l, way.Y/l)
 	} else {
 		way = geom.NewVec(1, 0)
@@ -410,22 +450,22 @@ func (k *BodyKeeping) asides(m bodies.Member, asker bodies.Body) [2]geom.Vec {
 	across := geom.NewVec(-way.Y, way.X)
 	off := k.delta(asker.At, here)
 	side := off.X*across.X + off.Y*across.Y
-	sign := 1.0
+	sign := float32(1)
 	if side < 0 {
 		sign = -1
 	}
 	clear := spanAcross(asker.Half, across) + spanAcross(h, across) + gapFor(h)/4
 	var out [2]geom.Vec
-	for i, step := range [2]float64{sign * (clear - math.Abs(side)), -sign * (clear + math.Abs(side))} {
-		if math.Abs(step) < gapFor(h)/4 {
-			step = math.Copysign(gapFor(h)/4, step)
+	for i, step := range [2]float32{sign * (clear - f32.Abs(side)), -sign * (clear + f32.Abs(side))} {
+		if f32.Abs(step) < gapFor(h)/4 {
+			step = f32.Copysign(gapFor(h)/4, step)
 		}
 		out[i] = k.fold(geom.NewVec(here.X+across.X*step, here.Y+across.Y*step))
 	}
 	return out
 }
 
-func spanAcross(h, a geom.Vec) float64 { return h.X*math.Abs(a.X) + h.Y*math.Abs(a.Y) }
+func spanAcross(h, a geom.Vec) float32 { return h.X*f32.Abs(a.X) + h.Y*f32.Abs(a.Y) }
 
 func (k *BodyKeeping) open(m bodies.Member, p geom.Vec) (ground bool, in uid.UID64, taken bool) {
 	cell, ok := CellOf(k.grid, k.terrain, p, &m.Z)

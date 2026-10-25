@@ -127,12 +127,12 @@ func (l windyLook) Sprite(
 	a render.Appearance, lit render.Illumination,
 ) {
 	if a.Sway > 0 { // seen from above by its top, as high as it is wide
-		sizeX, sizeY := float32(box.Size.X), float32(box.Size.Y)
-		cx, cy := float32(box.TopLeft.X)+sizeX/2, float32(box.TopLeft.Y)+sizeY/2
+		sizeX, sizeY := box.Size.X, box.Size.Y
+		cx, cy := box.TopLeft.X+sizeX/2, box.TopLeft.Y+sizeY/2
 		lx, ly := l.sky.DrawnAir().Sway(f.Time(), cx, cy, a.Sway)
 		rise := max(sizeX, sizeY)
-		box = plane.NewAABB(geom.NewVec(box.TopLeft.X+float64(lx*rise),
-			box.TopLeft.Y+float64(ly*rise)), box.Size.X, box.Size.Y)
+		box = plane.NewAABB(geom.NewVec(box.TopLeft.X+(lx*rise),
+			box.TopLeft.Y+(ly*rise)), box.Size.X, box.Size.Y)
 	}
 	a.Sway = 0 // leant here: the Look under takes the sprite as it stands
 	l.Look.Sprite(f, cam, box, z, atlas, a, lit)

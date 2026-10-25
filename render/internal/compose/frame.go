@@ -99,7 +99,7 @@ func (f *Frame) Lit(x, y, z float32, take Taking) light.Illumination {
 // Cast has what stands in box from alt up height cast its live shadow as s says, in the shape of
 // atlas's sprite for a Silhouette, laid on the ground once the frame's sources have composed;
 // nothing without the composer's lights, nor for what is Baked or casts none.
-func (f *Frame) Cast(box geom.AABB, alt, height float64, s light.Shadowing, atlas AtlasSource,
+func (f *Frame) Cast(box geom.AABB, alt, height float32, s light.Shadowing, atlas AtlasSource,
 	sprite SpriteID) {
 	if f.lighting == nil || s.Cast == light.Baked || s.Cast == light.NoShadow {
 		return

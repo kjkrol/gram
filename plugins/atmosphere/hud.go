@@ -51,7 +51,7 @@ func panel(e *ui.Element) *ui.Element { return e.Fill(panelFill).Padding(panelPa
 func (p *Plugin) hour() *ui.Element { return ui.LabelOf(&hourWords{p: p}).Steady() }
 
 func (p *Plugin) date() *ui.Element {
-	line := float64(render.DefaultFont().LineHeight())
+	line := render.DefaultFont().LineHeight()
 	moon := &moonIcon{moon: func() float32 { return p.drawn().moon }}
 	// the disc at the right end of its box, 6 pixels off the words
 	icon := ui.Image(moon).Size(line+6, line)

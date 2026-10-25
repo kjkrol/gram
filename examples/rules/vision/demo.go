@@ -130,11 +130,11 @@ func (a *arena) spawnUnits() {
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, RectSize)
 
 	const total = PreyCount + 1
-	roam := func(i int, speed float64) body {
-		angle := rand.Float64() * 2 * math.Pi
+	roam := func(i int, speed float32) body {
+		sin, cos := math.Sincos(rand.Float64() * 2 * math.Pi)
 		return body{
 			pos: placement.Place(i, total),
-			vel: world.Velocity{Dir: geom.NewVec(math.Cos(angle), math.Sin(angle)), Value: speed},
+			vel: world.Velocity{Dir: geom.NewVec(float32(cos), float32(sin)), Value: speed},
 		}
 	}
 

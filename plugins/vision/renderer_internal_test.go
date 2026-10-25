@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -57,7 +58,7 @@ func testRenderer(t *testing.T, w, h uint32, toroidal bool, view camera.AABB) *R
 }
 
 func wholeWorld(w, h uint32) camera.AABB {
-	return camera.AABB{TopLeft: geom.NewVec(0, 0), BottomRight: geom.NewVec(float64(w), float64(h))}
+	return camera.AABB{TopLeft: geom.NewVec(0, 0), BottomRight: geom.NewVec(float32(w), float32(h))}
 }
 
 func TestRenderer_FanRebuildsTheAnglesFromTheIndex(t *testing.T) {
@@ -75,12 +76,12 @@ func TestRenderer_FanRebuildsTheAnglesFromTheIndex(t *testing.T) {
 		t.Errorf("fan starts at (%v,%v), want the observer's centre (505,505)", pts[0].X, pts[0].Y)
 	}
 
-	for i, want := range []struct{ angle, dist float64 }{
+	for i, want := range []struct{ angle, dist float32 }{
 		{-math.Pi / 4, 100}, {0, 200}, {math.Pi / 4, 300},
 	} {
-		wx := 505 + want.dist*math.Cos(want.angle)
-		wy := 505 + want.dist*math.Sin(want.angle)
-		if math.Abs(float64(pts[i+1].X)-wx) > 1e-3 || math.Abs(float64(pts[i+1].Y)-wy) > 1e-3 {
+		wx := 505 + want.dist*f32.Cos(want.angle)
+		wy := 505 + want.dist*f32.Sin(want.angle)
+		if f32.Abs(float32(pts[i+1].X)-wx) > 1e-3 || f32.Abs(float32(pts[i+1].Y)-wy) > 1e-3 {
 			t.Errorf("sample %d at (%v,%v), want (%.3f,%.3f)", i, pts[i+1].X, pts[i+1].Y, wx, wy)
 		}
 	}
@@ -243,7 +244,7 @@ func composeWith(r *Renderer) *render.Frame {
 	return &f
 }
 
-func drawAt(t *testing.T, r *Renderer, x, y float64, radius float64) [][]ConePoint {
+func drawAt(t *testing.T, r *Renderer, x, y float32, radius float32) [][]ConePoint {
 	t.Helper()
 	fans := recordFans(r)
 
@@ -278,7 +279,7 @@ func drawAt(t *testing.T, r *Renderer, x, y float64, radius float64) [][]ConePoi
 func TestRenderer_NoFanEdgeSpansTheScreen(t *testing.T) {
 	const radius = 200.0
 
-	for name, x := range map[string]float64{"on the seam": 995, "well inside": 500} {
+	for name, x := range map[string]float32{"on the seam": 995, "well inside": 500} {
 		t.Run(name, func(t *testing.T) {
 			r := testRenderer(t, 1000, 1000, true, wholeWorld(1000, 1000))
 			limit := float32(2*radius) * r.camera.Zoom()
@@ -287,7 +288,7 @@ func TestRenderer_NoFanEdgeSpansTheScreen(t *testing.T) {
 				for i := 1; i < len(fan); i++ {
 					dx := fan[i].X - fan[i-1].X
 					dy := fan[i].Y - fan[i-1].Y
-					if d := math.Hypot(float64(dx), float64(dy)); d > float64(limit)+1e-3 {
+					if d := f32.Hypot(float32(dx), float32(dy)); d > float32(limit)+1e-3 {
 						t.Fatalf("fan %d edge %d is %.1f long, over the %.1f a cone can span — the shape was torn at the seam", f, i, d, limit)
 					}
 				}
@@ -301,7 +302,7 @@ func TestRenderer_DrawsOneCopyPerWorldImage(t *testing.T) {
 
 	cases := map[string]struct {
 		toroidal bool
-		x, y     float64
+		x, y     float32
 		want     int
 	}{
 		"middle of a toroidal world": {true, 500, 500, 1},
@@ -313,7 +314,7 @@ func TestRenderer_DrawsOneCopyPerWorldImage(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			r := testRenderer(t, 1000, 1000, tc.toroidal, wholeWorld(1000, 1000))
-			if got := len(drawAt(t, r, float64(tc.x), float64(tc.y), radius)); got != tc.want {
+			if got := len(drawAt(t, r, float32(tc.x), float32(tc.y), radius)); got != tc.want {
 				t.Errorf("drew %d copies, want %d", got, tc.want)
 			}
 		})
@@ -329,10 +330,10 @@ func TestRenderer_WrappedCopyIsTheOriginalShifted(t *testing.T) {
 
 	shift := float32(1000) * r.camera.Zoom()
 	for i := range fans[0] {
-		if dx := fans[0][i].X - fans[1][i].X; math.Abs(float64(dx-shift)) > 1e-3 {
+		if dx := fans[0][i].X - fans[1][i].X; f32.Abs(float32(dx-shift)) > 1e-3 {
 			t.Fatalf("point %d differs by %.3f across, want exactly one world (%.3f)", i, dx, shift)
 		}
-		if dy := fans[0][i].Y - fans[1][i].Y; math.Abs(float64(dy)) > 1e-3 {
+		if dy := fans[0][i].Y - fans[1][i].Y; f32.Abs(float32(dy)) > 1e-3 {
 			t.Fatalf("point %d differs by %.3f down, want none", i, dy)
 		}
 	}
@@ -340,8 +341,8 @@ func TestRenderer_WrappedCopyIsTheOriginalShifted(t *testing.T) {
 
 type slope struct{}
 
-func (slope) At(p geom.Vec) float64 { return p.X / 10 }
-func (slope) Step() float64         { return 10 }
+func (slope) At(p geom.Vec) float32 { return p.X / 10 }
+func (slope) Step() float32         { return 10 }
 
 func isoRenderer(t *testing.T) *Renderer {
 	t.Helper()
@@ -369,12 +370,12 @@ func TestRenderer_DrapesTheRingOverTheGroundInItsSteps(t *testing.T) {
 	if z := ring[0].At.Z(); z != 7+sightLift {
 		t.Errorf("the apex lies at %v, want just over the observer's altitude", z)
 	}
-	a := -0.2
-	x := 100 + 20*float32(math.Cos(a))
+	a := float32(-0.2)
+	x := 100 + 20*f32.Cos(a)
 	if z := ring[2].At.Z(); z != x/10+sightLift {
 		t.Errorf("the edge point 20 out lies at %v, want just over the ground there, %v", z, x/10)
 	}
-	from := func(p ConePoint) float64 { return math.Hypot(float64(p.X-ring[0].X), float64(p.Y-ring[0].Y)) }
+	from := func(p ConePoint) float32 { return f32.Hypot(float32(p.X-ring[0].X), float32(p.Y-ring[0].Y)) }
 	if from(ring[8]) <= from(ring[9]) {
 		t.Errorf("the far edge runs outwards (%v then %v from the apex), want it back towards the observer", from(ring[8]), from(ring[9]))
 	}
@@ -488,7 +489,7 @@ func TestRenderer_DrawsEachKindsConeInItsOwnColour(t *testing.T) {
 			f.Create(2)
 			for f.Next() {
 				for i := range f.Cursor.IDs {
-					at := geom.NewVec(100+300*float64(i), 100)
+					at := geom.NewVec(100+300*float32(i), 100)
 					base.Slice(&f.Cursor)[i].Pos = world.Position{AABB: plane.NewAABB(at, 10, 10)}
 					sight.Slice(&f.Cursor)[i] = Sight{Facing: geom.NewVec(1.0, 0.0), Radius: 100}
 					eye.Slice(&f.Cursor)[i] = world.Eye{Angle: 1}
@@ -526,15 +527,15 @@ func TestRenderer_DrapesTheRingTheVerticalFieldCoversOnTheGround(t *testing.T) {
 	if len(pts) != 6 {
 		t.Fatalf("%d points, want a ring of the three angles' near and far ends", len(pts))
 	}
-	zoom := float64(r.camera.Zoom())
-	dist := func(p ConePoint) float64 {
-		return math.Hypot(float64(p.X)-500*zoom, float64(p.Y)-500*zoom) / zoom
+	zoom := float32(r.camera.Zoom())
+	dist := func(p ConePoint) float32 {
+		return f32.Hypot(float32(p.X)-500*zoom, float32(p.Y)-500*zoom) / zoom
 	}
-	near, far := 10/math.Tan(math.Pi/3), 10/math.Tan(math.Pi/6)
-	if d := dist(pts[1]); math.Abs(d-near) > 0.1 {
+	near, far := 10/f32.Tan(math.Pi/3), 10/f32.Tan(math.Pi/6)
+	if d := dist(pts[1]); f32.Abs(d-near) > 0.1 {
 		t.Errorf("the ring begins %v out, want %v where the field meets the ground", d, near)
 	}
-	if d := dist(pts[4]); math.Abs(d-far) > 0.1 {
+	if d := dist(pts[4]); f32.Abs(d-far) > 0.1 {
 		t.Errorf("the ring ends %v out, want %v where the field leaves the ground", d, far)
 	}
 	eye.Tilt = math.Pi / 4

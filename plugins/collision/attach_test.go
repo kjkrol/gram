@@ -25,12 +25,12 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 	m := motion.NewPlugin(w)
 	c := collision.NewPlugin(w, m).WithStats(&stats)
 
-	kind.Define[float64](w.Kinds(), "town", kind.Spec{
-		comp.Load(func(x float64) world.Position { return posAt(x, 100, 10, 10) }),
+	kind.Define[float32](w.Kinds(), "town", kind.Spec{
+		comp.Load(func(x float32) world.Position { return posAt(x, 100, 10, 10) }),
 		comp.Const(world.Velocity{}),
 		comp.Const(collision.Collider{}),
 	})
-	town := kind.Named[float64](w.Kinds(), "town")
+	town := kind.Named[float32](w.Kinds(), "town")
 	w.Write().Seed(town.Entry(100), town.Entry(105))
 	if err := w.Populate(); err != nil {
 		t.Fatalf("Populate: %v", err)

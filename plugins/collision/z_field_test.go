@@ -1,7 +1,6 @@
 package collision_test
 
 import (
-	"math"
 	"testing"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/motion"
@@ -28,15 +28,15 @@ func (f *wallField) Solid(_ world.Layers, band collision.Band, box geom.AABB, vi
 	visit(collision.FieldBox{Box: f.box, Cell: 1, Open: collide.Left | collide.Right | collide.Top | collide.Bottom})
 }
 
-func (f *wallField) Overhang(world.Layers, geom.AABB) float64 { return 0 }
+func (f *wallField) Overhang(world.Layers, geom.AABB) float32 { return 0 }
 
 func (f *wallField) Walls(world.Layers, collision.Band, geom.AABB,
 	func(collide.FieldWall) bool) {
 }
 
 func TestZ_TheGroundStopsOnlyWhatStandsInItsBand(t *testing.T) {
-	wall := func(top float64) *wallField {
-		return &wallField{box: geom.NewAABBAt(geom.NewVec(200, 0), 32, 1000), band: collision.Band{Bottom: math.Inf(-1), Top: top}}
+	wall := func(top float32) *wallField {
+		return &wallField{box: geom.NewAABBAt(geom.NewVec(200, 0), 32, 1000), band: collision.Band{Bottom: f32.Inf(-1), Top: top}}
 	}
 	cases := map[string]struct {
 		field *wallField
@@ -77,13 +77,13 @@ func TestZ_TheGroundStopsOnlyWhatStandsInItsBand(t *testing.T) {
 			for range 30 {
 				ecs.Tick(time.Second / 60)
 			}
-			var right float64
+			var right float32
 			for q.All(); q.Next(); {
 				for _, b := range base.Slice(q.Cursor()) {
 					right = b.Pos.BottomRight.X
 				}
 			}
-			if held := right <= 200+1e-9; held != tc.held {
+			if held := right <= 200+f32.Eps(200); held != tc.held {
 				t.Errorf("the runner's right edge ended at %v: held at the wall = %v, want %v", right, held, tc.held)
 			}
 		})
@@ -107,8 +107,8 @@ func TestZ_AFlatWorldIgnoresIt(t *testing.T) {
 		f.Create(2)
 		for f.Next() {
 			for i := range f.IDs {
-				base.Slice(&f.Cursor)[i] = world.Base{Pos: posAt(100+4*float64(i), 500, 10, 10)}
-				zs.Slice(&f.Cursor)[i] = world.Z{Altitude: 40 * float64(i), Height: 10}
+				base.Slice(&f.Cursor)[i] = world.Base{Pos: posAt(100+4*float32(i), 500, 10, 10)}
+				zs.Slice(&f.Cursor)[i] = world.Z{Altitude: 40 * float32(i), Height: 10}
 			}
 		}
 	}})

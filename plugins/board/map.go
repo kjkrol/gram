@@ -19,7 +19,7 @@ type Map interface {
 	Dressing() look.Dressing
 	// Top is the height of c's corners as drawn (top-left, top-right, bottom-left, bottom-right)
 	// with height, its kind's, standing on them, and of its ground; zero on a flat map.
-	Top(c cell.ID, height float64) (corners [4]float32, level float32)
+	Top(c cell.ID, height float32) (corners [4]float32, level float32)
 	// Climb is how many times as long the step from one cell to its neighbour takes whoever moves
 	// in d as it would on the flat; 1 on a flat map.
 	Climb(from, to cell.ID, d cell.Domain) float64
@@ -72,7 +72,7 @@ func newSimpleMap(b drawnBoard) *simpleMap {
 func (m *simpleMap) Look() look.Look                                        { return m.look }
 func (*simpleMap) Heights() ground.Heights                                  { return nil }
 func (m *simpleMap) Dressing() look.Dressing                                { return m.dressing }
-func (*simpleMap) Top(cell.ID, float64) (corners [4]float32, level float32) { return corners, 0 }
+func (*simpleMap) Top(cell.ID, float32) (corners [4]float32, level float32) { return corners, 0 }
 func (*simpleMap) Climb(cell.ID, cell.ID, cell.Domain) float64              { return 1 }
 func (*simpleMap) Least(cell.Domain) float64                                { return 1 }
 func (*simpleMap) Slope(geom.Vec, geom.Vec, cell.Domain) float64            { return 1 }

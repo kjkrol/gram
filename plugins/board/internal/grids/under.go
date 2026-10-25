@@ -2,11 +2,12 @@ package grids
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
 type outlined interface {
-	CellBounds() (w, h float64)
+	CellBounds() (w, h float32)
 	CellAt(pos geom.Vec) (cell.ID, bool)
 	CellOutline(c cell.ID, dst []geom.Vec) []geom.Vec
 }
@@ -38,7 +39,8 @@ func cellsUnder(g outlined, box geom.AABB, fn func(c cell.ID)) {
 }
 
 func polygonMeetsBox(poly []geom.Vec, box geom.AABB) bool {
-	const eps = 1e-9
+	eps := f32.Eps(max(f32.Abs(box.TopLeft.X), f32.Abs(box.TopLeft.Y),
+		f32.Abs(box.BottomRight.X), f32.Abs(box.BottomRight.Y)))
 	for _, p := range poly {
 		if p.X >= box.TopLeft.X-eps && p.X <= box.BottomRight.X+eps && p.Y >= box.TopLeft.Y-eps && p.Y <= box.BottomRight.Y+eps {
 			return true
@@ -66,7 +68,7 @@ func pointInConvex(poly []geom.Vec, p geom.Vec) bool {
 	sign := 0.0
 	for i := range poly {
 		a, b := poly[i], poly[(i+1)%len(poly)]
-		cross := (b.X-a.X)*(p.Y-a.Y) - (b.Y-a.Y)*(p.X-a.X)
+		cross := float64(b.X-a.X)*float64(p.Y-a.Y) - float64(b.Y-a.Y)*float64(p.X-a.X)
 		switch {
 		case cross == 0:
 		case sign == 0:
@@ -79,7 +81,9 @@ func pointInConvex(poly []geom.Vec, p geom.Vec) bool {
 }
 
 func segmentsCross(a, b, c, d geom.Vec) bool {
-	orient := func(p, q, r geom.Vec) float64 { return (q.X-p.X)*(r.Y-p.Y) - (q.Y-p.Y)*(r.X-p.X) }
+	orient := func(p, q, r geom.Vec) float64 {
+		return float64(q.X-p.X)*float64(r.Y-p.Y) - float64(q.Y-p.Y)*float64(r.X-p.X)
+	}
 	o1, o2 := orient(a, b, c), orient(a, b, d)
 	o3, o4 := orient(c, d, a), orient(c, d, b)
 	return o1*o2 < 0 && o3*o4 < 0

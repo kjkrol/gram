@@ -1,15 +1,15 @@
 package topdown_test
 
 import (
-	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
 	contract "github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/cameras/internal/topdown"
 )
 
-func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
+func near(a, b float32) bool { return f32.Abs(float32(a-b)) < 1e-3 }
 
 func sized(side uint32, w, h float32) contract.Camera {
 	cam := topdown.NewFromSpaceWithConfig(side, side, 0, contract.Config{})

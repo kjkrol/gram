@@ -1,8 +1,9 @@
 package steering
 
 import (
-	"math"
 	"testing"
+
+	"github.com/kjkrol/gram/internal/f32"
 )
 
 func helm(st Steering, co Course) Helm { return Helm{Steering: &st, Course: &co} }
@@ -97,7 +98,8 @@ func TestSteering_SprintsToItsSprintOnlyWhenUrged(t *testing.T) {
 }
 
 func TestDriven_SlopePartsTheSpeedOnlyWhenFlown(t *testing.T) {
-	if rise, run := (Driven{Flown: true, Climb: 0.6}).Slope(); math.Abs(rise-0.6) > 1e-12 || math.Abs(run-0.8) > 1e-12 {
+	if rise, run := (Driven{Flown: true, Climb: 0.6}).Slope(); f32.Abs(rise-0.6) > f32.Eps(1) ||
+		f32.Abs(run-0.8) > f32.Eps(1) {
 		t.Errorf("flown at a rise of 0.6: %v up, %v along; want 0.6 and 0.8", rise, run)
 	}
 	if rise, _ := (Driven{Flown: true, Climb: -1}).Slope(); rise != -steepest {

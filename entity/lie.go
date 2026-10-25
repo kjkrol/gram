@@ -6,10 +6,10 @@ import "github.com/kjkrol/aabbworld/geom"
 // Width across, its middle Ahead of its box's, with edges Edge high along its long sides while
 // Edged. Zero, it lies over its box.
 type Lie struct {
-	Length, Width float64
-	Ahead         float64
+	Length, Width float32
+	Ahead         float32
 	Edged         bool
-	Edge          float64
+	Edge          float32
 }
 
 // Corners are the corners of the rectangle the entity lies over, its box's middle at middle and

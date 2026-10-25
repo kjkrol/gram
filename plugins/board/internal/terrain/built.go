@@ -3,7 +3,6 @@ package terrain
 import (
 	"cmp"
 	"fmt"
-	"math"
 	"slices"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/uid"
 )
@@ -176,7 +176,7 @@ func (s *builtSystem) lay(floors []cell.Floor, rails []cell.Rail, bases []entity
 			continue
 		}
 		step := s.cells.grid.Step(d)
-		l := math.Hypot(step.X, step.Y)
+		l := f32.Hypot(step.X, step.Y)
 		lie := entity.Lie{Length: l, Width: f.Width}
 		switch {
 		case !through: // a head: from the middle into the bridge
@@ -203,18 +203,18 @@ func (s *builtSystem) refuse(id uid.UID64, f cell.Floor) {
 	}
 }
 
-func (s *builtSystem) widest(links cell.Links) float64 {
+func (s *builtSystem) widest(links cell.Links) float32 {
 	g := s.cells.grid
-	most := math.Inf(1)
+	most := f32.Inf(1)
 	for i := range g.Directions() {
 		if !links.Has(i) {
 			continue
 		}
 		if !g.Corner(i) {
-			return float64(g.CellSpan())
+			return g.CellSpan()
 		}
 		st := g.Step(i)
-		most = min(most, math.Hypot(st.X, st.Y))
+		most = min(most, f32.Hypot(st.X, st.Y))
 	}
 	return most
 }
@@ -276,7 +276,7 @@ func gather(sites []site) []site {
 	return out
 }
 
-func widest(a, b cell.Floor) float64 {
+func widest(a, b cell.Floor) float32 {
 	switch {
 	case b.Allows == 0:
 		return a.Width
@@ -289,7 +289,7 @@ func widest(a, b cell.Floor) float64 {
 }
 
 // a Height of 0 stands at every height
-func tallest(a, b cell.Wall) float64 {
+func tallest(a, b cell.Wall) float32 {
 	switch {
 	case a.Keeps == 0:
 		return b.Height

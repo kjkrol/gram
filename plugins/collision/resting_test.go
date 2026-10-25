@@ -1,7 +1,6 @@
 package collision_test
 
 import (
-	"math"
 	"testing"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/motion"
@@ -18,9 +18,9 @@ import (
 )
 
 type walkerRow struct {
-	x    float64
-	mass float64
-	vel  float64
+	x    float32
+	mass float32
+	vel  float32
 }
 
 // a walker runs east into a post of infinite mass, stops against it and stands there
@@ -57,7 +57,7 @@ func TestResting_APairPartedStillMeetsWhileItTouches(t *testing.T) {
 		comp.Load(func(r walkerRow) collision.Physics { return collision.Physics{Mass: r.mass} }),
 	})
 	thing := kind.Named[walkerRow](w.Kinds(), "thing")
-	w.Write().Seed(thing.Entry(walkerRow{x: 100, mass: 1, vel: 120}), thing.Entry(walkerRow{x: 116, mass: math.Inf(1)}))
+	w.Write().Seed(thing.Entry(walkerRow{x: 100, mass: 1, vel: 120}), thing.Entry(walkerRow{x: 116, mass: f32.Inf(1)}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestResting_APairRecordedThisTickIsNotRestedAgain(t *testing.T) {
 	thing := kind.Named[walkerRow](w.Kinds(), "thing")
 	w.Write().Seed(
 		thing.Entry(walkerRow{x: 100, mass: 1, vel: 120}),
-		thing.Entry(walkerRow{x: 116, mass: math.Inf(1)}),
+		thing.Entry(walkerRow{x: 116, mass: f32.Inf(1)}),
 	)
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
@@ -207,6 +207,65 @@ func TestResting_APairRecordedThisTickIsNotRestedAgain(t *testing.T) {
 			}
 			if contacts[0].Resting {
 				t.Errorf("%v's contact is at rest, want the push", cur.IDs[i])
+			}
+		}
+	}
+}
+
+type offMiddle struct{ x, y, side, vel, mass float32 }
+
+// a small box resting off the middle of a big one's face leaves it straight off that face
+func TestResting_TheNormalIsTheFaceTouched(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
+		Entities: world.EntitiesCfg{MaxCount: 2, MinSize: 6, MaxSize: 28},
+	})
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m)
+	kind.Define[offMiddle](w.Kinds(), "box", kind.Spec{
+		comp.Load(func(r offMiddle) world.Position { return posAt(r.x, r.y, r.side, r.side) }),
+		comp.Load(func(r offMiddle) world.Velocity {
+			return world.Velocity{Dir: geom.NewVec(1, 0), Value: r.vel}
+		}),
+		comp.Const(collision.Collider{}),
+		comp.Load(func(r offMiddle) collision.Physics { return collision.Physics{Mass: r.mass} }),
+	})
+	box := kind.Named[offMiddle](w.Kinds(), "box")
+	// the middles 21 across and 9 down: the line between them slants by 23°
+	w.Write().Seed(
+		box.Entry(offMiddle{x: 100, y: 100, side: 6, vel: 120, mass: 1}),
+		box.Entry(offMiddle{x: 110, y: 80, side: 28, mass: f32.Inf(1)}),
+	)
+	if err := w.Populate(); err != nil {
+		t.Fatal(err)
+	}
+	var base goke.Comp[world.Base]
+	var collider goke.Comp[collision.Collider]
+	var q *goke.Query
+	ecs := collisiontest.Start(t, w, m, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		q = si.NewQueryBuilder(&base, &collider).Build()
+	}})
+	for range 8 {
+		ecs.Tick(time.Second / 60)
+	}
+	for q.All(); q.Next(); {
+		bases := base.Slice(q.Cursor())
+		for i := range bases {
+			bases[i].Vel.Value = 0
+		}
+	}
+	ecs.Tick(time.Second / 60)
+	for q.All(); q.Next(); {
+		cur := q.Cursor()
+		for i, b := range base.Slice(cur) {
+			want := geom.NewVec(-1, 0)
+			if b.Pos.Size.X != 6 {
+				want = geom.NewVec(1, 0)
+			}
+			contacts := collider.Slice(cur)[i].Contacts()
+			if len(contacts) != 1 || !contacts[0].Resting || contacts[0].Normal != want {
+				t.Errorf("the box of side %v rests by %+v, want one contact at rest leaving by %v",
+					b.Pos.Size.X, contacts, want)
 			}
 		}
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -59,9 +60,9 @@ func (l *Flat) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z enti
 }
 
 // at is where a figure over box lies at height z, among what is drawn back to front
-func at(f *render.Frame, box plane.AABB, z float64) render.At {
-	return f.Lifted(float32(box.TopLeft.X+box.Size.X/2), float32(box.TopLeft.Y+box.Size.Y/2),
-		float32(z), FigureLift)
+func at(f *render.Frame, box plane.AABB, z float32) render.At {
+	return f.Lifted(box.TopLeft.X+box.Size.X/2, box.TopLeft.Y+box.Size.Y/2,
+		z, FigureLift)
 }
 
 // Lie lays the sprite as Sprite does, at its Altitude: under whatever stands higher.
@@ -87,7 +88,7 @@ func (l *Flat) Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geom.
 	if dir == (geom.Vec{}) {
 		dir = geom.NewVec(1, 0)
 	}
-	a.Angle = float32(math.Atan2(-dir.Y, dir.X) * 180 / math.Pi)
+	a.Angle = f32.Atan2(-dir.Y, dir.X) * 180 / math.Pi
 	m := geom.NewVec(box.TopLeft.X+box.Size.X/2+dir.X*lie.Ahead,
 		box.TopLeft.Y+box.Size.Y/2+dir.Y*lie.Ahead)
 	l.turned(f, cam, lies, around(m, lie.Length, lie.Width), atlas, a, light)
@@ -95,13 +96,13 @@ func (l *Flat) Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geom.
 		return
 	}
 	a.SpriteID = edge
-	for _, side := range [2]float64{-1, 1} {
+	for _, side := range [2]float32{-1, 1} {
 		at := geom.NewVec(m.X-dir.Y*side*lie.Width/2, m.Y+dir.X*side*lie.Width/2)
 		l.turned(f, cam, lies, around(at, lie.Length, lie.Width/10), atlas, a, light)
 	}
 }
 
-func around(m geom.Vec, w, h float64) plane.AABB {
+func around(m geom.Vec, w, h float32) plane.AABB {
 	return plane.NewAABB(geom.NewVec(m.X-w/2, m.Y-h/2), w, h)
 }
 
@@ -112,10 +113,10 @@ func (l *Flat) lay(f *render.Frame, cam camera.Camera, at render.At, box plane.A
 		return
 	}
 	id := a.SpriteID
-	sizeX, sizeY := float32(box.Size.X), float32(box.Size.Y)
+	sizeX, sizeY := box.Size.X, box.Size.Y
 	render.VisitWrapImages(box, l.worldW, l.worldH, func(img geom.AABB, dx, dy float32) bool {
-		x0, y0 := float32(img.TopLeft.X), float32(img.TopLeft.Y)
-		x1, y1 := float32(img.BottomRight.X), float32(img.BottomRight.Y)
+		x0, y0 := img.TopLeft.X, img.TopLeft.Y
+		x1, y1 := img.BottomRight.X, img.BottomRight.Y
 		u0, u1 := uvSpan(x1-x0, sizeX, dx)
 		v0, v1 := uvSpan(y1-y0, sizeY, dy)
 		if l.direct {
@@ -131,14 +132,14 @@ func (l *Flat) lay(f *render.Frame, cam camera.Camera, at render.At, box plane.A
 func (l *Flat) turned(f *render.Frame, cam camera.Camera, at render.At, box plane.AABB,
 	atlas render.AtlasSource, a render.Appearance, light render.Light) {
 	rad := a.Angle * math.Pi / 180
-	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
-	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
+	x0, y0 := box.TopLeft.X, box.TopLeft.Y
+	x1, y1 := box.BottomRight.X, box.BottomRight.Y
 	if l.direct {
 		l.sprites.Turned(atlas, a.SpriteID, x0, y0, x1, y1, rad, light)
 		return
 	}
 	sx0, sy0, sx1, sy1 := atlas.UV(a.SpriteID)
-	sin, cos := float32(math.Sin(float64(rad))), float32(math.Cos(float64(rad)))
+	sin, cos := f32.Sin(rad), f32.Cos(rad)
 	if !cam.Projection().Wraps() { // turned in the world, as the view may be
 		cx, cy := (x0+x1)/2, (y0+y1)/2
 		var dst render.Corners
@@ -162,7 +163,13 @@ func (l *Flat) turned(f *render.Frame, cam camera.Camera, at render.At, box plan
 }
 
 func (*Flat) Drawn(cam camera.Camera, box geom.AABB, z entity.Z) render.Corners {
-	return render.ProjectCorners(cam, float32(box.TopLeft.X), float32(box.TopLeft.Y), float32(box.BottomRight.X), float32(box.BottomRight.Y), float32(z.Altitude))
+	return render.ProjectCorners(cam,
+		box.TopLeft.X,
+		box.TopLeft.Y,
+		box.BottomRight.X,
+		box.BottomRight.Y,
+		z.Altitude,
+	)
 }
 
 // A piece a copy of the box a camera over a wrapping world shows; through any other its corners
@@ -170,8 +177,8 @@ func (*Flat) Drawn(cam camera.Camera, box geom.AABB, z entity.Z) render.Corners 
 func (l *Flat) Footprint(
 	cam camera.Camera, box geom.AABB, alt float32, dst []render.Corners,
 ) []render.Corners {
-	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
-	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
+	x0, y0 := box.TopLeft.X, box.TopLeft.Y
+	x1, y1 := box.BottomRight.X, box.BottomRight.Y
 	if !cam.Projection().Wraps() {
 		return append(dst, render.ProjectCorners(cam, x0, y0, x1, y1, alt))
 	}

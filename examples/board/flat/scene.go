@@ -76,7 +76,7 @@ func (m *mainScene) screen() *ui.Element {
 func beside(e *ui.Element, is func() bool) *ui.Element {
 	const pad, gap = 6, 8
 	w, _ := ui.DefaultTheme().Bold.Measure("PAUSED")
-	slot := float64(w) + 2*pad + gap
+	slot := w + 2*pad + gap
 	word := ui.HeadingOf(ui.While(is, "PAUSED")).Padding(pad).Fill(pausedColor)
 	return ui.Columns(ui.Fixed(slot, ui.Layers()), ui.Fit(e), ui.Fixed(slot, ui.MiddleRight(word)))
 }

@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 )
 
 // Mask is a shape an element is cut to inside its box: drawn and hit only within it.
@@ -25,8 +26,8 @@ func (ellipse) points(box geom.AABB) [][2]float32 {
 	cx, cy := box.TopLeft.X+w/2, box.TopLeft.Y+h/2
 	pts := make([][2]float32, circleSides)
 	for k := range pts {
-		s, c := math.Sincos(2 * math.Pi * float64(k) / circleSides)
-		pts[k] = [2]float32{float32(cx + c*w/2), float32(cy + s*h/2)}
+		s, c := f32.Sincos(2 * math.Pi * float32(k) / circleSides)
+		pts[k] = [2]float32{cx + c*w/2, cy + s*h/2}
 	}
 	return pts
 }
@@ -60,7 +61,7 @@ func (pg polygon) points(box geom.AABB) [][2]float32 {
 	at := pg.at(box)
 	pts := make([][2]float32, len(at))
 	for k, c := range at {
-		pts[k] = [2]float32{float32(c.X), float32(c.Y)}
+		pts[k] = [2]float32{c.X, c.Y}
 	}
 	return pts
 }
@@ -70,7 +71,7 @@ func (pg polygon) contains(box geom.AABB, p geom.Vec) bool {
 	if len(at) < 3 {
 		return false
 	}
-	sign := 0.0
+	sign := float32(0)
 	for k, a := range at {
 		b := at[(k+1)%len(at)]
 		cross := (b.X-a.X)*(p.Y-a.Y) - (b.Y-a.Y)*(p.X-a.X)
@@ -90,7 +91,7 @@ func outline(box geom.AABB, m Mask) [][2]float32 {
 	if m != nil {
 		return m.points(box)
 	}
-	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
-	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
+	x0, y0 := box.TopLeft.X, box.TopLeft.Y
+	x1, y1 := box.BottomRight.X, box.BottomRight.Y
 	return [][2]float32{{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}
 }

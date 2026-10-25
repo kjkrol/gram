@@ -218,17 +218,17 @@ func (p *Plugin) skyClouds() backdrop.Clouds {
 // ground, the sea's or the valleys', up to its peaks. Call it as the plugin is made;
 // WithWeathering does.
 func (p *Plugin) Over(brd *board.Plugin) *Plugin {
-	p.climate.Over(func() (low, peaks float64) { return reliefOf(brd.Read(0).Heights(), brd.Read(0).Board()) })
+	p.climate.Over(func() (low, peaks float32) { return reliefOf(brd.Read(0).Heights(), brd.Read(0).Board()) })
 	return p
 }
 
 // the low ground of b's cells under heights h, the tenth of them lowest, none under the sea's, and
 // their highest
-func reliefOf(h ground.Heights, b *board.BoardRead) (low, peaks float64) {
+func reliefOf(h ground.Heights, b *board.BoardRead) (low, peaks float32) {
 	if h == nil {
 		return 0, 0
 	}
-	all := make([]float64, 0, b.CellCount())
+	all := make([]float32, 0, b.CellCount())
 	b.EachCell(func(c cell.ID) { all = append(all, h.At(b.CellCenter(c))) })
 	if len(all) == 0 {
 		return 0, 0

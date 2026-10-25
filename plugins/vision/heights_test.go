@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-func z(altitude, height float64) *world.Z { return &world.Z{Altitude: altitude, Height: height} }
+func z(altitude, height float32) *world.Z { return &world.Z{Altitude: altitude, Height: height} }
 
-func eyed(eye float64) *look {
+func eyed(eye float32) *look {
 	return &look{Sight: vision.Sight{Facing: geom.NewVec(1.0, 0.0), Radius: 300}, Eye: world.Eye{Height: eye, Angle: math.Pi / 4}}
 }
 
@@ -34,13 +35,13 @@ func TestHeights_AWalkerIsStoppedByTheWallAHawkLooksOver(t *testing.T) {
 
 type plateau struct{}
 
-func (plateau) At(p geom.Vec) float64 {
+func (plateau) At(p geom.Vec) float32 {
 	if p.X >= 50 && p.X < 100 {
 		return 12
 	}
 	return 0
 }
-func (plateau) Step() float64 { return 10 }
+func (plateau) Step() float32 { return 10 }
 
 func TestHeights_AHillHidesTheLowlandFromAWalkerAndNotFromAHawk(t *testing.T) {
 	onHill := &relief{ground: plateau{}, step: 10}
@@ -155,19 +156,19 @@ func TestHeights_WhatLiesPastTheHorizonIsOutOfSight(t *testing.T) {
 // a ridge 4 wide, which a sample every 10 from an eye at x 5 passes over
 type ridge struct{}
 
-func (ridge) At(p geom.Vec) float64 {
-	if d := math.Abs(p.X - 150); d < 2 {
+func (ridge) At(p geom.Vec) float32 {
+	if d := f32.Abs(p.X - 150); d < 2 {
 		return 20 * (1 - d/2)
 	}
 	return 0
 }
-func (ridge) Step() float64 { return 10 }
+func (ridge) Step() float32 { return 10 }
 
 type profiled struct{ ridge }
 
-func (r profiled) Along(origin, dir geom.Vec, length float64, visit func(d, alt float64) bool) {
+func (r profiled) Along(origin, dir geom.Vec, length float32, visit func(d, alt float32) bool) {
 	if dir.X > 0 {
-		for _, x := range []float64{148, 150, 152} {
+		for _, x := range []float32{148, 150, 152} {
 			d := (x - origin.X) / dir.X
 			if d > 0 && d < length && !visit(d, r.At(geom.NewVec(x, origin.Y+dir.Y*d))) {
 				return
@@ -194,12 +195,12 @@ func TestHeights_AGroundIsReadAlongItsProfile(t *testing.T) {
 func TestHeights_TheVerticalFieldLimitsWhatIsSeenUpAndDown(t *testing.T) {
 	level := spawn{x: 100, y: 0, z: z(0, 2)}
 	high := spawn{x: 200, y: 0, z: z(150, 2)} // 37° up from the eye
-	narrow := func(tilt float64) *look {
+	narrow := func(tilt float32) *look {
 		l := eyed(1.5)
 		l.Eye.Vertical, l.Eye.Tilt = math.Pi/3, tilt
 		return l
 	}
-	eye := func(tilt float64) spawn { return spawn{x: 0, y: 0, z: z(0, 2), sight: narrow(tilt)} }
+	eye := func(tilt float32) spawn { return spawn{x: 0, y: 0, z: z(0, 2), sight: narrow(tilt)} }
 	_, seen, _ := sceneIn(t, &relief{}, eye(0), level, high)
 	if seen[0].Count != 1 || seen[0].Dists[0] > 150 {
 		t.Errorf("looking level, the eye saw %d at %v, want the walker at its level alone",

@@ -20,11 +20,11 @@ func (ramp) Look() look.Look           { return look.Flat }
 func (r ramp) Heights() ground.Heights { return rise{} }
 func (ramp) Dressing() look.Dressing   { return nil }
 
-func (r ramp) Top(c cell.ID, height float64) (corners [4]float32, level float32) {
+func (r ramp) Top(c cell.ID, height float32) (corners [4]float32, level float32) {
 	at := r.g.CellCenter(c)
 	w, _ := r.g.CellBounds()
-	west, east := float32((at.X-w/2)/10+height), float32((at.X+w/2)/10+height)
-	return [4]float32{west, east, west, east}, float32(at.X / 10)
+	west, east := (at.X-w/2)/10+height, (at.X+w/2)/10+height
+	return [4]float32{west, east, west, east}, at.X / 10
 }
 
 func (r ramp) Climb(from, to cell.ID, _ cell.Domain) float64 {
@@ -45,8 +45,8 @@ func (ramp) Slope(_, dir geom.Vec, _ cell.Domain) float64 {
 
 type rise struct{}
 
-func (rise) At(p geom.Vec) float64 { return p.X / 10 }
-func (rise) Step() float64         { return 32 }
+func (rise) At(p geom.Vec) float32 { return p.X / 10 }
+func (rise) Step() float32         { return 32 }
 
 // A game gives the board a map of its own: how it looks, how high its ground lies and what a
 // step costs beyond its kind's.

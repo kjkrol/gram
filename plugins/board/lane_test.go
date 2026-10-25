@@ -1,7 +1,6 @@
 package board_test
 
 import (
-	"math"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -19,13 +19,13 @@ import (
 
 // a band 8 wide along the middle row of cells 10 wide, its railings 10/32 thick on either side
 func TestBoard_ALaneIsTheBandLessItsRailingsOnItsOwnLevel(t *testing.T) {
-	inf := math.Inf(1)
-	railed := 8 - 2*10.0/32
+	inf := f32.Inf(1)
+	railed := float32(8 - 2*10.0/32)
 	for _, tc := range []struct {
 		name         string
-		height       float64
+		height       float32
 		keeps        cell.Domain
-		ground, deck float64
+		ground, deck float32
 	}{
 		{name: "on the ground", height: 0, keeps: cell.Land, ground: railed, deck: inf},
 		{name: "raised", height: 10, keeps: cell.Land, ground: inf, deck: railed},
@@ -84,7 +84,7 @@ func TestBoard_UnitsOnABoardWithoutMotionPanic(t *testing.T) {
 	board.NewUnits(p, board.Shape{Size: 10}, func(v geom.Vec) geom.Vec { return v })
 }
 
-func banded(t *testing.T, g grid.Grid, height float64, keeps cell.Domain) *board.BoardRead {
+func banded(t *testing.T, g grid.Grid, height float32, keeps cell.Domain) *board.BoardRead {
 	t.Helper()
 	wd := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 50, Height: 30},

@@ -1,10 +1,9 @@
 package pathfind
 
 import (
-	"math"
-
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/astar"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/uid"
@@ -69,7 +68,7 @@ type built interface {
 
 // lanes says how wide a body may be across a step along a deck's band, +Inf where none narrows it
 type lanes interface {
-	Lane(from, to cell.ID, d cell.Domain, deck bool) float64
+	Lane(from, to cell.ID, d cell.Domain, deck bool) float32
 }
 
 // Levels are a board's raised floors, which give a cell two levels: its deck and the ground under
@@ -77,11 +76,11 @@ type lanes interface {
 type Levels interface {
 	// Deck is c's raised floor: the height of its deck, of its underside, whom it carries; false
 	// for a cell of one level.
-	Deck(c cell.ID) (top, under float64, carries cell.Domain, ok bool)
+	Deck(c cell.ID) (top, under float32, carries cell.Domain, ok bool)
 	// Ground is the ground's height at p.
-	Ground(p geom.Vec) float64
+	Ground(p geom.Vec) float32
 	// Over is the underside of the lowest raised deck over p; false where none is.
-	Over(p geom.Vec) (under float64, ok bool)
+	Over(p geom.Vec) (under float32, ok bool)
 	// KindAt is c's kind on its deck or under it.
 	KindAt(c cell.ID, deck bool) cell.Kind
 }
@@ -89,7 +88,7 @@ type Levels interface {
 // Body is whoever a route is planned for: where its feet are, how high it steps up, how tall it is
 // and its box on the ground, across and down. A zero Size fits any lane.
 type Body struct {
-	Feet, Step, Height float64
+	Feet, Step, Height float32
 	Size               geom.Vec
 }
 
@@ -402,7 +401,7 @@ func (p *Finder) fits(from, n cell.ID, deck bool, body Body) bool {
 		return true
 	}
 	lane := p.lanes.Lane(from, n, p.domain, deck)
-	if math.IsInf(lane, 1) {
+	if f32.IsInf(lane, 1) {
 		return true
 	}
 	way, ok := grid.Way(p.grid, from, n)
@@ -410,7 +409,7 @@ func (p *Finder) fits(from, n cell.ID, deck bool, body Body) bool {
 		return true
 	}
 	s := p.grid.Step(way)
-	across := (body.Size.X*math.Abs(s.Y) + body.Size.Y*math.Abs(s.X)) / math.Hypot(s.X, s.Y)
+	across := (body.Size.X*f32.Abs(s.Y) + body.Size.Y*f32.Abs(s.X)) / f32.Hypot(s.X, s.Y)
 	return across <= lane
 }
 
@@ -484,7 +483,7 @@ func (p *Finder) passes(from node, rf, rn *read, level uint8, body Body, c corne
 	if from.level != deck && level != deck {
 		return true
 	}
-	var at float64
+	var at float32
 	if from.level == deck {
 		at, _, _, _ = p.deckOf(rf)
 	} else {
@@ -492,9 +491,9 @@ func (p *Finder) passes(from node, rf, rn *read, level uint8, body Body, c corne
 	}
 	if level == deck {
 		top, _, _, _ := p.deckOf(rn)
-		return math.Abs(top-at) <= body.Step+reachSlack
+		return f32.Abs(top-at) <= body.Step+reachSlack
 	}
-	return math.Abs(p.levels.Ground(p.edge(from.c, rn.c))-at) <= body.Step+reachSlack
+	return f32.Abs(p.levels.Ground(p.edge(from.c, rn.c))-at) <= body.Step+reachSlack
 }
 
 // the ground is read along the part of the step walked on it: before the edge it steps onto a
@@ -505,7 +504,7 @@ func (p *Finder) underway(from node, rf, rn *read, level uint8, body Body, c cor
 	}
 	a, b := p.grid.CellCenter(from.c), p.grid.CellCenter(rn.c)
 	for k := 1; k <= underSteps; k++ {
-		t := float64(k) / underSteps
+		t := float32(k) / underSteps
 		if from.level == deck && t <= 0.5 || level == deck && t >= 0.5 {
 			continue
 		}

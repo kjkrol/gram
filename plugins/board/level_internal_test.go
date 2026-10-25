@@ -29,7 +29,7 @@ type recruit struct {
 	Ignored cell.ID
 }
 
-func newLevelBoard(t *testing.T, g grid.Grid, metres float64) *Plugin {
+func newLevelBoard(t *testing.T, g grid.Grid, metres float32) *Plugin {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 400, Height: 400},

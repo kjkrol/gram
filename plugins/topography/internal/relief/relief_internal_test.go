@@ -3,10 +3,10 @@ package relief
 import (
 	"bytes"
 	"encoding/gob"
-	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -22,7 +22,7 @@ func onBoard(g grid.Grid) *Relief {
 }
 
 func raiseHills(r *Relief, grid grid.Grid, hills ...cell.ID) {
-	r.SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
+	r.SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float32 {
 		for _, h := range hills {
 			if h == c {
 				return 12
@@ -44,7 +44,7 @@ func TestRelief_GroundAtReadsTheReliefAndFollowsIt(t *testing.T) {
 			raiseHills(r, grid, c)
 
 			// a lone hill on a square grid is smoothed to its corners' mean; a hex cell stays level
-			want := 12.0
+			want := float32(12)
 			if name == "square" {
 				want = 3
 			}
@@ -98,8 +98,8 @@ func TestRelief_GroundSlopesBetweenCellsOnASquareGrid(t *testing.T) {
 	if got := r.Altitude(corner); got != 6.75 {
 		t.Errorf("the plateau's corner cell's level is %v, want 6.75, the mean of its corners", got)
 	}
-	last := -1.0
-	for x := 40.0; x <= 112; x += 8 { // walking east along row 3 up onto the plateau
+	last := float32(-1)
+	for x := float32(40); x <= 112; x += 8 { // walking east along row 3 up onto the plateau
 		if got := r.GroundAt(geom.NewVec(x, 112)); got < last {
 			t.Errorf("the ground drops from %v to %v at x %v on the way up the slope", last, got, x)
 		} else {
@@ -173,13 +173,13 @@ func TestRelief_TheGroundIsTheGroundDrawn(t *testing.T) {
 	c := grid.At(0, 0)
 	// corners 0, 20, 24 and 2: the 0 and the 2 stand nearer, so the top is split along 0–3
 	r.SetCorners(c, Corners{0, 20, 24, 2})
-	for _, p := range []struct{ x, y, want float64 }{
+	for _, p := range []struct{ x, y, want float32 }{
 		{16, 16, 1},    // the middle, on the diagonal of the 0 and the 2
 		{24, 8, 10.5},  // on the triangle with the 20
 		{8, 24, 12.5},  // on the triangle with the 24
 		{28, 4, 15.25}, // near the 20
 	} {
-		if got := r.GroundAt(geom.NewVec(p.x, p.y)); math.Abs(got-p.want) > 1e-9 {
+		if got := r.GroundAt(geom.NewVec(p.x, p.y)); f32.Abs(got-p.want) > f32.Eps(p.want) {
 			t.Errorf("the ground at (%v, %v) is %v, want %v on the triangles drawn", p.x, p.y, got, p.want)
 		}
 	}
@@ -188,7 +188,7 @@ func TestRelief_TheGroundIsTheGroundDrawn(t *testing.T) {
 	if got := r.GroundAt(geom.NewVec(16, 16)); got != 0 {
 		t.Errorf("the ground in the middle is %v, want 0 on the diagonal of the 0s", got)
 	}
-	if got := r.GroundAt(geom.NewVec(4, 4)); math.Abs(got-7.5) > 1e-9 {
+	if got := r.GroundAt(geom.NewVec(4, 4)); f32.Abs(got-7.5) > f32.Eps(7.5) {
 		t.Errorf("the ground near the 10 is %v, want 7.5", got)
 	}
 }

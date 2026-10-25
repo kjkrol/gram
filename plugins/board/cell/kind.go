@@ -18,14 +18,14 @@ type Kind struct {
 	// Solid makes the cell solid ground: collision pushes out whoever Allows keeps out.
 	Solid bool
 	// Veil dims sight without blocking movement, 0 clear to 1 cutting it.
-	Veil float64
+	Veil float32
 	// Veils is whom the Veil dims; zero veils everyone.
 	Veils Domain
 	// Height is how tall what stands on the cell is. A Solid or veiled kind of no Height stands at
 	// every height.
-	Height float64
+	Height float32
 	// Sway is how much what stands on the cell bends in the wind, 0 to 1.
-	Sway float64
+	Sway float32
 	// Graded ground is built into the slope, so the slope neither slows nor prices a step over it.
 	Graded bool
 	// Takes is which shade the cell takes and whether the lamps light it (render.Taking): zero

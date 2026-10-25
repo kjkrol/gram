@@ -18,7 +18,7 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-type mover struct{ x, y float64 }
+type mover struct{ x, y float32 }
 
 func benchWorld(b *testing.B, ctx *headless, n int) *goke.ECS {
 	return benchWorldViewed(b, ctx, n, 30, 0, nil)
@@ -48,7 +48,7 @@ func benchWorldViewed(b *testing.B, ctx *headless, n int, spacing int, view uint
 	}
 	entries := make([]kind.Entry, 0, n)
 	for i := range n {
-		entries = append(entries, movers.Entry(mover{float64(10 + (i%side)*spacing), float64(10 + (i/side)*spacing)}))
+		entries = append(entries, movers.Entry(mover{float32(10 + (i%side)*spacing), float32(10 + (i/side)*spacing)}))
 	}
 	w.Write().Seed(entries...)
 	ctx.cam = ctx.camera(cameras.Config{}, cameras.FromAbove, float32(view), float32(view))
@@ -95,7 +95,7 @@ func worldDrawn(b *testing.B, n, spacing int, view uint32, two bool) (*headless,
 		cams = append(cams, ctx.cam)
 		if two {
 			cam := ctx.camera(cameras.Config{}, cameras.FromAbove, float32(view), float32(view))
-			cam.MoveTo(float64(view), float64(view))
+			cam.MoveTo(float32(view), float32(view))
 			cams = append(cams, cam)
 		}
 	})
@@ -174,7 +174,7 @@ func Benchmark_World_PositionScan(b *testing.B) {
 				return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) { query = si.NewQueryBuilder(&base).Build() }}}
 			})
 			benchWorld(b, ctx, n)
-			var sink float64
+			var sink float32
 			b.ReportAllocs()
 			for b.Loop() {
 				query.All()

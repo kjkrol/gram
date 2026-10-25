@@ -27,7 +27,7 @@ type shotWorld struct {
 	ecs     *goke.ECS
 	w       *world.Plugin
 	ammo    bullet.Ammo
-	climb   float64
+	climb   float32
 	rng     *rand.Rand
 	query   *goke.Query
 	flights goke.Comp[bullet.Flight]
@@ -87,7 +87,7 @@ func benchBullets(b *testing.B, thrown bool, perTick int) *shotWorld {
 func (s *shotWorld) fire(n int) {
 	entries := make([]kind.Entry, 0, n)
 	for range n {
-		from := geom.NewVec(8, 8+s.rng.Float64()*(shotScene-16))
+		from := geom.NewVec(8, float32(8+s.rng.Float64()*(shotScene-16)))
 		entries = append(entries, s.ammo.Entry(bullet.Shot{
 			From: from, Dir: geom.NewVec(1, 0), Range: shotRange, Climb: s.climb,
 		}))

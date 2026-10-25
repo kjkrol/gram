@@ -1,10 +1,9 @@
 package terrain
 
 import (
-	"math"
-
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/world/view"
 )
 
@@ -33,8 +32,8 @@ type sectorSpans struct{ whole, coarse span }
 type cells struct{ x0, y0, x1, y1 int }
 
 // the cells whose middles lie in box, of a lattice of cols x rows corners a cell apart
-func cellsIn(box geom.AABB, cell float64, cols, rows int) cells {
-	at := func(v float64, n int) int { return min(max(int(math.Ceil(v/cell-0.5)), 0), n-1) }
+func cellsIn(box geom.AABB, cell float32, cols, rows int) cells {
+	at := func(v float32, n int) int { return min(max(int(f32.Ceil(v/cell-0.5)), 0), n-1) }
 	return cells{at(box.TopLeft.X, cols), at(box.TopLeft.Y, rows), at(box.BottomRight.X, cols),
 		at(box.BottomRight.Y, rows)}
 }
@@ -138,12 +137,12 @@ func (r *Renderer) lay(cols, rows int, cell float32, enc []byte) {
 		r.spans = append(r.spans[:0], make([]sectorSpans, n)...)
 		for i := range n {
 			from := len(r.tris)
-			r.tris = l.whole(cellsIn(r.grid.Box(i), float64(cell), cols, rows), r.tris)
+			r.tris = l.whole(cellsIn(r.grid.Box(i), cell, cols, rows), r.tris)
 			r.spans[i].whole = span{first: from, count: len(r.tris) - from}
 		}
 		for i := range n {
 			from := len(r.tris)
-			r.tris = l.coarse(cellsIn(r.grid.Box(i), float64(cell), cols, rows), r.tris)
+			r.tris = l.coarse(cellsIn(r.grid.Box(i), cell, cols, rows), r.tris)
 			r.spans[i].coarse = span{first: from, count: len(r.tris) - from}
 		}
 	}
@@ -206,11 +205,11 @@ func (r *Renderer) CareOf(cam camera.Camera) func(i int) int {
 		return full
 	}
 	x, y, _ := f.Focus()
-	middle := g.Of(float64(x), float64(y))
+	middle := g.Of(x, y)
 	eye := middle
 	if e, ok := cam.(camera.Eyed); ok {
 		if x, y, _, ok := e.Eye(); ok {
-			eye = g.Of(float64(x), float64(y))
+			eye = g.Of(x, y)
 		}
 	}
 	cols := g.Cols()

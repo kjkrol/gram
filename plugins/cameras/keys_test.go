@@ -1,13 +1,12 @@
 package cameras_test
 
 import (
-	"math"
 	"reflect"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
-
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/cameras"
 )
 
@@ -44,7 +43,7 @@ func TestKeys_SightKeysWithCtrlSeeFartherAndNearer(t *testing.T) {
 	if len(keys) != 2 {
 		t.Fatalf("%d bindings, want the two sight keys", len(keys))
 	}
-	for i, want := range []float64{cameras.SightStep, 1 / cameras.SightStep} {
+	for i, want := range []float32{cameras.SightStep, 1 / cameras.SightStep} {
 		press, isPress := keys[i].Trigger.(control.KeyPress)
 		cmd, ok := keys[i].Build(control.Context{})
 		s, isSight := cmd.(cameras.Sight)
@@ -78,7 +77,7 @@ func TestKeys_CornersTurnAsQAndEDoInsteadOfScrolling(t *testing.T) {
 	if len(keys) != 2 {
 		t.Fatalf("%d bindings, want the edge's scroll and its turn", len(keys))
 	}
-	built := func(x, y float64) (pans, turns []any) {
+	built := func(x, y float32) (pans, turns []any) {
 		ctx := control.Context{Screen: geom.NewVec(1000, 800), Cursor: geom.NewVec(x, y)}
 		for _, k := range keys {
 			if cmd, ok := k.Build(ctx); ok {
@@ -94,7 +93,7 @@ func TestKeys_CornersTurnAsQAndEDoInsteadOfScrolling(t *testing.T) {
 	}
 	for _, c := range []struct {
 		name string
-		x, y float64
+		x, y float32
 		want float32
 	}{
 		{"top-left", 15, 15, -cameras.CornerStep},
@@ -171,8 +170,8 @@ func TestKeys_AtAResolutionTheScrollAndTheLookAreTheSameOnTheScreen(t *testing.T
 func TestKeys_TheEdgeScrollsAQuarterAsFastAtTheZonesInnerBoundAsAtTheWindowsEdge(t *testing.T) {
 	keys := cameras.Keys{Edge: true}.Bindings()
 	ctx := control.Context{Screen: geom.NewVec(1000, 800)}
-	speeds := map[float64]float32{}
-	for _, x := range []float64{10, 35, 59} {
+	speeds := map[float32]float32{}
+	for _, x := range []float32{10, 35, 59} {
 		ctx.Cursor = geom.NewVec(x, 400)
 		cmd, ok := keys[0].Build(ctx)
 		pan, isPan := cmd.(cameras.Pan)
@@ -182,7 +181,7 @@ func TestKeys_TheEdgeScrollsAQuarterAsFastAtTheZonesInnerBoundAsAtTheWindowsEdge
 		speeds[x] = -pan.Dx
 	}
 	if speeds[10] != cameras.DefaultScrollSpeed || speeds[35] != cameras.DefaultScrollSpeed*0.625 ||
-		math.Abs(float64(speeds[59]-cameras.DefaultScrollSpeed*0.265)) > 1e-5 {
+		f32.Abs(float32(speeds[59]-cameras.DefaultScrollSpeed*0.265)) > 1e-5 {
 		t.Errorf("the speeds by the cursor's x are %v, want the whole at the edge, five eighths "+
 			"halfway in and a shade over a quarter at the inner bound", speeds)
 	}

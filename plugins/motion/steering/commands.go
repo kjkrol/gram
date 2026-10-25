@@ -1,12 +1,10 @@
 package steering
 
 import (
-	"math"
-
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/host"
-
-	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/uid"
 )
 
@@ -18,7 +16,7 @@ type (
 	// Toward heads the entity at To.
 	Toward struct{ To uid.UID64 }
 	// Turn heads the entity Angle radians off the way it goes, from +X towards +Y.
-	Turn struct{ Angle float64 }
+	Turn struct{ Angle float32 }
 )
 
 func (Away) Command()   {}
@@ -67,7 +65,7 @@ func (s *System) obey() {
 	})
 	s.told.turns.Drain(func(i command.Issued[Turn]) {
 		if i.ByEntity {
-			sin, cos := math.Sincos(i.Command.Angle)
+			sin, cos := f32.Sincos(i.Command.Angle)
 			s.head(i.Entity, func(_, dir geom.Vec) geom.Vec {
 				return geom.NewVec(dir.X*cos-dir.Y*sin, dir.X*sin+dir.Y*cos)
 			})

@@ -20,7 +20,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-type slider struct{ x, speed float64 }
+type slider struct{ x, speed float32 }
 
 func colliding(t *testing.T, elastic bool, ticks int, with func(*collision.Plugin)) (left, right uid.UID64) {
 	t.Helper()
@@ -44,7 +44,7 @@ func colliding(t *testing.T, elastic bool, ticks int, with func(*collision.Plugi
 	}
 	rows := []slider{{x: 100}, {x: 105}}
 	if elastic {
-		spec = append(spec, comp.Const(collision.Physics{Restitution: 1}))
+		spec = append(spec, comp.Const(collision.Physics{Mass: 1, Restitution: 1}))
 		rows = []slider{{x: 100, speed: 5}, {x: 105, speed: -5}}
 	}
 	kind.Define[slider](w.Kinds(), "slider", spec)

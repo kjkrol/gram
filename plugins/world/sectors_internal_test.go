@@ -94,7 +94,7 @@ var twoBands = []sector.Band{
 	{Reach: 1200, Pace: 4},
 }
 
-func (r *sectorRig) spawn(xs ...float64) {
+func (r *sectorRig) spawn(xs ...float32) {
 	for _, x := range xs {
 		r.p.write.Spawn(r.things.Entry(thing{x: x, y: 250, size: 10}))
 	}
@@ -104,16 +104,16 @@ func (r *sectorRig) spawn(xs ...float64) {
 func (r *sectorRig) run() { run(r.ecs, r.p.module, func(*goke.CmdBuf) {}) }
 
 // the entities by the band they carry, each by its x
-func (r *sectorRig) bands() (near, second, off []float64) {
-	xs := map[uid.UID64]float64{}
+func (r *sectorRig) bands() (near, second, off []float32) {
+	xs := map[uid.UID64]float32{}
 	for r.all.All(); r.all.Next(); {
 		cur := r.all.Cursor()
 		for j, id := range cur.IDs {
 			xs[id] = r.base.Slice(cur)[j].Pos.TopLeft.X
 		}
 	}
-	of := func(q *goke.Query) []float64 {
-		var found []float64
+	of := func(q *goke.Query) []float32 {
+		var found []float32
 		for id := range living(q) {
 			found = append(found, xs[id])
 		}
@@ -122,7 +122,7 @@ func (r *sectorRig) bands() (near, second, off []float64) {
 	return of(r.near), of(r.second), of(r.off)
 }
 
-func (r *sectorRig) moveTo(x float64, to float64) {
+func (r *sectorRig) moveTo(x float32, to float32) {
 	for r.all.All(); r.all.Next(); {
 		cur := r.all.Cursor()
 		bases := r.base.Slice(cur)
@@ -134,7 +134,7 @@ func (r *sectorRig) moveTo(x float64, to float64) {
 	}
 }
 
-func same(got []float64, want ...float64) bool {
+func same(got []float32, want ...float32) bool {
 	if len(got) != len(want) {
 		return false
 	}
@@ -285,9 +285,9 @@ func TestSectors_RefuseBandsOutOfOrder(t *testing.T) {
 }
 
 // the entities going this step by policy, each by its x with the step it is given
-func (r *sectorRig) going(policy sector.Policy) map[float64]time.Duration {
+func (r *sectorRig) going(policy sector.Policy) map[float32]time.Duration {
 	pq := &r.paced[policy]
-	got := map[float64]time.Duration{}
+	got := map[float32]time.Duration{}
 	for pq.q.Paced(10 * time.Millisecond); pq.q.Next(); {
 		for _, b := range pq.base.Slice(pq.q.Cursor()) {
 			got[b.Pos.TopLeft.X] = pq.q.Dt()
@@ -303,11 +303,11 @@ func TestPace_GoesInTheBandsAsItsPolicySays(t *testing.T) {
 	const d = 10 * time.Millisecond
 	for range 4 {
 		r.run()
-		paced := map[float64]time.Duration{100: d}
+		paced := map[float32]time.Duration{100: d}
 		if r.p.read.Clock().Steps()%4 == 3 {
 			paced[1200] = 4 * d
 		}
-		for policy, want := range map[sector.Policy]map[float64]time.Duration{
+		for policy, want := range map[sector.Policy]map[float32]time.Duration{
 			sector.Everywhere: {100: d, 1200: d},
 			sector.Paced:      paced,
 			sector.Near:       {100: d},
@@ -324,13 +324,13 @@ func TestPace_LetsEveryBlockGoWithoutBands(t *testing.T) {
 	r := sectorWorld(t)
 	r.spawn(100, 2000)
 	r.run()
-	want := map[float64]time.Duration{100: 10 * time.Millisecond, 2000: 10 * time.Millisecond}
+	want := map[float32]time.Duration{100: 10 * time.Millisecond, 2000: 10 * time.Millisecond}
 	if got := r.going(sector.Near); !maps.Equal(got, want) {
 		t.Errorf("going %v, want every entity every step", got)
 	}
 }
 
-func (r *sectorRig) held(x float64) bool {
+func (r *sectorRig) held(x float32) bool {
 	found := false
 	box := geom.NewAABB(geom.NewVec(x, 250), geom.NewVec(x+10, 260))
 	r.p.read.Space().Query(box, aabbworld.AnyCapability, func(uid.UID64) { found = true })

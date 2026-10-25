@@ -24,7 +24,7 @@ var (
 )
 
 type tagged struct {
-	x              float64
+	x              float32
 	bullet, target bool
 	id             uid.UID64
 }

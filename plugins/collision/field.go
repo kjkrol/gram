@@ -13,7 +13,7 @@ import (
 type Field interface {
 	Solid(layers world.Layers, band Band, box geom.AABB, visit func(FieldBox) bool)
 	Walls(layers world.Layers, band Band, box geom.AABB, visit func(collide.FieldWall) bool)
-	Overhang(layers world.Layers, box geom.AABB) float64
+	Overhang(layers world.Layers, box geom.AABB) float32
 }
 
 // FieldBox is one solid box of a Field.

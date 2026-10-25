@@ -23,7 +23,7 @@ type Units[P any] struct {
 
 // Shape is a unit's body: the side of its box, Width across it where the box is no square (0:
 // Size, square), and how tall it stands.
-type Shape struct{ Size, Width, Height float64 }
+type Shape struct{ Size, Width, Height float32 }
 
 // Box is the shape's box centred on c: Width across, Size down the screen.
 func (s Shape) Box(c geom.Vec) plane.AABB {
@@ -41,7 +41,7 @@ func NewUnits[P any](brd *Plugin, shape Shape, at func(row P) geom.Vec) *Units[P
 	if brd.motion == nil {
 		panic("board: units move by motion, and the board was given none (WithMotion)")
 	}
-	if box, side := shape.Box(geom.Vec{}), float64(brd.board.read.CellSpan()); max(box.Size.X,
+	if box, side := shape.Box(geom.Vec{}), brd.board.read.CellSpan(); max(box.Size.X,
 		box.Size.Y) > side {
 		panic(fmt.Sprintf("board: units %v across and %v down, bigger than a cell's side, %v",
 			box.Size.X, box.Size.Y, side))

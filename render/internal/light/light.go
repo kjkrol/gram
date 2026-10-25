@@ -2,8 +2,6 @@
 // is drawn, and the shadows cast.
 package light
 
-import "math"
-
 // Light is a colour of light, red, green and blue, a colour drawn in it is scaled by; 1 each is
 // white.
 type Light [3]float32
@@ -43,5 +41,3 @@ func white(l Light) Light {
 	}
 	return l
 }
-
-func sqrt32(v float32) float32 { return float32(math.Sqrt(float64(v))) }

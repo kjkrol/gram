@@ -1,9 +1,6 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/order"
-	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
-	"math"
 	"testing"
 	"time"
 
@@ -11,10 +8,13 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/motion/steering"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -399,8 +399,8 @@ func TestNavigationSystem_Update_ArrivalSnapsToCellCenter(t *testing.T) {
 		for i := range cur.IDs {
 			found = true
 			p := positions[i].Pos
-			gotX := float64(p.TopLeft.X) + float64(p.Size.X)/2
-			gotY := float64(p.TopLeft.Y) + float64(p.Size.Y)/2
+			gotX := float32(p.TopLeft.X) + float32(p.Size.X)/2
+			gotY := float32(p.TopLeft.Y) + float32(p.Size.Y)/2
 			if gotX != want.X || gotY != want.Y {
 				t.Errorf("center = (%v, %v), want (%v, %v) — should snap exactly to the cell center on arrival", gotX, gotY, want.X, want.Y)
 			}
@@ -423,7 +423,7 @@ func TestNavigationSystem_Update_ArrivalGlidesSmoothlyToCellCenter(t *testing.T)
 	}}, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&pos).Build() }})
 	ecs := nw.ecs
 
-	readCenter := func() (float64, float64) {
+	readCenter := func() (float32, float32) {
 		t.Helper()
 		q.All()
 		for q.Next() {
@@ -431,7 +431,7 @@ func TestNavigationSystem_Update_ArrivalGlidesSmoothlyToCellCenter(t *testing.T)
 			positions := pos.Slice(cur)
 			for i := range cur.IDs {
 				p := positions[i].Pos
-				return float64(p.TopLeft.X) + float64(p.Size.X)/2, float64(p.TopLeft.Y) + float64(p.Size.Y)/2
+				return float32(p.TopLeft.X) + float32(p.Size.X)/2, float32(p.TopLeft.Y) + float32(p.Size.Y)/2
 			}
 		}
 		t.Fatal("expected to find the seeded entity")
@@ -439,11 +439,11 @@ func TestNavigationSystem_Update_ArrivalGlidesSmoothlyToCellCenter(t *testing.T)
 	}
 
 	prevX, prevY := readCenter()
-	maxStep := 0.0
+	maxStep := float32(0)
 	for range 200 {
 		ecs.Tick(20 * time.Millisecond)
 		x, y := readCenter()
-		if step := math.Hypot(x-prevX, y-prevY); step > maxStep {
+		if step := f32.Hypot(x-prevX, y-prevY); step > maxStep {
 			maxStep = step
 		}
 		prevX, prevY = x, y
@@ -464,7 +464,7 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 		gridWidth, gridHeight, cellSize = uint32(24), uint32(16), uint32(32)
 		wallCol                         = uint32(12)
 		entitySize                      = uint32(22)
-		speed                           = float64(cellSize * 2)
+		speed                           = float32(cellSize * 2)
 	)
 	grid := grid.DefaultGrids{}.Square(gridWidth, gridHeight, cellSize)
 	start := grid.At(2, 4)
@@ -530,10 +530,10 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 func TestShortestAxisDelta(t *testing.T) {
 	cases := []struct {
 		name       string
-		have, want float64
+		have, want float32
 		size       uint32
 		toroidal   bool
-		wantDelta  float64
+		wantDelta  float32
 	}{
 		{"non-toroidal ignores size", 10, 50, 100, false, 40},
 		{"toroidal direct is already shortest", 10, 50, 100, true, 40},

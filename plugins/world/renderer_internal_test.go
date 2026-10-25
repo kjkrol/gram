@@ -131,7 +131,7 @@ func composed(r *renderer, cam camera.Camera) *render.Frame {
 }
 
 // the speed the entities drawAs makes walk at, 0 standing
-var drawSpeed float64
+var drawSpeed float32
 
 var quarters = []geom.Vec{geom.NewVec(100, 100), geom.NewVec(700, 100), geom.NewVec(100, 700), geom.NewVec(700, 700)}
 
