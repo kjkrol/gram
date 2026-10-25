@@ -61,23 +61,30 @@ func benchWorldViewed(b *testing.B, ctx *headless, n int, spacing int, view uint
 	})
 }
 
-// the cameras the world of 5000 boxes is drawn through: one viewing all of it, a quarter or a
-// twentieth, or two viewing a quarter each, side by side
+// the worlds of n boxes in a grid spacing apart drawn through a camera view wide, or two side by
+// side, named by how many boxes they hold in view: all of 5000, a quarter, a twentieth, a
+// hundredth, a quarter and the one opposite; a twentieth and a hundredth of 50000
 var worldViews = []struct {
-	name string
-	view uint32
-	two  bool
-}{{"view=100%", 4000, false}, {"view=25%", 2000, false}, {"view=5%", 900, false},
-	{"view=25%,2 cameras", 2000, true}}
+	name       string
+	n, spacing int
+	view       uint32
+	two        bool
+}{{"5000 of 5000 in view", 5000, 56, 4000, false},
+	{"1296 of 5000 in view", 5000, 56, 2000, false},
+	{"256 of 5000 in view", 5000, 56, 900, false},
+	{"49 of 5000 in view", 5000, 56, 400, false},
+	{"1296 and 1190 of 5000 in view, 2 cameras", 5000, 56, 2000, true},
+	{"2809 of 50000 in view", 50000, 17, 900, false},
+	{"529 of 50000 in view", 50000, 17, 400, false}}
 
-// worldDrawn is the world of 5000 boxes ticked once, its picture and the cameras it is drawn
-// through
-func worldDrawn(b *testing.B, view uint32, two bool) (*headless, *render.Composer,
-	[]camera.Camera) {
+// worldDrawn is the world of n boxes spacing apart ticked once, its picture and the cameras it is
+// drawn through
+func worldDrawn(b *testing.B, n, spacing int, view uint32, two bool) (*headless,
+	*render.Composer, []camera.Camera) {
 	ctx := newHeadless()
 	var r *render.Composer
 	var cams []camera.Camera
-	ecs := benchWorldViewed(b, ctx, 5000, 56, view, func(w *world.Plugin, movers kind.Of[mover]) {
+	ecs := benchWorldViewed(b, ctx, n, spacing, view, func(w *world.Plugin, movers kind.Of[mover]) {
 		atlas := render.NewAtlas()
 		atlas.Add(movers.SpriteID(), 20, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
 		atlas.Close()
@@ -96,12 +103,12 @@ func worldDrawn(b *testing.B, view uint32, two bool) (*headless, *render.Compose
 	return ctx, r, cams
 }
 
-// Benchmark_World_Draw composes one frame of the entity renderer over 5000 boxes, published, as
+// Benchmark_World_Draw composes one frame of the entity renderer over the boxes published, as
 // worldViews says.
 func Benchmark_World_Draw(b *testing.B) {
 	for _, v := range worldViews {
 		b.Run(v.name, func(b *testing.B) {
-			ctx, r, cams := worldDrawn(b, v.view, v.two)
+			ctx, r, cams := worldDrawn(b, v.n, v.spacing, v.view, v.two)
 			ctx.publish()
 			b.ReportAllocs()
 			for b.Loop() {
@@ -117,7 +124,7 @@ func Benchmark_World_Draw(b *testing.B) {
 func Benchmark_World_Publish(b *testing.B) {
 	for _, v := range worldViews {
 		b.Run(v.name, func(b *testing.B) {
-			ctx, _, _ := worldDrawn(b, v.view, v.two)
+			ctx, _, _ := worldDrawn(b, v.n, v.spacing, v.view, v.two)
 			b.ReportAllocs()
 			for b.Loop() {
 				ctx.publish()
@@ -130,7 +137,7 @@ func Benchmark_World_Publish(b *testing.B) {
 func Benchmark_World_Frame(b *testing.B) {
 	for _, v := range worldViews {
 		b.Run(v.name, func(b *testing.B) {
-			ctx, r, cams := worldDrawn(b, v.view, v.two)
+			ctx, r, cams := worldDrawn(b, v.n, v.spacing, v.view, v.two)
 			b.ReportAllocs()
 			for b.Loop() {
 				ctx.publish()
