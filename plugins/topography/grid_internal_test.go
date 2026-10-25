@@ -14,6 +14,7 @@ import (
 )
 
 func TestBoardSurface_DrawsTheGridInTheBoardsLine(t *testing.T) {
+	gputest.Need(t)
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 128, Height: 128},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 4},
