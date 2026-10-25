@@ -182,7 +182,13 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   root keeps the `Plugin`, the `Board` (`Plugin.Board()`: `At(x, y)`, `Kind`, `KindAt`, `KindFor`,
   `Bare`, `Set`, `SetAll`, `Way`, `SetWay`, `Along`, `DecksOver`, `Reaches`, `Fenced`, `Lane`,
   `CellFor`, `LevelFor`, `CellVersion`, `Changes`, `Version`, `Touch`,
-  `Shape`, `Built`, `States`), the `Layout`, the `Map` contract, `NewUnits`, `NewEntities`, `Lay`;
+  `Shape`, `Built`, `States`), the `Layout`, the `Map` contract, `NewUnits`, `NewEntities`, `Lay`.
+  **The `Map` contract is a customization point for games, not plumbing** (`board.Map`:
+  `Look`, `Heights`, `Dressing`, `Top`, `Climb`, `Least`, `Slope`, put in by `Plugin.WithMap`;
+  `look.Map`, its drawing half: `Look`, `Heights`, `Dressing`, `Top`): a game gives its own
+  map through it — topography is one, the board's windy map another. Its methods stay even
+  where no plugin of the repo calls one (`look.Renderer` reads only `Look` and `Dressing`
+  today); never treat them as dead code — a point with no example gets one under `examples/`;
   what draws reads the cells **as published** (2026-10-24): the plugin publishes them once a
   frame (`drawn.go`: two buffers, each brought up to the board where a cell's version differs,
   a cell 32 bytes, its kinds and way interned), read through `board.Read.Drawn()` (a
