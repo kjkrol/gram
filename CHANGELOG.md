@@ -33,6 +33,12 @@ query, its slabs and the relief walked with SIMD) and ceremony v0.3.2 (kjkrol/ce
   a lattice no longer take that path.
 - Benchmarks scan all (`WithScanAll()`): `Vision_*`, `Board_Terrain`.
 
+- Fixed: a picture in layers drew vision's views in its outer layer alone (the whole frame at
+  60%), the layers drawn after covering them: a cone's edge was seen only round the frame's
+  edges, thick and blurred, and gone where the middle layer begins. The views are drawn in
+  every layer, the sight baked once a frame; a Direct's Draw runs once a layer, so what its
+  Compose gathered serves every one (`render.Direct`).
+
 ## v0.5.0 — 2026-10-25
 
 Needs aabbworld v1.18.0: its geometry in float32, a box 32 bytes; two boxes overlapping within

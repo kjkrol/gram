@@ -1,6 +1,7 @@
 package vision
 
 import (
+	"bytes"
 	"image/color"
 	"math"
 	"testing"
@@ -36,11 +37,9 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
 fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }
 `), []render.Uniform{{Name: "ViewProj", Size: 16}})
 
-func TestViews_VeilTheGroundOutOfSightOnTheGPU(t *testing.T) {
-	gputest.Need(t)
-	cam := cameratest.NewFromSpace(256, 256, 0)
-	v := newViews()
-	screen, depth, ground := render.NewImage(256, 256), render.NewDepth(), render.NewDepth().
+// a black screen with level ground drawn over it, its depth and the ground's apart
+func levelled(cam camera.Camera) (screen *render.Image, depth, ground *render.Depth) {
+	screen, depth, ground = render.NewImage(256, 256), render.NewDepth(), render.NewDepth().
 		Readable()
 	screen.Fill(color.Black)
 	screen.ClearDepth(ground)
@@ -53,6 +52,14 @@ func TestViews_VeilTheGroundOutOfSightOnTheGPU(t *testing.T) {
 		Uniforms:   map[string]any{"ViewProj": tr.M[:]},
 	})
 	screen.CopyDepth(ground, depth)
+	return screen, depth, ground
+}
+
+func TestViews_VeilTheGroundOutOfSightOnTheGPU(t *testing.T) {
+	gputest.Need(t)
+	cam := cameratest.NewFromSpace(256, 256, 0)
+	v := newViews()
+	screen, depth, ground := levelled(cam)
 	v.look(cam, observer{X: 40, Y: 128, Eye: 2, Reach: 200, Half: math.Pi / 6, Color: unitColor(DefaultCone.Color)})
 	target := render.Target{Screen: screen, Depth: depth, Ground: ground}
 	v.draw(target, cam, ridge{}, nil, 256, 256, 4, [2]bool{}, 0, DefaultShadow)
@@ -79,8 +86,36 @@ func TestViews_VeilTheGroundOutOfSightOnTheGPU(t *testing.T) {
 	if !stroked {
 		t.Error("the cone's edge is not stroked")
 	}
-	if len(v.observers) != 0 {
-		t.Error("the views drawn are kept for the next frame")
+}
+
+func TestViews_DrawEveryLayerOfAFrame(t *testing.T) {
+	gputest.Need(t)
+	cam := cameratest.NewFromSpace(256, 256, 0)
+	v := newViews()
+	v.look(cam, observer{
+		X: 40, Y: 128, Eye: 2, Reach: 200, Half: math.Pi / 6, Color: unitColor(DefaultCone.Color),
+	})
+	var layers [2][]byte
+	for i := range layers {
+		screen, depth, ground := levelled(cam)
+		target := render.Target{Screen: screen, Depth: depth, Ground: ground}
+		v.draw(target, cam, ridge{}, nil, 256, 256, 4, [2]bool{}, 0, DefaultShadow)
+		layers[i] = make([]byte, 4*256*256)
+		screen.ReadPixels(layers[i])
+	}
+	if !bytes.Equal(layers[0], layers[1]) {
+		t.Error("the frame's second layer differs from its first: the views let go after a draw")
+	}
+	i := 4 * (128*256 + 200)
+	if c := int(layers[1][i]) + int(layers[1][i+1]) + int(layers[1][i+2]); c > 3*200 {
+		t.Errorf("the second layer's ground behind the ridge is %d bright, want it veiled", c)
+	}
+	if !v.baked {
+		t.Error("the sight is not noted as baked for the frame's other layers")
+	}
+	v.begin()
+	if len(v.observers) != 0 || v.baked {
+		t.Error("the next frame starts with the last one's views or its sight")
 	}
 }
 
@@ -134,16 +169,7 @@ func TestViews_AnEyeLookingUpVeilsNoGround(t *testing.T) {
 	gputest.Need(t)
 	cam := cameratest.NewFromSpace(256, 256, 0)
 	v := newViews()
-	screen, depth, ground := render.NewImage(256, 256), render.NewDepth(), render.NewDepth().
-		Readable()
-	screen.Fill(color.Black)
-	screen.ClearDepth(ground)
-	f, _ := cam.(camera.Rays).Rays()
-	tr, _ := camera.SceneTransform(f, 256, 256)
-	screen.DrawMesh(nil, level, &render.DrawMeshOptions{
-		Depth: ground, WriteDepth: true, Vertices: 6, Uniforms: map[string]any{"ViewProj": tr.M[:]},
-	})
-	screen.CopyDepth(ground, depth)
+	screen, depth, ground := levelled(cam)
 	v.look(cam, observer{
 		X: 40, Y: 128, Eye: 2, Reach: 200, Half: math.Pi / 6, Color: unitColor(DefaultCone.Color),
 		Tilt: math.Pi / 3, VHalf: math.Pi / 8,

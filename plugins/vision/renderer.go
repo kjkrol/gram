@@ -343,6 +343,7 @@ func (r *Renderer) Swap() { r.drawn.Swap() }
 // Compose hands f every view in sight of cam, or notes them for Draw; nothing while hidden.
 func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	r.onGPU, r.placed = false, false
+	r.gpu.begin()
 	d := r.drawn.Front()
 	if d.hidden {
 		return
