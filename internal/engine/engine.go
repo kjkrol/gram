@@ -178,7 +178,8 @@ func (e *Engine) Init() error {
 func (e *Engine) Run() {
 	render.Windowed()
 	if aabbworld.SIMD() {
-		log.Print("gram: SIMD on: the collision sweep tests eight boxes at a time (AVX2)")
+		log.Print("gram: SIMD on (AVX2): the collision sweep eight boxes at a time, " +
+			"the sight's scan four rays at a time")
 	} else {
 		log.Print("gram: SIMD off: it takes GOEXPERIMENT=simd on amd64 and a CPU with AVX2")
 	}

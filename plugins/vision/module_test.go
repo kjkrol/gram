@@ -15,8 +15,9 @@ func TestModule_DeclaresEveryComponentItOwns(t *testing.T) {
 	}
 
 	got := len(goke.ProvidedComps(ctx.tracked...))
-	if got != 4 {
-		t.Errorf("vision declares %d components, want 4 (Sight, Sighted, SightOutline, Transparency)", got)
+	if got != 5 {
+		t.Errorf("vision declares %d components, "+
+			"want 5 (Sight, Sighted, SightOutline, Transparency, Watched)", got)
 	}
 }
 

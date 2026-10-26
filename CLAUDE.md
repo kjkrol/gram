@@ -35,8 +35,11 @@ the delivery of rules, the store behind ceremony's contract, roles, `world.Self`
 plugin's package layout), `gram-plugins` (the reference of the built-in plugins, one entry each),
 `gram-render` (the Composer, Direct, atlases and looks), `gram-game` (a game and a demo: Stage,
 sections, arena, scene, ui, players, persistence), `gram-probe` (a demo driven headless tick by
-tick), `goke` (the ECS: model, queries, release flow, `scripts/api.sh`), `ceremony` (the language
-and its pitfalls).
+tick), `gram-perf` (where the time goes, the optimisations landed and what they rest on,
+measuring a change: the protocol and its scripts), `goke` (the ECS: model, queries, release flow,
+`scripts/api.sh`), `ceremony` (the language and its pitfalls). aabbworld's kernels have their own
+`simd` skill (`/home/karol/CODE/aabbworld/.claude/skills/simd/SKILL.md`), loaded by a session in
+that repo and read by path from here.
 
 ## Commands
 
@@ -75,7 +78,8 @@ make test                                                       # every test
 ```
 
 The Makefile builds, tests, benches and runs with `GOEXPERIMENT=simd` (aabbworld's pair sweep
-eight boxes at a time on a CPU with AVX2; a game logs `gram: SIMD on` or `off` as it starts);
+eight boxes at a time and the sight's scan four rays at a time on a CPU with AVX2; a game logs
+`gram: SIMD on` or `off` as it starts);
 `GOEXPERIMENT=` on its command line goes without it, and a plain `go` command goes without it
 unless the variable is set. aabbworld is joined by `go.work` too (`/home/karol/CODE/aabbworld`).
 

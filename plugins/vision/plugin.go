@@ -30,6 +30,7 @@ type Plugin struct {
 	covers       func(w int) ground.Cover // worker w's
 	workers      int
 	frequency    float64
+	scanAll      bool
 	log          *log.Logger
 	cones        command.Queue[Cones]
 
@@ -73,6 +74,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module.sys.Every(p.frequency)
 	p.module.clock = p.worldPlugin.Write().Clock()
 	p.module.sys.tick, p.module.sys.log = p.worldPlugin.Read(0).Tick, p.log
+	p.module.sys.all = p.scanAll
 	ctx.UseModule(p.module)
 	ctx.Hosts(&p.sightings)
 	ctx.Draws(p.renderer)
@@ -188,10 +190,17 @@ func (p *Plugin) WithLog(l *log.Logger) *Plugin {
 	return p
 }
 
-// WithFrequency has every observer scanned perSecond times a second of game time in place of
-// every step (0), its rules going on with what it saw last between scans; call before Use.
+// WithFrequency has the observers scanned perSecond times a second of game time in place of
+// every step (0), their rules going on with what each saw last between scans; call before Use.
 func (p *Plugin) WithFrequency(perSecond float64) *Plugin {
 	p.frequency = max(perSecond, 0)
+	return p
+}
+
+// WithScanAll has every observer scanned, whether anything reads its Sighted or not; call before
+// Use.
+func (p *Plugin) WithScanAll() *Plugin {
+	p.scanAll = true
 	return p
 }
 

@@ -123,7 +123,8 @@ func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID
 			spec = append(spec, comp.Const(*s.z))
 		}
 		if s.sight != nil {
-			spec = append(spec, comp.Const(s.sight.Sight), comp.Const(s.sight.Eye))
+			spec = append(spec, comp.Const(s.sight.Sight), comp.Const(s.sight.Eye),
+				comp.Const(vision.Watched{}))
 			if !s.bare {
 				spec = append(spec, comp.Const(vision.Sighted{}))
 			}

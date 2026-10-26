@@ -151,7 +151,9 @@ tags of family `F` (an empty type a plugin names the family by; tags are the plu
 game says roles, names, groups and commands), `kinds.DefineTag[F](name)` hands out the bits by name
 through `world.Kinds` (saved by name, remapped on load), `comp.Tagged(tags...)` gives them to a
 kind, a query over the family's `Tags` narrows to those carrying any, a bit flip is seen the same
-tick; `host.Marks.Carries(tag)`. **Tags** are groups a kind gives; **markers** are states switched
+tick; `host.PairRules.For(marks)` says whether any rule is for an entity carrying marks (vision
+scans only such observers). **Tags** are groups a kind gives;
+**markers** are states switched
 on and off — a plugin's family `States`, carried for good (`comp.Marks[F]()`,
 `r.Default(motion.UnitTemplate, …)` in the plugin's `KindTemplates(r *kind.Roster)`, the one place
 it writes what it asks of the kinds' templates), each a constant bit (`effect.Changed`, every

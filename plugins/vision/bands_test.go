@@ -48,6 +48,7 @@ func TestScan_FarOffAnObserverSeesNothing(t *testing.T) {
 		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 300}),
 		comp.Const(world.Eye{Angle: math.Pi / 2}),
 		comp.Const(vision.Sighted{}),
+		comp.Const(vision.Watched{}),
 	})
 	kind.Define[spawn](w.Kinds(), "target", kind.Spec{comp.Load(at), comp.Const(world.Velocity{})})
 	w.Write().Seed(kind.Named[spawn](w.Kinds(), "observer").Entry(spawn{x: 1200, y: 250}),

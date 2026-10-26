@@ -35,7 +35,7 @@ const (
 
 const (
 	RectSize    = 5
-	EntityCount = ScreenWidth * ScreenHeight / 5 / (RectSize * RectSize)
+	EntityCount = ScreenWidth * ScreenHeight / (RectSize * RectSize) / 4
 
 	entityColors = 7
 	entityShapes = 4

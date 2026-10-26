@@ -267,6 +267,15 @@ a scanner to each, instead of goroutines made every tick: 100 / 500 observers 76
 76.9 / 278.0 µs and 9 → 0 allocations a tick, with outlines 100 observers 138.6 → 128.0 µs
 (medians of 5, alternately); the serial variants within the noise.
 
+Sight in SIMD (2026-10-26, `doc/plans-perf.md` „SIMD w widzeniu"; main v0.5.0 with aabbworld v1.18.0
+against the tree with aabbworld `perf/sight-simd`, alternately on an idle machine, the lower of six
+runs, goke and ceremony from the module cache on both sides): aabbworld's scan asks the grid for the
+boxes its cone may reach (eight at a time with `GOEXPERIMENT=simd`) and lays its slabs before the
+sweep, four rays at a time: 100 observers 78.9 → 72.7 µs, serial 129 → 106; 500 observers 295 → 249
+µs, serial 596 → 484; with outlines 132 → 129 and 587 → 576 µs, serial 305 → 270 and 1.45 → 1.32 ms.
+The benchmarks scan every observer (`WithScanAll()`); a game scans only the observers something
+reads.
+
 ### Over a relief — `Benchmark_Vision_Relief`
 
 37 observers on a 192×96 board of rolling hills in relief, cells 333 m, each looking 30 cells
@@ -290,6 +299,16 @@ With aabbworld v1.17.0 and the world's numbers in float32 (2026-10-25, the tree 
 alternately, the lower of two runs): sampled every 50 m 6.47 → 6.59 ms, every cell 1.35 → 1.36,
 along the profile 1.66 → 1.69, at 15 Hz 0.665 → 0.692; the plain scans within 1% but one observer at
 a time 5% longer: aabbworld's rays read float32 heights.
+
+Sight in SIMD (2026-10-26, the same method as above): the scan reads the relief's corners itself
+(`Cone.Heights`) in place of calling `Along` ray by ray, and walks four rays at a time in the SIMD
+build: `profile` 1.76 → 1.21 ms and at 15 Hz 774 → 495 µs (of which the four rays at a time 1.43 →
+1.17 ms and 637 → 487 µs, the stage before them against the stage); the new regime `along` keeps the
+old path on the tree, 1.79 ms. The ground sampled through callbacks (`step=50m` 6.60 → 6.99 ms,
+`step=cell` 1.41 → 1.44) is 2–6% slower only in the SIMD build with the scan in parallel: on one CPU
+(`-cpu=1`) it is 2–4% faster and in the plain build within 2%, the AVX2 kernels on every hyperthread
+lowering the clock for the scalar callbacks those regimes are made of. In board/topography nothing
+reads the walkers' sight, so since 2026-10-26 they are not scanned at all.
 
 ### The views' copy — `Benchmark_Views_Copy`
 

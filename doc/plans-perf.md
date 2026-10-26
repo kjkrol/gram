@@ -1079,3 +1079,118 @@ udział liczony na parę), `Navigation_Tick` bez zmian. aabbworld v1.18.0 w `go.
 2026-10-25). Otwarte: stojący
 tej samej wagi dalej bierze połowę nałożenia z każdego uderzenia; zerowanie tego wymagałoby
 kotwicy dla stojącego na hamulcu (strona statyczna, gdy `WantSpeed == 0`).
+
+## SIMD w widzeniu (plan 2026-10-26, gałąź `perf/sight-simd` w gram i w aabbworld, litera `s`)
+
+Analiza (2026-10-25): SIMD pracuje tylko w sweepie par kolizji, bo jego pętla to czysta
+arytmetyka na pudełkach leżących obok siebie, bez callbacków. Culling kamer (`view.System`,
+`Space.Query`) to ok. 2% ticku i jeden test bitu na encję przy publikacji: SIMD niczego tam nie
+da. Skan wzroku (`raycast.Scan`) to gather (Query obszarów, per kandydat klin, odległość i dwa
+`atan2`), sweep kątów (per kąt slab `hitDistance` dla aktywnych kandydatów) i z wysokościami
+profil gruntu per promień przez callback do gram (`relief.Along`): w topography 1,66 ms na tick
+przy 37 obserwatorach, z czego relief 53% (gram), raycast 24%, osłona 14–18% (gram). Grunt nie
+zwektoryzuje się przez callback: potrzebuje danych po stronie aabbworld. `simd/archsimd` nie ma
+instrukcji gather, więc lockstep promieni po polu wysokości ładuje narożniki skalarnie.
+
+Decyzje użytkownika (2026-10-26): cztery części naraz; slab we `Float32x8` (głębokości w
+tolerancji ok. 1e-3 promienia, ten sam zbiór encji).
+
+**Preludium** (integrator, w obu repo): aabbworld `perf/sight-simd` od `main` v1.18.0:
+`Cone.Heights *HeightField` (narożniki, Cols×Rows, Cell, WrapX/Y; komórka to dwa trójkąty
+złożone wzdłuż przekątnej o mniejszej różnicy wysokości, poza siatką 0), `Cone.Bend` (krzywizna:
+grunt opada o Bend·d²), `QueryableSpace.QueryCone` z adapterem `sight` odpowiadającym kołem wokół
+stożka. gram `perf/sight-simd` od `main` v0.5.0: ten plan i briefy `doc/briefs/s*.md`.
+
+**Części** (agenci Opus 5.5, worktree `/home/karol/worktrees/<repo>/<część>`, gałąź
+`s/<część>` od preludium; pomiary tylko integratora):
+- **A `s/sweep`** (aabbworld, brief `s1`): profil skanu (gather, sweep, osłona) i `castFlat`
+  po 8 kątów naraz na AVX2 między eventami aktywnych kandydatów: slab w SIMD do scratch,
+  porządek przecięć i osłona skalarnie; fallback skalarny; test równoważności jak
+  `TestPairSweep_WideFindsWhatNarrowFinds`.
+- **B `s/cone-query`** (aabbworld, brief `s2`): kolumny float32 kawałków budowane z komórkami
+  w `list()`, `Grid.QueryCone` ścisły (promień, klin, komórka właściciela) po 8 kawałków, gather
+  wzroku na `QueryCone`, `atan2` tylko dla przeżywających.
+- **C `s/heights`** (aabbworld i gram, brief `s3`): profil z `HeightField` liczony w aabbworld
+  bez callbacków (krawędzie i fałdy komórek jak `relief.Along`, `Bend` zamiast `sunkGround`),
+  gram podaje `Lattice()` reliefu; test krzyżowy Profile vs Heights na tym samym reliefie;
+  lockstep ×8 promieni tylko jeśli test dymny pokaże zysk bez gatherów.
+- **D `s/watched`** (gram, brief `s4`): skan tylko czytanych obserwatorów: reguły `Sighting`
+  roli, `SightOutline`, znacznik `vision.Watched{}`; `WithScanAll()` przywraca dziś; `Sighted`
+  nieskanowanego czyszczone raz.
+
+**Scalanie i pomiar** (integrator): aabbworld A, B, C na `perf/sight-simd`; gram C, D. Baza
+`main` obu repo (aabbworld v1.18.0, gram v0.5.0) i drzewo na przemian, bezczynna maszyna:
+aabbworld `View_Visible`, `View_Both`, `View_Elevated`, `View_Cover`, `BroadPhase`; gram
+`Vision_Scan`, `Vision_Relief` (4 reżimy), `Views_Copy`, `World_Tick`; sonda gram-probe
+board/topography (37 obserwatorów, `GRAM_FPS_LOG`), dema vision pod `timeout`. Po akceptacji
+użytkownika squash commit w obu repo.
+
+## SIMD w widzeniu: wynik (2026-10-26)
+
+Cztery części poszły równolegle u agentów Opus 5.5 (A `s/sweep`, B `s/cone-query`, C
+`s/heights`, D `s/watched`), bez pomiarów po ich stronie; scalone na `perf/sight-simd` w obu repo
+(aabbworld A, C, B; gram C, D), jeden konflikt (dwa `export_test.go`), pełna sekwencja zielona w
+obu buildach, `-race` czysty, siedem dem wzroku chodzi. Pomiar: baza (aabbworld v1.18.0, gram
+v0.5.0) i drzewo na przemian, goke i ceremony z cache po obu stronach, najniższy z serii.
+
+**aabbworld** (`BENCHMARKS.md` „Sight in SIMD"): skan pyta siatkę o pudełka w zasięgu stożka
+(`Grid.QueryCone`, po osiem kawałków na kolumnach float32 budowanych z komórkami), zbieranie
+kandydatów było połową skanu; przed sweepem kładzie slaby każdego kandydata dla wszystkich jego
+kątów, cztery promienie naraz we float64. `View_Visible` 1 000 encji 29,0 → 19,0 µs (build
+zwykły 27,3 → 17,8: ścisły filtr stożka daje prawie tyle samo bez SIMD), `View_Both` 33,2 →
+23,2, `View_Elevated` raster 113 → 104, osłona z encjami 52,5 → 37,8; `BroadPhase` i
+`Grid_RebuildPairsQuery` w szumie. Odstępstwo od decyzji: slab we float32×8 zmieniał zbiór
+widzianych encji (ściana pudełka na linii komórki, remis odległości rozstrzygany odwrotnie), a
+pomiar pokazał, że osiem pasów float32 daje wobec czterech float64 ±1%, więc zostaje float64×4,
+bit w bit ze skalarem. Profil przed zmianą: slab to 4–10% skanu, gather 45–55%, promienie
+(`cos`+`sin`) 16–27%, sortowanie kątów 10–16%; po: jeden `math.Sincos` na promień w obu
+buildach.
+
+**Grunt jako dane** (C): `Cone.Heights` z narożnikami reliefu (`Lattice()`, bez kopii) i `Bend`
+zamiast callbacków `Along`/`Ground`/`sunkGround`; profil liczony w aabbworld daje te same punkty
+co `relief.Along` (oracle, 2 000 losowych pól; 60 scen i prawdziwy relief topography bit w bit).
+`Vision_Relief/profile` 1,73 → 1,54 ms, 15 Hz 761 → 660 µs; `along` (stara droga na drzewie)
+1,81 ms. Lockstep ×8 promieni po polu niezrobiony: `lattice.walk` to 52% ticku `profile` (68%
+szczebla `field` w aabbworld), z czego arytmetyka (`folded`, `point`, `clamp01`) ok. 25% ticku,
+a loady narożników i appendy (`crossedX/Y`, `take`) ok. 14%; bez gatherów w `archsimd` zysk to
+rząd 25% × (1 − 1/1,75) ≈ 10% ticku za przepisanie `walk` z części A. Do decyzji osobno.
+
+**Tylko czytani** (D): skan dla obserwatora z regułą `Sighting` jego roli, `SightOutline` albo
+`vision.Watched{}`; `WithScanAll()` skanuje wszystkich; `Sighted` nieczytanego czyszczony raz.
+Decyzje użytkownika (2026-10-26): model zostaje domyślny; log (`WithLog`) nie jest czytelnikiem,
+bo to telemetria (navigation/square i hex nic już nie logują: nikt nie czyta ich zwiadowców);
+agent pytał o dopasowanie reguły lustrzanym `PairRules` (kopia reguły ustawiająca flagę), bo
+ceremony v0.3.1 nie ma takiego pytania, więc integrator dodał w ceremony
+`PairRules.For(marks)` (gałąź `feat/pair-rules-for`, `replace` w go.mod gram do taga) i lustro
+znikło. W board/topography 37 skanów reliefu na tick znika (nikt ich nie czyta; widoki na GPU
+skanu nie czytają). Mapa czytelników dem w briefie `s4`: rules/vision i rules/dialog przez
+reguły, board/flat przez outline. `vision.NewScanSystem` (eksportowane, nieużywane) usunięte.
+
+**gram razem** (bezczynna maszyna, 6 przebiegów, najniższy): `Vision_Scan` 100 obs. 79 → 73 µs
+(szeregowo 129 → 106), 500 obs. 295 → 249 (596 → 484); z outline 2–11% mniej; `World_Tick` i
+`Board_Terrain` w szumie. `Vision_Relief/profile` 1,76 → 1,21 ms, 15 Hz 774 → 495 µs (z czego E:
+1,43 → 1,17 i 637 → 487). **Regresja wyjaśniona**: grunt próbkowany callbackami (`step=50m` 6,60 →
+6,99 ms, `step=cell` 1,41 → 1,44) jest o 2–6% wolniejszy tylko w buildzie SIMD ze skanem
+równoległym; na jednym CPU (`-cpu=1`) jest o 2–4% szybszy, w buildzie zwykłym w granicach 2%, a
+profil CPU bazy i drzewa jest niemal identyczny: jądra AVX2 (slaby, filtr stożka) na wszystkich
+wątkach obniżają zegar dla skalarnych callbacków, które w tych reżimach stanowią ponad 90% pracy.
+Nie jest to praca do odjęcia; ewentualne wyjście to jądra 128-bitowe (bez licencji AVX2), wpis w
+roadmap. Topography tej ścieżki już nie używa (ma siatkę); dotyczy plansz hex i gruntów własnych
+gry.
+
+**Porządki integratora**: martwy kod po B (`searchAreas`, `axisSpans`, `splitAxis`, `clampRect`,
+`wedge`, `boxDistance`, `candidate.dist`, `QueryableSpace.Query`) usunięty; komentarz
+`QueryCone` doprecyzowany (kopie przez szew mogą się powtórzyć); publiczne `Space.QueryCone` i
+`SpaceRead.QueryCone`; `go.work` w `.gitignore` gram (regułę `!/*.*` przebijało); dokumenty obu
+repo. Zależności: `replace` w go.mod gram na `../aabbworld` (`perf/sight-simd`) i `../ceremony`
+(`feat/pair-rules-for`) do czasu tagów (decyzja użytkownika); CI czerwone do tego czasu.
+
+**Część E `s/lockstep`** (brief `s5`, decyzja użytkownika 2026-10-26): `walk` kładzie grunt bloku do
+czterech kolejnych kątów przed rzutem, promień na pas `Float64x4`; DDA, fałda, punkt wyjścia i
+reguły `take` wektorowo z maskami, narożniki ładowane per pas rundę wcześniej (archsimd nie ma
+gather), punkty zbierane per pas po rundzie; `GOAMD64=v3` łączy w skalarze `a + b·c` w FMA, więc
+sonda `fused` wykrywa to przy starcie i jądro używa `MulAdd` w tych samych czterech miejscach.
+Punkty każdego promienia bit w bit jak skalarnie (4 000 losowych przypadków, 10 mutacji złapanych),
+pasy zajęte w 95–99% rund. Wynik: `View_Elevated/heights=field` 1 000 encji 242 → 173 µs (−28%), 100
+encji 84 → 59 (−30%), szczebel `profile` bez zmian (kontrola); gram `Vision_Relief/profile` 1,43 →
+1,17 ms (−18%), 15 Hz 637 → 487 (−24%), `along` bez zmian.

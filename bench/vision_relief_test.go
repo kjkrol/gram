@@ -25,18 +25,27 @@ import (
 // a ground with no profile: sight samples it every step
 type sampled struct{ ground.Heights }
 
+// a ground with no corners: sight reads it along each ray through its profile
+type profiled struct {
+	ground.Heights
+	ground.Profile
+}
+
 // Benchmark_Vision_Relief is a tick of 37 observers on a board of rolling hills in relief, the
-// ground sampled or read along its profile.
+// ground sampled, read off the relief's corners inside the scan (profile), or handed over ray by
+// ray through the relief's profile (along).
 func Benchmark_Vision_Relief(b *testing.B) {
 	for _, c := range []struct {
 		name  string
-		step  float32 // metres; 0, the relief's profile
+		step  float32 // metres; 0, the relief exactly
 		every float64
+		along bool
 	}{
-		{"step=50m", 50, 0},
-		{"step=cell", 333, 0},
-		{"profile", 0, 0},
-		{"profile,15Hz", 0, 15},
+		{"step=50m", 50, 0, false},
+		{"step=cell", 333, 0, false},
+		{"profile", 0, 0, false},
+		{"profile,15Hz", 0, 15, false},
+		{"along", 0, 0, true},
 	} {
 		b.Run(c.name, func(b *testing.B) {
 			const cols, rows, size = 192, 96, 32
@@ -55,10 +64,16 @@ func Benchmark_Vision_Relief(b *testing.B) {
 			}
 			p := board.NewPlugin(g, &cell.MultipleOccupancy{}, w).WithMotion(m)
 			topo := topography.NewPlugin(w, p, nil, topography.Config{})
-			v := vision.NewPlugin(w).WithBoard(p).WithFrequency(c.every)
+			v := vision.NewPlugin(w).WithBoard(p).WithFrequency(c.every).WithScanAll()
 			if c.step > 0 {
 				v.WithGroundStep(scale.Units(c.step)).
 					WithHeights(func() ground.Heights { return sampled{p.Read(0).Heights()} })
+			}
+			if c.along {
+				v.WithHeights(func() ground.Heights {
+					h := p.Read(0).Heights()
+					return profiled{h, h.(ground.Profile)}
+				})
 			}
 			if err := ctx.Use(p); err != nil {
 				b.Fatal(err)

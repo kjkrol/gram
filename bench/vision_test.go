@@ -31,7 +31,7 @@ func benchVision(b *testing.B, n int, outlines bool, workers int) *goke.ECS {
 	if err := ctx.Use(m); err != nil {
 		b.Fatal(err)
 	}
-	v := vision.NewPlugin(w).WithWorkers(workers)
+	v := vision.NewPlugin(w).WithWorkers(workers).WithScanAll()
 	if err := ctx.Use(v); err != nil {
 		b.Fatal(err)
 	}
