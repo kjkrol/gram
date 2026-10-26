@@ -1176,17 +1176,25 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   every ray, dimming or cutting it, a ray spending its radius as a budget; `Sight.Blockers` are
   the `world.Layers` that cut or dim this sight (a hawk with `Air` looks over walls). With heights
   sight has heights instead: the cone's eye is the unit's `world.Eye` (a Sight without an Eye is
-  not scanned), every entity spans its `Z`, the ground is read along every ray — exactly where it is
-  a `ground.Profile` (the relief's `Along`), else sampled every `WithGroundStep`, `Blockers` cutting
+  not scanned), every entity spans its `Z`, the ground is read along every ray — off its corners
+  inside aabbworld's scan where the ground has them (`Lattice()`, the relief's: `Cone.Heights` over
+  the relief's own heights, re-read every scan, wrapping as the world does, with the world's
+  `Bend`; 2026-10-26), else exactly through a `ground.Profile` (the relief's `Along`), else sampled
+  every `WithGroundStep`, `Blockers` cutting
   as in a flat world; `Eye.Height` and `Eye.Vertical` refused in a flat world; an `Eye.Vertical`
   keeps what the scan found to the field `Tilt ± Vertical/2` by elevation (`scanner.vertical`, after
   aabbworld's cone, which knows no vertical angle), the views drawn the ring of ground the field
   meets (near and far on the CPU from the eye's height, per pixel on the GPU by `atan2`, the
   instance's fifth vec4); the cover they are held back by on the GPU is walked as the observers
   are published (`coverCopy`, anew where the cover or the ground changed; 2026-10-24), the
-  drawing only uploading it. Every observer is scanned every step, or
-  `WithFrequency(perSecond)` with the observers taking turns, shared among goroutines
-  (`WithWorkers`). It hosts rules of a `Sighting` inside the scan's pass, once a step per observer
+  drawing only uploading it. Only an observer something reads is scanned (`watched.go`,
+  2026-10-26): a hosted `Sighting` rule is for it (`host.PairRules.For` of its tags, ceremony past
+  v0.3.1), or its block carries `SightOutline` or `vision.Watched{}`, or the plugin scans all
+  (`WithScanAll()`; a `WithLog` reads nobody); another's `Sighted` is cleared once and no
+  `Sighting` is dispatched for it; the GPU views read no scan. A read observer is scanned every
+  step, or `WithFrequency(perSecond)` with the observers taking turns, shared among goroutines
+  (`WithWorkers`). It hosts rules of a `Sighting` inside the scan's pass, once a step per
+  observer
   on what it saw at its last scan (`cond.Other.If(b)` everything in view; its `Subject` the nearest
   seen, so an aimed `steering.Away{}`/`Toward{}` is about that one); words `vision.SeesNobody()`,
   `vision.Closing()`. The views drawn are every observer's unless `WithViews(world.Show(...))`

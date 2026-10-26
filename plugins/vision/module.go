@@ -64,5 +64,6 @@ func (m *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[Sighted](),
 		goke.LoadComp[SightOutline](),
 		goke.LoadComp[Transparency](),
+		goke.LoadComp[Watched](),
 	}
 }

@@ -68,7 +68,7 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.BoardWrite, [
 	c := collision.NewPlugin(w, m)
 	grid := grid.DefaultGrids{}.Square(terrainSide, terrainSide, terrainCell)
 	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w).WithMotion(m)
-	v := vision.NewPlugin(w)
+	v := vision.NewPlugin(w).WithScanAll()
 	if err := ctx.Use(c); err != nil {
 		b.Fatal(err)
 	}

@@ -19,8 +19,8 @@ import (
 
 var _ goke.System = (*ScanSystem)(nil)
 
-// ScanSystem fills in what every observer sees, and the outline of those carrying SightOutline,
-// then runs the rules of a Sighting over what each saw.
+// ScanSystem fills in what every observer something reads sees, and the outline of those
+// carrying SightOutline, then runs the rules of a Sighting over what each saw.
 type ScanSystem struct {
 	scanner
 
@@ -62,6 +62,11 @@ type ScanSystem struct {
 
 	host *host.PairRules[Sighting]
 
+	all     bool // every observer scanned, read or not
+	watch   goke.OptComp[Watched]
+	anyone  bool   // a rule of a Sighting is for every observer
+	watched []bool // whether each observer of the jobs is read, in their order
+
 	walkCols, seekCols *cgoke.Columns
 
 	jobs []job
@@ -86,6 +91,8 @@ type scanner struct {
 	groundAt  func(geom.Vec) float32
 	step      float32
 	profiling profiling
+	lattice   lattice // nil for a ground without one
+	field     aabbworld.HeightField
 	bend      float32 // the ground sinks bend·d² under the observer's level, d how far off
 	sunk      func(geom.Vec) float32
 	ox, oy    float32
@@ -111,10 +118,6 @@ const (
 	walked = iota
 	sought
 )
-
-func NewScanSystem(space *aabbworld.SpaceRead) *ScanSystem {
-	return newScanSystem(space, &host.PairRules[Sighting]{})
-}
 
 // Paced has the system scan each block of observers as pace, an option of its query, says; set
 // before Init.
@@ -153,10 +156,12 @@ func (s *ScanSystem) isDue(id uid.UID64) bool {
 }
 
 func (s *ScanSystem) Init(si *goke.SysInit) {
-	walk := si.NewQueryBuilder(&s.sight, &s.eye, &s.base).Optional(&s.sighted, &s.outline, &s.z)
+	walk := si.NewQueryBuilder(&s.sight, &s.eye, &s.base).
+		Optional(&s.sighted, &s.outline, &s.z, &s.watch)
 	seek := si.NewQueryBuilder(&s.lookupBase).Optional(&s.lookupTau, &s.lookupLay, &s.lookupZ)
 	s.walkCols, s.seekCols = cgoke.NewColumns(walk), cgoke.NewColumns(seek)
 	s.host.Bind(s.walkCols, s.seekCols)
+	s.anyone = s.host.For(host.Marks{})
 	if s.pace != nil {
 		walk.With(s.pace)
 	}
@@ -209,6 +214,12 @@ func (s *scanner) elevation(id uid.UID64) (bottom, top float32) {
 	return -sink, -sink
 }
 
+// lattice is a ground of heights at the corners of square cells (the topography's relief), which
+// the scan reads along each ray itself.
+type lattice interface {
+	Lattice() (cols, rows int, cell float32, heights []float32, ok bool)
+}
+
 func (s *ScanSystem) ground() {
 	s.grounded = true
 	if s.groundOf == nil {
@@ -216,6 +227,13 @@ func (s *ScanSystem) ground() {
 	}
 	g := s.groundOf()
 	profile, _ := g.(ground.Profile)
+	corners, _ := g.(lattice)
+	if corners != nil {
+		if _, _, _, _, ok := corners.Lattice(); !ok {
+			corners = nil
+		}
+	}
+	_, _, edges := s.space.Bounds()
 	for _, c := range s.scanners {
 		if g != nil {
 			c.groundAt = g.At
@@ -224,6 +242,8 @@ func (s *ScanSystem) ground() {
 			}
 		}
 		c.profiling.profile = profile
+		c.lattice = corners
+		c.field.WrapX, c.field.WrapY = edges.WrapsX(), edges.WrapsY()
 		if c.bend > 0 {
 			c.sunk = c.sunkGround
 		}
@@ -266,8 +286,8 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	}
 
 	// the runs cut across chunks: a chunk of observers with outlines holds few
-	s.jobs = s.jobs[:0]
-	n, due := 0, 0
+	s.jobs, s.watched = s.jobs[:0], s.watched[:0]
+	due := 0
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
@@ -278,16 +298,28 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 			continue
 		}
-		if !s.query.Due() {
+		all := s.watchedAll(cursor)
+		if !s.query.Due() || !all && !hosting {
 			forget(j.seens)
 			continue
 		}
-		j.first = n
-		n += len(j.ids)
-		for _, id := range j.ids {
+		j.first = len(s.watched)
+		row, reads := s.walkCols.Row(cursor), 0
+		for i, id := range j.ids {
+			read := all || s.isFor(row, i)
+			s.watched = append(s.watched, read)
+			if !read {
+				forget(j.seens[i : i+1])
+				continue
+			}
+			reads++
 			if s.due(id) {
 				due++
 			}
+		}
+		if reads == 0 {
+			s.watched = s.watched[:j.first]
+			continue
 		}
 		s.jobs = append(s.jobs, j)
 	}
@@ -298,7 +330,7 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	k := s.pool.Parts(due, least, s.count)
 	if k > 1 {
 		s.space.Ready()
-		s.n, s.parts = n, k
+		s.n, s.parts = len(s.watched), k
 		b := s.pool.Begin(s.scanPart, nil)
 		b.Add(k)
 		b.Wait()
@@ -307,39 +339,46 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	for s.query.Paced(d); s.query.Next(); {
 		cursor := s.query.Cursor()
 		j := s.job(cursor)
-		if j.seens == nil {
+		all := s.watchedAll(cursor)
+		if j.seens == nil || !all && !hosting {
 			continue
 		}
+		row := s.walkCols.Row(cursor)
 		for i, id := range cursor.IDs {
+			ruled := hosting && s.isFor(row, i)
+			if !all && !ruled {
+				continue
+			}
 			if k <= 1 && s.due(id) {
 				j.scan(&s.scanner, i)
 			}
 			if s.log != nil {
 				s.logSightings(id, &j.seens[i])
 			}
-			if hosting {
+			if ruled {
 				sight := &j.sights[i]
 				s.observer = Sighting{Self: id, Base: &j.bases[i], Sight: sight}
 				s.gather(&j.seens[i])
-				s.host.DispatchGrouped(t, s.host.Read(walked, s.walkCols.Row(cursor), i), s.seenTags, s.sightingOf)
+				s.host.DispatchGrouped(t, s.host.Read(walked, row, i), s.seenTags, s.sightingOf)
 			}
 		}
 	}
 }
 
-// scanParted scans the due observers of a part on worker w's scanner
+// scanParted scans the due observers read of a part on worker w's scanner
 func (s *ScanSystem) scanParted(w, part int) {
 	from, to := parallel.Part(s.n, s.parts, part)
 	for _, j := range s.jobs {
 		for i := max(from, j.first); i < min(to, j.first+len(j.ids)); i++ {
-			if s.due(j.ids[i-j.first]) {
+			if s.watched[i] && s.due(j.ids[i-j.first]) {
 				j.scan(s.scanners[w], i-j.first)
 			}
 		}
 	}
 }
 
-// an observer not looking sees nothing, so no rule acts on what it saw last
+// an observer not looking sees nothing, nor does one nothing reads, so nothing acts on what it
+// saw last; written once, as it stops
 func forget(seens []Sighted) {
 	for i := range seens {
 		if seens[i].Count != 0 {
@@ -441,6 +480,13 @@ func (s *scanner) cone(sight *Sight, eye world.Eye, z world.Z) aabbworld.Cone {
 		return c
 	}
 	c.Eye, c.Elevation, c.Ground, c.GroundStep = eye.Level(z), s.elev, s.groundAt, s.step
+	if s.lattice != nil {
+		// the ground's own heights, to read and not to keep: anew every scan
+		f := &s.field
+		f.Cols, f.Rows, f.Cell, f.Corners, _ = s.lattice.Lattice()
+		c.Ground, c.Heights, c.Bend = nil, f, s.bend
+		return c
+	}
 	if s.sunk != nil {
 		c.Ground = s.sunk
 	}

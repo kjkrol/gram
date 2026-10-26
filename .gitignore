@@ -42,3 +42,7 @@ coverage.txt
 
 # Raw benchmark output of make bench-save
 bench_results/
+
+# A worktree's workspace file, which the root rule above would otherwise keep
+go.work
+go.work.sum

@@ -4,9 +4,10 @@ import (
 	"github.com/kjkrol/gram/camera"
 )
 
-// Direct is a Source that draws a part of the picture itself, with a shader of its own: in the
-// passes its Compose asked for (Frame.DrawOpaque, Frame.DrawAt), where Draw is handed which. A
-// Direct asking for none is not drawn.
+// Direct is a Source that draws a part of the picture itself, with a shader of its own, in the
+// passes its Compose asked for (Frame.DrawOpaque, Frame.DrawAt): Draw is handed which, and runs
+// once a layer of a picture in layers, so what Compose gathered serves every Draw till the next
+// Compose. A Direct asking for none is not drawn.
 type Direct interface {
 	Source
 	Draw(t Target, cam camera.Camera, u Uniforms)

@@ -158,7 +158,8 @@ func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(
 			spec = append(spec, comp.Const(steering.Steering{MaxSpeed: 64, Accel: 128, Brake: 256}))
 		}
 		if u.Sight != nil {
-			spec = append(spec, comp.Const(*u.Sight), comp.Const(vision.Sighted{}), comp.Const(u.Eye))
+			spec = append(spec, comp.Const(*u.Sight), comp.Const(vision.Sighted{}),
+				comp.Const(u.Eye), comp.Const(vision.Watched{}))
 		}
 		name := string(rune('a' + i))
 		kind.Define[Mover](bw.World.Kinds(), name, spec)

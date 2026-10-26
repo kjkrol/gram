@@ -47,6 +47,7 @@ type views struct {
 	pix, bandPix  []byte
 
 	sight            *render.Image
+	baked            bool
 	verts            []render.Vertex
 	indices          []uint16
 	baking           render.DrawTrianglesShaderOptions
@@ -134,6 +135,9 @@ func newViews() *views {
 	return v
 }
 
+// begin opens a frame: every draw of it, one a layer, draws what look gathers; the first bakes
+func (v *views) begin() { v.observers, v.baked = v.observers[:0], false }
+
 func (v *views) look(cam camera.Camera, o observer) {
 	r := o.Reach
 	if len(v.observers) >= maxViews || !cam.Visible(geom.NewAABBAt(geom.NewVec(o.X-r, o.Y-r), 2*r, 2*r)) {
@@ -146,7 +150,6 @@ func (v *views) draw(
 	t render.Target, cam camera.Camera, ground ground.Heights, cover *coverCopy, w, h,
 	step float32, wrap [2]bool, bend float32, shadow Shadow,
 ) {
-	defer func() { v.observers = v.observers[:0] }()
 	if t.Screen == nil || ground != nil && t.Ground == nil || len(v.observers) == 0 || step <= 0 {
 		return
 	}
@@ -168,7 +171,10 @@ func (v *views) draw(
 		return
 	}
 	v.copy(ground, cover, w, h, step, wrap)
-	v.bake(bend)
+	if !v.baked {
+		v.bake(bend)
+		v.baked = true
+	}
 	persp, span := float32(0), [2]float32{length(f.DX), 0}
 	if f.DDX != ([3]float32{}) || f.DDY != ([3]float32{}) {
 		persp, span = 1, [2]float32{0, length(f.DDX)}

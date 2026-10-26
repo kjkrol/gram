@@ -123,7 +123,9 @@ scale and offset (`gpu.Draw.Place`, which
 camera's sight read at render time) and the Directs drawing through the cropped camera (so a
 Direct gathering at Compose draws as often as there are layers: `Sprites.Draw` resets no more,
 `Begin` does; the routes reset at Compose and place their rectangles into the drawing camera's
-frame); its opaque pass goes into a Readable depth kept a layer (`keptDepths` 12, by size and
+frame; vision's views are let go at Compose and the sight baked by the frame's first Draw —
+till 2026-10-26 the first Draw let them go, so the outer layer alone had them, covered by the
+rest); its opaque pass goes into a Readable depth kept a layer (`keptDepths` 12, by size and
 layer index: two layers of one size keep their grounds apart); `DrawOver(screen, cam)` places
 every laid depth into the screen's (`gfx.PlaceDepth`, `gpu.PlaceDepth(target, from, to, at)`:
 `depth.wgsl` reads `depthAt(p.xy * place.xy + place.zw)` under a scissor of the window, the last

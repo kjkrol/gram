@@ -1,5 +1,44 @@
 # Changelog
 
+## v0.6.0 — 2026-10-26
+
+Needs aabbworld v1.19.0 (kjkrol/aabbworld#24: `Cone.Heights` and `Cone.Bend`, the scan's cone
+query, its slabs and the relief walked with SIMD) and ceremony v0.3.2 (kjkrol/ceremony#4:
+`host.PairRules.For`).
+
+**Sight in SIMD and only where it is read** (2026-10-26, branch `perf/sight-simd`,
+`doc/plans-perf.md` „SIMD w widzeniu")
+- Breaking: vision scans only the observers something reads — those a hosted rule of a
+  `Sighting` is for (they play the rule's role), those carrying `SightOutline`, and those carrying
+  the new marker `vision.Watched{}`, which a game puts on a kind whose `Sighted` it reads itself;
+  `Plugin.WithScanAll()` scans every observer; a log (`WithLog`) reads nobody and shows what is
+  scanned, so navigation/square and hex log nothing (no one reads their scouts). An observer no
+  longer read has its `Sighted` cleared once and no `Sighting` dispatched. Whether a rule is for
+  an observer is ceremony's `PairRules.For` of its tags. The views drawn on the GPU read no scan.
+  board/topography's 37 relief scans a tick are gone: nothing there reads them. Breaking too:
+  `vision.NewScanSystem`, exported and unused, is gone.
+- Sight over the topography reads the relief's corners inside aabbworld's scan (`Cone.Heights`
+  over the relief's own heights, re-read every scan, wrapping as the world does, the world's
+  curvature as `Cone.Bend`) in place of calling the relief's `Along` ray by ray: the same
+  sightings to the last bit (`Vision_Relief`: `along` keeps the old path to compare). Grounds
+  without a lattice (hex boards, a game's own) go through `ground.Profile` or a sample every
+  `WithGroundStep` as before.
+- With aabbworld's cone query, its slabs and the relief walked four rays at a time (the start-up
+  log, `gram: SIMD on`, names the sight beside the collision sweep):
+  `Vision_Scan` 100 observers 79 → 73 µs (serial 129 → 106), 500 observers 295 → 249 µs (serial
+  596 → 484); `Vision_Relief/profile` 1.76 → 1.21 ms, at 15 Hz 774 → 495 µs; with outlines 2–11%
+  less. The ground sampled through callbacks (`step=cell`, `step=50m`) is 2–6% slower in the SIMD
+  build with the scan in parallel alone — on one CPU 2–4% faster, in the plain build within 2% —
+  the AVX2 kernels on every hyperthread lowering the clock for the scalar callbacks; grounds with
+  a lattice no longer take that path.
+- Benchmarks scan all (`WithScanAll()`): `Vision_*`, `Board_Terrain`.
+
+- Fixed: a picture in layers drew vision's views in its outer layer alone (the whole frame at
+  60%), the layers drawn after covering them: a cone's edge was seen only round the frame's
+  edges, thick and blurred, and gone where the middle layer begins. The views are drawn in
+  every layer, the sight baked once a frame; a Direct's Draw runs once a layer, so what its
+  Compose gathered serves every one (`render.Direct`).
+
 ## v0.5.0 — 2026-10-25
 
 Needs aabbworld v1.18.0: its geometry in float32, a box 32 bytes; two boxes overlapping within
