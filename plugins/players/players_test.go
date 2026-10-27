@@ -377,7 +377,8 @@ func TestDrag_FiresOnReleaseAndButtonHeldKnowsWhereItBegan(t *testing.T) {
 		t.Fatalf("a press alone issued %v", got)
 	}
 
-	r.handle(&control.InputEvents{MousePos: geom.NewVec(40, 60), CursorDelta: geom.NewVec(30, 50)})
+	r.handle(&control.InputEvents{MousePos: geom.NewVec(40, 60), CursorDelta: geom.NewVec(30, 50),
+		CursorInWindow: true})
 	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != -(10*1000+40) {
 		t.Errorf("mid-drag issued %v, want one ButtonHeld order from 10 to 40", got)
 	}
@@ -387,6 +388,31 @@ func TestDrag_FiresOnReleaseAndButtonHeldKnowsWhereItBegan(t *testing.T) {
 	r.handle(release)
 	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != 10*1000+60 {
 		t.Errorf("the release issued %v, want one order from 10 to 60", got)
+	}
+}
+
+func TestFire_AYieldingBindingFiresWhenNoOtherOnItsTriggerBuilt(t *testing.T) {
+	r := newRig(t)
+	held := control.ButtonHeld{Button: control.MouseButtonRight}
+	r.bind(control.Build(held, "turn", func(c control.Context) (order, bool) {
+		return order{1}, c.Cursor.X > 100
+	}), control.Build(held, "grab", orderOf(2)).Yielding())
+	press := &control.InputEvents{MousePos: geom.NewVec(10, 10), CursorInWindow: true}
+	press.AddClickEvent(10, 10, control.MouseButtonRight, control.ActionPress)
+	r.handle(press)
+	r.drained()
+	for _, c := range []struct {
+		x    float32
+		want int
+	}{{50, 2}, {150, 1}} {
+		r.handle(&control.InputEvents{MousePos: geom.NewVec(c.x, 10),
+			CursorDelta: geom.NewVec(40, 0), CursorInWindow: true})
+		if got := r.drained(); len(got) != 1 || got[0].Command.Cell != c.want {
+			t.Errorf("the button held at x %v issued %v, want order %d alone", c.x, got, c.want)
+		}
+	}
+	if err := r.local.Bind(control.Build(held, "another grab", orderOf(3)).Yielding()); err == nil {
+		t.Error("a second yielding binding on the trigger was taken, want it refused")
 	}
 }
 
@@ -417,12 +443,12 @@ func (r *rig) move(ev *control.InputEvents, ecs *goke.ECS) {
 func TestCamera_WheelZooms(t *testing.T) {
 	r, ecs := cameraRig(t)
 	cam := r.cam
-	r.move(&control.InputEvents{ScrollDelta: 1}, ecs)
+	r.move(&control.InputEvents{ScrollDelta: 1, CursorInWindow: true}, ecs)
 	if cam.Zoom() <= 1 {
 		t.Fatalf("Zoom() after a notch up = %v, want > 1", cam.Zoom())
 	}
 	zoomedIn := cam.Zoom()
-	r.move(&control.InputEvents{ScrollDelta: -1}, ecs)
+	r.move(&control.InputEvents{ScrollDelta: -1, CursorInWindow: true}, ecs)
 	if cam.Zoom() >= zoomedIn {
 		t.Fatalf("Zoom() after a notch down = %v, want < %v", cam.Zoom(), zoomedIn)
 	}
@@ -437,7 +463,8 @@ func TestCamera_MiddleDragPansOneToOneWithTheCursor(t *testing.T) {
 		cam.ZoomIn(zoom, 500, 500)
 		before := cam.Bounds()
 
-		r.move(&control.InputEvents{MousePos: geom.NewVec(100, 100), MiddleDown: true, CursorDelta: geom.NewVec(10, 0)}, ecs)
+		r.move(&control.InputEvents{MousePos: geom.NewVec(100, 100), MiddleDown: true,
+			CursorDelta: geom.NewVec(10, 0), CursorInWindow: true}, ecs)
 
 		after := cam.Bounds()
 		if want := before.TopLeft.X - 10/float32(zoom); after.TopLeft.X != want {
@@ -455,8 +482,8 @@ func TestCamera_EdgeScrollIsTheSameOnScreenAtAnyZoom(t *testing.T) {
 		cam.ZoomIn(zoom, 500, 500)
 		before := cam.Bounds()
 
-		// near the right edge of the 200-pixel window
-		r.move(&control.InputEvents{MousePos: geom.NewVec(190, 100)}, ecs)
+		// on the last pixel of the 200-pixel window
+		r.move(&control.InputEvents{MousePos: geom.NewVec(199, 100), CursorInWindow: true}, ecs)
 
 		moved := (cam.Bounds().TopLeft.X - before.TopLeft.X) * float32(zoom)
 		if moved != float32(cameras.DefaultScrollSpeed) {
@@ -465,16 +492,22 @@ func TestCamera_EdgeScrollIsTheSameOnScreenAtAnyZoom(t *testing.T) {
 	}
 }
 
-func TestCamera_EdgeDeadZoneAndWindowEdges(t *testing.T) {
+func TestCamera_TheEdgeReachesTheWindowsAndACursorTheWindowHasNotScrollsNothing(t *testing.T) {
+	in := func(x float32) control.InputEvents {
+		return control.InputEvents{MousePos: geom.NewVec(x, 500), CursorInWindow: true}
+	}
 	cases := map[string]struct {
 		ev    control.InputEvents
 		moves bool
 	}{
-		"near the right edge":               {control.InputEvents{MousePos: geom.NewVec(990, 500)}, true},
-		"at the true edge":                  {control.InputEvents{MousePos: geom.NewVec(999, 500)}, false},
-		"at the true edge, window fills it": {control.InputEvents{MousePos: geom.NewVec(999, 500), WindowFillsScreen: true}, true},
-		"outside the window":                {control.InputEvents{MousePos: geom.NewVec(-5, 500)}, false},
-		"middle drag outside the window":    {control.InputEvents{MousePos: geom.NewVec(-5, 500), MiddleDown: true, CursorDelta: geom.NewVec(10, 0)}, false},
+		"near the right edge": {in(990), true},
+		"at the very edge":    {in(999), true},
+		"out of the window, last seen near the edge": {
+			control.InputEvents{MousePos: geom.NewVec(990, 500)}, false},
+		"outside the picture": {in(-5), false},
+		"middle drag outside the picture": {
+			control.InputEvents{MousePos: geom.NewVec(-5, 500), MiddleDown: true,
+				CursorDelta: geom.NewVec(10, 0), CursorInWindow: true}, false},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -630,7 +663,7 @@ func TestCamera_AtAResolutionTheCursorReachesTheBindingsInTheCamerasPixels(t *te
 	r.bind(control.Build(control.CursorAtEdge{}, "edge", catch),
 		control.Build(control.Drag{Button: control.MouseButtonLeft}, "drag", catch))
 	ecs := r.start()
-	r.move(&control.InputEvents{MousePos: geom.NewVec(790, 300)}, ecs)
+	r.move(&control.InputEvents{MousePos: geom.NewVec(790, 300), CursorInWindow: true}, ecs)
 	if len(caught) != 1 {
 		t.Fatalf("the cursor 10 shown pixels from the right edge fired %d bindings, want the edge",
 			len(caught))

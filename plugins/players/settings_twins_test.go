@@ -113,7 +113,7 @@ func columnsAt(t *testing.T, p *Plugin, w, h int) int {
 	p.settings.HandleEvents(&control.InputEvents{}, rt, comp)
 	s.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(float32(w), float32(h))))
 	n := 0
-	for s.Element(settingsColumn(n)) != nil {
+	for s.Element(columnName("settings", n)) != nil {
 		n++
 	}
 	return n
@@ -171,7 +171,7 @@ func TestSettings_TheListingFollowsTheScreenAsTheWindowGrows(t *testing.T) {
 	s.Drawers()
 	columns := func() int {
 		n := 0
-		for s.Element(settingsColumn(n)) != nil {
+		for s.Element(columnName("settings", n)) != nil {
 			n++
 		}
 		return n
@@ -222,7 +222,9 @@ func TestSettings_EverySectionIsFramedUnderALargerTitle(t *testing.T) {
 	}
 	title := boxOf("settings.title")
 	_, large := ui.DefaultTheme().Large.Measure("Settings")
-	if tall := title.BottomRight.Y - title.TopLeft.Y; tall <= float32(large) {
-		t.Errorf("the title is %v tall, want taller than the theme's large font's %v", tall, large)
+	_, bold := ui.DefaultTheme().Bold.Measure("Settings")
+	if tall := title.BottomRight.Y - title.TopLeft.Y; tall != large || large <= bold {
+		t.Errorf("the title is %v tall, want the theme's large font's %v, taller than a "+
+			"heading's %v", tall, large, bold)
 	}
 }

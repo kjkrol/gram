@@ -22,6 +22,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gputest"
+	"github.com/kjkrol/gram/ui"
 )
 
 func near(a, b float32) bool { return f32.Abs(float32(a-b)) < 1e-3 }
@@ -122,15 +123,18 @@ func TestMinimap_IsDrawnLookingWhereItWasPublished(t *testing.T) {
 	}
 }
 
-func TestMinimap_SwitchShowsAndHidesItsPicture(t *testing.T) {
+func TestMinimap_SwitchShowsAndHidesItsPictureAndItsCompass(t *testing.T) {
 	w := flatWorld(nil)
 	p := carried(t, w, NewPlugin(w, nil, Config{Reach: 200}))
-	e := p.For(cameratest.NewFromSpace(1000, 1000, 0), command.Nobody).Size(100, 100)
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
+	e := p.For(cam, command.Nobody).Size(100, 100)
+	s := ui.NewScene("s", ui.Layers(e, p.Compass(cam).Named("compass")))
 	for _, want := range []bool{false, true} {
 		w.Write().Carrier().Put(command.Nobody, Switch{Shown: want})
 		p.RunPlan(nil, 0)
-		if p.read.Shown() != want {
-			t.Errorf("switched, shown %v, want %v", p.read.Shown(), want)
+		if p.read.Shown() != want || s.Shown("compass") != want {
+			t.Errorf("switched, shown %v and the compass %v, want %v", p.read.Shown(),
+				s.Shown("compass"), want)
 		}
 	}
 	p.write.Show(false)

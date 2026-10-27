@@ -23,12 +23,18 @@ device is `render/internal/gpu`, the engine reaching it through `render.UseDevic
 `Present` and `Submit`; a test that draws readies it with `gputest.Need(t)` (`render/gputest`).
 `render` and `ui` are meant to leave gram one day as a module of their own (`kjkrol/uxgpu`):
 they import nothing more of gram than they do now. A stage is readied before its first frame
-(`Engine.prepare`: `render.Prepare` compiles every shader made, does the deferred fills and puts
-textures written before the device on it; then a frame drawn and thrown away), so nothing is
-compiled or baked in a frame shown; `GRAM_FPS_LOG=1` logs it. A program's SPIR-V is kept on
-disk (`render/internal/gpu/spirv.go`, `os.UserCacheDir()/gram/shaders`, named by the WGSL and
-naga's version, `GRAM_SHADER_CACHE`) and handed to wgpu instead of the WGSL, which spares naga's
-translation and wgpu's second parse of it.
+(`Engine.prepare`: `render.Prepare` compiles every shader made, as many at once as there are
+CPUs (`gpu.CompileAll`; wgpu's compiler takes no lock of the device), does the deferred fills and
+puts textures written before the device on it; then a frame drawn and thrown away), so nothing is
+compiled or baked in a frame shown; `GRAM_FPS_LOG=1` logs it. Where the device is Vulkan's, a
+program's SPIR-V is kept on disk (`render/internal/gpu/spirv.go`,
+`os.UserCacheDir()/gram/shaders`, named by the WGSL and naga's version, `GRAM_SHADER_CACHE`) and
+handed to wgpu instead of the WGSL, which spares naga's translation at every start. wgpu's Metal
+backend translates a module's WGSL to MSL as each pipeline is made and takes no SPIR-V
+(2026-10-27: every demo panicked on a Mac with "shader module has no WGSL source" while gram
+handed every backend the SPIR-V), so there, on DX12 and on GL the WGSL goes as it is:
+`render.UseDevice` is told the backend gogpu names, a headless device asks its adapter. wgpu
+keeps the driver's pipeline cache on disk itself.
 
 ## Atlases and looks
 
@@ -288,15 +294,15 @@ builtin once: a fragment shader reading the pixel takes it as its input struct's
 `@builtin(position)` field (`s.clip.xy`), never also as a parameter; WGSL forbids it, naga and
 Vulkan let it by, Metal refuses the MSL (2026-10-21, every demo on an M1 Max); `wgsl_test.go`
 guards it. On Metal gogpu ignores `@invariant` (it sets no preserveInvariance), and a shader
-writing `frag_depth` should draw with a depth buffer. gogpu's compiler (naga
-v0.19.0 and v0.19.1) leaves a WGSL `var` without an initialiser undefined (garbage, not zero: a
-`var c: CloudOver;` returned early by a branch came out as stray full shadows in single pixels,
-2026-10-16; write `var c = CloudOver(...)`) and
-reads a module-scope vector `const` as zero where it meets a runtime value (`c * 1.0` folds and
-works, `c * light` is zero): gram's own WGSL has no vector consts; write them inside the function
-or as scalars (the low clouds' bands came out at the ground, 2026-10-17, till they were). Its
-SPIR-V writer has no `all()`/`any()` ("unsupported expression kind: ir.ExprRelational", a panic
-at the first draw): test a vector by its components (`max(max(abs(v.x), …)) <= 0.0`).
+writing `frag_depth` should draw with a depth buffer. gogpu's compiler (naga, v0.20.3 too)
+leaves a WGSL `var` without an initialiser undefined (garbage, not zero, its SPIR-V's
+OpVariable has no initialiser: a `var c: CloudOver;` returned early by a branch came out as
+stray full shadows in single pixels, 2026-10-16; write `var c = CloudOver(...)`). naga v0.19
+read a module-scope vector `const` as zero where it met a runtime value (`c * light` was zero,
+the low clouds' bands came out at the ground, 2026-10-17) and miscompiled `+=` on an element of
+a local array; naga v0.20.3 has both right (`render/internal/gpu/compile_test.go` guards). Its
+SPIR-V writer took no `all()`/`any()` before v0.20 ("unsupported expression kind:
+ir.ExprRelational", a panic at the first draw); gram's WGSL tests a vector by its components still.
 
 **A mesh may be drawn by ranges of its indices** (`DrawMeshOptions.Ranges`, none all): one
 call, one setup of the pass, a `DrawIndexed` a range; the relief draws the sectors a camera sees

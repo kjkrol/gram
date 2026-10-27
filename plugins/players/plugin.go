@@ -36,11 +36,11 @@ type Plugin struct {
 	handlers    []plugin.CommandHandler
 	origins     map[string]plugin.CommandHandler
 	players     []*Player
-	listings    command.Queue[ShowShortcuts]
+	listings    command.Queue[ShowControls]
 	openings    command.Queue[ShowSettings]
 	runnings    command.Queue[KeepRunning]
 	panels      command.Queue[telemetry.Panel]
-	shortcuts   *Shortcuts
+	controls    *ControlsScene
 	settings    *SettingsScene
 	composition game.Composition // the Stage's, as Handle last saw it
 	kept        *plugin.Kept[Settings]
@@ -74,7 +74,7 @@ func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Pl
 	p := &Plugin{worldPlugin: worldPlugin, now: time.Now}
 	p.read.p, p.write.p = p, p
 	p.Self = world.NewSelf(worldPlugin, p)
-	p.shortcuts = newShortcuts(p)
+	p.controls = newControls(p)
 	p.settings = newSettings(p)
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.handlers = append([]plugin.CommandHandler{p, worldPlugin}, handlers...)
@@ -121,7 +121,7 @@ func (p *Plugin) Defaults() []control.Binding {
 	return out
 }
 
-// note remembers which handler's defaults a binding came from, for the list of shortcuts
+// note remembers which handler's defaults a binding came from, for the controls screen
 func (p *Plugin) note(b control.Binding, h plugin.CommandHandler) {
 	if p.origins == nil {
 		p.origins = map[string]plugin.CommandHandler{}
@@ -153,7 +153,7 @@ func (p *Plugin) handlerOf(t reflect.Type) plugin.CommandHandler {
 func (p *Plugin) Handle(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
 	p.EventHandler().HandleEvents(events)
 	p.carry(runtime, composition)
-	p.shortcuts.keys.Handle(events, runtime, composition)
+	p.controls.keys.Handle(events, runtime, composition)
 	p.pass++
 }
 
@@ -161,7 +161,7 @@ func (p *Plugin) Handle(events *control.InputEvents, runtime game.Runtime, compo
 // behind the settings, the telemetry panel.
 func (p *Plugin) carry(runtime game.Runtime, composition game.Composition) {
 	p.composition = composition
-	p.listings.Drain(func(command.Issued[ShowShortcuts]) { p.shortcuts.Open(runtime, composition) })
+	p.listings.Drain(func(command.Issued[ShowControls]) { p.controls.Open(runtime, composition) })
 	p.openings.Drain(func(command.Issued[ShowSettings]) { p.settings.Open(runtime, composition) })
 	p.runnings.Drain(func(i command.Issued[KeepRunning]) {
 		p.Res.Settings.Running = i.Command.On

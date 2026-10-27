@@ -91,10 +91,14 @@
 //
 // [Keys] are a player's keys to its camera: four keys held scrolling it, the wheel zooming about
 // the cursor, the middle drag panning, the cursor at an edge scrolling and in a corner scrolling
-// slantwise, or turning as Q and E do (Keys.CornersTurn), two with Ctrl seeing farther and
-// nearer. [DefaultKeys] are W, S, A, D, = and -, Ctrl+= and Ctrl+-, with all three;
-// [Plugin.DefaultBindings] are those, the corners turning where the Config turns, and the views'
-// keys the Config gives: Q and E turning, R looking down more steeply and F flatter, Tab
+// slantwise, or turning as Q and E do (Keys.CornersTurn: as Q in the bottom-left and the
+// top-right, as E in the other two; nothing while the window has no cursor), two with Ctrl
+// seeing farther and nearer, and, where a game asks (Keys.Grab; Config.Grab for the defaults),
+// the right button grabbing the world and dragging it past a click's slop, yielding to whatever
+// else takes the right drag: a selection's orders. [DefaultKeys] are W, S, A, D, = and -, Ctrl+=
+// and Ctrl+-, with all three and no grab; [Plugin.DefaultBindings] are those, the corners
+// turning and the world grabbed where the Config says, and the views' keys the Config gives: Q
+// and E turning, R looking down more steeply and F flatter, Tab
 // switching between the orthographic view and the perspective, V riding, the mouse looking round
 // inside an entity. The scroll zones and the pictures' resolution have no key: the settings
 // screen sets them.

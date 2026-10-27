@@ -17,8 +17,9 @@
 // miniature, the marks and the outline, nothing more, cheaply; north is a red triangle hung on
 // the circle's edge ([Plugin.Compass], an element the scene lays over the minimap in a box
 // [Overhang] bigger on every side), pointing north, at the top north up, turned round the circle
-// and with it as the minimap turns. It is neither
-// an anchor of the world's bands nor saved.
+// and with it as the minimap turns; the pointer passes through the compass to the minimap and
+// the picture under, and it hides with the minimap. The minimap is neither an anchor of the
+// world's bands nor saved.
 //
 // # Ground and marks
 //

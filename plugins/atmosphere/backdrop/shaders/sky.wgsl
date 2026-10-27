@@ -1,8 +1,8 @@
 // What a part of the sky is handed, the contract a game's own part (backdrop.Part) is written to:
 // its entry is fn SkyVault(s: SkyAt) -> vec3<f32>, fn SkyStars(s: SkyAt) -> vec3<f32>,
 // fn SkyMoon(s: SkyAt, d: SkyDisc) -> SkyShine or fn SkySun(s: SkyAt, d: SkyDisc) -> SkyShine.
-// gogpu's compiler (naga v0.19) leaves a var without an initialiser undefined and reads a vector
-// const of the module's scope as zero: start from SkyShine(), spell a vector where it is used.
+// gogpu's compiler (naga v0.20.3 too) leaves a var without an initialiser undefined: start from
+// SkyShine().
 
 // SkyAt is the sky at a pixel: the pixel px, the unit line of sight way (z up), the radians a
 // pixel spans there, the way among the stars (equatorial, x towards 0h, z the pole), the sky's

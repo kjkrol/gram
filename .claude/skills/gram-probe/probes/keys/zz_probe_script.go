@@ -14,7 +14,7 @@ var keys = map[string]control.Key{
 	"F11": control.KeyF11, "H": control.KeyH, "M": control.KeyM, "G": control.KeyG,
 	"Tab": control.KeyTab, "W": control.KeyW, "P": control.KeyP, "V": control.KeyV,
 	"Equal": control.KeyEqual, "Minus": control.KeyMinus, "L": control.KeyL,
-	"A": control.KeyA, "F10": control.KeyF10, "Escape": control.KeyEscape,
+	"A": control.KeyA, "F10": control.KeyF10, "Escape": control.KeyEscape, "K": control.KeyK,
 }
 
 func (p *probe) play() {

@@ -36,6 +36,7 @@ type minimap struct {
 	lens    *lens // aimed as drawn
 	at      aim   // where the ticks have it look
 	element *ui.Element
+	compass *ui.Element // nil until the scene asks for one
 	marks   *marksView
 }
 

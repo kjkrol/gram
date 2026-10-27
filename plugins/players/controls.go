@@ -2,7 +2,6 @@ package players
 
 import (
 	"fmt"
-	"image/color"
 	"reflect"
 	"strings"
 
@@ -15,7 +14,7 @@ import (
 )
 
 // SceneKey is a key of the game's own, a debug toggle, that is no command to a plugin: what it
-// does, labelled for the shortcuts list. Shift and Ctrl ask for those held, exactly.
+// does, labelled for the controls screen. Shift and Ctrl ask for those held, exactly.
 type SceneKey struct {
 	Key         control.Key
 	Shift, Ctrl bool
@@ -23,12 +22,13 @@ type SceneKey struct {
 	Do          func(runtime game.Runtime, composition game.Composition)
 }
 
-// SceneKeys are a scene's keys: Handle runs the ones this tick's presses hit, and the shortcuts
-// scene lists them under "Game".
+// SceneKeys are a scene's keys: Handle runs the ones this tick's presses hit, and the controls
+// screen lists them under "Game".
 type SceneKeys []SceneKey
 
 // Handle runs every key of ks pressed this tick with the modifiers it asks for.
-func (ks SceneKeys) Handle(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
+func (ks SceneKeys) Handle(events *control.InputEvents, runtime game.Runtime,
+	composition game.Composition) {
 	for _, k := range events.KeyEvents {
 		if k.Action != control.ActionPress {
 			continue
@@ -42,88 +42,88 @@ func (ks SceneKeys) Handle(events *control.InputEvents, runtime game.Runtime, co
 	}
 }
 
-// ShortcutsName is the name of the shortcuts scene in a game's stack.
-const ShortcutsName = "gram.shortcuts"
+// ControlsName is the name of the controls scene in a game's stack.
+const ControlsName = "gram.controls"
 
-// Shortcuts is the scene listing every key of the game: the game's own under "Game", the
-// plugins' by plugin, the players' and the engine's under "General". Shown, it holds the game
-// in the engine's pause; Esc or K closes it.
-type Shortcuts struct {
-	p           *Plugin
-	keys        SceneKeys
-	screen      *ui.Scene
-	held        bool
-	description string
-	w, h        int // the screen the listing was built for
+// ControlsScene is the screen of every key and mouse action of the game, laid as the settings
+// screen is, a framed section a group: the game's own under "Game", the plugins' by plugin, the
+// players' and the engine's under "General". K opens it, Esc or K closes it; shown, it holds the
+// game in the engine's pause.
+type ControlsScene struct {
+	p      *Plugin
+	keys   SceneKeys
+	screen *ui.Scene
+	held   bool
+	w, h   int // the screen the listing was built for
 }
 
-var _ game.Scene = (*Shortcuts)(nil)
+var _ game.Scene = (*ControlsScene)(nil)
 
-func newShortcuts(p *Plugin) *Shortcuts {
-	return &Shortcuts{p: p, screen: ui.NewScene(ShortcutsName, nil)}
+func newControls(p *Plugin) *ControlsScene {
+	return &ControlsScene{p: p, screen: ui.NewScene(ControlsName, nil)}
 }
 
 // OwnKeys gives the game's own keys, run by Handle and listed under "Game". Call it before the
 // Stage is set up.
 func (p *Plugin) OwnKeys(keys SceneKeys) *Plugin {
-	p.shortcuts.keys = keys
+	p.controls.keys = keys
 	return p
 }
 
-// Scenes are the players' own: the list of shortcuts and the settings screen (game.Scenic).
-func (p *Plugin) Scenes() []game.Scene { return []game.Scene{p.shortcuts, p.settings} }
+// Scenes are the players' own: the controls screen and the settings screen (game.Scenic).
+func (p *Plugin) Scenes() []game.Scene { return []game.Scene{p.controls, p.settings} }
 
-// Open shows the scene on top, the game's description over the keys, and holds the game paused
-// while it is up.
-func (s *Shortcuts) Open(runtime game.Runtime, composition game.Composition) {
-	s.description = runtime.Props().Description
+// Open shows the screen on top and holds the game paused while it is up.
+func (s *ControlsScene) Open(runtime game.Runtime, composition game.Composition) {
 	s.held = runtime.Paused()
 	runtime.Pause()
 	s.build(screenSize(s.screen, runtime.Props()))
-	composition.Show(ShortcutsName)
+	composition.Show(ControlsName)
 }
 
-// Close hides the scene and lets the game go on, unless it was paused before.
-func (s *Shortcuts) Close(runtime game.Runtime, composition game.Composition) {
-	composition.Hide(ShortcutsName)
+// Close hides the screen and lets the game go on, unless it was paused before.
+func (s *ControlsScene) Close(runtime game.Runtime, composition game.Composition) {
+	composition.Hide(ControlsName)
 	if !s.held {
 		runtime.Resume()
 	}
 }
 
-func (*Shortcuts) Name() string { return ShortcutsName }
+func (*ControlsScene) Name() string { return ControlsName }
 
-func (s *Shortcuts) Drawers() []render.Renderer { return s.screen.Drawers() }
+func (s *ControlsScene) Drawers() []render.Renderer { return s.screen.Drawers() }
 
-// HandleEvents closes the scene on Esc or K.
-func (s *Shortcuts) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
+// HandleEvents closes the screen on Esc or K and hands the rest to the screen, its scroll; a
+// screen of another size, the window resized or full, has the listing built anew for it.
+func (s *ControlsScene) HandleEvents(events *control.InputEvents, runtime game.Runtime,
+	composition game.Composition) {
 	s.p.capture()
 	if w, h := screenSize(s.screen, runtime.Props()); w != s.w || h != s.h {
 		s.build(w, h)
 	}
 	for _, k := range events.KeyEvents {
-		if k.Action == control.ActionPress && (k.Key == control.KeyEscape || k.Key == control.KeyK) && !events.Modifiers.Shift {
+		if k.Action == control.ActionPress && !events.Modifiers.Shift &&
+			(k.Key == control.KeyEscape || k.Key == control.KeyK) {
 			s.Close(runtime, composition)
 			return
 		}
 	}
+	s.screen.HandleEvents(events, runtime, composition)
 }
 
-func (*Shortcuts) Focusable() bool { return true }
+func (*ControlsScene) Focusable() bool { return true }
 
-// a group's lines, a key and its label each, and the two written apart for a table
+// a group's lines: a trigger as written and what it does, the two apart for the columns
 type group struct {
 	name         string
-	lines        []string
 	keys, labels []string
 }
 
 func (g *group) add(key, label string) {
-	g.lines = append(g.lines, fmt.Sprintf("%-22s %s", key, label))
 	g.keys, g.labels = append(g.keys, key), append(g.labels, label)
 }
 
-func (s *Shortcuts) groups() []group {
+func (s *ControlsScene) groups() []group {
 	byHandler := map[plugin.CommandHandler]*group{}
 	seen := map[string]bool{}
 	own, general := &group{name: "Game"}, &group{name: "General"}
@@ -156,7 +156,7 @@ func (s *Shortcuts) groups() []group {
 		own.add(Written(trigger), k.Label)
 	}
 	var out []group
-	if len(own.lines) > 0 {
+	if len(own.keys) > 0 {
 		out = append(out, *own)
 	}
 	for _, h := range s.p.handlers {
@@ -164,17 +164,17 @@ func (s *Shortcuts) groups() []group {
 			out = append(out, *g)
 		}
 	}
-	general.add("F11", "Full screen (the engine's)")
+	general.add(control.FullscreenKey())
 	return append(out, *general)
 }
 
-func (s *Shortcuts) title() string {
+func (s *ControlsScene) title() string {
 	for _, pl := range s.p.read.Locals() {
 		if camera.HowOf(pl.pic.camera) == camera.Inside {
-			return "Shortcuts: first person, riding in the unit"
+			return "Controls: first person, riding in the unit"
 		}
 	}
-	return "Shortcuts"
+	return "Controls"
 }
 
 func handlerName(h plugin.CommandHandler) string {
@@ -282,76 +282,55 @@ func keyName(k control.Key) string {
 
 // pixels
 const (
-	shortcutsMargin = 24
-	shortcutsGap    = 16
+	controlsRow   = 24  // a line: a trigger and what it does, one line of it
+	controlsLabel = 300 // the most a label takes before it wraps
 )
 
-var shortcutsDim = color.RGBA{A: 170}
-
 // build replaces the screen with the listing laid out for a screen w by h
-func (s *Shortcuts) build(w, h int) {
+func (s *ControlsScene) build(w, h int) {
 	s.w, s.h = w, h
 	s.screen.Replace(s.listing(w, h))
 }
 
-// listing is the screen: the game's description, a gap, the title, and the groups of keys in
-// columns as wide as their lines, each column as tall as the screen allows.
-func (s *Shortcuts) listing(w, h int) *ui.Element {
+// listing is the screen: the title and the groups, each a framed section (frame:<group>) with
+// a heading (section:<group>) and a line a binding, the trigger in a column as wide as the widest
+// of them all and what it does beside, wrapped past controlsLabel, in the menus' columns.
+func (s *ControlsScene) listing(w, h int) *ui.Element {
+	groups := s.groups()
 	font := ui.DefaultTheme().Font
-	glyph, line := font.Measure("abcdefghij")
-	glyphWidth, lineHeight := glyph/10, line
-	width := float32(w) - 2*shortcutsMargin
-	height := float32(h) - 2*shortcutsMargin
-
-	var rows []ui.Part
-	if d := s.description; d != "" {
-		lines := wrapped(d, int(width/glyphWidth))
-		rows = append(rows, ui.Fit(ui.Label(strings.Join(lines, "\n")).Named("shortcuts.about")),
-			ui.Fixed(shortcutsGap, ui.Blank()))
-		height -= float32(len(lines))*lineHeight + shortcutsGap
-	}
-	rows = append(rows, ui.Fit(ui.Title(s.title()).Named("shortcuts.title")),
-		ui.Fixed(shortcutsGap, ui.Blank()))
-	_, titleHeight := ui.DefaultTheme().Large.Measure(s.title())
-	height -= titleHeight + shortcutsGap
-
-	var columns []ui.Part
-	var column []ui.Part
-	used := float32(0)
-	for _, g := range s.groups() {
-		tall := float32(len(g.lines)+1) * lineHeight
-		if used > 0 && used+tall > height {
-			columns = append(columns, ui.Fit(ui.Rows(column...).Named(columnName(len(columns)))),
-				ui.Fixed(shortcutsGap*2, ui.Blank()))
-			column, used = nil, 0
+	keyWidth := float32(0)
+	for _, g := range groups {
+		for _, k := range g.keys {
+			kw, _ := font.Measure(k)
+			keyWidth = max(keyWidth, kw)
 		}
-		table := ui.Columns(
-			ui.Fixed(shortcutsGap/2, ui.Blank()),
-			ui.Fit(ui.Label(strings.Join(g.keys, "\n"))),
-			ui.Fixed(shortcutsGap*2, ui.Blank()),
-			ui.Fit(ui.Label(strings.Join(g.labels, "\n"))),
-		)
-		column = append(column, ui.Fit(ui.Heading(g.name)), ui.Fit(table),
-			ui.Fixed(shortcutsGap, ui.Blank()))
-		used += tall + shortcutsGap
 	}
-	if len(column) > 0 {
-		columns = append(columns, ui.Fit(ui.Rows(column...).Named(columnName(len(columns)))))
+	keyWidth += 2 * menuGap
+	lead := (controlsRow - font.LineHeight()) / 2
+	var blocks []block
+	for _, g := range groups {
+		var b block
+		b.add(ui.Fit(ui.Heading(g.name).Named("section:"+g.name)), settingsRow)
+		for i, k := range g.keys {
+			lines := wrapped(font, g.labels[i], controlsLabel)
+			tall := controlsRow + float32(len(lines)-1)*font.LineHeight()
+			b.add(ui.Fixed(tall, ui.Columns(
+				ui.Fixed(keyWidth, ui.Rows(ui.Fixed(lead, ui.Blank()), ui.Fit(ui.Label(k)))),
+				ui.Fit(ui.Rows(ui.Fixed(lead, ui.Blank()),
+					ui.Fit(ui.Label(strings.Join(lines, "\n"))))),
+			)), tall)
+		}
+		blocks = append(blocks, framed([]block{b}, g.name))
 	}
-	rows = append(rows, ui.Share(1, ui.Columns(columns...)))
-	return ui.Layers(
-		ui.Blank().Fill(shortcutsDim),
-		ui.Rows(rows...).Padding(shortcutsMargin),
-	)
+	return menu("controls", s.title(), blocks, w, h)
 }
 
-func columnName(i int) string { return fmt.Sprintf("shortcuts.column.%d", i/2) }
-
-func wrapped(text string, width int) []string {
+// wrapped is text in lines at most width pixels wide in font, broken between words
+func wrapped(font *render.Font, text string, width float32) []string {
 	var lines []string
 	line := ""
 	for _, word := range strings.Fields(text) {
-		if line != "" && len(line)+1+len(word) > width {
+		if w, _ := font.Measure(line + " " + word); line != "" && w > width {
 			lines, line = append(lines, line), ""
 		}
 		if line != "" {

@@ -198,7 +198,9 @@ func (p *Plugin) Window() *ui.Element {
 }
 
 // Reason is a label saying why the bridge in a player's hand may not stand where it points.
-func (p *Plugin) Reason() *ui.Element { return ui.LabelOf(text{p: p, say: reasonText}) }
+func (p *Plugin) Reason() *ui.Element {
+	return ui.LabelOf(text{p: p, say: reasonText}).Passing()
+}
 
 func (p *Plugin) Name() string { return "gram.bridges" }
 

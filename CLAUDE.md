@@ -36,7 +36,8 @@ plugin's package layout), `gram-plugins` (the reference of the built-in plugins,
 `gram-render` (the Composer, Direct, atlases and looks), `gram-game` (a game and a demo: Stage,
 sections, arena, scene, ui, players, persistence), `gram-probe` (a demo driven headless tick by
 tick), `gram-perf` (where the time goes, the optimisations landed and what they rest on,
-measuring a change: the protocol and its scripts), `goke` (the ECS: model, queries, release flow,
+measuring a change: the protocol and its scripts), `gram-pr` (a PR readied for review: the squash
+message, the PR's body, the squash), `goke` (the ECS: model, queries, release flow,
 `scripts/api.sh`), `ceremony` (the language and its pitfalls). aabbworld's kernels have their own
 `simd` skill (`/home/karol/CODE/aabbworld/.claude/skills/simd/SKILL.md`), loaded by a session in
 that repo and read by path from here.
@@ -87,10 +88,12 @@ Only `render` (its device in `render/internal/gpu`) and `internal/engine` import
 gputypes); plugins see `render` and `control`. Tests that draw ready a headless device
 (`gputest.Need(t)`, `render/gputest`; `GRAM_GPU=software` for the software rasteriser, which draws
 wrong) and skip without a GPU. A running game logs its frame rate and where a frame's time goes
-every second with `GRAM_FPS_LOG=1`, starts fullscreen with `GRAM_FULLSCREEN=1` (F11 switches) and
-runs unpaced with `GRAM_VSYNC=off`, keeps its shaders' SPIR-V in `~/.cache/gram/shaders`
-(`GRAM_SHADER_CACHE=off` none, a folder there); headless probes of a demo's frame include about 10
-ms of the GPU's readback at 2560x1440, so compare them with each other, not with a frame rate.
+every second with `GRAM_FPS_LOG=1`, logs the cursor's place in the window every second and every
+click with `GRAM_INPUT_LOG=1`, starts fullscreen with `GRAM_FULLSCREEN=1` (F11 switches), runs
+unpaced with `GRAM_VSYNC=off` and on Vulkan keeps its shaders' SPIR-V in `~/.cache/gram/shaders`
+(`GRAM_SHADER_CACHE=off` none, a folder there; Metal takes the WGSL); headless probes of a demo's
+frame include about 10 ms of the GPU's readback at 2560x1440, so compare them with each other, not
+with a frame rate.
 `GRAM_SHOT=<file.png>` saves frame `GRAM_SHOT_FRAME` (120) and quits, the world taking one step a
 frame till then: shots of a baseline tree and of the working one compare a change's pictures (the
 telemetry panel, random weather and random scenes are noise).
@@ -179,8 +182,9 @@ Decisions the user has made; they are not up for revisiting in passing.
   (`var _ command.Command = MoveTo{}` beside the type). Whatever takes commands takes a
   `command.Command`, never `any`.
 - **The default keys are the same in every game and no demo repeats one**: P and Shift+P the
-  tactical pause, Shift+Esc quits, K lists the keys, F10 the settings screen, ~ the telemetry panel (the
-  basics, everything, hidden, in turn), F5 saves, F9 loads, F11 full screen, ] and [ the tempo,
+  tactical pause, Shift+Esc quits, K the controls screen, F10 the settings screen, ~ the telemetry panel (the
+  basics, everything, hidden, in turn), F5 saves, F9 loads, F11 full screen (on a Mac the
+  window's own Ctrl+Cmd+F, the system keeping F11), ] and [ the tempo,
   Shift+B the bridge tool, Space jumps in first person, = and - zoom, Shift+= and Shift+- shape
   the relief (L and a left drag level it), Ctrl+= and Ctrl+- the camera's sight (farther,
   nearer). **An option on the settings screen has no key** (the user's word, 2026-10-20): the
@@ -192,9 +196,10 @@ Decisions the user has made; they are not up for revisiting in passing.
   telemetry panel keep theirs.
   A key held, down or let go leaves the chords with Shift, Ctrl or Alt to these shortcuts unless
   its binding is `InChords()` (a sprint, a jump while sprinting). A plugin's keys a game sets up
-  (`driving.Compass`, `selection.FollowKey`, the cameras' zoom keys) are bound in the
-  Players section with the defaults; the game's own go to the Controls section and are listed under
-  "Game".
+  (`driving.Compass`, `selection.FollowKey`, the cameras' zoom keys, the cameras' grab of the
+  world with the right button — `cameras.Config.Grab`, no default, yielding to a selection's
+  orders) are bound in the Players section with the defaults; the game's own go to the
+  Controls section and are listed under "Game".
 - **Everything a game defines is its Stage's, by name**, each register the world's, so each
   Stage has its own and nothing is the program's; a game's arena holds plugins and players alone.
 - **The order a game makes its plugins in is the order they are used in**; no list, no `ctx` in
@@ -349,4 +354,6 @@ line, never two assigned at once. `golines -m 100 -t 4 --no-reformat-tags` does 
 what it made.
 
 Commit messages use the conventional prefixes (`feat`, `fix`, `docs`, `refactor`, `perf`, `test`,
-`chore`) and carry no `Co-Authored-By` trailer. Commit and push only when asked.
+`chore`) and carry no `Co-Authored-By` trailer. Commit and push only when asked. A PR goes to
+review squashed to one commit whose message is the PR's title and body: what it brings, grouped
+and short, with no word of the tool that wrote it (`gram-pr`); the user waits for CI and reviews.

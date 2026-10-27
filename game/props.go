@@ -3,7 +3,8 @@ package game
 // Props configures the window and the tick rate, read once as the engine starts.
 type Props struct {
 	Title string // the window's: short
-	// Description is what the game is and how it is played, shown over the list of shortcuts (K).
+	// Description is what the game is and how it is played, for a menu of the game's own; the
+	// engine shows it nowhere.
 	Description               string
 	TargetTPS                 int
 	ScreenWidth, ScreenHeight int

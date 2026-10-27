@@ -67,6 +67,9 @@ func TestRead_TheWorkersReadWhomThePlayersChoseAtOnceAsTheGameDoes(t *testing.T)
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
+	if sel.Read(0).Any(1) {
+		t.Fatal("a player has a selection before the plugin is installed")
+	}
 	pool := parallel.New(4)
 	ctx := &installCtx{ecs: goke.New(), pool: pool}
 	if err := w.Install(ctx); err != nil {
@@ -89,6 +92,11 @@ func TestRead_TheWorkersReadWhomThePlayersChoseAtOnceAsTheGameDoes(t *testing.T)
 	want := chooses(sel.Read(0))
 	if !want.ok[0] || want.ok[4] || want.ok[5] {
 		t.Fatalf("the game's goroutine reads %+v: the selection proves nothing", want)
+	}
+	if r := sel.Read(0); !r.Any(1) || !r.Any(5) || r.Any(6) {
+		t.Fatalf("Any: player 1 %v, player 5 %v, player 6 %v; want the first two with a "+
+			"selection (5 has two units selected, chosen none) and 6 without", r.Any(1), r.Any(5),
+			r.Any(6))
 	}
 	got := make([]choice, 2*pool.Size())
 	b := pool.Begin(func(wk, i int) {

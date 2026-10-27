@@ -64,5 +64,24 @@ func (r *Read) Chosen(by command.Issuer) (uid.UID64, bool) {
 	return one, n == 1
 }
 
+// Any reports whether by has a Selected unit it commands; false before the plugin is installed.
+func (r *Read) Any(by command.Issuer) bool {
+	q := r.query
+	if q == nil {
+		return false
+	}
+	s := r.p.module.sys
+	for q.All(); q.Next(); {
+		cur := q.Cursor()
+		owners := s.owners.Slice(cur)
+		for i, m := range s.marks.Slice(cur) {
+			if m.Has(s.tags.Selected) && owner.Obeys(ownersAt(owners, i), by) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // IsSelected reports whether an entity carrying marks is selected: a drawing rule's condition.
 func (r *Read) IsSelected(marks tag.Tags[Family]) bool { return marks.Has(r.p.tags.Selected) }

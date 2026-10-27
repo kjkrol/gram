@@ -201,6 +201,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		Turn:        true,
 		Tilt:        true,
 		Perspective: true,
+		Grab:        true,
 		Cell:        CellSize,
 		HeightUnit:  1,
 		Cage:        a.topography.Read(0),

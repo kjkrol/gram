@@ -206,3 +206,67 @@ func TestElement_HideAndShowHaveItHitOrNot(t *testing.T) {
 		t.Error("shown again, the element is not hit")
 	}
 }
+
+func TestInput_APassingPanelOfWordsLetsTheClickTheWheelAndTheHoverThrough(t *testing.T) {
+	red := &hovering{}
+	s := built(NewScene("main", Layers(Image(&sized{}).Input(red),
+		TopMiddle(Panel(Columns(Fit(Label("08:15")), Fit(Label("summer, 3 August")))).Passing()).
+			Size(300, 40))).Input(red.handle))
+	ev := click(geom.NewVec(600, 20))
+	ev.ScrollDelta = 1
+	s.HandleEvents(ev, nil, nil)
+	if !red.on || len(red.clicks) != 1 || red.wheel != 1 {
+		t.Errorf("under the passing panel the world is hovered %v, got clicks %v and wheel %v; "+
+			"want it hovered, the click and the wheel", red.on, red.clicks, red.wheel)
+	}
+}
+
+func TestInput_AButtonInAPassingPanelTakesItsPressAndTheWordsBesideItDoNot(t *testing.T) {
+	red := &hovering{}
+	var issued []command.Command
+	go_ := Button("go", order{"go"})
+	panel := TopLeft(Panel(Columns(Fit(Label("a word")), Fit(go_))).Passing()).Size(300, 40)
+	s := built(NewScene("main", Layers(Image(&sized{}).Input(red), panel)).Input(red.handle).
+		Issue(func(cmd command.Command) error { issued = append(issued, cmd); return nil }))
+	b := go_.Box()
+	onButton := geom.NewVec((b.TopLeft.X+b.BottomRight.X)/2, (b.TopLeft.Y+b.BottomRight.Y)/2)
+	onWords := geom.NewVec(10, 20)
+	if !panel.Hits(onButton) || panel.Hits(onWords) {
+		t.Errorf("the passing panel is hit on its button %v and on its words %v, want the button "+
+			"alone", panel.Hits(onButton), panel.Hits(onWords))
+	}
+	s.HandleEvents(click(onButton), nil, nil)
+	if len(issued) != 1 || issued[0] != (order{"go"}) || len(red.clicks) != 0 || red.on {
+		t.Errorf("a press on the button issued %v, the world got %v and is hovered %v; want the "+
+			"order alone", issued, red.clicks, red.on)
+	}
+	s.HandleEvents(click(onWords), nil, nil)
+	if len(issued) != 1 || len(red.clicks) != 1 || !red.on {
+		t.Errorf("a press on the words issued %v, the world got %v and is hovered %v; want the "+
+			"world's click, the world hovered", issued, red.clicks, red.on)
+	}
+}
+
+func TestInput_APassingPictureOverAClickedOneLeavesItThePressAndTheWorldTheCorner(t *testing.T) {
+	red, mini := &hovering{}, &minimap{}
+	// the minimap 200 a side in a box 240 a side top-right, a transparent compass over the box
+	s := built(NewScene("main", Layers(Image(&sized{}).Input(red),
+		TopRight(Layers(
+			Center(Image(&sized{}).Input(mini).Masked(Circle)).Size(200, 200),
+			Image(&sized{}).Passing(),
+		)).Size(240, 240))).Input(red.handle))
+	inCircle := geom.NewVec(1130, 120)
+	s.HandleEvents(click(inCircle), nil, nil)
+	if len(mini.pressed) != 1 || mini.pressed[0] != geom.NewVec(150, 100) || !mini.on || red.on {
+		t.Errorf("a press in the circle: the minimap heard %v, on it %v, the world hovered %v; "+
+			"want the press at (150, 100) on it, the world covered", mini.pressed, mini.on, red.on)
+	}
+	corner := click(geom.NewVec(1195, 5))
+	corner.ScrollDelta = 1
+	s.HandleEvents(corner, nil, nil)
+	if len(mini.pressed) != 1 || mini.on || !red.on || len(red.clicks) != 1 || red.wheel != 1 {
+		t.Errorf("a press in the box's corner, off the circle: the minimap heard %v, on it %v, "+
+			"the world hovered %v with clicks %v and wheel %v; want the world's", mini.pressed,
+			mini.on, red.on, red.clicks, red.wheel)
+	}
+}

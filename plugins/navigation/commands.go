@@ -26,13 +26,6 @@ type Resources struct {
 
 func (Routes) Command() {}
 
-// pixels the cursor may move between the button going down and up for a click, not a drag
-const clickSlop = 4
-
-func dragged(c control.Context) bool {
-	return f32.Hypot(c.Cursor.X-c.Start.X, c.Cursor.Y-c.Start.Y) > clickSlop
-}
-
 // Queues are the queues of every command the plugin carries out, for the players plugin.
 func (p *Plugin) Queues() []command.CommandQueue {
 	queues := []command.CommandQueue{&p.moves, &p.looks, &p.routes, &p.onwards}
@@ -40,12 +33,12 @@ func (p *Plugin) Queues() []command.CommandQueue {
 }
 
 // DefaultBindings is a right click into a MoveTo of the cell and level under the cursor, Shift
-// appending, and a right drag into a LookAt at every move.
+// appending, and a right drag into a LookAt at every move while the player has a selection.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	brd := p.boardPlugin.Read(0).Board()
 	to := func(appendIt bool) func(c control.Context) (MoveTo, bool) {
 		return func(c control.Context) (MoveTo, bool) {
-			if dragged(c) {
+			if c.Dragged() {
 				return MoveTo{}, false
 			}
 			at, z, picked := c.Point(c.Cursor)
@@ -61,7 +54,10 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 			return MoveTo{Cell: cell, At: at, Append: appendIt, Level: level}, ok
 		}
 	}
-	turn := func(c control.Context) (LookAt, bool) { return LookAt{At: c.World(c.Cursor)}, dragged(c) }
+	// without a selection the drag is left to whatever yields to it: the cameras' grab
+	turn := func(c control.Context) (LookAt, bool) {
+		return LookAt{At: c.World(c.Cursor)}, c.Dragged() && p.sel.Read(0).Any(c.Player)
+	}
 	return []control.Binding{
 		control.Build(control.Drag{Button: control.MouseButtonRight}, "Move selected units here", to(false)),
 		control.Build(control.Drag{Button: control.MouseButtonRight, Mods: control.Mods{Shift: true}}, "Add a waypoint", to(true)),

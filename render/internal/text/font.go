@@ -84,14 +84,14 @@ var defaultBoldFont = sync.OnceValue(func() *Font {
 func DefaultBoldFont() *Font { return defaultBoldFont() }
 
 var defaultLargeFont = sync.OnceValue(func() *Font {
-	f, err := NewFont(gobold.TTF, 20)
+	f, err := NewFont(gobold.TTF, 28)
 	if err != nil {
 		panic(err)
 	}
 	return f
 })
 
-// DefaultLargeFont is Go Bold at 20 pixels, for a screen's title.
+// DefaultLargeFont is Go Bold at 28 pixels, for a screen's title.
 func DefaultLargeFont() *Font { return defaultLargeFont() }
 
 // LineHeight is how far one line of text lies under the one before it.

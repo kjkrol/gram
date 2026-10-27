@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"sync"
 
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
@@ -15,7 +13,6 @@ import (
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 	"github.com/kjkrol/uid"
-	"golang.org/x/image/font/gofont/gobold"
 )
 
 // SettingsName is the name of the settings scene in a game's stack.
@@ -46,23 +43,8 @@ type SettingsScene struct {
 var _ game.Scene = (*SettingsScene)(nil)
 
 func newSettings(p *Plugin) *SettingsScene {
-	return &SettingsScene{p: p, screen: ui.NewScene(SettingsName, nil).Theme(settingsTheme())}
+	return &SettingsScene{p: p, screen: ui.NewScene(SettingsName, nil)}
 }
-
-// settingsTheme is the default with the title in Go Bold at titleSize
-func settingsTheme() ui.Theme {
-	th := ui.DefaultTheme()
-	th.Large = titleFont()
-	return th
-}
-
-var titleFont = sync.OnceValue(func() *render.Font {
-	f, err := render.NewFont(gobold.TTF, titleSize)
-	if err != nil {
-		panic(err)
-	}
-	return f
-})
 
 // Open shows the screen on top, built afresh of the plugins' settings, and holds the game.
 func (s *SettingsScene) Open(runtime game.Runtime, composition game.Composition) {
@@ -123,11 +105,9 @@ func (*SettingsScene) Focusable() bool { return true }
 
 // pixels
 const (
-	settingsRow    = 32
-	settingsLabel  = 220
-	twinColumn     = 230 // a twin section's column of controls
-	sectionPadding = 8   // inside a section's frame
-	titleSize      = 28  // the title's font
+	settingsRow   = 32
+	settingsLabel = 220
+	twinColumn    = 230 // a twin section's column of controls
 )
 
 // build replaces the screen with the listing laid out for a screen w by h
@@ -136,100 +116,11 @@ func (s *SettingsScene) build(w, h int) {
 	s.screen.Replace(s.listing(w, h))
 }
 
-// screenSize is the size a menu lays itself out for: the screen the scene was last laid over,
-// the window as it is, else the Props' as the game starts
-func screenSize(scene *ui.Scene, props game.Props) (w, h int) {
-	if box := scene.Laid(); box.BottomRight.X > box.TopLeft.X {
-		return int(box.BottomRight.X - box.TopLeft.X), int(box.BottomRight.Y - box.TopLeft.Y)
-	}
-	return props.ScreenWidth, props.ScreenHeight
-}
-
-// listing is the screen: the title and, centred in as many columns as the screen's width takes,
-// the sections of settings, each framed, a heading and a line a setting, its label and its
-// control; the columns broken by the screen's height where they fit its width, fewer and taller
-// where they do not, scrolled then (ui.Scroll).
+// listing is the screen: the title and the sections of settings, each framed, a heading and a
+// line a setting, its label and its control, in the menus' columns.
 func (s *SettingsScene) listing(w, h int) *ui.Element {
-	width := float32(w) - 2*shortcutsMargin
-	height := float32(h) - 2*shortcutsMargin
-	_, titleHeight := titleFont().Measure("Settings")
-	height -= titleHeight + 2*sectionPadding + shortcutsGap
-
-	blocks := s.tree().blocks("", 0, nil)
-	columns := columned(blocks, height)
-	for n := len(columns) - 1; n >= 1 && widthOf(columns, width, height) > width; n-- {
-		columns = columned(blocks, tallEnough(blocks, n))
-	}
-	return ui.Layers(
-		ui.Blank().Fill(shortcutsDim),
-		ui.TopMiddle(ui.Rows(
-			ui.Fit(ui.TopMiddle(ui.Panel(ui.Title("Settings").Named("settings.title")).
-				Padding(sectionPadding).Border(settingsTheme().Border, 1))),
-			ui.Fixed(shortcutsGap, ui.Blank()),
-			ui.Fixed(height, ui.Scroll(ui.Columns(spaced(columns)...)).Named("settings.scroll")),
-		)).Padding(shortcutsMargin),
-	)
+	return menu("settings", "Settings", s.tree().blocks("", 0, nil), w, h)
 }
-
-// columned is the blocks in columns at most height tall, a block never split
-func columned(blocks []block, height float32) []*ui.Element {
-	var columns []*ui.Element
-	var column []ui.Part
-	used := float32(0)
-	for _, b := range blocks {
-		if used > 0 && used+b.tall > height {
-			columns = append(columns, ui.Rows(column...))
-			column, used = nil, 0
-		}
-		column = append(column, b.parts...)
-		used += b.tall
-	}
-	if len(column) > 0 {
-		columns = append(columns, ui.Rows(column...))
-	}
-	return columns
-}
-
-// tallEnough is the least height that holds the blocks in n columns
-func tallEnough(blocks []block, n int) float32 {
-	total, tallest := float32(0), float32(0)
-	for _, b := range blocks {
-		total += b.tall
-		tallest = max(tallest, b.tall)
-	}
-	height := max(total/float32(n), tallest)
-	for len(columned(blocks, height)) > n {
-		height += settingsRow
-	}
-	return height
-}
-
-// widthOf is the columns' width with the gaps between them, measured laid out once
-func widthOf(columns []*ui.Element, width, height float32) float32 {
-	probe := ui.NewScene("", ui.Columns(spaced(columns)...))
-	probe.Drawers()
-	probe.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(width, height)))
-	w := float32(0)
-	for i := range columns {
-		box := probe.Element(settingsColumn(i)).Box()
-		w += box.BottomRight.X - box.TopLeft.X
-	}
-	return w + float32(len(columns)-1)*shortcutsGap*2
-}
-
-// spaced is the columns as parts, named by their place, a gap between them
-func spaced(columns []*ui.Element) []ui.Part {
-	parts := make([]ui.Part, 0, 2*len(columns))
-	for i, c := range columns {
-		if i > 0 {
-			parts = append(parts, ui.Fixed(shortcutsGap*2, ui.Blank()))
-		}
-		parts = append(parts, ui.Fit(c.Named(settingsColumn(i))))
-	}
-	return parts
-}
-
-func settingsColumn(i int) string { return fmt.Sprintf("settings.column.%d", i) }
 
 // a section of the screen: its name, the settings right under it and its subsections
 type node struct {
@@ -307,19 +198,6 @@ func (n *node) prune() {
 	n.subs = kept
 }
 
-// a block never splits across columns: a top section framed whole, or within one a heading (a
-// parent's without entries of its own joined to its first child's) and the lines right under it
-type block struct {
-	parts []ui.Part
-	tall  float32
-	bare  bool // headings alone so far
-}
-
-func (b *block) add(part ui.Part, tall float32) {
-	b.parts = append(b.parts, part)
-	b.tall += tall
-}
-
 // blocks appends n's blocks to dst: its heading, its settings' lines, then its subsections',
 // twins side by side; the root (level 0) has no heading and gives a block a top section, its
 // blocks framed as one.
@@ -343,7 +221,7 @@ func (n *node) blocks(path string, level int, dst []block) []block {
 	dst[len(dst)-1].add(n.heading(path, level), settingsRow)
 	for _, st := range n.settings {
 		last := &dst[len(dst)-1]
-		last.add(ui.Fixed(settingsRow, line(st, path, float32(level)*shortcutsGap/2)), settingsRow)
+		last.add(ui.Fixed(settingsRow, line(st, path, float32(level)*menuGap/2)), settingsRow)
 		last.bare = false
 	}
 	for _, group := range n.grouped() {
@@ -354,22 +232,6 @@ func (n *node) blocks(path string, level int, dst []block) []block {
 		dst = group[0].blocks(under(path, group)[0], level+1, dst)
 	}
 	return dst
-}
-
-// framed is blocks as one: their parts in a panel bordered a pixel, named "frame:" and the
-// section's path, a gap under it
-func framed(blocks []block, path string) block {
-	var parts []ui.Part
-	tall := float32(0)
-	for _, b := range blocks {
-		parts = append(parts, b.parts...)
-		tall += b.tall
-	}
-	tall += 2 * sectionPadding
-	frame := ui.Panel(ui.Rows(parts...)).Padding(sectionPadding).Named("frame:" + path)
-	frame.Border(settingsTheme().Border, 1)
-	return block{parts: []ui.Part{ui.Fixed(tall, frame), ui.Fixed(shortcutsGap, ui.Blank())},
-		tall: tall + shortcutsGap}
 }
 
 // under is the path of each of subs under path
@@ -420,7 +282,7 @@ func twinBlocks(paths []string, level int, twins []*node, dst []block, named boo
 	if i := len(dst) - 1; i < 0 || !dst[i].bare {
 		dst = append(dst, block{bare: true})
 	}
-	indent := float32(level-1) * shortcutsGap / 2
+	indent := float32(level-1) * menuGap / 2
 	if named {
 		names := []ui.Part{ui.Fixed(indent, ui.Blank()), ui.Fixed(settingsLabel, ui.Blank())}
 		for i, c := range twins {
@@ -447,7 +309,7 @@ func twinBlocks(paths []string, level int, twins []*node, dst []block, named boo
 		dst = append(dst, block{bare: true})
 		sub := ui.MiddleLeft(ui.Subheading(subs[0].name).
 			Named("section:" + paths[0] + "/" + subs[0].name))
-		dst[len(dst)-1].add(ui.Fixed(settingsRow, indented(indent+shortcutsGap/2, sub)), settingsRow)
+		dst[len(dst)-1].add(ui.Fixed(settingsRow, indented(indent+menuGap/2, sub)), settingsRow)
 		subPaths := make([]string, len(subs))
 		for i, c := range subs {
 			subPaths[i] = paths[i] + "/" + c.name
@@ -464,7 +326,7 @@ func (n *node) heading(path string, level int) ui.Part {
 		return ui.Fit(ui.Heading(n.name).Named("section:" + path))
 	}
 	sub := ui.MiddleLeft(ui.Subheading(n.name).Named("section:" + path))
-	return ui.Fixed(settingsRow, indented(float32(level-1)*shortcutsGap/2, sub))
+	return ui.Fixed(settingsRow, indented(float32(level-1)*menuGap/2, sub))
 }
 
 func indented(px float32, e *ui.Element) *ui.Element {
@@ -501,7 +363,7 @@ func controlOf(st control.Setting, path string) *ui.Element {
 		return ui.Columns(
 			ui.Fit(ui.MiddleLeft(ui.Slider(st.Min, st.Max, st.Step, st.Get, st.Set).
 				Named(settingName(path, st.Label)))),
-			ui.Fixed(shortcutsGap, ui.Blank()),
+			ui.Fixed(menuGap, ui.Blank()),
 			ui.Fit(ui.MiddleLeft(ui.LabelOf(written{get: st.Get, shows: shows}))),
 		)
 	}

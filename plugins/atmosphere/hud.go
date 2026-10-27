@@ -30,7 +30,7 @@ func (p *Plugin) Date() *ui.Element { return panel(p.date()) }
 // see-through panel; left out while none of the climate's workings run.
 func (p *Plugin) Weather() *ui.Element {
 	w := &weatherWords{p: p}
-	return ui.Layers(ui.Drawer(w), panel(ui.LabelOf(w).Steady()))
+	return ui.Layers(ui.Drawer(w), panel(ui.LabelOf(w).Steady())).Passing()
 }
 
 // Bar is the hour, the date and the weather side by side on one see-through panel, for a scene
@@ -42,11 +42,14 @@ func (p *Plugin) Bar() *ui.Element {
 		ui.Fit(p.hour().Margin(panelPadding)),
 		ui.Fit(p.date().Margin(panelPadding)),
 		ui.Fit(ui.LabelOf(w).Steady().Margin(panelPadding)),
-	).Fill(panelFill))
+	).Fill(panelFill)).Passing()
 }
 
-// a Panel would stay as an empty box round words left out
-func panel(e *ui.Element) *ui.Element { return e.Fill(panelFill).Padding(panelPadding) }
+// a Panel would stay as an empty box round words left out; the pointer passes through to the
+// picture under, as the cameras' zones are drawn over it
+func panel(e *ui.Element) *ui.Element {
+	return e.Fill(panelFill).Padding(panelPadding).Passing()
+}
 
 func (p *Plugin) hour() *ui.Element { return ui.LabelOf(&hourWords{p: p}).Steady() }
 

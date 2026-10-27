@@ -16,6 +16,7 @@ type Element struct {
 	name     string
 	hidden   bool
 	holds    bool
+	passing  bool
 	w, h     float32
 	fw, fh   float32
 	margin   float32
@@ -160,30 +161,48 @@ func (e *Element) Modal() *Element {
 
 func (e *Element) modal() bool { return e.holds && !e.gone() }
 
+// Passing lets the pointer through the element and all in it to whatever lies under, as a
+// decoration or a panel of words laid over a picture should (never a Modal). A button or a
+// control inside still takes its press.
+func (e *Element) Passing() *Element {
+	e.passing = true
+	return e
+}
+
 // Box is where the element was last laid, in the screen's pixels.
 func (e *Element) Box() geom.AABB { return e.box }
 
 // Hits reports whether the screen point p hits the element: a container where one of its children
-// is hit, any other inside its box, and its mask if it has one.
-func (e *Element) Hits(p geom.Vec) bool {
+// is hit, any other inside its box, and its mask if it has one; a Passing one where a button or a
+// control in it is hit.
+func (e *Element) Hits(p geom.Vec) bool { return e.hits(p, false) }
+
+func (e *Element) hits(p geom.Vec, passing bool) bool {
 	if e.shut() {
 		return false
 	}
 	if e.pin != nil {
 		hit := false
-		e.pin.each(e, e.parent, func(*instance) { hit = hit || e.hitsHere(p) })
+		e.pin.each(e, e.parent, func(*instance) { hit = hit || e.hitsHere(p, passing) })
 		return hit
 	}
-	return e.hitsHere(p)
+	return e.hitsHere(p, passing)
 }
 
-func (e *Element) hitsHere(p geom.Vec) bool {
+// passing is the word of a Passing element over this one; a pressable takes the pointer back for
+// itself and what is in it
+func (e *Element) hitsHere(p geom.Vec, passing bool) bool {
 	if e.absent() {
 		return false
 	}
-	if _, ok := e.content.(container); ok && e.fillColor().A == 0 {
+	if _, ok := e.content.(pressable); ok {
+		passing = false
+	} else {
+		passing = passing || e.passing
+	}
+	if _, ok := e.content.(container); passing || ok && e.fillColor().A == 0 {
 		for _, c := range e.children {
-			if c.Hits(p) {
+			if c.hits(p, passing) {
 				return true
 			}
 		}

@@ -160,8 +160,8 @@ func (d *device) put(t *Texture, x, y, w, h int, pix []byte) {
 	}
 }
 
-// gogpu's write at an origin but the corner spoils the texture left of it: the pixels go into
-// a texture of their own, whole, and are drawn into place from there
+// gogpu's write at an origin but the corner spoils the texture left of it (wgpu v0.34.5 too):
+// the pixels go into a texture of their own, whole, and are drawn into place from there
 func (d *device) blitIn(t *Texture, x, y, w, h int, pix []byte) {
 	part := NewTexture(w, h)
 	part.cpu = pix[:4*w*h]
@@ -196,23 +196,6 @@ func (d *device) write(t *Texture, x, y, w, h int, pix []byte) {
 		&wgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1})
 	if err != nil {
 		panic(fmt.Errorf("gpu: writing %dx%d pixels: %w", w, h, err))
-	}
-	d.flushWrites()
-}
-
-// a submission of nothing has gogpu carry out the writes it holds: two held at once spoil each
-// other in its staging
-func (d *device) flushWrites() {
-	enc, err := d.dev.CreateCommandEncoder(nil)
-	if err != nil {
-		panic(fmt.Errorf("gpu: a command encoder: %w", err))
-	}
-	cmds, err := enc.Finish()
-	if err != nil {
-		panic(fmt.Errorf("gpu: finishing the commands: %w", err))
-	}
-	if _, err := d.queue.Submit(cmds); err != nil {
-		panic(fmt.Errorf("gpu: submitting the writes: %w", err))
 	}
 }
 

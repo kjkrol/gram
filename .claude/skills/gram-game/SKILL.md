@@ -11,7 +11,8 @@ A `game.Game` supplies `Props()` (window and tick-rate config, read once by `gra
 `Resizable` makes the screen the window, F11 full screen; `TargetTPS` the engine's fixed step —
 one `Update` a frame stepping as many times as the time gone says, at most 5, so the game slows
 instead of spiralling; `Title` the window's, `Description` what the game is and how it is
-played, shown under the title of the shortcuts list; `Saves` the directory) and a named
+played, for a menu of the game's own — the engine shows it nowhere since the controls screen
+dropped it (2026-10-26); `Saves` the directory) and a named
 collection of `game.Stage`s plus which starts (`Stages() (map[string]Stage, string)`);
 `game.New(props, stages...)` is that `Game`, the first stage starting unless
 `Defined.Starting(name)` says. A `Stage` has `Init`/`Spawn`/`Update` (`Loaded` in place of
@@ -83,7 +84,9 @@ in a demo; every plugin made draws what it gave `ctx.Draws`, the atlases closed 
 before the scenes) — and `defineScenes` only makes it. A minimap is the one picture of its own:
 `ui.TopRight(a.minimap.For(cam, a.player.ID).Masked(ui.Circle).Border(rim, 2)).Size(220, 220)`
 over the feed of the same `cam` (made once in `screen()`), `.Fill` where there is no ground
-(motion/expanse); a press on it moves `cam`. See
+(motion/expanse); a press on it moves `cam`; its compass (`a.minimap.Compass(cam)`) is laid over
+it in a box `minimap.Overhang` bigger, `Passing`, so the press and the corner zone under reach
+through. See
 `examples/start/scenes` for a menu Stage with no world, a ui scene of the engine's commands and a
 togglable modal panel over the still-ticking world.
 
@@ -100,7 +103,7 @@ drawn every frame into an image of the size it is shown at; `ToWorld`/`ToPixels`
 `Show`/`Hide`/`Toggle`/`Shown` by name, `Replace(screen)` (a tree put in after the frame's
 publish published as the barrier lays the scene out), `Lay(screen)` (tests call it),
 `Laid()` (the screen it was last laid over: a menu built for a size rebuilds itself when the
-next tick finds it laid over another, as the players' settings and shortcuts do); it saves
+next tick finds it laid over another, as the players' settings and controls do); it saves
 which named elements are shown (`Persisted`/`Restore`). **The notation says what it does**:
 `ui.Layers(bottom, …, top)` covers, `ui.Columns`/`ui.Rows` split and never cover, each part
 `ui.Share(n, el)`, `ui.Fixed(px, el)` (counted in what its split needs), `ui.Fit(el)`; an anchor
@@ -128,7 +131,12 @@ elements look where they say nothing of their own. A feed filling the screen is 
 onto it. Input: a click goes to the topmost element hit — a button or a control takes it
 (`pressable` in `input.go`), an
 `Image(feed).Input(players.Through(pl))` lets it through to the bindings, any other element keeps
-it. **Elements from the game are pinned to entities**, written as `Under` on the atlas:
+it — a label, a picture and a Blank over their whole box, so a HUD over the picture covers it
+(no edge scroll, no wheel there) unless it is `Passing()` (2026-10-26): the pointer passes
+through a passing element and all in it to what lies under, a button or a control inside aside;
+the plugins' HUD words (the atmosphere's panels, the bridges' `Reason`, the minimap's compass)
+are passing by the plugin, a game's own words over the picture (PAUSED) by the scene.
+**Elements from the game are pinned to entities**, written as `Under` on the atlas:
 `ui.Label("frozen").Under(effects.Named(FrozenEf))` is shown once for every entity the effect is on,
 `.On(ceremony.Named/Group(...))` for those called so, `Where(ui.Tagged(t))` for those carrying a
 tag; `Above`/`Below`/`Beside`/`Offset` say how it stands by its entity in every picture that has it
@@ -206,7 +214,7 @@ scratchpad and run it from its directory under `timeout 5s`, exit 124 alive, gre
 - A plugin's scene (`game.Scenic`, `Scenes()`) is gathered by `PluginScenes()` into the stack
   of a Stage built with `stage.New`, **hidden**; `.Shows(names...)` shows it from the start; the
   Composition's order is saved, so a loaded game shows what was shown. The model is
-  `players.Shortcuts`: a `game.Scene` wrapping a `ui.Scene`, because `ui.Scene.Focusable()` is
+  `players.ControlsScene`: a `game.Scene` wrapping a `ui.Scene`, because `ui.Scene.Focusable()` is
   always true and a focusable scene on top takes all input. Only the active scene's
   `HandleEvents` (`players.Handle`) gets the `Composition` (`Show`/`Hide`/`Active`), so a key
   that shows another scene is carried there (K, F10: `p.carry` in `Handle`), and works while
@@ -216,14 +224,25 @@ scratchpad and run it from its directory under `timeout 5s`, exit 124 alive, gre
   holds the game in the clock's tactical pause instead: `RunPlan` runs, the controls' commands
   are carried out, the picture redraws. A plugin binds no key to what its settings set (the
   user's word, 2026-10-20): the screen is where a player sets them; a game may bind a key of
-  its own to the command. It forwards its input to its `ui.Scene` (the Shortcuts
-  scene does not) and calls `p.carry` itself, so the players' own commands (`KeepRunning`,
-  `telemetry.Panel`) work while it is up.
-- K lists "General" = bindings whose handler is players or nil (`shortcuts.go` `groups`);
+  its own to the command. It forwards its input to its `ui.Scene` (the controls screen too,
+  for its scroll) and calls `p.carry` itself, so the players' own commands (`KeepRunning`,
+  `telemetry.Panel`) work while it is up. Both screens are one layout, `menu.go`'s `menu(name,
+  title, blocks, w, h)` (the user's word, 2026-10-26: one aesthetic): the title in a framed
+  panel at the top middle (`<name>.title`), the blocks (`block`, `framed`) in columns
+  (`<name>.column.N`) in a `ui.Scroll` (`<name>.scroll`), in the default theme — its `Large`
+  is `render.DefaultLargeFont`, Go Bold 28, the settings' former own theme made the default.
+- The controls screen lists "General" = bindings whose handler is players or nil
+  (`controls.go` `groups`);
   `handlerOf` searches only the handlers given to `players.NewPlugin`: a CommandHandler merely
   `Use`d is still carried (`initializer.go`), but listed under "General" and left out of
   `Defaults()`. `control.Mods` has `Ctrl` (the cameras' sight) and `Alt` (no default
   key; `withMods` writes "Ctrl+Alt+Shift+"); `SceneKey` compares Shift alone.
+- A game lets the right button grab the world and drag it with `cameras.Config{Grab: true}` in
+  `makePlugins` (`cameras.Keys{Grab: true}` for keys of its own); off by default (2026-10-27).
+  The grab yields (`control.Binding.Yielding`) to navigation's right drag, which turns the
+  selected units only while there are any: with nothing selected the drag grabs the world, with
+  a selection it turns the units; a right click sends them either way. A click's slop is
+  `control.DragSlop` (`Context.Dragged`): the grab takes the whole way on its first pass past it.
 - Every scene's `Drawers()`, hidden ones included, is built and `Init`ed once on entering the
   Stage (`stage_runtime.go`), the world's picture once however many scenes show it;
   `ui.Scene.Replace` does not re-init drawers. A `ui.LabelOf(Text)`
@@ -265,3 +284,17 @@ in `screen()` would clobber a loaded setting, which is why a plugin's start (`Sh
 (`gram-plugin`); the tests' way:
 `Props.Saves` a temp dir, `eng.Save("")`, a second engine `Load("", "")`, `Init`. A plan's shape
 changed, its saves do not load; goke registers 512 component types at most, every fact one.
+
+**The window** (`internal/engine/desktop_adapter.go`, 2026-10-26): gogpu runs `OnUpdate` (the
+adapter's `Collect`) on the main thread and `OnDraw` (the engine's `frame`, with the input) on a
+render thread; AppKit takes a window's calls on the main thread alone, so `ToggleFullscreen` (F11,
+`Runtime`) only asks and `Collect` switches at the window's next pass, as it asks for
+`GRAM_FULLSCREEN` on a Mac, where the window's config carries no full screen. The `pointer` folds
+a pass's events: free, the cursor's place; caught (riding), the window's deltas — or, where the
+window never gives one (macOS: gogpu's lock is a stub, its events carry no deltas, and
+`CursorNone` is never unhidden, so the cursor stays visible), the movement of its place, the look
+stopping at the screen's edge. Where the window fills the screen a place is pinned to the last
+row and column (Cocoa's flipped origin puts the bottom row at h). The full-screen key the
+controls screen names is `control.FullscreenKey()`, the engine setting Ctrl+Cmd+F on darwin.
+`GRAM_INPUT_LOG=1` logs the cursor's place, the window's sizes and flags once a second and every
+click: the first thing to read when zones or clicks misbehave on another platform.

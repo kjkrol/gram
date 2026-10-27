@@ -39,6 +39,81 @@ query, its slabs and the relief walked with SIMD) and ceremony v0.3.2 (kjkrol/ce
   every layer, the sight baked once a frame; a Direct's Draw runs once a layer, so what its
   Compose gathered serves every one (`render.Direct`).
 
+**The controls screen** (branch `fix/hot-corners`)
+- Breaking: the shortcuts scene is the controls screen, `players.ControlsScene`, `ControlsName`
+  (`gram.controls`) and `ShowControls` (K, labelled "Controls"), laid as the settings screen is:
+  the title in a framed panel at the top, a framed section a group ("Game", a plugin each,
+  "General") with a heading and a line a binding, the trigger in a column and what it does
+  beside, wrapped past 300 px, in as many columns as the width takes, scrolled where they do not
+  fit. One layout serves both screens (`menu.go`). The game's `Props.Description` is shown
+  nowhere any more.
+- `render.DefaultLargeFont`, a title's, is Go Bold at 28 (was 20): the settings screen's own
+  theme is the default theme now, and both screens are drawn in it.
+
+**Hot corners, the minimap's click, macOS** (branch `fix/hot-corners`)
+- `ui.Element.Passing`: the pointer passes through the element and all in it to whatever lies
+  under, a button or a control inside aside. A HUD laid over the picture covered it: a label, a
+  picture and a Blank are hit over their whole box, so the player's picture under was covered —
+  no edge scroll, no wheel, no click there — though the cameras' zones are drawn over the HUD.
+- The atmosphere's `TimeOfDay`, `Date`, `Weather` and `Bar` pass the pointer: the top scroll strip
+  works under the bar. The bridges' `Reason` passes too; the demos' PAUSED word likewise.
+- The minimap's compass passes the pointer and hides with the minimap (`Write.Show`): laid over
+  the minimap in its box reaching the screen's corner, it took every press (a click on the
+  minimap never reached `cameras.CenterAt`, promised since 2026-10-19), the wheel, and the corner
+  zone under it even where the circle left it uncovered. The scene test lays the compass as the
+  demos do.
+- The engine switches full screen at the window's next pass, on the thread that owns the window
+  (AppKit takes it on no other); `GRAM_FULLSCREEN` works on a Mac, where the window's config
+  carries no full screen. The controls screen names the platform's key: `control.FullscreenKey`,
+  the engine setting Ctrl+Cmd+F (the window's own menu) on a Mac, where the system keeps F11.
+- The mouse look while riding works where the window gives no deltas for a caught cursor (macOS:
+  gogpu's pointer lock is a stub there): the look follows the cursor's place, which stays visible
+  and stops at the screen's edge; a window that does give deltas is noted at the first and never
+  falls back. Where the window fills the screen, a cursor reported on the far edge (Cocoa's flipped
+  origin puts the bottom row at the height) counts as the last row.
+- `GRAM_INPUT_LOG=1` logs the cursor's place, the window's sizes and flags once a second and every
+  click, to read what the engine sees on a platform at hand.
+- The cursor out of the window scrolls nothing: the engine reads the window's leave and enter
+  (gogpu's `PointerLeave` and `PointerEnter`, on every platform) into
+  `control.InputEvents.CursorInWindow`, and the players' handler takes nothing of the cursor's
+  place while the window has it not. The scroll ran on when a flick of the mouse left the window
+  through a strip, and in full screen on one of two monitors.
+- The scroll zones reach the window's edge in every mode: the dead strip at the edge
+  (`control.EdgeDeadZone`, 10 px, the hack for the above) is gone, so a cursor pinned by the
+  monitor's edge on a window touching it scrolls at full speed. Breaking: `EdgeDeadZone`,
+  `Context.FillsScreen` and `InputEvents.WindowFillsScreen` are gone; a handler fed by hand (a
+  test, a probe) says `CursorInWindow: true` for the cursor's place to count — a zero
+  `InputEvents` has no cursor, so a probe never turns the world from (0, 0).
+- A game may let the right button grab the world and drag it (`cameras.Config.Grab` for the
+  defaults, `Keys.Grab` for keys of its own; off by default, on in board/topography and
+  board/flat): past a click's slop, yielding to whatever else takes the right drag. For that a
+  binding may yield (`control.Binding.Yielding`: it fires only when no other on its trigger
+  built a command; `Player.Bind` takes one beside a plain one), the click's slop is
+  `control.DragSlop` and `Context.Dragged`, and navigation's right drag turns the selected units
+  only while the player has any (`selection.Read.Any`): with nothing selected the drag grabs the
+  world, with a selection it turns the units, a right click sending them as before.
+- The corners turn the world in pairs across the diagonals (`cameras.Keys.CornersTurn`): the
+  bottom-left and the top-right anticlockwise as Q, the bottom-right and the top-left clockwise as
+  E, so the world under the cursor slides along the top or the bottom edge towards the middle; the
+  bottom corners turn as before, the top ones the other way round (they turned as the corner under
+  them).
+
+**Shaders on Metal, naga v0.20.3** (branch `fix/hot-corners`)
+- Fixed: on a Mac every demo panicked at its first pipeline ("metal: shader module has no WGSL
+  source"): wgpu's Metal backend translates a shader module's WGSL to MSL and takes no SPIR-V,
+  and gram handed every backend the SPIR-V it keeps on disk since v0.5.0. The SPIR-V goes to
+  Vulkan alone, which takes it as it is; Metal, DX12 and GL get the WGSL (`render.UseDevice` is
+  told the backend gogpu names, a headless device asks its adapter). The shaders a stage made are
+  compiled at once, as many as there are CPUs (`render.Prepare`, `gpu.CompileAll`), which a
+  first start and every start on Metal feel: board/topography's shaders and uploads 810 ms one
+  after another, 255 ms at once on 8 CPUs, 17 ms from the cache (45 ms read one after another).
+- naga v0.20.3 (was v0.19.0): a module-scope vector `const` in a runtime expression, `+=` on an
+  element of a local array and `all()`/`any()` work, `render/internal/gpu/compile_test.go` guards
+  them; a `var` without an initialiser is undefined still (its OpVariable has no initialiser).
+  wgpu's write at an origin still spoils the texture left of it, so a big part is still drawn
+  into place from a texture of its own; a whole texture's write no longer submits a command
+  buffer of nothing after it.
+
 ## v0.5.0 — 2026-10-25
 
 Needs aabbworld v1.18.0: its geometry in float32, a box 32 bytes; two boxes overlapping within

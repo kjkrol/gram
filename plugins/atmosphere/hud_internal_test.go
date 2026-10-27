@@ -298,3 +298,36 @@ func TestSettings_TheHourShowsTheDaysTimeAndSetsItFrozen(t *testing.T) {
 		t.Errorf("let go, the hour shows %v, want the calendar's %v", got, want)
 	}
 }
+
+func TestHUD_ThePointerPassesThroughItsPanelsToThePictureUnder(t *testing.T) {
+	var bar, hour, date, weather, plate *ui.Element
+	_, scene, tick := hudStage(t, Config{}, func(a *Plugin) *ui.Element {
+		bar, hour, date, weather = a.Bar(), a.TimeOfDay(), a.Date(), a.Weather()
+		plate = ui.Panel(ui.Label("a plate"))
+		return ui.Layers(ui.TopLeft(bar), ui.MiddleLeft(hour), ui.BottomLeft(date),
+			ui.TopRight(weather), ui.BottomRight(plate))
+	})
+	tick(1)
+	scene.Lay(hudScreen)
+	middle := func(e *ui.Element) geom.Vec {
+		b := e.Box()
+		return geom.NewVec((b.TopLeft.X+b.BottomRight.X)/2, (b.TopLeft.Y+b.BottomRight.Y)/2)
+	}
+	for name, e := range map[string]*ui.Element{
+		"bar": bar, "hour": hour, "date": date, "weather": weather,
+	} {
+		switch {
+		case width(e) == 0:
+			t.Errorf("the %s says nothing: the check proves nothing", name)
+		case e.Hits(middle(e)):
+			t.Errorf("the %s is hit in its middle, want the pointer through it", name)
+		}
+	}
+	// over the moon's icon at the date's right end too
+	if b := date.Box(); date.Hits(geom.NewVec(b.BottomRight.X-12, middle(date).Y)) {
+		t.Error("the date is hit over its moon, want the pointer through it")
+	}
+	if !plate.Hits(middle(plate)) {
+		t.Error("a plain panel laid the same is not hit: the check proves nothing")
+	}
+}

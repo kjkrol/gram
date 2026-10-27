@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/cameras"
@@ -96,9 +97,9 @@ func TestKeys_CornersTurnAsQAndEDoInsteadOfScrolling(t *testing.T) {
 		x, y float32
 		want float32
 	}{
-		{"top-left", 15, 15, -cameras.CornerStep},
+		{"top-left", 15, 15, cameras.CornerStep},
 		{"bottom-left", 15, 785, -cameras.CornerStep},
-		{"top-right", 985, 15, cameras.CornerStep},
+		{"top-right", 985, 15, -cameras.CornerStep},
 		{"bottom-right", 985, 785, cameras.CornerStep},
 	} {
 		pans, turns := built(c.x, c.y)
@@ -141,8 +142,9 @@ func TestKeys_AtAResolutionTheScrollAndTheLookAreTheSameOnTheScreen(t *testing.T
 	if len(keys) != 2 {
 		t.Fatalf("%d bindings, want the key and the edge", len(keys))
 	}
+	// the cursor on the last shown pixel, half a camera pixel short of the width
 	half := control.Context{Resolution: 0.5, Screen: geom.NewVec(500, 400),
-		Cursor: geom.NewVec(495, 200)}
+		Cursor: geom.NewVec(499.5, 200)}
 	cmd, ok := keys[0].Build(half)
 	if pan, isPan := cmd.(cameras.Pan); !ok || !isPan || pan.Dy != -cameras.DefaultScrollSpeed/2 {
 		t.Errorf("W at 0.5 builds %+v (%v), want a Pan up by half the speed: the camera's pixels",
@@ -171,7 +173,7 @@ func TestKeys_TheEdgeScrollsAQuarterAsFastAtTheZonesInnerBoundAsAtTheWindowsEdge
 	keys := cameras.Keys{Edge: true}.Bindings()
 	ctx := control.Context{Screen: geom.NewVec(1000, 800)}
 	speeds := map[float32]float32{}
-	for _, x := range []float32{10, 35, 59} {
+	for _, x := range []float32{0, 30, 59} {
 		ctx.Cursor = geom.NewVec(x, 400)
 		cmd, ok := keys[0].Build(ctx)
 		pan, isPan := cmd.(cameras.Pan)
@@ -180,8 +182,8 @@ func TestKeys_TheEdgeScrollsAQuarterAsFastAtTheZonesInnerBoundAsAtTheWindowsEdge
 		}
 		speeds[x] = -pan.Dx
 	}
-	if speeds[10] != cameras.DefaultScrollSpeed || speeds[35] != cameras.DefaultScrollSpeed*0.625 ||
-		f32.Abs(float32(speeds[59]-cameras.DefaultScrollSpeed*0.265)) > 1e-5 {
+	if speeds[0] != cameras.DefaultScrollSpeed || speeds[30] != cameras.DefaultScrollSpeed*0.625 ||
+		f32.Abs(float32(speeds[59]-cameras.DefaultScrollSpeed*0.2625)) > 1e-5 {
 		t.Errorf("the speeds by the cursor's x are %v, want the whole at the edge, five eighths "+
 			"halfway in and a shade over a quarter at the inner bound", speeds)
 	}
@@ -198,7 +200,7 @@ func TestDefaultBindings_TheEdgeScrollsAsTheSettingsSayAtTheSpeedSet(t *testing.
 	if edge.Trigger == nil {
 		t.Fatal("no binding on the edge")
 	}
-	ctx := control.Context{Screen: geom.NewVec(1000, 800), Cursor: geom.NewVec(990, 400)}
+	ctx := control.Context{Screen: geom.NewVec(1000, 800), Cursor: geom.NewVec(999, 400)}
 	if cmd, ok := edge.Build(ctx); !ok || cmd.(cameras.Pan).Dx != cameras.DefaultScrollSpeed {
 		t.Errorf("at the edge the default builds %+v (%v), want a Pan right at the default speed",
 			cmd, ok)
@@ -214,5 +216,52 @@ func TestDefaultBindings_TheEdgeScrollsAsTheSettingsSayAtTheSpeedSet(t *testing.
 	if !p.Read(0).EdgesScroll() == false || p.Read(0).EdgeSpeed() != 16 {
 		t.Errorf("the settings say scrolling %v at %v, want still at 16", p.Read(0).EdgesScroll(),
 			p.Read(0).EdgeSpeed())
+	}
+}
+
+func TestKeys_TheGrabDragsTheWorldPastTheSlopAndYields(t *testing.T) {
+	held := control.ButtonHeld{Button: control.MouseButtonRight}
+	keys := cameras.Keys{Grab: true}.Bindings()
+	if len(keys) != 1 || keys[0].Trigger != held || !keys[0].Yields() ||
+		!keys[0].Holds(camera.Outside) || keys[0].Holds(camera.Inside) {
+		t.Fatalf("the grab's bindings are %+v, want one on the right button held, yielding, "+
+			"outside", keys)
+	}
+	ctx := control.Context{Start: geom.NewVec(100, 100), Cursor: geom.NewVec(103, 100),
+		Delta: geom.NewVec(3, 0)}
+	if cmd, ok := keys[0].Build(ctx); ok {
+		t.Errorf("within a click's slop the grab builds %+v, want nothing", cmd)
+	}
+	ctx.Cursor = geom.NewVec(106, 100)
+	pan := func() cameras.Pan {
+		t.Helper()
+		cmd, ok := keys[0].Build(ctx)
+		if !ok {
+			t.Fatalf("at %v the grab builds nothing", ctx.Cursor)
+		}
+		return cmd.(cameras.Pan)
+	}
+	if got := pan(); got.Dx != -6 || got.Dy != 0 {
+		t.Errorf("the first pass past the slop builds %+v, want a Pan by the whole way, -6", got)
+	}
+	ctx.Cursor = geom.NewVec(110, 100)
+	ctx.Delta = geom.NewVec(4, 0)
+	if got := pan(); got.Dx != -4 || got.Dy != 0 {
+		t.Errorf("a later pass builds %+v, want a Pan by the delta, -4", got)
+	}
+	if cameras.DefaultKeys().Grab {
+		t.Error("the default keys grab the world, want a game's choice")
+	}
+	grabs := func(cfg cameras.Config) bool {
+		for _, b := range cameras.NewPlugin(reliefWorld(), cfg).DefaultBindings() {
+			if b.Trigger == held {
+				return true
+			}
+		}
+		return false
+	}
+	if grabs(cameras.Config{}) || !grabs(cameras.Config{Grab: true}) {
+		t.Error("the default bindings grab the world where the Config says nothing, or not where " +
+			"it asks")
 	}
 }

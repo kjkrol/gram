@@ -35,6 +35,7 @@ type Plugin struct {
 
 	boardPlugin *board.Plugin
 	worldPlugin *world.Plugin
+	sel         *selection.Plugin
 	selected    tag.Tag[selection.Family]
 
 	board  *board.BoardRead
@@ -83,6 +84,7 @@ func NewPlugin(
 	p := &Plugin{
 		boardPlugin: boardPlugin,
 		worldPlugin: worldPlugin,
+		sel:         selectionPlugin,
 		selected:    selectionPlugin.Tags().Selected,
 	}
 	p.read.p, p.write.p = p, p

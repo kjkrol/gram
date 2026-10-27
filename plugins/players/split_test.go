@@ -96,14 +96,15 @@ func TestCursorOver_FiresEveryTickForThePlayerWhosePictureTheCursorLiesOver(t *t
 	r.wire.Over(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(400, 600)), render.NewFeed(r.cam, nil))
 	r.p.Through(right).Over(geom.NewAABB(geom.NewVec(400, 0), geom.NewVec(800, 600)),
 		render.NewFeed(r.cams.Write().New(cameras.FromAbove, camera.Config{}), nil))
-	r.handle(&control.InputEvents{MousePos: geom.NewVec(100, 300)})
+	r.handle(&control.InputEvents{MousePos: geom.NewVec(100, 300), CursorInWindow: true})
 	for range 3 { // the cursor still, no input pass between the ticks: once a tick
 		ecs.Tick(time.Second / 60)
 		if got := cells(r); len(got[r.local.ID]) != 1 || got[r.local.ID][0] != 100 || len(got[right.ID]) != 0 {
 			t.Fatalf("a tick with the cursor over the left picture gave %v, want one from the left player at x 100", got)
 		}
 	}
-	r.handle(&control.InputEvents{MousePos: geom.NewVec(900, 300)}) // past both pictures
+	// past both pictures
+	r.handle(&control.InputEvents{MousePos: geom.NewVec(900, 300), CursorInWindow: true})
 	ecs.Tick(time.Second / 60)
 	if got := cells(r); len(got) != 0 {
 		t.Errorf("with the cursor over no picture: %v, want nothing", got)

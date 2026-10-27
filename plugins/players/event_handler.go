@@ -19,21 +19,20 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 	// the pass the cursor is caught or let go it jumps: no move is taken from it
 	settled := t.p.capture()
 	for _, pl := range t.p.read.Locals() {
-		under := covers(pl, ev.MousePos) && !pl.pic.covered
+		under := ev.CursorInWindow && covers(pl, ev.MousePos) && !pl.pic.covered
 		if under {
 			pl.in.cursor = localPoint(pl, ev.MousePos)
 		}
 		k := camera.ResolutionOf(pl.pic.camera)
 		ctx := control.Context{
-			Player:      pl.ID,
-			Camera:      pl.pic.camera,
-			Cursor:      scaled(pl.in.cursor, k),
-			Delta:       scaled(ev.CursorDelta, k),
-			Wheel:       ev.ScrollDelta,
-			Screen:      screenOf(pl),
-			Resolution:  k,
-			Mods:        mods,
-			FillsScreen: ev.WindowFillsScreen,
+			Player:     pl.ID,
+			Camera:     pl.pic.camera,
+			Cursor:     scaled(pl.in.cursor, k),
+			Delta:      scaled(ev.CursorDelta, k),
+			Wheel:      ev.ScrollDelta,
+			Screen:     screenOf(pl),
+			Resolution: k,
+			Mods:       mods,
 		}
 
 		for _, k := range ev.KeyEvents {
@@ -113,22 +112,29 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 	}
 }
 
-// fire issues what the bindings on trigger build; true when any did
+// fire issues what the bindings on trigger build, the yielding ones only when no other did; true
+// when any did
 func (t eventHandler) fire(pl *Player, trigger control.Trigger, ctx control.Context) bool {
 	how := camera.HowOf(pl.pic.camera)
-	fired := false
-	for _, b := range pl.bindings {
-		if b.Trigger != trigger || !pl.fires(b, how) || !b.Takes(ctx.Mods) {
-			continue
-		}
-		if cmd, ok := b.Build(ctx); ok {
-			if err := t.p.write.Issue(pl, cmd); err != nil {
-				panic(err)
+	for _, yielding := range []bool{false, true} {
+		fired := false
+		for _, b := range pl.bindings {
+			if b.Trigger != trigger || b.Yields() != yielding || !pl.fires(b, how) ||
+				!b.Takes(ctx.Mods) {
+				continue
 			}
-			fired = true
+			if cmd, ok := b.Build(ctx); ok {
+				if err := t.p.write.Issue(pl, cmd); err != nil {
+					panic(err)
+				}
+				fired = true
+			}
+		}
+		if fired {
+			return true
 		}
 	}
-	return fired
+	return false
 }
 
 func (t eventHandler) hold() {

@@ -3,8 +3,11 @@ package gpu
 import (
 	"embed"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
@@ -66,6 +69,7 @@ type Program struct {
 	source    string
 	mesh      bool
 	instance  int // vec4s an instance, 0 none
+	once      sync.Once
 	module    *wgpu.ShaderModule
 	pipelines map[pipelineKey]*wgpu.RenderPipeline
 	err       error
@@ -165,27 +169,48 @@ func (p *Program) Instanced(vec4s int) *Program {
 func (p *Program) Source() string { return p.source }
 
 // Compile compiles the program now rather than at its first draw.
-func (p *Program) Compile() error {
+func (p *Program) Compile() error { return p.compile(must()) }
+
+// CompileAll compiles the programs now, as many at once as there are CPUs, and reports every
+// error.
+func CompileAll(progs []*Program) error {
 	d := must()
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	return p.compile(d)
+	errs := make([]error, len(progs))
+	at := make(chan struct{}, runtime.GOMAXPROCS(0))
+	var wg sync.WaitGroup
+	for i, p := range progs {
+		at <- struct{}{}
+		wg.Go(func() {
+			defer func() { <-at }()
+			errs[i] = p.compile(d)
+		})
+	}
+	wg.Wait()
+	return errors.Join(errs...)
 }
 
+// the compiler is wgpu's own, which takes no lock of the device: a program compiles outside d.mu
 func (p *Program) compile(d *device) error {
-	if p.module != nil || p.err != nil {
-		return p.err
-	}
-	words, err := spirvOf(p.source)
-	if err == nil {
-		p.module, err = d.dev.CreateShaderModule(&wgpu.ShaderModuleDescriptor{Label: p.label,
-			SPIRV: words})
-	}
-	if err != nil {
-		p.err = fmt.Errorf("gpu: the %s program: %w", p.label, err)
-		return p.err
-	}
-	return nil
+	p.once.Do(func() {
+		desc := wgpu.ShaderModuleDescriptor{Label: p.label}
+		if d.backend == gputypes.BackendVulkan {
+			words, err := spirvOf(p.source)
+			if err != nil {
+				p.err = fmt.Errorf("gpu: the %s program: %w", p.label, err)
+				return
+			}
+			desc.SPIRV = words
+		} else {
+			desc.WGSL = p.source
+		}
+		module, err := d.dev.CreateShaderModule(&desc)
+		if err != nil {
+			p.err = fmt.Errorf("gpu: the %s program: %w", p.label, err)
+			return
+		}
+		p.module = module
+	})
+	return p.err
 }
 
 func (p *Program) pipeline(
