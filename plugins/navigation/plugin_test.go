@@ -5,12 +5,15 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -19,6 +22,7 @@ import (
 	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/players"
+	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -109,55 +113,141 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 	}
 }
 
-func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testing.T) {
+// dragRig is navigation over a small board with one local player bound to its defaults, the
+// selection plugin ready to say whether the player has one
+type dragRig struct {
+	grid  grid.Grid
+	w     *world.Plugin
+	sel   *selection.Plugin
+	nav   *Plugin
+	pl    *players.Plugin
+	local *players.Player
+	ctx   *stubInstallCtx
+}
+
+func newDragRig(t *testing.T) *dragRig {
+	t.Helper()
 	grid := grid.DefaultGrids{}.Square(5, 5, 10)
-	worldPlugin := world.NewPlugin(world.Config{
+	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 50, Height: 50},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 		Heights:  true,
 	})
-	m := motion.NewPlugin(worldPlugin)
-	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin).WithMotion(m)
-	boardPlugin.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	sel := selection.NewPlugin(worldPlugin)
-	navPlugin := NewPlugin(boardPlugin, worldPlugin, m, sel, driving.NewPlugin(worldPlugin, m, sel))
-	pl := players.NewPlugin(worldPlugin, navPlugin)
+	m := motion.NewPlugin(w)
+	brd := board.NewPlugin(grid, &cell.SingleOccupancy{}, w).WithMotion(m)
+	brd.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	sel := selection.NewPlugin(w)
+	nav := NewPlugin(brd, w, m, sel, driving.NewPlugin(w, m, sel))
+	pl := players.NewPlugin(w, nav)
 	local := pl.Local("tester")
 	// as a scene showing it wires it
 	pl.Through(local).Over(geom.AABB{}, render.NewFeed(cameratest.NewFromSpace(50, 50, 0), nil))
-	if err := local.Bind(navPlugin.DefaultBindings()...); err != nil {
+	if err := local.Bind(nav.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
-	handle := func(ev *control.InputEvents) (looks []LookAt, moves []MoveTo) {
-		pl.EventHandler().HandleEvents(ev)
-		navPlugin.looks.Drain(func(i command.Issued[LookAt]) { looks = append(looks, i.Command) })
-		navPlugin.moves.Drain(func(i command.Issued[MoveTo]) { moves = append(moves, i.Command) })
-		return looks, moves
+	return &dragRig{grid: grid, w: w, sel: sel, nav: nav, pl: pl, local: local,
+		ctx: &stubInstallCtx{ecs: goke.New()}}
+}
+
+// selected installs the world and the selection with one unit of the player's, selected
+func (r *dragRig) selected(t *testing.T) {
+	t.Helper()
+	if err := r.w.Install(r.ctx); err != nil {
+		t.Fatal(err)
 	}
-	press := &control.InputEvents{MousePos: geom.NewVec(25, 25)}
-	press.AddClickEvent(25, 25, control.MouseButtonRight, control.ActionPress)
+	if err := r.sel.Install(r.ctx); err != nil {
+		t.Fatal(err)
+	}
+	type walker struct{}
+	kind.Define[walker](r.w.Kinds(), "walker", kind.Spec{
+		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(20, 20), 4, 4)}),
+		comp.Const(world.Velocity{}),
+		comp.Const(world.Layers(cell.Land)),
+		comp.Tagged(r.sel.Tags().Selectable, r.sel.Tags().Selected),
+		comp.Tagged(owner.Of(r.local.ID)),
+	})
+	r.w.Write().Seed(kind.Named[walker](r.w.Kinds(), "walker").Entry(walker{}))
+	if err := r.w.Populate(); err != nil {
+		t.Fatal(err)
+	}
+	var systems []goke.System
+	for _, produce := range r.ctx.pending {
+		systems = append(systems, produce()...)
+	}
+	r.ctx.ecs.Setup(systems...)
+	if !r.sel.Read(0).Any(r.local.ID) {
+		t.Fatal("the player has no selection, want the walker seeded selected")
+	}
+}
+
+func (r *dragRig) handle(ev *control.InputEvents) (looks []LookAt, moves []MoveTo) {
+	r.pl.EventHandler().HandleEvents(ev)
+	r.nav.looks.Drain(func(i command.Issued[LookAt]) { looks = append(looks, i.Command) })
+	r.nav.moves.Drain(func(i command.Issued[MoveTo]) { moves = append(moves, i.Command) })
+	return looks, moves
+}
+
+func rightPress(x, y int) *control.InputEvents {
+	press := &control.InputEvents{MousePos: geom.NewVec(float32(x), float32(y)),
+		CursorInWindow: true}
+	press.AddClickEvent(x, y, control.MouseButtonRight, control.ActionPress)
+	return press
+}
+
+func TestPlugin_DefaultBindings_ARightDragTurnsTheSelectedUnitsAndMovesNothing(t *testing.T) {
+	r := newDragRig(t)
+	r.selected(t)
+	if looks, moves := r.handle(rightPress(25, 25)); len(looks) != 0 || len(moves) != 0 {
+		t.Fatalf("the button going down issued %v and %v, want nothing", looks, moves)
+	}
+	if looks, _ := r.handle(&control.InputEvents{MousePos: geom.NewVec(27, 26),
+		CursorDelta: geom.NewVec(2, 1), CursorInWindow: true}); len(looks) != 0 {
+		t.Errorf("a shake within the slop issued %v, want no LookAt", looks)
+	}
+	for _, at := range []geom.Vec{{X: 35, Y: 30}, {X: 40, Y: 40}} {
+		looks, moves := r.handle(&control.InputEvents{MousePos: at, CursorDelta: geom.NewVec(5, 5),
+			CursorInWindow: true})
+		if len(looks) != 1 || looks[0].At != at || len(moves) != 0 {
+			t.Errorf("the cursor at %v issued %v and %v, want one LookAt there and no move", at,
+				looks, moves)
+		}
+	}
+	release := &control.InputEvents{MousePos: geom.NewVec(40, 40), CursorInWindow: true}
+	release.AddClickEvent(40, 40, control.MouseButtonRight, control.ActionRelease)
+	if looks, moves := r.handle(release); len(looks) != 0 || len(moves) != 0 {
+		t.Errorf("the drag's release issued %v and %v, want nothing", looks, moves)
+	}
+}
+
+func TestPlugin_DefaultBindings_WithoutASelectionARightDragTurnsNothing(t *testing.T) {
+	r := newDragRig(t)
+	handle := r.handle
+	press := rightPress(25, 25)
 	if looks, moves := handle(press); len(looks) != 0 || len(moves) != 0 {
 		t.Fatalf("the button going down issued %v and %v, want nothing", looks, moves)
 	}
 	for _, at := range []geom.Vec{{X: 35, Y: 30}, {X: 40, Y: 40}} {
-		looks, moves := handle(&control.InputEvents{MousePos: at, CursorDelta: geom.NewVec(5, 5)})
-		if len(looks) != 1 || looks[0].At != at || len(moves) != 0 {
-			t.Errorf("the cursor at %v issued %v and %v, want one LookAt there and no move", at, looks, moves)
+		looks, moves := handle(&control.InputEvents{MousePos: at, CursorDelta: geom.NewVec(5, 5),
+			CursorInWindow: true})
+		if len(looks) != 0 || len(moves) != 0 {
+			t.Errorf("the cursor at %v issued %v and %v, want nothing without a selection: the "+
+				"drag is left to what yields to it", at, looks, moves)
 		}
 	}
-	release := &control.InputEvents{MousePos: geom.NewVec(40, 40)}
+	release := &control.InputEvents{MousePos: geom.NewVec(40, 40), CursorInWindow: true}
 	release.AddClickEvent(40, 40, control.MouseButtonRight, control.ActionRelease)
 	if looks, moves := handle(release); len(looks) != 0 || len(moves) != 0 {
 		t.Errorf("the drag's release issued %v and %v, want nothing", looks, moves)
 	}
 
 	handle(press)
-	if looks, _ := handle(&control.InputEvents{MousePos: geom.NewVec(27, 26), CursorDelta: geom.NewVec(2, 1)}); len(looks) != 0 {
+	if looks, _ := handle(&control.InputEvents{MousePos: geom.NewVec(27, 26),
+		CursorDelta: geom.NewVec(2, 1), CursorInWindow: true}); len(looks) != 0 {
 		t.Errorf("a shake within the slop issued %v, want no LookAt", looks)
 	}
 	shaken := &control.InputEvents{MousePos: geom.NewVec(27, 26)}
 	shaken.AddClickEvent(27, 26, control.MouseButtonRight, control.ActionRelease)
-	want := grid.At(2, 2)
+	want := r.grid.At(2, 2)
 	if _, moves := handle(shaken); len(moves) != 1 || moves[0].Cell != want {
 		t.Errorf("a shaken click issued %v, want one MoveTo to %v", moves, want)
 	}

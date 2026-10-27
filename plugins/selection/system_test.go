@@ -362,7 +362,8 @@ func TestMarquee_ShowsTheBoxBeingDraggedUntilItsSelect(t *testing.T) {
 		t.Fatal("a box shows before the cursor moved")
 	}
 
-	h.handler.HandleEvents(&control.InputEvents{MousePos: geom.NewVec(40, 60), CursorDelta: geom.NewVec(30, 50)})
+	h.handler.HandleEvents(&control.InputEvents{MousePos: geom.NewVec(40, 60),
+		CursorDelta: geom.NewVec(30, 50), CursorInWindow: true})
 	h.ecs.Tick(time.Second)
 	if b, ok := box(); !ok || b != control.ScreenRect(geom.NewVec(10, 10), geom.NewVec(40, 60)) {
 		t.Fatalf("while dragging the box is %v (shown %v), want from (10,10) to (40,60)", b, ok)

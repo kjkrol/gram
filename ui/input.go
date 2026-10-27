@@ -71,7 +71,7 @@ func (s *Scene) wire(cursor geom.Vec) {
 	if modal := s.modal(); modal != nil {
 		within = modal
 	}
-	under := topmost(within, cursor, nil).hit
+	under := topmost(within, cursor, nil, false).hit
 	var visit func(e *Element)
 	visit = func(e *Element) {
 		if e.shut() {
@@ -98,7 +98,7 @@ func (s *Scene) click(modal *Element, c control.ClickEvent) bool {
 		}
 		within = modal
 	}
-	t := topmost(within, c.Pos, nil)
+	t := topmost(within, c.Pos, nil, false)
 	switch {
 	case t.pressed != nil:
 		if c.Action == control.ActionPress {
@@ -133,7 +133,7 @@ func (s *Scene) through(modal *Element, p geom.Vec) bool {
 	if modal != nil {
 		return false
 	}
-	t := topmost(s.root, p, nil)
+	t := topmost(s.root, p, nil, false)
 	if t.pressed != nil {
 		return false
 	}
@@ -161,7 +161,7 @@ func (s *Scene) clickOverlay(c control.ClickEvent) {
 	if c.Action != control.ActionPress {
 		return
 	}
-	t := topmost(s.overlay, c.Pos, nil)
+	t := topmost(s.overlay, c.Pos, nil, false)
 	if t.pressed == nil {
 		s.close()
 		return
@@ -186,7 +186,7 @@ func (s *Scene) wheel(modal *Element, p geom.Vec, delta float32) {
 	if modal != nil {
 		within = modal
 	}
-	if t := topmost(within, p, nil); t.pressed != nil {
+	if t := topmost(within, p, nil, false); t.pressed != nil {
 		if sl, ok := t.pressed.content.(*slider); ok {
 			sl.wheel(s, t.pressed, delta)
 			return
@@ -291,20 +291,22 @@ type target struct {
 	pinned       bool
 }
 
-func topmost(e *Element, p geom.Vec, in *Element) target {
+// topmost is what p hits in e: in is the pressable e lies in, passing the word of a Passing
+// element over it (a pressable takes the pointer back for itself and what is in it)
+func topmost(e *Element, p geom.Vec, in *Element, passing bool) target {
 	if e.shut() {
 		return target{}
 	}
 	if e.pin == nil {
-		return topmostHere(e, p, in)
+		return topmostHere(e, p, in, passing)
 	}
 	var t target
 	e.pin.each(e, e.parent, func(at *instance) {
-		if h := topmostHere(e, p, in); h.hit != nil {
+		if h := topmostHere(e, p, in, passing); h.hit != nil {
 			t = h
 			t.about, t.pinned = at.id, true
 		}
-		if at.show && e.pin.show.hitsHere(p) {
+		if at.show && e.pin.show.hitsHere(p, false) {
 			id, looker := at.id, at.looker
 			t = target{hit: e.pin.show, pressed: e.pin.show, look: func() { looker.LookAt(id) }}
 		}
@@ -312,7 +314,7 @@ func topmost(e *Element, p geom.Vec, in *Element) target {
 	return t
 }
 
-func topmostHere(e *Element, p geom.Vec, in *Element) target {
+func topmostHere(e *Element, p geom.Vec, in *Element, passing bool) target {
 	if e.absent() {
 		return target{}
 	}
@@ -320,16 +322,18 @@ func topmostHere(e *Element, p geom.Vec, in *Element) target {
 		return target{}
 	}
 	if _, ok := e.content.(pressable); ok {
-		in = e
+		in, passing = e, false
+	} else {
+		passing = passing || e.passing
 	}
 	var t target
-	if _, ok := e.content.(container); !ok || e.fillColor().A > 0 {
+	if _, ok := e.content.(container); !passing && (!ok || e.fillColor().A > 0) {
 		if inside(e.box, p) && (e.mask == nil || e.mask.contains(e.box, p)) {
 			t = target{hit: e, pressed: in}
 		}
 	}
 	for _, c := range e.children {
-		if h := topmost(c, p, in); h.hit != nil {
+		if h := topmost(c, p, in, passing); h.hit != nil {
 			t = h
 		}
 	}

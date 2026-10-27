@@ -11,8 +11,9 @@ import (
 // An entity gives it itself, as it is made (kind.Entry.Told) or later.
 type Give struct{ To command.Issuer }
 
-// ShowShortcuts opens the list of every key of the game (the Shortcuts scene).
-type ShowShortcuts struct{}
+// ShowControls opens the controls screen (the ControlsScene), every key and mouse action of the
+// game. K by default.
+type ShowControls struct{}
 
 // ShowSettings opens the settings screen (the SettingsScene). F10 by default.
 type ShowSettings struct{}
@@ -21,14 +22,14 @@ type ShowSettings struct{}
 // tactical pause while it is up.
 type KeepRunning struct{ On bool }
 
-func (Give) Command()          {}
-func (ShowShortcuts) Command() {}
-func (ShowSettings) Command()  {}
-func (KeepRunning) Command()   {}
+func (Give) Command()         {}
+func (ShowControls) Command() {}
+func (ShowSettings) Command() {}
+func (KeepRunning) Command()  {}
 
 var (
 	_ command.Command = Give{}
-	_ command.Command = ShowShortcuts{}
+	_ command.Command = ShowControls{}
 	_ command.Command = ShowSettings{}
 	_ command.Command = KeepRunning{}
 )
@@ -44,15 +45,15 @@ func (p *Plugin) Queues() []command.CommandQueue {
 // DefaultBindings are GameBindings.
 func (p *Plugin) DefaultBindings() []control.Binding { return p.GameBindings() }
 
-// GameBindings are the keys every game has: K for the list of shortcuts, F10 for the settings,
+// GameBindings are the keys every game has: K for the controls screen, F10 for the settings,
 // ~ for the telemetry panel (the basics, everything, hidden, in turn), F5 to save, F9 to load,
 // Shift+Esc to quit. A game that binds its own keys in place of the Defaults binds these beside
 // them.
 func (p *Plugin) GameBindings() []control.Binding {
 	shift := control.Mods{Shift: true}
 	return []control.Binding{
-		control.Give(control.KeyPress{Key: control.KeyK}, "Shortcuts; Esc closes them",
-			ShowShortcuts{}),
+		control.Give(control.KeyPress{Key: control.KeyK}, "Controls; Esc closes them",
+			ShowControls{}),
 		control.Give(control.KeyPress{Key: control.KeyF10}, "Settings; Esc closes them",
 			ShowSettings{}),
 		control.Build(control.KeyPress{Key: control.KeyBackquote},

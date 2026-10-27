@@ -33,7 +33,7 @@ func TestThrough_ACoveredPictureTakesNothingOfTheCursorsPlace(t *testing.T) {
 	r.cam.SetViewport(800, 600)
 	r.bind(control.Build(control.CursorAtEdge{}, "scroll", orderOf(1)))
 	atEdge := func() int {
-		r.handle(&control.InputEvents{MousePos: geom.NewVec(790, 300), WindowFillsScreen: true})
+		r.handle(&control.InputEvents{MousePos: geom.NewVec(790, 300), CursorInWindow: true})
 		return len(r.drained())
 	}
 	hover := r.wire.(ui.Hovered)

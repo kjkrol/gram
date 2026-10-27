@@ -29,8 +29,9 @@ type InputEvents struct {
 		Shift, Ctrl, Alt bool
 	}
 	MiddleDown bool
-	// WindowFillsScreen reports whether the window covers the whole monitor.
-	WindowFillsScreen bool
+	// CursorInWindow reports whether the window has the cursor: it came in and has not left
+	// since. MousePos is where it was last seen, zero before any.
+	CursorInWindow bool
 
 	ClickQueue  []ClickEvent
 	KeyEvents   []KeyEvent
@@ -68,3 +69,13 @@ func CaptureCursor(on bool) {
 		cursorCapture(on)
 	}
 }
+
+var fullscreenKey = [2]string{"F11", "Full screen (the engine's)"}
+
+// SetFullscreenKey is the engine's: the key that switches full screen on this platform and what
+// the controls screen says of it, where the system keeps F11 for itself.
+func SetFullscreenKey(key, label string) { fullscreenKey = [2]string{key, label} }
+
+// FullscreenKey is the key that switches full screen and its label for the controls screen:
+// F11, unless the engine said otherwise.
+func FullscreenKey() (key, label string) { return fullscreenKey[0], fullscreenKey[1] }

@@ -56,10 +56,12 @@ var (
 // Prepare compiles every shader made, fills every image deferred and puts on the GPU every
 // texture whose pixels wait on the CPU.
 func Prepare() error {
-	for _, s := range shaders {
-		if err := s.Compile(); err != nil {
-			return fmt.Errorf("render: the %s shader: %w", s.label, err)
-		}
+	progs := make([]*gpu.Program, len(shaders))
+	for i, s := range shaders {
+		progs[i] = s.program()
+	}
+	if err := gpu.CompileAll(progs); err != nil {
+		return fmt.Errorf("render: %w", err)
 	}
 	for i := range deferred {
 		i.ready()

@@ -137,10 +137,10 @@ func (e *Engine) Quit() { e.quit = true }
 // Props are the game's, read once as the engine was made.
 func (e *Engine) Props() game.Props { return e.props }
 
-// ToggleFullscreen switches the window to fullscreen and back.
+// ToggleFullscreen switches the window to fullscreen and back, at the window's next pass.
 func (e *Engine) ToggleFullscreen() {
 	if e.app != nil {
-		e.app.ToggleFullscreen()
+		e.adapter.ToggleFullscreen()
 	}
 }
 
@@ -196,6 +196,12 @@ func (e *Engine) Run() {
 		WithResizable(e.props.Resizable).WithContinuousRender(true).WithVSync(os.Getenv("GRAM_VSYNC") != "off")
 	if os.Getenv("GRAM_FULLSCREEN") != "" {
 		cfg = cfg.WithFullscreen()
+		e.adapter.start = true
+	}
+	if runtime.GOOS == "darwin" {
+		// the system keeps F11 for itself there; the window's own menu switches on Ctrl+Cmd+F
+		control.SetFullscreenKey("Ctrl+Cmd+F",
+			"Full screen (the window's menu; F11 where the system leaves it)")
 	}
 	e.app = gogpu.NewApp(cfg)
 	e.adapter.app = e.app
@@ -216,7 +222,7 @@ func (e *Engine) frame(dc *gogpu.Context) {
 	if p == nil || view == nil {
 		return
 	}
-	if err := render.UseDevice(p.Device()); err != nil {
+	if err := render.UseDevice(p.Device(), backendOf(dc.Backend())); err != nil {
 		log.Fatal(err)
 	}
 	t := plugin.FrameTimes{Wait: time.Since(start)}

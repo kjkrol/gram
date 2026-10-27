@@ -15,7 +15,7 @@ func DefaultFont() *Font { return text.DefaultFont() }
 // DefaultBoldFont is Go Bold at 14 pixels, DefaultFont's weight for a heading.
 func DefaultBoldFont() *Font { return text.DefaultBoldFont() }
 
-// DefaultLargeFont is Go Bold at 20 pixels, for a screen's title.
+// DefaultLargeFont is Go Bold at 28 pixels, for a screen's title.
 func DefaultLargeFont() *Font { return text.DefaultLargeFont() }
 
 // DebugPrintAt prints s with its top-left corner at (x, y), a line of it under another at each

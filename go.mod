@@ -6,7 +6,7 @@ require (
 	github.com/gogpu/gogpu v0.54.0
 	github.com/gogpu/gpucontext v0.31.3
 	github.com/gogpu/gputypes v0.8.0
-	github.com/gogpu/naga v0.19.0
+	github.com/gogpu/naga v0.20.3
 	github.com/gogpu/wgpu v0.34.5
 	github.com/kjkrol/aabbworld v1.19.0
 	github.com/kjkrol/astar v1.1.3

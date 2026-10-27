@@ -42,8 +42,9 @@ func (c *installCtx) Draws(...render.Source) {}
 func (c *installCtx) Looks(func())           {}
 func (*installCtx) Pool() *parallel.Pool     { return nil }
 
-// a scene of a player's picture of a world 4000 a side and its minimap 200 a side top-right, on a
-// screen 1200 by 800, the plugins installed and stepped as a game steps them
+// a scene of a player's picture of a world 4000 a side and its minimap 200 a side top-right, its
+// compass over it in a box 240 a side as the demos lay it (the circle's middle at (1084, 116)),
+// on a screen 1200 by 800, the plugins installed and stepped as a game steps them
 func minimapScene(t *testing.T) (scene *ui.Scene, cam camera.Camera, tick func()) {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
@@ -58,9 +59,13 @@ func minimapScene(t *testing.T) (scene *ui.Scene, cam camera.Camera, tick func()
 		t.Fatal(err)
 	}
 	cam = cams.Write().New(cameras.FromAbove, camera.Config{})
+	const side, box = 200, 200 + 2*minimap.Overhang
 	scene = ui.NewScene("main", ui.Layers(
 		ui.Image(render.NewFeed(cam, nil)).Input(ps.Through(pl)),
-		ui.TopRight(mini.For(cam, pl.ID)).Size(200, 200),
+		ui.TopRight(ui.Layers(
+			ui.Center(mini.For(cam, pl.ID).Masked(ui.Circle)).Size(side, side),
+			mini.Compass(cam),
+		)).Size(box, box).Margin(16-minimap.Overhang),
 	)).Input(ps.Handle)
 	scene.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(1200, 800)))
 	ctx := &installCtx{ecs: goke.New()}
@@ -97,11 +102,11 @@ func TestMinimapInAScene_TheCursorAtTheEdgeOverItScrollsNothing(t *testing.T) {
 	scene, cam, tick := minimapScene(t)
 	at := func(x, y float32) {
 		scene.HandleEvents(&control.InputEvents{MousePos: geom.NewVec(x, y),
-			WindowFillsScreen: true}, nil, nil)
+			CursorInWindow: true}, nil, nil)
 		tick()
 	}
 	x0, y0 := middle(cam)
-	at(1195, 100)
+	at(1183, 116)
 	if x, y := middle(cam); x != x0 || y != y0 {
 		t.Errorf("the cursor at the edge over the minimap moved the camera from (%v, %v) to "+
 			"(%v, %v)", x0, y0, x, y)
@@ -117,11 +122,29 @@ func TestMinimapInAScene_APressOnItTakesTheCameraThere(t *testing.T) {
 	scene, cam, tick := minimapScene(t)
 	x0, y0 := middle(cam)
 	// 50 pixels right of the minimap's middle, a pixel three world units
-	press := geom.NewVec(1150, 100)
+	press := geom.NewVec(1134, 116)
 	scene.HandleEvents(&control.InputEvents{MousePos: press, ClickQueue: []control.ClickEvent{
 		{Button: control.MouseButtonLeft, Action: control.ActionPress, Pos: press}}}, nil, nil)
 	tick()
 	if x, y := middle(cam); x != x0+150 || y != y0 {
 		t.Errorf("the camera went from (%v, %v) to (%v, %v), want 150 east", x0, y0, x, y)
+	}
+}
+
+func TestMinimapInAScene_TheCornerBesideTheCompassScrollsAndTheWheelThereZooms(t *testing.T) {
+	scene, cam, tick := minimapScene(t)
+	x0, y0 := middle(cam)
+	zoom := cam.Zoom()
+	// in the compass's box and the corner's square, off the circle
+	corner := geom.NewVec(1195, 5)
+	scene.HandleEvents(&control.InputEvents{MousePos: corner, CursorInWindow: true,
+		ScrollDelta: 1}, nil, nil)
+	tick()
+	if x, y := middle(cam); x <= x0 || y >= y0 {
+		t.Errorf("the cursor in the corner beside the compass took the camera from (%v, %v) to "+
+			"(%v, %v), want it scrolled north-east", x0, y0, x, y)
+	}
+	if cam.Zoom() == zoom {
+		t.Error("the wheel in the corner beside the compass zoomed nothing")
 	}
 }

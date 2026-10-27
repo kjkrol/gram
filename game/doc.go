@@ -5,8 +5,8 @@
 //
 // # Game
 //
-// A [Game] supplies its [Props] (the window, a Description shown over the list of shortcuts,
-// TargetTPS the engine's fixed step) and its Stages by Name, plus which starts active. [New] is
+// A [Game] supplies its [Props] (the window, a Description for the game's own menu, TargetTPS
+// the engine's fixed step) and its Stages by Name, plus which starts active. [New] is
 // the Game of props and stages a game keeping nothing else of its own needs, the first stage
 // starting unless [Defined.Starting] names another; a game wanting more writes its own.
 //

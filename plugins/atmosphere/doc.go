@@ -58,7 +58,8 @@
 // date with the moon's phase beside them while the moon runs, [Plugin.Weather] the weather, the
 // temperature and the wind, left out while none of the climate's workings run, and [Plugin.Bar]
 // the three side by side on one panel, for an edge of the screen (ui.TopMiddle,
-// ui.BottomMiddle). The weather is
+// ui.BottomMiddle). The pointer passes through each to the picture under it: the cameras' scroll
+// zones work under the bar as they are drawn over it. The weather is
 // read through a drawer of its own: it goes in the tree a scene is made with, never one
 // ui.Scene.Replace puts in.
 //

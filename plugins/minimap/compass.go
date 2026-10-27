@@ -25,15 +25,20 @@ const (
 // Compass is a red triangle hung on the edge of cam's minimap pointing north, three quarters
 // of it over the edge, turned round the circle and with it as the minimap turns: a picture for
 // the scene to lay over the minimap in a box Overhang pixels bigger than the minimap's on every
-// side (ui.Layers of the minimap centred at its size and the compass), transparent elsewhere.
+// side (ui.Layers of the minimap centred at its size and the compass), transparent elsewhere,
+// the pointer passing through it to the minimap and the picture under, hidden with the minimap.
 // Nothing for a camera without a minimap of the plugin's.
 func (p *Plugin) Compass(cam camera.Camera) *ui.Element {
 	for _, m := range p.maps {
 		if m.of == cam {
-			return ui.Image(&compass{m: m})
+			m.compass = ui.Image(&compass{m: m}).Passing()
+			if p.Res.Settings.Hidden {
+				m.compass.Hidden()
+			}
+			return m.compass
 		}
 	}
-	return ui.Blank()
+	return ui.Blank().Passing()
 }
 
 // compass draws the triangle over a transparent picture of the box's size

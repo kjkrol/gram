@@ -7,8 +7,9 @@ import (
 	"github.com/kjkrol/gram/render/internal/gpu"
 )
 
-// UseDevice has render draw on dev, the device of the engine's window.
-func UseDevice(dev *wgpu.Device) error { return gpu.Use(dev) }
+// UseDevice has render draw on dev, the device of the engine's window, made by backend: Vulkan
+// takes a program's SPIR-V kept on disk, the others want its WGSL.
+func UseDevice(dev *wgpu.Device, backend gputypes.Backend) error { return gpu.Use(dev, backend) }
 
 // Windowed says the device will be the engine's window's: none is made without it.
 func Windowed() { gpu.Windowed() }

@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
 )
 
 // Mods is the modifier keys a trigger asks for, and at most one other key held down with them (see
@@ -105,17 +106,16 @@ func (CursorOver) trigger()     {}
 // in the camera's pixels, Resolution of them a shown one; World and WorldBox go through the
 // camera.
 type Context struct {
-	Player      command.Issuer
-	Camera      camera.Camera
-	Cursor      geom.Vec // where the cursor is, or where a button went down or up
-	Start       geom.Vec // where a Drag began
-	Delta       geom.Vec
-	Wheel       float32
-	Screen      geom.Vec // the picture's size in the camera's pixels
-	Resolution  float32  // camera pixels a shown pixel; 0 as 1
-	Mods        Mods
-	FillsScreen bool
-	Held        time.Duration // how long a key was held, for KeyReleased
+	Player     command.Issuer
+	Camera     camera.Camera
+	Cursor     geom.Vec // where the cursor is, or where a button went down or up
+	Start      geom.Vec // where a Drag began
+	Delta      geom.Vec
+	Wheel      float32
+	Screen     geom.Vec // the picture's size in the camera's pixels
+	Resolution float32  // camera pixels a shown pixel; 0 as 1
+	Mods       Mods
+	Held       time.Duration // how long a key was held, for KeyReleased
 }
 
 // Pixels is shown pixels in the camera's: a speed in pixels of the screen as the camera has it.
@@ -181,13 +181,19 @@ func (c Context) WorldBox(a, b geom.Vec) geom.AABB {
 const (
 	// EdgeMargin is how close to a window edge, in pixels, the cursor rests at it (CursorAtEdge).
 	EdgeMargin = 60
-	// EdgeDeadZone is the strip at the very edge that is no edge, unless the window fills the
-	// screen: a cursor parked there by the monitor's edge should not run away.
-	EdgeDeadZone = 10
 	// CornerReach is the side of the square at each corner, in pixels, within which the cursor
 	// rests in the corner; CornerSide caps it for a small picture.
 	CornerReach = 120
+	// DragSlop is how far, in shown pixels, the cursor may move from where a button went down
+	// for a click, not a drag (Context.Dragged).
+	DragSlop = 4
 )
+
+// Dragged reports whether the cursor has moved past DragSlop from where the button went down
+// (Start): a drag, not a click.
+func (c Context) Dragged() bool {
+	return f32.Hypot(c.Cursor.X-c.Start.X, c.Cursor.Y-c.Start.Y) > c.Pixels(DragSlop)
+}
 
 // CornerSide is the side of a corner's square in a picture w by h pixels: CornerReach, or a
 // quarter of the shorter side where that is less.
@@ -220,8 +226,8 @@ func (c Corner) Signs() (x, y float32) {
 }
 
 // Edges are the window edges a cursor rests near, the corner it rests in, and how Deep in the
-// strip or the corner's square it stands: 0 at the inner bound, 1 at the window's edge (the dead
-// zone's), in a corner the deeper of the two ways.
+// strip or the corner's square it stands: 0 at the inner bound, 1 at the window's edge, in a
+// corner the deeper of the two ways.
 type Edges struct {
 	Left, Right, Top, Bottom bool
 	Corner                   Corner
@@ -231,27 +237,23 @@ type Edges struct {
 // Any reports whether the cursor rests near any edge or in a corner.
 func (e Edges) Any() bool { return e.Left || e.Right || e.Top || e.Bottom || e.Corner != NoCorner }
 
-// Edges is which window edges the cursor rests near, outside the dead zone, and in which corner's
-// square of CornerReach a side, the margins in shown pixels.
+// Edges is which window edges the cursor rests near and in which corner's square of CornerReach
+// a side, the margins in shown pixels; a cursor outside the window rests near none.
 func (c Context) Edges() Edges {
 	k := c.resolution()
-	dead := float32(EdgeDeadZone) * k
-	if c.FillsScreen {
-		dead = 0
-	}
 	margin := float32(EdgeMargin) * k
 	x, y := c.Cursor.X, c.Cursor.Y
 	e := Edges{
-		Left:   x >= dead && x < margin,
-		Right:  x <= c.Screen.X-dead && x > c.Screen.X-margin,
-		Top:    y >= dead && y < margin,
-		Bottom: y <= c.Screen.Y-dead && y > c.Screen.Y-margin,
+		Left:   x >= 0 && x < margin,
+		Right:  x <= c.Screen.X && x > c.Screen.X-margin,
+		Top:    y >= 0 && y < margin,
+		Bottom: y <= c.Screen.Y && y > c.Screen.Y-margin,
 	}
 	side := CornerSide(c.Screen.X/k, c.Screen.Y/k) * k
-	nearLeft := x >= dead && x < side
-	nearRight := x <= c.Screen.X-dead && x > c.Screen.X-side
-	nearTop := y >= dead && y < side
-	nearBottom := y <= c.Screen.Y-dead && y > c.Screen.Y-side
+	nearLeft := x >= 0 && x < side
+	nearRight := x <= c.Screen.X && x > c.Screen.X-side
+	nearTop := y >= 0 && y < side
+	nearBottom := y <= c.Screen.Y && y > c.Screen.Y-side
 	switch {
 	case nearLeft && nearTop:
 		e.Corner = TopLeft
@@ -262,25 +264,25 @@ func (c Context) Edges() Edges {
 	case nearRight && nearBottom:
 		e.Corner = BottomRight
 	}
-	// how far in from the window's edges, by the nearer each way
-	inX, inY := min(x, c.Screen.X-x), min(y, c.Screen.Y-y)
+	// how far in from the window's edges, by the nearer each way; the far edge is its last shown
+	// pixel, k camera pixels short of the size
+	inX, inY := min(x, c.Screen.X-k-x), min(y, c.Screen.Y-k-y)
 	if e.Corner != NoCorner {
-		e.Depth = max(depth(inX, side, dead), depth(inY, side, dead))
+		e.Depth = max(depth(inX, side), depth(inY, side))
 		return e
 	}
 	if e.Left || e.Right {
-		e.Depth = depth(inX, margin, dead)
+		e.Depth = depth(inX, margin)
 	}
 	if e.Top || e.Bottom {
-		e.Depth = max(e.Depth, depth(inY, margin, dead))
+		e.Depth = max(e.Depth, depth(inY, margin))
 	}
 	return e
 }
 
-// depth is how deep a cursor in pixels from the window's edge stands in a zone reach wide with
-// the dead zone at its edge, 0 to 1
-func depth(in, reach, dead float32) float32 {
-	return min(max((reach-in)/(reach-dead), 0), 1)
+// depth is how deep a cursor in pixels from the window's edge stands in a zone reach wide, 0 to 1
+func depth(in, reach float32) float32 {
+	return min(max((reach-in)/reach, 0), 1)
 }
 
 // ScreenRect is the screen rectangle between a and b, at least a pixel a side.
@@ -301,6 +303,7 @@ type Binding struct {
 	hows    camera.How // zero: every How
 	tool    Tool       // none: holds whatever the player holds
 	chords  bool       // a key held, down or let go fires with a modifier held too
+	yields  bool       // fires only when no other binding on the trigger built a command
 }
 
 // In is b holding only while the player's camera is fastened one of hows (camera.HowOf). A
@@ -351,10 +354,21 @@ func (b Binding) With(tool Tool) Binding {
 // Tool is the tool b holds with; none for a binding holding whatever the player holds.
 func (b Binding) Tool() Tool { return b.tool }
 
-// Overlaps reports whether b and o hold in some How both with one tool: two such bindings on one
-// Trigger would both fire.
+// Yielding is b firing only when no other binding on its trigger builds a command: what the
+// trigger does when nothing else takes it.
+func (b Binding) Yielding() Binding {
+	b.yields = true
+	return b
+}
+
+// Yields reports whether b fires only when no other binding on its trigger builds a command.
+func (b Binding) Yields() bool { return b.yields }
+
+// Overlaps reports whether b and o hold in some How both with one tool, both yielding or neither:
+// two such bindings on one Trigger would both fire.
 func (b Binding) Overlaps(o Binding) bool {
-	return b.tool == o.tool && (b.hows == 0 || o.hows == 0 || b.hows&o.hows != 0)
+	return b.tool == o.tool && b.yields == o.yields &&
+		(b.hows == 0 || o.hows == 0 || b.hows&o.hows != 0)
 }
 
 // Build is a Binding issuing a C built from the Context when trigger fires; build may decline.

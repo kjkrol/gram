@@ -27,7 +27,8 @@
 // ([Player.Area]) and what it shows, so the mouse over it is the player's and every command it
 // gives carries that picture's camera (control.Context.Camera). A scene gives a player one view:
 // two of its pictures in one pass panic. Where an element lies over the picture under the cursor
-// (a minimap), the cursor's place does nothing there: no scrolling at an edge, no turning in a
+// (a minimap), and while the window has no cursor (control.InputEvents.CursorInWindow: not seen
+// yet, or gone out), the cursor's place does nothing: no scrolling at an edge, no turning in a
 // corner. [Plugin.IssueAs] is how the scene's buttons and keys give their commands as the player.
 // Players draw nothing.
 //
@@ -35,9 +36,10 @@
 //
 // [Plugin.Local] adds a player at this keyboard, [Plugin.Add] one without. A game binds a player
 // with [Player.Bind]: the Defaults whole, or entries of its own. Two bindings on one trigger
-// holding in one fastening of the camera are refused at Bind; one whose command nobody defines
-// when the Stage is set up. A binding may hold in some fastenings of the camera only
-// (control.Binding.In): only those holding in the camera's How fire. A player holds a tool in
+// holding in one fastening of the camera are refused at Bind unless one yields
+// (control.Binding.Yielding: it fires only when no other built a command); one whose command
+// nobody defines when the Stage is set up. A binding may hold in some fastenings of the camera
+// only (control.Binding.In): only those holding in the camera's How fire. A player holds a tool in
 // hand (control.Take, control.Drop; [Player.Tool]): while it does, the bindings With that tool
 // fire in place of those with no tool. While a local player's camera rides inside an entity, the
 // window's cursor is captured and control.CursorMove reaches that player.
@@ -53,16 +55,18 @@
 // RunPlan last in Update. Nothing is dropped: a command given after its handler's pass waits for
 // the next frame's.
 //
-// # Scene keys, the shortcuts and the settings
+// # Scene keys, the controls and the settings
 //
-// A scene showing the world hands its input to [Plugin.Handle] and nothing else. [ShowShortcuts]
-// (K) opens [Shortcuts], the players' own scene listing every key of the game, over the paused
-// game; every Stage that uses the players has it in its stack ([Plugin.Scenes]), and Esc or K
-// closes it. [ShowSettings] (F10) opens [SettingsScene], the screen of every setting the
-// plugins carried announce (plugin.Tunable): a control each, a checkbox, a dropdown or a
-// slider, giving the plugin's command as it is used, in sections centred on the screen: first
-// those the plugins share (control.Picture and its parts, a setting's Section), then one a
-// plugin for its own; Esc or F10 closes it.
+// A scene showing the world hands its input to [Plugin.Handle] and nothing else. [ShowControls]
+// (K) opens [ControlsScene], the players' own screen of every key and mouse action of the game,
+// a framed section a group, over the paused game; every Stage that uses the players has it in
+// its stack ([Plugin.Scenes]), and Esc or K closes it. [ShowSettings] (F10) opens
+// [SettingsScene], the screen of every setting the plugins carried announce (plugin.Tunable): a
+// control each, a checkbox, a dropdown or a slider, giving the plugin's command as it is used,
+// in sections centred on the screen: first those the plugins share (control.Picture and its
+// parts, a setting's Section), then one a plugin for its own; Esc or F10 closes it. Both screens
+// are laid alike, in the default theme: the title in a framed panel at the top, the sections in
+// as many columns as the width takes, scrolled where they do not fit.
 // While it is up the game stands in the tactical pause, unless the players' own setting says it
 // runs on ([Settings], [KeepRunning]); the players' settings are saved with the game, as every
 // plugin's. The players' settings show the telemetry panel or hide it and choose what it shows,
@@ -71,11 +75,11 @@
 // Stage binds in its Controls section. [Plugin.GameBindings] are K, F10, ~ (the telemetry panel,
 // telemetry.Panel, carried here: it needs the scene's Composition; from hidden to the basics, to
 // everything and to hidden again), F5 game.Save, F9 game.Load and Shift+Esc game.Quit, the same
-// in every game. [Written] is a trigger as the list writes it.
+// in every game. [Written] is a trigger as the screen writes it.
 //
 // # Vocabulary
 //
-// Commands: [Give] (an entity's own: whose it is), [ShowShortcuts] (a player's, K),
+// Commands: [Give] (an entity's own: whose it is), [ShowControls] (a player's, K),
 // [ShowSettings] (F10), [KeepRunning]; the telemetry panel's telemetry.Panel (~) is carried here
 // too. Settings ([Settings], in [Resources]): the game running behind the settings screen. The
 // owners' family is players/owner's.

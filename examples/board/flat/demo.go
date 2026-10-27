@@ -125,7 +125,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 			},
 		},
 	).WithWeathering(a.board, a.defineClimate())
-	a.cameras = cameras.NewPlugin(a.world, cameras.Config{})
+	a.cameras = cameras.NewPlugin(a.world, cameras.Config{Grab: true})
 	a.minimap = minimap.NewPlugin(a.world, a.board.Write(), minimap.Config{Reach: 40 * CellSize})
 	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Read(0).Reporter(),
 		a.light.Read(0).Reporter())

@@ -30,6 +30,7 @@ const FrameImages = 8
 type device struct {
 	mu       sync.Mutex
 	dev      *wgpu.Device
+	backend  gputypes.Backend // Vulkan takes a program's SPIR-V, the others want its WGSL
 	queue    *wgpu.Queue
 	instance *wgpu.Instance // a headless device's only
 	align    uint64
@@ -78,11 +79,12 @@ type device struct {
 var cur *device
 
 // Use has the package draw on dev, the device of the engine's window.
-func Use(dev *wgpu.Device) error {
+func Use(dev *wgpu.Device, backend gputypes.Backend) error {
 	if cur != nil && cur.dev == dev {
 		return nil
 	}
-	d := &device{dev: dev, queue: dev.Queue(), groups: map[[4]*Texture]*wgpu.BindGroup{},
+	d := &device{dev: dev, backend: backend, queue: dev.Queue(),
+		groups: map[[4]*Texture]*wgpu.BindGroup{},
 		frames: map[[FrameImages]*Texture]*wgpu.BindGroup{}}
 	if err := d.setup(); err != nil {
 		return err
@@ -116,7 +118,7 @@ func Headless(software bool) error {
 		inst.Release()
 		return fmt.Errorf("gpu: device: %w", err)
 	}
-	if err := Use(dev); err != nil {
+	if err := Use(dev, adapter.Info().Backend); err != nil {
 		return err
 	}
 	cur.instance = inst

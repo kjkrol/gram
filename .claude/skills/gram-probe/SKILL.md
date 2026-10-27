@@ -72,7 +72,9 @@ them too, and a probe left in by an interrupted run is a broken demo.
   (`unit.Airborne`). Kinds by `p.a.world.Kinds().Lookup(KindName)` → id to match `Base.TypeID`.
 - Keys go through `p.a.players.EventHandler().HandleEvents(ev)`, one `InputEvents` a tick, so
   the players' bindings, contexts and cameras are the real ones; `KeyHeld` fires on the ticks
-  between press and release.
+  between press and release. A zero `InputEvents` has no cursor (`CursorInWindow` false): the
+  scroll zones, the wheel and the hover fire nothing; a probe moving the cursor sets
+  `CursorInWindow: true` with `MousePos`.
 - Commands bypassing keys: `p.a.world.Write().Carrier().Put(p.a.player.ID, cmd)` (a `selection.Select`
   with `Camera: p.a.cameras.Read(0).Cameras()[0]`, a `ceremony.Command` from `Commands().Named`),
   `PutFrom(entity, cmd)` for an entity's own.

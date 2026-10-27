@@ -65,7 +65,7 @@ func TestTheme_AHeadingMeasuresInTheThemesBoldFont(t *testing.T) {
 }
 
 func TestTheme_ATitleMeasuresInTheThemesLargeFont(t *testing.T) {
-	title, heading := Title("Shortcuts"), Heading("Shortcuts")
+	title, heading := Title("Controls"), Heading("Controls")
 	s := NewScene("main", Layers(title, heading))
 	s.Drawers()
 	tw, th := title.needs()

@@ -88,7 +88,7 @@ func TestStage_WithAWorldHasATelemetryPanelHiddenUnlessTheGameMadeOne(t *testing
 	}
 }
 
-func TestStage_WithPlayersHasTheirShortcutsAndSettings(t *testing.T) {
+func TestStage_WithPlayersHasTheirControlsAndSettings(t *testing.T) {
 	cfg := world.Config{Space: world.SpaceCfg{Width: 100, Height: 100},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}}
 	st := stage.New("meadow").World(cfg).
@@ -104,7 +104,7 @@ func TestStage_WithPlayersHasTheirShortcutsAndSettings(t *testing.T) {
 	for _, sc := range st.Stack().All() {
 		names = append(names, sc.Name())
 	}
-	if !slices.Contains(names, players.ShortcutsName) || !slices.Contains(names, players.SettingsName) {
-		t.Errorf("the stack holds %v, want the players' shortcuts and settings among them", names)
+	if !slices.Contains(names, players.ControlsName) || !slices.Contains(names, players.SettingsName) {
+		t.Errorf("the stack holds %v, want the players' controls and settings among them", names)
 	}
 }

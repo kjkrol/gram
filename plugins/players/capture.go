@@ -27,8 +27,8 @@ func (p *Plugin) capture() bool {
 	return false
 }
 
-// menuUp reports whether the settings screen or the shortcuts are up
+// menuUp reports whether the settings screen or the controls screen is up
 func (p *Plugin) menuUp() bool {
 	return p.settings.shown ||
-		p.composition != nil && slices.Contains(p.composition.Order(), ShortcutsName)
+		p.composition != nil && slices.Contains(p.composition.Order(), ControlsName)
 }

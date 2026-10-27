@@ -25,7 +25,7 @@ func TestScroll_ShowsItsContentThroughItsBoxScrolledByTheWheelAndTheBar(t *testi
 		t.Fatalf("the last row laid at y %v, want 300: the content as tall as it needs", box.TopLeft.Y)
 	}
 	s.HandleEvents(click(geom.NewVec(10, 50)), nil, nil)
-	if t2 := topmost(s.root, geom.NewVec(10, 310), nil); t2.hit != nil {
+	if t2 := topmost(s.root, geom.NewVec(10, 310), nil, false); t2.hit != nil {
 		t.Errorf("a point under the box hit %v, want nothing: the content is clipped", t2.hit)
 	}
 	for range 5 {

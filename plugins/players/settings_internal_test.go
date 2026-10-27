@@ -204,13 +204,13 @@ func TestSettings_KeepRunningLetsTheClockGoAndIsSaved(t *testing.T) {
 		t.Error("a game loaded forgot the settings ran behind the screen")
 	}
 	lines := ""
-	for _, g := range p.shortcuts.groups() {
+	for _, g := range p.controls.groups() {
 		if g.name == "General" {
-			lines = strings.Join(g.lines, "\n")
+			lines = g.text()
 		}
 	}
 	if !strings.Contains(lines, "F10") {
-		t.Errorf("the general shortcuts %q, want F10 among them", lines)
+		t.Errorf("the general controls %q, want F10 among them", lines)
 	}
 }
 

@@ -80,7 +80,7 @@ const (
 func beside(e *ui.Element, is func() bool) *ui.Element {
 	w, _ := ui.DefaultTheme().Bold.Measure("PAUSED")
 	slot := w + 2*pausedPad + pausedGap
-	word := ui.HeadingOf(ui.While(is, "PAUSED")).Padding(pausedPad).Fill(pausedColor)
+	word := ui.HeadingOf(ui.While(is, "PAUSED")).Padding(pausedPad).Fill(pausedColor).Passing()
 	return ui.Columns(room(slot), ui.Fit(e), ui.Fixed(slot, ui.MiddleRight(word)))
 }
 

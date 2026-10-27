@@ -458,7 +458,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `celestial.MoonFace` with the phase's shade, lit on the right waxing), `Weather()` (the name,
   the temperature, the wind; absent without a running climate; it reads through a drawer of
   its own, so it goes in the tree a scene is made with) and `Bar()` (the three on one panel for
-  `ui.TopMiddle`), `*ui.Element`s the scene places; the old `HUD()` renderers are gone. Their
+  `ui.TopMiddle`), `*ui.Element`s the scene places, each `Passing` (2026-10-26: the pointer
+  passes through to the picture under, so the cameras' zones work under the bar as they are
+  drawn over it); the old `HUD()` renderers are gone. Their
   words are read once a frame as the scene publishes, kept (`framed`) till the clock moves or
   the weather's name changes; the moon icon shows the phase the atmosphere published.
   `Reporter()` lists the daylight, the clouds and their shadows alone: the time, the season,
@@ -516,9 +518,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   layer stays the sky's own. A game's sky: `atmosphere.Sky{Look(d *backdrop.Dome, p)}` in its
   `sky.go`, noted in the Figures link (`a.atmosphere.Skies(dusk{})`), each Look in order, a later
   part replacing an earlier; none is the Earth's (examples/look/sky; board/flat and
-  board/topography note `earth{}`). naga v0.19 (v0.19.1 too) traps for a part: a `var` without
-  an initialiser is undefined (start from `SkyShine()`), a module-scope vector `const` reads as
-  zero in a runtime expression (spell vectors inside the function). `atmosphere/climate`: a
+  board/topography note `earth{}`). naga (v0.20.3 too) traps for a part: a `var` without an
+  initialiser is undefined (start from `SkyShine()`); a module-scope vector `const` in a runtime
+  expression, zero under v0.19, works since v0.20. `atmosphere/climate`: a
   `climate.Zone{Latitude, Factors}` (`Equatorial`, `Tropical`, `Mediterranean`, `Temperate`,
   `Cold`, `Polar`; `SeaCurrent`, `DrySummer`) is `Zone.Profile()`
   (`Mean`, `Year`, `Day`, `Wet` per season); the kinds of weather `climate/weather`
@@ -853,7 +855,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   names the goal (`ceremony.Named`: a cell's `Plot` or a unit's `At`); `Level` (`EitherLevel`,
   `OnGround`, `OnDeck`) is what the camera picked; `Face` the point it turns to on arrival (a right
   click on its own cell, or `LookAt`); the right button's `Drag` is a click, a `ButtonHeld` past the
-  slop a `LookAt` every move; Shift appends. `Spacing` (`WithSpacing`; `AutoSpacing`) is how units
+  slop (`control.Context.Dragged`, `DragSlop` 4 shown px) a `LookAt` every move while the player
+  has a selection (`selection.Read.Any`; without one the drag is left to the cameras' grab, which
+  yields to it; 2026-10-27); Shift appends. `Spacing` (`WithSpacing`; `AutoSpacing`) is how units
   keep apart through the `keeping` seam (`cellKeeping`, `bodyKeeping`), one
   `navigationSystem.Update` loop; both plan routes blind to the others. What a unit does about
   another is rules of the moment `Touch` navigation hosts (a `host.PairRules[Touch]`; words
@@ -924,8 +928,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`Plugin.Tags()`; every unit carries the family, off, and is told `Allow{}` as it is made;
   `Plugin.IsSelected` a drawing rule's condition). `DefaultBindings()`: a left drag selects
   (Shift adds), the left button held a `Marquee` (drawn by its renderer), C `FollowKey` (a
-  `cameras.Follow` of the issuer's one selected unit, `Plugin.Chosen(by)`, for the camera the
-  player looks through), `Hover` every tick (`control.CursorOver`: the entity under the cursor
+  `cameras.Follow` of the issuer's one selected unit, `Read.Chosen(by)` — `Read.Any(by)` whether it
+  has any selected, navigation's right drag asks — for the camera the player looks through),
+  `Hover` every tick (`control.CursorOver`: the entity under the cursor
   carries `Hovered` until the next tick; `ui.Tagged(Hovered)`). A `Select` hits and unselects
   only what the issuing player owns (`owner.Obeys`). Its routers: `Plugin.Selected(roles...)`
   (the giving player's selected units playing a role), `Plugin.Pointed()` (the entity drawn under
@@ -975,16 +980,21 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   or Shift+R to it, driving's keys and `JumpKey` are in chords (sprint,
   a jump while sprinting, walking while a grenade charges) — `ButtonPress`, `Drag`,
   `Wheel`,
-  `ButtonHeld`, `CursorAtEdge`, `CursorOver`, `CursorMove`, with exact `Mods`
+  `ButtonHeld`, `CursorAtEdge`, `CursorOver`, `CursorMove` (the cursor's fire only while the
+  window has it, `InputEvents.CursorInWindow`, the engine's from the window's enter and leave;
+  a zero `InputEvents` has no cursor, so a test or a probe moving it says `CursorInWindow:
+  true`; 2026-10-27), with exact `Mods`
   (`Mods{}.Holding(key)`), `Build[C]` from a `Context` (`World`/`WorldBox` through the camera's
   `Picker`), `Give(trigger, label, cmd)`, `Binding.In(hows...)`, `With(tool)` — lives in
   `control`, so a plugin with commands never imports players. A player holds a tool in hand
   (`control.Tool`: `control.Take`/`Drop`; while it does, a binding `With` that tool takes its
   trigger from those of no tool). `Player.Bind` refuses two bindings on one trigger holding in one
-  fastening; Setup refuses a command nobody defines. Local players through pictures of their own
+  fastening unless one yields (`Binding.Yielding()`, 2026-10-27: `fire` runs the plain bindings
+  first and the yielding ones only when none built — the cameras' grab under navigation's right
+  drag); Setup refuses a command nobody defines. Local players through pictures of their own
   split the screen (`ui.Columns`); keys reach every local player, the mouse the one under it. The
   Scene hands input to `players.Plugin.Handle(events, runtime, composition)`: the bindings turn it
-  into commands, `ShowShortcuts` (K) and `ShowSettings` (F10) are carried out there (`carry`),
+  into commands, `ShowControls` (K) and `ShowSettings` (F10) are carried out there (`carry`),
   the game's own `SceneKeys`
   (`Plugin.OwnKeys`: a debug toggle, no command) run; `p.GameBindings()` (K, F10, ~, F5 `game.Save`, F9
   `game.Load`, Shift+Esc `game.Quit`) give the engine's commands. **The settings screen**
@@ -994,22 +1004,29 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `ui.Slider` with its number beside, each named `setting:<section path>/<label>`; twin sections,
   the same settings under each as the cameras' profiles, side by side with a control a twin;
   every top section framed whole (`framed`, a `ui.Panel` bordered a pixel named
-  `frame:<section>`, a block the columns never split), the title in Go Bold at 28 (the scene's
-  own `ui.Theme`, `settingsTheme`); as
+  `frame:<section>`, a block the columns never split), the title in the default theme's Large
+  (`render.DefaultLargeFont`, Go Bold at 28; the layout and the theme are the controls screen's
+  too, `menu.go` `menu`); as
   many columns as the width takes, fewer and taller otherwise, in a `ui.Scroll`; the cursor let
-  go while it or the shortcuts are up, a player riding or not); its commands
+  go while it or the controls screen is up, a player riding or not); its commands
   go through
   `IssueAs(the first local player)`; it forwards input to its `ui.Scene` and holds the game in
   the clock's tactical pause (the ECS pause would stop the plugins' `RunPlan` and their queues),
   unless the players' own `Settings.Running` (`KeepRunning{On}`, a switch on the screen; the
   telemetry panel another, `telemetry.Panel{Shown}`); Esc (with no dropdown open) or F10 closes
-  it. The players' `Res.Settings` is kept like any plugin's. The list of shortcuts
-  (`players.Shortcuts`, a `game.Scenic` scene made in `NewPlugin`, so K works in every game) is a
-  `ui.Scene` whose tree `Open` builds afresh (`ui.Scene.Replace`): `Props.Description`, the title,
-  the groups — "Game" first (the Controls section and `SceneKeys`), then the plugins' keys by
-  plugin, then "General" — each a `ui.Heading` over two aligned columns of keys and labels, in
-  columns as wide as their lines, as many as the height takes. `players.RunPlan` runs last and
-  empties the queues. Depends on `world`.
+  it. The players' `Res.Settings` is kept like any plugin's. **The controls screen**
+  (`players.ControlsScene`, `controls.go`, a `game.Scenic` scene made in `NewPlugin`, so K
+  works in every game; the shortcuts list till 2026-10-26) is a `ui.Scene` whose tree `Open`
+  builds afresh (`ui.Scene.Replace`) as the settings screen's: the title ("Controls", riding
+  "Controls: first person, riding in the unit") in its panel, then the groups — "Game" first
+  (the Controls section and `SceneKeys`), then the plugins' keys by plugin, then "General" (its
+  full-screen line `control.FullscreenKey()`: F11, or what the engine set for the platform —
+  Ctrl+Cmd+F on a Mac) — each a framed section (`frame:<group>`) with a `ui.Heading`
+  (`section:<group>`) and a line a binding, `controlsRow` 24 px: the trigger (`Written`) in a
+  column as wide as the widest of them all, what it does beside, wrapped past `controlsLabel`
+  300 px (`wrapped`, by the font's measure); `Props.Description` is shown no more. It holds the
+  game in the engine's pause (no command to carry) and forwards input to its `ui.Scene` for the
+  scroll. `players.RunPlan` runs last and empties the queues. Depends on `world`.
 - **`cameras`** — every camera a game looks through, and all camera behaviour (the contract
   stays in the root `camera`, which `render` and `control` read). Every camera is
   `camera.Snapped` (2026-10-24): `Snap` copies it for the frame drawn (a relief camera's copy
@@ -1065,12 +1082,15 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   plugin loads `steering.Driven` itself). Bindings `.In(camera.Inside)` fire riding,
   `.In(camera.Outside)` the free camera's (Q/E, R/F, Tab, WASD), the arrows
   `.In(camera.Behind)` drive the followed unit. `cameras.Keys{Up, Down, Left, Right, ZoomIn,
-  ZoomOut, ScrollSpeed, Wheel, Drag, Edge, CornersTurn}` are a player's keys, `DefaultKeys()` W/S/A/D, = and -
+  ZoomOut, ScrollSpeed, Wheel, Drag, Edge, CornersTurn, Grab}` are a player's keys, `DefaultKeys()` W/S/A/D, = and -
   (`ZoomStep` about the cursor), the wheel, the middle drag, the edge (a `Pan`; in a corner of the
   picture — `control.Edges.Corner`, a square of `control.CornerReach` 120 px a side, a quarter of
   the shorter side at most (`control.CornerSide`: a 200-px test viewport would be all corner),
-  `Edges.Any` true there — slantwise, or with `CornersTurn` a `Turn` as Q in the left corners and
-  as E in the right ones, a `CornerStep` (a third of `TurnStep`) a tick, instead; `DefaultBindings` set it where the Config
+  `Edges.Any` true there — slantwise, or with `CornersTurn` a `Turn` as Q in the bottom-left and
+  the top-right corners and as E in the bottom-right and the top-left (`sx * sy * CornerStep`:
+  the corners of a diagonal alike, the world under the cursor sliding along the top or the bottom
+  edge towards the middle; the user's word 2026-10-26, the left corners alike before), a
+  `CornerStep` (a third of `TurnStep`) a tick, instead; `DefaultBindings` set it where the Config
   turns, the user's word 2026-10-18; the old turning and bowing at the world's edge are gone).
   `NewPlugin` anchors the world's sectors (`world.Plugin.Anchor`) at each camera's `Focus`
   (`camera.Focused`: the window's middle from above, the stick's foot in either projection, the
@@ -1116,8 +1136,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   pixels, after everything the scene lays over the picture: the HUD never covers them; the
   user's word, 2026-10-20) in translucent yellow, an `Image.FillQuad` each, clear at the inner
   bound and deepest at the picture's edge, the strips a gap short of the corners (the user's
-  sketch, 2026-10-14; the gradient 2026-10-20); the strips `control.EdgeMargin` wide, 60 px, and
-  the edge scroll a quarter the speed at the inner bound rising to the whole at the edge
+  sketch, 2026-10-14; the gradient 2026-10-20); the strips `control.EdgeMargin` wide, 60 px,
+  reaching the very edge (the dead strip `EdgeDeadZone` went 2026-10-27: the engine reads the
+  window's leave, `InputEvents.CursorInWindow`, and the cursor out of the window scrolls nothing),
+  and the edge scroll a quarter the speed at the inner bound rising to the whole at the edge
   (`control.Edges.Depth`, 0.25 + 0.75·Depth in `keys.go`). The cameras' own settings section:
   "Scroll zones" (`EdgeScroll{On}`, `Settings.StillEdges` so a zero keeps scrolling,
   `ScrollFromEdges`/`EdgesScroll`: the edge and the corners' turning build nothing while
@@ -1126,7 +1148,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `DefaultBindings` read them through `Keys.bindings(p)`, a game's own `Keys.Bindings()` does
   not. `CursorAtEdge` fires once an `Engine.Update`, before
   the ticks, not once a tick; a demo
-  whose WSAD drive binds `cameras.Keys{Wheel, ZoomIn, ZoomOut}` alone. The engine sizes no camera.
+  whose WSAD drive binds `cameras.Keys{Wheel, ZoomIn, ZoomOut}` alone. `Keys.Grab` (`Config.Grab`
+  for the defaults; no default, on in board/topography and board/flat; 2026-10-27): the right
+  button held past `control.DragSlop` a `Pan` by the delta, the first pass by the whole way from
+  the press, `.Yielding()` so navigation's `LookAt` takes the drag with a selection and the grab
+  works with none. The engine sizes no camera.
   `SharpFigures{Profile, On}` (`SetSharpFigures`, `SharpFigures()`, `Knobs.SoftFigures` — zero for
   the figures at every pixel, so a save from before it keeps the feature — "Figures at every
   pixel" under the profile's section, no key; 2026-10-20) has every camera but a minimap's
@@ -1229,7 +1255,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Plugin.Spawn(level)` in Spawn lays a level's bridges, held to the rules at Populate (an
   error with the line). A player's: `Tool`, Shift+B,
   the cursor `Aim`s, a left click `Mark`s each head, right click and Esc drop; `Window()` asks
-  "Build the bridge?", `Reason()` says why not; `Build` levels the heads and spawns the parts at the
+  "Build the bridge?", `Reason()` says why not (a `Passing` label: laid at the bottom, it covers
+  no zone); `Build` levels the heads and spawns the parts at the
   next step.
 - **`telemetry`** — the panel in the top-left corner: `telemetry.NewPlugin(w)` with the
   standard lines (FPS, TPS, `Frame` from `render.Spent`, `Entities`, the clock's `Game time`),
@@ -1283,6 +1310,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   they are (`paced`), the last picture in between. A press on it is its own
   (`ui.Clicked`): `cameras.CenterAt` with the world point under it as the issuer's; the player's
   picture under it is covered (`ui.Hovered`), so the cursor there neither scrolls nor turns.
+  The compass is `Passing` and hidden with the minimap (`minimap.compass`, `Write.Show`;
+  2026-10-26): laid over the minimap's box, which reaches the screen's corner, it took every
+  press (the click never reached `CenterAt`), the wheel and the corner zone, even where the
+  circle left it uncovered; the scene test lays it as the demos do.
   `Switch{Shown}` shows or hides them (`Show`, `Shown`), `Turn{On}` turns them with the
   camera or keeps north up (`SetTurning`, `Turning`); both `Res.Settings{Hidden, Turning}`, saved,
   the settings screen's, no key; `SetReach`. Grounds: `board.Plugin.Miniature` (the

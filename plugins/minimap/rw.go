@@ -1,5 +1,7 @@
 package minimap
 
+import "github.com/kjkrol/gram/ui"
+
 // Read reads the minimaps' settings, the same on every goroutine.
 type Read struct{ p *Plugin }
 
@@ -23,10 +25,14 @@ func (w *Write) Show(on bool) {
 	p := w.p
 	p.Res.Settings.Hidden = !on
 	for _, m := range p.maps {
-		if on {
-			m.element.Show()
-		} else {
-			m.element.Hide()
+		for _, e := range []*ui.Element{m.element, m.compass} {
+			switch {
+			case e == nil:
+			case on:
+				e.Show()
+			default:
+				e.Hide()
+			}
 		}
 	}
 }

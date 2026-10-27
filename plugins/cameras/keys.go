@@ -14,23 +14,28 @@ const (
 
 // Keys are a player's keys to its camera: Up, Down, Left and Right held scroll it on the screen
 // (KeyUnknown leaves one unbound), ZoomIn and ZoomOut pressed zoom about the cursor a ZoomStep,
-// Wheel zooms about the cursor, Drag pans with the middle button, Edge scrolls with the cursor
-// at a window edge, slantwise in a corner. Scrolling holds while the camera is outside any entity
-// (camera.Outside).
+// Wheel zooms about the cursor, Drag pans with the middle button, Grab with the right, Edge
+// scrolls with the cursor at a window edge, slantwise in a corner. Scrolling holds while the
+// camera is outside any entity (camera.Outside).
 type Keys struct {
 	Up, Down, Left, Right control.Key
 	ZoomIn, ZoomOut       control.Key
 	ScrollSpeed           float32 // screen pixels a tick; zero is DefaultScrollSpeed
 	Wheel, Drag, Edge     bool
 	// CornersTurn has the cursor in a corner turn the camera the way Q and E do, a CornerStep a
-	// tick, the left corners anticlockwise, the right ones clockwise, where Edge would scroll.
+	// tick, where Edge would scroll: the bottom-left and the top-right corners anticlockwise, the
+	// bottom-right and the top-left clockwise, the world under the cursor sliding along the top
+	// or the bottom edge towards the middle.
 	CornersTurn bool
+	// Grab has the right button grab the world and drag it past a click's slop, yielding to
+	// whatever else takes the right drag: a selection's orders. A game's choice, no default.
+	Grab bool
 	// Farther and Nearer pressed with Ctrl have the camera see a SightStep farther and nearer.
 	Farther, Nearer control.Key
 }
 
 // DefaultKeys are W, S, A and D, = and - to zoom, Ctrl+= and Ctrl+- to see farther and nearer,
-// the wheel, the middle drag and the edge.
+// the wheel, the middle drag and the edge; no grab.
 func DefaultKeys() Keys {
 	return Keys{
 		Up: control.KeyW, Down: control.KeyS, Left: control.KeyA, Right: control.KeyD,
@@ -107,6 +112,23 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 			return Pan{Camera: c.Camera, Dx: -c.Delta.X, Dy: -c.Delta.Y}, true
 		}).In(camera.Outside))
 	}
+	if k.Grab {
+		out = append(out, control.Build(control.ButtonHeld{Button: control.MouseButtonRight},
+			"Grab the world and drag it, with nothing selected",
+			func(c control.Context) (Pan, bool) {
+				if !c.Dragged() {
+					return Pan{}, false
+				}
+				// the first pass past a click's slop takes the whole way: the world catches up
+				before := c
+				before.Cursor = c.Cursor.Sub(c.Delta)
+				d := c.Delta
+				if !before.Dragged() {
+					d = c.Cursor.Sub(c.Start)
+				}
+				return Pan{Camera: c.Camera, Dx: -d.X, Dy: -d.Y}, true
+			}).In(camera.Outside).Yielding())
+	}
 	if k.Edge {
 		out = append(out, control.Build(control.CursorAtEdge{}, "Scroll", func(c control.Context) (Pan, bool) {
 			if p != nil && !p.read.EdgesScroll() {
@@ -136,13 +158,16 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 		}).In(camera.Outside))
 		if k.CornersTurn {
 			out = append(out, control.Build(control.CursorInCorner{},
-				"Turn the world in a corner: anticlockwise on the left, clockwise on the right",
+				"Turn the world in a corner: anticlockwise in the bottom-left and the top-right, "+
+					"clockwise in the other two",
 				func(c control.Context) (Turn, bool) {
 					if p != nil && !p.read.EdgesScroll() {
 						return Turn{}, false
 					}
-					sx, _ := c.Edges().Corner.Signs()
-					return Turn{Camera: c.Camera, Angle: sx * CornerStep}, sx != 0
+					// the corners of a diagonal turn alike: the top ones the other way round from
+					// the bottom ones, so the world under the cursor slides towards the middle
+					sx, sy := c.Edges().Corner.Signs()
+					return Turn{Camera: c.Camera, Angle: sx * sy * CornerStep}, sx != 0
 				}).In(camera.Outside))
 		}
 	}

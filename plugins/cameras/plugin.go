@@ -19,14 +19,17 @@ import (
 	"github.com/kjkrol/gram/plugins/world/sector"
 )
 
-// Config is what a game's cameras may do and how they see: Turn (Q, E), Tilt (R, F) and
-// Perspective (Tab) say which keys a player has, the rest how a world in relief is drawn and where
-// the cameras may be. The zero Config is the plain camera from above: wrapping on a wrapping axis,
-// a world unit a pixel at zoom 1.
+// Config is what a game's cameras may do and how they see: Turn (Q, E), Tilt (R, F), Perspective
+// (Tab) and Grab (the right drag) say which keys a player has, the rest how a world in relief is
+// drawn and where the cameras may be. The zero Config is the plain camera from above: wrapping on
+// a wrapping axis, a world unit a pixel at zoom 1.
 type Config struct {
 	Turn        bool
 	Tilt        bool
 	Perspective bool
+	// Grab has the right button grab the world and drag it, yielding to whatever else takes the
+	// right drag (a selection's orders); a game's choice, off by default
+	Grab bool
 	// degrees: the flattest the eye may look (zero, 30) and how much it sees top to bottom in
 	// perspective (zero, 45)
 	MinPitch    float32

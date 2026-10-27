@@ -40,33 +40,42 @@ func TestWritten_SpellsATriggerAsAHelpScreenDoes(t *testing.T) {
 	}
 }
 
-func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
+// text is the group's lines, a trigger and what it does each, for the tests to search
+func (g group) text() string {
+	lines := make([]string, len(g.keys))
+	for i := range g.keys {
+		lines[i] = g.keys[i] + " " + g.labels[i]
+	}
+	return strings.Join(lines, "\n")
+}
+
+func TestControls_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
 	cams := cameras.NewPlugin(w, cameras.Config{})
 	p := NewPlugin(w, cams)
 	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
-	s := p.OwnKeys(SceneKeys{{Key: control.KeyR, Label: "Build a road"}}).shortcuts
+	s := p.OwnKeys(SceneKeys{{Key: control.KeyR, Label: "Build a road"}}).controls
 	groups := s.groups()
-	names := map[string][]string{}
+	names := map[string]string{}
 	for _, g := range groups {
-		names[g.name] = g.lines
+		names[g.name] = g.text()
 	}
 	if len(groups) != 4 || groups[0].name != "Game" || groups[1].name != "World" ||
 		groups[2].name != "Cameras" || groups[3].name != "General" {
 		t.Fatalf("groups %v, want Game, World, Cameras and General in that order", names)
 	}
-	if lines := strings.Join(names["Cameras"], "\n"); !strings.Contains(lines, "W (held)") || !strings.Contains(lines, "Scroll up") || !strings.Contains(lines, "wheel") {
+	if lines := names["Cameras"]; !strings.Contains(lines, "W (held)") || !strings.Contains(lines, "Scroll up") || !strings.Contains(lines, "wheel") {
 		t.Errorf("the camera's lines %q, want WASD and the wheel among them", lines)
 	}
-	if lines := strings.Join(names["World"], "\n"); !strings.Contains(lines, "Shift+P") || !strings.Contains(lines, "Pause the game") {
+	if lines := names["World"]; !strings.Contains(lines, "Shift+P") || !strings.Contains(lines, "Pause the game") {
 		t.Errorf("the world's lines %q, want the clock's Shift+P", lines)
 	}
-	if lines := strings.Join(names["Game"], "\n"); lines != "R                      Build a road" {
+	if lines := names["Game"]; lines != "R Build a road" {
 		t.Errorf("the game's lines %q, want its own R alone", lines)
 	}
-	lines := strings.Join(names["General"], "\n")
+	lines := names["General"]
 	for _, want := range []string{"Shift+Esc", "Quit", "K ", "F11"} {
 		if !strings.Contains(lines, want) {
 			t.Errorf("the general lines %q, want the players' K, Shift+Esc and the engine's F11",
@@ -80,7 +89,7 @@ type partNow section.Part
 
 func (p *partNow) Section() section.Part { return section.Part(*p) }
 
-func TestShortcuts_ListTheGamesOwnBindingsUnderGame(t *testing.T) {
+func TestControls_ListTheGamesOwnBindingsUnderGame(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 100, Height: 100},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
@@ -98,21 +107,21 @@ func TestShortcuts_ListTheGamesOwnBindingsUnderGame(t *testing.T) {
 	if err := one.Bind(spawn); err != nil {
 		t.Fatal(err)
 	}
-	groups := p.shortcuts.groups()
+	groups := p.controls.groups()
 	if len(groups) < 2 || groups[0].name != "Game" || groups[1].name != "World" {
 		t.Fatalf("groups %+v, want the game's first, under Game, then World", groups)
 	}
-	if own := strings.Join(groups[0].lines, "\n"); !strings.Contains(own, "Spawn a walker") ||
+	if own := groups[0].text(); !strings.Contains(own, "Spawn a walker") ||
 		strings.Contains(own, "Pause the game") {
 		t.Errorf("the game's lines %q, want its N alone", own)
 	}
-	if world := strings.Join(groups[1].lines, "\n"); strings.Contains(world, "Spawn a walker") ||
+	if world := groups[1].text(); strings.Contains(world, "Spawn a walker") ||
 		!strings.Contains(world, "Pause the game") {
 		t.Errorf("the world's lines %q, want its defaults without the game's N", world)
 	}
 }
 
-func TestShortcuts_ListWhatHoldsInTheCamerasMode(t *testing.T) {
+func TestControls_ListWhatHoldsInTheCamerasMode(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
 	cams := cameras.NewPlugin(w, cameras.Config{})
 	p := NewPlugin(w, cams)
@@ -122,17 +131,17 @@ func TestShortcuts_ListWhatHoldsInTheCamerasMode(t *testing.T) {
 	if err := pl.Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
-	s := p.shortcuts
+	s := p.controls
 	camera := func() string {
 		for _, g := range s.groups() {
 			if g.name == "Cameras" {
-				return strings.Join(g.lines, "\n")
+				return g.text()
 			}
 		}
 		return ""
 	}
-	if lines := camera(); !strings.Contains(lines, "Scroll up") || !strings.Contains(lines, "cursor at an edge") || s.title() != "Shortcuts" {
-		t.Errorf("free, the camera's lines %q under %q, want the scrolling keys under Shortcuts", lines, s.title())
+	if lines := camera(); !strings.Contains(lines, "Scroll up") || !strings.Contains(lines, "cursor at an edge") || s.title() != "Controls" {
+		t.Errorf("free, the camera's lines %q under %q, want the scrolling keys under Controls", lines, s.title())
 	}
 	cam.on = true
 	if lines := camera(); strings.Contains(lines, "Scroll up") || strings.Contains(lines, "cursor at an edge") || !strings.Contains(lines, "wheel") {
@@ -225,7 +234,7 @@ func TestHandle_TurnsTheGamesKeysIntoCommands(t *testing.T) {
 	}
 	built := 0
 	p.OwnKeys(SceneKeys{{Key: control.KeyR, Label: "Build a road", Do: func(game.Runtime, game.Composition) { built++ }}})
-	rt, comp := &engineStub{props: game.Props{Description: "Walk up to a host and answer it."}}, &shown{}
+	rt, comp := &engineStub{props: game.Props{ScreenWidth: 800, ScreenHeight: 600}}, &shown{}
 	press := func(key control.Key, shift bool) {
 		events := &control.InputEvents{}
 		events.Modifiers.Shift = shift
@@ -237,11 +246,8 @@ func TestHandle_TurnsTheGamesKeysIntoCommands(t *testing.T) {
 		t.Fatal("Esc alone quit the game, want Shift+Esc")
 	}
 	press(control.KeyK, false)
-	if len(comp.names) != 1 || comp.names[0] != ShortcutsName || !rt.paused {
-		t.Errorf("K showed %v, paused %v; want the shortcuts shown and the game held", comp.names, rt.paused)
-	}
-	if p.shortcuts.description != "Walk up to a host and answer it." {
-		t.Errorf("the shortcuts open over %q, want the game's description", p.shortcuts.description)
+	if len(comp.names) != 1 || comp.names[0] != ControlsName || !rt.paused {
+		t.Errorf("K showed %v, paused %v; want the controls shown and the game held", comp.names, rt.paused)
 	}
 	press(control.KeyR, false)
 	if built != 1 {
@@ -257,14 +263,16 @@ func TestHandle_TurnsTheGamesKeysIntoCommands(t *testing.T) {
 }
 
 func TestWrapped_BreaksBetweenWordsWithinTheWidth(t *testing.T) {
-	got := wrapped("Walk up to a host and answer it.", 12)
+	font := render.DefaultFont()
+	width, _ := font.Measure("Walk up to a")
+	got := wrapped(font, "Walk up to a host and answer it.", width+1)
 	want := []string{"Walk up to a", "host and", "answer it."}
 	if !slices.Equal(got, want) {
 		t.Errorf("wrapped %q, want %q", got, want)
 	}
 }
 
-func TestShortcuts_TheListingLaysTheDescriptionOverTheTitleAndTheColumnsApart(t *testing.T) {
+func TestControls_TheListingLaysTheTitleInItsPanelAndTheSectionsFramedInColumns(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 100, Height: 100},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
@@ -278,17 +286,25 @@ func TestShortcuts_TheListingLaysTheDescriptionOverTheTitleAndTheColumnsApart(t 
 	for i := range 30 { // enough of the game's own keys to need a second column
 		keys = append(keys, SceneKey{Key: control.KeyA, Label: fmt.Sprintf("Do thing %d", i)})
 	}
-	s := p.OwnKeys(keys).shortcuts
-	s.description = "A game of many keys, described in a line that wraps."
-	screen := geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(800, 400))
-	s.screen.Replace(s.listing(800, 400))
-	s.screen.Lay(screen)
-	about := s.screen.Element("shortcuts.about").Box()
-	title := s.screen.Element("shortcuts.title").Box()
-	if about.BottomRight.Y > title.TopLeft.Y {
-		t.Errorf("the description %v lies below the title %v", about, title)
+	s := p.OwnKeys(keys).controls
+	lay := func(w, h float32) {
+		s.screen.Replace(s.listing(int(w), int(h)))
+		s.screen.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(w, h)))
 	}
-	first, second := s.screen.Element("shortcuts.column.0"), s.screen.Element("shortcuts.column.1")
+	lay(1200, 400)
+	title := s.screen.Element("controls.title").Box()
+	if mid := (title.TopLeft.X + title.BottomRight.X) / 2; mid < 590 || mid > 610 ||
+		title.TopLeft.Y < menuMargin {
+		t.Errorf("the title at %v, want it centred under the top margin", title)
+	}
+	game := s.screen.Element("frame:Game")
+	if game == nil || s.screen.Element("section:Game") == nil {
+		t.Fatal("the game's keys want a framed section with a heading")
+	}
+	if box := game.Box(); box.TopLeft.Y < title.BottomRight.Y {
+		t.Errorf("the game's frame %v begins above the title's bottom %v", box, title.BottomRight.Y)
+	}
+	first, second := s.screen.Element("controls.column.0"), s.screen.Element("controls.column.1")
 	if first == nil || second == nil {
 		t.Fatal("thirty keys over a screen 400 tall need two columns")
 	}
@@ -298,6 +314,10 @@ func TestShortcuts_TheListingLaysTheDescriptionOverTheTitleAndTheColumnsApart(t 
 	}
 	if a.TopLeft.Y < title.BottomRight.Y || b.TopLeft.Y < title.BottomRight.Y {
 		t.Errorf("a column %v or %v begins above the title's bottom %v", a, b, title.BottomRight.Y)
+	}
+	lay(500, 400)
+	if s.screen.Element("controls.column.1") != nil || s.screen.Element("controls.scroll") == nil {
+		t.Error("a screen too narrow for two columns wants one, scrolled")
 	}
 }
 
@@ -319,15 +339,14 @@ func TestHandle_TheTildeTurnsTheTelemetryPanelBasicExtendedHiddenUnderGeneral(t 
 	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
-	var general []string
-	for _, g := range p.shortcuts.groups() {
+	general := ""
+	for _, g := range p.controls.groups() {
 		if g.name == "General" {
-			general = g.lines
+			general = g.text()
 		}
 	}
-	if lines := strings.Join(general, "\n"); !strings.Contains(lines, "~") ||
-		!strings.Contains(lines, "telemetry panel") {
-		t.Errorf("the general lines %q, want ~ for the telemetry panel", lines)
+	if !strings.Contains(general, "~") || !strings.Contains(general, "telemetry panel") {
+		t.Errorf("the general lines %q, want ~ for the telemetry panel", general)
 	}
 	rt, comp := &engineStub{}, &composed{}
 	press := func() {
@@ -361,7 +380,7 @@ func (h *toolHandler) DefaultBindings() []control.Binding {
 		Mods: control.Mods{Shift: true}}, "Build a bridge", game.Save{})}
 }
 
-func TestShortcuts_ListAKeyUnderThePluginWhoseDefaultsGaveIt(t *testing.T) {
+func TestControls_ListAKeyUnderThePluginWhoseDefaultsGaveIt(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
 	if err := w.Carry(&engine{}); err != nil {
 		t.Fatal(err)
@@ -370,8 +389,8 @@ func TestShortcuts_ListAKeyUnderThePluginWhoseDefaultsGaveIt(t *testing.T) {
 	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
-	for _, g := range p.shortcuts.groups() {
-		lines := strings.Join(g.lines, "\n")
+	for _, g := range p.controls.groups() {
+		lines := g.text()
 		if g.name == "Bridges" && !strings.Contains(lines, "Build a bridge") {
 			t.Errorf("the bridges' lines %q, want Build a bridge among them", lines)
 		}

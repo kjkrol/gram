@@ -58,8 +58,8 @@ type picture struct {
 func (p *Player) Area() geom.AABB { return p.pic.area }
 
 // Bind adds bindings to the player; two on one Trigger holding in one camera mode with one tool
-// are an error. Those bound in the Stage's Controls section are the game's own, listed apart
-// under "Game".
+// are an error unless one of them yields (control.Binding.Yielding). Those bound in the Stage's
+// Controls section are the game's own, listed apart under "Game".
 func (p *Player) Bind(bindings ...control.Binding) error {
 	if err := p.world.InSection("keys bound for "+p.Name, section.Players, section.Controls); err != nil {
 		return err
