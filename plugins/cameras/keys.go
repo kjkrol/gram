@@ -15,8 +15,9 @@ const (
 // Keys are a player's keys to its camera: Up, Down, Left and Right held scroll it on the screen
 // (KeyUnknown leaves one unbound), ZoomIn and ZoomOut pressed zoom about the cursor a ZoomStep,
 // Wheel zooms about the cursor, Drag pans with the middle button, Grab with the right, Edge
-// scrolls with the cursor at a window edge, slantwise in a corner. Scrolling holds while the
-// camera is outside any entity (camera.Outside).
+// scrolls with the cursor at a window edge, slantwise in a corner. Scrolling, dragging, grabbing
+// and the zones hold where the hand is free (camera.Free): behind a unit the keys drive it and
+// the cursor at an edge lets go of no camera kept there.
 type Keys struct {
 	Up, Down, Left, Right control.Key
 	ZoomIn, ZoomOut       control.Key
@@ -72,7 +73,8 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 	var out []control.Binding
 	held := func(key control.Key, label string, dx, dy float32) {
 		if key != control.KeyUnknown {
-			out = append(out, control.Build(control.KeyHeld{Key: key}, label, scroll(dx, dy)).In(camera.Outside))
+			out = append(out, control.Build(control.KeyHeld{Key: key}, label, scroll(dx, dy)).
+				In(camera.Free))
 		}
 	}
 	held(k.Up, "Scroll up", 0, -1)
@@ -110,7 +112,7 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 	if k.Drag {
 		out = append(out, control.Build(control.ButtonHeld{Button: control.MouseButtonMiddle}, "Pan", func(c control.Context) (Pan, bool) {
 			return Pan{Camera: c.Camera, Dx: -c.Delta.X, Dy: -c.Delta.Y}, true
-		}).In(camera.Outside))
+		}).In(camera.Free))
 	}
 	if k.Grab {
 		out = append(out, control.Build(control.ButtonHeld{Button: control.MouseButtonRight},
@@ -127,7 +129,7 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 					d = c.Cursor.Sub(c.Start)
 				}
 				return Pan{Camera: c.Camera, Dx: -d.X, Dy: -d.Y}, true
-			}).In(camera.Outside).Yielding())
+			}).In(camera.Free).Yielding())
 	}
 	if k.Edge {
 		out = append(out, control.Build(control.CursorAtEdge{}, "Scroll", func(c control.Context) (Pan, bool) {
@@ -155,7 +157,7 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 				dy = speed
 			}
 			return Pan{Camera: c.Camera, Dx: dx, Dy: dy}, dx != 0 || dy != 0
-		}).In(camera.Outside))
+		}).In(camera.Free))
 		if k.CornersTurn {
 			out = append(out, control.Build(control.CursorInCorner{},
 				"Turn the world in a corner: anticlockwise in the bottom-left and the top-right, "+
@@ -168,7 +170,7 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 					// the bottom ones, so the world under the cursor slides towards the middle
 					sx, sy := c.Edges().Corner.Signs()
 					return Turn{Camera: c.Camera, Angle: sx * sy * CornerStep}, sx != 0
-				}).In(camera.Outside))
+				}).In(camera.Free))
 		}
 	}
 	return out

@@ -43,7 +43,7 @@ func (s *handSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			if owners != nil {
 				owned = owners[i]
 			}
-			h, on := s.on(id, owned, marks != nil && marks[i].Has(s.selected))
+			h, cam, on := s.on(id, owned, marks != nil && marks[i].Has(s.selected))
 			if on && h.jump {
 				s.carrier.PutFrom(id, gravity.Leap{})
 			}
@@ -55,7 +55,8 @@ func (s *handSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			switch {
 			case on:
 				// driveSystem normalises Face
-				in.Ahead, in.Turn, in.Side, in.Sprint, in.Face = h.ahead, h.turn, h.side, h.sprint, h.way
+				in.Ahead, in.Turn, in.Side, in.Sprint = h.ahead, h.turn, h.side, h.sprint
+				in.Face = asScreen(h.way, cam)
 				in.Held += d
 				if drivens != nil {
 					drivens[i] = in
@@ -76,7 +77,9 @@ func (s *handSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	}
 }
 
-func (s *handSystem) on(id uid.UID64, owned tag.Tags[owner.Family], selected bool) (hand, bool) {
+// on is the hand on the entity id and the camera it was given through, nil for the entity's own
+func (s *handSystem) on(id uid.UID64, owned tag.Tags[owner.Family], selected bool) (hand,
+	camera.Camera, bool) {
 	for _, h := range s.hands.players {
 		if !owner.Obeys(owned, h.player) {
 			continue
@@ -86,9 +89,24 @@ func (s *handSystem) on(id uid.UID64, owned tag.Tags[owner.Family], selected boo
 			f = c.Fastening()
 		}
 		if f.How != 0 && f.Entity == id || f.How == 0 && selected {
-			return h.hand, true
+			return h.hand, h.camera, true
 		}
 	}
 	h, ok := s.hands.entities[id]
-	return h, ok
+	return h, nil, ok
+}
+
+// asScreen is the way on the screen as the world's way, as cam lays the screen: up the screen
+// the way cam looks ahead (camera.Headed), right across it; a camera looking no way, the
+// world's axes
+func asScreen(way geom.Vec, cam camera.Camera) geom.Vec {
+	hd, ok := cam.(camera.Headed)
+	if !ok || way == (geom.Vec{}) {
+		return way
+	}
+	ax, ay := hd.Ahead()
+	if ax == 0 && ay == 0 {
+		return way
+	}
+	return geom.NewVec(-ay*way.X-ax*way.Y, ax*way.X-ay*way.Y)
 }

@@ -244,6 +244,7 @@ type published struct {
 	ticks  map[*checkbox]bool
 	values map[*slider]float64
 	hidden map[*Element]bool
+	dead   map[*Element]bool // the elements not live, those in one among them
 }
 
 type showing struct {
@@ -271,7 +272,7 @@ func (p *published) reset() {
 	if p.spots == nil {
 		*p = published{spots: map[*Element][]spot{}, shows: map[showing]bool{},
 			words: map[saying]said{}, ticks: map[*checkbox]bool{}, values: map[*slider]float64{},
-			hidden: map[*Element]bool{}}
+			hidden: map[*Element]bool{}, dead: map[*Element]bool{}}
 		return
 	}
 	for e, s := range p.spots {
@@ -282,6 +283,7 @@ func (p *published) reset() {
 	clear(p.ticks)
 	clear(p.values)
 	clear(p.hidden)
+	clear(p.dead)
 }
 
 // Publish reads what the scene draws off the game, for the frame drawn next: the entities of its
@@ -303,7 +305,7 @@ func (d *drawing) Publish() {
 		d.find(b.spots)
 		d.showing(b, root)
 	}
-	d.read(b, root, nil)
+	d.read(b, root, nil, false)
 	root.walk(func(e *Element) {
 		if p, ok := drawerOf(e).(plugin.Publisher); ok {
 			p.Publish()
@@ -343,10 +345,14 @@ func drawerOf(e *Element) render.Renderer {
 }
 
 // read reads off the game what e and its children draw: of a pinned one's, for each of spots
-func (d *drawing) read(b *published, e *Element, spots []spot) {
+// dead says an element up the tree is not live, which makes every one under it so
+func (d *drawing) read(b *published, e *Element, spots []spot, dead bool) {
 	b.hidden[e] = e.hidden
 	if e.hidden {
 		return
+	}
+	if dead = dead || e.live != nil && !e.live(); dead {
+		b.dead[e] = true
 	}
 	if e.pin != nil {
 		spots = b.spots[e]
@@ -365,7 +371,7 @@ func (d *drawing) read(b *published, e *Element, spots []spot) {
 		b.values[c] = c.get()
 	}
 	for _, c := range e.children {
-		d.read(b, c, spots)
+		d.read(b, c, spots, dead)
 	}
 }
 

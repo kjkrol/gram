@@ -185,10 +185,16 @@ Decisions the user has made; they are not up for revisiting in passing.
   tactical pause, Shift+Esc quits, K the controls screen, F10 the settings screen, ~ the telemetry panel (the
   basics, everything, hidden, in turn), F5 saves, F9 loads, F11 full screen (on a Mac the
   window's own Ctrl+Cmd+F, the system keeping F11), ] and [ the tempo,
-  Shift+B the bridge tool, Space jumps in first person, = and - zoom, Shift+= and Shift+- shape
+  Shift+B the bridge tool, Space jumps riding and behind, C follows the selected unit and V
+  rides it, in the perspective alone (behind, on the arm the game's `cameras.Config.Arm` sets:
+  W/S/A/D walk the way the screen lies, the mouse turns the camera round it and tilts it where
+  the arm lets, = and - draw it in and out where it lets; inside; over it again, in the view it
+  came from; the camera loose, behind it at once; a game without the perspective binds no V),
+  = and - zoom, Shift+= and Shift+- shape
   the relief (L and a left drag level it), Ctrl+= and Ctrl+- the camera's sight (farther,
   nearer). **An option on the settings screen has no key** (the user's word, 2026-10-20): the
-  boxes, the scroll zones, the grid, the cells held, the routes, the cones, the weather, the
+  boxes, the scroll zones and their opacity, the arm behind a unit (its tilt and zoom allowed,
+  its pitch, distance and aim), the grid, the cells held, the routes, the cones, the weather, the
   clouds' look and the high clouds' shadows, the frozen light and its hour, the picture's
   resolution and its following the frame budget, the ground's care and haze, the shadows'
   detail and the lamps' shadows, the sectors and their bands, the minimap shown and turning are

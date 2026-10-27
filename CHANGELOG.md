@@ -39,7 +39,7 @@ query, its slabs and the relief walked with SIMD) and ceremony v0.3.2 (kjkrol/ce
   every layer, the sight baked once a frame; a Direct's Draw runs once a layer, so what its
   Compose gathered serves every one (`render.Direct`).
 
-**The controls screen** (branch `fix/hot-corners`)
+**The controls screen** (branch `feat/camera-arm`)
 - Breaking: the shortcuts scene is the controls screen, `players.ControlsScene`, `ControlsName`
   (`gram.controls`) and `ShowControls` (K, labelled "Controls"), laid as the settings screen is:
   the title in a framed panel at the top, a framed section a group ("Game", a plugin each,
@@ -50,7 +50,7 @@ query, its slabs and the relief walked with SIMD) and ceremony v0.3.2 (kjkrol/ce
 - `render.DefaultLargeFont`, a title's, is Go Bold at 28 (was 20): the settings screen's own
   theme is the default theme now, and both screens are drawn in it.
 
-**Hot corners, the minimap's click, macOS** (branch `fix/hot-corners`)
+**Hot corners, the minimap's click, macOS** (branch `feat/camera-arm`)
 - `ui.Element.Passing`: the pointer passes through the element and all in it to whatever lies
   under, a button or a control inside aside. A HUD laid over the picture covered it: a label, a
   picture and a Blank are hit over their whole box, so the player's picture under was covered —
@@ -98,7 +98,58 @@ query, its slabs and the relief walked with SIMD) and ceremony v0.3.2 (kjkrol/ce
   bottom corners turn as before, the top ones the other way round (they turned as the corner under
   them).
 
-**Shaders on Metal, naga v0.20.3** (branch `fix/hot-corners`)
+**The camera behind a unit on an arm, V without C, the zones' opacity** (branch `feat/camera-arm`)
+- The camera behind a unit is held on an arm the game sets (`cameras.Config.Arm`, saved as
+  `Settings.Arm`, the command `Hold{Arm}` from the settings screen): `Pitch` degrees over the
+  ground in perspective (5 to 89, `DefaultArm` 30), `Distance` cells (0.5 to 8, 2), `Aim` of
+  the unit's height over its feet the camera looks at (0 the feet, 1 its top, up to 3: the
+  higher, the lower the unit on the screen), and whether the player may tilt it with the mouse
+  (`Tilts`) and draw it in and out with the zoom keys and the wheel (`Zooms`): a Zelda, a racing
+  game or a Warcraft camera by three numbers, the player's hands on or off. The settings screen
+  lists them under Cameras: "Tilt behind the unit" with the pitch beside, "Zoom behind the unit"
+  with the distance beside (each slider live while its switch is on), "Aim behind the unit". V
+  goes round Centred → Behind → Inside → Centred (`Ride`). The camera behind a unit is the
+  perspective's alone: V takes a camera in the orthographic view into the perspective, and
+  letting go (C) gives the view it came from back with its scale and its stick
+  (`viewCamera.tactical`, saved with the camera, which is saved as "stick 4" now: a camera saved
+  before begins afresh); a camera whose Config reaches no perspective is fastened behind nothing
+  and binds no V (navigation/hex and navigation/square lose it); Tab, R and F hold where the
+  hand is free alone (`In(camera.Free)`), Q and E turn the camera round the unit.
+- Third person as two sticks, the keyboard the unit's and the mouse the camera's: behind a unit
+  W, S, A and D walk it the way the screen lies (`driving.Compass` `In: camera.Behind`, its
+  `Toward` turned by the camera's heading, `camera.Headed`, in the hand; `Toward.Sprint` with
+  Shift), the unit turning to face its way, and the mouse turns the camera round it
+  (`cameras.Look` `In(camera.Behind)`, the keeper's `orbit`): the view holds while the unit
+  stands and a second after the mouse moved, and comes back behind the unit as it walks on. The
+  arrows a tank's behind it. The mouse up and down tilts the arm where `Arm.Tilts` lets it, under
+  the tactical pitch floor too (the floor taken back on letting go). Space jumps riding and
+  behind. The cameras' scroll keys hold where the hand is free (`camera.Free`); the cursor is
+  caught behind a unit as it is inside (a `CursorMove` reaches the player wherever the cursor
+  is); the controls screen is titled "third person" there. look/material's own tank on W, S, A
+  and D holds where the hand is free (`camera.Free`), the defaults driving behind.
+- V works with the camera loose: `selection.Plugin.RideKey` (V among its DefaultBindings, held
+  `In(camera.Loose)`) builds `cameras.Ride{Camera, Entity}` of the one unit chosen, and the keeper
+  fastens the camera Behind it at once; a fastened camera goes round its own. C from behind or
+  inside a unit goes Centred over the chosen unit; from Centred it lets go as before.
+- The demos whose units start under orders (a target from the map, a patrol) start them
+  selected no longer (`selection.Allow{}` on the player's side: board/atlas, flat, custom-map
+  and topography, look/light, navigation/square and hex, rules/guard); a unit is chosen with a
+  click before C or V. navigation/spawn, rules/dialog and start/split-screen keep theirs.
+- The zones and the pointer's pans hold only where the hand scrolls: `camera.Free`
+  (`Loose | Centred`) gates the edge, the corners, the middle drag and the grab, and the zones
+  are drawn there alone; behind or inside a unit an edge neither scrolls nor lets go of the
+  fastening. `Outside` stays every How but Inside (Q/E); R/F and Tab hold where the hand is
+  free.
+- The zones' opacity: "Zones opacity" on the settings screen beside "Show the zones", live while
+  it is on (`cameras.ZonesOpacity{Opacity}`, `Settings.ZonesOpacity`, `DefaultZonesOpacity` 40 of
+  255, `LeastZonesOpacity` 5%). For that a Range may lie beside a Switch (`control.Range.Beside`,
+  the settings screen laying the slider in the switch's row) and an element may be live only
+  while a function says so (`ui.Element.Live`: else drawn dimmed, the theme's text, borders and
+  marks at half their alpha, and passed by the pointer).
+- board/topography starts its telemetry panel with the basics as every demo does (it forced
+  everything).
+
+**Shaders on Metal, naga v0.20.3** (branch `feat/camera-arm`)
 - Fixed: on a Mac every demo panicked at its first pipeline ("metal: shader module has no WGSL
   source"): wgpu's Metal backend translates a shader module's WGSL to MSL and takes no SPIR-V,
   and gram handed every backend the SPIR-V it keeps on disk since v0.5.0. The SPIR-V goes to

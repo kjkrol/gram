@@ -26,8 +26,9 @@ type Zoom struct {
 }
 
 // Follow fastens Camera over Entity, kept in the middle of the screen as it goes
-// (camera.Centred); with On false, or the camera fastened already, it lets go. Given by an entity
-// for itself (kind.Entry.Told, act.Do), Camera is fastened over that entity.
+// (camera.Centred); with On false, or the camera Centred already, it lets go, and one behind or
+// inside an entity goes Centred over Entity. Given by an entity for itself
+// (kind.Entry.Told, act.Do), Camera is fastened over that entity.
 type Follow struct {
 	Camera camera.Camera
 	Entity uid.UID64
@@ -50,7 +51,7 @@ type CenterAt struct {
 
 // View has Camera switch between the orthographic view and the perspective, keeping the foot of
 // its stick, its turn, pitch and scale, or leave the entity it rides in; a camera whose Config has
-// no Perspective stays as it is.
+// no Perspective, or one behind an entity, stays as it is.
 type View struct{ Camera camera.Camera }
 
 // LookFrom puts Camera's eye at the world point (X, Y, Z) in perspective, still looking at the
@@ -69,18 +70,26 @@ type LookAt struct {
 	X, Y, Z float32
 }
 
-// Look has Camera, riding in an entity, look round by a move of the mouse of Dx and Dy pixels:
-// across turns the entity, up and down the head, a seventh of a degree a pixel. A camera riding
-// in nothing stays as it is.
+// Look has Camera look round by a move of the mouse of Dx and Dy pixels, a seventh of a degree a
+// pixel: riding in an entity, across turns the entity and up and down the head; behind an entity
+// (camera.Behind), across turns the camera round it and up and down tilts the arm where the
+// settings let the player (Arm.Tilts), the entity left to its way. A camera fastened otherwise
+// stays as it is.
 type Look struct {
 	Camera camera.Camera
 	Dx, Dy float32
 }
 
-// Ride takes Camera closer round the entity it is fastened to: over it (camera.Centred), behind
-// it (camera.Behind), inside it in first person where the Config reaches the perspective
-// (camera.Inside), and over it again. A camera fastened to nothing stays as it is.
-type Ride struct{ Camera camera.Camera }
+// Ride takes Camera closer round the entity it is fastened to, in the perspective, from whatever
+// view it stands in: over it (camera.Centred), behind it on the arm the settings say
+// (camera.Behind, Arm), inside it in first person (camera.Inside), and over it again, in the
+// view it came from; a camera whose Config reaches no perspective stays as it is. A camera
+// fastened to nothing is fastened behind Entity where one is given and exists; a fastened camera
+// goes round its own.
+type Ride struct {
+	Camera camera.Camera
+	Entity uid.UID64
+}
 
 // Turn turns Camera's stick about its foot by Angle radians, the world clockwise on the screen; a
 // plain camera stays as it is.
@@ -97,7 +106,8 @@ type Sight struct {
 }
 
 // Tilt leans Camera's stick about its foot by Angle radians, towards straight down as it grows and
-// flatter for a negative one, between Config.MinPitch and straight down; a plain camera stays.
+// flatter for a negative one, between Config.MinPitch and straight down; a plain camera, or one
+// behind an entity, stays.
 type Tilt struct {
 	Camera camera.Camera
 	Angle  float32
@@ -258,15 +268,18 @@ const (
 // Queues are where the cameras' commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
 	return append([]command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.centerOns,
-		&p.centerAts, &p.zones, &p.edgeScrolls, &p.edgeSpeeds, &p.sights, &p.resolutions, &p.adapts, &p.pictures, &p.sharps,
+		&p.centerAts, &p.zones, &p.edgeScrolls, &p.edgeSpeeds, &p.zonesOpacities, &p.holds,
+		&p.sights,
+		&p.resolutions, &p.adapts, &p.pictures, &p.sharps,
 		&p.layers, &p.layerShares, &p.layerRes, &p.budgets, &p.samplings, &p.thresholds, &p.showLayers}, p.orders.queues()...)
 }
 
 // DefaultBindings are DefaultKeys, their corners turning where the Config turns, the world grabbed
 // with the right button where it says so and their edge as the settings say (EdgesScroll,
-// EdgeSpeed), and the views' keys the Config gives: Q and E turning, R and F tilting, Tab
-// switching the projection, V riding and the mouse looking round inside an entity. The scroll
-// zones and the pictures' resolution are the settings screen's.
+// EdgeSpeed), and the views' keys the Config gives: Q and E turning, R and F tilting and Tab
+// switching the projection where the hand is free, V riding where the Config reaches the
+// perspective, and the mouse looking round inside an entity and behind it. The scroll zones and
+// the pictures' resolution are the settings screen's.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	keys := DefaultKeys()
 	keys.CornersTurn = p.cfg.Turn

@@ -20,8 +20,9 @@
 // driving it as a shooter does (Left and Right strafe, the mouse turns) and [Compass] four walking
 // it the way of the screen; each holds in the fastenings of the camera it says (In), so the same
 // keys may pan a free camera and drive a ridden unit. [DefaultKeys], the plugin's
-// DefaultBindings, are a Shooter of W, S, A and D inside the unit, a Tank of the arrows behind
-// it, and Space to jump inside it; a split screen gives each player its own Compass.
+// DefaultBindings, are a Shooter of W, S, A and D inside the unit, a Compass of them behind it
+// (the way the screen lies, as the camera turns it: camera.Headed), a Tank of the arrows behind
+// it, and Space to jump inside and behind; a split screen gives each player its own Compass.
 //
 // # Ground and navigation
 //

@@ -126,3 +126,25 @@ func TestWidgets_DrawTheirMarksInTheAccent(t *testing.T) {
 }
 
 func box_(x, y, w, h float32) geom.AABB { return box(x, y, w, h) }
+
+func TestLive_ADeadElementTakesNoPressAndComesBackLive(t *testing.T) {
+	live := false
+	sl := Slider(0, 10, 1, func() float64 { return 0 },
+		func(n float64) command.Command { return set{v: n} }).Live(func() bool { return live })
+	s, issued := catching(built(NewScene("main", TopLeft(sl).Size(sliderLength, sliderHeight))))
+	s.HandleEvents(click(geom.NewVec(80, 9)), nil, nil)
+	if len(*issued) != 0 || s.held != nil || sl.Hits(geom.NewVec(80, 9)) {
+		t.Fatalf("dead, the slider took a press: issued %v, held %v", *issued, s.held)
+	}
+	if a, want := sl.look().Accent.A, DefaultTheme().Accent.A/2; a != want {
+		t.Errorf("dead, the slider's marks are %v opaque, want half the theme's, %v", a, want)
+	}
+	live = true
+	s.HandleEvents(click(geom.NewVec(80, 9)), nil, nil)
+	if s.held != sl || !sl.Hits(geom.NewVec(80, 9)) {
+		t.Fatalf("live again, the slider took no press: held %v", s.held)
+	}
+	if a, want := sl.look().Accent.A, DefaultTheme().Accent.A; a != want {
+		t.Errorf("live, the slider's marks are %v opaque, want the theme's %v", a, want)
+	}
+}

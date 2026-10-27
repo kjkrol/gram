@@ -150,7 +150,7 @@ func (a *arena) spawn() error {
 		return err
 	}
 	return board.Spawn[unitRow](level, board.Sides{
-		PlayerSide:  {players.Give{To: a.player.ID}, selection.Allow{Selected: true}},
+		PlayerSide:  {players.Give{To: a.player.ID}, selection.Allow{}},
 		ReserveSide: {players.Give{To: a.player.ID}, selection.Allow{}},
 	})
 }

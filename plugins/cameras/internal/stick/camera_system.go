@@ -23,22 +23,40 @@ type Entities interface {
 }
 
 // Target is an entity as a camera follows it: X and Y its middle, Alt the height it stands at,
-// Level its eye's, Dir the way it faces (of length 1, or none), Across how wide its eye sees in
-// radians, Tilt how its eye is tilted (Eyed: it has one), Turning whether a hand turns it.
+// Level its eye's, Dir the way it faces (of length 1, or none), Moving whether it goes that way,
+// Across how wide its eye sees in radians, Tilt how its eye is tilted (Eyed: it has one), Turning
+// whether a hand turns it.
 type Target struct {
 	X, Y, Alt, Level float32
 	Dir              geom.Vec
+	Moving           bool
 	Across           float32
 	Tilt             float32
 	Eyed, Turning    bool
+}
+
+// Arm is how a camera is held behind an entity, as the plugin's settings say: Distance cells
+// long, tilted Pitch radians over the ground, aimed Aim of the entity's height over its feet;
+// Tilts, whether the player's mouse tilts it.
+type Arm struct {
+	Pitch, Distance, Aim float32
+	Tilts                bool
+}
+
+// Arms is where a Keeper reads the arm from and writes the tilt the mouse gives it: the
+// plugin's settings, which keep it within their bounds.
+type Arms interface {
+	Arm() Arm
+	Tilt(pitch float32)
 }
 
 // Keeper carries out the commands on the cameras its Control's Maker made and keeps every one
 // fastened behind or inside its entity as the camera's fastening says (camera.Fastening).
 type Keeper struct {
 	orders      Orders
+	arms        Arms
 	free        func(x, y, z float32) bool // nil, everywhere
-	perspective bool                       // Ride reaches Inside
+	perspective bool                       // Ride reaches Behind and Inside
 	cams        *[]*viewCamera
 
 	ents      Entities
@@ -48,23 +66,31 @@ type Keeper struct {
 type following struct {
 	cam    *viewCamera
 	target uid.UID64
-	inside bool
+	how    camera.How
 	// inside, while aiming: the way the eye looks, the entity turning to face it
 	aim    geom.Vec
 	aiming bool
 
-	// behind, in perspective: how far the arm reaches, shortened by what stands between
+	// behind: how far the arm reaches, shortened by what stands between
 	reach float32
+	// behind: how long since the mouse turned the camera round the entity, the easing back
+	// behind it waiting orbitHold
+	orbited time.Duration
 	// inside: the unit's own Eye.Tilt, given back on letting go
 	tilt0  float32
 	tilted bool
 }
 
+func (f *following) inside() bool { return f.how == camera.Inside }
+
+// kept reports whether a camera fastened how is the keeper's to place every tick
+func kept(how camera.How) bool { return how == camera.Behind || how == camera.Inside }
+
 // about two thirds of any turn in this time
 const followEase = 250 * time.Millisecond
 
-// cells the arm behind an entity is long at first, in perspective
-const behindArm = 2
+// behind an entity, how long after the mouse the camera is left where the mouse put it
+const orbitHold = time.Second
 
 // Update carries out the commands given since and keeps the cameras over ents as d goes by.
 func (s *Keeper) Update(d time.Duration, ents Entities) {
@@ -101,15 +127,20 @@ func (s *Keeper) Update(d time.Duration, ents Entities) {
 			cam.LookAt(x, y, z)
 		}
 	})
-	s.orders.Rides(func(c camera.Camera) {
+	s.orders.Rides(func(c camera.Camera, entity uid.UID64) {
 		if cam, ok := c.(*viewCamera); ok {
-			s.ride(cam)
+			s.ride(cam, entity)
 		}
 	})
 	s.orders.Looks(func(c camera.Camera, dx, dy float32) {
 		for k := range s.following {
-			if f := &s.following[k]; f.cam == c && f.inside {
+			f := &s.following[k]
+			switch {
+			case f.cam != c:
+			case f.inside():
 				s.look(f, dx, dy)
+			default:
+				s.orbit(f, dx, dy)
 			}
 		}
 	})
@@ -132,7 +163,7 @@ func (s *Keeper) Update(d time.Duration, ents Entities) {
 		}
 	}
 	for _, f := range gone {
-		if f.inside {
+		if f.inside() {
 			f.cam.leaveInside()
 		} else {
 			s.release(f.cam, f.target)
@@ -141,20 +172,25 @@ func (s *Keeper) Update(d time.Duration, ents Entities) {
 	}
 }
 
-func (s *Keeper) ride(cam *viewCamera) {
+// round the entity the camera is fastened to; one fastened to nothing goes behind entity; both
+// in the perspective alone
+func (s *Keeper) ride(cam *viewCamera, entity uid.UID64) {
 	f := cam.Fastening()
 	switch f.How {
 	case camera.Centred:
+		if !s.perspective {
+			return
+		}
 		f.How = camera.Behind
 	case camera.Behind:
-		f.How = camera.Centred
-		if s.perspective {
-			f.How = camera.Inside
-		}
+		f.How = camera.Inside
 	case camera.Inside:
 		f.How = camera.Centred
 	default:
-		return
+		if _, ok := s.ents.Of(entity); !ok || !s.perspective {
+			return
+		}
+		f = camera.Fastening{Entity: entity, How: camera.Behind}
 	}
 	cam.Fasten(f)
 }
@@ -165,12 +201,12 @@ func (s *Keeper) reconcile() {
 	}
 	for _, cam := range *s.cams {
 		f := cam.Fastening()
-		want := f.How == camera.Behind || f.How == camera.Inside
-		if e := s.fastened(cam); e != nil && (!want || e.target != f.Entity || e.inside != (f.How == camera.Inside)) {
+		want := kept(f.How)
+		if e := s.fastened(cam); e != nil && (!want || e.target != f.Entity || e.how != f.How) {
 			s.letGo(cam)
 		}
 		if want && s.fastened(cam) == nil {
-			s.fasten(cam, f.Entity, f.How == camera.Inside)
+			s.fasten(cam, f.Entity, f.How)
 		}
 	}
 }
@@ -184,29 +220,23 @@ func (s *Keeper) fastened(cam *viewCamera) *following {
 	return nil
 }
 
-func (s *Keeper) fasten(cam *viewCamera, id uid.UID64, inside bool) {
+func (s *Keeper) fasten(cam *viewCamera, id uid.UID64, how camera.How) {
 	if _, ok := s.ents.Of(id); !ok {
 		cam.Fasten(camera.Fastening{})
 		return
 	}
-	if inside && !s.enter(cam, id) {
+	if how == camera.Inside && !s.enter(cam, id) || how == camera.Behind && !cam.enterBehind() {
 		cam.Fasten(camera.Fastening{Entity: id, How: camera.Centred})
 		return
 	}
-	if !inside {
-		cam.tactical.scale, cam.tactical.length = cam.ortho.scale, cam.persp.length
-	}
-	s.following = append(s.following, following{cam: cam, target: id, inside: inside})
+	s.following = append(s.following, following{cam: cam, target: id, how: how,
+		orbited: orbitHold})
 	s.keep(&s.following[len(s.following)-1], 0)
 }
 
-// from behind id back to the tactical camera's own scale and stick, over id where it still is
+// from behind id back into the view the camera came from, over id where it still is
 func (s *Keeper) release(cam *viewCamera, id uid.UID64) {
-	cam.persp.held = false
-	cam.ortho.scale = cam.ortho.limited(cam.tactical.scale)
-	cam.persp.length = cam.tactical.length
-	cam.ortho.place()
-	cam.persp.look()
+	cam.leaveBehind()
 	if t, ok := s.ents.Of(id); ok {
 		cam.CenterOn(t.X, t.Y, t.Alt)
 	}
@@ -218,7 +248,7 @@ func (s *Keeper) letGo(cam *viewCamera) bool {
 			s.write(f.target, geom.Vec{}, false, 0)
 			s.untilt(&s.following[i])
 			s.following = append(s.following[:i], s.following[i+1:]...)
-			if f.inside {
+			if f.inside() {
 				cam.leaveInside()
 			} else {
 				s.release(cam, f.target)
@@ -230,7 +260,7 @@ func (s *Keeper) letGo(cam *viewCamera) bool {
 }
 
 func (s *Keeper) comeOut(cam *viewCamera) {
-	if f := s.fastened(cam); f != nil && f.inside {
+	if f := s.fastened(cam); f != nil && f.inside() {
 		s.letGo(cam)
 		cam.Fasten(camera.Fastening{})
 	}
@@ -268,6 +298,18 @@ func (s *Keeper) look(f *following, dx, dy float32) {
 	f.cam.Turn(behind(f.aim.X, f.aim.Y) - f.cam.Heading())
 }
 
+// the mouse behind an entity turns the camera round it, the same way round as the look inside
+// turns the view, and tilts the arm where the settings let it; the entity goes its own way
+func (s *Keeper) orbit(f *following, dx, dy float32) {
+	if a := s.arms.Arm(); dy != 0 && a.Tilts {
+		s.arms.Tilt(a.Pitch + dy*LookStep)
+	}
+	if dx != 0 {
+		f.cam.Turn(-dx * LookStep)
+	}
+	f.orbited = 0
+}
+
 // the inverse of behind
 func facing(heading float32) geom.Vec {
 	s, c := f32.Sincos(heading + math.Pi/4)
@@ -281,7 +323,7 @@ func (s *Keeper) keep(f *following, d time.Duration) bool {
 	}
 	cx, cy, dir := t.X, t.Y, t.Dir
 	faces := dir.X != 0 || dir.Y != 0
-	if f.inside && f.aiming {
+	if f.inside() && f.aiming {
 		// the keys turn it: the look goes with it again
 		if t.Turning {
 			f.aiming = false
@@ -290,21 +332,20 @@ func (s *Keeper) keep(f *following, d time.Duration) bool {
 			f.aiming = false // it faces the way the eye looks: pinned to it again
 		}
 	}
-	if !f.inside {
-		if faces {
+	if !f.inside() {
+		f.orbited += d
+		// the camera eases back behind the entity as it goes on, the mouse's view holding while
+		// it stands and orbitHold after the mouse; the first centring takes all of it
+		settles := d == 0 || t.Moving && f.orbited >= orbitHold
+		if faces && settles {
 			by := ease(behind(dir.X, dir.Y)-f.cam.Heading(), d)
 			if f32.Abs(by) > 1e-4 {
 				f.cam.Turn(by)
 			}
 		}
-		if f.cam.inPersp {
-			s.hold(f, [3]float32{cx, cy, t.Alt}, d)
-			return true
-		}
-		// as near as the arm: the scale the perspective has, its eye on it
-		o, p := f.cam.ortho, f.cam.persp
-		o.scale = o.limited(p.focal() / (behindArm * p.cell))
-		f.cam.CenterOn(cx, cy, t.Alt)
+		a := s.arms.Arm()
+		aim := [3]float32{cx, cy, t.Alt + a.Aim*max(t.Level-t.Alt, 0)}
+		s.hold(f, aim, a, d)
 		return true
 	}
 	// flown from inside: the way it is steered rises as the rider looks up
@@ -334,16 +375,17 @@ func (s *Keeper) keep(f *following, d time.Duration) bool {
 	return true
 }
 
-// the eye on the arm behind the entity at t: shortened at once to what stands between, eased back
-// out as the way clears
-func (s *Keeper) hold(f *following, t [3]float32, d time.Duration) {
+// the eye on the arm a behind the point at, tilted as the arm says: shortened at once to what
+// stands between, eased back out as the way clears
+func (s *Keeper) hold(f *following, at [3]float32, a Arm, d time.Duration) {
 	p := f.cam.persp
-	reach := s.reach(t, p.out(), behindArm*p.cell, p.cell)
+	p.pitch = a.Pitch
+	reach := s.reach(at, p.out(), a.Distance*p.cell, p.cell)
 	if f.reach > 0 && reach > f.reach {
 		reach = f.reach + (reach-f.reach)*eased(d)
 	}
 	f.reach = reach
-	p.hold(t, reach)
+	p.hold(at, reach)
 }
 
 // how far along way from t the arm reaches, up to length: a quarter of a cell short of the first

@@ -30,20 +30,35 @@ type Shooter struct {
 	In                       camera.How
 }
 
-// Compass are four keys held walking the units the way of the screen: up, down, left, right.
-// In says in which fastenings of the camera they hold (zero, every one); KeyUnknown leaves one
-// unbound.
+// Compass are four keys held walking the units the way of the screen: up, down, left, right, as
+// the camera lays it (up the way it looks ahead, camera.Headed), the units turning to face it;
+// with Shift, sprinting. In says in which fastenings of the camera they hold (zero, every one);
+// KeyUnknown leaves one unbound.
 type Compass struct {
 	Up, Down, Left, Right control.Key
 	In                    camera.How
 }
 
-// DefaultKeys drive the unit the camera is fastened to: W, S, A and D riding inside it, as a
-// shooter's, the arrows following behind it, as a tank's.
+// DefaultKeys drive the unit the camera is fastened to: W, S, A and D riding inside it as a
+// shooter's, behind it as a compass's (the way the screen lies, the mouse turning the camera);
+// the arrows a tank's behind it.
 func DefaultKeys() []Keys {
 	return []Keys{
 		Shooter{Ahead: control.KeyW, Back: control.KeyS, Left: control.KeyA, Right: control.KeyD, In: camera.Inside},
-		Tank{Ahead: control.KeyArrowUp, Back: control.KeyArrowDown, Left: control.KeyArrowLeft, Right: control.KeyArrowRight, In: camera.Behind},
+		Compass{
+			Up:    control.KeyW,
+			Down:  control.KeyS,
+			Left:  control.KeyA,
+			Right: control.KeyD,
+			In:    camera.Behind,
+		},
+		Tank{
+			Ahead: control.KeyArrowUp,
+			Back:  control.KeyArrowDown,
+			Left:  control.KeyArrowLeft,
+			Right: control.KeyArrowRight,
+			In:    camera.Behind,
+		},
 	}
 }
 
@@ -92,15 +107,16 @@ func (k Compass) Bindings() []control.Binding {
 	var out []control.Binding
 	held := func(key control.Key, label string, dx, dy float32) {
 		if key != control.KeyUnknown {
+			way := geom.NewVec(dx, dy)
 			out = append(out, control.Build(control.KeyHeld{Key: key}, label, func(c control.Context) (Toward, bool) {
-				return Toward{Camera: c.Camera, Way: geom.NewVec(dx, dy)}, true
+				return Toward{Camera: c.Camera, Way: way, Sprint: c.Mods.Shift}, true
 			}).In(k.In).InChords())
 		}
 	}
-	held(k.Up, "Drive up", 0, -1)
-	held(k.Down, "Drive down", 0, 1)
-	held(k.Left, "Drive left", -1, 0)
-	held(k.Right, "Drive right", 1, 0)
+	held(k.Up, "Walk up the screen; with Shift, sprint", 0, -1)
+	held(k.Down, "Walk down the screen", 0, 1)
+	held(k.Left, "Walk left", -1, 0)
+	held(k.Right, "Walk right", 1, 0)
 	return out
 }
 

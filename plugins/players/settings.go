@@ -220,8 +220,11 @@ func (n *node) blocks(path string, level int, dst []block) []block {
 	}
 	dst[len(dst)-1].add(n.heading(path, level), settingsRow)
 	for _, st := range n.settings {
+		if n.lies(st) {
+			continue
+		}
 		last := &dst[len(dst)-1]
-		last.add(ui.Fixed(settingsRow, line(st, path, float32(level)*menuGap/2)), settingsRow)
+		last.add(ui.Fixed(settingsRow, n.line(st, path, float32(level)*menuGap/2)), settingsRow)
 		last.bare = false
 	}
 	for _, group := range n.grouped() {
@@ -292,10 +295,14 @@ func twinBlocks(paths []string, level int, twins []*node, dst []block, named boo
 		dst[len(dst)-1].add(ui.Fixed(settingsRow, ui.Columns(names...)), settingsRow)
 	}
 	for k, st := range twins[0].settings {
+		if twins[0].lies(st) {
+			continue
+		}
 		row := []ui.Part{ui.Fixed(indent, ui.Blank()),
 			ui.Fixed(settingsLabel, ui.MiddleLeft(ui.Label(labelOf(st))))}
 		for i, c := range twins {
-			row = append(row, ui.Fixed(twinColumn, ui.MiddleLeft(controlOf(c.settings[k], paths[i]))))
+			row = append(row,
+				ui.Fixed(twinColumn, ui.MiddleLeft(c.controls(c.settings[k], paths[i]))))
 		}
 		last := &dst[len(dst)-1]
 		last.add(ui.Fixed(settingsRow, ui.Columns(row...)), settingsRow)
@@ -335,16 +342,67 @@ func indented(px float32, e *ui.Element) *ui.Element {
 
 // line is a setting's label and its control, named "setting:", the path of its section and the
 // label ("setting:Picture/Graphics/Shadows"), indent pixels in: a Switch a checkbox, a Choice a
-// dropdown, a Range a slider with the number beside it.
-func line(st control.Setting, path string, indent float32) *ui.Element {
-	if st, ok := st.(control.Switch); ok {
-		return indented(indent,
-			ui.MiddleLeft(ui.Checkbox(st.Label, st.Get, st.Set).Named(settingName(path, st.Label))))
+// dropdown, a Range a slider with the number beside it; a Switch with a Range beside it has the
+// slider in its row, in the controls' column, live while it is on.
+func (n *node) line(st control.Setting, path string, indent float32) *ui.Element {
+	if sw, ok := st.(control.Switch); ok {
+		box := ui.Checkbox(sw.Label, sw.Get, sw.Set).Named(settingName(path, sw.Label))
+		rg, ok := n.beside(sw)
+		if !ok {
+			return indented(indent, ui.MiddleLeft(box))
+		}
+		return ui.Columns(
+			ui.Fixed(indent, ui.Blank()),
+			ui.Fixed(settingsLabel, ui.MiddleLeft(box)),
+			ui.Fit(ui.MiddleLeft(controlOf(rg, path).Live(sw.Get))),
+		)
 	}
 	return ui.Columns(
 		ui.Fixed(indent, ui.Blank()),
 		ui.Fixed(settingsLabel, ui.MiddleLeft(ui.Label(labelOf(st)))),
 		ui.Fit(ui.MiddleLeft(controlOf(st, path))),
+	)
+}
+
+// beside is the Range of the section lying beside the Switch sw, if one does
+func (n *node) beside(sw control.Switch) (control.Range, bool) {
+	for _, st := range n.settings {
+		if rg, ok := st.(control.Range); ok && rg.Beside != "" && rg.Beside == sw.Label {
+			return rg, true
+		}
+	}
+	return control.Range{}, false
+}
+
+// lies reports whether st is a Range lying beside a Switch of the section: no row of its own
+func (n *node) lies(st control.Setting) bool {
+	rg, ok := st.(control.Range)
+	if !ok || rg.Beside == "" {
+		return false
+	}
+	for _, other := range n.settings {
+		if sw, ok := other.(control.Switch); ok && sw.Label == rg.Beside {
+			return true
+		}
+	}
+	return false
+}
+
+// controls is a setting's control alone, a Switch with a Range beside it both, the slider live
+// while the switch is on
+func (n *node) controls(st control.Setting, path string) *ui.Element {
+	sw, ok := st.(control.Switch)
+	if !ok {
+		return controlOf(st, path)
+	}
+	rg, ok := n.beside(sw)
+	if !ok {
+		return controlOf(st, path)
+	}
+	return ui.Columns(
+		ui.Fit(ui.MiddleLeft(controlOf(sw, path))),
+		ui.Fixed(menuGap, ui.Blank()),
+		ui.Fit(ui.MiddleLeft(controlOf(rg, path).Live(sw.Get))),
 	)
 }
 

@@ -55,10 +55,12 @@ type Choice struct {
 }
 
 // Range is a setting of a number between Min and Max, moved a Step at a time; Shows writes the
-// number for the player (nil: as it is).
+// number for the player (nil: as it is). Beside names a Switch of the same section the range lies
+// beside, in its row, live while the switch is on; empty, the range has a row of its own.
 type Range struct {
 	Label   string
 	Section string
+	Beside  string
 	Min     float64
 	Max     float64
 	Step    float64

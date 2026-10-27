@@ -37,12 +37,16 @@
 // # Commands
 //
 // The commands carry the camera of whoever gave them, so the control knows no players; a camera
-// of another view stays as it is. Ride takes a camera fastened Centred over its entity Behind it
-// (centred and turned, eased, until the way it walks runs up the screen, as near as an arm two
-// cells long in either projection, nothing zooming it, the tactical scale and eye height given
-// back on letting go; in perspective its eye on the arm, shortened at once where the cage puts
-// something solid between, eased back out), then Inside it where the game reaches the
-// perspective, then over it again; a fastening changed, let go or its entity gone ends the
-// keeping. The control writes only the eye's part of the unit's steering.Driven (Look, Flown,
-// Climb) and clears it on letting go.
+// of another view stays as it is. Ride takes a camera fastened Centred over its entity Behind it,
+// in the perspective from whatever view it stood in (centred and turned, eased, until the way
+// it walks runs up the screen, on the Arm the Arms say: its eye on the arm at the arm's pitch,
+// aimed up the entity by the arm's share of its height, shortened at once where the cage puts
+// something solid between, eased back out, nothing zooming it; the view it came from, its scale
+// and its stick, given back on letting go), then Inside it, then over it again; a camera
+// fastened to nothing goes Behind the entity the Ride names; one reaching no perspective stays
+// as it is, and View does nothing behind an entity. Behind it, a Look turns the camera round the
+// entity and, where the arm lets, tilts it (Arms.Tilt), the keeper easing it back behind the
+// entity only as it goes on and orbitHold after the mouse. A fastening changed, let go or its
+// entity gone ends the keeping. The control writes only the eye's part of the unit's
+// steering.Driven (Look, Flown, Climb) and clears it on letting go.
 package stick

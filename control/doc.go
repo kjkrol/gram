@@ -33,7 +33,8 @@
 // on or off, a [Choice] among options, a [Range] of a number. Each reads its value every frame
 // and builds, from the value chosen, the command that sets it; a key bound to the same command
 // builds the next value instead. A setting names the section of the screen it is listed under
-// ([Picture], [Graphics] and the rest), or is listed under its plugin's.
+// ([Picture], [Graphics] and the rest), or is listed under its plugin's; a Range may lie beside a
+// Switch of its section ([Range.Beside]), in its row, live while the switch is on.
 //
 // # Tools
 //

@@ -23,6 +23,11 @@ func TestBinding_InHoldsInItsHowsOnly(t *testing.T) {
 	if loose.Overlaps(riding) || !b.Overlaps(riding) || !riding.Overlaps(riding) || !b.In(camera.Loose, camera.Inside).Overlaps(riding) {
 		t.Error("overlaps wrong: bindings in two hows apart overlap, or ones sharing a How do not")
 	}
+	free := b.In(camera.Free)
+	if !free.Holds(camera.Loose) || !free.Holds(camera.Centred) || free.Holds(camera.Behind) ||
+		free.Holds(camera.Inside) {
+		t.Error("Free holds other than loose and centred")
+	}
 	if cmd, ok := riding.Build(control.Context{}); !ok || cmd != (forward{}) {
 		t.Errorf("In lost the binding's command: built %v, %v", cmd, ok)
 	}

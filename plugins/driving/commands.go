@@ -31,11 +31,13 @@ type Strafe struct {
 	Way    int8
 }
 
-// Toward walks the units the hand is on the way Way says, as the screen lies: they turn to it and
-// go. Several in one tick add up — up and right walk them up and right.
+// Toward walks the units the hand is on the way Way says, as the screen lies (up the screen the
+// way Camera looks ahead where it has a heading, camera.Headed): they turn to it and go, Sprint
+// urging them on. Several in one tick add up — up and right walk them up and right.
 type Toward struct {
 	Camera camera.Camera
 	Way    geom.Vec
+	Sprint bool
 }
 
 // Jump has each unit the hand is on leap (gravity.Leap), as high as its gravity.Body says.
@@ -70,11 +72,11 @@ func (p *Plugin) Queues() []command.CommandQueue {
 }
 
 // DefaultBindings are DefaultKeys, the keys driving the unit the camera is fastened to, and
-// Space to jump riding inside it.
+// Space to jump riding inside it or behind it.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	var out []control.Binding
 	for _, k := range DefaultKeys() {
 		out = append(out, k.Bindings()...)
 	}
-	return append(out, JumpKey(control.KeySpace).In(camera.Inside))
+	return append(out, JumpKey(control.KeySpace).In(camera.Inside, camera.Behind))
 }

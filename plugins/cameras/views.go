@@ -5,6 +5,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/cameras/internal/stick"
+	"github.com/kjkrol/uid"
 )
 
 // the views' commands as the cameras in relief read them
@@ -56,8 +57,8 @@ func (q *orders) LookAts(fn func(cam camera.Camera, x, y, z float32)) {
 	})
 }
 
-func (q *orders) Rides(fn func(cam camera.Camera)) {
-	q.rides.Drain(func(i command.Issued[Ride]) { fn(i.Command.Camera) })
+func (q *orders) Rides(fn func(cam camera.Camera, entity uid.UID64)) {
+	q.rides.Drain(func(i command.Issued[Ride]) { fn(i.Command.Camera, i.Command.Entity) })
 }
 
 func (q *orders) Looks(fn func(cam camera.Camera, dx, dy float32)) {
@@ -88,7 +89,7 @@ func viewBindings(cfg Config) []control.Binding {
 	if cfg.Perspective {
 		out = append(out,
 			control.Build(tab, "Switch between the orthographic view and the perspective", view).
-				In(camera.Outside),
+				In(camera.Free),
 			control.Build(tab, "Leave the unit", view).In(camera.Inside))
 	}
 	if cfg.Turn {
@@ -102,23 +103,19 @@ func viewBindings(cfg Config) []control.Binding {
 		out = append(out,
 			control.Build(control.KeyHeld{Key: control.KeyR},
 				"Look down more steeply, straight down at the most", tilt(TiltStep)).
-				In(camera.Outside),
+				In(camera.Free),
 			control.Build(control.KeyHeld{Key: control.KeyF}, "Look flatter: further off",
-				tilt(-TiltStep)).In(camera.Outside))
-	}
-	if cfg.Turn || cfg.Perspective {
-		closer := "Follow the unit from behind, or over it again"
-		if cfg.Perspective {
-			closer = "Follow the unit from behind, ride in it, or over it again"
-		}
-		out = append(out, control.Build(v, closer, ride).In(camera.Centred, camera.Behind))
+				tilt(-TiltStep)).In(camera.Free))
 	}
 	if cfg.Perspective {
 		out = append(out,
+			control.Build(v, "Follow the unit from behind, ride in it, or over it again", ride).
+				In(camera.Centred, camera.Behind),
 			control.Build(v, "Leave the unit: over it again", ride).In(camera.Inside),
 			control.Build(control.CursorMove{},
-				"Look round with the mouse: across turns, up and down the head", look).
-				In(camera.Inside))
+				"Look round with the mouse: it turns the unit inside, the camera behind it, "+
+					"up and down tilting the arm where the settings let", look).
+				In(camera.Inside, camera.Behind))
 	}
 	return out
 }

@@ -38,9 +38,13 @@ func TestDefaultBindings_RidingKeysHoldInsideOnly(t *testing.T) {
 	p := cameras.NewPlugin(w, cameras.Config{Turn: true, Tilt: true, Perspective: true, Cell: 32})
 	riding, loose, over := boundIn(p, camera.Inside), boundIn(p, camera.Loose),
 		boundIn(p, camera.Centred)
+	behind := boundIn(p, camera.Behind)
 	for _, key := range []string{"W (held)", "S (held)", "A (held)", "D (held)"} {
 		if _, ok := riding[key]; ok {
 			t.Errorf("riding, %s pans the camera, want it the players' to drive with", key)
+		}
+		if _, ok := behind[key]; ok {
+			t.Errorf("behind, %s pans the camera, want it the players' to drive with", key)
 		}
 		if _, ok := loose[key]; !ok {
 			t.Errorf("loose, %s does not pan the camera", key)
@@ -53,6 +57,17 @@ func TestDefaultBindings_RidingKeysHoldInsideOnly(t *testing.T) {
 		if _, ok := loose[key]; !ok {
 			t.Errorf("loose, %s is not bound", key)
 		}
+	}
+	if _, ok := behind["mouse"]; !ok {
+		t.Error("behind, the mouse does not turn the camera round the unit")
+	}
+	for _, key := range []string{"Tab", "R (held)", "F (held)"} {
+		if _, ok := behind[key]; ok {
+			t.Errorf("behind, %s is bound, want nothing: the view and the pitch are the arm's", key)
+		}
+	}
+	if _, ok := behind["Q (held)"]; !ok {
+		t.Error("behind, Q does not turn the camera round the unit")
 	}
 	cam := p.Write().New(cameras.Isometrically, camera.Config{})
 	if bd, ok := riding["mouse"]; !ok {
@@ -78,7 +93,7 @@ func TestDefaultBindings_RidingKeysHoldInsideOnly(t *testing.T) {
 		t.Errorf("over the unit, V issues %T, want Ride: it goes behind", cmd)
 	}
 	if _, ok := loose["V"]; ok {
-		t.Error("loose, V is bound: there is nothing to ride")
+		t.Error("loose, V is bound: there is nothing to ride, the selection's key knows the unit")
 	}
 }
 
@@ -114,6 +129,21 @@ func TestDefaultBindings_TabSwitchesTheProjectionOnlyWithThePerspective(t *testi
 	if cmd, _ := boundIn(p, camera.Loose)["Tab"].Build(control.Context{}); reflect.TypeOf(cmd) !=
 		view {
 		t.Errorf("with the perspective Tab issues %T, want View", cmd)
+	}
+}
+
+func TestDefaultBindings_VRidesOnlyWithThePerspective(t *testing.T) {
+	flat := cameras.NewPlugin(reliefWorld(), cameras.Config{Turn: true, Cell: 32})
+	for _, how := range []camera.How{camera.Loose, camera.Centred, camera.Behind, camera.Inside} {
+		if _, ok := boundIn(flat, how)["V"]; ok {
+			t.Errorf("without the perspective V is bound %v, want nothing to ride in", how)
+		}
+	}
+	p := cameras.NewPlugin(reliefWorld(), cameras.Config{Perspective: true, Cell: 32})
+	for _, how := range []camera.How{camera.Centred, camera.Behind, camera.Inside} {
+		if _, ok := boundIn(p, how)["V"]; !ok {
+			t.Errorf("with the perspective V is not bound %v", how)
+		}
 	}
 }
 

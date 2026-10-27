@@ -20,8 +20,12 @@ type viewCamera struct {
 	// the view the eye was in before it went into a unit, to come back to
 	wasPersp bool
 	was      perspPose
-	// behind an entity, the tactical camera's own scale and stick, to come back to
-	tactical  struct{ scale, length float32 }
+	// behind an entity, the view the camera came from, to come back to: the tactical camera's
+	// own scale and stick, and whether it was the orthographic view
+	tactical struct {
+		scale, length float32
+		ortho         bool
+	}
 	fastening contract.Fastening
 	detail    contract.Detail
 	layers    []contract.Layer
@@ -35,7 +39,7 @@ type viewCamera struct {
 // value
 type form struct{}
 
-const savedAs = "stick 3"
+const savedAs = "stick 4"
 
 func (form) GobEncode() ([]byte, error) { return []byte(savedAs), nil }
 
@@ -227,12 +231,12 @@ func newCamera(
 func (c *viewCamera) insideUnit() bool { return c.inPersp && c.persp.inside }
 
 // out of the unit, or into the other projection keeping the foot, the turn, the pitch and the
-// scale there
+// scale there; on an arm behind an entity the camera stays in the perspective
 func (c *viewCamera) next() {
 	switch {
 	case c.insideUnit():
 		c.leaveInside()
-	case !c.reaches:
+	case !c.reaches, c.onArm():
 	case c.inPersp:
 		c.toOrtho()
 	default:
@@ -347,6 +351,33 @@ func (c *viewCamera) leaveInside() {
 	c.ortho.CenterOn(at[0], at[1], at[2])
 }
 
+// behind an entity, in the perspective from whatever view the camera stands in; false where it
+// reaches none
+func (c *viewCamera) enterBehind() bool {
+	if !c.reaches {
+		return false
+	}
+	c.tactical.scale, c.tactical.length = c.ortho.scale, c.persp.length
+	c.tactical.ortho = !c.inPersp
+	return c.enterPersp()
+}
+
+// out from behind an entity into the view the camera came from, with its scale and its stick;
+// the orthographic camera stood untouched behind the entity, its turn and pitch its own
+func (c *viewCamera) leaveBehind() {
+	p := c.persp
+	p.held = false
+	// the arm may lean under the tactical floor
+	p.pitch = max(p.pitch, p.minPitch)
+	p.length = c.tactical.length
+	p.look()
+	if c.tactical.ortho {
+		c.inPersp, c.cur = false, c.ortho
+	}
+	c.ortho.scale = c.ortho.limited(c.tactical.scale)
+	c.ortho.place()
+}
+
 func (c *viewCamera) ScaleAt(x, y, z float32) float32 {
 	if c.inPersp {
 		return c.persp.ScaleAt(x, y, z)
@@ -378,15 +409,18 @@ func (c *viewCamera) Pan(dx, dy float32) { c.cur.Pan(dx, dy) }
 
 func (c *viewCamera) Zoom() float32 { return c.cur.Zoom() }
 
-// behind an entity the camera is no tactical one: nothing zooms it
+// on an arm behind an entity the camera is no tactical one: nothing zooms it but the arm's own
+// setting
+func (c *viewCamera) onArm() bool { return c.fastening.How == contract.Behind }
+
 func (c *viewCamera) ZoomIn(factor, anchorX, anchorY float32) {
-	if c.fastening.How != contract.Behind {
+	if !c.onArm() {
 		c.cur.ZoomIn(factor, anchorX, anchorY)
 	}
 }
 
 func (c *viewCamera) ZoomOut(factor, anchorX, anchorY float32) {
-	if c.fastening.How != contract.Behind {
+	if !c.onArm() {
 		c.cur.ZoomOut(factor, anchorX, anchorY)
 	}
 }
@@ -448,7 +482,7 @@ func (c *viewCamera) SetMaxZoom(maxZoom float32) {
 func (c *viewCamera) Persisted() []any {
 	saved := append([]any{&c.form}, c.ortho.Persisted()...)
 	return append(append(saved, c.persp.Persisted()...), &c.inPersp, &c.fastening,
-		&c.detail.Sight)
+		&c.detail.Sight, &c.tactical.scale, &c.tactical.length, &c.tactical.ortho)
 }
 
 func (c *viewCamera) Restore() {

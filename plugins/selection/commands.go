@@ -121,7 +121,8 @@ func (p *Plugin) Queues() []command.CommandQueue {
 
 // DefaultBindings is a left drag (a click is a drag of no length) into a Select of the box it
 // drew, Shift for an additive one, the box shown as a Marquee while the button is held, C to
-// follow the one unit chosen (FollowKey), and the cursor over the world into a Hover.
+// follow the one unit chosen (FollowKey), V to ride behind it with the camera loose (RideKey),
+// and the cursor over the world into a Hover.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	box := func(additive bool) func(c control.Context) (Select, bool) {
 		return func(c control.Context) (Select, bool) {
@@ -135,6 +136,7 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 			return Marquee{Screen: control.ScreenRect(c.Start, c.Cursor), Camera: c.Camera}, true
 		}),
 		p.FollowKey(control.KeyC),
+		p.RideKey(control.KeyV),
 		control.Build(control.CursorOver{}, "Point at", func(c control.Context) (Hover, bool) {
 			return Hover{At: c.World(c.Cursor), Screen: control.ScreenRect(c.Cursor, c.Cursor), Camera: c.Camera}, true
 		}),
@@ -148,4 +150,15 @@ func (p *Plugin) FollowKey(key control.Key) control.Binding {
 		id, ok := p.read.Chosen(c.Player)
 		return cameras.Follow{Camera: c.Camera, Entity: id, On: ok}, true
 	})
+}
+
+// RideKey is key fastening the camera the player looks through behind the one unit it has chosen
+// (Chosen), a cameras.Ride: held while the camera is fastened to nothing, the cameras' own key
+// taking it on from there.
+func (p *Plugin) RideKey(key control.Key) control.Binding {
+	return control.Build(control.KeyPress{Key: key}, "Follow the selected unit from behind",
+		func(c control.Context) (cameras.Ride, bool) {
+			id, ok := p.read.Chosen(c.Player)
+			return cameras.Ride{Camera: c.Camera, Entity: id}, ok
+		}).In(camera.Loose)
 }

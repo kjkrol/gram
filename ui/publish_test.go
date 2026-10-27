@@ -55,7 +55,7 @@ func TestScene_PublishesAPinnedLabelsWordsForEachEntityAndWhoShowsIt(t *testing.
 	b.reset()
 	b.spots[name] = []spot{{id: 1}, {id: 2}}
 	d.showing(b, root)
-	d.read(b, root, nil)
+	d.read(b, root, nil, false)
 	d.Swap()
 	for id, want := range map[uid.UID64]string{1: "bob", 2: "ann", 3: ""} {
 		name.drawnFor(id, true)

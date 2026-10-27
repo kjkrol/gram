@@ -44,6 +44,8 @@
 // [Checkbox] on or off, a [Slider] dragged along its track or stepped by the wheel over it, a
 // [Dropdown] opening its options over everything, the one clicked chosen. A control reads no
 // entity: pinned, every instance shows the same. The settings screen (players) is made of them.
+// An element given [Element.Live] is live while its function says so, else drawn dimmed and
+// passed by the pointer, with everything in it: a slider beside a checkbox that is off.
 //
 // # Theme
 //

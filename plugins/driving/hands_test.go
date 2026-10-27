@@ -447,3 +447,45 @@ func TestHand_ATapOnAStandingUnitOnlyTurnsIt(t *testing.T) {
 		t.Errorf("held south: at %v speed %v, want it walking down the screen", held.at, held.speed)
 	}
 }
+
+// a camera fastened behind a unit and turned to look ahead a way: the hand is on the unit, the
+// screen laid along the way
+type turned struct {
+	camera.Camera
+	entity uid.UID64
+	ahead  geom.Vec
+}
+
+func (c *turned) Fasten(camera.Fastening) {}
+func (c *turned) Fastening() camera.Fastening {
+	return camera.Fastening{Entity: c.entity, How: camera.Behind}
+}
+func (c *turned) Ahead() (float32, float32) { return c.ahead.X, c.ahead.Y }
+
+func TestHand_TowardWalksTheWayOfTheScreenAsTheCameraLaysIt(t *testing.T) {
+	f := newField(t, walker{start: 2, owner: 1, selected: true})
+	id := f.ids[0]
+	cam := &turned{Camera: f.cams[1], entity: id, ahead: geom.NewVec(1, 0)}
+	for _, c := range []struct{ way, want geom.Vec }{
+		{geom.NewVec(0, -1), geom.NewVec(1, 0)},
+		{geom.NewVec(1, 0), geom.NewVec(0, 1)},
+		{geom.NewVec(0, 1), geom.NewVec(-1, 0)},
+	} {
+		f.give(1, driving.Toward{Camera: cam, Way: c.way})
+		f.tick(1)
+		if got := f.read()[id]; got.driven == nil || got.driven.Face != c.want {
+			t.Errorf("up the screen east, driven %v the unit faces %+v, want %v", c.way,
+				got.driven, c.want)
+		}
+	}
+}
+
+func TestHand_TowardSprintsWhereUrged(t *testing.T) {
+	f := newField(t, walker{start: 2, owner: 1, selected: true})
+	id := f.ids[0]
+	f.give(1, driving.Toward{Camera: f.cams[1], Way: geom.NewVec(0, 1), Sprint: true})
+	f.tick(1)
+	if got := f.read()[id]; got.driven == nil || !got.driven.Sprint {
+		t.Errorf("driven toward with Shift the unit carries %+v, want it sprinting", got.driven)
+	}
+}

@@ -539,16 +539,21 @@ func TestPlugin_Contract(t *testing.T) {
 
 type riding struct {
 	camera.Camera
-	on bool
+	on  bool
+	how camera.How // zero, Inside
 }
 
 func (r *riding) Fasten(camera.Fastening) {}
 
 func (r *riding) Fastening() camera.Fastening {
-	if r.on {
-		return camera.Fastening{Entity: 1, How: camera.Inside}
+	if !r.on {
+		return camera.Fastening{}
 	}
-	return camera.Fastening{}
+	how := r.how
+	if how == 0 {
+		how = camera.Inside
+	}
+	return camera.Fastening{Entity: 1, How: how}
 }
 
 func TestBind_OneKeyDoesWhatTheCamerasHowSays(t *testing.T) {
@@ -587,7 +592,7 @@ func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
 	r.look(cam)
 	r.bind(control.Build(control.CursorMove{}, "look", func(c control.Context) (order, bool) {
 		return order{int(c.Delta.X)}, true
-	}).In(camera.Inside))
+	}).In(camera.Inside, camera.Behind))
 	move := func(x, y int) []command.Issued[order] {
 		ev := &control.InputEvents{MousePos: geom.NewVec(float32(x), float32(y)), CursorDelta: geom.NewVec(7, 0)}
 		r.handle(ev)
@@ -606,6 +611,14 @@ func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
 	cam.on = false
 	if got := move(10, 10); len(got) != 0 || len(caught) != 2 || caught[1] {
 		t.Errorf("free again, a move issued %v and caught %v, want the cursor let go and nothing issued", got, caught)
+	}
+	cam.on, cam.how = true, camera.Behind
+	if got := move(10, 10); len(got) != 0 || len(caught) != 3 || !caught[2] {
+		t.Errorf("behind, the first pass issued %v and caught %v, want the cursor caught and no "+
+			"move taken", got, caught)
+	}
+	if got := move(-5000, 9000); len(got) != 1 || got[0].Command.Cell != 7 {
+		t.Errorf("behind, a move far off the screen issued %v, want a look by 7", got)
 	}
 }
 

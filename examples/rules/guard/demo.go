@@ -149,7 +149,7 @@ func (a *arena) spawn() error {
 		return err
 	}
 	sides := board.Sides{
-		PlayerSide: {players.Give{To: a.player.ID}, selection.Allow{Selected: true}},
+		PlayerSide: {players.Give{To: a.player.ID}, selection.Allow{}},
 	}
 	if err := board.Spawn[guardRow](level, sides); err != nil {
 		return err

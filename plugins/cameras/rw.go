@@ -69,6 +69,9 @@ func (r *Read) LayersShown(profile Profile) bool { return r.p.knobs(profile).Sho
 // ZonesShown reports whether the scroll zones are shown.
 func (r *Read) ZonesShown() bool { return r.p.Res.Settings.Zones }
 
+// ZonesOpacity is how opaque the scroll zones are at the picture's edge, 0 to 1.
+func (r *Read) ZonesOpacity() float32 { return r.p.Res.Settings.zonesOpacity() }
+
 // EdgesScroll reports whether the cursor at a picture's edge scrolls the camera.
 func (r *Read) EdgesScroll() bool { return !r.p.Res.Settings.StillEdges }
 
@@ -196,6 +199,12 @@ func (w *Write) ShowLayers(profile Profile, shown bool) { w.p.knobs(profile).Sho
 
 // ShowZones shows the scroll zones over every picture, or hides them (Settings.Zones).
 func (w *Write) ShowZones(shown bool) { w.p.Res.Settings.Zones = shown }
+
+// SetZonesOpacity sets how opaque the scroll zones are at the picture's edge
+// (Settings.ZonesOpacity), kept between LeastZonesOpacity and 1.
+func (w *Write) SetZonesOpacity(opacity float32) {
+	w.p.Res.Settings.ZonesOpacity = min(max(opacity, LeastZonesOpacity), 1)
+}
 
 // ScrollFromEdges has the cursor at a picture's edge scroll the camera, or not
 // (Settings.StillEdges); on from the start.

@@ -132,6 +132,7 @@ func TestControls_ListWhatHoldsInTheCamerasMode(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := p.controls
+	behind := camera.Behind
 	camera := func() string {
 		for _, g := range s.groups() {
 			if g.name == "Cameras" {
@@ -150,20 +151,31 @@ func TestControls_ListWhatHoldsInTheCamerasMode(t *testing.T) {
 	if !strings.Contains(s.title(), "first person") {
 		t.Errorf("riding, the title is %q, want it to say first person", s.title())
 	}
+	cam.how = behind
+	if lines := camera(); strings.Contains(lines, "Scroll up") ||
+		!strings.Contains(s.title(), "third person") {
+		t.Errorf("behind, the camera's lines %q under %q, want no scrolling under third person",
+			lines, s.title())
+	}
 }
 
 type ridingCam struct {
 	camera.Camera
-	on bool
+	on  bool
+	how camera.How // zero, Inside
 }
 
 func (r *ridingCam) Fasten(camera.Fastening) {}
 
 func (r *ridingCam) Fastening() camera.Fastening {
-	if r.on {
-		return camera.Fastening{Entity: 1, How: camera.Inside}
+	if !r.on {
+		return camera.Fastening{}
 	}
-	return camera.Fastening{}
+	how := r.how
+	if how == 0 {
+		how = camera.Inside
+	}
+	return camera.Fastening{Entity: 1, How: how}
 }
 
 func TestSceneKeys_HandleRunsTheKeyPressedWithItsModifiers(t *testing.T) {

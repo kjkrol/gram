@@ -106,12 +106,13 @@ func (a *arena) definePlayer() error {
 		Farther: control.KeyEqual,
 		Nearer:  control.KeyMinus,
 	}
+	// where the hand is free; behind the hero the driving's defaults take W, S, A and D
 	drive := driving.Tank{
 		Ahead: control.KeyW,
 		Back:  control.KeyS,
 		Left:  control.KeyA,
 		Right: control.KeyD,
-		In:    camera.Outside,
+		In:    camera.Free,
 	}
 	return a.player.Bind(slices.Concat(
 		a.players.DefaultBindings(),

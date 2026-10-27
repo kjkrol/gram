@@ -294,7 +294,7 @@ type target struct {
 // topmost is what p hits in e: in is the pressable e lies in, passing the word of a Passing
 // element over it (a pressable takes the pointer back for itself and what is in it)
 func topmost(e *Element, p geom.Vec, in *Element, passing bool) target {
-	if e.shut() {
+	if e.shut() || e.dead() {
 		return target{}
 	}
 	if e.pin == nil {

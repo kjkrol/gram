@@ -19,6 +19,19 @@ type Theme struct {
 	Title  color.RGBA // a window's title's background
 	Button color.RGBA // a button's background
 	Accent color.RGBA // a checkbox's tick, a slider's knob and the track behind it
+
+	dim *Theme // the theme as a dead element wears it, made once
+}
+
+// dimmed is the theme with its text, its borders and the widgets' marks at half their alpha: a
+// dead element's
+func (th *Theme) dimmed() *Theme {
+	if th.dim == nil {
+		d := *th
+		d.Text.A, d.Border.A, d.Accent.A = d.Text.A/2, d.Border.A/2, d.Accent.A/2
+		th.dim = &d
+	}
+	return th.dim
 }
 
 // DefaultTheme is light text in Go Regular over dark panels.
@@ -49,10 +62,14 @@ const (
 var fallback = DefaultTheme()
 
 func (e *Element) look() *Theme {
-	if e.theme != nil {
-		return e.theme
+	th := e.theme
+	if th == nil {
+		th = &fallback
 	}
-	return &fallback
+	if e.dead() {
+		return th.dimmed()
+	}
+	return th
 }
 
 func (e *Element) fillColor() color.RGBA {

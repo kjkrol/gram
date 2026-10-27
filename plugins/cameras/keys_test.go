@@ -223,9 +223,9 @@ func TestKeys_TheGrabDragsTheWorldPastTheSlopAndYields(t *testing.T) {
 	held := control.ButtonHeld{Button: control.MouseButtonRight}
 	keys := cameras.Keys{Grab: true}.Bindings()
 	if len(keys) != 1 || keys[0].Trigger != held || !keys[0].Yields() ||
-		!keys[0].Holds(camera.Outside) || keys[0].Holds(camera.Inside) {
+		!keys[0].Holds(camera.Free) || keys[0].Holds(camera.Behind) {
 		t.Fatalf("the grab's bindings are %+v, want one on the right button held, yielding, "+
-			"outside", keys)
+			"where the hand is free", keys)
 	}
 	ctx := control.Context{Start: geom.NewVec(100, 100), Cursor: geom.NewVec(103, 100),
 		Delta: geom.NewVec(3, 0)}
@@ -263,5 +263,32 @@ func TestKeys_TheGrabDragsTheWorldPastTheSlopAndYields(t *testing.T) {
 	if grabs(cameras.Config{}) || !grabs(cameras.Config{Grab: true}) {
 		t.Error("the default bindings grab the world where the Config says nothing, or not where " +
 			"it asks")
+	}
+}
+
+func TestDefaultBindings_TheEdgeTheCornersTheDragAndTheGrabHoldWhereTheHandIsFree(t *testing.T) {
+	p := cameras.NewPlugin(reliefWorld(), cameras.Config{Turn: true, Grab: true, Cell: 32})
+	free := map[control.Trigger]bool{
+		control.CursorAtEdge{}:                                false,
+		control.CursorInCorner{}:                              false,
+		control.ButtonHeld{Button: control.MouseButtonMiddle}: false,
+		control.ButtonHeld{Button: control.MouseButtonRight}:  false,
+	}
+	for _, b := range p.DefaultBindings() {
+		if _, ok := free[b.Trigger]; ok {
+			free[b.Trigger] = true
+			if !b.Holds(camera.Loose) || !b.Holds(camera.Centred) || b.Holds(camera.Behind) ||
+				b.Holds(camera.Inside) {
+				t.Errorf("%v holds elsewhere than where the hand is free", b.Trigger)
+			}
+		}
+		if b.Trigger == (control.KeyHeld{Key: control.KeyW}) && b.Holds(camera.Behind) {
+			t.Error("W held scrolls behind a unit, want it driving there")
+		}
+	}
+	for trigger, found := range free {
+		if !found {
+			t.Errorf("no binding on %v", trigger)
+		}
 	}
 }
