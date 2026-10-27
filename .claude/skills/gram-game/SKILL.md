@@ -243,6 +243,21 @@ scratchpad and run it from its directory under `timeout 5s`, exit 124 alive, gre
   selected units only while there are any: with nothing selected the drag grabs the world, with
   a selection it turns the units; a right click sends them either way. A click's slop is
   `control.DragSlop` (`Context.Dragged`): the grab takes the whole way on its first pass past it.
+- V rides the selected unit from a loose camera (`selection.RideKey`, among the selection's
+  defaults): behind, inside, over it; C centres over it from any of them and lets go from Centred
+  (2026-10-27). Behind and inside are the perspective's alone: V takes a camera in the
+  orthographic view into the perspective and letting go gives the view back; a game whose
+  `cameras.Config` has no `Perspective` binds no V and nothing goes behind a unit there
+  (2026-10-27). Behind a unit W/S/A/D walk it the way the screen lies and the mouse turns the
+  camera round it (two sticks); Space jumps inside and behind. The camera behind is held on the
+  arm `cameras.Config.Arm` sets (`Pitch`, `Distance`, `Aim` of the unit's height, `Tilts` and
+  `Zooms` letting the player tilt it with the mouse and draw it with = and -): a Zelda, a racing
+  game or a Warcraft camera by three numbers, on F10 as two switches with their sliders beside
+  and the aim's slider. The zones, the corners, the drag and the grab hold where the
+  hand is free
+  (`camera.Free`), so none lets go of a camera kept behind a unit. A `control.Range` may lie
+  beside a `control.Switch` of its section (`Range.Beside`), the settings screen laying the slider
+  in the switch's row, live while it is on (`ui.Element.Live`): the zones' opacity.
 - Every scene's `Drawers()`, hidden ones included, is built and `Init`ed once on entering the
   Stage (`stage_runtime.go`), the world's picture once however many scenes show it;
   `ui.Scene.Replace` does not re-init drawers. A `ui.LabelOf(Text)`

@@ -3,6 +3,7 @@ package stick
 import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/uid"
 )
 
 // LookStep is how far a pixel of the mouse turns the eye riding in an entity, in radians: a
@@ -17,7 +18,8 @@ type Orders interface {
 	Tilts(fn func(cam camera.Camera, angle float32))
 	LookFroms(fn func(cam camera.Camera, x, y, z float32))
 	LookAts(fn func(cam camera.Camera, x, y, z float32))
-	Rides(fn func(cam camera.Camera))
+	// Rides hands the entity a camera fastened to nothing is to go behind, 0 for none
+	Rides(fn func(cam camera.Camera, entity uid.UID64))
 	Looks(fn func(cam camera.Camera, dx, dy float32))
 }
 
@@ -50,10 +52,12 @@ func (ctl *Control) Maker(
 	}
 }
 
-// Keeper is the control carrying out what orders gives it.
-func (ctl *Control) Keeper(orders Orders) *Keeper {
+// Keeper is the control carrying out what orders gives it, the cameras behind an entity held
+// on the arm arms says.
+func (ctl *Control) Keeper(orders Orders, arms Arms) *Keeper {
 	return &Keeper{
 		orders:      orders,
+		arms:        arms,
 		free:        ctl.free,
 		perspective: ctl.perspective,
 		cams:        &ctl.cams,

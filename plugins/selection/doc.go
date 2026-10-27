@@ -17,7 +17,9 @@
 // A player selects its own units alone (owner.Obeys), so one Selected tag serves every player;
 // only a Select nobody gave reaches the units nobody owns. [Plugin.FollowKey] (C by default)
 // fastens the camera the player looks through over the one unit it has selected
-// ([Read.Chosen]); [Read.Any] is whether a player has any, which navigation's right drag asks.
+// ([Read.Chosen]); [Plugin.RideKey] (V by default) fastens it behind that unit while the camera
+// is fastened to nothing, the cameras' own V taking it on from there. [Read.Any] is whether a
+// player has any, which navigation's right drag asks.
 //
 // # Selected and Pointed
 //

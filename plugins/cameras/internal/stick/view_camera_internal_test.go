@@ -104,11 +104,13 @@ func TestViewCamera_PersistedRoundTripKeepsTheView(t *testing.T) {
 	c.SetDetail(contract.Detail{Sight: 900})
 	c.See(2)
 	bx, by := c.Project(300, 280, 4)
+	c.tactical.scale, c.tactical.length, c.tactical.ortho = 3, 700, true
 	other := testViews(true)
 	saved, restored := c.Persisted(), other.Persisted()
-	if len(saved) != 12 || len(restored) != 12 {
-		t.Fatalf("Persisted has %d and %d values, want 12: the form, every view's, which is in, "+
-			"the fastening and the sight", len(saved), len(restored))
+	if len(saved) != 15 || len(restored) != 15 {
+		t.Fatalf("Persisted has %d and %d values, want 15: the form, every view's, which is in, "+
+			"the fastening, the sight and the view behind an entity came from",
+			len(saved), len(restored))
 	}
 	carry(t, saved, restored)
 	other.Restore()
@@ -121,6 +123,10 @@ func TestViewCamera_PersistedRoundTripKeepsTheView(t *testing.T) {
 	}
 	if ax, ay := other.Project(300, 280, 4); !near(ax, bx) || !near(ay, by) {
 		t.Errorf("restored camera draws the point at (%v, %v), want (%v, %v)", ax, ay, bx, by)
+	}
+	if other.tactical != c.tactical {
+		t.Errorf("restored camera comes back to %+v on letting go, want the %+v saved",
+			other.tactical, c.tactical)
 	}
 	unreached := testViews(false)
 	carry(t, saved, unreached.Persisted())

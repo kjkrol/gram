@@ -1,6 +1,7 @@
 package cameras
 
 import (
+	"math"
 	"testing"
 
 	"github.com/kjkrol/ceremony/command"
@@ -60,6 +61,17 @@ func TestZones_TheCommandSwitchesTheZonesDrawn(t *testing.T) {
 	if a := glassOf(t, p, p.write.New(FromAbove, camera.Config{Whole: true}))(999, 400); a != 0 {
 		t.Errorf("a camera of the whole world got the zones %v opaque", a)
 	}
+	for _, how := range []camera.How{camera.Behind, camera.Inside} {
+		cam.(camera.Fastenable).Fasten(camera.Fastening{Entity: 7, How: how})
+		if a := glassOf(t, p, cam)(999, 400); a != 0 {
+			t.Errorf("a camera fastened %v got the zones %v opaque, want none: the hand scrolls "+
+				"nothing there", how, a)
+		}
+	}
+	cam.(camera.Fastenable).Fasten(camera.Fastening{Entity: 7, How: camera.Centred})
+	if a := glassOf(t, p, cam)(999, 400); a == 0 {
+		t.Error("a camera fastened Centred got no zones")
+	}
 }
 
 type drawsCtx struct {
@@ -96,15 +108,46 @@ func TestZones_FadeFromClearInsideToTheColourAtTheEdge(t *testing.T) {
 	p.write.ShowZones(true)
 	alpha := glassOf(t, p, cameratest.NewFromSpace(1000, 800, 0))
 	edge, half, bound := alpha(999, 400), alpha(970, 400), alpha(941, 400)
-	if edge < zoneColor.A-2 || half < edge/3 || half > 2*edge/3 || bound > 3 {
+	want := uint8(DefaultZonesOpacity * 255)
+	if edge < want-2 || half < edge/3 || half > 2*edge/3 || bound > 3 {
 		t.Errorf("the right strip is %v opaque at the edge, %v halfway in and %v at its inner "+
-			"bound, want the colour's %v fading to clear", edge, half, bound, zoneColor.A)
+			"bound, want the default %v fading to clear", edge, half, bound, want)
 	}
 	if a := alpha(900, 400); a != 0 {
 		t.Errorf("past the strip the glass is %v opaque, want bare", a)
 	}
-	if corner, inner := alpha(998, 1), alpha(881, 118); corner < zoneColor.A-2 || inner > 3 {
+	if corner, inner := alpha(998, 1), alpha(881, 118); corner < want-2 || inner > 3 {
 		t.Errorf("the top-right corner is %v opaque at the edge and %v at its inner corner, want "+
 			"the colour fading to clear", corner, inner)
+	}
+}
+
+func TestZonesOpacity_TheCommandSetsHowOpaqueTheEdgeIs(t *testing.T) {
+	gputest.Need(t)
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 1000, Height: 800},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+	p := NewPlugin(w, Config{})
+	if err := w.Carry(p); err != nil {
+		t.Fatal(err)
+	}
+	p.write.ShowZones(true)
+	cam := cameratest.NewFromSpace(1000, 800, 0)
+	if got := p.read.ZonesOpacity(); got != DefaultZonesOpacity {
+		t.Errorf("the zones start %v opaque, want the default %v", got, DefaultZonesOpacity)
+	}
+	for _, c := range []struct{ set, want float32 }{{1, 1}, {0.2, 0.2}, {0, LeastZonesOpacity}} {
+		if !w.Write().Carrier().Put(command.Nobody, ZonesOpacity{Opacity: c.set}) {
+			t.Fatal("the world carries no cameras.ZonesOpacity")
+		}
+		p.switchZones()
+		if got := p.read.ZonesOpacity(); got != c.want {
+			t.Errorf("set to %v the zones are %v opaque, want %v", c.set, got, c.want)
+		}
+		want := int(math.Round(float64(c.want * 255)))
+		if a := glassOf(t, p, cam)(999, 400); int(a)-want < -2 || int(a)-want > 2 {
+			t.Errorf("set to %v the edge is drawn %v opaque, want %v", c.set, a, want)
+		}
 	}
 }

@@ -44,6 +44,14 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 		if cam == nil {
 			return
 		}
+		if f, ok := cam.(camera.Fastenable); ok && f.Fastening().How == camera.Behind {
+			// on the arm: drawn in and out where the settings let the player
+			if a := s.p.read.Arm(); a.Zooms && i.Command.Factor > 0 {
+				a.Distance /= i.Command.Factor
+				s.p.write.SetArm(a)
+			}
+			return
+		}
 		x, y := i.Command.At.X, i.Command.At.Y
 		if i.Command.Factor >= 1 {
 			cam.ZoomIn(i.Command.Factor, x, y)
@@ -96,7 +104,7 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 			s.fasten(cam, i.Entity)
 			return
 		}
-		if !i.Command.On || cam.Fastening().How != 0 {
+		if !i.Command.On || cam.Fastening().How == camera.Centred {
 			cam.Fasten(camera.Fastening{})
 			return
 		}

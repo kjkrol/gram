@@ -1,7 +1,9 @@
 package cameras
 
 import (
+	"cmp"
 	"image/color"
+	"math"
 
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
@@ -22,21 +24,37 @@ type EdgeScroll struct{ On bool }
 // very edge (Settings.EdgeSpeed); 0, the keys' own. The settings screen alone.
 type EdgeSpeed struct{ Speed float32 }
 
-func (Zones) Command()      {}
-func (EdgeScroll) Command() {}
-func (EdgeSpeed) Command()  {}
+// ZonesOpacity sets how opaque the zones are at the picture's edge, Opacity 0 to 1
+// (Settings.ZonesOpacity). The settings screen alone.
+type ZonesOpacity struct{ Opacity float32 }
+
+func (Zones) Command()        {}
+func (EdgeScroll) Command()   {}
+func (EdgeSpeed) Command()    {}
+func (ZonesOpacity) Command() {}
 
 var (
 	_ command.Command = Zones{}
 	_ command.Command = EdgeScroll{}
 	_ command.Command = EdgeSpeed{}
+	_ command.Command = ZonesOpacity{}
 )
 
-// a zone's colour at the picture's edge, and clear at its inner bound
+// DefaultZonesOpacity is how opaque the zones are at the picture's edge until set,
+// LeastZonesOpacity the least they can be set to.
+const (
+	DefaultZonesOpacity = float32(40) / 255
+	LeastZonesOpacity   = 0.05
+)
+
+// a zone's colour at the picture's edge, as opaque as the settings say, and clear at its inner
+// bound
 var (
-	zoneColor = color.RGBA{R: 255, G: 220, B: 60, A: 40}
+	zoneColor = color.RGBA{R: 255, G: 220, B: 60}
 	zoneClear = color.RGBA{}
 )
+
+func (s *Settings) zonesOpacity() float32 { return cmp.Or(s.ZonesOpacity, DefaultZonesOpacity) }
 
 // pixels: the gap between a strip and the corners beside it
 const zoneGap = 6
@@ -54,9 +72,13 @@ func (*zonesView) Compose(*render.Frame, camera.Camera) {}
 // DrawGlass draws the zones over dst, the picture as shown: the strips control.EdgeMargin wide,
 // the corners control.CornerSide a side, each clear inside and zoneColor at the edge.
 func (v *zonesView) DrawGlass(dst *render.Image, cam camera.Camera) {
-	if !v.drawn().Zones || fitsWhole(cam) {
+	// nowhere the hand does not scroll: behind a unit, or in it
+	s := v.drawn()
+	if !s.Zones || fitsWhole(cam) || camera.HowOf(cam)&camera.Free == 0 {
 		return
 	}
+	edge := zoneColor
+	edge.A = uint8(math.Round(float64(s.zonesOpacity() * 255)))
 	b := dst.Bounds()
 	w, h := float32(b.Dx()), float32(b.Dy())
 	thick := float32(control.EdgeMargin)
@@ -70,7 +92,7 @@ func (v *zonesView) DrawGlass(dst *render.Image, cam camera.Camera) {
 		}
 		at := func(x, y float32) color.RGBA {
 			if x == 0 || x == w || y == 0 || y == h {
-				return zoneColor
+				return edge
 			}
 			return zoneClear
 		}
@@ -94,4 +116,8 @@ func (p *Plugin) switchZones() {
 	p.zones.Drain(func(i command.Issued[Zones]) { p.write.ShowZones(i.Command.Shown) })
 	p.edgeScrolls.Drain(func(i command.Issued[EdgeScroll]) { p.write.ScrollFromEdges(i.Command.On) })
 	p.edgeSpeeds.Drain(func(i command.Issued[EdgeSpeed]) { p.write.SetEdgeSpeed(i.Command.Speed) })
+	p.zonesOpacities.Drain(func(i command.Issued[ZonesOpacity]) {
+		p.write.SetZonesOpacity(i.Command.Opacity)
+	})
+	p.holds.Drain(func(i command.Issued[Hold]) { p.write.SetArm(i.Command.Arm) })
 }

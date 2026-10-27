@@ -187,11 +187,12 @@ func TestNew_ACameraIsDrawnAtTheConfigsResolutionAMinimapsAtAll(t *testing.T) {
 func TestSettings_AreSavedWithTheCamerasAndAZeroSavedComesBackSo(t *testing.T) {
 	saved := cameras.NewPlugin(newWorld(), cameras.Config{})
 	saved.Write().ShowZones(true)
+	saved.Write().SetZonesOpacity(0.5)
 	loaded := cameras.NewPlugin(newWorld(),
 		cameras.Config{Tactical: cameras.Knobs{Strategy: cameras.Uniform}})
 	carried(t, saved, loaded)
-	if !loaded.Read(0).ZonesShown() {
-		t.Error("the zones shown were not saved with the cameras")
+	if !loaded.Read(0).ZonesShown() || loaded.Read(0).ZonesOpacity() != 0.5 {
+		t.Error("the zones shown and their opacity were not saved with the cameras")
 	}
 	if loaded.Read(0).Strategy(cameras.Tactical) != cameras.Still {
 		t.Error("the resolution follows the budget after a load that saved it still")
@@ -280,8 +281,13 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 		{"Finer over", control.Picture}}
 	want = append(want, knobsListed(control.PictureTactical, control.PictureTacticalLayers)...)
 	want = append(want, knobsListed(control.PictureRiding, control.PictureRidingLayers)...)
+	want = append(want, listed{"Zones opacity", ""}, listed{"Tilt behind the unit", ""},
+		listed{"Pitch behind the unit", ""}, listed{"Zoom behind the unit", ""},
+		listed{"Distance behind the unit", ""}, listed{"Aim behind the unit", ""})
 	if len(settings) != len(want) {
-		t.Fatalf("%d settings, want %d: the zones thrice, the budget, the sampling, the thresholds, a profile's nine twice", len(settings), len(want))
+		t.Fatalf("%d settings, want %d: the zones thrice, the budget, the sampling, the "+
+			"thresholds, a profile's nine twice, the zones' opacity, the arm's five",
+			len(settings), len(want))
 	}
 	for i, want := range want {
 		if got := (listed{labelOf(settings[i]), control.SectionOf(settings[i])}); got != want {
@@ -565,12 +571,20 @@ func TestKnobs_FilledGivesAZeroSaveTheDefaults(t *testing.T) {
 	p := cameras.NewPlugin(newWorld(), cameras.Config{
 		Tactical: cameras.Knobs{Strategy: cameras.Uniform, Resolution: 0.5, Inner: 0.2},
 		Riding:   cameras.Knobs{Strategy: cameras.InLayers, Layers: true, OuterRes: 0.4},
+		Arm:      cameras.Arm{Pitch: 20, Distance: 3, Aim: 1},
 	})
 	cam := p.Write().New(cameras.FromAbove, camera.Config{})
 	carried(t, old, p)
 	if !p.Read(0).ZonesShown() || p.Read(0).Budget() != time.Second/30 {
 		t.Errorf("an old save loaded shows the zones %v at a budget of %v, want them shown at a "+
 			"thirtieth of a second, as saved", p.Read(0).ZonesShown(), p.Read(0).Budget())
+	}
+	if got := p.Read(0).ZonesOpacity(); got != cameras.DefaultZonesOpacity {
+		t.Errorf("an old save loaded draws the zones %v opaque, want the default %v", got,
+			cameras.DefaultZonesOpacity)
+	}
+	if got, want := p.Read(0).Arm(), (cameras.Arm{Pitch: 20, Distance: 3, Aim: 1}); got != want {
+		t.Errorf("an old save loaded holds the arm %+v, want the Config's %+v", got, want)
 	}
 	for _, profile := range []cameras.Profile{cameras.Tactical, cameras.Riding} {
 		inner, middle := p.Read(0).LayerShares(profile)

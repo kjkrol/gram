@@ -61,6 +61,7 @@ func (h *hands) sum() {
 	h.towards.Drain(func(i command.Issued[Toward]) {
 		h.add(i.Issuer, i.Entity, i.ByEntity, i.Command.Camera, func(x *hand) {
 			x.ahead, x.way = clampWay(x.ahead+1), x.way.Add(i.Command.Way)
+			x.sprint = x.sprint || i.Command.Sprint
 		})
 	})
 	h.jumps.Drain(func(i command.Issued[Jump]) {

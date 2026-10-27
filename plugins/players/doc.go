@@ -41,8 +41,9 @@
 // nobody defines when the Stage is set up. A binding may hold in some fastenings of the camera
 // only (control.Binding.In): only those holding in the camera's How fire. A player holds a tool in
 // hand (control.Take, control.Drop; [Player.Tool]): while it does, the bindings With that tool
-// fire in place of those with no tool. While a local player's camera rides inside an entity, the
-// window's cursor is captured and control.CursorMove reaches that player.
+// fire in place of those with no tool. While a local player's camera rides inside an entity or
+// is kept behind one (camera.Inside, camera.Behind), the window's cursor is captured and
+// control.CursorMove reaches that player.
 //
 // # From input to commands
 //

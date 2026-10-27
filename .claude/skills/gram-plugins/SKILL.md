@@ -929,7 +929,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Plugin.IsSelected` a drawing rule's condition). `DefaultBindings()`: a left drag selects
   (Shift adds), the left button held a `Marquee` (drawn by its renderer), C `FollowKey` (a
   `cameras.Follow` of the issuer's one selected unit, `Read.Chosen(by)` — `Read.Any(by)` whether it
-  has any selected, navigation's right drag asks — for the camera the player looks through),
+  has any selected, navigation's right drag asks — for the camera the player looks through), V
+  `RideKey` (a `cameras.Ride{Entity}` of that unit, held `In(camera.Loose)`: the cameras' V takes it
+  on from there; 2026-10-27),
   `Hover` every tick (`control.CursorOver`: the entity under the cursor
   carries `Hovered` until the next tick; `ui.Tagged(Hovered)`). A `Select` hits and unselects
   only what the issuing player owns (`owner.Obeys`). Its routers: `Plugin.Selected(roles...)`
@@ -1061,27 +1063,46 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (forms `"top 1"`, `"stick 3"`: older saves begin afresh). Every camera is saved, in the order
   made. Its commands name their camera,
   so it knows no players: `Pan` (lets go of a fastening), `Zoom`, `Follow{Camera, Entity, On}`
-  (fastens `Centred`), `CenterOn{Camera, Entity}` (once, fastened to nothing; players'
+  (fastens `Centred`; from a ride goes `Centred`, from `Centred` lets go),
+  `CenterOn{Camera, Entity}` (once, fastened to nothing; players'
   `through.LookAt`), `CenterAt{Camera, X, Y}` (once onto the ground there, the cameras' ground
   height, fastened to nothing; a minimap's click), and in relief `View` (Tab, only with
   `Perspective`), `Turn`, `Tilt`
   (`TurnStep` π/72, eighteen to an eighth; `TiltStep` 1°, positive steeper), `Ride`
-  (V: `Centred` → `Behind` → `Inside` → `Centred`), `Look` (the mouse inside), `LookFrom`,
+  (V: `Centred` → `Behind` → `Inside` → `Centred`; a loose camera given `Ride.Entity` goes
+  `Behind` it, the selection's `RideKey`), `Look` (the mouse inside), `LookFrom`,
   `LookAt{Camera, X, Y, Z}`. **The fastening is the camera's** (`camera.Fastening{Entity, How}`,
-  `How` `Loose`/`Centred`/`Behind`/`Inside`, `Outside` all but `Inside`, `HowOf(cam)`), all kept
-  here: `Centred` over the entity, `Behind` (turned until the unit's `Vel.Dir` runs up the screen, the
-  unit in the middle, as near as an arm of `behindArm` 2 cells in either projection — the
-  orthographic scale the perspective's focal length over it — nothing zooming it, the view
-  camera refusing it, the tactical scale and eye height (`viewCamera.tactical`) given back on
-  letting go: behind is no tactical view, the user's word 2026-10-18; in perspective the eye on
-  the arm, R/F leaning it, shortened at once where the cage is not free between, easing back
-  out; the ceiling does not hold it)
+  `How` `Loose`/`Centred`/`Behind`/`Inside`, `Outside` all but `Inside`, `Free` `Loose|Centred`
+  where the hand scrolls, `HowOf(cam)`), all kept
+  here: `Centred` over the entity, `Behind` (the perspective's alone, entered from whatever view
+  the camera stood in — `viewCamera.enterBehind`, false where the Config reaches none, so a
+  camera fastened Behind by hand goes Centred and `Keeper.ride` goes nowhere; turned until the
+  unit's `Vel.Dir` runs up the screen, the unit in the middle, on the arm the settings say:
+  `cameras.Arm{Pitch, Distance, Aim, Tilts, Zooms}`, `Config.Arm` the start, `Settings.Arm`
+  saved, `Hold{Arm}` the settings screen's command, `Read.Arm`/`Write.SetArm` within
+  `LeastPitch`..`MostPitch`, `LeastArm`..`MostArm`, `MostAim`, the keeper reading it through
+  `stick.Arms` (`arms{p}`, radians) and tilting it with `Tilt` where `Tilts`; the eye on the arm
+  at the arm's pitch (`Keeper.hold`), aimed `Aim` of the unit's height up it, shortened at once
+  where the cage is not free between, easing back out; nothing zooming it but `Zoom` drawing the
+  arm where `Zooms` (the camera system), R/F and Tab unbound there; the view it came from given
+  back on letting go — `leaveBehind`: `viewCamera.tactical{scale, length, ortho}`, saved with
+  the camera as "stick 4", the orthographic camera untouched meanwhile, the perspective's pitch
+  floored: behind is no tactical view, the user's word 2026-10-18, and no isometric one, TPP the
+  perspective alone, 2026-10-27; the arm the user's one camera for a Zelda, a racing game or a
+  Warcraft, 2026-10-27)
   and `Inside` (first person: the eye where the unit's `world.Eye` stands, the screen as wide as
   `Eye.Angle`, the mouse looks — `Driven.Look`, the cursor captured by players; up and down it
   writes `Eye.Tilt`, given back on letting go — and a flyer rides: `Driven.Flown`, `Climb`; the
   plugin loads `steering.Driven` itself). Bindings `.In(camera.Inside)` fire riding,
-  `.In(camera.Outside)` the free camera's (Q/E, R/F, Tab, WASD), the arrows
-  `.In(camera.Behind)` drive the followed unit. `cameras.Keys{Up, Down, Left, Right, ZoomIn,
+  `.In(camera.Outside)` Q/E (behind a unit they turn the camera round it as the mouse does),
+  `.In(camera.Free)` R/F, Tab, the scroll keys and the pointer's pans (the edge, the corners,
+  the drag, the grab; the zones drawn there alone), the driving's WSAD and the arrows behind; V
+  is bound only where the Config reaches the perspective. Behind a unit the mouse orbits the camera
+  (`Keeper.orbit`: `Turn(-dx·LookStep)`, `Arms.Tilt(pitch + dy·LookStep)` where the arm `Tilts`,
+  the plugin clamping to `LeastPitch` 5°), the easing back behind the unit only while it moves
+  (`Target.Moving`) and `orbitHold` 1 s after the mouse; the cursor caught there as inside
+  (`players/capture.go` `looksRound`).
+  `cameras.Keys{Up, Down, Left, Right, ZoomIn,
   ZoomOut, ScrollSpeed, Wheel, Drag, Edge, CornersTurn, Grab}` are a player's keys, `DefaultKeys()` W/S/A/D, = and -
   (`ZoomStep` about the cursor), the wheel, the middle drag, the edge (a `Pan`; in a corner of the
   picture — `control.Edges.Corner`, a square of `control.CornerReach` 120 px a side, a quarter of
@@ -1143,9 +1164,17 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`control.Edges.Depth`, 0.25 + 0.75·Depth in `keys.go`). The cameras' own settings section:
   "Scroll zones" (`EdgeScroll{On}`, `Settings.StillEdges` so a zero keeps scrolling,
   `ScrollFromEdges`/`EdgesScroll`: the edge and the corners' turning build nothing while
-  still), "Show the zones" (`Zones{Shown}`) and "Edge scroll speed" (`EdgeSpeed{Speed}`,
-  `Settings.EdgeSpeed`, 2 to 24 px a tick at the very edge, zero the keys' own); the plugin's
-  `DefaultBindings` read them through `Keys.bindings(p)`, a game's own `Keys.Bindings()` does
+  still), "Show the zones" (`Zones{Shown}`) with "Zones opacity" beside it
+  (`ZonesOpacity{Opacity}`, `Settings.ZonesOpacity` 0.05 to 1, `DefaultZonesOpacity` 40 of 255;
+  `control.Range.Beside` lays the slider in the switch's row and `ui.Element.Live` keeps it live
+  while the zones are shown, dimmed and passed by else; 2026-10-27) and "Edge scroll speed"
+  (`EdgeSpeed{Speed}`,
+  `Settings.EdgeSpeed`, 2 to 24 px a tick at the very edge, zero the keys' own) and the arm's
+  rows: "Tilt behind the
+  unit" with "Pitch behind the unit" beside, "Zoom behind the unit" with "Distance behind the
+  unit" beside (each slider live while its switch is on), "Aim behind the unit"
+  (`armSettings`); the plugin's `DefaultBindings` read them through `Keys.bindings(p)`, a game's
+  own `Keys.Bindings()` does
   not. `CursorAtEdge` fires once an `Engine.Update`, before
   the ticks, not once a tick; a demo
   whose WSAD drive binds `cameras.Keys{Wheel, ZoomIn, ZoomOut}` alone. `Keys.Grab` (`Config.Grab`
@@ -1172,12 +1201,15 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   then walks; with no hand it brakes and is let go once it stands or `Keeping.Ordered` — held still
   by a wall it stands at once; `WithTap(d)`: a `Toward` key held no longer than d on a standing unit
   only turns it (`Driven.Held`). `Jump{Camera}` has every unit the hand is on give itself a
-  `gravity.Leap` (`driving.JumpKey(key)`; Space `In(camera.Inside)` among the defaults). Keys are
+  `gravity.Leap` (`driving.JumpKey(key)`; Space `In(Inside | Behind)` among the defaults). Keys
+  are
   sets: `driving.Tank{Ahead, Back, Left, Right, In}` (Left and Right turn), `driving.Shooter{…}`
   (Left and Right strafe, the mouse turns) and `driving.Compass{Up, Down, Left, Right, In}`
-  (`Bindings()`); `DefaultKeys()` a `Shooter` of WSAD `In(camera.Inside)` and a `Tank` of the arrows
-  `In(camera.Behind)`. Depends on `world`, `motion`, `selection`, `board`, `players/owner`,
-  `gravity`.
+  (`Bindings()`); `DefaultKeys()` a `Shooter` of WSAD `In(camera.Inside)`, a `Compass` of WSAD
+  `In(camera.Behind)` (`Toward.Way` turned by the camera's `Headed.Ahead` in `handSystem`,
+  `asScreen`; `Toward.Sprint` with Shift), a `Tank` of the arrows `In(camera.Behind)` (two
+  sticks, 2026-10-27). Depends on `world`, `motion`, `selection`, `board`,
+  `players/owner`, `gravity`.
 - **`gravity`** — bodies falling, standing, leaping (a character controller, not rigid bodies; one
   plugin, two modes, chosen by the pull's axis, not by the world): `gravity.NewPlugin(world, motion,
   Config{Pull})`, its own entity carrying the knob `gravity.Pull{X, Y, Z}` (an effect's `Alter`

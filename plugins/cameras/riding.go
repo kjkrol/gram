@@ -48,10 +48,11 @@ func (r *riding) Of(id uid.UID64) (stick.Target, bool) {
 		z = *at
 	}
 	t := stick.Target{
-		X:     (box.TopLeft.X + box.BottomRight.X) / 2,
-		Y:     (box.TopLeft.Y + box.BottomRight.Y) / 2,
-		Alt:   z.Altitude,
-		Level: z.Top(),
+		X:      (box.TopLeft.X + box.BottomRight.X) / 2,
+		Y:      (box.TopLeft.Y + box.BottomRight.Y) / 2,
+		Alt:    z.Altitude,
+		Level:  z.Top(),
+		Moving: base.Vel.Value > 0,
 	}
 	if n := f32.Hypot(base.Vel.Dir.X, base.Vel.Dir.Y); n > 0 {
 		t.Dir = geom.NewVec(base.Vel.Dir.X/n, base.Vel.Dir.Y/n)

@@ -105,8 +105,11 @@ func main() {
 		Title: "gram board topography",
 		Description: "Madeira in relief, its ground textured as -look says (natural or ghibli), " +
 			"the hour, the date and the weather shown as -hud says (bar: one at the top; " +
-			"widgets: apart, by the corners). Select a unit, C follows it, V rides it: inside, " +
-			"the mouse looks round, W and S walk, A and D strafe, Shift sprints, Space jumps. " +
+			"widgets: apart, by the corners). Select a unit: V follows it from behind in the " +
+			"perspective (W, S, A and D walk it the way the screen lies, the mouse turns the " +
+			"camera round it and tilts it, = and - draw it in and out), again rides inside " +
+			"(the mouse looks round, A and D strafe); Shift sprints, Space jumps; C centres " +
+			"over it, back in the view it was in. " +
 			"The minimap turns with the camera; a click on it takes the camera there.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
@@ -213,6 +216,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		},
 		Tactical: cameras.Knobs{Strategy: cameras.InLayers, Layers: true},
 		Riding:   cameras.Knobs{Strategy: cameras.InLayers, Layers: true},
+		Arm:      cameras.Arm{Pitch: 20, Distance: 3, Aim: 1, Tilts: true, Zooms: true},
 	})
 	a.minimap = minimap.NewPlugin(a.world, a.topography.Write(), minimap.Config{
 		Reach:   scale.Units(12_000),
@@ -229,7 +233,6 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.atmosphere.Write().ShowClouds(atmosphere.AllBodies)
 	a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground: true, Figures: true, High: true})
 	a.cameras.Write().ShowZones(true)
-	a.telemetry.Write().SetMode(telemetry.Extended)
 }
 
 func (a *arena) definePlayers() error {
@@ -339,7 +342,7 @@ func (a *arena) spawn() error {
 		return err
 	}
 	return board.Spawn[unitRow](level, board.Sides{
-		PlayerSide:  {players.Give{To: a.player.ID}, selection.Allow{Selected: true}},
+		PlayerSide:  {players.Give{To: a.player.ID}, selection.Allow{}},
 		RivalSide:   {players.Give{To: a.rival.ID}, selection.Allow{}},
 		ReserveSide: {players.Give{To: a.player.ID}, selection.Allow{}},
 	})

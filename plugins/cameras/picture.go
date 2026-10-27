@@ -82,15 +82,17 @@ func (k Knobs) filled() Knobs {
 // Settings is what the cameras let the players adjust, saved with the game: the scroll zones,
 // the frame budget and the Knobs of each Profile.
 type Settings struct {
-	Zones       bool
-	StillEdges  bool    // the cursor at a picture's edge scrolls nothing
-	EdgeSpeed   float32 // screen pixels a tick at the very edge; zero, the keys' own
-	FrameBudget time.Duration
-	Sampling    time.Duration // the frame rate averaged over this before it is followed
-	Under       float32       // of the budget's rate, under which the picture goes coarser
-	Met         float32       // over which it goes finer
-	Tactical    Knobs
-	Riding      Knobs
+	Zones        bool
+	ZonesOpacity float32 // how opaque at the picture's edge, 0 to 1; zero, the default
+	StillEdges   bool    // the cursor at a picture's edge scrolls nothing
+	EdgeSpeed    float32 // screen pixels a tick at the very edge; zero, the keys' own
+	FrameBudget  time.Duration
+	Sampling     time.Duration // the frame rate averaged over this before it is followed
+	Under        float32       // of the budget's rate, under which the picture goes coarser
+	Met          float32       // over which it goes finer
+	Tactical     Knobs
+	Riding       Knobs
+	Arm          Arm // how a camera is held behind an entity
 }
 
 // knobs are profile's.
@@ -316,8 +318,19 @@ func (p *Plugin) Settings() []control.Setting {
 	}
 	out = append(out,
 		p.knobSettings(Tactical, control.PictureTactical, control.PictureTacticalLayers)...)
-	return append(out,
+	out = append(out,
 		p.knobSettings(Riding, control.PictureRiding, control.PictureRidingLayers)...)
+	out = append(out, control.Range{
+		Label:  "Zones opacity",
+		Beside: "Show the zones",
+		Min:    5,
+		Max:    100,
+		Step:   5,
+		Get:    func() float64 { return math.Round(float64(p.read.ZonesOpacity()) * 100) },
+		Set:    func(v float64) command.Command { return ZonesOpacity{Opacity: float32(v / 100)} },
+		Shows:  percent,
+	})
+	return append(out, p.armSettings()...)
 }
 
 // knobSettings are profile's knobs, the layers' under layersSection, the rest under section

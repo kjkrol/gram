@@ -93,7 +93,7 @@ cgo. Without a GPU the tests that draw skip themselves.
 
 The smallest game that does something: one Stage with a torus of bouncing boxes, a collision
 plugin counting their contacts, and one Scene showing them through a camera from above, the
-telemetry panel over it (~ hides it). This is
+telemetry panel over it (~ shows everything, then hides it). This is
 [`examples/start/minimal`](examples/start/minimal/main.go); run it with `make demo-start-minimal`.
 
 ```go

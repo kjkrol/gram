@@ -170,8 +170,11 @@ func (s *ControlsScene) groups() []group {
 
 func (s *ControlsScene) title() string {
 	for _, pl := range s.p.read.Locals() {
-		if camera.HowOf(pl.pic.camera) == camera.Inside {
+		switch camera.HowOf(pl.pic.camera) {
+		case camera.Inside:
 			return "Controls: first person, riding in the unit"
+		case camera.Behind:
+			return "Controls: third person, behind the unit"
 		}
 	}
 	return "Controls"

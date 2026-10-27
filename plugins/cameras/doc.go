@@ -57,10 +57,15 @@
 // sea level: a pan stops at the edge, and zooming out stops where the screen just fits the world.
 // In perspective the eye stands at the stick's end, the wheel drawing it and the foot towards the
 // cursor; where the cage puts something solid at the eye, it is lifted straight up and let down
-// as the way clears. Behind an entity the eye is held on an arm, shortened where the cage puts
-// something solid between; a camera stands as near as that arm in either projection there,
-// nothing zooming it, and gives its tactical view back on letting go. On a world with a scale
-// the ground far off sinks under the eye's level.
+// as the way clears. Behind an entity the eye is held in the perspective, whatever view the
+// camera stood in, on the arm the settings say ([Arm], Config.Arm: its length in cells, its tilt
+// in degrees, under Config.MinPitch too, and the share of the entity's height it is aimed up
+// at), shortened where the cage puts something solid between, nothing zooming it but the arm's
+// own setting and [View] switching nothing; the view it came from, with its scale and its stick,
+// comes back on letting go, and a camera whose Config reaches no perspective is fastened behind
+// nothing. The mouse turns the camera round the entity and, where the arm lets (Arm.Tilts),
+// tilts it; the camera eases back behind the entity only as it goes on and a second after the
+// mouse. On a world with a scale the ground far off sinks under the eye's level.
 // Riding in an entity the eye is the entity's world.Eye, going with it and looking the way it
 // faces. A camera in relief saved before the stick begins afresh, the log naming it.
 //
@@ -71,7 +76,8 @@
 // screen as it goes, or lets it go; [CenterOn] moves it once onto an entity, [CenterAt] onto the
 // ground at a world point (a click on a minimap), fastened to nothing.
 // In relief [View] switches the projection, [Turn] and [Tilt] move the stick, [Ride] takes it
-// behind and inside the entity it is fastened to, [LookFrom] and [LookAt] place the eye in
+// behind and inside the entity it is fastened to, or behind the entity it names with the camera
+// fastened to nothing, [LookFrom] and [LookAt] place the eye in
 // perspective and [Look] looks round riding, the cursor captured. [Resolution] draws a camera's
 // picture at a factor of its pixels, a layer at a time in layers. Each names its camera, taken
 // from the context by its binding, so the plugin never knows the players. The picture's
@@ -99,9 +105,13 @@
 // and Ctrl+-, with all three and no grab; [Plugin.DefaultBindings] are those, the corners
 // turning and the world grabbed where the Config says, and the views' keys the Config gives: Q
 // and E turning, R looking down more steeply and F flatter, Tab
-// switching between the orthographic view and the perspective, V riding, the mouse looking round
-// inside an entity. The scroll zones and the pictures' resolution have no key: the settings
-// screen sets them.
+// switching between the orthographic view and the perspective and leaving the unit, V riding:
+// behind, inside, over it again, the mouse looking round inside an entity and turning the
+// camera round it behind it; = and - drawing the arm in and out where it lets (Arm.Zooms). The
+// scroll keys, the edge, the corners, the middle drag and the grab hold where the hand is free
+// (camera.Free), not behind or in an entity, where the keys drive it (driving). The scroll
+// zones, their opacity, the arm and the pictures' resolution have no key: the settings screen
+// sets them.
 //
 // # Vocabulary
 //
@@ -114,10 +124,12 @@
 // resolutions), [ShowLayers] (a look: the layers outlined); about every picture: [Budget] (the
 // frame budget), [Zones] (a look: the scroll zones on the glass over every picture, over
 // whatever a scene lays on it), [EdgeScroll] (the cursor at the edge scrolling, or not),
-// [EdgeSpeed] (how fast at the very edge, a quarter of it at the zone's inner bound); [Follow]
+// [EdgeSpeed] (how fast at the very edge, a quarter of it at the zone's inner bound),
+// [ZonesOpacity] (how opaque at the edge), [Hold] (the [Arm] behind an entity); [Follow]
 // (a player's, or an entity's own fastening the camera over itself).
-// Settings ([Settings], saved with the game, in [Resources]): the zones scrolling, shown and
-// their speed, the frame budget, the layers shown and each profile's [Knobs]: the strategy, the
+// Settings ([Settings], saved with the game, in [Resources]): the zones scrolling, shown, their
+// opacity and their speed, the arm behind an entity, the frame budget, the layers shown and each
+// profile's [Knobs]: the strategy, the
 // resolution, the figures at every pixel, the picture drawn in layers, the layers' shares and
 // resolutions.
 package cameras

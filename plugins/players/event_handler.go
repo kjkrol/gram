@@ -58,7 +58,7 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 		mods := pl.in.withHeld(mods)
 		ctx.Mods = mods
 		moved := ev.CursorDelta.X != 0 || ev.CursorDelta.Y != 0
-		if moved && settled && (under || camera.HowOf(pl.pic.camera) == camera.Inside) {
+		if moved && settled && (under || looksRound(pl.pic.camera)) {
 			t.fire(pl, control.CursorMove{}, ctx)
 		}
 		for _, c := range ev.ClickQueue {

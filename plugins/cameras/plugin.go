@@ -57,6 +57,9 @@ type Config struct {
 	// Levers is what else the frame budget turns, coarser before the pictures' resolution and
 	// finer after it, in order: the topography's care.
 	Levers []Lever
+	// how a camera is held behind an entity from the start (Settings.Arm): the arm's pitch,
+	// length and aim, and whether the player leans and draws it; zero, DefaultArm, hands off
+	Arm Arm
 }
 
 // plain is the camera from above that neither turns nor tilts nor sees anything in relief
@@ -78,44 +81,46 @@ const (
 type Plugin struct {
 	*world.Self
 
-	worldPlugin *world.Plugin
-	cfg         Config
-	views       *stick.Control
-	viewCfg     stick.Config
-	ground      func(x, y float32) float32
-	extent      func() (low, high float32)
-	cameras     []camera.Camera
-	saved       [][]byte
-	loaded      bool
-	starts      []starting
-	pans        command.Queue[Pan]
-	zooms       command.Queue[Zoom]
-	follows     command.Queue[Follow]
-	centerOns   command.Queue[CenterOn]
-	centerAts   command.Queue[CenterAt]
-	zones       command.Queue[Zones]
-	edgeScrolls command.Queue[EdgeScroll]
-	edgeSpeeds  command.Queue[EdgeSpeed]
-	sights      command.Queue[Sight]
-	resolutions command.Queue[Resolution]
-	adapts      command.Queue[Adapt]
-	pictures    command.Queue[Picture]
-	sharps      command.Queue[SharpFigures]
-	layers      command.Queue[Layers]
-	layerShares command.Queue[LayerShares]
-	layerRes    command.Queue[LayerResolutions]
-	budgets     command.Queue[Budget]
-	samplings   command.Queue[Sampling]
-	thresholds  command.Queue[Thresholds]
-	levers      []Lever
-	showLayers  command.Queue[ShowLayers]
-	orders      orders
-	zonesView   *zonesView
-	layersView  *layersView
-	adapter     adapter
-	worn        map[camera.Camera]dressed
-	kept        *plugin.Kept[Settings]
-	module      *module
+	worldPlugin    *world.Plugin
+	cfg            Config
+	views          *stick.Control
+	viewCfg        stick.Config
+	ground         func(x, y float32) float32
+	extent         func() (low, high float32)
+	cameras        []camera.Camera
+	saved          [][]byte
+	loaded         bool
+	starts         []starting
+	pans           command.Queue[Pan]
+	zooms          command.Queue[Zoom]
+	follows        command.Queue[Follow]
+	centerOns      command.Queue[CenterOn]
+	centerAts      command.Queue[CenterAt]
+	zones          command.Queue[Zones]
+	edgeScrolls    command.Queue[EdgeScroll]
+	edgeSpeeds     command.Queue[EdgeSpeed]
+	zonesOpacities command.Queue[ZonesOpacity]
+	holds          command.Queue[Hold]
+	sights         command.Queue[Sight]
+	resolutions    command.Queue[Resolution]
+	adapts         command.Queue[Adapt]
+	pictures       command.Queue[Picture]
+	sharps         command.Queue[SharpFigures]
+	layers         command.Queue[Layers]
+	layerShares    command.Queue[LayerShares]
+	layerRes       command.Queue[LayerResolutions]
+	budgets        command.Queue[Budget]
+	samplings      command.Queue[Sampling]
+	thresholds     command.Queue[Thresholds]
+	levers         []Lever
+	showLayers     command.Queue[ShowLayers]
+	orders         orders
+	zonesView      *zonesView
+	layersView     *layersView
+	adapter        adapter
+	worn           map[camera.Camera]dressed
+	kept           *plugin.Kept[Settings]
+	module         *module
 
 	Res   Resources
 	read  Read
@@ -139,7 +144,11 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	p.layersView = &layersView{drawnSettings{live: &p.Res.Settings}}
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.levers = cfg.Levers
-	p.Res.Settings = Settings{Tactical: cfg.Tactical.filled(), Riding: cfg.Riding.filled()}
+	p.Res.Settings = Settings{
+		Tactical: cfg.Tactical.filled(),
+		Riding:   cfg.Riding.filled(),
+		Arm:      cfg.Arm.filled().bounded(),
+	}
 	p.write.SetBudget(cfg.FrameBudget)
 	p.write.SetSampling(DefaultSampling)
 	p.write.SetThresholds(DefaultUnder, DefaultMet)
@@ -363,6 +372,10 @@ func (p *Plugin) Restore() {
 	s := &p.Res.Settings
 	s.Tactical = s.Tactical.filled()
 	s.Riding = s.Riding.filled()
+	if s.Arm == (Arm{}) { // a save from before the arm: the Config's
+		s.Arm = p.cfg.Arm
+	}
+	s.Arm = s.Arm.filled().bounded()
 	p.adapter = adapter{}
 	p.write.SetBudget(s.FrameBudget)
 	p.write.SetSampling(s.Sampling)

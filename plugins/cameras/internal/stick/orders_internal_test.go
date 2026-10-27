@@ -3,11 +3,15 @@ package stick
 import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/uid"
 )
 
 type (
-	View      struct{ Camera camera.Camera }
-	Ride      struct{ Camera camera.Camera }
+	View struct{ Camera camera.Camera }
+	Ride struct {
+		Camera camera.Camera
+		Entity uid.UID64
+	}
 	TurnOrder struct {
 		Camera camera.Camera
 		Angle  float32
@@ -83,8 +87,8 @@ func (q queued) LookAts(fn func(camera.Camera, float32, float32, float32)) {
 	drain(q.lookAts, func(i command.Issued[LookAt]) { fn(i.Command.Camera, i.Command.X, i.Command.Y, i.Command.Z) })
 }
 
-func (q queued) Rides(fn func(camera.Camera)) {
-	drain(q.rides, func(i command.Issued[Ride]) { fn(i.Command.Camera) })
+func (q queued) Rides(fn func(camera.Camera, uid.UID64)) {
+	drain(q.rides, func(i command.Issued[Ride]) { fn(i.Command.Camera, i.Command.Entity) })
 }
 
 func (q queued) Looks(fn func(camera.Camera, float32, float32)) {

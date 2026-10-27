@@ -39,12 +39,17 @@ func (c *installCtx) Setup(providers ...goke.SetupProvider) {
 		c.pending = append(c.pending, p.SetupSystems)
 	}
 }
-func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
-func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
-func (c *installCtx) Hosts(...host.Host)                              {}
-func (c *installCtx) Draws(...render.Source)                          {}
-func (c *installCtx) Looks(func())                                    {}
-func (*installCtx) Pool() *parallel.Pool                              { return nil }
+
+func (c *installCtx) RegSys(
+	factory func() goke.System,
+) goke.Runnable {
+	return c.ecs.RegSys(factory())
+}
+func (c *installCtx) ECS() *goke.ECS         { return c.ecs }
+func (c *installCtx) Hosts(...host.Host)     {}
+func (c *installCtx) Draws(...render.Source) {}
+func (c *installCtx) Looks(func())           {}
+func (*installCtx) Pool() *parallel.Pool     { return nil }
 
 type camp struct {
 	t        *testing.T
@@ -60,12 +65,16 @@ type camp struct {
 	q        *goke.Query
 }
 
-func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float32]) []kind.Entry) *camp {
+// a camp of two players with the cameras cfg makes (plain ones, or in relief with Turn), the one
+// looking through a camera from above over a flat world, C bound
+func newCamp(t *testing.T, cfg cameras.Config,
+	entries func(c *camp, unit kind.Of[float32]) []kind.Entry) *camp {
 	t.Helper()
 	c := &camp{t: t}
 	c.w = world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 10, MaxSize: 10},
+		Heights:  cfg.Turn,
 	})
 	kind.Define[float32](c.w.Kinds(), "unit", kind.Spec{
 		comp.Load(func(x float32) world.Position {
@@ -75,7 +84,7 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float32]) []kind.E
 	})
 	unit := kind.Named[float32](c.w.Kinds(), "unit")
 	c.sel = selection.NewPlugin(c.w)
-	c.cams = cameras.NewPlugin(c.w, cameras.Config{})
+	c.cams = cameras.NewPlugin(c.w, cfg)
 	c.players = players.NewPlugin(c.w, c.cams, c.sel)
 	cam := c.cams.Write().New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(200, 200)
@@ -100,7 +109,10 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float32]) []kind.E
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
 	}
-	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) { c.q = si.NewQueryBuilder(&c.base).Build() }})
+	systems = append(
+		systems,
+		goke.SystemFn{OnInit: func(si *goke.SysInit) { c.q = si.NewQueryBuilder(&c.base).Build() }},
+	)
 	c.ecs = ctx.ecs
 	c.ecs.Setup(systems...)
 	c.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
@@ -120,10 +132,13 @@ func (c *camp) look(cam camera.Camera) {
 	c.wire.Over(geom.AABB{}, render.NewFeed(cam, nil))
 }
 
-func (c *camp) pressC() {
+func (c *camp) pressC() { c.press(control.KeyC) }
+func (c *camp) pressV() { c.press(control.KeyV) }
+
+func (c *camp) press(key control.Key) {
 	ev := &control.InputEvents{}
-	ev.AddKeyEvent(control.KeyC, control.ActionPress)
-	ev.AddKeyEvent(control.KeyC, control.ActionRelease)
+	ev.AddKeyEvent(key, control.ActionPress)
+	ev.AddKeyEvent(key, control.ActionRelease)
 	c.players.EventHandler().HandleEvents(ev)
 	c.tick()
 }
@@ -167,13 +182,18 @@ func twoUnits(c *camp, unit kind.Of[float32]) []kind.Entry {
 }
 
 func TestFollow_FastensTheCameraOverTheOneSelectedUnitAndKeepsItCentred(t *testing.T) {
-	c := newCamp(t, twoUnits)
+	c := newCamp(t, cameras.Config{}, twoUnits)
 	mine := c.ids()[100]
 	c.w.Write().Carrier().Put(c.one.ID, selection.Select{IDs: []uid.UID64{mine}})
 	c.tick()
 	c.pressC()
-	if f := fastening(c); f != (camera.Fastening{Entity: mine, How: camera.Centred}) || !centred(c, 100, 100) {
-		t.Fatalf("after C: fastened %+v, centred %v; want Centred over the unit", f, centred(c, 100, 100))
+	if f := fastening(c); f != (camera.Fastening{Entity: mine, How: camera.Centred}) ||
+		!centred(c, 100, 100) {
+		t.Fatalf(
+			"after C: fastened %+v, centred %v; want Centred over the unit",
+			f,
+			centred(c, 100, 100),
+		)
 	}
 	c.moveTo(mine, 500, 420)
 	c.tick()
@@ -192,8 +212,11 @@ func TestFollow_FastensTheCameraOverTheOneSelectedUnitAndKeepsItCentred(t *testi
 }
 
 func TestFollow_PanLetsGoAndSeveralOrAnothersSelectedFastenNone(t *testing.T) {
-	c := newCamp(t, func(c *camp, unit kind.Of[float32]) []kind.Entry {
-		return append(twoUnits(c, unit), unit.Entry(300).Told(players.Give{To: c.one.ID}, selection.Allow{}))
+	c := newCamp(t, cameras.Config{}, func(c *camp, unit kind.Of[float32]) []kind.Entry {
+		return append(
+			twoUnits(c, unit),
+			unit.Entry(300).Told(players.Give{To: c.one.ID}, selection.Allow{}),
+		)
 	})
 	ids := c.ids()
 	c.w.Write().Carrier().Put(c.one.ID, selection.Select{IDs: []uid.UID64{ids[100]}})
@@ -217,15 +240,21 @@ func TestFollow_PanLetsGoAndSeveralOrAnothersSelectedFastenNone(t *testing.T) {
 }
 
 func TestFollow_ToldAtSpawnFastensTheCameraUntilTheUnitIsGone(t *testing.T) {
-	c := newCamp(t, func(c *camp, unit kind.Of[float32]) []kind.Entry {
+	c := newCamp(t, cameras.Config{}, func(c *camp, unit kind.Of[float32]) []kind.Entry {
 		return []kind.Entry{
-			unit.Entry(100).Told(players.Give{To: c.one.ID}, cameras.Follow{Camera: c.cam, On: true}),
+			unit.Entry(100).
+				Told(players.Give{To: c.one.ID}, cameras.Follow{Camera: c.cam, On: true}),
 			unit.Entry(300).Told(cameras.Follow{}),
 		}
 	})
 	mine := c.ids()[100]
-	if f := fastening(c); f != (camera.Fastening{Entity: mine, How: camera.Centred}) || !centred(c, 100, 100) {
-		t.Fatalf("one's camera is fastened %+v, centred %v; want Centred over the unit told Follow", f, centred(c, 100, 100))
+	if f := fastening(c); f != (camera.Fastening{Entity: mine, How: camera.Centred}) ||
+		!centred(c, 100, 100) {
+		t.Fatalf(
+			"one's camera is fastened %+v, centred %v; want Centred over the unit told Follow",
+			f,
+			centred(c, 100, 100),
+		)
 	}
 	c.w.Write().Carrier().PutFrom(mine, world.Despawn{})
 	c.tick()
@@ -235,13 +264,17 @@ func TestFollow_ToldAtSpawnFastensTheCameraUntilTheUnitIsGone(t *testing.T) {
 }
 
 func TestLookAt_CentresTheCameraOnceAndLetsGo(t *testing.T) {
-	c := newCamp(t, twoUnits)
+	c := newCamp(t, cameras.Config{}, twoUnits)
 	far := c.ids()[200]
 	c.moveTo(far, 700, 600)
 	c.w.Write().Carrier().Put(c.one.ID, cameras.CenterOn{Camera: c.cam, Entity: far})
 	c.tick()
 	if !centred(c, 700, 600) || fastening(c) != (camera.Fastening{}) {
-		t.Fatalf("after LookAt: centred %v, fastened %+v; want centred and loose", centred(c, 700, 600), fastening(c))
+		t.Fatalf(
+			"after LookAt: centred %v, fastened %+v; want centred and loose",
+			centred(c, 700, 600),
+			fastening(c),
+		)
 	}
 	c.moveTo(far, 300, 300)
 	c.tick()
@@ -251,7 +284,7 @@ func TestLookAt_CentresTheCameraOnceAndLetsGo(t *testing.T) {
 }
 
 func TestNew_ACameraStartsFastenedToTheEntityItsConfigNames(t *testing.T) {
-	c := newCamp(t, func(c *camp, unit kind.Of[float32]) []kind.Entry {
+	c := newCamp(t, cameras.Config{}, func(c *camp, unit kind.Of[float32]) []kind.Entry {
 		return []kind.Entry{unit.Entry(100), unit.Entry(300).Named("scout")}
 	})
 	scout := c.ids()[300]
@@ -365,7 +398,9 @@ func TestResolution_StepsTheCamerasResolutionAndAdaptStopsOrStartsFollowingTheBu
 		t.Errorf("after the key the strategy is %v at %v, want Still, the Settings noting 0.85",
 			p.Read(0).Strategy(cameras.Tactical), p.Read(0).Resolution(cameras.Tactical))
 	}
-	w.Write().Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: 1 / cameras.ResolutionStep})
+	w.Write().
+		Carrier().
+		Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: 1 / cameras.ResolutionStep})
 	tick()
 	if got := camera.ResolutionOf(cam); f32.Abs(float32(got-1)) > 1e-6 {
 		t.Errorf("after a finer step back the camera is drawn at %v, want 1", got)
@@ -386,7 +421,9 @@ func TestResolution_StepsTheCamerasResolutionAndAdaptStopsOrStartsFollowingTheBu
 		"following a budget of 60 FPS" {
 		t.Errorf("after Adapt the telemetry says %q, want the resolution following the budget", got)
 	}
-	w.Write().Carrier().Put(command.Nobody, cameras.Resolution{Camera: minimap, Factor: cameras.ResolutionStep})
+	w.Write().
+		Carrier().
+		Put(command.Nobody, cameras.Resolution{Camera: minimap, Factor: cameras.ResolutionStep})
 	tick()
 	if got := camera.ResolutionOf(minimap); got != 1 {
 		t.Errorf("a minimap's camera stepped coarser is drawn at %v, want all its pixels", got)
@@ -487,8 +524,12 @@ func TestAdapt_FromLayersStillGoesOnFollowingInTheLayersAsTheyAre(t *testing.T) 
 	w.Write().Carrier().Put(command.Nobody, cameras.Layers{Profile: cameras.Tactical, On: false})
 	tick()
 	if p.Read(0).Strategy(cameras.Tactical) != cameras.Still || len(camera.LayersOf(cam)) != 0 {
-		t.Errorf("the layers switched off under InLayers leave the strategy %v and %d layers, want "+
-			"Still and none", p.Read(0).Strategy(cameras.Tactical), len(camera.LayersOf(cam)))
+		t.Errorf(
+			"the layers switched off under InLayers leave the strategy %v and %d layers, want "+
+				"Still and none",
+			p.Read(0).Strategy(cameras.Tactical),
+			len(camera.LayersOf(cam)),
+		)
 	}
 }
 
@@ -532,8 +573,11 @@ func TestLayerShares_ShapeEveryCamerasLayersAndTheMiddleStaysOverTheInner(t *tes
 	for i, cam := range []camera.Camera{one, two} {
 		layers := camera.LayersOf(cam)
 		if len(layers) != 3 || layers[1].Share != 0.5 || layers[2].Share != 0.3 {
-			t.Errorf("camera %d is drawn in %v, want the middle layer at 50%% and the inner at 30%%",
-				i, layers)
+			t.Errorf(
+				"camera %d is drawn in %v, want the middle layer at 50%% and the inner at 30%%",
+				i,
+				layers,
+			)
 		}
 	}
 	if got := report(p); got != "Picture: tactical\n0.60/0.80/1.00, 0.60/0.80/1.00 of the pixels"+
@@ -584,5 +628,139 @@ func TestRedraw_NotesTheLeadCamerasResolutionsIntoTheSettings(t *testing.T) {
 	}
 	if got := camera.ResolutionOf(lead); got != cameras.ResolutionStep {
 		t.Errorf("under Uniform a coarser step draws the lead camera at %v, want 0.85", got)
+	}
+}
+
+func TestFollow_FromARidingModeFastensCentredOverTheChosenUnit(t *testing.T) {
+	c := newCamp(t, cameras.Config{}, twoUnits)
+	ids := c.ids()
+	mine := ids[100]
+	c.w.Write().Carrier().Put(c.one.ID, selection.Select{IDs: []uid.UID64{mine}})
+	c.tick()
+	c.cam.(camera.Fastenable).Fasten(camera.Fastening{Entity: mine, How: camera.Behind})
+	c.pressC()
+	if f := fastening(c); f != (camera.Fastening{Entity: mine, How: camera.Centred}) {
+		t.Fatalf("C behind the unit: fastened %+v, want Centred over it", f)
+	}
+	c.pressC()
+	if f := fastening(c); f != (camera.Fastening{}) {
+		t.Fatalf("C over the unit: fastened %+v, want let go", f)
+	}
+	c.cam.(camera.Fastenable).Fasten(camera.Fastening{Entity: ids[200], How: camera.Inside})
+	c.pressC()
+	if f := fastening(c); f != (camera.Fastening{Entity: mine, How: camera.Centred}) {
+		t.Errorf("C inside another's unit: fastened %+v, want Centred over the one chosen", f)
+	}
+}
+
+func TestRideKey_FastensALooseCameraBehindTheChosenUnitAndVGoesOn(t *testing.T) {
+	c := newCamp(
+		t,
+		cameras.Config{Turn: true, Perspective: true, Cell: 32},
+		func(c *camp, unit kind.Of[float32]) []kind.Entry {
+			return append(twoUnits(c, unit),
+				unit.Entry(300).Told(players.Give{To: c.one.ID}, selection.Allow{}))
+		},
+	)
+	if err := c.one.Bind(c.sel.RideKey(control.KeyV)); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.one.Bind(c.cams.DefaultBindings()...); err != nil {
+		t.Fatal(err)
+	}
+	ids := c.ids()
+	mine := ids[100]
+	c.pressV()
+	if f := fastening(c); f != (camera.Fastening{}) {
+		t.Fatalf("V with nothing selected fastened %+v, want nothing", f)
+	}
+	c.w.Write().Carrier().Put(c.one.ID, selection.Select{IDs: []uid.UID64{mine}})
+	c.tick()
+	c.pressV()
+	if f := fastening(c); f != (camera.Fastening{Entity: mine, How: camera.Behind}) ||
+		!centred(c, 100, 100) {
+		t.Fatalf("V with the camera loose: fastened %+v, centred %v; want Behind the unit chosen",
+			f, centred(c, 100, 100))
+	}
+	c.pressV()
+	if f := fastening(c); f != (camera.Fastening{Entity: mine, How: camera.Inside}) {
+		t.Fatalf("V behind the unit: fastened %+v, want inside it", f)
+	}
+	c.pressV()
+	if f := fastening(c); f != (camera.Fastening{Entity: mine, How: camera.Centred}) {
+		t.Fatalf("V inside the unit: fastened %+v, want over it again", f)
+	}
+	c.pressC()
+	if f := fastening(c); f != (camera.Fastening{}) {
+		t.Fatalf("C over the unit: fastened %+v, want let go", f)
+	}
+	c.w.Write().Carrier().Put(c.one.ID, selection.Select{IDs: []uid.UID64{mine, ids[300]}})
+	c.tick()
+	c.pressV()
+	if f := fastening(c); f != (camera.Fastening{}) {
+		t.Errorf("V with two selected fastened %+v, want nothing", f)
+	}
+}
+
+func TestRide_BehindIsThePerspectiveAndLettingGoGivesTheViewBack(t *testing.T) {
+	c := newCamp(t, cameras.Config{Turn: true, Perspective: true, Cell: 32}, twoUnits)
+	mine := c.ids()[100]
+	tactical := c.cam.Zoom()
+	c.w.Write().Carrier().Put(c.one.ID, cameras.Ride{Camera: c.cam, Entity: mine})
+	c.tick()
+	if _, _, _, eyed := c.cam.(camera.Eyed).Eye(); !eyed ||
+		fastening(c) != (camera.Fastening{Entity: mine, How: camera.Behind}) {
+		t.Fatalf("V with the camera loose: in perspective %v, fastened %+v; want the perspective "+
+			"behind the unit", eyed, fastening(c))
+	}
+	c.w.Write().Carrier().Put(c.one.ID, cameras.View{Camera: c.cam})
+	c.tick()
+	if _, _, _, eyed := c.cam.(camera.Eyed).Eye(); !eyed {
+		t.Error("Tab behind the unit left the perspective")
+	}
+	c.w.Write().Carrier().Put(c.one.ID, cameras.Follow{Camera: c.cam, Entity: mine, On: false})
+	c.tick()
+	if _, _, _, eyed := c.cam.(camera.Eyed).Eye(); eyed || c.cam.Zoom() != tactical ||
+		fastening(c) != (camera.Fastening{}) {
+		t.Errorf("let go: in perspective %v, zoom %v, fastened %+v; want the orthographic view "+
+			"back at %v, fastened to nothing", eyed, c.cam.Zoom(), fastening(c), tactical)
+	}
+}
+
+func TestHold_SetsTheArmWithinItsBoundsAndTheZoomKeysDrawItWhereAllowed(t *testing.T) {
+	c := newCamp(t, cameras.Config{Turn: true, Perspective: true, Cell: 32}, twoUnits)
+	mine := c.ids()[100]
+	c.w.Write().Carrier().Put(c.one.ID, cameras.Hold{Arm: cameras.Arm{
+		Pitch:    200,
+		Distance: 0.1,
+		Aim:      9,
+		Tilts:    true,
+	}})
+	c.tick()
+	want := cameras.Arm{Pitch: cameras.MostPitch, Distance: cameras.LeastArm, Aim: cameras.MostAim,
+		Tilts: true}
+	if got := c.cams.Read(0).Arm(); got != want {
+		t.Fatalf("held %+v, want it within the bounds, %+v", got, want)
+	}
+	c.w.Write().Carrier().Put(c.one.ID, selection.Select{IDs: []uid.UID64{mine}})
+	c.tick()
+	c.cam.(camera.Fastenable).Fasten(camera.Fastening{Entity: mine, How: camera.Behind})
+	c.w.Write().Carrier().Put(c.one.ID, cameras.Hold{Arm: cameras.Arm{Pitch: 30, Distance: 2}})
+	c.w.Write().Carrier().Put(c.one.ID, cameras.Zoom{Camera: c.cam, Factor: 2})
+	c.tick()
+	if got := c.cams.Read(0).Arm().Distance; got != 2 {
+		t.Errorf("zoomed behind the unit with the zoom keys off, the arm is %v long, want 2", got)
+	}
+	c.w.Write().Carrier().Put(c.one.ID, cameras.Hold{Arm: cameras.Arm{Pitch: 30, Distance: 2,
+		Zooms: true}})
+	c.w.Write().Carrier().Put(c.one.ID, cameras.Zoom{Camera: c.cam, Factor: 2})
+	c.tick()
+	if got := c.cams.Read(0).Arm().Distance; got != 1 {
+		t.Errorf("zoomed in behind the unit, the arm is %v long, want 1", got)
+	}
+	c.w.Write().Carrier().Put(c.one.ID, cameras.Zoom{Camera: c.cam, Factor: 0.25})
+	c.tick()
+	if got := c.cams.Read(0).Arm().Distance; got != 4 {
+		t.Errorf("zoomed out four times behind the unit, the arm is %v long, want 4", got)
 	}
 }

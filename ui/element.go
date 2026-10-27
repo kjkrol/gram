@@ -17,6 +17,7 @@ type Element struct {
 	hidden   bool
 	holds    bool
 	passing  bool
+	live     func() bool // nil, always
 	w, h     float32
 	fw, fh   float32
 	margin   float32
@@ -61,6 +62,27 @@ func (e *Element) absent() bool {
 }
 
 func (e *Element) gone() bool { return e.shut() || e.absent() }
+
+// Live has the element, and everything in it, live while on says so, read every frame: else it
+// is drawn dimmed and the pointer passes it by, a slider beside a checkbox that is off.
+func (e *Element) Live(on func() bool) *Element {
+	e.live = on
+	for _, c := range e.children {
+		if c.live == nil {
+			c.Live(on)
+		}
+	}
+	return e
+}
+
+// dead reports whether the element is dimmed and passed by: as published, as its own Live says
+// before any was
+func (e *Element) dead() bool {
+	if f := e.front(); f != nil {
+		return f.dead[e]
+	}
+	return e.live != nil && !e.live()
+}
 
 // front is what the element's scene published last, nil before any was
 func (e *Element) front() *published { return e.d.front() }
@@ -178,7 +200,7 @@ func (e *Element) Box() geom.AABB { return e.box }
 func (e *Element) Hits(p geom.Vec) bool { return e.hits(p, false) }
 
 func (e *Element) hits(p geom.Vec, passing bool) bool {
-	if e.shut() {
+	if e.shut() || e.dead() {
 		return false
 	}
 	if e.pin != nil {
