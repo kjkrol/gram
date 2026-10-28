@@ -20,6 +20,21 @@ import (
 // leaves it, before it counts as held.
 const StallAfter = time.Second
 
+// TrailMemory is how long a unit goes on trailing one it last struck.
+const TrailMemory = 500 * time.Millisecond
+
+// the longest a wait on one trailed is no stall
+const maxTrailWait = 3 * time.Second
+
+// whether o still waits on the one it trails: while the way they lawfully make in the wait is
+// under span, a cell's shorter side, and maxTrailWait at most
+func trailing(o *order.MoveOrder, span float32) bool {
+	if o.TrailFor <= 0 || o.Trailed >= maxTrailWait {
+		return false
+	}
+	return o.TrailPace <= 0 || float32(o.Trailed.Seconds())*o.TrailPace < span
+}
+
 const maxStalls = 5
 
 const asideTime = 400 * time.Millisecond
@@ -45,6 +60,7 @@ type BodyKeeping struct {
 	ground  func() ground.Heights // nil, or giving nil: level
 	index   bodies.Index
 	avoid   avoiding
+	span    float32 // a cell's shorter side
 	// the one takes asks about and whether every cell so far takes it
 	taker bodies.Member
 	taken bool
@@ -63,6 +79,8 @@ func NewBodyKeeping(finder *Finder, space *aabbworld.Space, ground func() ground
 		ground:  ground,
 		index:   bodies.NewIndex(finder.grid),
 	}
+	w, h := finder.grid.CellBounds()
+	k.span = min(w, h)
 	k.take = k.takeCell
 	k.avoid.bind(finder, &Answers{})
 	return k
@@ -199,8 +217,12 @@ func (k *BodyKeeping) Lost(m bodies.Member, from cell.ID, o *order.MoveOrder, wa
 	return 0, order.Path{}, false, false
 }
 
-// while m steps round someone it struck, or touches someone, it never moves into them
+// while m steps round someone it struck, or touches someone, it never moves into them; trailing
+// someone, it goes no faster than they go its way
 func (k *BodyKeeping) Steer(m bodies.Member, st steering.Helm, dir geom.Vec, speed float32) {
+	if o := m.Order; o != nil && o.TrailFor > 0 {
+		speed = k.trail(m, o.Trailing, dir, speed)
+	}
 	if o := m.Order; o != nil && o.AsideFor > 0 {
 		if o.Aside == (geom.Vec{}) {
 			speed = 0
@@ -228,6 +250,24 @@ func (k *BodyKeeping) Steer(m bodies.Member, st steering.Helm, dir geom.Vec, spe
 		st.Request(dir)
 	}
 	st.RequestSpeed(speed)
+}
+
+// no more than the ground speed of whom m trails along dir, or along its facing with none: a
+// speed is asked before the ground's share, which motion scales it by
+func (k *BodyKeeping) trail(m bodies.Member, whom uid.UID64, dir geom.Vec, speed float32) float32 {
+	b, ok := k.index.Of(whom)
+	if !ok || m.Share <= 0 {
+		return speed
+	}
+	if dir == (geom.Vec{}) {
+		dir = m.Facing
+	}
+	n := f32.Hypot(dir.X, dir.Y)
+	if n == 0 {
+		return speed
+	}
+	along := max(0, (b.Vel.X*dir.X+b.Vel.Y*dir.Y)/n)
+	return min(speed, along/m.Share)
 }
 
 // the way and speed that keep clear of one touched, n leading off them: facing into them it turns
@@ -271,18 +311,25 @@ func (k *BodyKeeping) Watch(m bodies.Member, o *order.MoveOrder, toward cell.ID,
 		o.Stalls = 0
 	}
 	if toward != o.Toward || o.Closest == 0 && o.Stalled == 0 {
-		o.Toward, o.Closest, o.Stalled = toward, dist, 0
+		o.Toward, o.Closest, o.Stalled, o.Trailed = toward, dist, 0, 0
 		return
 	}
-	// headway is a quarter of the way the ground lawfully lets it make in StallAfter, at most a
-	// quarter of its body
-	need := min(min(m.Pos.Size.X, m.Pos.Size.Y)/4,
-		m.MaxSpeed*m.Share*float32(StallAfter.Seconds())/4)
+	// headway is a quarter of the way the ground lawfully lets it make in StallAfter, no more than
+	// the one it trails lawfully makes, and at most a quarter of its body
+	pace := m.MaxSpeed * m.Share
+	if o.TrailFor > 0 {
+		pace = min(pace, o.TrailPace)
+	}
+	need := min(min(m.Pos.Size.X, m.Pos.Size.Y)/4, pace*float32(StallAfter.Seconds())/4)
 	if dist < o.Closest-need {
-		o.Closest, o.Stalled = dist, 0
+		o.Closest, o.Stalled, o.Trailed = dist, 0, 0
 		return
 	}
 	if m.Share == 0 { // the ground refusing the step is no stall of the unit's
+		return
+	}
+	if trailing(o, k.span) {
+		o.Trailed += d
 		return
 	}
 	if o.Stalled += d; o.Stalled >= StallAfter {

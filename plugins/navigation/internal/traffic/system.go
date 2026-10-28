@@ -348,6 +348,7 @@ func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 
 	o.Cooldown = max(o.Cooldown-d, 0)
 	o.Retry = max(o.Retry-d, 0)
+	o.TrailFor = max(o.TrailFor-d, 0)
 	if o.Bumped {
 		o.Bumped = false
 		answer := s.keep.Bump(w.m, o)
@@ -805,6 +806,11 @@ func (s *System) fire(tick host.Tick, hosted bool, self, other bodies.Body, way 
 		GivingWay: self.GivingWay, OtherGivingWay: other.GivingWay, LastGoal: self.LastGoal,
 		Ally: owner.Allies(self.Owners, other.Owners), Groupmate: self.Group != 0 && self.Group == other.Group,
 		HeadOn: head && self.Moving && other.Moving, WaitedOut: self.WaitedOut, Cornered: self.Cornered}
+	// way leads self off other, so other lies against it
+	t.Ahead = way.X*self.Facing.X+way.Y*self.Facing.Y < 0
+	t.Along = other.Vel.X*self.Facing.X+other.Vel.Y*self.Facing.Y > 0
+	t.SameWay = other.Facing.X*self.Facing.X+other.Facing.Y*self.Facing.Y > 0
+	t.OtherTrailing = other.Trailing
 	if self.Moving {
 		t.OnMyGoal = s.keep.OnGoal(self, other)
 		if !other.Moving {
@@ -886,6 +892,17 @@ func (s *System) carryOut(m bodies.Member, o *order.MoveOrder, st steering.Helm,
 			if other, ok := s.keep.Other(t.settleBeside); ok {
 				s.keep.Settle(m, o, other)
 			}
+		case t.trail:
+			if other, ok := s.keep.Other(t.trailOf); ok {
+				if o.TrailFor == 0 { // a renewal goes on with the wait, a new trail starts it
+					o.Trailed = 0
+				}
+				o.Trailing, o.TrailFor = other.ID, spacing.TrailMemory
+				o.TrailPace = other.MaxSpeed * other.Share
+				if other.Trailing { // a queue goes at the pace of its head
+					o.TrailPace = min(o.TrailPace, other.TrailPace)
+				}
+			}
 		}
 	}
 	if o.Holding <= 0 {
@@ -943,10 +960,15 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 		bases, orders, movers := s.base.Slice(cursor), s.order.Slice(cursor), s.mover.Slice(cursor)
 		cells, owned, lasts := s.cell.Slice(cursor), s.owners.Slice(cursor), s.lastOrder.Slice(cursor)
 		zs, minded := s.z.Slice(cursor), s.mind.Slice(cursor) != nil
+		steers, paces := s.steer.Slice(cursor), s.pace.Slice(cursor)
 		for i, id := range cursor.IDs {
 			pos := bases[i].Pos
 			b := bodies.Body{ID: id, At: pos.Center(), Half: geom.NewVec(pos.Size.X/2, pos.Size.Y/2), Vel: bases[i].Vel.Delta(), Domain: unit.DomainAt(movers, i),
 				Moving: orders != nil, Cell: cells[i].Cell, Minded: minded, Facing: bases[i].Vel.Dir}
+			b.Share, b.MaxSpeed = 1, steers[i].MaxSpeed
+			if paces != nil {
+				b.Share = paces[i].Share
+			}
 			if zs != nil {
 				b.Z = zs[i]
 			}
@@ -960,6 +982,7 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 				o := &orders[i]
 				b.GivingWay, b.Goal, b.Spot, b.LastGoal = o.GivingWay, o.Target, s.goal(o.Target, o.Spot), o.Queued == 0
 				b.WaitedOut, b.Cornered = o.WaitedOut, o.Cornered
+				b.Trailing, b.TrailPace = o.TrailFor > 0, o.TrailPace
 				if o.Group != 0 {
 					b.Group = o.Group
 				}

@@ -63,6 +63,11 @@ type MoveOrder struct {
 	Holding   time.Duration
 	WaitedOut bool
 	Cornered  bool
+	// Trailing is whom the entity follows for TrailFor more, no faster than they go; TrailPace is
+	// the ground speed they lawfully make, Trailed how long it has followed them without headway.
+	Trailing          uid.UID64
+	TrailFor, Trailed time.Duration
+	TrailPace         float32
 	// Face is the world point the entity turns towards once it has arrived; zero turns it nowhere.
 	Face geom.Vec
 	// Group is the MoveTo that gave the order, one number to every unit it sent; zero, none.

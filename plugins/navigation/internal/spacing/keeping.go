@@ -225,6 +225,7 @@ type CellKeeping struct {
 	who    holders // nil: nobody is asked off a cell
 	index  bodies.Index
 	avoid  avoiding
+	span   float32 // a cell's shorter side
 	// whom held answers for, through the method value bound once
 	holder   uid.UID64
 	holderIn cell.Domain
@@ -237,6 +238,8 @@ var _ Keeping = (*CellKeeping)(nil)
 // NewCellKeeping keeps the units in cells of their own over finder's board and occ.
 func NewCellKeeping(finder *Finder, occ cell.Occupancy) *CellKeeping {
 	k := &CellKeeping{finder: finder, occ: occ, index: bodies.NewIndex(finder.grid)}
+	w, h := finder.grid.CellBounds()
+	k.span = min(w, h)
 	k.who, _ = occ.(holders)
 	k.avoid.bind(finder, &Answers{})
 	k.heldBy = k.isHeld
@@ -347,22 +350,27 @@ func (k *CellKeeping) Steer(_ bodies.Member, st steering.Helm, dir geom.Vec, spe
 
 func (k *CellKeeping) Watch(m bodies.Member, o *order.MoveOrder, _ cell.ID, _ geom.Vec,
 	_ time.Duration) {
-	o.Stalled = 0
+	o.Stalled, o.Trailed = 0, 0
 	if m.Cell == o.Toward {
 		o.Stalls = 0
 	}
 }
 
-// Held after stallAfter is the last word against rules that never move the unit
+// Held after stallAfter is the last word against rules that never move the unit; a wait on one
+// it trails, a few seconds at most, is no stall
 func (k *CellKeeping) Blocked(m bodies.Member, o *order.MoveOrder, c cell.ID, deck bool,
 	d time.Duration) (uid.UID64, bool) {
 	if o.Toward != c {
-		o.Toward, o.Stalled = c, 0
+		o.Toward, o.Stalled, o.Trailed = c, 0, 0
 	}
 	var holder uid.UID64
 	known := false
 	if k.who != nil {
 		holder, known = k.who.Holder(c, deck, m.Domain)
+	}
+	if trailing(o, k.span) {
+		o.Trailed += d
+		return holder, known
 	}
 	if o.Stalled += d; o.Stalled >= StallAfter {
 		o.Bumped, o.Held, o.Hit, o.HitUnit, o.Stalled = true, true, holder, known, 0

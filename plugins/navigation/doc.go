@@ -37,15 +37,17 @@
 //
 // How units get on among others is rules of the moment [Touch], which the plugin hosts: two units
 // touching, handed to each of the two every tick they do, with whether each is on the move or
-// giving way, allies or of one order, on the other's goal, head on, with room to step aside. A
-// rule's commands are carried out for the unit alone: [StepAside], [Detour], [Pass], [Hold],
-// [Settle], [Stop]. A Touch's words are of the unit — [PushedByAlly], [ReachedTheGroup],
-// [InTheWay], [ClearsTheWay], [Blocks], [GoalTaken], [StrangerOnMyGoal], [WaitsFirst],
-// [NoWayRound], [WaitedLong] — and the other's role is cond.Other.If(role). The plugin's own rules
-// are StarCraft II's; a game gives its own with [Plugin.WithCrowd], or adds rules obeyed by the
-// roles its units play. Whatever the rules, navigation keeps the last word: a unit making no
-// headway at the pace the ground lawfully leaves it plans afresh and, after a few stalls, stands
-// where it is. A unit with a plan is told
+// giving way, allies or of one order, on the other's goal, head on, with room to step aside, and
+// whether the other lies ahead, moves or faces the unit's way, trails someone. A rule's commands
+// are carried out for the unit alone: [StepAside], [Detour], [Pass], [Hold], [Settle], [Stop],
+// [Trail]. A Touch's words are of the unit — [PushedByAlly], [ReachedTheGroup], [InTheWay],
+// [ClearsTheWay], [Blocks], [GoalTaken], [StrangerOnMyGoal], [WaitsFirst], [NoWayRound],
+// [WaitedLong], [WalksMyWay], [Groupmate] — and the other's role is cond.Other.If(role). The
+// plugin's own rules are StarCraft II's, but one of the unit's order walking its way is trailed,
+// not gone round; a game gives its own with [Plugin.WithCrowd], or adds rules obeyed by the roles
+// its units play. Whatever the rules, navigation keeps the last word: a unit making no headway at
+// the pace the ground lawfully leaves it, or the one it trails lawfully makes, plans afresh and,
+// after a few stalls, stands where it is. A unit with a plan is told
 // the facts [Blocked] (its words [Stuck], [Cornered], [StrangerOnGoal], [IdleAlly],
 // [IdleAllyOnMyGoal]) and [Arrived].
 //
@@ -90,15 +92,15 @@
 //
 // Moments, for a role's rules: [Touch] (a pair, host.Met, its subject the other; its words
 // [PushedByAlly], [ReachedTheGroup], [InTheWay], [ClearsTheWay], [Blocks], [GoalTaken],
-// [StrangerOnMyGoal], [WaitsFirst], [NoWayRound], [WaitedLong]).
+// [StrangerOnMyGoal], [WaitsFirst], [NoWayRound], [WaitedLong], [WalksMyWay], [Groupmate]).
 //
 // Facts, for plans (told to a unit with a mind alone): [Blocked] (its subject whom it is blocked
 // by; its words [Stuck], [Cornered], [StrangerOnGoal], [IdleAlly], [IdleAllyOnMyGoal]), [Arrived].
 // [Round] and [Onward] are a patrol's: the plan's own command.
 //
 // Commands: [MoveTo], [LookAt] (a player's or an entity's own); [StepAside], [Detour], [Pass],
-// [Settle] (an entity's own, aimed at the Touch's subject, host.Aimed), [Hold], [Stop], [Onward]
-// (an entity's own); [Routes] (a player's, a look).
+// [Settle], [Trail] (an entity's own, aimed at the Touch's subject, host.Aimed), [Hold], [Stop],
+// [Onward] (an entity's own); [Routes] (a player's, a look).
 //
 // Styles, for a figure's Look on the world's atlas (Slot.Styled): [RouteStyle], how a kind's
 // routes and goals are drawn, [DefaultRouteStyle] or [Plugin.WithRouteStyle]'s without.
