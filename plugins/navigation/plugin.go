@@ -157,7 +157,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	navSys.BindSpace(p.worldPlugin.Write().Space())
 	navSys.Given, navSys.Touches, navSys.Tick = &p.given, &p.touches, p.worldPlugin.Read(0).Tick
 	navSys.Pace = p.worldPlugin.Pace(sector.Everywhere)
-	navSys.Routing = coordinator
+	navSys.Routing, navSys.Formations = coordinator, coordinator
 
 	moveCommandSystem := routing.NewSystem(routeFinder, &p.moves, &p.looks, p.selected).
 		WithKeeping(routeKeep)

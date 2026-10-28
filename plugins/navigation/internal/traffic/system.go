@@ -89,6 +89,9 @@ type System struct {
 	Routing goke.System
 	asked   []uid.UID64 // the units that asked, in the first pass
 	askedIn []bool      // whether each had entered a cell before it asked
+	// Formations lays out the formations the units under orders march in, before they move
+	Formations interface{ Form(ids []uid.UID64) }
+	formed     []uid.UID64 // the units marching in one, as the bodies are gathered
 
 	terrainSeen uint64
 }
@@ -157,6 +160,9 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 		s.terrainSeen, changed = v.Version(), true
 	}
 	s.keep.Begin(s.gathering)
+	if len(s.formed) > 0 && s.Formations != nil {
+		s.Formations.Form(s.formed)
+	}
 	s.bump()
 	s.touched = s.touched[:0]
 	if s.felt == nil {
@@ -423,6 +429,11 @@ func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 	if held {
 		return stood
 	}
+	if s.awaits(w, d) {
+		st.RequestSpeed(0)
+		o.Stalled = 0
+		return stood
+	}
 
 	s.keep.Ready(w.m, o)
 	if !leg.Active && (p.Length == 0 || p.Index >= p.Length) &&
@@ -440,6 +451,27 @@ func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 		return asking
 	}
 	return onward
+}
+
+// how long the head of a closed formation waits on a gap the member behind which no longer
+// comes on: a Hold's while
+const patience = spacing.StallAfter
+
+// whether w heads a closed formation a member of which lags more than the slack lets it: waiting
+// on them while they come on, and for patience more once they stop; never in the way of one
+// refused its cell
+func (s *System) awaits(w *walker, d time.Duration) bool {
+	o, f := w.o, w.o.Formation
+	if !f.Closed || o.Place != 1 || w.m.Pressed {
+		return false
+	}
+	open := o.Gap > float32(int(f.Slack)+1)*spacing.Room(w.m, f)
+	if !open || o.Closing {
+		o.Patience = patience
+		return open
+	}
+	o.Patience = max(o.Patience-d, 0)
+	return o.Patience > 0
 }
 
 // whether w touches whom or has them within a body's reach, who are under way and ahead of it
@@ -1027,6 +1059,7 @@ func (s *System) wayTo(m bodies.Member, c cell.ID) geom.Vec {
 }
 
 func (s *System) gather(dst []bodies.Body) []bodies.Body {
+	s.formed = s.formed[:0]
 	for s.query.Paced(0); s.query.Next(); {
 		cursor := s.query.Cursor()
 		bases, orders, movers := s.base.Slice(cursor), s.order.Slice(cursor), s.mover.Slice(cursor)
@@ -1057,6 +1090,9 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 				b.Trailing, b.TrailPace, b.Way = o.TrailFor > 0, o.TrailPace, o.Way
 				if o.Group != 0 {
 					b.Group = o.Group
+				}
+				if o.Formation.Shape != order.NoFormation {
+					s.formed = append(s.formed, id)
 				}
 			}
 			if owned != nil {

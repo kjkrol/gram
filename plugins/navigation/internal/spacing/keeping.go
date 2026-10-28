@@ -347,7 +347,17 @@ func (k *CellKeeping) On(m bodies.Member, c cell.ID, level order.Level) bool {
 	return k.finder.on(m, c, level)
 }
 
-func (k *CellKeeping) Steer(_ bodies.Member, st steering.Helm, dir geom.Vec, speed float32) {
+// near the one ahead of it in its formation, m goes no faster than they go its way, but for
+// closing on its room behind them
+func (k *CellKeeping) Steer(m bodies.Member, st steering.Helm, dir geom.Vec, speed float32) {
+	if o := m.Order; o != nil {
+		if b, ok := pacer(&k.index, m, o); ok {
+			c := m.Centre()
+			if ahead(geom.NewVec(b.At.X-c.X, b.At.Y-c.Y), dir, m.Facing) {
+				speed = keepPace(m, o, b, dir, speed)
+			}
+		}
+	}
 	if dir != (geom.Vec{}) {
 		st.Request(dir)
 	}
@@ -363,7 +373,8 @@ func (k *CellKeeping) Watch(m bodies.Member, o *order.MoveOrder, _ cell.ID, _ ge
 }
 
 // Held after stallAfter is the last word against rules that never move the unit; a wait on one
-// it trails, while they are under way, is no stall
+// it trails, while they are under way, or on the one ahead of it in its formation, under their
+// order still, is no stall
 func (k *CellKeeping) Blocked(m bodies.Member, o *order.MoveOrder, c cell.ID, deck bool,
 	d time.Duration) (uid.UID64, bool) {
 	if o.Toward != c {
@@ -376,6 +387,9 @@ func (k *CellKeeping) Blocked(m bodies.Member, o *order.MoveOrder, c cell.ID, de
 	}
 	if trailing(&k.index, o) {
 		o.Trailed += d
+		return holder, known
+	}
+	if _, paced := pacer(&k.index, m, o); paced {
 		return holder, known
 	}
 	if o.Stalled += d; o.Stalled >= StallAfter {

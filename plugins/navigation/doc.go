@@ -82,6 +82,12 @@
 // Driving a unit by hand is the driving plugin's, which [NewPlugin] takes: a unit a hand is on
 // gives its order up.
 //
+// A [March] sends them as a MoveTo does, in a [Formation] its orders keep: in a [Column]
+// ([ColumnOf]) each walks behind the one nearer the goal along the way there, as the way's cost
+// orders them, and within its spacing of them no faster than they go; a closed column's head
+// waits while one coming on lags behind the one ahead of it more than the slack lets it, and a
+// second more once it stops. The plugin binds it to no key.
+//
 // # Renderer
 //
 // The plugin draws the routes: for every selected entity its goals, the entity's outline lying
@@ -100,9 +106,9 @@
 // by; its words [Stuck], [Cornered], [StrangerOnGoal], [IdleAlly], [IdleAllyOnMyGoal]), [Arrived].
 // [Round] and [Onward] are a patrol's: the plan's own command.
 //
-// Commands: [MoveTo], [LookAt] (a player's or an entity's own); [StepAside], [Detour], [Pass],
-// [Settle], [Trail] (an entity's own, aimed at the Touch's subject, host.Aimed), [Hold], [Stop],
-// [Onward] (an entity's own); [Routes] (a player's, a look).
+// Commands: [MoveTo], [March] (in a [Formation], [ColumnOf]), [LookAt] (a player's or an entity's
+// own); [StepAside], [Detour], [Pass], [Settle], [Trail] (an entity's own, aimed at the Touch's
+// subject, host.Aimed), [Hold], [Stop], [Onward] (an entity's own); [Routes] (a player's, a look).
 //
 // Styles, for a figure's Look on the world's atlas (Slot.Styled): [RouteStyle], how a kind's
 // routes and goals are drawn, [DefaultRouteStyle] or [Plugin.WithRouteStyle]'s without.
