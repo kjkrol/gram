@@ -37,6 +37,7 @@ type roadUnit struct {
 	wide          bool        // the hawk's profile: faster, turning slower
 	selected      bool
 	owner         command.Issuer
+	shared        command.Issuer // a second owner, whose units are its allies
 	plan          *writtenPlan
 	round         []cell.ID // its Round, for Onward
 	group         uint32
@@ -153,7 +154,10 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		if selected {
 			s = append(s, comp.Tagged(sel.Tags().Selectable, sel.Tags().Selected))
 		}
-		if u.owner != command.Nobody {
+		switch {
+		case u.shared != command.Nobody:
+			s = append(s, comp.Tagged(owner.Of(u.owner), owner.Of(u.shared)))
+		case u.owner != command.Nobody:
 			s = append(s, comp.Tagged(owner.Of(u.owner)))
 		}
 		if u.round != nil {
