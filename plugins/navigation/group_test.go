@@ -5,7 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -250,6 +253,35 @@ func TestGroup_AnUpdateAllocatesNothing(t *testing.T) {
 			t.Errorf("%s: an Update allocates %v times; want none", tc.name, allocs)
 		}
 	}
+}
+
+// a party's unit stepping aside on its way keeps the party on the order giving way, so it walks
+// the field again as it goes on
+func TestGroup_AStepAsideKeepsTheOrdersParty(t *testing.T) {
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
+	from, goal := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80)
+	sent := probe.standAt(goal)
+	sent.Group, sent.Party = 7, 5
+	aside := act.Branch[Touch]{
+		Name: "a unit on its way steps aside",
+		When: cond.Self.If(cond.NewWord("on its way", func(t Touch) bool { return t.Moving })),
+		Then: act.Self.Do(StepAside{}),
+	}
+	fw := newFieldWorldWith(t, 10, 5, BodySpacing, nil, []fieldUnit{
+		{at: from, side: 6, order: sent},
+		{at: geom.NewVec(5*fieldCell, 80), side: 6},
+	}, func(p *Plugin) { p.WithCrowd(aside) })
+	for range 20 * 60 {
+		fw.ecs.Tick(time.Second / 60)
+		if _, o := fw.centre(0); o != nil && o.GivingWay {
+			if o.Group != sent.Group || o.Party != sent.Party {
+				t.Errorf("giving way, its order is group %d's of a party of %d; want %d's of %d",
+					o.Group, o.Party, sent.Group, sent.Party)
+			}
+			return
+		}
+	}
+	t.Fatal("the unit on its way never stepped aside")
 }
 
 // three, one fewer than a party
