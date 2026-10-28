@@ -42,6 +42,7 @@ type roadUnit struct {
 	group         uint32
 	sensor        bool // a Collider without Physics
 	loose         bool // no At, no Mover: a body in the world, not a unit of the board
+	paced         bool // carries a steering.Pace: the ground's share slows it
 }
 
 type roadWorld struct {
@@ -73,6 +74,9 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	})
 	rw.w = w
 	w.Write().Effects().Define("alarm", effect.Spec{})
+	w.Write().Effects().Define("halted", effect.Spec{
+		effect.Alter(func(s *steering.Steering) { s.Halted = true }),
+	})
 	occupancy := &cell.SingleOccupancy{}
 	m := motion.NewPlugin(w)
 	c := collision.NewPlugin(w, m)
@@ -139,6 +143,9 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 				physics.Mass = f32.Inf(1)
 			}
 			s = append(s, comp.Const(physics))
+		}
+		if u.paced {
+			s = append(s, comp.Const(steering.Pace{Share: 1}))
 		}
 		if ordered {
 			s = append(s, comp.Load(func(u roadUnit) MoveOrder { return MoveOrder{Target: u.target, Group: u.group} }))

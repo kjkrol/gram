@@ -50,6 +50,9 @@ type (
 	Hold struct{}
 	// Settle has a unit on the move stand beside its goal, Beside on it.
 	Settle struct{ Beside uid.UID64 }
+	// Trail has a unit on the move follow Of, who goes its way: no faster than they go, its wait
+	// no stall while they are under way.
+	Trail struct{ Of uid.UID64 }
 	// Stop ends a unit's order where it stands, as come to the end of it.
 	Stop struct{}
 )
@@ -59,6 +62,7 @@ var (
 	_ host.Aimed = (*Detour)(nil)
 	_ host.Aimed = (*Pass)(nil)
 	_ host.Aimed = (*Settle)(nil)
+	_ host.Aimed = (*Trail)(nil)
 )
 
 // Aim tells the command whose way it is.
@@ -72,6 +76,9 @@ func (p *Pass) Aim(who uid.UID64) { p.Of = who }
 
 // Aim tells the command who stands on the goal.
 func (s *Settle) Aim(who uid.UID64) { s.Beside = who }
+
+// Aim tells the command whom to follow.
+func (t *Trail) Aim(who uid.UID64) { t.Of = who }
 
 func (MoveTo) Command() {}
 
@@ -87,6 +94,8 @@ func (Hold) Command() {}
 
 func (Settle) Command() {}
 
+func (Trail) Command() {}
+
 func (Stop) Command() {}
 
 var (
@@ -97,6 +106,7 @@ var (
 	_ command.Command = Pass{}
 	_ command.Command = Hold{}
 	_ command.Command = Settle{}
+	_ command.Command = Trail{}
 	_ command.Command = Stop{}
 	_ command.Command = Onward{}
 )

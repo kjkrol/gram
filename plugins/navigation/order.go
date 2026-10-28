@@ -20,6 +20,7 @@ type (
 	Hold      = order.Hold
 	Settle    = order.Settle
 	Stop      = order.Stop
+	Trail     = order.Trail
 	Touch     = order.Touch
 	Blocked   = order.Blocked
 	Arrived   = order.Arrived
@@ -47,6 +48,8 @@ var (
 	WaitsFirst       = order.WaitsFirst
 	NoWayRound       = order.NoWayRound
 	WaitedLong       = order.WaitedLong
+	WalksMyWay       = order.WalksMyWay
+	Groupmate        = order.Groupmate
 	Stuck            = order.Stuck
 	Cornered         = order.Cornered
 	IdleAllyOnMyGoal = order.IdleAllyOnMyGoal

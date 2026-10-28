@@ -21,32 +21,50 @@ func TestBodySpacing_AStallIsJudgedByTheLawfulPace(t *testing.T) {
 	finder := spacing.NewFinder(grid, terrain, nil, spacing.OpenOccupancy{})
 	from, toward := grid.At(0, 0), grid.At(1, 0)
 	start, want := grid.CellCenter(from), grid.CellCenter(toward)
+	underWay := bodies.Body{ID: 3, At: want, Half: geom.NewVec(1.44, 1.44), Vel: geom.NewVec(1, 0),
+		Domain: cell.Land, Moving: true}
+	standing := underWay
+	standing.Vel = geom.Vec{}
 	cases := []struct {
 		name    string
 		share   float32
-		speed   float32 // world units a second
+		speed   float32      // world units a second
+		trails  *bodies.Body // nil, nobody
+		lasts   time.Duration
 		stalled bool
 	}{
-		{"slow ground, a crawl over a quarter of the lawful pace", 0.049, 0.5, false},
-		{"open ground, the same crawl", 1, 0.5, true},
-		{"a step the ground refuses", 0, 0, false},
-		{"slow ground, under a quarter of the lawful pace", 0.049, 0.1, true},
+		{"slow ground, a crawl over a quarter of the lawful pace", 0.049, 0.5, nil, 2 * time.Second,
+			false},
+		{"open ground, the same crawl", 1, 0.5, nil, 2 * time.Second, true},
+		{"a step the ground refuses", 0, 0, nil, 2 * time.Second, false},
+		{"slow ground, under a quarter of the lawful pace", 0.049, 0.1, nil, 2 * time.Second, true},
+		{"trailing one under way, no headway", 1, 0, &underWay, 10 * time.Second, false},
+		{"trailing one standing that trails nobody, no headway", 1, 0, &standing,
+			1500 * time.Millisecond, true},
 	}
 	for _, c := range cases {
 		keep := spacing.NewBodyKeeping(finder, nil, nil)
-		keep.Begin(func(dst []bodies.Body) []bodies.Body { return dst })
+		keep.Begin(func(dst []bodies.Body) []bodies.Body {
+			if c.trails != nil {
+				dst = append(dst, *c.trails)
+			}
+			return dst
+		})
 		m := bodies.Member{ID: 7, Cell: from, From: from, Domain: cell.Land, MaxSpeed: 24,
 			Share: c.share}
 		var o MoveOrder
+		if c.trails != nil {
+			o.Trailing, o.TrailFor, o.TrailPace = c.trails.ID, spacing.TrailMemory, 1
+		}
 		bumped := false
-		for tick := range 120 {
+		for tick := range int(c.lasts / (time.Second / 60)) {
 			x := start.X + c.speed*float32(tick)/60
 			m.Pos = world.Position{AABB: plane.NewAABB(geom.NewVec(x-1.44, start.Y-1.44), 2.88, 2.88)}
 			keep.Watch(m, &o, toward, want, time.Second/60)
 			bumped = bumped || o.Bumped
 		}
 		if bumped != c.stalled {
-			t.Errorf("%s: bumped %v after two seconds, want %v", c.name, bumped, c.stalled)
+			t.Errorf("%s: bumped %v after %v, want %v", c.name, bumped, c.lasts, c.stalled)
 		}
 	}
 }

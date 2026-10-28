@@ -253,6 +253,7 @@ type walker struct {
 	st              steering.Helm
 	state           *tag.Tags[unit.States] // nil: its chunk has none, the id goes to lacking
 	last            *order.LastOrder       // nil: its chunk has none, the id goes to lastIDs
+	coll            *collision.Collider    // nil: it touches nobody
 	minded          bool
 	domain          cell.Domain
 	current, actual cell.ID
@@ -298,7 +299,7 @@ func (s *System) begin(w *walker, z *world.Z, mover *unit.Mover, owners *tag.Tag
 	if owners != nil {
 		w.m.Owners = *owners
 	}
-	if coll != nil {
+	if w.coll = coll; coll != nil {
 		w.m.Touching = waysOff(coll.Contacts())
 	}
 }
@@ -348,6 +349,10 @@ func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 
 	o.Cooldown = max(o.Cooldown-d, 0)
 	o.Retry = max(o.Retry-d, 0)
+	o.TrailFor = max(o.TrailFor-d, 0)
+	if o.TrailFor > 0 && s.against(w, o.Trailing) {
+		o.TrailFor = spacing.TrailMemory
+	}
 	if o.Bumped {
 		o.Bumped = false
 		answer := s.keep.Bump(w.m, o)
@@ -436,6 +441,49 @@ func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 	}
 	return onward
 }
+
+// whether w touches whom or has them within a body's reach, who are under way and ahead of it
+// still: a queue, packed or loose, trails on with no strike, and a trail it has turned round lapses
+func (s *System) against(w *walker, whom uid.UID64) bool {
+	b, ok := s.keep.Other(whom)
+	self, known := s.keep.Other(w.id)
+	if !ok || !known || !b.Alive() {
+		return false
+	}
+	to := s.unwrap(self.At, b.At)
+	d := geom.NewVec(to.X-self.At.X, to.Y-self.At.Y)
+	if ahead, _, _ := s.bearing(self, b, geom.NewVec(-d.X, -d.Y)); !ahead {
+		return false
+	}
+	return touches(w.coll, whom) || withinReach(self, b, d)
+}
+
+func touches(coll *collision.Collider, whom uid.UID64) bool {
+	if coll == nil {
+		return false
+	}
+	for _, c := range coll.Contacts() {
+		if !c.Terrain && !c.Sensed && c.Other == whom {
+			return true
+		}
+	}
+	return false
+}
+
+// whether other's box lies no more than a body's width past self's along the way self's route
+// leads it, or its facing with none, d leading from self to other
+func withinReach(self, other bodies.Body, d geom.Vec) bool {
+	u := self.Way
+	if u == (geom.Vec{}) {
+		u = self.Facing
+	}
+	gap := d.X*u.X + d.Y*u.Y - extent(self.Half, u) - extent(other.Half, u)
+	// a body's width, the gap the spacing keeps beside a body (spacing's gapFor)
+	return gap <= 2*max(self.Half.X, self.Half.Y)*spacing.SpacingGap
+}
+
+// the half of a box of half sizes h along the unit vector u
+func extent(h, u geom.Vec) float32 { return h.X*f32.Abs(u.X) + h.Y*f32.Abs(u.Y) }
 
 // walkOn has the units that asked the Routing go on with its answers, the same step
 func (s *System) walkOn(cb *goke.CmdBuf, d time.Duration) {
@@ -530,12 +578,16 @@ func (s *System) tail(w *walker, d time.Duration) {
 	if final {
 		want = s.unwrap(have, end)
 	}
+	dx, dy := want.X-have.X, want.Y-have.Y
+	dist := f32.Hypot(dx, dy)
+	if dist > 0 {
+		o.Way = geom.NewVec(dx/dist, dy/dist)
+	}
 	s.keep.Watch(w.m, o, waypoint, want, d)
 
 	reach := lookaheadReach(st, dt)
 	if final && o.Queued > 0 && o.Linger > 0 {
-		dx, dy := want.X-have.X, want.Y-have.Y
-		if dist, within := f32.Hypot(dx, dy), s.keep.Within(w.m); dist > within {
+		if within := s.keep.Within(w.m); dist > within {
 			dir := geom.NewVec(dx, dy)
 			s.keep.Steer(w.m, st, dir, approach(st, dist, within)*turnFactor(w.base.Vel.Dir, dir))
 			return
@@ -617,8 +669,6 @@ func (s *System) tail(w *walker, d time.Duration) {
 		return
 	}
 
-	dx, dy := want.X-have.X, want.Y-have.Y
-	dist := f32.Hypot(dx, dy)
 	if within := s.keep.Within(w.m); dist > within {
 		dir := geom.NewVec(dx, dy)
 		s.keep.Steer(w.m, st, dir, approach(st, dist, within)*turnFactor(w.base.Vel.Dir, dir))
@@ -656,7 +706,7 @@ func (s *System) tail(w *walker, d time.Duration) {
 
 func (s *System) arrive(w *walker) {
 	w.arrived = true
-	w.at.Next = 0
+	w.at.Next, w.o.Way = 0, geom.Vec{}
 	switch {
 	case w.o.Group == 0: // giving way, or looking: the group stays
 	case w.last != nil:
@@ -805,8 +855,11 @@ func (s *System) fire(tick host.Tick, hosted bool, self, other bodies.Body, way 
 		GivingWay: self.GivingWay, OtherGivingWay: other.GivingWay, LastGoal: self.LastGoal,
 		Ally: owner.Allies(self.Owners, other.Owners), Groupmate: self.Group != 0 && self.Group == other.Group,
 		HeadOn: head && self.Moving && other.Moving, WaitedOut: self.WaitedOut, Cornered: self.Cornered}
+	t.Ahead, t.Along, t.SameWay = s.bearing(self, other, way)
+	t.OtherTrailing = other.Trailing
 	if self.Moving {
 		t.OnMyGoal = s.keep.OnGoal(self, other)
+		t.NearMyGoal = s.grid.Distance(other.Cell, self.Goal) <= nearGoal
 		if !other.Moving {
 			_, t.Room = s.keep.StepAside(other.Member(), self)
 		}
@@ -820,6 +873,30 @@ func (s *System) fire(tick host.Tick, hosted bool, self, other bodies.Body, way 
 	if hosted {
 		s.Touches.Dispatch(tick, s.marksOf(self.ID), s.marksOf(other.ID), t)
 	}
+}
+
+// cells from a unit's goal within which its group gathers
+const nearGoal = 2
+
+// the cosine of the eighth of a turn either side of a way, within which another lies ahead on it
+// or goes it too
+const quarterTurn = 0.7
+
+// how other stands to self's way: ahead within a quarter turn of it, moving along it, its route
+// leading that way too; with none, the same by self's facing, way leading self off other
+func (s *System) bearing(self, other bodies.Body, way geom.Vec) (ahead, along, same bool) {
+	w := self.Way
+	if w == (geom.Vec{}) {
+		f := self.Facing
+		return way.X*f.X+way.Y*f.Y < 0, other.Vel.X*f.X+other.Vel.Y*f.Y > 0,
+			other.Facing.X*f.X+other.Facing.Y*f.Y > 0
+	}
+	at := s.unwrap(self.At, other.At)
+	d := geom.NewVec(at.X-self.At.X, at.Y-self.At.Y)
+	ahead = d.X*w.X+d.Y*w.Y > quarterTurn*f32.Hypot(d.X, d.Y)
+	along = other.Vel.X*w.X+other.Vel.Y*w.Y > 0
+	same = other.Way.X*w.X+other.Way.Y*w.Y > quarterTurn
+	return ahead, along, same
 }
 
 func (s *System) marksOf(id uid.UID64) host.Marks {
@@ -886,6 +963,17 @@ func (s *System) carryOut(m bodies.Member, o *order.MoveOrder, st steering.Helm,
 			if other, ok := s.keep.Other(t.settleBeside); ok {
 				s.keep.Settle(m, o, other)
 			}
+		case t.trail:
+			if other, ok := s.keep.Other(t.trailOf); ok {
+				if o.TrailFor == 0 { // a renewal goes on with the wait, a new trail starts it
+					o.Trailed = 0
+				}
+				o.Trailing, o.TrailFor = other.ID, spacing.TrailMemory
+				o.TrailPace = other.MaxSpeed * other.Share
+				if other.Trailing { // a queue goes at the pace of its head
+					o.TrailPace = min(o.TrailPace, other.TrailPace)
+				}
+			}
 		}
 	}
 	if o.Holding <= 0 {
@@ -943,10 +1031,15 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 		bases, orders, movers := s.base.Slice(cursor), s.order.Slice(cursor), s.mover.Slice(cursor)
 		cells, owned, lasts := s.cell.Slice(cursor), s.owners.Slice(cursor), s.lastOrder.Slice(cursor)
 		zs, minded := s.z.Slice(cursor), s.mind.Slice(cursor) != nil
+		steers, paces := s.steer.Slice(cursor), s.pace.Slice(cursor)
 		for i, id := range cursor.IDs {
 			pos := bases[i].Pos
 			b := bodies.Body{ID: id, At: pos.Center(), Half: geom.NewVec(pos.Size.X/2, pos.Size.Y/2), Vel: bases[i].Vel.Delta(), Domain: unit.DomainAt(movers, i),
 				Moving: orders != nil, Cell: cells[i].Cell, Minded: minded, Facing: bases[i].Vel.Dir}
+			b.Share, b.MaxSpeed = 1, steers[i].MaxSpeed
+			if paces != nil {
+				b.Share = paces[i].Share
+			}
 			if zs != nil {
 				b.Z = zs[i]
 			}
@@ -960,6 +1053,7 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 				o := &orders[i]
 				b.GivingWay, b.Goal, b.Spot, b.LastGoal = o.GivingWay, o.Target, s.goal(o.Target, o.Spot), o.Queued == 0
 				b.WaitedOut, b.Cornered = o.WaitedOut, o.Cornered
+				b.Trailing, b.TrailPace, b.Way = o.TrailFor > 0, o.TrailPace, o.Way
 				if o.Group != 0 {
 					b.Group = o.Group
 				}

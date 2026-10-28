@@ -1383,3 +1383,46 @@ kolejce za idącymi (`held by`, `Blocks → Detour`, `stalls 5`): to etap 2, jak
 `Navigation_Path` w szumie (±1,5%); przebieg stania +1,5…+2,3% min przy 1 000 piechurów
 (`Board_Altitude` 398 → 405 µs: odczyt `At.Next`, `At` 8 → 16 B), w szumie przy 100; przyjęte.
 Dema z nawigacją i jazdą pod `timeout 20s` zdrowe. Stary zapis nie wczyta się (`At` większe).
+
+**Etap 2** (`feat/trail`, v0.8.0; wykonany przez agenta Opus 5.5 z briefu `doc/briefs/t2-trail.md`
+w worktree, integrowany sondą): cztery rundy, bo sonda płaskowyżu obalała projekt trzy razy.
+(1) Brief jak w planie: słowa `Ahead`/`Along`/`SameWay`/`OtherTrailing` po głowie, `Trail` z
+pamięcią 0,5 s, czekanie ograniczone rozpiętością komórki przez tempo prowadzonego i 3 s;
+agent dołożył podawanie `TrailPace` w dół kolejki (bez tego trzeci w kolumnie zacina się, bo
+drugi na otwartym gruncie ma pełne tempo). Sonda: 3 z 30, jak po etapie 1 — w zbitej grupie
+styki są `Resting`, dotyk dla nich nie pada, trail gaśnie po 0,5 s; jednostki podążały za
+sobą nawzajem (109↔103↔120); granica 3 s zabijała lejek, gdzie czeka się na całą kolejkę.
+(2) `Ahead` po odległości od punktu rozkazu, odnowienie trailu przez styk (także spoczynkowy)
+z żywym prowadzonym (`Body.Alive`: idzie albo podąża), granica tylko żywotnością
+(`maxTrailWait` 30 s jako bezpiecznik; martwa kolejka rozwija się ogniwo po ogniwie co 0,5 s).
+Sonda: 3 z 30 — jednostka u wylotu lejka podążała za sąsiadką obok, o włos bliższą punktu, i
+stała z jej prędkością (0); a gdy jedna się poddała, `ReachedTheGroup → Stop` zatrzymało
+kaskadowo 13 współtowarzyszy w 2 s, 35 komórek od celu. (3) `Body.Way` (kierunek następnego
+kroku trasy): `Ahead` to stożek ćwierć obrotu wzdłuż niego, `SameWay` zgodność kierunków
+tras, `Along` ruch wzdłuż niego (bez trasy po głowie); `InTheWay` wymaga `Ahead` (uderzony od
+tyłu albo z boku nie obchodzi uderzającego); `ReachedTheGroup` wymaga `NearMyGoal` (dwie
+komórki od celu): grupa dołącza tylko przy celu. Sonda: 23 z 30; siedmiu ginie w drugim lejku
+pod krawędzią, gdzie prowadzony idzie komórkę przed, bez styku, trail gaśnie i powolny marsz w
+tłoku (0,3–0,7 jednostki/s przy udziale 0,08) liczy zacięcia. (4) Trail trzyma się także, gdy
+prowadzony jest na szerokość ciała przed jednostką wzdłuż jej drogi (`withinReach`). Sonda:
+**30 z 30**, ostatni dochodzi w 290 s gry (baza v0.7.1: 0 z 30, rozkazy gasną w 50–77 s).
+(5) Pomiar `-cpu=1` wykazał `Navigation_Tick/crowded,100` +28% i `open,1000` +12%; bisekcja po
+commitach wskazała rundę 3, profil A* (więcej szukań), nie nowy kod traffic: obcy uderzeni od
+tyłu przestali uskakiwać, korek w szczelinie benchmarku trwał dłużej i zablokowani szukali
+częściej. `InTheWay` wymaga `Ahead` tylko od współtowarzysza (`Ahead || !Groupmate`): tick
+zatłoczony wraca do bazy (kopia: 1068 wobec 1076 µs), płaskowyż bez zmian (wszyscy to jedna
+grupa). Trzy nieziarnowane przebiegi sondy (20:30–20:38, drzewa ef612380 i b95d9801) pokazały
+całą grupę idącą w miejscu od startu (v 9,6, komórka bez zmian, zero zacięć, bez styków);
+ziarna 1–7 i późniejsze przebiegi bez ziarna na bazie i drzewie normalne; niewyjaśnione,
+nieprzypisane etapowi (etap nie dotyka ruchu jednostki bez dotyku). Testy: słowa
+(`touch_test`), `bearing`/`against` (traffic), kolumna trzech za pełzającym liderem bez
+zacięć, sojusznik innej grupy nie podąża, kolejka pod komórkami idzie za pełzającym jedyną
+drogą i obchodzi zatrzymanego, ślepa uliczka rozwija się, grupa dołącza tylko przy celu,
+obcy od tyłu blokuje jak dawniej, współtowarzysz nie, tabela zacięć rozszerzona. (6) `Way`
+liczony w `gather` na każde ciało (`CellCenter`, unwrap, hypot) kosztował open 1 000 +3% min:
+zapisuje go `tail` w rozkazie z wektorów, które i tak ma. Pomiar końcowy (`38bb2879` przeciw
+kopii `main` v0.7.1, `GOWORK=off` po obu stronach, `BENCHTIME=200x`, 3 rundy × `-count=2`,
+`-cpu=1` i zwykły): `Navigation_Tick` cztery rungi i `Navigation_Path` w szumie (najgorzej open
+1 000 +1,9% min w przebiegu zwykłym, +0,7% `-cpu=1`). Sonda końcowa: 30 z 30 z ziarnem 7 i bez
+ziarna, ostatni w 291 s gry. Sześć dem z nawigacją pod `timeout 20s` zdrowe. Stary zapis nie
+wczyta się (rozkaz większy).

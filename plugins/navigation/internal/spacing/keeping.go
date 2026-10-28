@@ -347,22 +347,27 @@ func (k *CellKeeping) Steer(_ bodies.Member, st steering.Helm, dir geom.Vec, spe
 
 func (k *CellKeeping) Watch(m bodies.Member, o *order.MoveOrder, _ cell.ID, _ geom.Vec,
 	_ time.Duration) {
-	o.Stalled = 0
+	o.Stalled, o.Trailed = 0, 0
 	if m.Cell == o.Toward {
 		o.Stalls = 0
 	}
 }
 
-// Held after stallAfter is the last word against rules that never move the unit
+// Held after stallAfter is the last word against rules that never move the unit; a wait on one
+// it trails, while they are under way, is no stall
 func (k *CellKeeping) Blocked(m bodies.Member, o *order.MoveOrder, c cell.ID, deck bool,
 	d time.Duration) (uid.UID64, bool) {
 	if o.Toward != c {
-		o.Toward, o.Stalled = c, 0
+		o.Toward, o.Stalled, o.Trailed = c, 0, 0
 	}
 	var holder uid.UID64
 	known := false
 	if k.who != nil {
 		holder, known = k.who.Holder(c, deck, m.Domain)
+	}
+	if trailing(&k.index, o) {
+		o.Trailed += d
+		return holder, known
 	}
 	if o.Stalled += d; o.Stalled >= StallAfter {
 		o.Bumped, o.Held, o.Hit, o.HitUnit, o.Stalled = true, true, holder, known, 0

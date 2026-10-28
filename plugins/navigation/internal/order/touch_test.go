@@ -3,7 +3,7 @@ package order
 import "testing"
 
 func TestTouch_TheRulesOfTheCrowd(t *testing.T) {
-	moving := Touch{Moving: true, LastGoal: true}
+	moving := Touch{Moving: true, LastGoal: true, Ahead: true, NearMyGoal: true}
 	for _, c := range []struct {
 		name                                       string
 		touch                                      Touch
@@ -21,6 +21,22 @@ func TestTouch_TheRulesOfTheCrowd(t *testing.T) {
 		{"on the move at an idle ally with room on its goal", with(moving, func(t *Touch) { t.Ally, t.OnMyGoal, t.Room = true, true, true }), false, false, true, false, false},
 		{"on the move at a stranger on its goal", with(moving, func(t *Touch) { t.OnMyGoal = true }), false, false, false, true, true},
 		{"on the move at one on the move", with(moving, func(t *Touch) { t.OtherMoving, t.Ally = true, true }), false, false, false, true, false},
+		{"on the move at one of its group standing far from its goal",
+			with(moving, func(t *Touch) { t.Ally, t.Groupmate, t.NearMyGoal = true, true, false }),
+			false, false, false, true, false},
+		{"on the move, struck from behind or beside by an idle ally with room",
+			with(moving, func(t *Touch) { t.Ahead, t.Ally, t.Room = false, true, true }),
+			false, false, true, false, false},
+		{"on the move, struck from behind or beside by a stranger",
+			with(moving, func(t *Touch) { t.Ahead = false }), false, false, false, true, false},
+		{"on the move, struck from behind or beside by one of its group far from its goal",
+			with(moving, func(t *Touch) {
+				t.Ahead, t.Ally, t.Groupmate, t.NearMyGoal = false, true, true, false
+			}), false, false, false, false, false},
+		{"on the move, struck from behind or beside by one of its group on the move",
+			with(moving, func(t *Touch) {
+				t.Ahead, t.OtherMoving, t.Ally, t.Groupmate = false, true, true, true
+			}), false, false, false, false, false},
 	} {
 		got := [5]bool{c.touch.pushedByAlly(), c.touch.reachedTheGroup(), c.touch.clearsTheWay(), c.touch.blocks(), c.touch.goalTaken()}
 		if want := [5]bool{c.pushed, c.reached, c.clears, c.blocks, c.goalTaken}; got != want {
@@ -33,6 +49,38 @@ func TestTouch_TheRulesOfTheCrowd(t *testing.T) {
 	}
 	if head.WaitedOut = true; head.waitsFirst() {
 		t.Error("the first waits on after its Hold ran out")
+	}
+}
+
+func TestTouch_WalksMyWay(t *testing.T) {
+	ahead := Touch{Moving: true, OtherMoving: true, Ahead: true, SameWay: true}
+	for _, c := range []struct {
+		name  string
+		touch Touch
+		walks bool
+	}{
+		{"ahead, going my way, moving along", with(ahead, func(t *Touch) { t.Along = true }), true},
+		{"ahead, going my way, trailing someone",
+			with(ahead, func(t *Touch) { t.OtherTrailing = true }), true},
+		{"ahead, going my way, standing, trailing nobody", ahead, false},
+		{"ahead but going another way, moving along",
+			with(ahead, func(t *Touch) { t.SameWay, t.Along = false, true }), false},
+		{"ahead but going another way, trailing someone",
+			with(ahead, func(t *Touch) { t.SameWay, t.OtherTrailing = false, true }), false},
+		{"beside or behind me, going my way, moving along",
+			with(ahead, func(t *Touch) { t.Ahead, t.Along = false, true }), false},
+		{"beside or behind me, going my way, trailing someone",
+			with(ahead, func(t *Touch) { t.Ahead, t.OtherTrailing = false, true }), false},
+		{"giving way itself", with(ahead, func(t *Touch) { t.Along, t.GivingWay = true, true }),
+			false},
+		{"ahead, giving way",
+			with(ahead, func(t *Touch) { t.Along, t.OtherGivingWay = true, true }), false},
+		{"ahead, under no order",
+			with(ahead, func(t *Touch) { t.Along, t.OtherMoving = true, false }), false},
+	} {
+		if got := WalksMyWay().Holds(c.touch); got != c.walks {
+			t.Errorf("%s: walks my way %v, want %v", c.name, got, c.walks)
+		}
 	}
 }
 

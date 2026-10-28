@@ -14,16 +14,18 @@ type GivenQueues struct {
 	holds   command.Queue[order.Hold]
 	settles command.Queue[order.Settle]
 	stops   command.Queue[order.Stop]
+	trails  command.Queue[order.Trail]
 }
 
 // All are the queues, for the carrier.
 func (q *GivenQueues) All() []command.CommandQueue {
-	return []command.CommandQueue{&q.asides, &q.detours, &q.passes, &q.holds, &q.settles, &q.stops}
+	return []command.CommandQueue{&q.asides, &q.detours, &q.passes, &q.holds, &q.settles, &q.stops,
+		&q.trails}
 }
 
 type told struct {
-	aside, detour, pass, hold, settle, stop bool
-	asideOf, detourOf, passOf, settleBeside uid.UID64
+	aside, detour, pass, hold, settle, stop, trail   bool
+	asideOf, detourOf, passOf, settleBeside, trailOf uid.UID64
 }
 
 // a player's are dropped
@@ -61,6 +63,11 @@ func (q *GivenQueues) drain(by map[uid.UID64]told) {
 	q.stops.Drain(func(i command.Issued[order.Stop]) {
 		if i.ByEntity {
 			put(i.Entity, func(t *told) { t.stop = true })
+		}
+	})
+	q.trails.Drain(func(i command.Issued[order.Trail]) {
+		if i.ByEntity {
+			put(i.Entity, func(t *told) { t.trail, t.trailOf = true, i.Command.Of })
 		}
 	})
 }

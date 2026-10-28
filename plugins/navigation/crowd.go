@@ -40,6 +40,9 @@ func goRound() act.Rule {
 				Then: act.Self.Do(order.StepAside{})},
 			act.Branch[order.Touch]{When: cond.Self.If(order.ClearsTheWay()),
 				Then: act.Self.Do(order.Pass{})},
+			act.Branch[order.Touch]{
+				When: cond.Self.If(order.WalksMyWay()).And(cond.Self.If(order.Groupmate())),
+				Then: act.Self.Do(order.Trail{})},
 			act.Branch[order.Touch]{When: cond.Self.If(order.Blocks()), Then: act.Self.Do(order.Detour{})},
 		),
 	}
