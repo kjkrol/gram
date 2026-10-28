@@ -8,8 +8,6 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/f32"
-	"github.com/kjkrol/gram/plugins/atmosphere/air"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -25,14 +23,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
 )
-
-type fixedSky struct {
-	sun light.Distant
-	air air.Weather
-}
-
-func (s fixedSky) Distant() light.Distant { return s.sun }
-func (s fixedSky) DrawnAir() air.Weather  { return s.air }
 
 // Benchmark_Board_GroundAt reads the ground at 64 points along a diagonal of a 256x256 board of
 // hills, as sight samples it along one ray.
@@ -73,120 +63,6 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 		}
 	}
 	_ = sum
-}
-
-// Benchmark_Board_Shadows plans the shade of a 96x64 board of hills, warm and anew after the
-// sun has moved: the light's publishing and the composer's lighting of a frame, the bake itself
-// the GPU's.
-func Benchmark_Board_Shadows(b *testing.B) {
-	const w, h, size = 96, 64, 32
-	ctx := newHeadless()
-	ctx.UseWorld(world.Config{
-		Space:    world.SpaceCfg{Width: w * size, Height: h * size},
-		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
-		Heights:  true,
-	})
-	grid := grid.DefaultGrids{}.Square(w, h, size)
-	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
-	sun := light.Distant{Dir: [3]float32{-0.8, 0.45, 0.3}, Strength: 0.75, Ambient: 0.3}
-	l := light.NewPlugin(ctx.world, light.Config{}).WithDistant(sun)
-	topo := topography.NewPlugin(ctx.world, p, l, topography.Config{})
-	if err := ctx.Use(p); err != nil {
-		b.Fatal(err)
-	}
-	if err := ctx.Use(topo); err != nil {
-		b.Fatal(err)
-	}
-	brdW := p.Write().Board()
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	topo.Write().Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float32 {
-		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
-			return 20
-		}
-		return 0
-	}))
-	ctx.start(b, func(goke.RunCtx, time.Duration) {})
-	cam := ctx.camera(cameras.Config{Turn: true, Tilt: true, Cell: size, Cage: topo.Read(0)},
-		cameras.FromAbove, 0, 0)
-	lit := render.NewComposer()
-	lit.Light(ctx.world.Read(0).Lights)
-	for _, sc := range []struct {
-		name  string
-		moved bool
-	}{{"shadows=warm", false}, {"shadows=anew", true}} {
-		b.Run(sc.name, func(b *testing.B) {
-			for b.Loop() {
-				if sc.moved {
-					sun.Dir[0] = -sun.Dir[0]
-					l.WithDistant(sun)
-				}
-				ctx.publish()
-				lit.DrawWorld(nil, cam)
-			}
-		})
-	}
-}
-
-// Benchmark_Board_Shores composes a 96x64 board of islands in a sea from above, its shores warm,
-// anew after a cell has changed, and warm under clouds.
-func Benchmark_Board_Shores(b *testing.B) {
-	const w, h, size = 96, 64, 32
-	ctx := newHeadless()
-	ctx.UseWorld(world.Config{
-		Space:    world.SpaceCfg{Width: w * size, Height: h * size},
-		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
-		Heights:  true,
-	})
-	grid := grid.DefaultGrids{}.Square(w, h, size)
-	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
-	topo := topography.NewPlugin(ctx.world, p, nil, topography.Config{}).
-		Style("sea", painter.Style{Shine: 0.9})
-	if err := ctx.Use(p); err != nil {
-		b.Fatal(err)
-	}
-	if err := ctx.Use(topo); err != nil {
-		b.Fatal(err)
-	}
-	brdW := p.Write().Board()
-	sea := cell.Kind{Name: cell.Named("sea"), Cost: 1, Allows: cell.Water}
-	brdW.SetAll(sea)
-	land := cell.Kind{Cost: 1, Allows: cell.Land}
-	for y := range uint32(h) {
-		for x := range uint32(w) {
-			if c := grid.At(x, y); x%8 < 4 && y%8 < 4 {
-				brdW.Set(c, land)
-			}
-		}
-	}
-	atlas := render.NewAtlas()
-	atlas.Add(render.SpriteID(0), 8, render.Solid(color.RGBA{A: 255}))
-	atlas.Close()
-	p.Write().SetAtlas(atlas)
-	ctx.start(b, func(goke.RunCtx, time.Duration) {})
-	src := drawnAs[*look.Renderer](b, ctx)
-	cam := ctx.camera(cameras.Config{Turn: true, Tilt: true, Cell: size, Cage: topo.Read(0)},
-		cameras.FromAbove, 0, 0)
-	var f render.Frame
-	far := grid.At(6, 6)
-	shallows := sea
-	shallows.Cost = 2
-	for _, sc := range []struct {
-		name    string
-		changed bool
-		clouds  float32
-	}{{"shores=warm", false, 0}, {"shores=anew", true, 0}, {"shores=warm,clouds", false, 0.5}} {
-		b.Run(sc.name, func(b *testing.B) {
-			topo.WithAtmosphere(fixedSky{sun: sky.DefaultSun, air: air.Weather{Clouds: sc.clouds}})
-			for b.Loop() {
-				if sc.changed {
-					shallows.Cost = 3 - shallows.Cost
-					brdW.Set(far, shallows)
-				}
-				f.Reset(cam)
-				src.Compose(&f, cam)
-			}
-		})
-	}
 }
 
 // view is "above", "iso" or "persp"; far shows the whole island on a screen of 576 by 384
@@ -331,51 +207,4 @@ func islandWith(b *testing.B, view string, far bool, shine, lit, sectored bool) 
 		ctx.cam.ZoomOut(100, w*size/2, h*size/2)
 	}
 	return ctx, p, drawnAs[*look.Renderer](b, ctx), topo
-}
-
-// Benchmark_Board_Island composes the island through every view, near, far and on a 1080p
-// screen, warm and after a cell ashore has changed.
-func Benchmark_Board_Island(b *testing.B) {
-	for _, v := range []struct {
-		view        string
-		far, screen bool
-	}{{"above", false, false}, {"iso", false, false}, {"iso", false, true}, {"persp", false, true},
-		{"above", true, false}, {"iso", true, false}} {
-		ctx, p, src := island(b, v.view, v.far)
-		brd, write := p.Read(0).Board(), p.Write().Board()
-		cam := ctx.cam
-		if v.screen {
-			cam.SetViewport(1920, 1080)
-			cam.CenterOn(96*32/2, 64*32/2, 0)
-		}
-		far := brd.At(48, 32)
-		rock := brd.At(48, 30)
-		view := v.view
-		if v.far {
-			view += ",far"
-		}
-		if v.screen {
-			view += ",screen"
-		}
-		var f render.Frame
-		for _, changed := range []bool{false, true} {
-			name := view + ",warm"
-			if changed {
-				name = view + ",changed"
-			}
-			b.Run(name, func(b *testing.B) {
-				for i := 0; b.Loop(); i++ {
-					if changed {
-						if i%2 == 0 {
-							write.Set(far, brd.Kind(rock))
-						} else {
-							write.Set(far, brd.Kind(far))
-						}
-					}
-					f.Reset(cam)
-					src.Compose(&f, cam)
-				}
-			})
-		}
-	}
 }
