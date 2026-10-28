@@ -126,7 +126,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   Whatever steers or pushes takes motion as it is made — `collision.NewPlugin(w, m)`,
   `bullet.NewPlugin(w, m, sel)`, `driving.NewPlugin(w, m, sel)`,
   `navigation.NewPlugin(brd, w, m, sel, drv)`, `gravity.NewPlugin(w, m, cfg)`; a board's units
-  `board.Plugin.WithMotion(m)` (`NewUnits` panics without it); collision and bullet hand an
+  `board.Plugin.WithMotion(m, mobility)` (`NewUnits` panics without either; the mobility
+  `cell.DefaultHiking` or the game's own); collision and bullet hand an
   entity they put out to `motion.Plugin.Leave(cb, id)`. A plugin reading a steering component in a
   world that may lack motion lists its `LoadComp` itself (the board `Pace`, the topography
   `Course`, `Driven`, `Drift`), so a save loads either way.
@@ -184,7 +185,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `CellFor`, `LevelFor`, `CellVersion`, `Changes`, `Version`, `Touch`,
   `Shape`, `Built`, `States`), the `Layout`, the `Map` contract, `NewUnits`, `NewEntities`, `Lay`.
   **The `Map` contract is a customization point for games, not plumbing** (`board.Map`:
-  `Look`, `Heights`, `Dressing`, `Top`, `Climb`, `Least`, `Slope`, put in by `Plugin.WithMap`;
+  `Look`, `Heights`, `Dressing`, `Top`, `Rise(from, to)` — how steep a step is, the rise between
+  the cells' middles over the run, 0 on a flat map — put in by `Plugin.WithMap`;
   `look.Map`, its drawing half: `Look`, `Heights`, `Dressing`, `Top`): a game gives its own
   map through it — topography is one, the board's windy map another. Its methods stay even
   where no plugin of the repo calls one (`look.Renderer` reads only `Look` and `Dressing`
@@ -219,11 +221,27 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `cell.Now`, their passes, `Around`), `field` (the ground's cover and solid field), `grids`,
   `draw` (the simple map's bands and covers), `occupancy`, `boardtest`.
   A `cell.Kind` says which `cell.Domain`s it admits, whether it is `Solid`, how much it `Veil`s
-  sight and whom it `Veils`, what it costs (`Costing(domain, cost)`, `CostFor(domain)`, paid in
-  the planner and in the Moving rule — only entities carrying `Mover` are slowed), whether it is
-  `Graded` (spared the slope), its `Height` (with heights), `Shine` (glint per pixel), `Flow`,
-  `Spread` (blending between kinds). Slopes cost through the board's Map (`relief.Climbing{Up,
-  Down, Ease, Steep, Free}`, `Map.Slope`/`Climb`/`Least`), so steep is the relief, never a kind.
+  sight and whom it `Veils`, the share of its top speed a unit keeps on it (`Pace` in (0, 1] for
+  a kind admitting anyone, `Paces` by domain through `Paced(domain, share)`, `PaceFor(domain)`
+  the best among the domains admitted and paced, else `Pace`; `Define` refuses a kind admitting
+  someone at no pace or a share over 1), whether it is `Graded` (spared the slope), its `Height`
+  (with heights), `Shine` (glint per pixel), `Flow`, `Spread` (blending between kinds). **How
+  fast a unit goes is the game's `cell.Mobility`** (2026-10-28, the user's design: a step's
+  weight a share in [0, 1], 0 refusing the step, 1 full speed and nothing faster, factors
+  multiplying, neutral 1): `Pace(cell.Step{From, To, Level, Kind, Domain, Slope}) float64`, given
+  beside motion (`WithMotion(m, mobility)`), read through `cell.PaceOf(m, step)` (a Graded kind's
+  slope read as 0, a share out of [0, 1] panicking with the kind's name) by the planner
+  (`board.Read.Pace/Flat/Sloped`: a step costs its length over the share, h the grid's distance),
+  the standing pass (`Pace.Share`, the ground under the unit at the slope of the step ahead the
+  way it goes, `grid.Nearest` + `Toward`, so what the planner allowed the unit walks) and the
+  driving (a step at 0 not driven, under gravity too). `cell.DefaultHiking` is Tobler's hiking
+  function cut at the flat (`Hiking{Rate 3.5, Shift 0.05, Free: Air}`: min(1, exp(−Rate·(|s +
+  Shift| − Shift))); half the pace at a rise of 1 in 5, a descent never quicker than the flat,
+  Air at 1 over anything); a game's own domain bits tell its classes of unit apart (board/
+  topography's `HighlandDomain`, its `madeira` refusing |slope| over 1 to walkers and over 2 to
+  highlanders, custom-map's `hillside`). Steep is the relief's (`Map.Rise`), never a kind's;
+  what it does to a unit is the mobility's. A save from before 2026-10-28 holds costs where
+  shares are read and panics at its first step.
   A `cell.Way` is a second layer on every cell entity, a band through the cell's middle whose kind
   decides who may cross it (`Way.Over`), laid by the painter on the GPU; ways curve round the cell's
   middle, a way's `Fade` has it fade out (a river into the sea). Every cell is an entity for good,
@@ -262,8 +280,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (one among the extra takes its place, its `Dir` the way a ford runs), `cell.On{Cell}`, with
   heights a `world.Z{Height}`, a `world.Lie` for a band; the game gives the rest (a plate's
   `Collider{}` without `Physics`, a sensor; the roles). Its knobs: `cell.Floor{Allows, Height,
-  Thickness, Cost, Graded, Links, Width}` (carries the domains over whatever the ground takes: a
-  trapdoor over a pit, a ford at its `Cost`, a bridge `Graded` at its deck's `Height`; with a
+  Thickness, Pace, Graded, Links, Width}` (carries the domains over whatever the ground takes: a
+  trapdoor over a pit, a ford at its `Pace` (0: the ground's; of several floors the fastest),
+  a bridge `Graded` at its deck's `Height`; with a
   `Width` a **band** from the cell's middle out to each neighbour its `Links` name; with `Height`
   the cell has two levels and where a unit is is its heights' — it steps onto a deck within its
   step from any side, passes under one it fits under, strikes the slab of one it does not, falls
@@ -283,7 +302,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Board.DecksOver(p, visit)` gives every deck over a point, `Board.KindFor(c, p, feet, reach)` the
   kind there, `Board.CellFor`/`LevelFor` the cell and level whoever stands there is on.
   `board.NewUnits[Row](brd, board.Shape{Size, Width, Height}, at)` defines a game's units, on a
-  board given motion (`WithMotion(m)`, else it panics):
+  board given motion and a mobility (`WithMotion(m, mobility)`, else it panics):
   `units.Define(name, unit.Mover{…}, steering, extra...)` derives `Position` and `At` from the one
   point `at` reads off a row, `Layers` from the domain, with heights a `Z{Height}`, runs the
   world's roster and `kind.Define`; `units.Named(name)` is the `kind.Of[Row]`; a Shape bigger
@@ -360,7 +379,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   cut out of their kinds' sprites, a step at its kind's cost; `plugins/topography` is the other.
   Depends on `world`, `motion` and `collision`.
 - **`topography`** — a map in relief: `topography.NewPlugin(world, board, light, Config{Shaping,
-  Climbing})`, made right after the world, the light and the board (so a world with heights);
+  Care})`, made right after the world, the light and the board (so a world with heights); the
+  board's Map: `Rise(from, to)` from the lattice's corners (a hex grid: the cells' altitudes
+  over the step), what a unit makes of it the board's mobility's;
   refuses a wrapping world; hands the light its relief (`light.Plugin.OverRelief`, the heights as
   they stand for the bake, the frame's under the live shadows). It publishes its relief once a
   frame (`relief.CopyInto`, the heights copied as their version moves), its settings and the
@@ -839,9 +860,14 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `underway`; the goal reached on either level, the goal's cell met mid-route a waypoint; a step
   across a railing refused, a slantwise step on or off a deck only along it, one on the ground
   cutting a corner of water only along a deck lying on the ground, `along`: the flat map's
-  slantwise bridges); `price` is what a step costs (the destination's `CostFor` over the length,
-  times `Map.Climb` unless `Graded`; a slantwise step not `Along` a way priced by the destination's
-  `Bare` ground, so roads are followed round their bends). A navigated unit carries a
+  slantwise bridges); `price` is what a step costs: its length over the share the board's
+  mobility gives it (`pathfind.Pacing`: `board.Read`'s `Pace`, `Flat`, `Sloped`), a share of 0
+  the step left out; on a flat board the share is read once a cell and level a search into the
+  `read`'s `rate` and multiplied as before, over a relief the strategy is called per ungraded
+  step with the ground kind kept by ordinal (`kinds`, allocated at the first sloped search;
+  `BenchmarkPathFinder_Terrain/relief` is that cost); h is the grid's distance, admissible since
+  no share exceeds 1 (`least` is gone); a slantwise step not `Along` a way paced by the
+  destination's `Bare` ground, so roads are followed round their bends. A navigated unit carries a
   `steering.Steering`: navigation asks it for a heading at a lookahead point and its top speed,
   braking before the goal; a waypoint is passed by projection, the goal by radius; the lookahead is
   the turning radius (`|Speed|·dt/TurnRate`, ~5–8 px in the demos), so a turn's corner is cut by
@@ -869,7 +895,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`LastOrder.Group`), `OnMyGoal`, `HeadOn`, `Room`, `WaitedOut`/`Cornered`. The rules' commands
   (`StepAside`, `Detour`, `Pass`, `Hold`, `Settle`, `Stop`; `Aimed` at the other) are carried out
   for that unit alone, the engine's rules kept there: `stepAside` goes where the ground takes the
-  unit, no steeper than `yieldClimb`, nobody standing; the last word stays navigation's
+  unit and its slope leaves it `YieldShare` (a third) of its pace on the level (`stepsAside`,
+  `asides`: a flat forest is stepped into, a cliff not), nobody standing; the last word stays navigation's
   (`stallAfter`, `maxStalls`, `bumpInterval`). A group gets its spots from `bodyKeeping.place` and
   goes cell centre to cell centre. The board has every unit hold the cell it stands on, navigation
   the cells of the steps in progress on their level (`Path.Decks`, a `Leg`'s `FromDeck`/`ToDeck`); a
@@ -900,7 +927,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   takes); `Halted` holds speed at 0. `steering.Driven{Ahead, Turn,
   Sprint, Face, Side, Look, Flown, Climb}` is an entity steered by hand, two writers: the driving
   the hand's (`Ahead`, `Turn`, `Sprint`, `Face`, `Side`), the topography's camera system the eye's
-  (`Look`, `Flown`, `Climb`); `Steers()`. `steering.Pace{Share}` the ground's share of the speed.
+  (`Look`, `Flown`, `Climb`); `Steers()`. `steering.Pace{Share}` the ground's share of the speed,
+  the board's mobility's, 0 where it refuses the step ahead.
 - **`world/view`** — `view.View{Bounds, Culled, In}`, `view.EntitySet`, `view.System`. In a
   world with sectors `ViewFor` makes `view.NewSeen(cam, sectors)`: every tick each sector's
   `view.Level` — `Hidden` beyond every band (`Off`), past the camera's sight from its
@@ -1266,7 +1294,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   another bridge's span, something crossed (water, or ground `Under` the deck; a road under it only
   square across), the heads levelled within `Reshape` breaking no road, a pier between every two
   spans; a `Refusal` says why. Kinds: `Plugin.Types().Define(name, Spec{Allows, Width, Thickness,
-  Cost, Rail, Pier})` — the name a level's lines call a bridge by (`bridges.Row{From, To}`),
+  Pace, Rail, Pier})` — the name a level's lines call a bridge by (`bridges.Row{From, To}`),
   `<name>.deck` (`board.NewEntities`: a Graded band) and `<name>.pier` (a still collider, drawn
   standing); `Type.Deck()`/`Pier()` the atlas's slots; a kind of bridge in one piece is a
   `bridges.Figure` (`Define(p)`, `Look(a, p)`; `Stateful`, `Ruled`), noted by `Plugin.Figures`

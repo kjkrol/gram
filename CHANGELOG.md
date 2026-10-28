@@ -1,5 +1,53 @@
 # Changelog
 
+## v0.7.0 — unreleased
+
+Needs astar v1.2.0 (a search's states in arrays by an integer id, a hand-written heap, one
+dictionary for the open and the closed, the same paths; the A* contract stated).
+
+**A step's weight is a share of the top speed** (2026-10-28, branch `feat/pace`,
+`doc/plans-perf.md` „Udziały tempa")
+- Breaking: a kind of cell says the share of its top speed a unit keeps on it, `cell.Kind.Pace`
+  in [0, 1] (`Paces` by domain, `Paced`, `PaceFor`), in place of `Cost` (1 and above, times as
+  long) and `Costs`, `Costing`, `CostFor`; `cell.Floor.Pace` and `bridges.Spec.Pace` likewise. A
+  kind admitting someone at no pace, or at a share over 1, is refused as it is defined.
+- Breaking: how fast a unit goes is the game's `cell.Mobility`, given beside motion
+  (`board.Plugin.WithMotion(m, mobility)`; `NewUnits` panics without one): `Pace(cell.Step)` is
+  the share on a step onto a kind, on its level, for a domain, over the slope between the two
+  cells' middles, 0 refusing the step; the factors multiply. `cell.DefaultHiking` is Tobler's
+  hiking function cut at the flat: half the pace at a rise of 1 in 5, a descent never quicker
+  than the flat, Air flying over. A game's own domain bits tell its classes of unit apart. The
+  planner (a step's cost its length over the share, the heuristic the grid's distance), the
+  board's pace (`steering.Pace.Share`, 0 where the step ahead is refused) and the driving (a
+  refused step not driven, under gravity too) read one strategy, so what the planner refuses a
+  unit never walks; a descent is never quicker than the flat, so `MaxSpeed` is a maximum.
+- Breaking: `board.Map` keeps the geometry alone, `Rise(from, to)` in place of `Climb`, `Least`
+  and `Slope`; `topography.Config.Climbing` and the package `plugins/topography/relief` are
+  gone; `pathfind.Slopes` is `Pacing`; `spacing.YieldClimb` is `YieldShare`: a step aside is
+  given way where its slope leaves the unit a third of its pace on the level, so a flat forest
+  is stepped into and a cliff is not.
+- Breaking: a save from before holds costs where shares are read: it loads, and the first step
+  panics naming the kind. Start the game afresh.
+- The demos: navigation/hex and square give `cell.DefaultHiking`; board/topography walks by its
+  own `madeira` (the plateau's units highlanders climbing to 2 in 1 where the walkers stop at 1
+  in 1, up or down, the hawk over all); board/custom-map keeps its hills' heights in its map and
+  their climb in a mobility of its own; rules/effect's snow slows a walker to a third and carries
+  the witch at full speed, ice to a half.
+- The planner keeps a cell's share on the level across searches by the board's version, as it
+  keeps its answers (`Finder.Searches` counts the searches); a step aside's slope gate costs
+  nothing on a flat board.
+- `plugins/navigation/testdata/routes.golden` pinned anew: a descent is no longer cheaper than
+  the flat.
+- Measured (`main` v0.6.0 with astar v1.1.3 against the tree with astar v1.2.0, alternately on
+  an idle machine, the lower of three rounds; `BENCHMARKS.md`): `Navigation_Tick` crowded 1,000
+  walkers 8.83 → 7.93 ms (−10%, at `BENCHTIME=200x`), crowded 100 −11%, open 100 −8%, open 1,000
+  within noise; `Navigation_Path` −2.5%; `Routing_Path` 15.8 → 15.2 ms, `Routing_Routes` 255 →
+  211 ms on one goroutine (−17%) and 87.8 → 75.8 ms on the pool (−14%); `PathFinder_Terrain`
+  −20…−22% (cells 6.78 → 5.27 ms), its new `relief` rung, the hiking function asked for every
+  step, about 9 ms. The standing pass pays the strategy a walker a step, the hiking function
+  over the rise to the cell ahead: `Board_Altitude` and `Gravity_Standing` +9…+10% at 1,000
+  walkers on a relief (367 → 404 µs), within noise at 100.
+
 ## v0.6.0 — 2026-10-27
 
 Needs aabbworld v1.19.0 (kjkrol/aabbworld#24: `Cone.Heights` and `Cone.Bend`, the scan's cone

@@ -1,23 +1,30 @@
 #!/usr/bin/env python3
-"""compare.py <base.txt> <tree.txt>: the benchmarks of two files of `go test -bench` lines side
+"""compare.py <base.txt> <tree.txt>: the benchmarks of two files of `go test -bench` output side
 by side — the min and the median of ns/op a benchmark, the change of each in percent, and
-allocs/op where the lines carry them. A benchmark in one file alone is marked new or gone."""
+allocs/op where the lines carry them. A benchmark in one file alone is marked new or gone. A
+line a benchmark logs (the world's bucket line) lands between a result's name and its numbers,
+so a bare line of numbers belongs to the last name seen: keep the whole output, grep nothing."""
 import re
 import statistics as st
 import sys
 from collections import defaultdict
 
-LINE = re.compile(r'^(Benchmark\S+?)(?:-\d+)?\s+\d+\s+([\d.]+) ns/op(.*)$')
+NAME = re.compile(r'^(Benchmark\S+?)(?:-\d+)?\s')
+RESULT = re.compile(r'(?:^|\s)\d+\s+([\d.]+) ns/op(.*)$')
 
 
 def load(path):
     runs = defaultdict(list)
+    last = None
     for line in open(path):
-        m = LINE.match(line)
-        if not m:
+        m = NAME.match(line)
+        if m:
+            last = m.group(1)
+        r = RESULT.search(line)
+        if not r or last is None:
             continue
-        allocs = re.search(r'([\d.]+) allocs/op', m.group(3))
-        runs[m.group(1)].append((float(m.group(2)), float(allocs.group(1)) if allocs else None))
+        allocs = re.search(r'([\d.]+) allocs/op', r.group(2))
+        runs[last].append((float(r.group(1)), float(allocs.group(1)) if allocs else None))
     return runs
 
 

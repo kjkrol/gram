@@ -46,7 +46,8 @@ Stage is entered (`Heights: true` wherever a board, a topography or an atmospher
 view too, gravity pulling along Y); `Plugins(func(w *world.Plugin))` has the arena make the plugins
 over it, used in the order made — `motion.NewPlugin(w)` first wherever anything moves, handed to
 whatever steers or pushes (collision, bullet, driving, navigation, gravity; the board's units by
-`WithMotion`), its `RunPlan` right after the world's in `Update`; `Plugins(func(made *plugin.Made))`
+`WithMotion(m, mobility)`, the mobility `cell.DefaultHiking` or the game's own `cell.Mobility`
+in its `mobility.go`), its `RunPlan` right after the world's in `Update`; `Plugins(func(made *plugin.Made))`
 the same for a Stage without a world. **A plugin may have a section of its own**:
 `section.Define(name, after, before)`, `section.Of[P](part, f)`, written with `With(sections...)` on
 any link from `World` to `Controls` (out of place it panics as the chain is built; a Stage using no

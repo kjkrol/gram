@@ -1195,3 +1195,107 @@ Punkty każdego promienia bit w bit jak skalarnie (4 000 losowych przypadków, 1
 pasy zajęte w 95–99% rund. Wynik: `View_Elevated/heights=field` 1 000 encji 242 → 173 µs (−28%), 100
 encji 84 → 59 (−30%), szczebel `profile` bez zmian (kontrola); gram `Vision_Relief/profile` 1,43 →
 1,17 ms (−18%), 15 Hz 637 → 487 (−24%), `along` bez zmian.
+
+## Udziały tempa: wycena kroków, astar na tablicach (plan 2026-10-28, gałęzie `perf/arrays` w astar i `feat/pace` w gram)
+
+Analiza (2026-10-28): 36 jednostek z płaskowyżu posłanych na Pico do Arieiro dzieliło się i
+zacinało; zamiast diagnozy użytkownik wybrał przebudowę wyceny kroków, bo była rozproszona i
+nieprecyzyjna. Zakres wag był nigdzie niezdefiniowany (jedno zdanie w komentarzu
+`cell.Kind.Cost`), zero znaczyło co innego w plannerze, w tempie i w `Costs[i]`, nic nie pilnowało
+zakresu; przeliczniki koszt × długość × stok były zaszyte w plannerze (`pathfind/finder.go`
+`price`) i w tempie (`moments/standing.go` `share`), a krzywa stoku siedziała w topografii
+(`relief.Climbing`); zejście było szybsze niż marsz po płaskim (czynnik 0,7, `Pace.Share` 1,43),
+więc `MaxSpeed` nie było maksimum, a heurystyka A* była luźna o 30% wszędzie. astar nie
+dokumentował kontraktu i trzymał węzły na wskaźnikach.
+
+Decyzje użytkownika (2026-10-28): waga przejścia to udział tempa maksymalnego w [0, 1] (0 odmowa,
+1 pełne tempo, nic szybszego; neutralne 1, czynniki się mnożą, bez normalizacji po liczbie
+czynników); kontrakt `cell.Mobility{Pace(Step)}` w `board/cell`, biblioteka zbiera wymiary,
+strategia składa; domyślna `cell.Hiking` (Tobler obcięty na płaskim); podanie obok motion
+(`WithMotion(m, mobility)`); kafle mówią udziałami; dema hex i square jawnie domyślna,
+topografia własna `madeira` z odcięciami 1:1 i 2:1 w obie strony; stare zapisy bez obsługi;
+astar: układ danych, potem SIMD z bramką pomiaru; wszystko w jednej sesji, po kolei; HPA* i
+szukanie dwukierunkowe poza etapem.
+
+**Jedna miara stoku.** Planner wycenia krok po rise/run między środkami komórek; tempo liczy
+stok tak samo (komórka pod środkiem jednostki i sąsiad w kierunku marszu, `grid.Nearest` +
+`Toward`), nie w punkcie: co planner dopuścił, tempo dopuszcza, więc odcięcie nie zatrzyma
+jednostki w połowie kroku. `Map.SlopeAt` i `relief.SlopeAt` znikają; zostaje `Map.Rise`.
+
+**astar** (`perf/arrays`): golden ścieżek sześciu scen z v1.1.3, testy optymalności (Dijkstra),
+ponownego otwarcia, kroków zerowych, `Iter`; węzły w tablicach po `int32` (bez wskaźników),
+kopiec kluczy i id pisany ręcznie z sitem z dziurą (porównania jak `container/heap`: te same
+remisy), jeden słownik (zamknięty jako `^id`); kopiec 4-arny z wyborem dziecka w SIMD
+(`GOEXPERIMENT=simd`, AVX2) próbowany z bramką pomiaru; dokumentacja z kontraktem A* w jego
+słowach, README z przykładem udziałów, `BENCHMARKS.md`, skill po polsku, CI z jobem SIMD na
+Go 1.27.
+
+**gram** (`feat/pace`): `cell.Mobility`, `Step`, `PaceOf`, `Hiking`/`DefaultHiking`; `Kind.Pace`,
+`Paces`, `Paced`, `PaceFor`, `Floor.Pace`, `bridges.Spec.Pace`; `Define` odmawia rodzaju bez
+udziału i udziału > 1; `Map.Rise` zamiast `Climb/Least/Slope`; `board.Read.Mobility/Pace/Flat/
+Sloped`; planner: koszt = długość / udział, h = odległość, udział na płaskim raz na komórkę,
+strategia na krok tylko nad reliefem (`kinds` po ordynale), `Steps` odmawia udziału 0,
+`YieldShare` jako stosunek do udziału na płaskim; tempo przez `PaceOf` z rise do sąsiada;
+jazda odmawia kroku o udziale 0 (pod grawitacją też); `topography.Config.Climbing` i pakiet
+`topography/relief` usunięte; przebieg mechaniczny literałów (136 plików); `routes.golden`
+przepisany; dema: `madeira` (bit `HighlandDomain` jednostek płaskowyżu), `hillside` w
+custom-map, hex i square jawnie, effect odwrócony (śnieg 1/3, lód 1/2, wiedźma 1).
+
+**Pomiar** (integrator): baza `main` `b374438a` (worktree w scratchpadzie, `GOWORK=off`: tagi,
+astar v1.1.3) i drzewo (własny `go.work` z gram i astar, goke/ceremony/aabbworld z tagów), na
+zmianę, `-count=2` × 3 rundy; `./bench`: `Navigation_Tick`, `Navigation_Path`, `Board_Altitude`,
+`Gravity_Standing` (`BENCHTIME=200x`); `plugins/navigation`: `Routing_Path`, `Routing_Routes`;
+`pathfind`: `PathFinder_Terrain` (`map`, `cells` i nowy `relief`: wzgórza po ordynale, strategia
+na krok). Dema z jednostkami pod `timeout 20s`.
+
+## Udziały tempa: wynik (2026-10-28)
+
+Trzy części poszły w jednej sesji, po kolei (decyzja użytkownika), bez agentów i worktree: astar
+na gałęzi `perf/arrays` od v1.1.3, gram na `feat/pace` od `main` v0.6.0. Sekwencja standardowa
+zielona w obu buildach w obu repo, `-race` na board i navigation czysty, 18 dem chodzi pod
+`timeout`. Pomiar: kopia bazy w scratchpadzie (`GOWORK=off`: tagi, astar v1.1.3) i drzewo
+(własny `go.work` z gram i astar; goke, ceremony i aabbworld z tagów po obu stronach, bo lokalne
+goke było brudne) na zmianę, bezczynna maszyna.
+
+**astar** (`BENCHMARKS.md` astara; najniższy z sześciu, `-cpu=1`, build zwykły): pełne szukanie
+(`CostWeight_1.0`, `IndexedSliceDict`) 256×256 11,7 → 6,72 ms, 1024×1024 208 → 123, 2048×2048
+937 → 547 (−41…−43%; słowniki mapowe −43…−45%), krótkie (waga 0,1) −76…−89%, `SolveInto`
+−40…−43% (1 → 0 alokacji), Octile −38…−40% (1024×1024 413 → 249 ms); `Solve` alokuje raz
+(ścieżkę) zamiast dwa. Kroki osobno: układ danych −26…−31% (waga 0,1 −70…−85%), jeden słownik
+−10…−14% (mapowe −31%), sito z dziurą −4…−8%; ścieżki co do kroku jak v1.1.3 (golden sześciu
+scen; `routes.golden` grama przepisany tylko z powodu wyceny). **Odrzucone**: kopiec 4-arny
+skalarny (+1…+2% na pełnych szukaniach) i z wyborem dziecka w SIMD (−10% na Octile), bo inny z
+równie tanich wariantów trasy wychodzi pierwszy i w `Navigation_Tick/crowded,1000` grama
+jednostki przeplanowały 55% więcej (7,2 → 11,2 ms na tick); zostaje kopiec binarny, pliki
+4-arnego w scratchpadzie sesji.
+
+**gram** (`BENCHMARKS.md` „Navigation", „The routing alone", „Standing"; baza `main` v0.6.0 z
+astarem v1.1.3, drzewo z astarem v1.2.0, najniższy z trzech rund): `Navigation_Tick` crowded
+1 000 8,83 → 7,93 ms (−10%), crowded 100 −11%, open 100 −8%, open 1 000 w szumie (tam rządzi
+ruch po trasach); `Navigation_Path` −2,5%; `Routing_Path` 15,8 → 15,2 ms, `Routing_Routes` 255 →
+211 ms na jednym wątku (−17%), 87,8 → 75,8 na puli (−14%); `PathFinder_Terrain` −20…−22% (cells
+6,78 → 5,27 ms, `-cpu=1` tak samo), nowy szczebel `relief` ok. 9 ms: strategia na każdy krok
+(`PaceOf`, `exp`) to niemal drugie tyle co samo szukanie — pole do HPA*, nie do SIMD. Tempo:
+`Board_Altitude` i `Gravity_Standing` +9…+10% przy 1 000 piechurów na reliefie (367 → 404 µs,
+ok. 40 ns na jednostkę na krok: `Map.Rise` do sąsiada w kierunku marszu i `exp` krzywej Toblera
+tam, gdzie v0.6.0 czytało stok w punkcie z czynnikiem 1), w szumie przy 100; przyjęte jako cena
+strategii. Pierwszy pomiar pokazał, że planner czytał łańcuch `Flat` na komórkę w każdym
+szukaniu (+6% crowded) i że bramka ustępowania wołała `PaceOf` dwa razy na kandydata także nad
+płaską planszą (+15% open): stąd udział na płaskim trzymany po wersji planszy (`flatStep`) i
+skrót `Sloped()`.
+
+**Pułapka pomiaru znaleziona**: linia loga świata (`maxEntities=… → bucket=…`) wchodzi między
+nazwę wyniku a liczby, a `grep '^Benchmark'` w `measure.sh` gubił każdy wynik po pierwszym z
+`-count=N`: „3 rundy × `-count=2`" grama było trzema próbkami, nie sześcioma (astar, bez loga,
+miał sześć). `measure.sh` zapisuje teraz całe wyjście, `compare.py` przypisuje gołą linię liczb
+ostatniej nazwie; liczby tego etapu są z trzech próbek na stronę, tempo zmierzone ponownie po
+poprawce z sześciu.
+
+**Odstępstwa i co dalej**: stare zapisy bez obsługi (decyzja); długie linie sprzed etapu
+nietknięte; `bench-save` całego zestawu astara nienagrany (pomiary na zmianę zamiast niego);
+`go.mod` grama czeka na tag astara v1.2.0 (API astara bez zmian i te same ścieżki, więc CI grama
+na v1.1.3 zielone, tylko wolniejsze). Dalej: tag v1.2.0 (użytkownik) → `chore: astar v1.2.0`;
+scalenie
+`feat/pace` `--no-ff`; osobne planowanie HPA* i szukania dwukierunkowego
+(`gram-perf-navigation`, „Co dalej"); zacięcie 36 jednostek na płaskowyżu sprawdzić na nowym
+kodzie.

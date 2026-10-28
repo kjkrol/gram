@@ -230,9 +230,9 @@ pressure plate demos are the same in less.
 A rule holds no Go code (ceremony's "No Go code in a rule"); what a plugin does of its own is its
 own work in a pass it makes anyway, never a rule of another plugin's moment:
 
-- the ground's pace: the board's pass over the units writes each one's `steering.Pace` — the cost
-  and the slope of the cell under it — and motion's velocity pass multiplies the speed by it,
-  from the next step;
+- the ground's pace: the board's pass over the units writes each one's `steering.Pace` — the
+  share the board's `cell.Mobility` gives the ground under it at the slope of the step ahead —
+  and motion's velocity pass multiplies the speed by it, from the next step;
 - navigation's bumps: its pass reads the `collision.Collider` contacts of every unit under orders;
 - contacts counted and logged, sightings and falls logged: `collision.Plugin.WithStats`,
   `WithLog`, `vision.Plugin.WithLog`, `board.Plugin.WithLog`;

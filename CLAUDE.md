@@ -35,12 +35,15 @@ the delivery of rules, the store behind ceremony's contract, roles, `world.Self`
 plugin's package layout), `gram-plugins` (the reference of the built-in plugins, one entry each),
 `gram-render` (the Composer, Direct, atlases and looks), `gram-game` (a game and a demo: Stage,
 sections, arena, scene, ui, players, persistence), `gram-probe` (a demo driven headless tick by
-tick), `gram-perf` (where the time goes, the optimisations landed and what they rest on,
-measuring a change: the protocol and its scripts), `gram-pr` (a PR readied for review: the squash
-message, the PR's body, the squash), `goke` (the ECS: model, queries, release flow,
-`scripts/api.sh`), `ceremony` (the language and its pitfalls). aabbworld's kernels have their own
-`simd` skill (`/home/karol/CODE/aabbworld/.claude/skills/simd/SKILL.md`), loaded by a session in
-that repo and read by path from here.
+tick), `gram-perf` (the index of performance, in Polish: where the numbers are, measuring a
+change: the protocol and its scripts, the traps) with its specific skills `gram-perf-tick`,
+`gram-perf-picture`, `gram-perf-navigation` and `gram-perf-sight` (each: what was done in that
+layer, what it rests on, its numbers, what was tried and dropped), `gram-pr` (a PR readied for
+review: the squash message, the PR's body, the squash), `goke` (the ECS: model, queries,
+release flow, `scripts/api.sh`), `ceremony` (the language and its pitfalls). aabbworld's kernels
+have their own `simd` skill (`/home/karol/CODE/aabbworld/.claude/skills/simd/SKILL.md`) and
+astar its `astar` skill (`/home/karol/CODE/astar/.claude/skills/astar/SKILL.md`), each loaded by
+a session in that repo and read by path from here.
 
 ## Commands
 

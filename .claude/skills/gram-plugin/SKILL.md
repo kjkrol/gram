@@ -222,7 +222,12 @@ saves.
 `Plays`, the commands it handles); public subpackages hold the vocabulary and contracts a game and
 other plugins both name (`cell.Kind`, `unit.Mover`, `grid.Grid`, `board/look`, `board/ground`) and
 nothing else; `plugins/<plugin>/internal/...` the machinery, importable only inside the plugin,
-never in a public signature. A type the machinery needs goes to a vocabulary package; a command
+never in a public signature. **A strategy a game writes is such a contract**, given to the
+plugin as it is made and read by every pass that needs it, never two copies of the logic:
+`cell.Mobility` (`WithMotion(m, mobility)`, 2026-10-28) paces a step for the board's standing
+pass, the planner (through `board.Read.Pace`) and the driving alike; the library gathers the
+step's facts (`cell.Step`), the strategy composes them (`cell.PaceOf` asks it and checks the
+range), a default stands in the vocabulary package (`cell.DefaultHiking`). A type the machinery needs goes to a vocabulary package; a command
 the machinery carries out is defined in the root, its queue kept there, reaching the machinery
 through an interface the plugin implements (`icameras.Orders`). Where a file imports a public
 package and its internal namesake, the internal one gets an `i` prefix (`irelief`, `ipainter`);
