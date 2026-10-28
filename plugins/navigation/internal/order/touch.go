@@ -72,12 +72,14 @@ func (t Touch) reachedTheGroup() bool {
 	return t.Moving && !t.GivingWay && t.LastGoal && !t.OtherMoving && t.Groupmate && t.NearMyGoal
 }
 
-// InTheWay is the word of a touch where Self is on the move and Other lies ahead of it, not one of
-// its order gathered round its goal.
+// InTheWay is the word of a touch where Self is on the move and Other is in its way: ahead of it,
+// or not of its group — one of its group pressing on it from behind or beside is its queue, not
+// its way.
 func InTheWay() cond.Word[Touch] { return cond.NewWord("in the way", Touch.inTheWay) }
 
-// one striking Self from behind or beside is no one in its way
-func (t Touch) inTheWay() bool { return t.Moving && t.Ahead && !t.reachedTheGroup() }
+func (t Touch) inTheWay() bool {
+	return t.Moving && (t.Ahead || !t.Groupmate) && !t.reachedTheGroup()
+}
 
 // ClearsTheWay is the word of a touch where an idle ally in Self's way with room to make way for
 // it.

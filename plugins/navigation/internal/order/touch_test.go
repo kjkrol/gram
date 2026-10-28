@@ -26,9 +26,17 @@ func TestTouch_TheRulesOfTheCrowd(t *testing.T) {
 			false, false, false, true, false},
 		{"on the move, struck from behind or beside by an idle ally with room",
 			with(moving, func(t *Touch) { t.Ahead, t.Ally, t.Room = false, true, true }),
-			false, false, false, false, false},
+			false, false, true, false, false},
 		{"on the move, struck from behind or beside by a stranger",
-			with(moving, func(t *Touch) { t.Ahead = false }), false, false, false, false, false},
+			with(moving, func(t *Touch) { t.Ahead = false }), false, false, false, true, false},
+		{"on the move, struck from behind or beside by one of its group far from its goal",
+			with(moving, func(t *Touch) {
+				t.Ahead, t.Ally, t.Groupmate, t.NearMyGoal = false, true, true, false
+			}), false, false, false, false, false},
+		{"on the move, struck from behind or beside by one of its group on the move",
+			with(moving, func(t *Touch) {
+				t.Ahead, t.OtherMoving, t.Ally, t.Groupmate = false, true, true, true
+			}), false, false, false, false, false},
 	} {
 		got := [5]bool{c.touch.pushedByAlly(), c.touch.reachedTheGroup(), c.touch.clearsTheWay(), c.touch.blocks(), c.touch.goalTaken()}
 		if want := [5]bool{c.pushed, c.reached, c.clears, c.blocks, c.goalTaken}; got != want {
