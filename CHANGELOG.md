@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.7.0 — unreleased
+## v0.7.0 — 2026-10-28
 
 Needs astar v1.2.0 (a search's states in arrays by an integer id, a hand-written heap, one
 dictionary for the open and the closed, the same paths; the A* contract stated).
