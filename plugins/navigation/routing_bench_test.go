@@ -30,9 +30,10 @@ type routeBench struct {
 	orders  goke.Comp[MoveOrder]
 	ordered *goke.Query
 	goals   map[uid.UID64][2]cell.ID
+	group   uint32 // the units sent as one MoveTo, its point the goal's middle; 0 each alone
 }
 
-func newRouteBench(b *testing.B, pool *parallel.Pool,
+func newRouteBench(b *testing.B, pool *parallel.Pool, group uint32,
 	place func(g grid.Grid) (starts []cell.ID, goals [][2]cell.ID)) *routeBench {
 	b.Helper()
 	g := grid.DefaultGrids{}.Square(routeSide, routeSide, routeCell)
@@ -41,7 +42,7 @@ func newRouteBench(b *testing.B, pool *parallel.Pool,
 	for i, c := range starts {
 		units[i] = navUnit{box: cellBox(g, c, 12), at: c, order: &MoveOrder{Target: goals[i][0]}}
 	}
-	r := &routeBench{goals: map[uid.UID64][2]cell.ID{}}
+	r := &routeBench{goals: map[uid.UID64][2]cell.ID{}, group: group}
 	r.nw = newNavWorldIn(b, pool, routeSide, routeSide, routeCell, units, world.SectorsCfg{}, nil,
 		goke.SystemFn{OnInit: func(si *goke.SysInit) {
 			r.ordered = si.NewQueryBuilder(&r.orders).Build()
@@ -75,7 +76,11 @@ func (r *routeBench) route(k int) {
 		cur := r.ordered.Cursor()
 		orders := r.orders.Slice(cur)
 		for i, id := range cur.IDs {
-			orders[i] = MoveOrder{Target: r.goals[id][k%2], Ask: order.AskRoute}
+			to := r.goals[id][k%2]
+			orders[i] = MoveOrder{Target: to, Ask: order.AskRoute}
+			if r.group != 0 {
+				orders[i].At, orders[i].Group = r.nw.grid.CellCenter(to), r.group
+			}
 		}
 	}
 	r.coord.Update(nil, time.Second/60)
@@ -112,7 +117,7 @@ func layRoutes(nw *navWorld, keep []cell.ID) {
 // asks for a route to the far corner, and the next time to the south-west one, round the rocks
 // and through the walls' gaps, nothing kept between two.
 func Benchmark_Routing_Path(b *testing.B) {
-	r := newRouteBench(b, nil, func(g grid.Grid) ([]cell.ID, [][2]cell.ID) {
+	r := newRouteBench(b, nil, 0, func(g grid.Grid) ([]cell.ID, [][2]cell.ID) {
 		return []cell.ID{g.At(2, 2)},
 			[][2]cell.ID{{g.At(routeSide-3, routeSide-3), g.At(2, routeSide-3)}}
 	})
@@ -132,13 +137,41 @@ func Benchmark_Routing_Routes(b *testing.B) {
 			name, pool = "workers=all", parallel.New(0)
 		}
 		b.Run(name, func(b *testing.B) {
-			r := newRouteBench(b, pool, func(g grid.Grid) ([]cell.ID, [][2]cell.ID) {
+			r := newRouteBench(b, pool, 0, func(g grid.Grid) ([]cell.ID, [][2]cell.ID) {
 				var starts []cell.ID
 				var goals [][2]cell.ID
 				for i := range uint32(32) {
 					east := g.At(routeSide-3, 3+6*i)
 					starts = append(starts, g.At(2, 3+6*i))
 					goals = append(goals, [2]cell.ID{east, east})
+				}
+				return starts, goals
+			})
+			b.ReportAllocs()
+			for k := 1; b.Loop(); k++ {
+				r.route(k)
+			}
+		})
+	}
+}
+
+// Benchmark_Routing_Group is 32 routes across the board to one goal at once: the units of
+// Routing_Routes sent to the middle of the east edge as one group, answered on one goroutine
+// (workers=1) or on a pool of every CPU (workers=all), nothing kept between two.
+func Benchmark_Routing_Group(b *testing.B) {
+	for _, all := range []bool{false, true} {
+		name, pool := "workers=1", (*parallel.Pool)(nil)
+		if all {
+			name, pool = "workers=all", parallel.New(0)
+		}
+		b.Run(name, func(b *testing.B) {
+			r := newRouteBench(b, pool, 1, func(g grid.Grid) ([]cell.ID, [][2]cell.ID) {
+				goal := g.At(routeSide-3, routeSide/2)
+				var starts []cell.ID
+				var goals [][2]cell.ID
+				for i := range uint32(32) {
+					starts = append(starts, g.At(2, 3+6*i))
+					goals = append(goals, [2]cell.ID{goal, goal})
 				}
 				return starts, goals
 			})

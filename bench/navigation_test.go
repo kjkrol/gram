@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugin"
@@ -36,7 +38,7 @@ type navRow struct{ At cell.ID }
 
 // navScene is a world of walkers under orders: in the open, each to the cell mirroring its own
 // on the right half; crowded, all through the wall's gap to one cell behind it, where they
-// press, step aside and plan again.
+// press, step aside and plan again; grouped, selected and sent there as one MoveTo.
 type navScene struct {
 	ecs     *goke.ECS
 	w       *world.Plugin
@@ -46,9 +48,10 @@ type navScene struct {
 	ids     []uid.UID64
 	from    []cell.ID
 	crowded bool
+	moves   *command.Queue[navigation.MoveTo] // grouped: the players' MoveTo; nil, each its own
 }
 
-func benchNavigation(b *testing.B, n int, crowded bool) *navScene {
+func benchNavigation(b *testing.B, n int, crowded, grouped bool) *navScene {
 	b.Helper()
 	ctx := newHeadless()
 	s := &navScene{crowded: crowded}
@@ -90,9 +93,18 @@ func benchNavigation(b *testing.B, n int, crowded bool) *navScene {
 		}
 	}
 	units := board.NewUnits(p, board.Shape{Size: 12}, func(r navRow) geom.Vec { return s.g.CellCenter(r.At) })
+	var selected []comp.Comp
+	if grouped {
+		selected = append(selected, comp.Tagged(sel.Tags().Selectable, sel.Tags().Selected))
+		for _, q := range nav.Queues() {
+			if moves, ok := q.(*command.Queue[navigation.MoveTo]); ok {
+				s.moves = moves
+			}
+		}
+	}
 	units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{
 		MaxSpeed: 4 * navCell, Accel: 8 * navCell, Brake: 16 * navCell, V0: 2 * navCell, TurnRate: 0.15,
-	})
+	}, selected...)
 	var entries []kind.Entry
 	for i := range n {
 		entries = append(entries, units.Named("walker").Entry(navRow{
@@ -134,6 +146,14 @@ func benchNavigation(b *testing.B, n int, crowded bool) *navScene {
 
 // order sends every walker across, or back where it came from.
 func (s *navScene) order(back bool) {
+	if s.moves != nil {
+		to := s.g.At(navWallX+6, navGapY)
+		if back {
+			to = s.g.At(navWallX-6, navGapY)
+		}
+		s.moves.Add(command.Nobody, navigation.MoveTo{Cell: to})
+		return
+	}
 	for i, id := range s.ids {
 		var to cell.ID
 		switch {
@@ -153,15 +173,21 @@ func (s *navScene) order(back bool) {
 
 // Benchmark_Navigation_Tick is one tick of the world, motion, board and navigation with N
 // walkers under orders: in the open, nothing in their way; crowded, all through a wall's
-// one-cell gap to one cell behind it. The orders turn them round every navOrderGap ticks.
+// one-cell gap to one cell behind it; grouped, the crowd sent as one MoveTo to the cells round
+// that one. The orders turn them round every navOrderGap ticks.
 func Benchmark_Navigation_Tick(b *testing.B) {
 	for _, sc := range []struct {
-		name    string
-		crowded bool
-	}{{"open", false}, {"crowded", true}} {
-		for _, n := range []int{100, 1000} {
+		name             string
+		crowded, grouped bool
+		counts           []int
+	}{
+		{"open", false, false, []int{100, 1000}},
+		{"crowded", true, false, []int{100, 1000}},
+		{"grouped", true, true, []int{1000}},
+	} {
+		for _, n := range sc.counts {
 			b.Run(sc.name+","+entities(n), func(b *testing.B) {
-				s := benchNavigation(b, n, sc.crowded)
+				s := benchNavigation(b, n, sc.crowded, sc.grouped)
 				tick, back := 0, false
 				b.ReportAllocs()
 				for b.Loop() {
