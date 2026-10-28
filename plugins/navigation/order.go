@@ -12,6 +12,9 @@ type (
 	Level     = order.Level
 	Round     = order.Round
 	MoveTo    = order.MoveTo
+	March     = order.March
+	Formation = order.Formation
+	Shape     = order.Shape
 	LookAt    = order.LookAt
 	Onward    = order.Onward
 	StepAside = order.StepAside
@@ -33,11 +36,15 @@ const (
 	EitherLevel   = order.EitherLevel
 	OnGround      = order.OnGround
 	OnDeck        = order.OnDeck
+	NoFormation   = order.NoFormation
+	Column        = order.Column
 )
 
-// NewRound makes a Round; the rest are the words of a Touch and of a Blocked.
+// NewRound makes a Round, ColumnOf a column's Formation; the rest are the words of a Touch and of
+// a Blocked.
 var (
 	NewRound         = order.NewRound
+	ColumnOf         = order.ColumnOf
 	PushedByAlly     = order.PushedByAlly
 	ReachedTheGroup  = order.ReachedTheGroup
 	InTheWay         = order.InTheWay

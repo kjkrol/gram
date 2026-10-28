@@ -42,6 +42,7 @@ type Plugin struct {
 	module *module
 
 	moves   command.Queue[MoveTo]
+	marches command.Queue[March]
 	looks   command.Queue[LookAt]
 	routes  command.Queue[Routes]
 	onwards command.Queue[Onward]
@@ -160,7 +161,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 
 	moveCommandSystem := routing.NewSystem(routeFinder, &p.moves, &p.looks, p.selected).
 		WithKeeping(routeKeep)
-	moveCommandSystem.Onwards = &p.onwards
+	moveCommandSystem.Onwards, moveCommandSystem.Marches = &p.onwards, &p.marches
 	p.handKeeping.Keep, p.handKeeping.Nav = keep, navSys
 	if p.collision != nil {
 		navSys.Bumps = traffic.AnyBump

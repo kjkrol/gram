@@ -1,6 +1,7 @@
 package routing
 
 import (
+	"log"
 	"math"
 	"time"
 
@@ -21,17 +22,19 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// System carries out the MoveTo, LookAt and Onward commands: an order for each unit sent.
+// System carries out the MoveTo, March, LookAt and Onward commands: an order for each unit sent.
 type System struct {
 	keep     spacing.Keeping
 	moves    *command.Queue[order.MoveTo]
 	looks    *command.Queue[order.LookAt]
 	Onwards  *command.Queue[order.Onward]
+	Marches  *command.Queue[order.March]
 	selected tag.Tag[selection.Family]
 	kind     func(cell.ID) cell.Kind
 
-	group   uint32
-	grouped bool
+	group     uint32
+	grouped   bool
+	shapeless bool // a March in a shape unknown here was said in the log
 
 	query   *goke.Query
 	cell    goke.Comp[unit.At]
@@ -93,7 +96,12 @@ func (s *System) Init(si *goke.SysInit) {
 }
 
 func (s *System) Update(cb *goke.CmdBuf, _ time.Duration) {
-	s.moves.Drain(func(i command.Issued[order.MoveTo]) { s.carryOut(cb, i.Command, issuedBy(i)) })
+	s.moves.Drain(func(i command.Issued[order.MoveTo]) {
+		s.carryOut(cb, i.Command, order.Formation{}, issuedBy(i))
+	})
+	if s.Marches != nil {
+		s.Marches.Drain(func(i command.Issued[order.March]) { s.march(cb, i.Command, issuedBy(i)) })
+	}
 	s.looks.Drain(func(i command.Issued[order.LookAt]) { s.look(cb, i.Command.At, issuedBy(i)) })
 	if s.Onwards != nil {
 		s.Onwards.Drain(func(i command.Issued[order.Onward]) {
@@ -114,7 +122,7 @@ func (s *System) onward(cb *goke.CmdBuf, id uid.UID64) {
 	}
 	next := r.Cells[r.Next%r.Count]
 	r.Next = (r.Next + 1) % r.Count
-	s.carryOut(cb, order.MoveTo{Cell: next}, issuer{entity: id, self: true})
+	s.carryOut(cb, order.MoveTo{Cell: next}, order.Formation{}, issuer{entity: id, self: true})
 }
 
 // the cell of the one entity bearing a name To gives: a cell's own, or the one a unit is at
@@ -218,7 +226,19 @@ func (s *System) look(cb *goke.CmdBuf, at geom.Vec, by issuer) {
 	s.members(by, func(m bodies.Member) { cb.AddOne(m.ID, s.orderID, s.keep.Look(m, at)) })
 }
 
-func (s *System) carryOut(cb *goke.CmdBuf, cmd order.MoveTo, by issuer) {
+func (s *System) march(cb *goke.CmdBuf, cmd order.March, by issuer) {
+	in := cmd.In
+	if in.Shape > order.Column {
+		if !s.shapeless {
+			log.Printf("navigation: a March in shape %d, unknown here, goes as a MoveTo", in.Shape)
+			s.shapeless = true
+		}
+		in = order.Formation{}
+	}
+	s.carryOut(cb, order.MoveTo{Cell: cmd.Cell, To: cmd.To, At: cmd.At, Level: cmd.Level}, in, by)
+}
+
+func (s *System) carryOut(cb *goke.CmdBuf, cmd order.MoveTo, in order.Formation, by issuer) {
 	if !cmd.To.Nobody() {
 		c, ok := s.find(cmd.To)
 		if !ok {
@@ -235,7 +255,7 @@ func (s *System) carryOut(cb *goke.CmdBuf, cmd order.MoveTo, by issuer) {
 	})
 	group, party := s.nextGroup(), uint16(min(len(members), math.MaxUint16))
 	s.keep.Orders(members, cmd, func(m bodies.Member, o order.MoveOrder) {
-		o.Group, o.Party = group, party
+		o.Group, o.Party, o.Formation = group, party, in
 		cb.AddOne(m.ID, s.orderID, o)
 	})
 }

@@ -1004,7 +1004,7 @@ func (s *System) stepAside(m bodies.Member, o *order.MoveOrder, of uid.UID64) {
 		return
 	}
 	aside.Linger, aside.Face, aside.Group = spacing.YieldLinger, o.Face, o.Group
-	aside.Party = o.Party
+	aside.Party, aside.Formation = o.Party, o.Formation
 	aside.Enqueue(order.Goal{Cell: o.Target, Spot: o.Spot, At: o.At})
 	for _, g := range o.Waypoints[:o.Queued] {
 		aside.Enqueue(g)

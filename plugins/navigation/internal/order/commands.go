@@ -21,6 +21,16 @@ type MoveTo struct {
 	Level  Level
 }
 
+// March is the command to send every Selected entity the player owns, or the entity giving it,
+// to Cell in a formation: as MoveTo sends them, the group laid out and paced by In.
+type March struct {
+	Cell  cell.ID
+	To    ceremony.Whom
+	At    geom.Vec
+	Level Level
+	In    Formation
+}
+
 // Level is which of a cell's two levels, a raised deck or the ground under it, a goal lies on. A
 // cell of one level takes any.
 type Level uint8
@@ -82,6 +92,8 @@ func (t *Trail) Aim(who uid.UID64) { t.Of = who }
 
 func (MoveTo) Command() {}
 
+func (March) Command() {}
+
 func (LookAt) Command() {}
 
 func (StepAside) Command() {}
@@ -100,6 +112,7 @@ func (Stop) Command() {}
 
 var (
 	_ command.Command = MoveTo{}
+	_ command.Command = March{}
 	_ command.Command = LookAt{}
 	_ command.Command = StepAside{}
 	_ command.Command = Detour{}

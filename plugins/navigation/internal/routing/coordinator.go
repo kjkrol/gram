@@ -49,6 +49,12 @@ type Coordinator struct {
 // off a field
 const fieldParty = 4
 
+// whether o's asks read their routes off its party's field: a MoveTo's party, or any marching in
+// a formation, which the field lays out
+func byField(o *order.MoveOrder) bool {
+	return o.Party >= fieldParty || o.Formation.Shape != order.NoFormation && o.Party > 1
+}
+
 type router struct {
 	finder *spacing.Finder
 	keep   spacing.Keeping
@@ -121,7 +127,7 @@ func (c *Coordinator) Update(_ *goke.CmdBuf, d time.Duration) {
 			if a != order.AskRoute && a != order.AskNearest {
 				continue
 			}
-			party := a == order.AskRoute && orders[i].Party >= fieldParty
+			party := a == order.AskRoute && byField(&orders[i])
 			c.asks, c.parties = append(c.asks, cursor.IDs[i]), append(c.parties, party)
 			partied = partied || party
 		}

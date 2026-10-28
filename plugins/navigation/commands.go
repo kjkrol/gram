@@ -28,7 +28,7 @@ func (Routes) Command() {}
 
 // Queues are the queues of every command the plugin carries out, for the players plugin.
 func (p *Plugin) Queues() []command.CommandQueue {
-	queues := []command.CommandQueue{&p.moves, &p.looks, &p.routes, &p.onwards}
+	queues := []command.CommandQueue{&p.moves, &p.marches, &p.looks, &p.routes, &p.onwards}
 	return append(queues, p.given.All()...)
 }
 
