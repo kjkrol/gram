@@ -578,12 +578,16 @@ func (s *System) tail(w *walker, d time.Duration) {
 	if final {
 		want = s.unwrap(have, end)
 	}
+	dx, dy := want.X-have.X, want.Y-have.Y
+	dist := f32.Hypot(dx, dy)
+	if dist > 0 {
+		o.Way = geom.NewVec(dx/dist, dy/dist)
+	}
 	s.keep.Watch(w.m, o, waypoint, want, d)
 
 	reach := lookaheadReach(st, dt)
 	if final && o.Queued > 0 && o.Linger > 0 {
-		dx, dy := want.X-have.X, want.Y-have.Y
-		if dist, within := f32.Hypot(dx, dy), s.keep.Within(w.m); dist > within {
+		if within := s.keep.Within(w.m); dist > within {
 			dir := geom.NewVec(dx, dy)
 			s.keep.Steer(w.m, st, dir, approach(st, dist, within)*turnFactor(w.base.Vel.Dir, dir))
 			return
@@ -665,8 +669,6 @@ func (s *System) tail(w *walker, d time.Duration) {
 		return
 	}
 
-	dx, dy := want.X-have.X, want.Y-have.Y
-	dist := f32.Hypot(dx, dy)
 	if within := s.keep.Within(w.m); dist > within {
 		dir := geom.NewVec(dx, dy)
 		s.keep.Steer(w.m, st, dir, approach(st, dist, within)*turnFactor(w.base.Vel.Dir, dir))
@@ -704,7 +706,7 @@ func (s *System) tail(w *walker, d time.Duration) {
 
 func (s *System) arrive(w *walker) {
 	w.arrived = true
-	w.at.Next = 0
+	w.at.Next, w.o.Way = 0, geom.Vec{}
 	switch {
 	case w.o.Group == 0: // giving way, or looking: the group stays
 	case w.last != nil:
@@ -1051,7 +1053,7 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 				o := &orders[i]
 				b.GivingWay, b.Goal, b.Spot, b.LastGoal = o.GivingWay, o.Target, s.goal(o.Target, o.Spot), o.Queued == 0
 				b.WaitedOut, b.Cornered = o.WaitedOut, o.Cornered
-				b.Trailing, b.TrailPace, b.Way = o.TrailFor > 0, o.TrailPace, s.wayOf(b.At, o)
+				b.Trailing, b.TrailPace, b.Way = o.TrailFor > 0, o.TrailPace, o.Way
 				if o.Group != 0 {
 					b.Group = o.Group
 				}
@@ -1063,24 +1065,6 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 		}
 	}
 	return dst
-}
-
-// the way o leads one at at next, a unit vector: to its step's end, else its route's next cell,
-// else its target; zero there
-func (s *System) wayOf(at geom.Vec, o *order.MoveOrder) geom.Vec {
-	next := o.Target
-	switch {
-	case o.Leg.Active:
-		next = o.Leg.To
-	case o.Path.Index < o.Path.Length:
-		next = o.Path.Steps[o.Path.Index]
-	}
-	to := s.unwrap(at, s.grid.CellCenter(next))
-	d := geom.NewVec(to.X-at.X, to.Y-at.Y)
-	if l := f32.Hypot(d.X, d.Y); l > 0 {
-		return geom.NewVec(d.X/l, d.Y/l)
-	}
-	return geom.Vec{}
 }
 
 func (s *System) goal(c cell.ID, spot geom.Vec) geom.Vec {

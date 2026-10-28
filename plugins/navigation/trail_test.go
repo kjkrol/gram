@@ -281,3 +281,20 @@ func TestCrowd_TheGroupIsJoinedAtItsGoalNotOnTheWay(t *testing.T) {
 		}
 	}
 }
+
+func TestNavigation_AnOrderCarriesTheWayItIsDriven(t *testing.T) {
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(7, 1, fieldCell)}
+	from, goal := probe.grid.CellCenter(probe.at(0, 0)), probe.grid.CellCenter(probe.at(6, 0))
+	fw := newFieldWorld(t, 7, 1, BodySpacing, nil,
+		[]fieldUnit{{at: from, side: 6, order: probe.standAt(goal)}})
+	for range 30 {
+		fw.ecs.Tick(time.Second / 60)
+	}
+	_, o := fw.centre(0)
+	if o == nil {
+		t.Fatal("half a second on its way the unit has no order")
+	}
+	if f32.Abs(o.Way.X-1) > 1e-3 || f32.Abs(o.Way.Y) > 1e-3 {
+		t.Errorf("half a second on its way east the order carries the way %v, want east", o.Way)
+	}
+}

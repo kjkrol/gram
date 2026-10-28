@@ -68,6 +68,9 @@ type MoveOrder struct {
 	Trailing          uid.UID64
 	TrailFor, Trailed time.Duration
 	TrailPace         float32
+	// Way is the way its route led it as the traffic last drove it, a unit vector; zero before it
+	// drove.
+	Way geom.Vec
 	// Face is the world point the entity turns towards once it has arrived; zero turns it nowhere.
 	Face geom.Vec
 	// Group is the MoveTo that gave the order, one number to every unit it sent; zero, none.
