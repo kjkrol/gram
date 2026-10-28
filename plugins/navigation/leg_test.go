@@ -95,7 +95,7 @@ func (lw *legWorld) tick() map[uid.UID64]legState {
 // from the next tick
 func (lw *legWorld) walls(cells ...cell.ID) {
 	for _, c := range cells {
-		lw.terrain.Set(c, cell.Kind{Cost: 1, Solid: true})
+		lw.terrain.Set(c, cell.Kind{Pace: 1, Solid: true})
 	}
 }
 
@@ -230,7 +230,7 @@ func TestNavigation_Leg_DiagonalHoldsCorners(t *testing.T) {
 func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(10, 1, legCellSize)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 	moves := &command.Queue[MoveTo]{}
 	cmds := routing.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
@@ -285,7 +285,7 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 func TestModule_Setup_RestoresLegCells(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(3, 3, legCellSize)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 	m := &module{navigationSystem: traffic.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)}
 

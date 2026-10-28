@@ -33,7 +33,10 @@ func TestCover_SpansTheCellsBandAndFollowsItsGround(t *testing.T) {
 	})
 	brdW := qw.Board.Write().Board()
 	wallCell := qw.Grid.At(3, 3)
-	brdW.Set(wallCell, cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true, Veil: 1, Height: 10})
+	brdW.Set(
+		wallCell,
+		cell.Kind{Name: cell.Named("wall"), Pace: 1, Solid: true, Veil: 1, Height: 10},
+	)
 	qw.Topo.Write().Relief().(*irelief.Relief).SetCorners(wallCell, irelief.Corners{12, 12, 12, 12})
 	qw.ECS.Tick(time.Second / 60)
 

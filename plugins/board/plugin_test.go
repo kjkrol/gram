@@ -69,8 +69,8 @@ func newSeedTestPlugin(t *testing.T) (*Plugin, cell.ID) {
 		Heights:  true,
 	})
 	p := NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
-	p.Read(0).CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
-	p.Read(0).CellKinds().Define("wall", cell.Kind{Cost: 1, Solid: true})
+	p.Read(0).CellKinds().Define("grass", cell.Kind{Pace: 1, Allows: cell.Land})
+	p.Read(0).CellKinds().Define("wall", cell.Kind{Pace: 1, Solid: true})
 	cell := grid.At(2, 2)
 	return p, cell
 }

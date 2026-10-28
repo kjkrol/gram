@@ -138,7 +138,7 @@ func TestAltitude_ADeckIsSteppedOntoWithinAStep(t *testing.T) {
 func TestStanding_UnderADeckOverWaterHasFallenIn(t *testing.T) {
 	define := func(qw *topotest.QuasiWorld, units *board.Units[topotest.Recruit]) []kind.Entry {
 		river := qw.Grid.At(1, 2)
-		qw.Board.Write().Board().Set(river, cell.Kind{Name: cell.Named("river"), Cost: 1,
+		qw.Board.Write().Board().Set(river, cell.Kind{Name: cell.Named("river"), Pace: 1,
 			Allows: cell.Water})
 		units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
 		standing := board.NewEntities(qw.Board, board.Shape{Size: 20, Height: 1},

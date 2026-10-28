@@ -104,7 +104,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	drive := &driveSystem{keeping: p.keeping, tap: p.tap, units: shared}
 	if p.board != nil {
 		drive.board, drive.occupancy = p.board.Read(0).Board(), p.board.Write().Occupancy()
-		drive.surfaces = p.board.Read(0).Footing
+		drive.surfaces, drive.pace = p.board.Read(0).Footing, p.board.Read(0).Pace
 	}
 	p.module = &module{
 		hand: &handSystem{

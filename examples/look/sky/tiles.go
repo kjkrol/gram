@@ -16,11 +16,12 @@ var _ board.Tile = ground{}
 var dry = cell.Land | cell.Air
 
 var grounds = []ground{
-	{name: WaterCell, kind: cell.Kind{Cost: 1, Allows: cell.Water | cell.Air}},
-	{name: SandCell, kind: cell.Kind{Cost: 3, Allows: dry}},
-	{name: EarthCell, kind: cell.Kind{Cost: 2, Allows: dry}},
-	{name: ForestCell, kind: cell.Kind{Cost: 6, Allows: dry, Veil: 0.6, Height: scale.Units(20)}},
-	{name: RockCell, kind: cell.Kind{Cost: 4, Allows: dry}},
+	{name: WaterCell, kind: cell.Kind{Pace: 1, Allows: cell.Water | cell.Air}},
+	{name: SandCell, kind: cell.Kind{Pace: 1.0 / 3, Allows: dry}},
+	{name: EarthCell, kind: cell.Kind{Pace: 0.5, Allows: dry}},
+	{name: ForestCell, kind: cell.Kind{Pace: 1.0 / 6, Allows: dry, Veil: 0.6,
+		Height: scale.Units(20)}},
+	{name: RockCell, kind: cell.Kind{Pace: 0.25, Allows: dry}},
 }
 
 func (g ground) Define(b *board.Plugin) { b.Read(0).CellKinds().Define(g.name, g.kind) }

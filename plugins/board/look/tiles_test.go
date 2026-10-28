@@ -69,8 +69,8 @@ func over(c color.RGBA) color.RGBA {
 
 func TestTiles_LayTheCoversAndTheWaysOverTheTiles(t *testing.T) {
 	gputest.Need(t)
-	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
-	road := cell.Kind{SpriteID: 3, Cost: 1, Allows: cell.Land}
+	grass := cell.Kind{SpriteID: 1, Pace: 1, Allows: cell.Land}
+	road := cell.Kind{SpriteID: 3, Pace: 1, Allows: cell.Land}
 	const mark tag.Tag[effect.States] = 3
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
 	brd, brdW := board.NewBoard(g)
@@ -129,7 +129,7 @@ func TestTiles_LayAHexBoardsTilesInTheOrderOfItsCells(t *testing.T) {
 	kinds := make([]cell.Kind, len(colours))
 	atlas := render.NewAtlas()
 	for i, c := range colours {
-		kinds[i] = cell.Kind{SpriteID: render.SpriteID(i + 1), Cost: 1, Allows: cell.Land}
+		kinds[i] = cell.Kind{SpriteID: render.SpriteID(i + 1), Pace: 1, Allows: cell.Land}
 		atlas.Add(kinds[i].SpriteID, 28, render.Solid(c))
 	}
 	atlas.Add(render.SpriteID(4), 28, render.Solid(snow))
@@ -193,8 +193,8 @@ func TestTiles_LayAHexBoardsTilesInTheOrderOfItsCells(t *testing.T) {
 // under those after it
 func TestTiles_LeanWhatSwaysWithTheWind(t *testing.T) {
 	gputest.Need(t)
-	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
-	reeds := cell.Kind{SpriteID: 2, Cost: 1, Allows: cell.Land, Sway: 1, Height: 20}
+	grass := cell.Kind{SpriteID: 1, Pace: 1, Allows: cell.Land}
+	reeds := cell.Kind{SpriteID: 2, Pace: 1, Allows: cell.Land, Sway: 1, Height: 20}
 	yellow := color.RGBA{R: 200, G: 190, B: 80, A: 255}
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
 	brd, brdW := board.NewBoard(g)
@@ -247,8 +247,8 @@ func TestTiles_LayTheBoardUnderATurnedAndTiltedCamera(t *testing.T) {
 	gputest.Need(t)
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
 	brd, brdW := board.NewBoard(g)
-	kinds := []cell.Kind{{SpriteID: 1, Cost: 1, Allows: cell.Land},
-		{SpriteID: 2, Cost: 1, Allows: cell.Water}}
+	kinds := []cell.Kind{{SpriteID: 1, Pace: 1, Allows: cell.Land},
+		{SpriteID: 2, Pace: 1, Allows: cell.Water}}
 	colours := []color.RGBA{{R: 60, G: 160, B: 60, A: 255}, {R: 40, G: 80, B: 200, A: 255}}
 	for y := range uint32(8) {
 		for x := range uint32(8) {
@@ -311,8 +311,8 @@ func laidSeen(t *testing.T, d camera.Detail) func(x, y int) color.RGBA {
 	t.Helper()
 	g := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd, brdW := board.NewBoard(g)
-	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
-	road := cell.Kind{SpriteID: 3, Cost: 1, Allows: cell.Land}
+	grass := cell.Kind{SpriteID: 1, Pace: 1, Allows: cell.Land}
+	road := cell.Kind{SpriteID: 3, Pace: 1, Allows: cell.Land}
 	brdW.SetAll(grass)
 	const mark tag.Tag[effect.States] = 3
 	m := marked{BoardRead: brd, mark: mark, cells: map[cell.ID]bool{}}
@@ -387,8 +387,8 @@ func TestTiles_LayTheCellsOfTheSectorsSeenAtTheirLevels(t *testing.T) {
 // the whole board from above, as the minimap shows it, is the board a camera from above shows
 func TestTiles_LayTheWholeBoardFromAboveAsACameraShowsIt(t *testing.T) {
 	gputest.Need(t)
-	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
-	road := cell.Kind{SpriteID: 3, Cost: 1, Allows: cell.Land}
+	grass := cell.Kind{SpriteID: 1, Pace: 1, Allows: cell.Land}
+	road := cell.Kind{SpriteID: 3, Pace: 1, Allows: cell.Land}
 	const mark tag.Tag[effect.States] = 3
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
 	brd, brdW := board.NewBoard(g)

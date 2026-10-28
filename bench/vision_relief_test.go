@@ -62,7 +62,7 @@ func Benchmark_Vision_Relief(b *testing.B) {
 			if err := ctx.Use(m); err != nil {
 				b.Fatal(err)
 			}
-			p := board.NewPlugin(g, &cell.MultipleOccupancy{}, w).WithMotion(m)
+			p := board.NewPlugin(g, &cell.MultipleOccupancy{}, w).WithMotion(m, cell.DefaultHiking)
 			topo := topography.NewPlugin(w, p, nil, topography.Config{})
 			v := vision.NewPlugin(w).WithBoard(p).WithFrequency(c.every).WithScanAll()
 			if c.step > 0 {
@@ -84,7 +84,7 @@ func Benchmark_Vision_Relief(b *testing.B) {
 			if err := ctx.Use(v); err != nil {
 				b.Fatal(err)
 			}
-			p.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+			p.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 			topo.Write().Relief().SetHeights(func(q geom.Vec) float32 {
 				return scale.Units(600 + 500*f32.Sin(q.X/150)*f32.Cos(q.Y/110))
 			})

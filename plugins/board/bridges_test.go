@@ -28,7 +28,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-var water = cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water}
+var water = cell.Kind{Name: cell.Named("water"), Pace: 1, Allows: cell.Water}
 
 type deckRow struct {
 	At    cell.ID

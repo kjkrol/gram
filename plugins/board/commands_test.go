@@ -39,7 +39,7 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 		units = append(units, boardtest.Mover{Here: c})
 	}
 	m.World = boardtest.NewWorldWith(t, g, 6*boardtest.CellSize, 6*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []act.Rule {
-		brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+		brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land})
 		w.Write().Effects().Define("open", effect.Spec{effect.Lasts(3 * time.Second / 60)})
 		m.open = w.Write().Effects().Named("open")
 		w.Roles().Define("plate", act.Branch[collision.Meeting]{
@@ -188,7 +188,8 @@ func TestCommands_RefuseANameNobodyBearsAndOneTwoBear(t *testing.T) {
 				tc.cells[i].Cell = g.At(uint32(i), 0)
 			}
 			bw := boardtest.NewWorldWith(t, g, 3*boardtest.CellSize, 3*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []act.Rule {
-				brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+				brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1,
+					Allows: cell.Land})
 				brd.Write().Seed(board.Layout{Cells: tc.cells})
 				if err := brd.Populate(); err != nil {
 					t.Fatal(err)

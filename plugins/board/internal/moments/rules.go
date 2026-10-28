@@ -3,7 +3,6 @@ package moments
 import (
 	"log"
 
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -22,20 +21,23 @@ type Rules struct {
 	standing host.Rules[unit.Standing]
 	now      host.Rules[cell.Now]
 	rings    rings
-	slope    func(p, dir geom.Vec, d cell.Domain) float64
+	rise     func(from, to cell.ID) float64
 	level    func(c cell.ID) float32
 
+	// Mobility, when set, paces every unit by the ground under it and the slope the way it goes;
+	// without it a unit keeps its kind's own share.
+	Mobility cell.Mobility
 	// Log, when set, has a line written once for each unit fallen where its domain may not be.
 	Log  *log.Logger
 	told map[uid.UID64]bool
 }
 
-// New is the rules of the board over g with its cells, run in the Ticks tick makes. slope is the
-// board's Map's, what a unit's Pace goes by besides the cell's cost, and level a cell's ground
+// New is the rules of the board over g with its cells, run in the Ticks tick makes. rise is the
+// board's Map's, how steep a step from a cell to its neighbour is, and level a cell's ground
 // level.
 func New(g grid.Grid, cells *terrain.Cells, tick host.TickSource,
-	slope func(p, dir geom.Vec, d cell.Domain) float64, level func(c cell.ID) float32) *Rules {
-	return &Rules{grid: g, cells: cells, tick: tick, slope: slope, level: level}
+	rise func(from, to cell.ID) float64, level func(c cell.ID) float32) *Rules {
+	return &Rules{grid: g, cells: cells, tick: tick, rise: rise, level: level}
 }
 
 // Hosts take the rules of a unit.Standing and of a cell.Now.

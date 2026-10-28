@@ -1,10 +1,11 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
-	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 	"time"
+
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/tag"
@@ -21,7 +22,7 @@ import (
 func TestMoveTo_SendsThePlayersOwnSelectedUnitsAlone(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(10, 1, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	start := grid.At(0, 0)
 	oldTarget := grid.At(3, 0)
 	newTarget := grid.At(8, 0)

@@ -50,7 +50,7 @@ func TestFigures_RunTheirPartsOnTheTypesAndLookOnTheWorldsAtlas(t *testing.T) {
 	m := motion.NewPlugin(w)
 	col := collision.NewPlugin(w, m)
 	brd := board.NewPlugin(grid.DefaultGrids{}.Square(10, 6, 10), &cell.MultipleOccupancy{}, w).
-		WithMotion(m).
+		WithMotion(m, cell.DefaultHiking).
 		WithCollision(col)
 	p := bridges.NewPlugin(w, brd, bridges.Config{})
 	f := &span{}

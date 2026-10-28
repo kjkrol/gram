@@ -9,10 +9,12 @@ import (
 )
 
 var (
-	earth = cell.Kind{Name: cell.Named("earth"), Cost: 1, Allows: cell.Land | cell.Air, Veil: 0.2}
-	river = cell.Kind{Name: cell.Named("river"), Cost: 1, Allows: cell.Water | cell.Air}
+	earth = cell.Kind{Name: cell.Named("earth"), Pace: 1, Allows: cell.Land | cell.Air, Veil: 0.2}
+	river = cell.Kind{Name: cell.Named("river"), Pace: 1, Allows: cell.Water | cell.Air}
 )
-var bridge = cell.Kind{Name: cell.Named("bridge"), Cost: 1, Allows: cell.Land | cell.Air}.Costing(cell.Land, 0.5)
+
+var bridge = cell.Kind{Name: cell.Named("bridge"), Pace: 1, Allows: cell.Land | cell.Air}.
+	Paced(cell.Land, 1)
 
 func TestBoard_BareIsTheGroundUnderTheWay(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(3, 3, 10)

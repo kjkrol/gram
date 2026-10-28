@@ -119,40 +119,48 @@ func (r *Read) KindAt(c cell.ID, deck bool) cell.Kind {
 // over p within its reach, else the ground under the decks. ground gives a cell's level.
 func (r *Read) KindFor(c cell.ID, p geom.Vec, feet, reach float32,
 	ground func(cell.ID) float32) cell.Kind {
+	k, _ := r.KindOn(c, p, feet, reach, ground)
+	return k
+}
+
+// KindOn is KindFor and the level the kind is on: OnDeck where a raised Floor over p is within
+// reach.
+func (r *Read) KindOn(c cell.ID, p geom.Vec, feet, reach float32,
+	ground func(cell.ID) float32) (cell.Kind, cell.Level) {
 	t := r.t
 	if r.store == nil {
-		return t.seed.Ways[c].Over(t.seed.Kind(c))
+		return t.seed.Ways[c].Over(t.seed.Kind(c)), cell.OnGround
 	}
 	i, ok := t.Ordinal(c)
 	if !ok {
-		return cell.Kind{}
+		return cell.Kind{}, cell.OnGround
 	}
 	k := r.store.wayOf(i).Over(r.store.groundOf(i).Kind)
 	if t.built == 0 {
-		return k
+		return k, cell.OnGround
 	}
 	b := r.store.builtOf(i)
 	switch {
 	case b == nil:
-		return k
+		return k, cell.OnGround
 	case b.Floor.Allows == 0 && (t.bands == 0 || !t.reached[i]):
-		return b.Over(k)
+		return b.Over(k), cell.OnGround
 	}
-	kind := level(k, *b, false)
+	kind, on := level(k, *b, false), cell.OnGround
 	r.DecksOver(c, p, func(d Deck) bool {
 		f := d.Built.Floor
 		raised := f.Height > 0 && ground != nil
 		if raised && feet < ground(d.Cell)+f.Height-reach {
 			return true
 		}
-		if on := (cell.Built{Floor: f, Wall: b.Wall}); raised {
-			kind = level(k, on, true)
+		if built := (cell.Built{Floor: f, Wall: b.Wall}); raised {
+			kind, on = level(k, built, true), cell.OnDeck
 		} else {
-			kind = on.Over(k)
+			kind = built.Over(k)
 		}
 		return false
 	})
-	return kind
+	return kind, on
 }
 
 // CellFor is the cell whoever stands at p with its feet at feet and steps reach high is on: the
@@ -192,9 +200,11 @@ func level(k cell.Kind, b cell.Built, deck bool) cell.Kind {
 	if !deck {
 		return b.Over(k)
 	}
-	on := cell.Kind{Name: k.Name, Cost: k.Cost, SpriteID: k.SpriteID}
-	if floor.Cost > 0 {
-		on.Cost = floor.Cost
+	on := cell.Kind{Name: k.Name, Pace: k.Pace, SpriteID: k.SpriteID}
+	if floor.Pace > 0 {
+		on.Pace = floor.Pace
+	} else {
+		on.Paces = k.Paces
 	}
 	on.Allows, on.Graded = floor.Allows, floor.Graded
 	return b.Over(on)

@@ -17,8 +17,8 @@ import (
 
 func TestBands_AWayIsThePartOfItsKindsSpriteUnderIt(t *testing.T) {
 	gputest.Need(t)
-	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
-	road := cell.Kind{SpriteID: 2, Cost: 1, Allows: cell.Land}
+	grass := cell.Kind{SpriteID: 1, Pace: 1, Allows: cell.Land}
+	road := cell.Kind{SpriteID: 2, Pace: 1, Allows: cell.Land}
 	green := color.RGBA{R: 60, G: 160, B: 60, A: 255}
 	red := color.RGBA{R: 220, G: 40, B: 40, A: 255}
 	blue := color.RGBA{R: 40, G: 60, B: 220, A: 255}

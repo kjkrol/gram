@@ -51,7 +51,7 @@ func (g *boardSaveLoadTestGame) Stack() game.Scenes {
 func TestPlugin_SaveLoad_TerrainRoundTripsAsCellEntities(t *testing.T) {
 	t.Chdir(t.TempDir())
 	grid := grid.DefaultGrids{}.Square(5, 5, 10)
-	wall := cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true}
+	wall := cell.Kind{Name: cell.Named("wall"), Pace: 1, Solid: true}
 	here, ok := grid.CellAt(geom.NewVec(21.0, 21.0))
 	if !ok {
 		t.Fatal("expected (21,21) to land inside the 5x5 grid")
@@ -63,7 +63,11 @@ func TestPlugin_SaveLoad_TerrainRoundTripsAsCellEntities(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 	stage.boardPlugin.Write().Board().Set(here, wall)
-	way := cell.Way{Kind: cell.Kind{Name: cell.Named("stream"), Cost: 2, Allows: cell.Land}, Width: 5, Links: 1 << 3}
+	way := cell.Way{
+		Kind:  cell.Kind{Name: cell.Named("stream"), Pace: 0.5, Allows: cell.Land},
+		Width: 5,
+		Links: 1 << 3,
+	}
 	stage.boardPlugin.Write().Board().SetWay(here, way)
 	id, _ := stage.boardPlugin.Read(0).Board().CellEntity(here)
 

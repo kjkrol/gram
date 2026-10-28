@@ -1,12 +1,13 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
-	"github.com/kjkrol/gram/plugins/navigation/internal/order"
-	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -35,7 +36,7 @@ func walled(rows uint32) (grid.Grid, *cell.TerrainMap, func(x, y uint32) cell.ID
 	g := grid.DefaultGrids{}.Square(5, rows, 10)
 	at := func(x, y uint32) cell.ID { c := g.At(x, y); return c }
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	for y := range rows {
 		terrain.Set(at(3, y), wall)
 	}
@@ -79,7 +80,7 @@ func TestRetry_ADetourFindingNoWayIsSearchedAgainHalfASecondOneAndTwoSecondsLate
 		t.Error("not cornered after every search found no way round")
 	}
 
-	terrain.Set(at3(3, 0), cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.Set(at3(3, 0), cell.Kind{Pace: 1, Allows: cell.Land})
 	searched = searched[:0]
 	tick := 6 * 60
 	for ; len(searched) == 0; tick++ {

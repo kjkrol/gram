@@ -45,10 +45,10 @@ func (g *fieldStage) Init(ctx game.Initializer) error {
 		return err
 	}
 	g.board = board.NewPlugin(g.grid, &cell.MultipleOccupancy{}, g.world).
-		WithMotion(g.motion).
+		WithMotion(g.motion, cell.DefaultHiking).
 		WithCollision(g.collision)
-	g.board.Read(0).CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
-	g.board.Read(0).CellKinds().Define("wall", cell.Kind{Cost: 1, Solid: true})
+	g.board.Read(0).CellKinds().Define("grass", cell.Kind{Pace: 1, Allows: cell.Land})
+	g.board.Read(0).CellKinds().Define("wall", cell.Kind{Pace: 1, Solid: true})
 	if err := ctx.Use(g.board); err != nil {
 		return err
 	}

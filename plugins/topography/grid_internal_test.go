@@ -21,7 +21,7 @@ func TestBoardSurface_DrawsTheGridInTheBoardsLine(t *testing.T) {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, w)
-	b.Read(0).CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Read(0).CellKinds().Define("grass", cell.Kind{Pace: 1, Allows: cell.Land})
 	grass, _ := b.Read(0).CellKinds().Get("grass")
 	b.Write().Board().SetAll(grass)
 	p := NewPlugin(w, b, nil, Config{})
@@ -51,7 +51,7 @@ func TestMiniature_IsTheBoardPaintedWhereTheGroundIs(t *testing.T) {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, w)
-	b.Read(0).CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Read(0).CellKinds().Define("grass", cell.Kind{Pace: 1, Allows: cell.Land})
 	grass, _ := b.Read(0).CellKinds().Get("grass")
 	b.Write().Board().SetAll(grass)
 	p := NewPlugin(w, b, nil, Config{})

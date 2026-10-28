@@ -32,7 +32,7 @@ func TestPlugin_TheGroundOnTheGPUTakesTheTilesPlace(t *testing.T) {
 
 	w2 := topotest.NewWorld(0)
 	hex := board.NewPlugin(grid.DefaultGrids{}.Hex(4, 4, 16), &cell.MultipleOccupancy{}, w2)
-	hex.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	hex.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	prisms := topography.NewPlugin(w2, hex, nil, topography.Config{})
 	if d := topotest.Drawn(t, prisms); len(d) != 2 || !drawnOpaque(d[0]) {
 		t.Errorf("over a hex grid the topography draws %v, want the opaque ground first and its "+

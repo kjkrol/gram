@@ -12,7 +12,9 @@
 
 Every number below is the **median of 5 runs** (`make bench-save`: `-count=5 -benchmem`) at
 `c1f2d419` (v0.6.0), 2026-10-27, one benchmark after another on an idle machine (the load 0.4 as
-it began, 1.3 as it ended, the desktop up). Within a set the runs lie within 1–5% of the median
+it began, 1.3 as it ended, the desktop up); the navigation's, the routing's and the standing
+sections were measured anew the same way at `feat/pace` (astar v1.2.0) on 2026-10-28, and say
+so. Within a set the runs lie within 1–5% of the median
 for most benchmarks; a scene whose first ticks vary or a frame the GPU schedules spreads 10–25%,
 said where it does. A long run warms the machine and its later benchmarks come out slower:
 `Vision_Relief`, `Text_Panel` and `Frame_UI`, late in the suite's order, had come out 25–150%
@@ -195,12 +197,18 @@ them; the `Bands` variants make the deck a railed bridge, a band half a cell wid
 
 | Walkers | altitude | altitude, over a bridge | under gravity | gravity, over a bridge |
 |--:|---:|---:|---:|---:|
-| 100 | 45.0 µs | 47.3 µs | 48.1 µs | 50.4 µs |
-| 1,000 | 376 µs | 386 µs | 390 µs | 414 µs |
+| 100 | 43.4 µs | 45.6 µs | 45.6 µs | 47.6 µs |
+| 1,000 | 412 µs | 419 µs | 415 µs | 418 µs |
 
-0 allocs/op (2 B/op the buffers' growth). A band costs nothing a step: the decks over a point are
-read only in a cell a band lies over or reaches into. Gravity's own pass costs what the altitude
-system's does — one surface read a body — and a body standing still skips the rest.
+Measured anew at `feat/pace` (2026-10-28, the median of 6). 0 allocs/op (2 B/op the buffers'
+growth). A band costs nothing a step: the decks over a point are read only in a cell a band lies
+over or reaches into. Gravity's own pass costs what the altitude system's does — one surface read
+a body — and a body standing still skips the rest. Since v0.6.0 a walker's share of its top
+speed is the game's mobility over the rise to the cell ahead (`cell.Mobility`, the default
+hiking function's `exp`; `Map.Rise` between the two cells' middles) where it was a slope read at
+a point under a factor of 1: against v0.6.0 alternately (the lower of 6 at the default
+benchtime) the four scenes cost +9…+10% at 1,000 walkers (altitude 367 → 404 µs), within
+noise at 100 — the strategy's price, 40 ns a walker a step.
 
 ## Terrain — `Benchmark_Board_Terrain`
 
@@ -294,19 +302,24 @@ crowd replans every tick it is blocked.
 
 | Scene | Walkers | Tick | Allocations |
 |:---|---:|---:|---:|
-| open | 100 | 382 µs | 1 |
-| open | 1,000 | 2.98 ms | 15 / 21 KB |
-| crowded | 100 | 577 µs | 1 |
-| crowded | 1,000 | 10.5 ms | 2 / 28 KB |
+| open | 100 | 357 µs | 1 |
+| open | 1,000 | 2.81 ms | 15 / 20 KB |
+| crowded | 100 | 503 µs | 1 |
+| crowded | 1,000 | 7.66 ms | 2 / 28 KB |
 
-Of the crowded tick (the profile): the routing's A* three quarters (astar's solver, the finder's
-`leveledFrom` 53%, its `price` 13%) and the board's cell lookups under it (`dxdy` 9%,
-`NeighborCost` 7%, `Distance` 7%); in the open the A* two fifths, the traffic moving the units
-along their routes the rest.
+Measured anew at `feat/pace` (2026-10-28, astar v1.2.0, the median of 5). Against v0.6.0 with
+astar v1.1.3, alternately at `BENCHTIME=200x` (the lower of three rounds): crowded 1,000 8.83 →
+7.93 ms (−10%), crowded 100 −11%, open 100 −8%, open 1,000 within noise — astar's states in
+arrays by an integer id and the planner's share of a cell on the level kept across searches
+(`flatStep`, by the board's version), where the open tick of a thousand is the traffic along the
+routes. Of the crowded tick (the profile at v0.6.0): the routing's A* three quarters (astar's
+solver, the finder's `leveledFrom` 53%, its `price` 13%) and the board's cell lookups under it
+(`dxdy` 9%, `NeighborCost` 7%, `Distance` 7%); in the open the A* two fifths, the traffic moving
+the units along their routes the rest.
 
 `Benchmark_Navigation_Path` is one route across a 200×200 board of rocks and walls planned a
 tick: the walker sent to the far corner and the next tick to the other. The routing keeps its
-answers, so after the first two ticks every route is a kept answer: 607 µs a tick, 4 allocations.
+answers, so after the first two ticks every route is a kept answer: 564 µs a tick, 4 allocations.
 The A* itself is `Benchmark_Routing_Path`.
 
 ### The routing alone — `Benchmark_Routing_Path`, `Benchmark_Routing_Routes` (`plugins/navigation`)
@@ -320,14 +333,21 @@ the plugin's routers on one goroutine or on the pool of every CPU, 4 routers.
 
 | Benchmark | Routes | A tick | Allocations |
 |:---|---:|---:|---:|
-| `Routing_Path` | 1 | 14.5 ms (±21%) | 0 |
-| `Routing_Routes/workers=1` | 32 | 237 ms | 10 |
-| `Routing_Routes/workers=all` | 32 | 74.9 ms | 0 |
+| `Routing_Path` | 1 | 13.2 ms | 0 |
+| `Routing_Routes/workers=1` | 32 | 189 ms | 10 |
+| `Routing_Routes/workers=all` | 32 | 64.7 ms | 0 |
 
-On the pool the 4 routers plan 32 routes 3.2 times as fast as one goroutine. Under the A*:
-`BenchmarkPathFinder_Terrain` (`plugins/navigation/internal/pathfind`), one route corner to corner
-over a 128×128 board with a quarter of its cells walls, 5.97 ms reading the cells with 0
-allocations (6.20 ms and 4,392 allocations through a map); `BenchmarkGrids_Neighbours`
+Measured anew at `feat/pace` (2026-10-28, astar v1.2.0, the median of 5); against v0.6.0 with
+astar v1.1.3, alternately (the lower of three rounds), `Routing_Path` −4%, `Routing_Routes` −17%
+on one goroutine and −14% on the pool. On the pool the 4 routers plan 32 routes 2.9 times as fast
+as one goroutine. Under the A*: `BenchmarkPathFinder_Terrain` (`plugins/navigation/internal/
+pathfind`), one route corner to corner over a 128×128 board with a quarter of its cells walls,
+4.6–4.9 ms reading the cells with 0 allocations (4.8–5.0 ms and 4,392 allocations through a
+map; −20…−22% against v0.6.0, `-cpu=1` the same); its `relief` rung, the same board over rolling
+hills with the default hiking function asked for every step (the heights by ordinal, as a relief
+keeps them; 2026-10-28, new), about 9 ms (two sets of 5: medians 9.03 and 9.37 ms; 5,080
+allocations, the map's reads): the strategy's price a step, nearly as much again as the search
+itself. `BenchmarkGrids_Neighbours`
 (`plugins/board/internal/grids`), every cell's neighbours on a 200×200 grid, the walk over the
 directions (`Toward`) 1.64 ms on a square grid, 1.66 ms on a torus and 1.28 ms on a hex grid with
 0 allocations, against a list 2.33, 2.41 and 2.17 ms with 40,000.

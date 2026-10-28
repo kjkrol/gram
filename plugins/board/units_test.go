@@ -33,8 +33,9 @@ func unitsWorld(t *testing.T, define func(units *board.Units[recruit]) kind.Of[r
 	})
 	m := motion.NewPlugin(w)
 	c := collision.NewPlugin(w, m)
-	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w).WithMotion(m).WithCollision(c)
-	brd.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land | cell.Water})
+	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w).
+		WithMotion(m, cell.DefaultHiking).WithCollision(c)
+	brd.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land | cell.Water})
 	units := board.NewUnits[recruit](brd, board.Shape{Size: 20}, func(r recruit) geom.Vec { return grid.CellCenter(r.start) })
 	k := define(units)
 
@@ -114,7 +115,8 @@ func TestUnits_AUnitOffTheBoardPanicsWhenSpawned(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 20, MaxSize: 20},
 		Heights:  true,
 	})
-	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w).WithMotion(motion.NewPlugin(w))
+	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w).
+		WithMotion(motion.NewPlugin(w), cell.DefaultHiking)
 	units := board.NewUnits[recruit](brd, board.Shape{Size: 20}, func(recruit) geom.Vec { return geom.NewVec(-50, -50) })
 	units.Define("stray", unit.Mover{Domain: cell.Land}, steering.Steering{})
 	k := units.Named("stray")

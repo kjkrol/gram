@@ -85,7 +85,7 @@ func (r *routeBench) route(k int) {
 func layRoutes(nw *navWorld, keep []cell.ID) {
 	g, brd := nw.grid, nw.board
 	rng := rand.New(rand.NewPCG(7, 9))
-	rock := cell.Kind{Cost: 1, Solid: true}
+	rock := cell.Kind{Pace: 1, Solid: true}
 	clear := keep
 	for y := range uint32(routeSide) {
 		for x := range uint32(routeSide) {
@@ -102,7 +102,7 @@ func layRoutes(nw *navWorld, keep []cell.ID) {
 		x, y, _ := g.Coords(c)
 		for dy := range uint32(5) {
 			for dx := range uint32(5) {
-				brd.Set(g.At(x+dx-2, y+dy-2), cell.Kind{Cost: 1, Allows: cell.Land})
+				brd.Set(g.At(x+dx-2, y+dy-2), cell.Kind{Pace: 1, Allows: cell.Land})
 			}
 		}
 	}

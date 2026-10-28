@@ -23,7 +23,7 @@ var shadeColors = map[string][2]color.RGBA{
 
 func (grass) Define(b *board.Plugin) {
 	for _, name := range grassShades {
-		b.Read(0).CellKinds().Define(name, cell.Kind{Cost: 2, Allows: cell.Land})
+		b.Read(0).CellKinds().Define(name, cell.Kind{Pace: 0.5, Allows: cell.Land})
 	}
 }
 

@@ -92,7 +92,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.collision = collision.NewPlugin(a.world, a.motion)
 	a.gravity = gravity.NewPlugin(a.world, a.motion, gravity.Config{Pull: gravity.Pull{Y: pull}})
 	a.board = board.NewPlugin(grid, &cell.MultipleOccupancy{}, a.world).
-		WithMotion(a.motion).
+		WithMotion(a.motion, cell.DefaultHiking).
 		WithCollision(a.collision)
 	a.selection = selection.NewPlugin(a.world)
 	a.driving = driving.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board)

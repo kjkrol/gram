@@ -22,6 +22,7 @@ var _ goke.System = (*driveSystem)(nil)
 type driveSystem struct {
 	board     *board.BoardRead
 	surfaces  func() ground.Surfaces
+	pace      func(from, to cell.ID, k cell.Kind, level cell.Level, d cell.Domain) float64
 	occupancy cell.Occupancy
 	keeping   Keeping
 	tap       time.Duration
@@ -232,12 +233,24 @@ func (s *driveSystem) open(w walker, heading geom.Vec) bool {
 	case w.z == nil && !s.board.Kind(ahead).Admits(w.domain):
 		return false
 	}
+	kind, deck := s.board.Kind(ahead), false
+	if w.z != nil {
+		kind = s.board.KindFor(ahead, point, w.z.Altitude, w.z.Reach())
+		ahead, deck, _ = s.board.LevelFor(point, w.z.Altitude, w.z.Reach())
+	}
+	// a step the mobility refuses is not driven, under gravity too: the unit cannot, whatever
+	// pushes it may
+	if cur, ok := s.board.CellAt(centre); ok && s.pace != nil {
+		level := cell.OnGround
+		if deck {
+			level = cell.OnDeck
+		}
+		if s.pace(cur, ahead, kind, level, w.domain) == 0 {
+			return false
+		}
+	}
 	if s.keeping == nil {
 		return true
-	}
-	deck := false
-	if w.z != nil {
-		ahead, deck, _ = s.board.LevelFor(point, w.z.Altitude, w.z.Reach())
 	}
 	return s.keeping.MayStep(w.id, w.pos, w.at, ahead, deck, w.domain, heading)
 }

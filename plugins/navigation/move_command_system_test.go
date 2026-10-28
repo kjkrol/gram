@@ -1,10 +1,11 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
-	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 	"time"
+
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/tag"
@@ -20,7 +21,7 @@ import (
 func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(10, 1, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 
 	start := grid.At(0, 0)
@@ -107,7 +108,7 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(10, 1, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 
 	start := grid.At(0, 0)
@@ -196,13 +197,13 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(10, 1, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 
 	start := grid.At(0, 0)
 	oldTarget := grid.At(3, 0)
 	wall := grid.At(8, 0)
-	terrain.Set(wall, cell.Kind{Cost: 1, Solid: true})
+	terrain.Set(wall, cell.Kind{Pace: 1, Solid: true})
 
 	moves := &command.Queue[MoveTo]{}
 	cmds := routing.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)

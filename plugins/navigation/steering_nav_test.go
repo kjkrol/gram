@@ -99,7 +99,7 @@ func TestNavigation_TurnsBeforeTheBendAndNeverStops(t *testing.T) {
 func TestNavigation_PassesAWaypointByProjectionNotDistance(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 	nav := routed(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
 		occupancy)
@@ -249,7 +249,7 @@ func TestNavigation_RunsThroughQueuedGoalsWithoutStopping(t *testing.T) {
 func TestNavigation_QueuedGoalIsPassedByProjection(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 1, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 	nav := routed(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
 		occupancy)
@@ -341,7 +341,7 @@ func TestNavigation_ASharpTurnSlowsTheUnit(t *testing.T) {
 func TestNavigation_ALegIsTurnedRoundWhenTheRouteGoesBack(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 	nav := routed(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
 		occupancy)

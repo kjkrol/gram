@@ -22,9 +22,9 @@ func newBridged() bridged {
 	g := grid.DefaultGrids{}.Square(5, 5, 10)
 	terrain := openTerrain()
 	for y := range uint32(4) {
-		terrain.Set(g.At(2, y), cell.Kind{Cost: 1, Allows: cell.Water})
+		terrain.Set(g.At(2, y), cell.Kind{Pace: 1, Allows: cell.Water})
 	}
-	terrain.Set(g.At(2, 1), cell.Kind{Cost: 1, Allows: cell.Land | cell.Water})
+	terrain.Set(g.At(2, 1), cell.Kind{Pace: 1, Allows: cell.Land | cell.Water})
 	return bridged{terrain, g}
 }
 

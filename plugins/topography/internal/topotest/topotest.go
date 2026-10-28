@@ -27,7 +27,7 @@ import (
 )
 
 // Hill is the kind of a QuasiWorld's hill.
-var Hill = cell.Kind{Name: cell.Named("hill"), Cost: 1, Allows: cell.Land | cell.Air}
+var Hill = cell.Kind{Name: cell.Named("hill"), Pace: 1, Allows: cell.Land | cell.Air}
 
 // RaiseHills puts the hill cells at 12 and the rest at 0, each corner at the mean of its cells.
 func RaiseHills(r topography.Relief, grid grid.Grid, hills ...cell.ID) {
@@ -102,9 +102,11 @@ func NewQuasiWorldWith(
 	if collide {
 		c = collision.NewPlugin(qw.World, qw.Motion)
 	}
-	qw.Board = board.NewPlugin(qw.Grid, &cell.MultipleOccupancy{}, qw.World).WithMotion(qw.Motion)
+	qw.Board = board.NewPlugin(qw.Grid, &cell.MultipleOccupancy{}, qw.World).
+		WithMotion(qw.Motion, cell.DefaultHiking)
 	qw.Topo = topography.NewPlugin(qw.World, qw.Board, nil, topography.Config{})
-	qw.Board.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land | cell.Air})
+	qw.Board.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1,
+		Allows: cell.Land | cell.Air})
 	hillCell := qw.Grid.At(2, 1)
 	qw.Board.Write().Board().Set(hillCell, Hill)
 	RaiseHills(qw.Topo.Write().Relief(), qw.Grid, hillCell)
@@ -200,7 +202,7 @@ func Camera(w *world.Plugin, cfg cameras.Config) camera.Camera {
 func LevelBoard(w *world.Plugin) (*board.Plugin, grid.Grid) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	b.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	return b, grid
 }
 

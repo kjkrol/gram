@@ -19,9 +19,9 @@ func bandWorld(t *testing.T, height float32, level func(cell.ID) float32,
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)
 	f := newField(grid, cells, level)
-	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	cells.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	cellAt := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
-	wall := cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true, Height: height}
+	wall := cell.Kind{Name: cell.Named("wall"), Pace: 1, Solid: true, Height: height}
 	cells.Set(cellAt(3), wall)
 	cells.Set(cellAt(4), wall)
 	return f, cellAt
@@ -82,10 +82,10 @@ func TestBand_ASideIsOpenTowardsANeighbourUnderTheEntity(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)
 	f := newField(grid, cells, func(cell.ID) float32 { return 0 })
-	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	cells.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	cellAt := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
-	cells.Set(cellAt(3), cell.Kind{Name: cell.Named("low"), Cost: 1, Solid: true, Height: 10})
-	cells.Set(cellAt(4), cell.Kind{Name: cell.Named("high"), Cost: 1, Solid: true, Height: 30})
+	cells.Set(cellAt(3), cell.Kind{Name: cell.Named("low"), Pace: 1, Solid: true, Height: 10})
+	cells.Set(cellAt(4), cell.Kind{Name: cell.Named("high"), Pace: 1, Solid: true, Height: 30})
 
 	walker := solid(f, collision.Band{Bottom: 0, Top: 20})
 	if open := walker[uint64(cellAt(4))]; open&collide.Left != 0 {
@@ -104,9 +104,9 @@ func TestBand_AFlatWorldHasEveryCellEverywhere(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)
 	f := newField(grid, cells, func(cell.ID) float32 { return 0 })
-	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	cells.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	cellAt := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
-	cells.Set(cellAt(3), cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true})
+	cells.Set(cellAt(3), cell.Kind{Name: cell.Named("wall"), Pace: 1, Solid: true})
 	if got := solid(f, collision.Band{Bottom: 40, Top: 50}); len(got) != 1 {
 		t.Errorf("%d solid cells for a band on the flat, want the wall whatever the band", len(got))
 	}

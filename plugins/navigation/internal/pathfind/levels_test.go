@@ -20,9 +20,9 @@ type valley struct {
 func newValley() valley {
 	g := grid.DefaultGrids{}.Square(5, 5, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	for y := range uint32(5) {
-		terrain.Set(g.At(2, y), cell.Kind{Cost: 1, Allows: cell.Water})
+		terrain.Set(g.At(2, y), cell.Kind{Pace: 1, Allows: cell.Water})
 	}
 	return valley{g, terrain}
 }
@@ -52,7 +52,7 @@ func (v valley) Over(p geom.Vec) (float32, bool) {
 
 func (v valley) KindAt(c cell.ID, deck bool) cell.Kind {
 	if _, _, _, ok := v.Deck(c); ok && deck {
-		return cell.Kind{Cost: 1, Allows: cell.Land, Graded: true}
+		return cell.Kind{Pace: 1, Allows: cell.Land, Graded: true}
 	}
 	return v.terrain.Kind(c)
 }
@@ -206,7 +206,7 @@ func (w causeway) Over(p geom.Vec) (float32, bool) {
 
 func (w causeway) KindAt(c cell.ID, deck bool) cell.Kind {
 	if deck && w.on(c) {
-		return cell.Kind{Cost: 1, Allows: cell.Land}
+		return cell.Kind{Pace: 1, Allows: cell.Land}
 	}
 	return w.terrain.Kind(c)
 }
@@ -224,9 +224,9 @@ func (w causeway) Kind(c cell.ID) cell.Kind { return w.terrain.Kind(c) }
 func TestFinder_WalksADeckSlantwise(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 5, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Water})
-	terrain.Set(g.At(0, 0), cell.Kind{Cost: 1, Allows: cell.Land})
-	terrain.Set(g.At(4, 4), cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Water})
+	terrain.Set(g.At(0, 0), cell.Kind{Pace: 1, Allows: cell.Land})
+	terrain.Set(g.At(4, 4), cell.Kind{Pace: 1, Allows: cell.Land})
 	w := causeway{g, terrain}
 	f := New(g, w, nil, &cell.MultipleOccupancy{}).WithLevels(w)
 	var steps [64]cell.ID

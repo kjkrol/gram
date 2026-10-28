@@ -128,7 +128,7 @@ func onKind(name string) act.Rule {
 
 func pitBoard(grid grid.Grid, pit cell.Kind) func(*board.BoardWrite) {
 	return func(brd *board.BoardWrite) {
-		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land})
 		for y := uint32(1); y <= 14; y++ {
 			c := grid.At(3, y)
 			brd.Set(c, pit)
@@ -139,8 +139,15 @@ func pitBoard(grid grid.Grid, pit cell.Kind) func(*board.BoardWrite) {
 func TestStanding_ALandUnitDrivenIntoAHoleFellAndKeepsFalling(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	start := grid.At(1, 7)
-	bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize, pitBoard(grid, cell.Kind{Name: cell.Named("hole"), Cost: 1}),
-		[]boardtest.Mover{{Here: start, Heading: east}}, footing(grid))
+	bw := boardtest.NewWorld(
+		t,
+		grid,
+		6*boardtest.CellSize,
+		16*boardtest.CellSize,
+		pitBoard(grid, cell.Kind{Name: cell.Named("hole"), Pace: 1}),
+		[]boardtest.Mover{{Here: start, Heading: east}},
+		footing(grid),
+	)
 	orders := carried(t, bw.World, &heards{})
 	if walls := bw.Solid(world.Layers(cell.Land)); len(walls) != 0 {
 		t.Fatalf("%d solid cells, want none: a hole is not solid", len(walls))
@@ -174,8 +181,16 @@ func TestStanding_ALandUnitDrivenIntoAHoleFellAndKeepsFalling(t *testing.T) {
 func TestStanding_ABoatOnWaterHasNotFallen(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	start := grid.At(3, 7)
-	bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize, pitBoard(grid, cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water}),
-		[]boardtest.Mover{{Here: start, Domain: cell.Water}}, footing(grid), onKind("water"))
+	bw := boardtest.NewWorld(
+		t,
+		grid,
+		6*boardtest.CellSize,
+		16*boardtest.CellSize,
+		pitBoard(grid, cell.Kind{Name: cell.Named("water"), Pace: 1, Allows: cell.Water}),
+		[]boardtest.Mover{{Here: start, Domain: cell.Water}},
+		footing(grid),
+		onKind("water"),
+	)
 	orders := carried(t, bw.World, &heards{})
 	bw.Tick()
 	if told := only(t, orders.told()); !told["on water"] || told["fell"] {
@@ -189,7 +204,7 @@ func TestStanding_ReportsEveryUnitOnTheBoard(t *testing.T) {
 	b := grid.At(4, 7)
 	bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize,
 		func(brd *board.BoardWrite) {
-			brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+			brd.SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land})
 		},
 		[]boardtest.Mover{{Here: a}, {Here: b}}, footing(grid), onKind("grass"))
 	orders := carried(t, bw.World, &heards{})
@@ -214,7 +229,7 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 	})
 	orders := carried(t, w, &heards{})
 	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("hole"), Cost: 1})
+	brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("hole"), Pace: 1})
 	var hosts *boardtest.InstallCtx
 	ecs := installWorldAndBoard(t, w, brd, grid, func(ctx *boardtest.InstallCtx) {
 		hosts = ctx

@@ -44,7 +44,7 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 		b.Fatal(err)
 	}
 	brdW := p.Write().Board()
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brdW.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	relief := topo.Write().Relief()
 	relief.SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float32 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
@@ -113,12 +113,12 @@ func islandWith(b *testing.B, view string, far bool, shine, lit, sectored bool) 
 		Cage:        topo.Read(0),
 	}, start, screenW, screenH)
 	kinds := p.Read(0).CellKinds()
-	kinds.Define("sea", cell.Kind{Cost: 1, Allows: cell.Water})
-	kinds.Define("earth", cell.Kind{Cost: 1, Allows: cell.Land})
-	kinds.Define("sand", cell.Kind{Cost: 1, Allows: cell.Land})
-	kinds.Define("rock", cell.Kind{Cost: 1, Allows: cell.Land})
-	kinds.Define("stream", cell.Kind{Cost: 2, Allows: cell.Land | cell.Water})
-	kinds.Define("estuary", cell.Kind{Cost: 1, Allows: cell.Water})
+	kinds.Define("sea", cell.Kind{Pace: 1, Allows: cell.Water})
+	kinds.Define("earth", cell.Kind{Pace: 1, Allows: cell.Land})
+	kinds.Define("sand", cell.Kind{Pace: 1, Allows: cell.Land})
+	kinds.Define("rock", cell.Kind{Pace: 1, Allows: cell.Land})
+	kinds.Define("stream", cell.Kind{Pace: 0.5, Allows: cell.Land | cell.Water})
+	kinds.Define("estuary", cell.Kind{Pace: 1, Allows: cell.Water})
 	var wet float32
 	if shine {
 		wet = 0.9

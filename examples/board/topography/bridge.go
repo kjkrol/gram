@@ -20,7 +20,7 @@ func (bridge) Define(p *bridges.Plugin) {
 		Allows:    cell.Land,
 		Width:     12,
 		Thickness: deckThickness,
-		Cost:      1,
+		Pace:      1,
 		Rail:      cell.Rail{Keeps: cell.Land, Height: scale.Figure(1)},
 		Pier:      3,
 	})

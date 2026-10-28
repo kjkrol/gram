@@ -11,7 +11,7 @@ type grass struct{}
 var _ board.Tile = grass{}
 
 func (grass) Define(b *board.Plugin) {
-	b.Read(0).CellKinds().Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Read(0).CellKinds().Define(GrassCell, cell.Kind{Pace: 1, Allows: cell.Land})
 }
 
 func (grass) Look(a *board.Atlas, _ *board.Plugin) { a.Add(GrassCell, render.Solid(grassColor)) }

@@ -74,7 +74,7 @@ func TestReporter_SaysTheCaresOfTheFrameDrawnAsItIsSwapped(t *testing.T) {
 	})
 	w.Write().Anchor(anchored{size / 2, size / 2})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(16, 16, 32), &cell.MultipleOccupancy{}, w)
-	b.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+	b.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land})
 	p := topography.NewPlugin(w, b, nil, topography.Config{Care: 1})
 	ctx := topotest.NewInstallCtx()
 	for _, plugin := range []interface {
@@ -244,8 +244,9 @@ func TestCareView_DrawsTheBoundariesBetweenTheCaresBandsOverTheGround(t *testing
 			m := motion.NewPlugin(w)
 			cells := uint32(tc.sectors * 4)
 			b := board.NewPlugin(grid.DefaultGrids{}.Square(cells, cells, 32),
-				&cell.MultipleOccupancy{}, w).WithMotion(m)
-			b.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+				&cell.MultipleOccupancy{}, w).WithMotion(m, cell.DefaultHiking)
+			b.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1,
+				Allows: cell.Land})
 			p := topography.NewPlugin(w, b, nil, topography.Config{Care: 1})
 			ctx := topotest.NewInstallCtx()
 			for _, plugin := range []interface {

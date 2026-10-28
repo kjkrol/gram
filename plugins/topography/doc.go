@@ -6,8 +6,8 @@
 // [Plugin.Read] (Read(w) worker w's of the game's pool, 0 the game's own goroutine, with the
 // board's read of the same worker) and changed through [Plugin.Write], the game's goroutine's.
 // The world must have heights (world.Config.Heights) and may not wrap. What a game and the other
-// plugins both name is in two small packages, relief (Climbing) and painter (Style); the rest is
-// the plugin's own, in plugins/topography/internal.
+// plugins both name is in one small package, painter (Style); the rest is the plugin's own, in
+// plugins/topography/internal.
 //
 // # Relief
 //
@@ -15,9 +15,10 @@
 // (board.Level.Heights, or ground.MeanOfCells from a height per cell) and shaped at play by
 // [Raise], [Lower] and [Level] as the Config's [Shaping] says. Every step the plugin puts every
 // unit at the surface under it, the ground or a deck carrying its domain within its step, plus
-// its Mover's Lift; a unit carrying a motion.Drift is gravity's. Slopes multiply a kind's cost
-// as the Config's relief.Climbing says, in the planner and on the move, unless the kind is
-// Graded. [Write.Flatten] lays a cell flat: the Write is a ground.Shaper.
+// its Mover's Lift; a unit carrying a motion.Drift is gravity's. How steep a step from cell to
+// cell is, is the relief's ([Plugin.Rise], the board's Map's); what the slope does to a unit is
+// the board's mobility's, in the planner and on the move alike. [Write.Flatten] lays a cell
+// flat: the Write is a ground.Shaper.
 //
 // # Cage
 //

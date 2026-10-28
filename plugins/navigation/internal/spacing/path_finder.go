@@ -14,7 +14,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Finder searches the board for a unit's route, over its terrain, slopes and occupancy.
+// Finder searches the board for a unit's route, over its terrain, pacing and occupancy.
 type Finder struct {
 	*pathfind.Finder
 	grid      grid.Grid
@@ -22,9 +22,11 @@ type Finder struct {
 	Occupancy cell.Occupancy
 }
 
-// NewFinder searches grid's terrain, its slopes and occupancy.
-func NewFinder(grid grid.Grid, terrain cell.Terrain, slopes pathfind.Slopes, occupancy cell.Occupancy) *Finder {
-	return &Finder{Finder: pathfind.New(grid, terrain, slopes, occupancy), grid: grid, Terrain: terrain, Occupancy: occupancy}
+// NewFinder searches grid's terrain, its pacing and occupancy.
+func NewFinder(grid grid.Grid, terrain cell.Terrain, pacing pathfind.Pacing,
+	occupancy cell.Occupancy) *Finder {
+	return &Finder{Finder: pathfind.New(grid, terrain, pacing, occupancy), grid: grid,
+		Terrain: terrain, Occupancy: occupancy}
 }
 
 // Read has p, made over a board's read and WithLevels its BoardLevels, search through r: the
@@ -70,15 +72,30 @@ func (p *Finder) on(m bodies.Member, c cell.ID, level order.Level) bool {
 	return p.On(m.Domain, m.Body(), c, pathfind.Level(level))
 }
 
-func (p *Finder) climb(from, to cell.ID, d cell.Domain) float64 { return p.Climb(from, to, d) }
-
 func (p *Finder) price(from, to cell.ID, kind cell.Kind, d cell.Domain) (float64, bool) {
-	return p.Price(from, to, kind, d)
+	return p.Price(from, to, kind, cell.OnGround, d)
 }
 
-func (p *Finder) steps(m bodies.Member, c cell.ID) bool {
-	_, ok := p.stepsOnto(m, c)
+// asides reports whether m may be given way onto c: a step it takes whose slope leaves it at
+// least YieldShare of the pace the ground gives it on the level, so a flat forest is stepped
+// into and a cliff is not
+func (p *Finder) asides(m bodies.Member, c cell.ID) bool {
+	_, ok := p.stepsAside(m, c)
 	return ok
+}
+
+func (p *Finder) stepsAside(m bodies.Member, c cell.ID) (deck, ok bool) {
+	deck, ok = p.stepsOnto(m, c)
+	if !ok || c == m.Cell || !p.Sloped() {
+		return deck, ok
+	}
+	level := cell.OnGround
+	if deck {
+		level = cell.OnDeck
+	}
+	kind := p.KindAt(c, level)
+	flat := p.Flat(c, kind, level, m.Domain)
+	return deck, flat > 0 && p.Pace(m.Cell, c, kind, level, m.Domain) >= YieldShare*flat
 }
 
 func (p *Finder) stepsOnto(m bodies.Member, c cell.ID) (deck, ok bool) {

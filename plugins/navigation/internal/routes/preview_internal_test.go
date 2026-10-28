@@ -1,9 +1,10 @@
 package routes
 
 import (
+	"testing"
+
 	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
-	"testing"
 
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -14,7 +15,7 @@ import (
 func TestPathRenderer_PreviewsTheRouteToEachQueuedGoal(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(10, 1, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	at := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
 	r := &Renderer{grid: grid, Finder: spacing.NewFinder(grid, terrain, nil, &cell.SingleOccupancy{})}
 

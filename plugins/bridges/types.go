@@ -16,13 +16,13 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Spec is what a kind of bridge is: whom its deck carries (Allows, at Cost; 0 the ground's), how
+// Spec is what a kind of bridge is: whom its deck carries (Allows, at Pace; 0 the ground's), how
 // wide and thick its deck is, its railings and how wide a pier is.
 type Spec struct {
 	Allows    cell.Domain
 	Width     float32
 	Thickness float32
-	Cost      float64
+	Pace      float64
 	Rail      cell.Rail
 	Pier      float32
 }
@@ -80,7 +80,7 @@ func (t *Types) Define(name string, spec Spec) {
 				Allows:    spec.Allows,
 				Height:    r.Height,
 				Thickness: spec.Thickness,
-				Cost:      spec.Cost,
+				Pace:      spec.Pace,
 				Graded:    true,
 				Links:     r.Links,
 				Width:     spec.Width,

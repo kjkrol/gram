@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -33,8 +32,8 @@ func TestSimpleMap_IsFlatAndPricesNothingBeyondTheKinds(t *testing.T) {
 	if corners, level := m.Top(a); corners != [4]float32{} || level != 0 {
 		t.Errorf("a simple map's tile stands at %v, %v; want level ground at 0", corners, level)
 	}
-	if m.Climb(a, b, cell.Land) != 1 || m.Least(cell.Land) != 1 || m.Slope(geom.NewVec(16, 16), geom.NewVec(1, 0), cell.Land) != 1 {
-		t.Error("a simple map prices a step or the speed beyond the kind's cost")
+	if m.Rise(a, b) != 0 {
+		t.Error("a simple map says a step is steep")
 	}
 	if m.Look() != look.Flat || m.Dressing() == nil {
 		t.Error("a simple map is not seen flat from above with its bands over the tiles")

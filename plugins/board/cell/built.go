@@ -6,13 +6,13 @@ import "github.com/kjkrol/ceremony/effect"
 type On struct{ Cell ID }
 
 // Floor is a knob of an entity standing on a cell carrying the domains Allows over it at Height
-// over its level, whatever its ground takes, at Cost (0: the ground's). With a Width it is a band
+// over its level, whatever its ground takes, at Pace (0: the ground's). With a Width it is a band
 // that wide from the cell's middle out to each neighbour its Links name; without, the whole cell.
 type Floor struct {
 	Allows    Domain
 	Height    float32
 	Thickness float32
-	Cost      float64
+	Pace      float64
 	Graded    bool
 	Links     Links
 	Width     float32
@@ -57,10 +57,10 @@ type Built struct {
 // Over is under as whoever crosses the cell meets it with what is built over it.
 func (b Built) Over(under Kind) Kind {
 	under.Allows |= b.Floor.Allows
-	if b.Floor.Cost > 0 {
-		for i := range under.Costs {
+	if b.Floor.Pace > 0 {
+		for i := range under.Paces {
 			if b.Floor.Allows&(1<<i) != 0 {
-				under.Costs[i] = b.Floor.Cost
+				under.Paces[i] = b.Floor.Pace
 			}
 		}
 	}

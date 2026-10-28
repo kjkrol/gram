@@ -19,7 +19,7 @@ func TestMiniature_IsTheBoardFlatFromAbove(t *testing.T) {
 	green := color.RGBA{G: 200, A: 255}
 	grey := color.RGBA{R: 90, G: 90, B: 90, A: 255}
 	kinds := bw.Board.Read(0).CellKinds()
-	kinds.Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
+	kinds.Define("grass", cell.Kind{Pace: 1, Allows: cell.Land})
 	kinds.Define("wall", boardtest.Wall)
 	brd := bw.Board.Read(0).Board()
 	brdW := bw.Board.Write().Board()

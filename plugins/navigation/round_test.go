@@ -1,10 +1,11 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
-	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 	"time"
+
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/command"
@@ -19,7 +20,7 @@ import (
 func TestOnward_SendsTheUnitRoundItsOwnRound(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(10, 1, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	start, east, west := grid.At(0, 0), grid.At(8, 0), grid.At(1, 0)
 
 	onwards := &command.Queue[Onward]{}
@@ -98,7 +99,7 @@ func TestNewRound_RefusesNoCellAndTooMany(t *testing.T) {
 func TestMoveTo_ByNameGoesToTheNamedCellOrUnit(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(10, 1, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	start, post, mate := grid.At(0, 0), grid.At(7, 0), grid.At(4, 0)
 
 	moves := &command.Queue[MoveTo]{}

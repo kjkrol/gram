@@ -46,7 +46,7 @@ func newPlaceWorld(t *testing.T, grid grid.Grid, withUnit bool, hook func(pw *pl
 	pw.fx.Define("scorched", effect.Spec{})
 	pw.scorched = pw.fx.Named("scorched")
 	pw.brd = board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	pw.brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+	pw.brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land})
 	rules := hook(pw)
 	if err := pw.brd.Populate(); err != nil {
 		t.Fatal(err)
@@ -295,7 +295,7 @@ func TestPlaces_ARuleOfARoleFiresForTheCellsPlayingIt(t *testing.T) {
 			Then: act.Self.Put(pw.scorched),
 		})
 		marked := pw.w.Roles().Named("marked")
-		pw.brd.Read(0).CellKinds().Define("marked", cell.Kind{Cost: 1, Allows: cell.Land}, marked)
+		pw.brd.Read(0).CellKinds().Define("marked", cell.Kind{Pace: 1, Allows: cell.Land}, marked)
 		pw.brd.Write().Seed(board.Layout{Cells: []cell.Entry{{Kind: "marked", Cell: a}, {Kind: "marked", Cell: b}}})
 		return marked.Rules()
 	})
@@ -316,7 +316,7 @@ func TestPlaces_ARuleOfARoleFiresForTheOneCellTheEntryHasPlayIt(t *testing.T) {
 			Then: act.Self.Put(pw.scorched),
 		})
 		lake := pw.w.Roles().Named("lake")
-		pw.brd.Read(0).CellKinds().Define("water", cell.Kind{Cost: 1, Allows: cell.Water})
+		pw.brd.Read(0).CellKinds().Define("water", cell.Kind{Pace: 1, Allows: cell.Water})
 		water := pw.brd.Read(0).CellKinds().Named("water")
 		pw.brd.Write().Seed(board.Layout{Cells: []cell.Entry{water.Entry(a).Plays(lake), water.Entry(b)}})
 		return lake.Rules()
@@ -333,7 +333,7 @@ func TestStanding_ReachesThePlaceUnderTheUnitByItsRole(t *testing.T) {
 	pw := newPlaceWorld(t, grid, true, func(pw *placeWorld) []act.Rule {
 		pw.w.Roles().Define("plate")
 		plate := pw.w.Roles().Named("plate")
-		pw.brd.Read(0).CellKinds().Define("plate", cell.Kind{Cost: 1, Allows: cell.Land}, plate)
+		pw.brd.Read(0).CellKinds().Define("plate", cell.Kind{Pace: 1, Allows: cell.Land}, plate)
 		pw.brd.Write().Seed(board.Layout{Cells: []cell.Entry{{Kind: "plate", Cell: middle}}})
 		return []act.Rule{act.Branch[unit.Standing]{
 			Name: "press",

@@ -5,10 +5,22 @@
 // # ID, Kind and Domain
 //
 // An [ID] names one cell. A [Kind] is a named terrain: whom it admits (Allows, of the [Domain]s
-// [Land], [Water] and [Air], a game adding bits of its own), what a step costs, whether it is
-// solid, how much it veils sight; a board's [Kinds] holds those a game defined, by [Name].
-// [Ground] is the cell's kind on its entity, beside its [Plot], and a [Way] (a road, a river)
-// runs across it. [Terrain] is what a cell answers about its kind: a board is one.
+// [Land], [Water] and [Air], a game adding bits of its own), the share of its top speed a unit
+// keeps on it (Pace, [Kind.PaceFor] by domain), whether it is solid, how much it veils sight; a
+// board's [Kinds] holds those a game defined, by [Name]. [Ground] is the cell's kind on its
+// entity, beside its [Plot], and a [Way] (a road, a river) runs across it. [Terrain] is what a
+// cell answers about its kind: a board is one.
+//
+// # Mobility
+//
+// A [Mobility] is how a game's units fare on the ground: the share of its top speed a unit keeps
+// on a [Step] — onto a kind, on its [Level], for its domain, over the slope between the two
+// cells' middles — 1 full speed and nothing faster, 0 refusing the step; its factors multiply.
+// The board fills the step and asks through [PaceOf], which reads a Graded kind's slope as 0 and
+// refuses a share out of [0, 1]; the planner prices a step at its length over the share and the
+// pace slows a unit by it. [DefaultHiking] is Tobler's hiking function cut at the flat, a
+// [Hiking] a game tunes or wraps; a game's own domain bits tell its mobility one class of unit
+// from another, a cliff refused to one and climbed by another.
 //
 // # Terrain in maps and the Layout's entries
 //

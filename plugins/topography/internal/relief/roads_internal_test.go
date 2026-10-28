@@ -12,8 +12,8 @@ import (
 func TestRelief_KeepRoadsTakesBackWhatBreaksARoad(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 3, 32)
 	brd, brdW := board.NewBoard(g)
-	brdW.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
-	road := cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land, Graded: true}
+	brdW.SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land})
+	road := cell.Kind{Name: cell.Named("road"), Pace: 1, Allows: cell.Land, Graded: true}
 	east, _ := grid.Link(g, g.At(0, 1), g.At(1, 1))
 	west, _ := grid.Link(g, g.At(1, 1), g.At(0, 1))
 	for x := range uint32(3) {

@@ -1,9 +1,10 @@
 package terrain_test
 
 import (
-	cgoke "github.com/kjkrol/ceremony/goke"
 	"testing"
 	"time"
+
+	cgoke "github.com/kjkrol/ceremony/goke"
 
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/tag"
@@ -45,8 +46,8 @@ func newCellWorld(t *testing.T, boardFirst bool) *cellWorld {
 	})
 	cw.fx = w.Write().Effects()
 	cw.brd = board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	cw.grass = cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land}
-	cw.snow = cell.Kind{Name: cell.Named("snow"), Cost: 3, Allows: cell.Land}
+	cw.grass = cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land}
+	cw.snow = cell.Kind{Name: cell.Named("snow"), Pace: 1.0 / 3, Allows: cell.Land}
 	cw.brd.Write().Board().SetAll(cw.grass)
 	snow := cw.snow
 	cw.fx.Define("frost", effect.Spec{effect.Lasts(2 * cellTick), effect.Alter(func(g *cell.Ground) { g.Kind = snow })})

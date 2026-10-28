@@ -80,9 +80,9 @@ func newNavWorldIn(t testing.TB, pool *parallel.Pool, cols, rows, cellSize uint3
 		Sectors:  sectors,
 	})
 	m := motion.NewPlugin(w)
-	brd := board.NewPlugin(nw.grid, nw.occupancy, w).WithMotion(m)
+	brd := board.NewPlugin(nw.grid, nw.occupancy, w).WithMotion(m, cell.DefaultHiking)
 	nw.board = testBoard{brd.Read(0).Board(), brd.Write().Board()}
-	nw.board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	nw.board.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(w)
 	nw.nav = NewPlugin(brd, w, m, sel, driving.NewPlugin(w, m, sel)).WithSpacing(CellSpacing)
 	if prepare != nil {

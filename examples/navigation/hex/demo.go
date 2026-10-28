@@ -96,7 +96,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.motion = motion.NewPlugin(a.world)
 	a.light = light.NewPlugin(a.world, light.Config{})
 	grid := grid.DefaultGrids{}.Hex(GridWidth, GridHeight, HexSize)
-	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).WithMotion(a.motion)
+	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).
+		WithMotion(a.motion, cell.DefaultHiking)
 	a.topography = topography.NewPlugin(a.world, a.board, a.light, topography.Config{})
 	a.bridges = bridges.NewPlugin(a.world, a.board, bridges.Config{Rules: site.Rules{Longest: 3}})
 	a.selection = selection.NewPlugin(a.world)

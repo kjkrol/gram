@@ -31,7 +31,7 @@ func (ford) Define(b *board.Plugin) {
 		comp.Load(func(r fordRow) world.Velocity {
 			return world.Velocity{Dir: geom.NewVec(float32(r.Way[0]), float32(r.Way[1]))}
 		}),
-		comp.Const(cell.Floor{Allows: cell.Land, Cost: 6.25}),
+		comp.Const(cell.Floor{Allows: cell.Land, Pace: 0.16}),
 		comp.Const(light.Shadow{Cast: light.NoShadow}))
 }
 

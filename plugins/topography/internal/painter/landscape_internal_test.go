@@ -31,9 +31,6 @@ func (m testMap) Top(c cell.ID) (corners [4]float32, level float32) {
 	t := m.d.topOf(c)
 	return t.z, t.alt
 }
-func (testMap) Climb(cell.ID, cell.ID, cell.Domain) float32   { return 1 }
-func (testMap) Least(cell.Domain) float32                     { return 1 }
-func (testMap) Slope(geom.Vec, geom.Vec, cell.Domain) float32 { return 1 }
 
 // one a board, so a board's heights and its Painter meet on the same relief
 var (
@@ -142,7 +139,7 @@ func TestBake_RunningWaterRunsDownItsSlopeAndNotIntoItsBanks(t *testing.T) {
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(3, 3, 32)
 	brd, brdW := newBoard(g)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
+	brdW.SetAll(cell.Kind{Pace: 1, Allows: cell.Land, SpriteID: 1})
 	for y := range uint32(3) {
 		brdW.Set(g.At(1, y), styled(st, cell.Kind{Name: cell.Named("k1"), Allows: cell.Water,
 			SpriteID: 2}, Style{Shine: 1, Flow: 10}))
@@ -172,7 +169,7 @@ func TestBake_AWayStraightAcrossIsOneBandFromSideToSide(t *testing.T) {
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(3, 3, 32)
 	brd, brdW := newBoard(g)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
+	brdW.SetAll(cell.Kind{Pace: 1, Allows: cell.Land, SpriteID: 1})
 	reliefFor(brd).SetHeights(func(p geom.Vec) float32 { return 40 - 0.5*p.X }) // falling east
 	stream := styled(st, cell.Kind{Name: cell.Named("k3"), Allows: cell.Land | cell.Water,
 		SpriteID: 2}, Style{Shine: 1, Flow: 10})
@@ -201,7 +198,7 @@ func TestBake_AWayTurningCurvesRoundTheMiddle(t *testing.T) {
 	gputest.Need(t)
 	g := grid.DefaultGrids{}.Square(3, 3, 32)
 	brd, brdW := newBoard(g)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
+	brdW.SetAll(cell.Kind{Pace: 1, Allows: cell.Land, SpriteID: 1})
 	brdW.SetWay(g.At(1, 1), cell.Way{Kind: cell.Kind{Allows: cell.Land, SpriteID: 2}, Width: 8,
 		Links: 1<<2 | 1<<1}) // west and south
 	d := New(brd, fixed(reliefFor(brd)), false, map[cell.Name]Style{})
@@ -224,7 +221,7 @@ func TestBake_AWayFadingOutShowsLessAndRunsOnTheWayItFades(t *testing.T) {
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(4, 1, 32)
 	brd, brdW := newBoard(g)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Water, SpriteID: 1})
+	brdW.SetAll(cell.Kind{Pace: 1, Allows: cell.Water, SpriteID: 1})
 	river := styled(st, cell.Kind{Name: cell.Named("k4"), Allows: cell.Water, SpriteID: 2},
 		Style{Shine: 1, Flow: 40})
 	west, east := cell.Links(1<<2), cell.Links(1<<3)
@@ -254,7 +251,7 @@ func TestBake_AWayRunsSlantwiseToTheCornerAndEndsSquareAcrossItself(t *testing.T
 	gputest.Need(t)
 	g := grid.DefaultGrids{}.Square(3, 3, 32)
 	brd, brdW := newBoard(g)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
+	brdW.SetAll(cell.Kind{Pace: 1, Allows: cell.Land, SpriteID: 1})
 	brdW.SetWay(g.At(1, 1), cell.Way{Kind: cell.Kind{Allows: cell.Land, SpriteID: 2}, Width: 4,
 		Links: 1 << 7}) // south-east
 	d := New(brd, fixed(reliefFor(brd)), false, map[cell.Name]Style{})
@@ -372,9 +369,9 @@ func TestTile_AShinyCellShines(t *testing.T) {
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd, brdW := newBoard(g)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brdW.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	sea := g.At(1, 1)
-	brdW.Set(sea, styled(st, cell.Kind{Name: cell.Named("k14"), Cost: 1, Allows: cell.Water},
+	brdW.Set(sea, styled(st, cell.Kind{Name: cell.Named("k14"), Pace: 1, Allows: cell.Water},
 		Style{Shine: 0.8}))
 	for _, heights := range []bool{true, false} {
 		d := New(brd, fixed(reliefFor(brd)), heights, st)
@@ -395,10 +392,10 @@ func TestShores_LieTheWayOfTheNearestCellThatDoesNotShine(t *testing.T) {
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(10, 4, 32)
 	brd, brdW := newBoard(g)
-	brdW.SetAll(styled(st, cell.Kind{Name: cell.Named("k15"), Cost: 1, Allows: cell.Water},
+	brdW.SetAll(styled(st, cell.Kind{Name: cell.Named("k15"), Pace: 1, Allows: cell.Water},
 		Style{Shine: 1}))
 	for y := range uint32(4) {
-		brdW.Set(g.At(0, y), cell.Kind{Cost: 1, Allows: cell.Land}) // a coast along x = 32
+		brdW.Set(g.At(0, y), cell.Kind{Pace: 1, Allows: cell.Land}) // a coast along x = 32
 	}
 	d := New(brd, fixed(reliefFor(brd)), true, st)
 	img, reach, _ := d.Shores(nil)
@@ -457,7 +454,7 @@ func TestBake_AWayTurnsIntoTheKindItMixesWith(t *testing.T) {
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(3, 3, 32)
 	brd, brdW := newBoard(g)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
+	brdW.SetAll(cell.Kind{Pace: 1, Allows: cell.Land, SpriteID: 1})
 	sea := cell.Kind{Name: cell.Named("k44"), Allows: cell.Water, SpriteID: 7}
 	stream := styled(st, cell.Kind{Name: cell.Named("k45"), Allows: cell.Land | cell.Water,
 		SpriteID: 3}, Style{MixWith: "k44"})

@@ -50,7 +50,8 @@ func standing(b *testing.B, bodies, bands bool) {
 			if err := ctx.Use(m); err != nil {
 				b.Fatal(err)
 			}
-			p := board.NewPlugin(g, &cell.MultipleOccupancy{}, ctx.world).WithMotion(m)
+			p := board.NewPlugin(g, &cell.MultipleOccupancy{}, ctx.world).
+				WithMotion(m, cell.DefaultHiking)
 			topo := topography.NewPlugin(ctx.world, p, nil, topography.Config{})
 			if err := ctx.Use(p); err != nil {
 				b.Fatal(err)
@@ -67,7 +68,7 @@ func standing(b *testing.B, bodies, bands bool) {
 				}
 				extra = append(extra, comp.Const(gravity.Body{}))
 			}
-			p.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+			p.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 			topo.Write().Relief().SetHeights(ground.MeanOfCells(g, func(c cell.ID) float32 {
 				if x, y, _ := g.Coords(c); (x/4+y/4)%2 == 0 {
 					return 12

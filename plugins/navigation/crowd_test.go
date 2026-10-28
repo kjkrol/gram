@@ -19,7 +19,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-var wall = cell.Kind{Cost: 1, Solid: true}
+var wall = cell.Kind{Pace: 1, Solid: true}
 
 // xy are x, y pairs
 func (rw *roadWorld) walls(xy ...uint32) {
@@ -306,24 +306,30 @@ func yielderIf(role *ceremony.Part, yields bool) *ceremony.Part {
 	return nil
 }
 
+// cliffs pace a step onto their cells at half of what a step aside may leave a unit
 type cliffs map[cell.ID]bool
 
-func (c cliffs) Climb(_, to cell.ID, _ cell.Domain) float64 {
+func (c cliffs) Pace(_, to cell.ID, k cell.Kind, _ cell.Level, d cell.Domain) float64 {
 	if c[to] {
-		return 2 * spacing.YieldClimb
+		return spacing.YieldShare / 2 * k.PaceFor(d)
 	}
-	return 1
+	return k.PaceFor(d)
 }
-func (cliffs) Least(cell.Domain) float64 { return 1 }
+
+func (cliffs) Flat(_ cell.ID, k cell.Kind, _ cell.Level, d cell.Domain) float64 {
+	return k.PaceFor(d)
+}
+
+func (cliffs) Sloped() bool { return true }
 
 func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 5, 32)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	land := cell.Kind{Cost: 1, Allows: cell.Land}
+	land := cell.Kind{Pace: 1, Allows: cell.Land}
 	hazards := map[string]cell.Kind{
-		"water": {Cost: 1, Allows: cell.Water},
-		"hole":  {Cost: 1},
-		"wall":  {Cost: 1, Solid: true},
+		"water": {Pace: 1, Allows: cell.Water},
+		"hole":  {Pace: 1},
+		"wall":  {Pace: 1, Solid: true},
 		"cliff": land,
 	}
 	aside := []cell.ID{at(2, 1), at(2, 3), at(1, 1), at(1, 3)} // off the way of one coming from (1,2)
@@ -445,11 +451,11 @@ func TestCrowd_NobodyIsPushedOverTheWater(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	lay := func(b testBoard, at func(x, y uint32) cell.ID) {
 		for x := uint32(0); x < 10; x++ {
-			b.Set(at(x, 3), cell.Kind{Cost: 1, Allows: cell.Water})
-			b.Set(at(x, 4), cell.Kind{Cost: 1, Allows: cell.Water})
+			b.Set(at(x, 3), cell.Kind{Pace: 1, Allows: cell.Water})
+			b.Set(at(x, 4), cell.Kind{Pace: 1, Allows: cell.Water})
 		}
-		b.Set(at(4, 2), cell.Kind{Cost: 1, Solid: true})
-		b.Set(at(6, 2), cell.Kind{Cost: 1, Solid: true})
+		b.Set(at(4, 2), cell.Kind{Pace: 1, Solid: true})
+		b.Set(at(6, 2), cell.Kind{Pace: 1, Solid: true})
 	}
 	shore := float32(3 * fieldCell)
 	stander := geom.NewVec(5*fieldCell+16, shore-15) // a box 28 a side, a pixel off the water

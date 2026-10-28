@@ -86,17 +86,17 @@ func newDale(t *testing.T) *dale {
 	d.m = motion.NewPlugin(d.w)
 	d.col = collision.NewPlugin(d.w, d.m)
 	d.board = board.NewPlugin(d.g, &cell.MultipleOccupancy{}, d.w).
-		WithMotion(d.m).
+		WithMotion(d.m, cell.DefaultHiking).
 		WithCollision(d.col)
 	d.topo = topography.NewPlugin(d.w, d.board, nil, topography.Config{})
 	d.bridges = bridges.NewPlugin(d.w, d.board,
 		bridges.Config{Rules: rules}).WithShaper(d.topo.Write())
-	d.board.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	d.board.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	d.bridges.Types().Define("bridge", bridges.Spec{
 		Allows:    cell.Land,
 		Width:     6,
 		Thickness: 1,
-		Cost:      1,
+		Pace:      1,
 		Rail:      cell.Rail{Keeps: cell.Land, Height: 1},
 		Pier:      2,
 	})
@@ -323,7 +323,7 @@ func TestSpawn_ALevelsBridges(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			d := newDale(t)
-			d.board.Read(0).CellKinds().Define("earth", cell.Kind{Cost: 1, Allows: cell.Land})
+			d.board.Read(0).CellKinds().Define("earth", cell.Kind{Pace: 1, Allows: cell.Land})
 			level, err := d.board.Lay(file(tc.entity), "map.yaml")
 			if err != nil {
 				t.Fatal(err)

@@ -1,11 +1,12 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
-	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -66,7 +67,7 @@ func TestCellSpacing_NoRoomToGiveWayAndNoWayRoundTheMoverGivesUp(t *testing.T) {
 		{start: rw.at(5, 1)},
 	}
 	rw = newRoadWorld(t, 10, units)
-	wall := cell.Kind{Cost: 1, Solid: true}
+	wall := cell.Kind{Pace: 1, Solid: true}
 	for _, x := range []uint32{4, 5, 6} {
 		rw.nav.boardPlugin.Write().Board().Set(rw.at(x, 0), wall)
 		rw.nav.boardPlugin.Write().Board().Set(rw.at(x, 2), wall)
@@ -90,7 +91,7 @@ func TestCellSpacing_NoRoomToGiveWayAndNoWayRoundTheMoverGivesUp(t *testing.T) {
 func TestCellSpacing_OneStandingStepsAsideOffTheWay(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(3, 3, 32)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occ := &cell.SingleOccupancy{}
 	k := spacing.NewCellKeeping(spacing.NewFinder(grid, terrain, nil, spacing.OpenOccupancy{}), occ)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }

@@ -15,7 +15,12 @@ type Finder struct {
 	grid      grid.Grid
 	terrain   cell.Terrain
 	occupancy cell.Occupancy
-	slopes    Slopes
+	pacing    Pacing
+	sloped    bool        // the pacing feels the slope: a step is paced by the strategy
+	kinds     []cell.Kind // by ordinal, the ground kind read for a step over a relief
+	versioned versioned   // nil: the terrain counts no changes, a cell is read every search
+	flats     []flatStep  // by ordinal, the ground steps kept across searches
+	searches  uint64
 	ways      ways   // nil: no ways run
 	built     built  // nil: nothing stands
 	lanes     lanes  // nil: no band narrows a step
@@ -24,7 +29,6 @@ type Finder struct {
 	leveled   *astar.Solver[node]
 	plain     astar.Transitions[cell.ID]
 	stepped   astar.Transitions[node]
-	least     float64            // the cheapest step for the domain planned, per unit of Distance
 	blocked   func(cell.ID) bool // nil: none
 	entity    uid.UID64
 	domain    cell.Domain
@@ -50,10 +54,15 @@ const (
 	Deck
 )
 
-// Slopes prices a step's climb, as the board's Map does; nil is level ground.
-type Slopes interface {
-	Climb(from, to cell.ID, d cell.Domain) float64
-	Least(d cell.Domain) float64
+// Pacing is the share of its top speed a unit keeps on a step, as the board's Read gives it;
+// nil keeps every kind's own share and feels no slope.
+type Pacing interface {
+	// Pace is the share on the step from from onto to's kind k on level for d, 0 refusing it.
+	Pace(from, to cell.ID, k cell.Kind, level cell.Level, d cell.Domain) float64
+	// Flat is Pace with no slope.
+	Flat(to cell.ID, k cell.Kind, level cell.Level, d cell.Domain) float64
+	// Sloped reports whether a step's pace may depend on its slope.
+	Sloped() bool
 }
 
 type ways interface {
@@ -64,6 +73,11 @@ type ways interface {
 type built interface {
 	Reaches(c, n cell.ID) bool
 	Fenced(from, to cell.ID, d cell.Domain, deck bool) bool
+}
+
+// versioned counts every change to what a search reads, as a board does
+type versioned interface {
+	Version() uint64
 }
 
 // lanes says how wide a body may be across a step along a deck's band, +Inf where none narrows it
@@ -103,26 +117,36 @@ const (
 	goal
 )
 
-// New is a Finder over grid that respects terrain, its slopes and occupancy.
-func New(grid grid.Grid, terrain cell.Terrain, slopes Slopes, occupancy cell.Occupancy) *Finder {
-	p := &Finder{grid: grid, terrain: terrain, occupancy: occupancy, slopes: slopes, least: 1}
+// New is a Finder over grid that respects terrain, its pacing and occupancy. No step costs less
+// than its length, so the grid's Distance never overestimates.
+func New(grid grid.Grid, terrain cell.Terrain, pacing Pacing, occupancy cell.Occupancy) *Finder {
+	p := &Finder{grid: grid, terrain: terrain, occupancy: occupancy}
+	p.paces(pacing)
 	p.ways, _ = terrain.(ways)
 	p.built, _ = terrain.(built)
 	p.lanes, _ = terrain.(lanes)
-	p.solver = astar.New(func(a, b cell.ID) float64 { return p.least * grid.Distance(a, b) },
+	p.versioned, _ = terrain.(versioned)
+	p.solver = astar.New(grid.Distance,
 		astar.WithIndexedSliceDict(grid.CellCount()+1, p.slot),
 		astar.WithSuccessorCapacity[cell.ID](grid.Directions()))
 	p.plain = p.plainFrom
 	return p
 }
 
-// Reads has p search through terrain, slopes and, made WithLevels, levels from now on: the same
+// Reads has p search through terrain, pacing and, made WithLevels, levels from now on: the same
 // board read on another goroutine.
-func (p *Finder) Reads(terrain cell.Terrain, slopes Slopes, levels Levels) {
-	p.terrain, p.slopes, p.levels = terrain, slopes, levels
+func (p *Finder) Reads(terrain cell.Terrain, pacing Pacing, levels Levels) {
+	p.terrain, p.levels = terrain, levels
+	p.paces(pacing)
 	p.ways, _ = terrain.(ways)
 	p.built, _ = terrain.(built)
 	p.lanes, _ = terrain.(lanes)
+	p.versioned, _ = terrain.(versioned)
+	clear(p.flats)
+}
+
+func (p *Finder) paces(pacing Pacing) {
+	p.pacing, p.sloped = pacing, pacing != nil && pacing.Sloped()
 }
 
 // Wipe wipes the solvers' memory of their searches now, between two, where fewer than within
@@ -158,7 +182,7 @@ func (p *Finder) nodeSlot(n node) int {
 func (p *Finder) WithLevels(levels Levels) *Finder {
 	p.levels = levels
 	// a step onto either level of every neighbour, and the goal
-	p.leveled = astar.New(func(a, b node) float64 { return p.least * p.grid.Distance(a.c, b.c) },
+	p.leveled = astar.New(func(a, b node) float64 { return p.grid.Distance(a.c, b.c) },
 		astar.WithIndexedSliceDict(2*p.grid.CellCount()+2, p.nodeSlot),
 		astar.WithSuccessorCapacity[node](2*p.grid.Directions()+1))
 	p.stepped = p.leveledFrom
@@ -166,37 +190,76 @@ func (p *Finder) WithLevels(levels Levels) *Finder {
 }
 
 // Price is what the step from from to its neighbour to costs an entity moving in d, to's kind
-// being kind; false where the ground the step cuts across does not admit d.
-func (p *Finder) Price(from, to cell.ID, kind cell.Kind, d cell.Domain) (float64, bool) {
+// on level being kind: the step's length over the share of its top speed the unit keeps on it;
+// false where the step is refused or the ground it cuts across does not admit d.
+func (p *Finder) Price(from, to cell.ID, kind cell.Kind, level cell.Level, d cell.Domain) (float64,
+	bool) {
 	p.begin(d)
 	_, _, diagonal := p.grid.DiagonalNeighbors(from, to)
-	return p.price(from, p.at(to), stepOn(kind, d), diagonal)
+	return p.price(from, p.at(to), p.stepOn(to, kind, uint8(level)), uint8(level), diagonal)
 }
 
-// off a way a slantwise step crosses the bare ground beside it; where that admits and prices it
-// alike, whether it runs along one does not matter
-func (p *Finder) price(from cell.ID, to *read, k step, diagonal bool) (float64, bool) {
+// off a way a slantwise step crosses the bare ground beside it; where that admits and paces it
+// alike, whether it runs along one does not matter. On the level a step costs its length over
+// the share the cell was read with; over a relief the strategy paces each step.
+func (p *Finder) price(from cell.ID, to *read, k step, level uint8, diagonal bool) (float64,
+	bool) {
+	bare := false
 	if diagonal && p.ways != nil {
-		if bare := p.bareOf(to); (bare != k || !bare.admits) && !p.ways.Along(from, to.c) {
-			if k = bare; !k.admits {
+		if b := p.bareOf(to); (b != k || !b.admits) && !p.ways.Along(from, to.c) {
+			if k, bare = b, true; !k.admits {
 				return 0, false
 			}
 		}
 	}
-	cost := k.cost * p.grid.NeighborCost(from, to.c)
-	if p.slopes != nil && !k.graded {
-		cost *= p.slopes.Climb(from, to.c, p.domain)
+	length := p.grid.NeighborCost(from, to.c)
+	if !p.sloped || k.graded {
+		return length * k.rate, true
 	}
-	return cost, true
+	on := cell.Level(level)
+	if bare {
+		on = cell.OnGround
+	}
+	share := p.pacing.Pace(from, to.c, p.kindOn(to, level, bare), on, p.domain)
+	if share <= 0 {
+		return 0, false
+	}
+	return length / share, true
 }
 
-// Climb is the slope's price of the step from one cell to its neighbour in d: how many times as
-// long as on the level it takes, 1 on the level.
-func (p *Finder) Climb(from, to cell.ID, d cell.Domain) float64 {
-	if p.slopes == nil || from == to {
-		return 1
+// Pace is the share of its top speed a unit moving in d keeps on the step from from onto its
+// neighbour to's kind on level, 0 refusing it; the kind's own share without a pacing or from
+// to to itself.
+func (p *Finder) Pace(from, to cell.ID, kind cell.Kind, level cell.Level, d cell.Domain) float64 {
+	if p.pacing == nil || from == to {
+		return cell.PaceOf(nil, cell.Step{From: from, To: to, Level: level, Kind: kind, Domain: d})
 	}
-	return p.slopes.Climb(from, to, d)
+	return p.pacing.Pace(from, to, kind, level, d)
+}
+
+// Flat is Pace with no slope: the share on to's kind on level.
+func (p *Finder) Flat(to cell.ID, kind cell.Kind, level cell.Level, d cell.Domain) float64 {
+	if p.pacing == nil {
+		return cell.PaceOf(nil, cell.Step{From: to, To: to, Level: level, Kind: kind, Domain: d})
+	}
+	return p.pacing.Flat(to, kind, level, d)
+}
+
+// KindAt is c's kind on level: its deck's where it has one, else the ground's.
+func (p *Finder) KindAt(c cell.ID, level cell.Level) cell.Kind { return p.kindAt(c, uint8(level)) }
+
+// Sloped reports whether a step's pace may depend on its slope: the pacing's word, false with
+// none.
+func (p *Finder) Sloped() bool { return p.sloped }
+
+// Searches counts the routes searched for since the Finder was made, an answer kept by the
+// keeping searched for none.
+func (p *Finder) Searches() uint64 { return p.searches }
+
+// a step over a relief is refused where the strategy paces it at 0
+func (p *Finder) paced(from cell.ID, r *read, level uint8) bool {
+	return !p.sloped ||
+		p.pacing.Pace(from, r.c, p.kindOn(r, level, false), cell.Level(level), p.domain) > 0
 }
 
 // Find writes the route from from to to, ending on its level end, for entity moving in domain
@@ -204,11 +267,7 @@ func (p *Finder) Climb(from, to cell.ID, d cell.Domain) float64 {
 func (p *Finder) Find(
 	entity uid.UID64, domain cell.Domain, body Body, from, to cell.ID, end Level, dst []cell.ID,
 ) (int, bool) {
-	// a gentle descent is cheaper than the flat, so the heuristic counts every step at its quickest
-	p.least = 1
-	if p.slopes != nil {
-		p.least = p.slopes.Least(domain)
-	}
+	p.searches++
 	p.decks, p.body, p.entity = 0, body, entity
 	p.begin(domain)
 	if p.levels == nil {
@@ -272,14 +331,15 @@ func (p *Finder) Steps(domain cell.Domain, body Body, from, to cell.ID) (onto, o
 	p.begin(domain)
 	if p.levels == nil {
 		return false, !p.fenced(from, to, false) && p.fits(from, to, false, body) &&
-			p.terrain.Kind(to).Admits(domain)
+			p.terrain.Kind(to).Admits(domain) && p.paced(from, p.at(to), ground)
 	}
 	rf, rt := p.at(from), p.at(to)
 	at := node{from, p.levelOf(rf, body)}
 	c := p.flanks(from, to)
 	for _, level := range p.levelsOf(rt) {
 		if p.crosses(at, rf, rt, level, c.diagonal) && p.passes(at, rf, rt, level, body, c) &&
-			p.fits(from, to, level == deck, body) && p.stepAt(rt, level).admits {
+			p.fits(from, to, level == deck, body) && p.stepAt(rt, level).admits &&
+			p.paced(from, rt, level) {
 			return level == deck, true
 		}
 	}
@@ -345,7 +405,7 @@ func (p *Finder) plainFrom(from, prev cell.ID,
 		if c.diagonal && !p.decked(from, n) && p.cutOff(c) {
 			continue
 		}
-		cost, ok := p.price(from, rn, k, c.diagonal)
+		cost, ok := p.price(from, rn, k, ground, c.diagonal)
 		if !ok {
 			continue
 		}
@@ -384,7 +444,7 @@ func (p *Finder) leveledFrom(from, prev node,
 			if !k.admits {
 				continue
 			}
-			cost, ok := p.price(from.c, rn, k, c.diagonal)
+			cost, ok := p.price(from.c, rn, k, level, c.diagonal)
 			if !ok {
 				continue
 			}

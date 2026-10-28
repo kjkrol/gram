@@ -154,7 +154,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.collision = collision.NewPlugin(a.world, a.motion)
 	a.light = light.NewPlugin(a.world, light.Config{LampShadows: 2})
 	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).
-		WithMotion(a.motion).
+		WithMotion(a.motion, madeira{cell.DefaultHiking}).
 		WithCollision(a.collision).
 		WithLog(log.Default())
 	a.gravity = gravity.NewPlugin(a.world, a.motion, gravity.Config{}).WithSurfaces(a.board.Read(0).Footing)
@@ -301,7 +301,7 @@ func (a *arena) defineFigures() {
 	a.board.Surfaces(surface{})
 	a.board.Figures(
 		walker{kind: UnitKind, color: playerColor, ordered: true},
-		walker{kind: PlateauKind, color: playerColor},
+		walker{kind: PlateauKind, color: playerColor, highland: true},
 		walker{kind: RivalKind, color: rivalColor, ordered: true},
 		hawk{},
 		ford{},

@@ -20,12 +20,13 @@ func (l Links) Has(i int) bool { return l&(1<<i) != 0 }
 // Runs reports whether anything runs across the cell.
 func (w Way) Runs() bool { return w.Width > 0 }
 
-// Over is ground as whoever crosses the cell meets it: who may, the cost and the grading from the
+// Over is ground as whoever crosses the cell meets it: who may, the pace and the grading from the
 // Way's kind, the rest from the ground.
 func (w Way) Over(ground Kind) Kind {
 	if !w.Runs() {
 		return ground
 	}
-	ground.Allows, ground.Cost, ground.Costs, ground.Graded = w.Kind.Allows, w.Kind.Cost, w.Kind.Costs, w.Kind.Graded
+	ground.Allows, ground.Pace, ground.Paces = w.Kind.Allows, w.Kind.Pace, w.Kind.Paces
+	ground.Graded = w.Kind.Graded
 	return ground
 }
