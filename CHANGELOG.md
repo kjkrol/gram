@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.8.0 — 2026-10-28
+
+**A queue: a groupmate going my way is trailed, not gone round** (2026-10-28, branch
+`feat/trail`, `doc/plans-perf.md` „Kolejka i pole grupy", etap 2)
+- Added: a `Touch` tells whether the other lies `Ahead` of the unit on its way (within a
+  quarter turn of the way its route leads it next, or of its facing without a route), moves
+  `Along` that way, is routed the `SameWay` too, is `OtherTrailing` someone itself, and stands
+  `NearMyGoal` (within two cells of the unit's goal); its new words are `WalksMyWay` (the one
+  in the unit's way goes its way: under an order, not giving way, ahead of it on a route
+  leading its way, and moving along or trailing someone) and `Groupmate`. Two units are never
+  ahead of each other.
+- Added: `Trail{Of}`, an entity's own command aimed at the touch's subject: the unit goes no
+  faster than the one it trails goes its way (`bodyKeeping.Steer` asks at most their ground
+  speed along its way over its own share). The trail holds while the unit strikes, rests
+  against or has within a body's width ahead the one it trails, who is under way (moving, or
+  trailing someone itself) and still lies ahead of it, for `TrailMemory` (0.5 s) after that;
+  its wait on them is no stall while they are under way, 30 s at most as a safety, and a dead
+  queue unwinds as the trails lapse, link by link. A queue goes at the lawful pace of its
+  head, the pace passed down from one trailed to the next. Under `CellSpacing` a tail follows
+  a crawling groupmate through the only way without a stall, and goes round one that stands or
+  is halted.
+- Changed: the default crowd rules trail a groupmate walking the unit's way before `Blocks →
+  Detour`; a groupmate crawling down a rim or standing in a queue behind one is no longer
+  detoured round into the group. `InTheWay` asks that one of the unit's group lies ahead, and
+  `ClearsTheWay`, `Blocks` and `GoalTaken` with it: a unit struck from behind or beside by one
+  of its group no longer goes round it (a stranger or an ally of another group there is gone
+  round or passed as before). `ReachedTheGroup` asks `NearMyGoal`: the group is
+  joined round the unit's goal alone, and a groupmate that gave up on the way is gone round,
+  not joined. Thirty highlanders sent down the plateau of board/topography by one `MoveTo` lost
+  27 orders in the queue at its rim, 13 of them stopped 35 cells short when one gave up; now
+  all thirty get down and arrive.
+- Changed: `MoveOrder` carries `Trailing`, `TrailFor`, `Trailed`, `TrailPace` and `Way` (the
+  way its route led it as the traffic last drove it); `bodies.Body` its `Share`, `MaxSpeed`,
+  `Trailing`, `TrailPace` and `Way`. A save from before does not load.
+
 ## v0.7.1 — 2026-10-28
 
 **A unit crawling lawfully is no stall; the pace of the step it takes** (2026-10-28, branch

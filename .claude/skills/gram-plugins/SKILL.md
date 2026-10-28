@@ -896,13 +896,39 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   bumps nobody; every unit touched, struck or at rest, is `bodies.Member.Touching`, and
   `bodyKeeping.Steer`'s `clearOf` never moves the unit into them: facing into them it turns on
   the spot, straight through them it stands, a turn through them goes round their far side), `CellSpacing` a step refused; handed `GivingWay`, `LastGoal`, `Ally`, `Groupmate`
-  (`LastOrder.Group`), `OnMyGoal`, `HeadOn`, `Room`, `WaitedOut`/`Cornered`. The rules' commands
-  (`StepAside`, `Detour`, `Pass`, `Hold`, `Settle`, `Stop`; `Aimed` at the other) are carried out
-  for that unit alone, the engine's rules kept there: `stepAside` goes where the ground takes the
+  (`LastOrder.Group`), `OnMyGoal`, `HeadOn`, `Room`, `WaitedOut`/`Cornered`, and (2026-10-28)
+  `Ahead`, `Along`, `SameWay`, `OtherTrailing`, `NearMyGoal` for the words `WalksMyWay()` (the
+  other goes my way: under an order, not giving way, ahead — within a quarter turn (cos > 0.7)
+  of the way my route leads me next (`Body.Way`, copied from the order's `Way`, which `tail`
+  writes from the point it drives at and `arrive` zeroes; `traffic.bearing`), or of my facing
+  without a route — routed my way
+  too (`SameWay`: the two ways within a quarter turn; the facings without a route), and moving
+  along it or trailing someone; two units are never ahead of each other) and `Groupmate()`;
+  `NearMyGoal` (the other within two cells of my goal) is asked by `ReachedTheGroup`, so the
+  group is joined round its goal alone; `InTheWay` asks `Ahead` of a groupmate alone (`Ahead ||
+  !Groupmate`), and `ClearsTheWay`, `Blocks` and `GoalTaken` with it: one of the group pressing
+  from behind or beside is the unit's queue, not its way; a stranger or an ally of another
+  group there is gone round or passed as before (asking `Ahead` of everyone cost the crowded
+  tick +28%: strangers no longer veering made the jam at the gap last longer). The
+  rules' commands
+  (`StepAside`, `Detour`, `Pass`, `Hold`, `Settle`, `Stop`, `Trail`; `Aimed` at the other) are
+  carried out for that unit alone, the engine's rules kept there: `stepAside` goes where the
+  ground takes the
   unit and its slope leaves it `YieldShare` (a third) of its pace on the level (`stepsAside`,
   `asides`: a flat forest is stepped into, a cliff not), nobody standing; the last word stays navigation's
   (`StallAfter`: no headway of a quarter of what the ground lawfully lets the unit make in a
-  second, at most a quarter of its body; `maxStalls`, `bumpInterval`). A group gets its spots
+  second, at most a quarter of its body; `maxStalls`, `bumpInterval`). `Trail{Of}` (the default
+  rule `WalksMyWay && Groupmate`, before `Blocks → Detour`): for `TrailMemory` (0.5 s) after the
+  last touch `bodyKeeping.Steer` asks no more than the trailed unit's ground speed along the
+  unit's way over the unit's own share (a speed is asked before motion applies the share); the
+  trail holds while the unit touches the trailed unit, resting too, or has it within a body's
+  width ahead along its way (`traffic.against`, `withinReach`), as long as that unit is under
+  way (`Body.Alive`: moving or trailing) and still lies ahead (`bearing`); the headway is
+  judged at the lower of the unit's own lawful pace and `TrailPace`, which a trailing body
+  passes on down the queue; a wait with no headway is no stall while the trailed unit is under
+  way (`trailing(index, o)`, in `Watch` and in the cells' `Blocked`), `maxTrailWait` (30 s) only
+  a safety; a dead queue unwinds 0.5 s a link; under cells a tail follows a crawling groupmate
+  through the only way, and goes round one that stands. A group gets its spots
   from `bodyKeeping.place` and
   goes cell centre to cell centre. The board has every unit hold the cell it stands on, navigation
   the cells of the steps in progress on their level (`Path.Decks`, a `Leg`'s `FromDeck`/`ToDeck`); a

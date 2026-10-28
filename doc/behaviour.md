@@ -24,7 +24,7 @@ plugin.
 | `collision.Meeting` | collision, a confirmed contact, a pair resting against each other too | a pair; `host.Met` | — | `collision.Facing(within)` (turned to the other within the angle) |
 | `collision.Struck` | collision, one that struck something | one | — | — |
 | `vision.Sighting` | vision, every observer a step | a pair grouped by observer; `host.Met` | the nearest seen | `vision.SeesNobody()`, `vision.Closing()` (of the other) |
-| `navigation.Touch` | navigation, two units touching | a pair; `host.Met` | the other | `PushedByAlly()`, `ReachedTheGroup()`, `InTheWay()`, `ClearsTheWay()`, `Blocks()`, `GoalTaken()`, `StrangerOnMyGoal()`, `WaitsFirst()`, `NoWayRound()`, `WaitedLong()` |
+| `navigation.Touch` | navigation, two units touching | a pair; `host.Met` | the other | `PushedByAlly()`, `ReachedTheGroup()`, `InTheWay()`, `ClearsTheWay()`, `Blocks()`, `GoalTaken()`, `StrangerOnMyGoal()`, `WaitsFirst()`, `NoWayRound()`, `WaitedLong()`, `WalksMyWay()`, `Groupmate()` |
 | `motion.Moving` | motion, every entity before it moves | one | — | `motion.Still()` (neither walking nor strafing), `motion.Braking()` (slowing down) |
 | `motion.Leaving` | motion, every tick past an open edge | one | — | — |
 | `clock.Moment` | the world, once a step | the clock's own entity | — | `clock.At(t)`, `clock.Every(period, offset)` |
@@ -66,7 +66,8 @@ other; a game writes its own the same way over a plugin's moment or over a fact.
   `climate.Weathering` the same while the atmosphere plays it.
 - **A moment's subject.** A command that is `host.Aimed` — `steering.Away{}`, `steering.Toward{}`,
   `gravity.Away{}`, `bullet.Shoot{}`, `dialog.Begin{}`, `dialog.Feel{}`, navigation's
-  `StepAside{}`, `Detour{}`, `Pass{}` and `Settle{}` — is told the subject of the rule's moment:
+  `StepAside{}`, `Detour{}`, `Pass{}`, `Settle{}` and `Trail{}` — is told the subject of the
+  rule's moment:
   a `Sighting`'s nearest seen, the one touched, the shot that burst, what a shot struck. It fails
   while the moment names nobody.
 
@@ -326,13 +327,17 @@ func goRound() act.Rule {
 			act.Branch[Touch]{When: cond.Self.If(WaitsFirst()), Then: act.Self.Do(Hold{})},
 			act.Branch[Touch]{When: cond.Self.If(NoWayRound()), Then: act.Self.Do(StepAside{})},
 			act.Branch[Touch]{When: cond.Self.If(ClearsTheWay()), Then: act.Self.Do(Pass{})},
+			act.Branch[Touch]{
+				When: cond.Self.If(WalksMyWay()).And(cond.Self.If(Groupmate())),
+				Then: act.Self.Do(Trail{})},
 			act.Branch[Touch]{When: cond.Self.If(Blocks()), Then: act.Self.Do(Detour{})},
 		),
 	}
 }
 ```
 
-`StepAside`, `Pass`, `Detour` and `Settle` are `host.Aimed`: each is told the moment's subject,
+`StepAside`, `Pass`, `Detour`, `Settle` and `Trail` are `host.Aimed`: each is told the moment's
+subject,
 the unit touched. A game adds its own rules as a role's, for the units playing it —
 `roles.Define(GuardRole, act.Branch[navigation.Touch]{Name: "hold the line", …})` — or gives its
 own set in place of the crowd's with `WithCrowd`. What a unit does over time is its plan: the

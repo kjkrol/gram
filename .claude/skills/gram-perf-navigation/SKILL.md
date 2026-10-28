@@ -76,6 +76,23 @@ ruch jednostek po trasach (`traffic`).
   marszu i `exp`), w szumie przy 100; cena strategii, przyjęta.
 - **Ustępowanie**: `YieldShare` (1/3) jako stosunek udziału kroku do udziału na płaskim, nie
   bezwzględny próg: płaski las wciąż wchodzony, klif nie; niezależne od strategii.
+- **Zacięcie i kolejka** (2026-10-28, `fix/stall-pace` v0.7.1 i `feat/trail` v0.8.0,
+  `doc/plans-perf.md` „Kolejka i pole grupy"): keeping ciał żąda postępu `min(ćwierć ciała,
+  MaxSpeed·Share·StallAfter/4)` (udział z opcjonalnej kolumny `steering.Pace` zapytania
+  traffic), `unit.At.Next` (krok prowadzony) wycenia stok w przebiegu stania: nawigacja w
+  szumie, tempo +1,5…+2,3% przy 1 000 (odczyt `At.Next`, `At` 8 → 16 B). Podążanie dokłada do
+  gorącej ścieżki ruchu: `gather` czyta dwie kolumny więcej na ciało i kopiuje `Way` z rozkazu
+  (pisze go `tail` z hypota, który i tak liczy; liczenie `Way` na każde ciało w `gather`
+  kosztowało open 1 000 +3% i zostało usunięte), `fire` `bearing` na dotyk (dwa iloczyny, dwa
+  kwadraty odległości), `head` dla podążającego dwa wyszukania w słowniku indeksu ciał i
+  `bearing` przy odnowieniu (`against`), `Steer` jedno wyszukanie, `Watch` i `Blocked` gałąź
+  na `TrailFor` i wyszukanie (`trailing`); zero alokacji; rozkaz +40 B. **Pułapka dynamiki**:
+  `InTheWay` wymagające `Ahead` od każdego (nie tylko współtowarzysza) dało `crowded,100` +28%
+  bez nowego kodu w profilu: obcy uderzeni od tyłu przestali uskakiwać, korek w szczelinie
+  trwał dłużej, zablokowani szukali częściej; bisekcja po commitach i profil znalazły to, nie
+  czytanie kodu. `Navigation_Tick` (piechurzy z własnymi MoveTo: partia 1, podążanie nie
+  zachodzi) i `Navigation_Path` w szumie. Koszt podążania mierzy sonda płaskowyżu, nie
+  benchmark.
 
 ## Co dalej (poza etapem, osobne planowanie)
 

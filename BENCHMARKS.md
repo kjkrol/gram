@@ -321,7 +321,15 @@ solver, the finder's `leveledFrom` 53%, its `price` 13%) and the board's cell lo
 the units along their routes the rest. At `fix/stall-pace` (v0.7.1, 2026-10-28) the traffic
 reads an optional `steering.Pace` column for the keepings' lawful headway and writes
 `unit.At.Next` a tick: against v0.7.0 alternately (the lower of 6 at `BENCHTIME=200x`, plain and
-`-cpu=1`) every rung within ±1.5%, `Benchmark_Navigation_Path` too.
+`-cpu=1`) every rung within ±1.5%, `Benchmark_Navigation_Path` too. At `feat/trail` (v0.8.0,
+2026-10-28) the traffic gathers two more columns a body, copies the order's `Way`, bears every
+touch and renews the trails: against v0.7.1 alternately (the lower of 6 at `BENCHTIME=200x`,
+`-cpu=1` and plain) every rung within ±2% (open 1,000 +0.7…+1.9% min); the bench's walkers
+trail nobody (each its own MoveTo), so the trailing's cost is the plateau probe's to show. On
+the way there a `Way` worked out a body a tick (CellCenter, unwrap, hypot) cost open 1,000 +3%
+and was replaced by the order's, written as the traffic drives; `InTheWay` asking `Ahead` of
+strangers cost the crowded tick +28% through the jam's dynamics (strangers no longer veering),
+not code, and was kept to groupmates.
 
 `Benchmark_Navigation_Path` is one route across a 200×200 board of rocks and walls planned a
 tick: the walker sent to the far corner and the next tick to the other. The routing keeps its
