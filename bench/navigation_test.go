@@ -38,7 +38,8 @@ type navRow struct{ At cell.ID }
 
 // navScene is a world of walkers under orders: in the open, each to the cell mirroring its own
 // on the right half; crowded, all through the wall's gap to one cell behind it, where they
-// press, step aside and plan again; grouped, selected and sent there as one MoveTo.
+// press, step aside and plan again; grouped, selected and sent there as one MoveTo, or as one
+// March in the formation in.
 type navScene struct {
 	ecs     *goke.ECS
 	w       *world.Plugin
@@ -49,12 +50,15 @@ type navScene struct {
 	from    []cell.ID
 	crowded bool
 	moves   *command.Queue[navigation.MoveTo] // grouped: the players' MoveTo; nil, each its own
+	marches *command.Queue[navigation.March]  // grouped in a formation: the players' March
+	in      navigation.Formation
 }
 
-func benchNavigation(b *testing.B, n int, crowded, grouped bool) *navScene {
+func benchNavigation(b *testing.B, n int, crowded, grouped bool,
+	in navigation.Formation) *navScene {
 	b.Helper()
 	ctx := newHeadless()
-	s := &navScene{crowded: crowded}
+	s := &navScene{crowded: crowded, in: in}
 	s.w = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: navSide * navCell, Height: navSide * navCell},
 		Entities: world.EntitiesCfg{MaxCount: n, MinSize: 1, MaxSize: navCell},
@@ -97,8 +101,13 @@ func benchNavigation(b *testing.B, n int, crowded, grouped bool) *navScene {
 	if grouped {
 		selected = append(selected, comp.Tagged(sel.Tags().Selectable, sel.Tags().Selected))
 		for _, q := range nav.Queues() {
-			if moves, ok := q.(*command.Queue[navigation.MoveTo]); ok {
-				s.moves = moves
+			switch q := q.(type) {
+			case *command.Queue[navigation.MoveTo]:
+				s.moves = q
+			case *command.Queue[navigation.March]:
+				if in.Shape != navigation.NoFormation {
+					s.marches = q
+				}
 			}
 		}
 	}
@@ -151,6 +160,10 @@ func (s *navScene) order(back bool) {
 		if back {
 			to = s.g.At(navWallX-6, navGapY)
 		}
+		if s.marches != nil {
+			s.marches.Add(command.Nobody, navigation.March{Cell: to, In: s.in})
+			return
+		}
 		s.moves.Add(command.Nobody, navigation.MoveTo{Cell: to})
 		return
 	}
@@ -174,20 +187,23 @@ func (s *navScene) order(back bool) {
 // Benchmark_Navigation_Tick is one tick of the world, motion, board and navigation with N
 // walkers under orders: in the open, nothing in their way; crowded, all through a wall's
 // one-cell gap to one cell behind it; grouped, the crowd sent as one MoveTo to the cells round
-// that one. The orders turn them round every navOrderGap ticks.
+// that one; column, as one March in a closed column. The orders turn them round every
+// navOrderGap ticks.
 func Benchmark_Navigation_Tick(b *testing.B) {
 	for _, sc := range []struct {
 		name             string
 		crowded, grouped bool
+		in               navigation.Formation
 		counts           []int
 	}{
-		{"open", false, false, []int{100, 1000}},
-		{"crowded", true, false, []int{100, 1000}},
-		{"grouped", true, true, []int{1000}},
+		{"open", false, false, navigation.Formation{}, []int{100, 1000}},
+		{"crowded", true, false, navigation.Formation{}, []int{100, 1000}},
+		{"grouped", true, true, navigation.Formation{}, []int{1000}},
+		{"column", true, true, navigation.ColumnOf(1, true, 1), []int{1000}},
 	} {
 		for _, n := range sc.counts {
 			b.Run(sc.name+","+entities(n), func(b *testing.B) {
-				s := benchNavigation(b, n, sc.crowded, sc.grouped)
+				s := benchNavigation(b, n, sc.crowded, sc.grouped, sc.in)
 				tick, back := 0, false
 				b.ReportAllocs()
 				for b.Loop() {
