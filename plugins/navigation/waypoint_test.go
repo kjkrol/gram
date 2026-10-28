@@ -1,10 +1,11 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
-	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 	"time"
+
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/tag"
@@ -32,7 +33,7 @@ func newCommandWorld(t *testing.T) *commandWorld {
 	t.Helper()
 	cw := &commandWorld{grid: grid.DefaultGrids{}.Square(10, 1, 10), moves: &command.Queue[MoveTo]{}}
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	cmds := routing.NewSystem(spacing.NewFinder(cw.grid, terrain, nil, &cell.SingleOccupancy{}), cw.moves, &command.Queue[LookAt]{}, selTags.Selected)
 	cw.oldTarget = cw.cellAt(3)
 

@@ -77,10 +77,10 @@ func cameratestAbove(space world.SpaceCfg) camera.Camera {
 
 // flatKinds lays grass with lakes and sand round them and roads every 12 cells across both ways
 func flatKinds(brdW *board.BoardWrite, g grid.Grid) []cell.Kind {
-	grass := cell.Kind{Name: cell.Named("grass"), SpriteID: 1, Cost: 1, Allows: cell.Land}
-	sand := cell.Kind{Name: cell.Named("sand"), SpriteID: 2, Cost: 1, Allows: cell.Land}
-	water := cell.Kind{Name: cell.Named("water"), SpriteID: 3, Cost: 1, Allows: cell.Water}
-	road := cell.Kind{Name: cell.Named("road"), SpriteID: 4, Cost: 1, Allows: cell.Land}
+	grass := cell.Kind{Name: cell.Named("grass"), SpriteID: 1, Pace: 1, Allows: cell.Land}
+	sand := cell.Kind{Name: cell.Named("sand"), SpriteID: 2, Pace: 1, Allows: cell.Land}
+	water := cell.Kind{Name: cell.Named("water"), SpriteID: 3, Pace: 1, Allows: cell.Water}
+	road := cell.Kind{Name: cell.Named("road"), SpriteID: 4, Pace: 1, Allows: cell.Land}
 	brdW.SetAll(grass)
 	for y := range uint32(flatRows) {
 		for x := range uint32(flatCols) {

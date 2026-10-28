@@ -61,6 +61,7 @@ type Plugin struct {
 
 	worldPlugin *world.Plugin
 	motion      *motion.Plugin
+	mobility    cell.Mobility
 	module      *module
 	rules       *moments.Rules
 	grids       command.Queue[Grid]
@@ -113,8 +114,8 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 		edges := worldPlugin.Res.Config.Space.Edges
 		ws.SetWrap(edges.WrapsX(), edges.WrapsY())
 	}
-	slope := func(at, dir geom.Vec, d cell.Domain) float64 { return brd.mapping.Slope(at, dir, d) }
-	p.rules = moments.New(brd.Grid, brd.cells, worldPlugin.Read(0).Tick, slope, brd.read.altitude)
+	rise := func(from, to cell.ID) float64 { return brd.mapping.Rise(from, to) }
+	p.rules = moments.New(brd.Grid, brd.cells, worldPlugin.Read(0).Tick, rise, brd.read.altitude)
 	if t := worldPlugin.Kinds().DefineTag[unit.States](unit.EnteredName); t != unit.Entered {
 		panic(fmt.Sprintf("board: the units' markers have tags of their own before %q",
 			unit.EnteredName))
@@ -403,9 +404,11 @@ func (p *Plugin) cast() {
 	}
 }
 
-// WithMotion has m move the board's units; a board without it has none. Call before Use.
-func (p *Plugin) WithMotion(m *motion.Plugin) *Plugin {
-	p.motion = m
+// WithMotion has m move the board's units as mobility paces them (cell.DefaultHiking, or the
+// game's own); a board without them has no units. Call before Use.
+func (p *Plugin) WithMotion(m *motion.Plugin, mobility cell.Mobility) *Plugin {
+	p.motion, p.mobility = m, mobility
+	p.rules.Mobility = mobility
 	return p
 }
 

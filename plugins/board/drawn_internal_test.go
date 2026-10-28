@@ -9,8 +9,8 @@ import (
 
 func TestDrawnBoard_HoldsTheCellsAsPublishedEachBufferCatchingUp(t *testing.T) {
 	b := newBoard(grid.DefaultGrids{}.Square(4, 4, 32))
-	grass := cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land, SpriteID: 1}
-	sand := cell.Kind{Name: cell.Named("sand"), Cost: 1, Allows: cell.Land, SpriteID: 2}
+	grass := cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land, SpriteID: 1}
+	sand := cell.Kind{Name: cell.Named("sand"), Pace: 1, Allows: cell.Land, SpriteID: 2}
 	c := b.At(1, 2)
 	drawn := b.drawnBoard()
 	b.write.Set(c, grass)

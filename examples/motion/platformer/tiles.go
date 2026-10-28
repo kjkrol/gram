@@ -17,7 +17,7 @@ type ground struct {
 var _ board.Tile = ground{}
 
 var grounds = []ground{
-	{name: SkyCell, kind: cell.Kind{Cost: 1, Allows: cell.Land}, color: skyColor},
+	{name: SkyCell, kind: cell.Kind{Pace: 1, Allows: cell.Land}, color: skyColor},
 	{name: RockCell, kind: cell.Kind{Solid: true}, color: rockColor},
 	{name: LedgeCell, kind: cell.Kind{Solid: true}, color: ledgeColor},
 }

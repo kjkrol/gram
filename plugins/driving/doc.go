@@ -27,8 +27,9 @@
 // # Ground and navigation
 //
 // Given a board ([Plugin.WithGround]) a driven unit never walks onto ground its domain may not
-// stand on, and its cell and its hold on the occupancy follow it; one under gravity is held back
-// by physics alone. A plugin that keeps units apart hands the driving its [Keeping]
+// stand on nor takes a step the board's mobility refuses (a slope too steep for it), and its
+// cell and its hold on the occupancy follow it; beyond that one under gravity is held back by
+// physics alone. A plugin that keeps units apart hands the driving its [Keeping]
 // ([Plugin.WithKeeping], as navigation does): whether a unit may walk on into the cell ahead, and
 // whether something else steers it, which the driving leaves be with no hand on it.
 //

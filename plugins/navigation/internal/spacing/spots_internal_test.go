@@ -23,7 +23,7 @@ type placeRig struct {
 
 func newPlaceRig() *placeRig {
 	r := &placeRig{grid: grid.DefaultGrids{}.Square(7, 5, 32), terrain: cell.NewTerrainMap()}
-	r.terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	r.terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	r.keep = NewBodyKeeping(NewFinder(r.grid, r.terrain, nil, OpenOccupancy{}), nil, func() ground.Heights {
 		if r.heights == nil {
 			return nil
@@ -68,9 +68,9 @@ func TestPlace_TheGroupFillsTheTargetRoundThePointThenTheCheapestNeighbour(t *te
 	r := newPlaceRig()
 	target := r.at(3, 2)
 	for _, c := range r.grid.Neighbors(target) {
-		r.terrain.Set(c, cell.Kind{Cost: 5, Allows: cell.Land})
+		r.terrain.Set(c, cell.Kind{Pace: 0.2, Allows: cell.Land})
 	}
-	r.terrain.Set(r.at(2, 2), cell.Kind{Cost: 1, Allows: cell.Land}) // the cheap way west
+	r.terrain.Set(r.at(2, 2), cell.Kind{Pace: 1, Allows: cell.Land}) // the cheap way west
 	at := r.grid.CellCenter(target)
 	units := r.units(12, 6) // 12 apart with the gap: 3 x 3 in a 32 cell round its middle
 	got, _ := r.keep.place(units, at, target, order.EitherLevel)
@@ -131,8 +131,8 @@ func TestPlace_UnitsNearlyACellLargeSpreadOverTheNeighboursAndTwoShareACellAtIts
 func TestPlace_NoSpotOverGroundTheUnitCannotTakeOrOnAStep(t *testing.T) {
 	r := newPlaceRig()
 	target := r.at(3, 2)
-	r.terrain.Set(r.at(4, 2), cell.Kind{Cost: 1, Allows: cell.Water})            // water east
-	r.terrain.Set(r.at(3, 1), cell.Kind{Cost: 1, Allows: cell.Land, Height: 10}) // a rock north
+	r.terrain.Set(r.at(4, 2), cell.Kind{Pace: 1, Allows: cell.Water})            // water east
+	r.terrain.Set(r.at(3, 1), cell.Kind{Pace: 1, Allows: cell.Land, Height: 10}) // a rock north
 	centre := r.grid.CellCenter(target)
 	r.heights = func(geom.Vec) float32 { return 0 }
 	corner := geom.NewVec(centre.X+14, centre.Y-14) // the north-east corner, by the water and the rock

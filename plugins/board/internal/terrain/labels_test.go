@@ -76,7 +76,7 @@ func installCells(t *testing.T, g grid.Grid, prepare func(w *world.Plugin, brd *
 		Heights:  true,
 	})
 	brd := board.NewPlugin(g, &cell.MultipleOccupancy{}, w)
-	brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+	brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land})
 	prepare(w, brd)
 	if err := brd.Populate(); err != nil {
 		t.Fatal(err)
@@ -111,12 +111,12 @@ func TestCells_RolesAndLabelsReachTheCellEntities(t *testing.T) {
 				}
 			})
 			a, b, c, d, e := cells[0], cells[1], cells[2], cells[3], cells[4]
-			snow := cell.Kind{Name: cell.Named("snow"), Cost: 3, Allows: cell.Land}
+			snow := cell.Kind{Name: cell.Named("snow"), Pace: 1.0 / 3, Allows: cell.Land}
 			_, _, brd, probe := installCells(t, g, func(w *world.Plugin, brd *board.Plugin) {
 				w.Roles().Define("trapdoor")
 				w.Roles().Define("plate")
 				trapdoor, plate = w.Roles().Named("trapdoor"), w.Roles().Named("plate")
-				land := func() cell.Kind { return cell.Kind{Cost: 1, Allows: cell.Land} }
+				land := func() cell.Kind { return cell.Kind{Pace: 1, Allows: cell.Land} }
 				brd.Read(0).CellKinds().Define("door", land(), trapdoor)
 				brd.Read(0).CellKinds().Define("plate", land(), plate)
 				brd.Read(0).CellKinds().Define("both", land(), trapdoor, plate)

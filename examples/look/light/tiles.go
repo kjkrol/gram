@@ -11,7 +11,7 @@ type grass struct{}
 var _ board.Tile = grass{}
 
 func (grass) Define(b *board.Plugin) {
-	b.Read(0).CellKinds().Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Read(0).CellKinds().Define(GrassCell, cell.Kind{Pace: 1, Allows: cell.Land})
 }
 
 func (grass) Look(a *board.Atlas, _ *board.Plugin) {
@@ -29,7 +29,8 @@ type lava struct{}
 var _ board.Tile = lava{}
 
 func (lava) Define(b *board.Plugin) {
-	b.Read(0).CellKinds().Define(LavaCell, cell.Kind{Cost: 3, Allows: cell.Land, Takes: render.Shines})
+	b.Read(0).CellKinds().Define(LavaCell, cell.Kind{Pace: 1.0 / 3, Allows: cell.Land,
+		Takes: render.Shines})
 }
 
 func (lava) Look(a *board.Atlas, _ *board.Plugin) {

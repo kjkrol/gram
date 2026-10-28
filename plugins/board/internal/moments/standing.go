@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
@@ -37,12 +38,29 @@ type standingSystem struct {
 	states []tag.Tags[unit.States]
 	about  func(i int) unit.Standing // bound once
 	cols   *cgoke.Columns
+	dirs   []geom.Vec // the grid's directions, each of length 1
 }
 
 func newStandingSystem(r *Rules) *standingSystem {
 	s := &standingSystem{r: r}
 	s.about = s.standing
+	for i := range r.grid.Directions() {
+		step := r.grid.Step(i)
+		length := f32.Hypot(step.X, step.Y)
+		s.dirs = append(s.dirs, geom.NewVec(step.X/length, step.Y/length))
+	}
 	return s
+}
+
+// the direction nearest the way v points, as grid.Nearest finds it, over the unit vectors kept
+func (s *standingSystem) nearest(v geom.Vec) int {
+	best, most := 0, f32.Inf(-1)
+	for i, d := range s.dirs {
+		if dot := d.X*v.X + d.Y*v.Y; dot > most {
+			best, most = i, dot
+		}
+	}
+	return best
 }
 
 func (s *standingSystem) Init(si *goke.SysInit) {
@@ -87,6 +105,8 @@ func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	}
 }
 
+// the share of its top speed the i-th unit keeps: the ground under it, on its level, at the
+// slope of the step ahead the way it goes, the one the planner priced
 func (s *standingSystem) share(i int) float32 {
 	b := &s.bases[i]
 	at := b.Pos.Center()
@@ -95,22 +115,18 @@ func (s *standingSystem) share(i int) float32 {
 		return 1
 	}
 	feet, reach := s.feet(i)
-	kind, d := s.r.cells.Read().KindFor(c, at, feet, reach, s.r.level), unit.DomainAt(s.movers, i)
-	share := float32(1)
-	if cost := kind.CostFor(d); cost > 0 {
-		share /= float32(cost)
+	kind, level := s.r.cells.Read().KindOn(c, at, feet, reach, s.r.level)
+	step := cell.Step{From: c, To: c, Level: level, Kind: kind, Domain: unit.DomainAt(s.movers, i)}
+	if !kind.Graded && s.r.rise != nil {
+		dir := b.Vel.Dir
+		if b.Vel.Value < 0 { // backing away: up or down the way it goes, not the way it faces
+			dir = geom.NewVec(-dir.X, -dir.Y)
+		}
+		if n, ok := s.r.grid.Toward(c, s.nearest(dir)); ok {
+			step.Slope = s.r.rise(c, n)
+		}
 	}
-	if kind.Graded || s.r.slope == nil {
-		return share
-	}
-	dir := b.Vel.Dir
-	if b.Vel.Value < 0 { // backing away: up or down the way it goes, not the way it faces
-		dir = geom.NewVec(-dir.X, -dir.Y)
-	}
-	if sl := s.r.slope(at, dir, d); sl > 0 && sl != 1 {
-		share /= float32(sl)
-	}
-	return share
+	return float32(cell.PaceOf(s.r.Mobility, step))
 }
 
 func (s *standingSystem) logFall(i int) {

@@ -76,10 +76,11 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	occupancy := &cell.SingleOccupancy{}
 	m := motion.NewPlugin(w)
 	c := collision.NewPlugin(w, m)
-	brd := board.NewPlugin(rw.grid, occupancy, w).WithMotion(m)
-	brd.Write().Board().SetAll(cell.Kind{Cost: 2, Allows: cell.Land | cell.Air})
+	brd := board.NewPlugin(rw.grid, occupancy, w).WithMotion(m, cell.DefaultHiking)
+	brd.Write().Board().SetAll(cell.Kind{Pace: 0.5, Allows: cell.Land | cell.Air})
 	for x := uint32(0); x < width; x++ {
-		brd.Write().Board().Set(rw.at(x, 1), cell.Kind{Cost: 1, Allows: cell.Land | cell.Air}) // the road
+		// the road
+		brd.Write().Board().Set(rw.at(x, 1), cell.Kind{Pace: 1, Allows: cell.Land | cell.Air})
 	}
 	sel := selection.NewPlugin(w)
 	rw.driving = driving.NewPlugin(w, m, sel).WithGround(brd)

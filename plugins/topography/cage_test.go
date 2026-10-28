@@ -41,7 +41,7 @@ func TestPlugin_ThePickLandsOnTheTopOfAKindStandingOnItsCell(t *testing.T) {
 		b, grid := topotest.LevelBoard(w)
 		p := topography.NewPlugin(w, b, nil, topography.Config{})
 		wall := grid.At(2, 1)
-		b.Write().Board().Set(wall, cell.Kind{Name: cell.Named("wall"), Cost: 1, Height: 30})
+		b.Write().Board().Set(wall, cell.Kind{Name: cell.Named("wall"), Pace: 1, Height: 30})
 		cam := topotest.Camera(w, cameras.Config{
 			Turn:        true,
 			Tilt:        true,
@@ -74,7 +74,7 @@ func TestCage_IsFreeOverTheGroundAndWhatStandsOnIt(t *testing.T) {
 	hill := grid.At(1, 1)
 	topotest.RaiseHills(p.Write().Relief(), grid, hill)
 	wall := grid.At(2, 2)
-	b.Write().Board().Set(wall, cell.Kind{Name: cell.Named("wall"), Cost: 1, Height: 30})
+	b.Write().Board().Set(wall, cell.Kind{Name: cell.Named("wall"), Pace: 1, Height: 30})
 	top := float32(p.Write().Relief().At(grid.CellCenter(hill)))
 	if top <= 0 {
 		t.Fatalf("the hill stands %v high, want it raised", top)

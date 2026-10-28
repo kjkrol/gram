@@ -87,7 +87,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	g := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	a.collision = collision.NewPlugin(a.world, a.motion)
 	a.board = board.NewPlugin(g, &cell.SingleOccupancy{}, a.world).
-		WithMotion(a.motion).
+		WithMotion(a.motion, hillside{}).
 		WithCollision(a.collision)
 	a.board.WithMap(&hills{grid: g, board: a.board})
 	a.selection = selection.NewPlugin(a.world)

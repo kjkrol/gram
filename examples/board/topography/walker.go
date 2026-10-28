@@ -30,11 +30,12 @@ const (
 var walkerSpeed = scale.Units(250)
 
 // walker is a figure on foot: mortal, looking ahead, standing on the ground under gravity; an
-// ordered one sets out for its target from the map.
+// ordered one sets out for its target from the map, a highland one climbs the steeper slopes.
 type walker struct {
-	kind    string
-	color   color.RGBA
-	ordered bool
+	kind     string
+	color    color.RGBA
+	ordered  bool
+	highland bool
 }
 
 var _ board.Figure = walker{}
@@ -57,7 +58,11 @@ func (wk walker) Define(b *board.Plugin) {
 	if wk.ordered {
 		extra = append(extra, ordered())
 	}
-	units.Define(wk.kind, unit.Mover{Domain: cell.Land}, profile, extra...)
+	domain := cell.Land
+	if wk.highland {
+		domain |= HighlandDomain
+	}
+	units.Define(wk.kind, unit.Mover{Domain: domain}, profile, extra...)
 }
 
 func (wk walker) Look(a *world.Atlas, w *world.Plugin) {

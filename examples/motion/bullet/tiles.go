@@ -17,11 +17,11 @@ type ground struct {
 var _ board.Tile = ground{}
 
 var grounds = []ground{
-	{name: GrassCell, kind: cell.Kind{Cost: 2, Allows: cell.Land}, color: grassColor},
-	{name: RoadCell, kind: cell.Kind{Cost: 1, Allows: cell.Land}, color: roadColor},
-	{name: WaterCell, kind: cell.Kind{Cost: 1, Allows: cell.Water}, color: waterColor},
-	{name: WallCell, kind: cell.Kind{Cost: 1, Solid: true, Height: 30}, color: wallColor},
-	{name: LowWallCell, kind: cell.Kind{Cost: 1, Solid: true, Height: 10}, color: lowWallColor},
+	{name: GrassCell, kind: cell.Kind{Pace: 0.5, Allows: cell.Land}, color: grassColor},
+	{name: RoadCell, kind: cell.Kind{Pace: 1, Allows: cell.Land}, color: roadColor},
+	{name: WaterCell, kind: cell.Kind{Pace: 1, Allows: cell.Water}, color: waterColor},
+	{name: WallCell, kind: cell.Kind{Pace: 1, Solid: true, Height: 30}, color: wallColor},
+	{name: LowWallCell, kind: cell.Kind{Pace: 1, Solid: true, Height: 10}, color: lowWallColor},
 }
 
 func (g ground) Define(b *board.Plugin) { b.Read(0).CellKinds().Define(g.name, g.kind) }

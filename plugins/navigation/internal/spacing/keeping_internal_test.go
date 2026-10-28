@@ -14,7 +14,7 @@ import (
 func TestCellKeeping_Orders_EveryMemberGetsACellOfItsOwn(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(20, 20, 16)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occ := &cell.SingleOccupancy{}
 	keep := NewCellKeeping(NewFinder(g, terrain, nil, OpenOccupancy{}), occ)
 	var members []bodies.Member

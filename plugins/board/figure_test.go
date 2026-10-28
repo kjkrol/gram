@@ -43,7 +43,8 @@ func (m *mud) Rules(b *board.Plugin) {
 
 func (m *mud) Define(b *board.Plugin) {
 	m.ran = append(m.ran, "define")
-	b.Read(0).CellKinds().Define("mud", cell.Kind{Cost: 3, Allows: cell.Land}, b.Read(0).World().Roles().Named("muddy"))
+	b.Read(0).CellKinds().Define("mud", cell.Kind{Pace: 1.0 / 3, Allows: cell.Land},
+		b.Read(0).World().Roles().Named("muddy"))
 }
 
 func (m *mud) Look(a *board.Atlas, _ *board.Plugin) {

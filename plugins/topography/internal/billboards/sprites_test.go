@@ -55,7 +55,7 @@ func newHill(t *testing.T) aHill {
 	})
 	grid := grid.DefaultGrids{}.Square(8, 8, 32)
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	b.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	terrain := topotest.Drawn(t, p)[0]
 	p.Write().Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float32 {

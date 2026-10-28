@@ -58,8 +58,9 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 		Heights:  true,
 	})
 	m := motion.NewPlugin(worldPlugin)
-	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin).WithMotion(m)
-	boardPlugin.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin).
+		WithMotion(m, cell.DefaultHiking)
+	boardPlugin.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(worldPlugin)
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, m, sel, driving.NewPlugin(worldPlugin, m, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
@@ -134,8 +135,8 @@ func newDragRig(t *testing.T) *dragRig {
 		Heights:  true,
 	})
 	m := motion.NewPlugin(w)
-	brd := board.NewPlugin(grid, &cell.SingleOccupancy{}, w).WithMotion(m)
-	brd.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd := board.NewPlugin(grid, &cell.SingleOccupancy{}, w).WithMotion(m, cell.DefaultHiking)
+	brd.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(w)
 	nav := NewPlugin(brd, w, m, sel, driving.NewPlugin(w, m, sel))
 	pl := players.NewPlugin(w, nav)
@@ -261,7 +262,8 @@ func TestPlugin_TheRoutesAreTheSettingsScreensAndSaved(t *testing.T) {
 		Heights:  true,
 	})
 	m := motion.NewPlugin(worldPlugin)
-	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin).WithMotion(m)
+	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin).
+		WithMotion(m, cell.DefaultHiking)
 	sel := selection.NewPlugin(worldPlugin)
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, m, sel, driving.NewPlugin(worldPlugin, m, sel))
 	for _, b := range navPlugin.DefaultBindings() {
@@ -307,7 +309,7 @@ func TestPlugin_DrawsItsRoutes(t *testing.T) {
 	})
 	m := motion.NewPlugin(w)
 	brd := board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.SingleOccupancy{}, w).
-		WithMotion(m)
+		WithMotion(m, cell.DefaultHiking)
 	sel := selection.NewPlugin(w)
 	nav := NewPlugin(brd, w, m, sel, driving.NewPlugin(w, m, sel))
 	ctx := &stubInstallCtx{ecs: goke.New()}

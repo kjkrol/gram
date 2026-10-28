@@ -17,7 +17,7 @@ func (bridge) Define(p *bridges.Plugin) {
 	p.Types().Define(BridgeKind, bridges.Spec{
 		Allows: cell.Land,
 		Width:  48,
-		Cost:   1,
+		Pace:   1,
 		Rail:   cell.Rail{Keeps: cell.Land},
 	})
 }

@@ -77,8 +77,9 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 	})
 	m := motion.NewPlugin(w)
 	c := collision.NewPlugin(w, m)
-	brd := board.NewPlugin(fw.grid, &cell.SingleOccupancy{}, w).WithMotion(m).WithCollision(c)
-	brd.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd := board.NewPlugin(fw.grid, &cell.SingleOccupancy{}, w).
+		WithMotion(m, cell.DefaultHiking).WithCollision(c)
+	brd.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	if lay != nil {
 		lay(boardOf(brd), fw.at)
 	}
@@ -404,8 +405,8 @@ func TestBodySpacing_OneStandingInTheWayIsGoneRoundAndWithNoWayRoundTheUnitStand
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(9, 3, fieldCell)}
 	road := func(b testBoard, at func(x, y uint32) cell.ID) {
 		for x := uint32(0); x < 9; x++ {
-			b.Set(at(x, 0), cell.Kind{Cost: 3, Allows: cell.Land})
-			b.Set(at(x, 2), cell.Kind{Cost: 1, Allows: cell.Water})
+			b.Set(at(x, 0), cell.Kind{Pace: 1.0 / 3, Allows: cell.Land})
+			b.Set(at(x, 2), cell.Kind{Pace: 1, Allows: cell.Water})
 		}
 	}
 	from, goal := probe.grid.CellCenter(probe.at(0, 1)), probe.grid.CellCenter(probe.at(8, 1))
@@ -544,7 +545,7 @@ func TestBodySpacing_ByHandAUnitStopsShortOfAnother(t *testing.T) {
 func TestBodySpacing_StrikingSomeoneByTheShoreItStepsRoundByLand(t *testing.T) {
 	shore := func(b testBoard, at func(x, y uint32) cell.ID) {
 		for x := uint32(0); x < 10; x++ {
-			b.Set(at(x, 0), cell.Kind{Cost: 1, Allows: cell.Water})
+			b.Set(at(x, 0), cell.Kind{Pace: 1, Allows: cell.Water})
 		}
 	}
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 3, fieldCell)}

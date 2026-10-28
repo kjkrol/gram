@@ -1,10 +1,11 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
-	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 	"time"
+
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/tag"
@@ -22,10 +23,10 @@ import (
 func riverBoard() (grid.Grid, *cell.TerrainMap) {
 	grid := grid.DefaultGrids{}.Square(5, 3, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land})
 	for x := uint32(0); x < 4; x++ {
 		c := grid.At(x, 1)
-		terrain.Set(c, cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water})
+		terrain.Set(c, cell.Kind{Name: cell.Named("water"), Pace: 1, Allows: cell.Water})
 	}
 	return grid, terrain
 }
@@ -70,10 +71,10 @@ func TestFindPath_KeepsEachDomainToItsOwnGround(t *testing.T) {
 func TestCommandSystem_Update_IgnoresATargetTheUnitsDomainMayNotEnter(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(10, 1, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	start := grid.At(0, 0)
 	lake := grid.At(8, 0)
-	terrain.Set(lake, cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water})
+	terrain.Set(lake, cell.Kind{Name: cell.Named("water"), Pace: 1, Allows: cell.Water})
 
 	moves := &command.Queue[MoveTo]{}
 	cmds := routing.NewSystem(spacing.NewFinder(grid, terrain, nil, &cell.SingleOccupancy{}), moves, &command.Queue[LookAt]{}, selTags.Selected)
@@ -117,11 +118,12 @@ func TestFindPath_PricesTheRouteForTheUnitsDomain(t *testing.T) {
 	const frost = cell.Domain(1 << 3)
 	grid := grid.DefaultGrids{}.Square(3, 3, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land | frost})
+	terrain.SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 0.25, Allows: cell.Land | frost})
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	// the middle row is snow: slow on foot, a highway for the frost-born
 	for x := range uint32(3) {
-		terrain.Set(at(x, 1), cell.Kind{Name: cell.Named("snow"), Cost: 5, Allows: cell.Land | frost}.Costing(frost, 0.2))
+		terrain.Set(at(x, 1), cell.Kind{Name: cell.Named("snow"), Pace: 0.05,
+			Allows: cell.Land | frost}.Paced(frost, 1))
 	}
 	pf := spacing.NewFinder(grid, terrain, nil, &cell.MultipleOccupancy{})
 

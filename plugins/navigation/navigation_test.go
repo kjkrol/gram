@@ -59,7 +59,7 @@ func (p *pushOnce) Update(_ *goke.CmdBuf, _ time.Duration) {
 func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 	steer := routed(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
 		occupancy)
@@ -165,7 +165,7 @@ func (f *followOnce) Update(_ *goke.CmdBuf, _ time.Duration) {
 func TestNavigationSystem_Update_MovedOffItsRouteByAnotherRepaths(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 3, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 	finder := spacing.NewFinder(grid, terrain, nil, spacing.OpenOccupancy{})
 	steer := routed(finder, grid, terrain, occupancy)
@@ -226,7 +226,7 @@ func TestNavigationSystem_Update_MovedOffItsRouteByAnotherRepaths(t *testing.T) 
 func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 5, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 	steer := routed(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
 		occupancy)
@@ -287,7 +287,7 @@ func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *te
 func TestNavigationSystem_Update_ArrivalStopsEntity(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 	steer := routed(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
 		occupancy)
@@ -348,7 +348,7 @@ func TestNavigationSystem_Update_ArrivalStopsEntity(t *testing.T) {
 func TestNavigationSystem_Update_ArrivalSnapsToCellCenter(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 	steer := routed(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
 		occupancy)
@@ -480,7 +480,7 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 	terrain, ecs := nw.board, nw.ecs
 	for y := uint32(2); y < gridHeight; y++ {
 		c := grid.At(wallCol, y)
-		terrain.Set(c, cell.Kind{Cost: 1, Solid: true})
+		terrain.Set(c, cell.Kind{Pace: 1, Solid: true})
 	}
 
 	dt := time.Second / 60

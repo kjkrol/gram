@@ -83,14 +83,14 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 	if site.cells {
 		occupancy, spacing = &cell.SingleOccupancy{}, CellSpacing
 	}
-	brd := board.NewPlugin(g, occupancy, w).WithMotion(m).WithCollision(c)
+	brd := board.NewPlugin(g, occupancy, w).WithMotion(m, cell.DefaultHiking).WithCollision(c)
 	topo := topography.NewPlugin(w, brd, nil, topography.Config{})
 	sel := selection.NewPlugin(w)
 	drive := driving.NewPlugin(w, m, sel).WithGround(brd)
 	nav := NewPlugin(brd, w, m, sel, drive).WithCollision(c).WithSpacing(spacing)
-	brd.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	for _, c := range site.wet {
-		brd.Write().Board().Set(c, cell.Kind{Cost: 1, Allows: cell.Water})
+		brd.Write().Board().Set(c, cell.Kind{Pace: 1, Allows: cell.Water})
 	}
 	topo.Write().Relief().SetHeights(site.heights)
 	x0, y0, _ := g.Coords(site.from)
@@ -111,7 +111,7 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 			Allows:    cell.Land,
 			Height:    10 - topo.Write().Relief().Altitude(r.At),
 			Thickness: 0.5,
-			Cost:      1,
+			Pace:      1,
 			Graded:    true,
 			Links:     links,
 			Width:     12,

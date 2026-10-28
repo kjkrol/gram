@@ -15,8 +15,8 @@ func TestField_TheCoverFollowsEveryChangeOfACell(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)
 	f := newField(grid, cells, func(cell.ID) float32 { return 0 })
-	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	forest := cell.Kind{Cost: 1, Allows: cell.Land, Veil: 0.5, Veils: cell.Land}
+	cells.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
+	forest := cell.Kind{Pace: 1, Allows: cell.Land, Veil: 0.5, Veils: cell.Land}
 	c3 := grid.At(3, 0)
 	c6 := grid.At(6, 0)
 	cells.Set(c3, forest)
@@ -43,7 +43,7 @@ func newField(g grid.Grid, cells *terrain.Cells, altitude func(cell.ID) float32)
 	return f
 }
 
-var water = cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water}
+var water = cell.Kind{Name: cell.Named("water"), Pace: 1, Allows: cell.Water}
 
 func TestGround_OverhangIsTheAreaOverGroundThatDoesNotTakeTheEntity(t *testing.T) {
 	const size = 32
@@ -51,7 +51,7 @@ func TestGround_OverhangIsTheAreaOverGroundThatDoesNotTakeTheEntity(t *testing.T
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	cells := terrain.New(grid)
 	f := newField(grid, cells, func(cell.ID) float32 { return 0 })
-	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	cells.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	cells.Set(cellAt(2, 1), water)
 	edge := float32(2 * size)
 	box := geom.NewAABBAt(geom.NewVec(edge-6, size+2), 10, 10) // 4 of its 10 across over the water
@@ -72,7 +72,7 @@ func TestField_VersionAndChangesAreTheCells(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)
 	f := newField(grid, cells, func(cell.ID) float32 { return 0 })
-	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	cells.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	same := func() {
 		t.Helper()
 		if f.Version() != cells.Version() || f.Changes() != cells.Changes() {
@@ -82,7 +82,7 @@ func TestField_VersionAndChangesAreTheCells(t *testing.T) {
 	}
 	same()
 	version, changes := f.Version(), f.Changes()
-	cells.Set(grid.At(3, 0), cell.Kind{Cost: 1, Allows: cell.Land, Veil: 0.5, Veils: cell.Land})
+	cells.Set(grid.At(3, 0), cell.Kind{Pace: 1, Allows: cell.Land, Veil: 0.5, Veils: cell.Land})
 	same()
 	if f.Version() == version && f.Changes() == changes {
 		t.Error("a cell set moved neither count")

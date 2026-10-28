@@ -1,5 +1,11 @@
 package main
 
+import "github.com/kjkrol/gram/plugins/board/cell"
+
+// HighlandDomain is the plateau's units' own way of moving: they climb where the lowland
+// walkers turn back (mobility.go).
+const HighlandDomain cell.Domain = cell.Air << 1
+
 const (
 	WaterCell  = "water"
 	EarthCell  = "earth"

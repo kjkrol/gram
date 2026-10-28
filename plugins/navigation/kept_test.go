@@ -1,25 +1,15 @@
 package navigation
 
 import (
+	"testing"
+
 	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
 	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
-	"testing"
 
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/world"
 )
-
-// a terrain counting the cells read
-type readTerrain struct {
-	*cell.TerrainMap
-	read int
-}
-
-func (t *readTerrain) Kind(c cell.ID) cell.Kind {
-	t.read++
-	return t.TerrainMap.Kind(c)
-}
 
 // the same detours told to a unit whose finder is blind to the others, which keeps its answers,
 // and to one whose finder sees them, which keeps none: the same orders, searched only when asked
@@ -28,10 +18,9 @@ func TestKept_ADetourAskedAgainIsAnsweredAsBeforeUnsearched(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(6, 3, 10)
 	at := func(x, y uint32) cell.ID { return g.At(x, y) }
 	board := cell.NewTerrainMap()
-	board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	read := &readTerrain{TerrainMap: board}
-	kept := spacing.NewCellKeeping(spacing.NewFinder(g, read, nil, spacing.OpenOccupancy{}),
-		&cell.SingleOccupancy{})
+	board.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
+	finder := spacing.NewFinder(g, board, nil, spacing.OpenOccupancy{})
+	kept := spacing.NewCellKeeping(finder, &cell.SingleOccupancy{})
 	fresh := spacing.NewCellKeeping(spacing.NewFinder(g, board, nil, &cell.MultipleOccupancy{}),
 		&cell.SingleOccupancy{})
 	stand := func(c cell.ID, size uint32) bodies.Member {
@@ -70,10 +59,10 @@ func TestKept_ADetourAskedAgainIsAnsweredAsBeforeUnsearched(t *testing.T) {
 			step.change(&m, &o)
 			step.change(&mf, &of)
 		}
-		before := read.read
+		before := finder.Searches()
 		kept.Detour(m, &o, other)
 		fresh.Detour(mf, &of, other)
-		if searched := read.read > before; searched != step.searched {
+		if searched := finder.Searches() > before; searched != step.searched {
 			t.Errorf("%s: searched %v, want %v", step.name, searched, step.searched)
 		}
 		if o != of {
@@ -88,16 +77,17 @@ func TestKept_ADetourAskedAgainIsAnsweredAsBeforeUnsearched(t *testing.T) {
 
 func TestKept_AFinderSeeingTheOthersKeepsNoAnswer(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(6, 3, 10)
-	read := &readTerrain{TerrainMap: cell.NewTerrainMap()}
-	read.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	board := cell.NewTerrainMap()
+	board.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occ := &cell.SingleOccupancy{}
-	k := spacing.NewCellKeeping(spacing.NewFinder(g, read, nil, occ), occ)
+	finder := spacing.NewFinder(g, board, nil, occ)
+	k := spacing.NewCellKeeping(finder, occ)
 	m := bodies.Member{ID: 7, Cell: g.At(0, 1), From: g.At(0, 1), Domain: cell.Land,
 		Pos: world.Position{AABB: cellBox(g, g.At(0, 1), 8)}}
 	o := MoveOrder{Target: g.At(5, 1), Toward: g.At(1, 1)}
 	for i := range 2 {
-		before := read.read
-		if k.Detour(m, &o, bodies.Body{ID: 3, Cell: g.At(1, 1)}); read.read == before {
+		before := finder.Searches()
+		if k.Detour(m, &o, bodies.Body{ID: 3, Cell: g.At(1, 1)}); finder.Searches() == before {
 			t.Errorf("detour %d searched nothing, want every one searched: the cells held "+
 				"change", i)
 		}

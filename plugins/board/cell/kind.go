@@ -10,9 +10,9 @@ import (
 // a Veil.
 type Kind struct {
 	Name Name
-	// Cost 1 is full speed and the cheapest step the planner counts on; above 1 slows and costs
-	// more to plan through. Below 1 breaks the planner's estimate.
-	Cost float64
+	// Pace is the share of its top speed a unit keeps here: 1 full speed and nothing faster, 0.5
+	// half; a kind admitting someone gives one above 0.
+	Pace float64
 	// Allows is the domains that may stand here; one that ends up here anyway has fallen in.
 	Allows Domain
 	// Solid makes the cell solid ground: collision pushes out whoever Allows keeps out.
@@ -33,33 +33,34 @@ type Kind struct {
 	Takes render.Taking
 	// SpriteID is the kind's slot in the board's atlas, given as it is defined.
 	SpriteID render.SpriteID
-	// Costs overrides Cost for entities moving in a domain, Costs[i] for the domain bit i.
-	Costs [8]float64
+	// Paces overrides Pace for units moving in a domain, Paces[i] for the domain bit i; 0 leaves
+	// Pace.
+	Paces [8]float64
 }
 
 // Admits reports whether an entity moving in d may stand on this kind.
 func (k Kind) Admits(d Domain) bool { return k.Allows&d != 0 }
 
-// Costing returns the kind with cost for the domains in d.
-func (k Kind) Costing(d Domain, cost float64) Kind {
-	for i := range k.Costs {
+// Paced returns the kind with share as the pace of the domains in d.
+func (k Kind) Paced(d Domain, share float64) Kind {
+	for i := range k.Paces {
 		if d&(1<<i) != 0 {
-			k.Costs[i] = cost
+			k.Paces[i] = share
 		}
 	}
 	return k
 }
 
-// CostFor is what an entity moving in d pays here: the cheapest of its domains this kind admits
-// and prices, else Cost.
-func (k Kind) CostFor(d Domain) float64 {
-	cost, priced := k.Cost, false
-	for i := range k.Costs {
-		if k.Costs[i] != 0 && d&k.Allows&(1<<i) != 0 && (!priced || k.Costs[i] < cost) {
-			cost, priced = k.Costs[i], true
+// PaceFor is the share of its top speed a unit moving in d keeps here: the best among the
+// domains this kind admits and paces, else Pace.
+func (k Kind) PaceFor(d Domain) float64 {
+	pace, paced := k.Pace, false
+	for i := range k.Paces {
+		if k.Paces[i] != 0 && d&k.Allows&(1<<i) != 0 && (!paced || k.Paces[i] > pace) {
+			pace, paced = k.Paces[i], true
 		}
 	}
-	return cost
+	return pace
 }
 
 // Of is one defined kind of cell, the handle a game builds on.

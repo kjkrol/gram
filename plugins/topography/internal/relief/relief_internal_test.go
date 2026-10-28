@@ -13,7 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 )
 
-var hill = cell.Kind{Name: cell.Named("hill"), Cost: 1, Allows: cell.Land | cell.Air}
+var hill = cell.Kind{Name: cell.Named("hill"), Pace: 1, Allows: cell.Land | cell.Air}
 
 // a relief over a board of g, counting its changes on the board
 func onBoard(g grid.Grid) *Relief {

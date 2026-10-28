@@ -375,8 +375,7 @@ func (k *BodyKeeping) takes(m bodies.Member, dir geom.Vec) bool {
 
 func (k *BodyKeeping) takeCell(c cell.ID) {
 	m := &k.taker
-	k.taken = k.taken && k.terrain.Kind(c).Admits(m.Domain) &&
-		k.finder.climb(m.Cell, c, m.Domain) <= YieldClimb && k.finder.steps(*m, c)
+	k.taken = k.taken && k.terrain.Kind(c).Admits(m.Domain) && k.finder.asides(*m, c)
 }
 
 func (k *BodyKeeping) met(o *order.MoveOrder) []bodies.Body {
@@ -469,8 +468,7 @@ func spanAcross(h, a geom.Vec) float32 { return h.X*f32.Abs(a.X) + h.Y*f32.Abs(a
 
 func (k *BodyKeeping) open(m bodies.Member, p geom.Vec) (ground bool, in uid.UID64, taken bool) {
 	cell, ok := CellOf(k.grid, k.terrain, p, &m.Z)
-	if !ok || !k.fits(m, p, m.Z, nil) || k.finder.climb(m.Cell, cell, m.Domain) > YieldClimb ||
-		!k.finder.steps(m, cell) {
+	if !ok || !k.fits(m, p, m.Z, nil) || !k.finder.asides(m, cell) {
 		return false, 0, false
 	}
 	h := half(m)

@@ -19,10 +19,10 @@ import (
 func TestCoordinator_AsksOnAPoolGetTheRoutesOfOneGoroutine(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(32, 32, 16)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	for y := range uint32(32) {
 		if y%8 != 4 {
-			terrain.Set(g.At(16, y), cell.Kind{Cost: 1, Solid: true})
+			terrain.Set(g.At(16, y), cell.Kind{Pace: 1, Solid: true})
 		}
 	}
 	routes := func(pool *parallel.Pool) []order.Path {

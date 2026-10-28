@@ -259,9 +259,7 @@ func gather(sites []site) []site {
 			o.Floor.Height = max(o.Floor.Height, s.built.Floor.Height)
 			o.Floor.Graded = o.Floor.Graded || s.built.Floor.Graded
 			o.Floor.Thickness = max(o.Floor.Thickness, s.built.Floor.Thickness)
-			if c := s.built.Floor.Cost; c > 0 && (o.Floor.Cost == 0 || c < o.Floor.Cost) {
-				o.Floor.Cost = c
-			}
+			o.Floor.Pace = max(o.Floor.Pace, s.built.Floor.Pace)
 			if s.built.Wall.Keeps != 0 {
 				o.Wall.Height = tallest(o.Wall, s.built.Wall)
 				o.Wall.Keeps |= s.built.Wall.Keeps

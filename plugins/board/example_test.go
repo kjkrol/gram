@@ -2,6 +2,7 @@ package board_test
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
@@ -12,8 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// ramp is a game's own map: flat to the eye, the ground rising a unit every ten eastwards, a step
-// east twice as long as one on the flat
+// ramp is a game's own map: flat to the eye, the ground rising a unit every ten eastwards
 type ramp struct{ g grid.Grid }
 
 func (ramp) Look() look.Look           { return look.Flat }
@@ -27,20 +27,13 @@ func (r ramp) Top(c cell.ID, height float32) (corners [4]float32, level float32)
 	return [4]float32{west, east, west, east}, at.X / 10
 }
 
-func (r ramp) Climb(from, to cell.ID, _ cell.Domain) float64 {
-	if r.g.CellCenter(to).X > r.g.CellCenter(from).X {
-		return 2
+func (r ramp) Rise(from, to cell.ID) float64 {
+	a, b := r.g.CellCenter(from), r.g.CellCenter(to)
+	run := math.Hypot(float64(b.X-a.X), float64(b.Y-a.Y))
+	if run == 0 {
+		return 0
 	}
-	return 1
-}
-
-func (ramp) Least(cell.Domain) float64 { return 1 }
-
-func (ramp) Slope(_, dir geom.Vec, _ cell.Domain) float64 {
-	if dir.X > 0 {
-		return 2
-	}
-	return 1
+	return float64(b.X-a.X) / 10 / run
 }
 
 type rise struct{}
@@ -48,8 +41,8 @@ type rise struct{}
 func (rise) At(p geom.Vec) float32 { return p.X / 10 }
 func (rise) Step() float32         { return 32 }
 
-// A game gives the board a map of its own: how it looks, how high its ground lies and what a
-// step costs beyond its kind's.
+// A game gives the board a map of its own: how it looks, how high its ground lies and how steep
+// a step is.
 func ExamplePlugin_WithMap() {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 320, Height: 320},

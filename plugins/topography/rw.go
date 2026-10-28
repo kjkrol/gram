@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/topography/painter"
-	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -61,9 +60,6 @@ func (r *Read) CareShown() bool { return r.p.Res.Settings.ShowCare }
 // Reporter is the topography's part of the telemetry panel: how far out the ground is shaded
 // with full care and how many sectors took each care in the last frame, a line each.
 func (r *Read) Reporter() render.Reporter { return reporter{r.p} }
-
-// Climbing is what slopes do to whoever goes over them, as the Config set it.
-func (r *Read) Climbing() relief.Climbing { return r.p.climbing }
 
 // Relief is the ground's heights, to read and set from a game's code.
 func (w *Write) Relief() Relief { return w.p.relief }

@@ -43,7 +43,7 @@ func (covered) Top(cell.ID) (corners [4]float32, level float32) { return corners
 
 func TestCover_LiesAlongALineOfItsOwn(t *testing.T) {
 	gputest.Need(t)
-	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
+	grass := cell.Kind{SpriteID: 1, Pace: 1, Allows: cell.Land}
 	green := color.RGBA{R: 60, G: 160, B: 60, A: 255}
 	snow := color.RGBA{R: 240, G: 240, B: 250, A: 255}
 	const mark tag.Tag[effect.States] = 3

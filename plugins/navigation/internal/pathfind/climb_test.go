@@ -7,32 +7,28 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
-	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/uid"
 )
 
-// priced by the topography's DefaultClimbing over steps of 10
+// heights by cell, paced by the default hiking over steps of 10
 type hill map[cell.ID]float64
 
-func (h hill) Least(d cell.Domain) float64 {
-	if !relief.DefaultClimbing.Feels(d) {
-		return 1
-	}
-	return relief.DefaultClimbing.Least()
+func (h hill) Pace(from, to cell.ID, k cell.Kind, level cell.Level, d cell.Domain) float64 {
+	return cell.PaceOf(cell.DefaultHiking, cell.Step{From: from, To: to, Level: level, Kind: k,
+		Domain: d, Slope: (h[to] - h[from]) / 10})
 }
 
-func (h hill) Climb(from, to cell.ID, d cell.Domain) float64 {
-	c := relief.DefaultClimbing
-	if !c.Feels(d) {
-		return 1
-	}
-	return c.Factor((h[to] - h[from]) / 10)
+func (h hill) Flat(to cell.ID, k cell.Kind, level cell.Level, d cell.Domain) float64 {
+	return cell.PaceOf(cell.DefaultHiking, cell.Step{From: to, To: to, Level: level, Kind: k,
+		Domain: d})
 }
+
+func (hill) Sloped() bool { return true }
 
 func TestFindPath_GoesRoundAHillUnlessItFlies(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 5, 10)
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land | cell.Air})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land | cell.Air})
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	h := hill{}
 	for y := uint32(0); y < 4; y++ {
@@ -58,13 +54,13 @@ func TestFindPath_GoesRoundAHillUnlessItFlies(t *testing.T) {
 func TestFindPath_TakesTheRoadRoundWhereTheGroundCostsMore(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 5, 10)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	road := cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land}
+	road := cell.Kind{Name: cell.Named("road"), Pace: 1, Allows: cell.Land}
 	for _, c := range []struct {
 		ground   float64
 		roadOnly bool
-	}{{2.5, true}, {1, false}} {
+	}{{0.4, true}, {1, false}} {
 		terrain := cell.NewTerrainMap()
-		terrain.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: c.ground, Allows: cell.Land})
+		terrain.SetAll(cell.Kind{Name: cell.Named("grass"), Pace: c.ground, Allows: cell.Land})
 		roadCells := map[cell.ID]bool{}
 		for x := range uint32(7) {
 			roadCells[at(x, 0)] = true
@@ -118,8 +114,8 @@ func TestFindPath_FollowsARoadRoundItsBendRatherThanCuttingTheCorner(t *testing.
 	grid := grid.DefaultGrids{}.Square(7, 5, 10)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	brd, brdW := board.NewBoard(grid)
-	brdW.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land})
-	road := cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land}
+	brdW.SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 0.5, Allows: cell.Land})
+	road := cell.Kind{Name: cell.Named("road"), Pace: 1, Allows: cell.Land}
 	var cells []cell.ID
 	for x := range uint32(5) {
 		cells = append(cells, at(x, 0))
@@ -148,10 +144,10 @@ func TestFindPath_FollowsARoadRoundItsBendRatherThanCuttingTheCorner(t *testing.
 func TestFindPath_TakesADiagonalRoadAlongItsLinks(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 5, 10)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	road := cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land}
+	road := cell.Kind{Name: cell.Named("road"), Pace: 1, Allows: cell.Land}
 	for _, linked := range []bool{true, false} {
 		brd, brdW := board.NewBoard(grid)
-		brdW.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land})
+		brdW.SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 0.5, Allows: cell.Land})
 		var cells []cell.ID
 		for i := range uint32(5) {
 			cells = append(cells, at(i, i))
@@ -186,15 +182,15 @@ func TestFindPath_AGradedRoadIsNotPricedByTheSlope(t *testing.T) {
 	}
 	for _, graded := range []bool{true, false} {
 		terrain := cell.NewTerrainMap()
-		terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-		road := cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land, Graded: graded}
+		terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
+		road := cell.Kind{Name: cell.Named("road"), Pace: 1, Allows: cell.Land, Graded: graded}
 		for x := range uint32(7) {
 			terrain.Set(at(x, 1), road)
 		}
 		pf := newPathFinder(grid, terrain, h, &cell.MultipleOccupancy{})
 		want := 1.0
 		if !graded {
-			want = relief.DefaultClimbing.Factor(2)
+			want = 1 / cell.DefaultHiking.Pace(cell.Step{Kind: road, Domain: cell.Land, Slope: 2})
 		}
 		if got, _ := pf.price(at(2, 1), at(3, 1), road, cell.Land); math.Abs(got-want) > 1e-9 {
 			t.Errorf("graded %v: the step up the ridge costs %v, want %v", graded, got, want)

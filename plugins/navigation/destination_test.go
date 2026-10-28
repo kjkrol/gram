@@ -30,7 +30,7 @@ func abs(v float32) float32 {
 
 func openTerrain() *cell.TerrainMap {
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	return terrain
 }
 

@@ -1,7 +1,8 @@
 // Package board lays a square or hex grid over the game world, with per-cell terrain (who may
-// pass, what a step costs) and occupancy. Entities on the board move at the terrain's cost, solid
-// cells push them out and veiled ones dim sight, and plugins/navigation builds pathfinding on top.
-// A board stands only in a world with heights (world.Config.Heights).
+// pass, how fast one goes) and occupancy. Entities on the board move at the pace the terrain and
+// the game's mobility give them, solid cells push them out and veiled ones dim sight, and
+// plugins/navigation builds pathfinding on top. A board stands only in a world with heights
+// (world.Config.Heights).
 //
 // # Packages
 //
@@ -111,8 +112,10 @@
 //
 // # Heights, ground and occupancy
 //
-// The board is flat: what is high or steep is its [Map]'s (plugins/topography), which prices
-// every slope ([Map.Climb], [Map.Least], [Map.Slope]). The board is the ground the other plugins
+// The board is flat: what is high or steep is its [Map]'s (plugins/topography), which says how
+// steep every step is ([Map.Rise]); how fast a unit goes over it is the game's cell.Mobility,
+// given with [Plugin.WithMotion] and read by the pace and the planner alike ([Read.Pace]), so
+// what the planner refuses the unit never walks. The board is the ground the other plugins
 // meet: [Read.Heights], [Read.Footing], [Read.Cover] for sight, and its Solid cells the
 // solid ground collision pushes colliders out of ([Plugin.WithCollision]). Its cell.Occupancy
 // tracks who holds each cell; the board has every unit hold the cell it stands on and lets go of

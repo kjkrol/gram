@@ -24,33 +24,33 @@ var (
 )
 
 var grounds = []ground{
-	{name: WaterCell, kind: cell.Kind{Cost: 1, Allows: wet}},
+	{name: WaterCell, kind: cell.Kind{Pace: 1, Allows: wet}},
 	{
 		name:     EarthCell,
-		kind:     cell.Kind{Cost: 2.5, Allows: dry, Sway: 0.35}.Costing(cell.Air, 1),
+		kind:     cell.Kind{Pace: 0.4, Allows: dry, Sway: 0.35},
 		snowable: true,
 		upland:   true,
 	},
-	{name: SandCell, kind: cell.Kind{Cost: 4, Allows: dry}.Costing(cell.Air, 1), snowable: true},
+	{name: SandCell, kind: cell.Kind{Pace: 0.25, Allows: dry}, snowable: true},
 	{
 		name:     RockCell,
-		kind:     cell.Kind{Cost: 3.25, Allows: dry}.Costing(cell.Air, 1),
+		kind:     cell.Kind{Pace: 1 / 3.25, Allows: dry},
 		snowable: true,
 		upland:   true,
 	},
-	{name: BrookCell, kind: cell.Kind{Cost: 3.25, Allows: cell.Land | wet}.Costing(wet, 1)},
-	{name: StreamCell, kind: cell.Kind{Cost: 5, Allows: cell.Land | wet}.Costing(wet, 1)},
-	{name: RiverCell, kind: cell.Kind{Cost: 1, Allows: wet}},
-	{name: RoadCell, kind: cell.Kind{Cost: 1, Allows: dry, Graded: true}},
+	{name: BrookCell, kind: cell.Kind{Pace: 1 / 3.25, Allows: cell.Land | wet}.Paced(wet, 1)},
+	{name: StreamCell, kind: cell.Kind{Pace: 0.2, Allows: cell.Land | wet}.Paced(wet, 1)},
+	{name: RiverCell, kind: cell.Kind{Pace: 1, Allows: wet}},
+	{name: RoadCell, kind: cell.Kind{Pace: 1, Allows: dry, Graded: true}},
 	{
 		name: ForestCell,
 		kind: cell.Kind{
-			Cost:   7.5,
+			Pace:   2.0 / 15,
 			Allows: dry,
 			Veil:   0.6,
 			Height: scale.Units(20),
 			Sway:   0.6,
-		}.Costing(cell.Air, 1),
+		},
 		snowable: true,
 		upland:   true,
 	},
@@ -80,7 +80,7 @@ type ice struct{}
 var _ board.Tile = ice{}
 
 func (ice) Define(b *board.Plugin) {
-	b.Read(0).CellKinds().Define(IceCell, cell.Kind{Cost: 5, Allows: dry}.Costing(cell.Air, 1))
+	b.Read(0).CellKinds().Define(IceCell, cell.Kind{Pace: 0.2, Allows: dry})
 }
 
 func (ice) Look(a *board.Atlas, _ *board.Plugin) { a.Add(IceCell, render.Solid(iceColor)) }

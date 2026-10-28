@@ -24,7 +24,6 @@ import (
 	irelief "github.com/kjkrol/gram/plugins/topography/internal/relief"
 	"github.com/kjkrol/gram/plugins/topography/internal/terrain"
 	"github.com/kjkrol/gram/plugins/topography/painter"
-	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -56,14 +55,12 @@ func (s stillFrame) Compose(f *render.Frame, _ camera.Camera) {
 	air.Weather{}.Frame(f, light.White, 0, 0)
 }
 
-// Config is the topography: Shaping zero is a quarter of a cell a step and any slope, Climbing
-// zero relief.DefaultClimbing, Care how many sectors out from the middle of the screen the
-// ground is shaded with full care, and one care less every as many farther ([Write.SetCare]),
-// zero every one.
+// Config is the topography: Shaping zero is a quarter of a cell a step and any slope, Care how
+// many sectors out from the middle of the screen the ground is shaded with full care, and one
+// care less every as many farther ([Write.SetCare]), zero every one.
 type Config struct {
-	Shaping  Shaping
-	Climbing relief.Climbing
-	Care     int
+	Shaping Shaping
+	Care    int
 }
 
 // Plugin is a map in relief over a board: the ground's heights, lit and shaded. It is the board's
@@ -82,7 +79,6 @@ type Plugin struct {
 	relief      *irelief.Relief
 	painter     *ipainter.Painter
 	sky         Atmosphere
-	climbing    relief.Climbing
 	shaper      *shaper
 	seeded      func(p geom.Vec) float32
 
@@ -227,15 +223,11 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, board: brd,
 		drawnBoard: boardPlugin.Read(0).Drawn(),
 		light:      lightPlugin,
-		sky:        stillSky{sight: air.Sight(worldPlugin.Read(0).Scale())},
-		climbing:   cfg.Climbing}
+		sky:        stillSky{sight: air.Sight(worldPlugin.Read(0).Scale())}}
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.read, p.write = Read{p: p}, Write{p: p}
 	p.reads = []*Read{&p.read}
 	p.Self = world.NewSelf(worldPlugin, p)
-	if p.climbing == (relief.Climbing{}) {
-		p.climbing = relief.DefaultClimbing
-	}
 	shaping := cfg.Shaping
 	if shaping.Step == 0 {
 		w, h := brd.CellBounds()
@@ -425,28 +417,9 @@ func (p *Plugin) Top(c cell.ID, height float32) (corners [4]float32, level float
 	return p.relief.Top(c, height)
 }
 
-// Climb is how many times as long the step from one cell to its neighbour takes whoever moves
-// in d as on the flat, as the Climbing says.
-func (p *Plugin) Climb(from, to cell.ID, d cell.Domain) float64 {
-	return p.relief.Climb(from, to, d, p.climbing)
-}
-
-// Least is the smallest Climb for d: the quickest descent's.
-func (p *Plugin) Least(d cell.Domain) float64 {
-	if !p.climbing.Feels(d) {
-		return 1
-	}
-	return p.climbing.Least()
-}
-
-// Slope is how many times as long moving at at towards dir takes whoever moves in d as on the
-// flat, as the Climbing says.
-func (p *Plugin) Slope(at, dir geom.Vec, d cell.Domain) float64 {
-	if !p.climbing.Feels(d) {
-		return 1
-	}
-	return p.climbing.Factor(p.relief.SlopeAt(at, dir))
-}
+// Rise is how steep the step from one cell to its neighbour is: the relief's rise between their
+// middles over the run, negative downhill.
+func (p *Plugin) Rise(from, to cell.ID) float64 { return p.relief.Rise(from, to) }
 
 func (p *Plugin) Name() string { return "gram.topography" }
 

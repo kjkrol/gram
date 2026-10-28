@@ -24,8 +24,9 @@ type Path struct {
 
 type testFinder struct{ *Finder }
 
-func newPathFinder(g grid.Grid, terrain cell.Terrain, slopes Slopes, occupancy cell.Occupancy) testFinder {
-	return testFinder{New(g, terrain, slopes, occupancy)}
+func newPathFinder(g grid.Grid, terrain cell.Terrain, pacing Pacing,
+	occupancy cell.Occupancy) testFinder {
+	return testFinder{New(g, terrain, pacing, occupancy)}
 }
 
 func (f testFinder) findPath(entity uid.UID64, domain cell.Domain, from, to cell.ID) (Path, bool) {
@@ -45,7 +46,7 @@ func (f testFinder) nearestFree(entity uid.UID64, domain cell.Domain, from, targ
 }
 
 func (f testFinder) price(from, to cell.ID, kind cell.Kind, d cell.Domain) (float64, bool) {
-	return f.Price(from, to, kind, d)
+	return f.Price(from, to, kind, cell.OnGround, d)
 }
 
 func chebyshev(grid grid.Grid, a, b cell.ID) float64 {
@@ -62,7 +63,7 @@ func abs(v float64) float64 {
 
 func openTerrain() *cell.TerrainMap {
 	terrain := cell.NewTerrainMap()
-	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	return terrain
 }
 

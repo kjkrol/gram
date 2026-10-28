@@ -59,13 +59,27 @@ func (r *Read) Cover() ground.Cover { return r.board.cover }
 // Occupancy is who holds the cells: the occupancy the plugin was built with.
 func (r *Read) Occupancy() cell.OccupancyRead { return r.p.occupancy }
 
-// Climb is the Map's Climb.
-func (r *Read) Climb(from, to cell.ID, d cell.Domain) float64 {
-	return r.p.board.mapping.Climb(from, to, d)
+// Mobility is what the board's units move by, given with WithMotion; nil on a board without
+// units.
+func (r *Read) Mobility() cell.Mobility { return r.p.mobility }
+
+// Pace is the share of its top speed a unit moving in d keeps on the step from from onto to's
+// kind k on level, the step's slope the Map's; 0 refuses the step.
+func (r *Read) Pace(from, to cell.ID, k cell.Kind, level cell.Level, d cell.Domain) float64 {
+	s := cell.Step{From: from, To: to, Level: level, Kind: k, Domain: d}
+	if !k.Graded && from != to {
+		s.Slope = r.p.board.mapping.Rise(from, to)
+	}
+	return cell.PaceOf(r.p.mobility, s)
 }
 
-// Least is the Map's Least.
-func (r *Read) Least(d cell.Domain) float64 { return r.p.board.mapping.Least(d) }
+// Flat is Pace with no slope: the share on to's kind k on level, on the level.
+func (r *Read) Flat(to cell.ID, k cell.Kind, level cell.Level, d cell.Domain) float64 {
+	return cell.PaceOf(r.p.mobility, cell.Step{From: to, To: to, Level: level, Kind: k, Domain: d})
+}
+
+// Sloped reports whether the Map has heights, so a step's pace may depend on its slope.
+func (r *Read) Sloped() bool { return r.p.board.mapping.Heights() != nil }
 
 // Atlas is the sprite sheet the board's renderer draws the cells from; nil before it is closed.
 func (r *Read) Atlas() render.AtlasSource { return r.p.atlas }

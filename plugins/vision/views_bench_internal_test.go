@@ -32,8 +32,8 @@ func Benchmark_Views_Copy(b *testing.B) {
 		if sc.relief {
 			heights = topography.NewPlugin(w, brd, nil, topography.Config{}).Heights()
 		}
-		plain := cell.Kind{Cost: 1, Allows: cell.Land}
-		forest := cell.Kind{Cost: 1, Allows: cell.Land, Veil: 0.5, Veils: cell.Land}
+		plain := cell.Kind{Pace: 1, Allows: cell.Land}
+		forest := cell.Kind{Pace: 1, Allows: cell.Land, Veil: 0.5, Veils: cell.Land}
 		brd.Write().Board().SetAll(plain)
 		for x := range uint32(cols) {
 			brd.Write().Board().Set(g.At(x, 40), forest)

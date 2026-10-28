@@ -99,7 +99,7 @@ func uplandsFrom(t *testing.T, covered float32, shower effect.Spec, load bool) *
 				})
 		}).
 		Kinds(func() {
-			u.b.Read(0).CellKinds().Define("hill", cell.Kind{Cost: 1, Allows: cell.Land},
+			u.b.Read(0).CellKinds().Define("hill", cell.Kind{Pace: 1, Allows: cell.Land},
 				u.w.Roles().Named("hill"))
 		}).
 		Spawn(func() error {

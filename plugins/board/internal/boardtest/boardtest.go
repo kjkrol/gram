@@ -99,7 +99,7 @@ func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(
 	bw.Motion = motion.NewPlugin(bw.World)
 	c := collision.NewPlugin(bw.World, bw.Motion)
 	bw.Board = board.NewPlugin(g, &cell.MultipleOccupancy{}, bw.World).
-		WithMotion(bw.Motion).
+		WithMotion(bw.Motion, cell.DefaultHiking).
 		WithCollision(c)
 	v := vision.NewPlugin(bw.World).WithBoard(bw.Board)
 	rules := prepare(bw.World, bw.Board)
@@ -284,7 +284,7 @@ func SquareWorldWith(t *testing.T, hooked act.Rule, units ...Mover) (*World, cel
 		rules = append(rules, hooked)
 	}
 	bw := NewWorld(t, grid, 6*CellSize, 16*CellSize, func(brd *board.BoardWrite) {
-		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land})
 		for y := uint32(1); y <= 14; y++ {
 			brd.Set(cellAt(3, y), Wall)
 		}
@@ -293,7 +293,7 @@ func SquareWorldWith(t *testing.T, hooked act.Rule, units ...Mover) (*World, cel
 }
 
 // Wall is a solid kind that also cuts sight.
-var Wall = cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true, Veil: 1}
+var Wall = cell.Kind{Name: cell.Named("wall"), Pace: 1, Solid: true, Veil: 1}
 
 // Pool is the game's pool as the tests' InstallCtx hands it to the plugins: 4 goroutines.
 var Pool = parallel.New(4)

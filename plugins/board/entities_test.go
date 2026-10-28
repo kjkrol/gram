@@ -22,8 +22,8 @@ import (
 )
 
 var (
-	grass = cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land | cell.Air}
-	pit   = cell.Kind{Name: cell.Named("pit"), Cost: 1, Allows: cell.Air}
+	grass = cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land | cell.Air}
+	pit   = cell.Kind{Name: cell.Named("pit"), Pace: 1, Allows: cell.Air}
 )
 
 func itself(c cell.ID) cell.ID { return c }
@@ -161,22 +161,23 @@ func TestAround_VisitsTheEntitiesStandingOnTheCellsNotTheUnits(t *testing.T) {
 	}
 }
 
-func TestFloor_CostsWhatItSaysAndSparesTheSlope(t *testing.T) {
-	river := cell.Kind{Name: cell.Named("river"), Cost: 1, Allows: cell.Water}
+func TestFloor_PacesWhatItSaysAndSparesTheSlope(t *testing.T) {
+	river := cell.Kind{Name: cell.Named("river"), Pace: 1, Allows: cell.Water}
 	ford := newStrip(t, river, effect.Spec{},
-		comp.Const(cell.Floor{Allows: cell.Land, Cost: 6.25}))
+		comp.Const(cell.Floor{Allows: cell.Land, Pace: 0.16}))
 	k := ford.Board.Read(0).Board().Kind(ford.middle)
-	if !k.Admits(cell.Land) || k.CostFor(cell.Land) != 6.25 || k.CostFor(cell.Water) != 1 {
-		t.Errorf("a ford: Land at %v, Water at %v, want 6.25 and the river's 1",
-			k.CostFor(cell.Land), k.CostFor(cell.Water))
+	if !k.Admits(cell.Land) || k.PaceFor(cell.Land) != 0.16 || k.PaceFor(cell.Water) != 1 {
+		t.Errorf("a ford: Land at %v, Water at %v, want 0.16 and the river's 1",
+			k.PaceFor(cell.Land), k.PaceFor(cell.Water))
 	}
 	if k.Graded {
 		t.Error("a ford is no graded way")
 	}
 	bridge := newStrip(t, river, effect.Spec{},
-		comp.Const(cell.Floor{Allows: cell.Land, Cost: 1, Graded: true}))
-	if k := bridge.Board.Read(0).Board().Kind(bridge.middle); !k.Graded || k.CostFor(cell.Land) != 1 {
-		t.Errorf("a bridge: graded %v at %v, want graded at 1", k.Graded, k.CostFor(cell.Land))
+		comp.Const(cell.Floor{Allows: cell.Land, Pace: 1, Graded: true}))
+	if k := bridge.Board.Read(0).Board().Kind(bridge.middle); !k.Graded ||
+		k.PaceFor(cell.Land) != 1 {
+		t.Errorf("a bridge: graded %v at %v, want graded at 1", k.Graded, k.PaceFor(cell.Land))
 	}
 }
 
@@ -200,9 +201,9 @@ func TestEntities_AVelocityGivenTakesTheStillOnesPlace(t *testing.T) {
 }
 
 func TestBare_LeavesABridgeOutAndATrapdoorIn(t *testing.T) {
-	river := cell.Kind{Name: cell.Named("river"), Cost: 1, Allows: cell.Water}
+	river := cell.Kind{Name: cell.Named("river"), Pace: 1, Allows: cell.Water}
 	bridge := newStrip(t, river, effect.Spec{},
-		comp.Const(cell.Floor{Allows: cell.Land, Cost: 1, Graded: true}))
+		comp.Const(cell.Floor{Allows: cell.Land, Pace: 1, Graded: true}))
 	if bridge.Board.Read(0).Board().Bare(bridge.middle).Admits(cell.Land) {
 		t.Error("the ground beside a bridge takes a walker")
 	}

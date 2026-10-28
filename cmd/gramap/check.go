@@ -49,23 +49,23 @@ func (w *chart) check(data []byte) (err error) {
 	k := w.r.Kinds
 	ground := cell.Land | cell.Air
 	kinds := b.Read(0).CellKinds()
-	kinds.Define(k.Sea, cell.Kind{Cost: 1, Allows: cell.Water | cell.Air})
+	kinds.Define(k.Sea, cell.Kind{Pace: 1, Allows: cell.Water | cell.Air})
 	for _, name := range []string{k.Earth, k.Sand, k.Rock, k.Forest} {
-		kinds.Define(name, cell.Kind{Cost: 1, Allows: ground})
+		kinds.Define(name, cell.Kind{Pace: 1, Allows: ground})
 	}
 	for _, name := range []string{k.Brook, k.Stream, k.River} {
 		if _, ok := kinds.Get(name); !ok {
-			kinds.Define(name, cell.Kind{Cost: 1, Allows: cell.Water | cell.Air})
+			kinds.Define(name, cell.Kind{Pace: 1, Allows: cell.Water | cell.Air})
 		}
 	}
-	kinds.Define(k.Road, cell.Kind{Cost: 1, Allows: ground, Graded: true})
+	kinds.Define(k.Road, cell.Kind{Pace: 1, Allows: ground, Graded: true})
 	br := bridges.NewPlugin(wp, b, bridges.Config{Rules: w.roads.rules()})
 	plugins = append(plugins, br)
 	br.Types().Define(k.Bridge, bridges.Spec{
 		Allows:    cell.Land,
 		Width:     float32(w.deck()),
 		Thickness: float32(w.r.Roads.Thickness / w.perUnit),
-		Cost:      1,
+		Pace:      1,
 		Rail:      cell.Rail{Keeps: cell.Land},
 		Pier:      1,
 	})

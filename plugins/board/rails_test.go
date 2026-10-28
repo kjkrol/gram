@@ -27,7 +27,7 @@ func deckWorld(t *testing.T, width float32) (collision.Field, grid.Grid) {
 	if width > 0 {
 		floor.Links, floor.Width = 1<<west|1<<east, width
 	}
-	grass := cell.Kind{Cost: 1, Allows: cell.Land}
+	grass := cell.Kind{Pace: 1, Allows: cell.Land}
 	return floored(t, g, 50, 30, grass, floor, g.At(1, 1), g.At(2, 1), g.At(3, 1)), g
 }
 
@@ -179,7 +179,7 @@ func side(b geom.AABB) (float32, float32) {
 }
 
 func TestField_OverWaterOnlyTheBandTakesAWalker(t *testing.T) {
-	water := cell.Kind{Cost: 1, Allows: cell.Water}
+	water := cell.Kind{Pace: 1, Allows: cell.Water}
 	land := world.Layers(cell.Land)
 	floor := cell.Floor{Allows: cell.Land, Height: 10, Thickness: 1, Width: 6}
 	g := grid.DefaultGrids{}.Square(5, 3, 10)

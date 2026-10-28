@@ -36,10 +36,11 @@ func (s Shape) Box(c geom.Vec) plane.AABB {
 
 // NewUnits binds a game's rows to the board: shape is the units' body, at reads a unit's centre
 // from its row. A unit is no bigger than a cell's side, so it takes any step a deck does not
-// narrow; a bigger shape, or a board without motion (Plugin.WithMotion), panics.
+// narrow; a bigger shape, or a board without motion and a mobility (Plugin.WithMotion), panics.
 func NewUnits[P any](brd *Plugin, shape Shape, at func(row P) geom.Vec) *Units[P] {
-	if brd.motion == nil {
-		panic("board: units move by motion, and the board was given none (WithMotion)")
+	if brd.motion == nil || brd.mobility == nil {
+		panic("board: units move by motion as a mobility paces them, and the board was given " +
+			"none (WithMotion)")
 	}
 	if box, side := shape.Box(geom.Vec{}), brd.board.read.CellSpan(); max(box.Size.X,
 		box.Size.Y) > side {

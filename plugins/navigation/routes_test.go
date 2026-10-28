@@ -70,13 +70,13 @@ type routeRig struct {
 }
 
 var (
-	grass  = cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land}
-	forest = cell.Kind{Name: cell.Named("forest"), Cost: 2.5, Allows: cell.Land}
-	sand   = cell.Kind{Name: cell.Named("sand"), Cost: 1.5, Allows: cell.Land | cell.Air}.
-		Costing(cell.Land, 1.25)
-	rock = cell.Kind{Name: cell.Named("rock"), Cost: 1, Solid: true}
-	ford = cell.Kind{Name: cell.Named("ford"), Cost: 3, Allows: cell.Land | cell.Water}
-	road = cell.Kind{Name: cell.Named("road"), Cost: 0.8, Allows: cell.Land, Graded: true}
+	grass  = cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land}
+	forest = cell.Kind{Name: cell.Named("forest"), Pace: 0.4, Allows: cell.Land}
+	sand   = cell.Kind{Name: cell.Named("sand"), Pace: 2.0 / 3, Allows: cell.Land | cell.Air}.
+		Paced(cell.Land, 0.8)
+	rock = cell.Kind{Name: cell.Named("rock"), Pace: 1, Solid: true}
+	ford = cell.Kind{Name: cell.Named("ford"), Pace: 1.0 / 3, Allows: cell.Land | cell.Water}
+	road = cell.Kind{Name: cell.Named("road"), Pace: 1, Allows: cell.Land, Graded: true}
 )
 
 func scatter(b testBoard, rng *rand.Rand) {
@@ -212,7 +212,7 @@ func newRouteRig(t *testing.T, rb routeBoard) *routeRig {
 		Heights:  true,
 	})
 	m := motion.NewPlugin(w)
-	brd := board.NewPlugin(rb.grid, &cell.MultipleOccupancy{}, w).WithMotion(m)
+	brd := board.NewPlugin(rb.grid, &cell.MultipleOccupancy{}, w).WithMotion(m, cell.DefaultHiking)
 	var topo *topography.Plugin
 	if rb.heights != nil {
 		topo = topography.NewPlugin(w, brd, nil, topography.Config{})
@@ -241,7 +241,7 @@ func newRouteRig(t *testing.T, rb routeBoard) *routeRig {
 				Allows:    cell.Land,
 				Height:    10 - topo.Write().Relief().Altitude(r.At),
 				Thickness: 0.5,
-				Cost:      1,
+				Pace:      1,
 				Graded:    true,
 				Links:     links,
 				Width:     12,
@@ -422,9 +422,13 @@ func (r *routeRig) record(out *strings.Builder, pairs int) {
 				continue
 			}
 			onto, steps := f.Steps(cell.Land, body, from, nb)
-			cost, priced := f.Price(from, nb, r.brd.KindAt(nb, onto), cell.Land)
+			kind, level := r.brd.KindAt(nb, onto), cell.OnGround
+			if onto {
+				level = cell.OnDeck
+			}
+			cost, priced := f.Price(from, nb, kind, level, cell.Land)
 			fmt.Fprintf(out, " %s%s%s:%s:%s", yes(onto), yes(steps), yes(priced), float(cost),
-				float(f.Climb(from, nb, cell.Land)))
+				float(f.Pace(from, nb, kind, level, cell.Land)))
 		}
 		out.WriteByte('\n')
 	}

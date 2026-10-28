@@ -67,7 +67,7 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.BoardWrite, [
 	}
 	c := collision.NewPlugin(w, m)
 	grid := grid.DefaultGrids{}.Square(terrainSide, terrainSide, terrainCell)
-	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w).WithMotion(m)
+	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w).WithMotion(m, cell.DefaultHiking)
 	v := vision.NewPlugin(w).WithScanAll()
 	if err := ctx.Use(c); err != nil {
 		b.Fatal(err)
@@ -80,10 +80,10 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.BoardWrite, [
 	}
 	terrain := brd.Write().Board()
 	terrainW := brd.Write().Board()
-	terrainW.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+	terrainW.SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land})
 	rough := [2]cell.Kind{
-		{Name: cell.Named("forest"), Cost: 1, Allows: cell.Land, Veil: 0.6},
-		{Name: cell.Named("rock"), Cost: 1, Solid: true, Veil: 1},
+		{Name: cell.Named("forest"), Pace: 1, Allows: cell.Land, Veil: 0.6},
+		{Name: cell.Named("rock"), Pace: 1, Solid: true, Veil: 1},
 	}
 	cells := roughCells(grid, scattered)
 	for i, cell := range cells {
@@ -127,8 +127,8 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.BoardWrite, [
 // Benchmark_Board_Terrain is one tick of world, collision, board and vision over rough ground in
 // one block or scattered, felling a forest cell a tick where it says so.
 func Benchmark_Board_Terrain(b *testing.B) {
-	grass := cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land}
-	forest := cell.Kind{Name: cell.Named("forest"), Cost: 1, Allows: cell.Land, Veil: 0.6}
+	grass := cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land}
+	forest := cell.Kind{Name: cell.Named("forest"), Pace: 1, Allows: cell.Land, Veil: 0.6}
 	for _, sc := range []struct {
 		name            string
 		scattered, fell bool

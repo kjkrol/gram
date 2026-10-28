@@ -58,9 +58,9 @@ func near(a, b color.RGBA, d int) bool {
 
 func TestRenderer_LaysAFlatBoardOnTheGPUAndEachCellAsItChanges(t *testing.T) {
 	gputest.Need(t)
-	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
-	water := cell.Kind{SpriteID: 2, Cost: 1, Allows: cell.Water}
-	road := cell.Kind{SpriteID: 3, Cost: 1, Allows: cell.Land}
+	grass := cell.Kind{SpriteID: 1, Pace: 1, Allows: cell.Land}
+	water := cell.Kind{SpriteID: 2, Pace: 1, Allows: cell.Water}
+	road := cell.Kind{SpriteID: 3, Pace: 1, Allows: cell.Land}
 	green := color.RGBA{R: 60, G: 160, B: 60, A: 255}
 	blue := color.RGBA{R: 40, G: 80, B: 200, A: 255}
 	brown := color.RGBA{R: 150, G: 120, B: 80, A: 255}
@@ -126,7 +126,7 @@ func TestRenderer_LaysAFlatBoardOnTheGPUAndEachCellAsItChanges(t *testing.T) {
 func TestRenderer_DrawsTheGridOverTheTilesLaidOnTheGPU(t *testing.T) {
 	gputest.Need(t)
 	green := color.RGBA{R: 60, G: 160, B: 60, A: 255}
-	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
+	grass := cell.Kind{SpriteID: 1, Pace: 1, Allows: cell.Land}
 	atlas := render.NewAtlas()
 	atlas.Add(render.SpriteID(1), 4, render.Solid(green))
 	atlas.Close()
@@ -169,7 +169,7 @@ func TestRenderer_DrawsTheGridOverTheTilesLaidOnTheGPU(t *testing.T) {
 func TestRenderer_LaysTheTilesInTheOpaquePassAndTheGridOverThem(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd, brdW := board.NewBoard(grid)
-	brdW.SetAll(cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land})
+	brdW.SetAll(cell.Kind{SpriteID: 1, Pace: 1, Allows: cell.Land})
 	space := world.SpaceCfg{Width: 128, Height: 128}
 	r := look.NewRenderer(brd, &flatAtlas{}, brd.Map(), space)
 	*r.State() = gridOf(black, 1)
@@ -212,7 +212,7 @@ func TestRenderer_DressesTheGroundOnceAFrameRightAfterIt(t *testing.T) {
 	gputest.Need(t)
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd, brdW := board.NewBoard(grid)
-	brdW.SetAll(cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land})
+	brdW.SetAll(cell.Kind{SpriteID: 1, Pace: 1, Allows: cell.Land})
 	space := world.SpaceCfg{Width: 128, Height: 128, Edges: aabbworld.Torus}
 	d := &dressedGround{Dressing: brd.Map().Dressing()}
 	atlas := render.NewAtlas()
@@ -230,7 +230,7 @@ func TestRenderer_DressesTheGroundOnceAFrameRightAfterIt(t *testing.T) {
 func TestRenderer_DrawsNothingOfABoardOfNoWorld(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd, brdW := board.NewBoard(grid)
-	brdW.SetAll(cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land})
+	brdW.SetAll(cell.Kind{SpriteID: 1, Pace: 1, Allows: cell.Land})
 	r := look.NewRenderer(brd, &flatAtlas{}, brd.Map(), world.SpaceCfg{})
 	cam := cameratest.NewFromSpace(128, 128, 0)
 	var f render.Frame

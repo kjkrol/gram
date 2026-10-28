@@ -50,9 +50,9 @@ type Keeping interface {
 	Settle(m bodies.Member, o *order.MoveOrder, other bodies.Body) bool
 }
 
-// YieldClimb is how many times as long as on the level a step aside may take at most
-// (board.Map.Climb).
-const YieldClimb = 3
+// YieldShare is the least of the pace the ground gives a unit on the level that a step aside
+// may leave it by its slope: a flat forest is stepped into, a cliff is not.
+const YieldShare = 1.0 / 3
 
 type holders interface {
 	Holder(c cell.ID, deck bool, d cell.Domain) (uid.UID64, bool)
@@ -457,10 +457,10 @@ func (k *CellKeeping) StepAside(m bodies.Member, of bodies.Body) (order.MoveOrde
 	terrain := k.finder.Terrain
 	for _, s := range k.aside(m, from, way) {
 		c := s.c
-		if !terrain.Kind(c).Admits(m.Domain) || k.finder.climb(m.Cell, c, m.Domain) > YieldClimb {
+		if !terrain.Kind(c).Admits(m.Domain) {
 			continue
 		}
-		if deck, ok := k.finder.stepsOnto(m, c); !ok || !k.occ.CanEnter(c, deck, m.ID, m.Domain) {
+		if deck, ok := k.finder.stepsAside(m, c); !ok || !k.occ.CanEnter(c, deck, m.ID, m.Domain) {
 			continue
 		}
 		o := order.MoveOrder{Target: c, GivingWay: true}

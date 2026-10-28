@@ -355,7 +355,7 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 			b.players = players.NewPlugin(b.world)
 		}
 	}
-	grass := cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land}
+	grass := cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land}
 	for name, tc := range map[string]struct {
 		in    func(b *built) error // done in Effects, a wrong place
 		wants string

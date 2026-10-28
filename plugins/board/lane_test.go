@@ -58,7 +58,7 @@ func TestBoard_AUnitBiggerThanACellsSidePanics(t *testing.T) {
 		Heights:  true,
 	})
 	p := board.NewPlugin(grid.DefaultGrids{}.Square(5, 3, 10), &cell.MultipleOccupancy{}, w).
-		WithMotion(motion.NewPlugin(w))
+		WithMotion(motion.NewPlugin(w), cell.DefaultHiking)
 	at := func(v geom.Vec) geom.Vec { return v }
 	board.NewUnits(p, board.Shape{Size: 10}, at)
 	defer func() {
@@ -70,18 +70,28 @@ func TestBoard_AUnitBiggerThanACellsSidePanics(t *testing.T) {
 }
 
 func TestBoard_UnitsOnABoardWithoutMotionPanic(t *testing.T) {
-	w := world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 50, Height: 30},
-		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 1, MaxSize: 10},
-		Heights:  true,
-	})
-	p := board.NewPlugin(grid.DefaultGrids{}.Square(5, 3, 10), &cell.MultipleOccupancy{}, w)
-	defer func() {
-		if msg, _ := recover().(string); !strings.Contains(msg, "WithMotion") {
-			t.Errorf("units on a board without motion panic %q, want them refused", msg)
-		}
-	}()
-	board.NewUnits(p, board.Shape{Size: 10}, func(v geom.Vec) geom.Vec { return v })
+	for name, given := range map[string]func(w *world.Plugin, p *board.Plugin){
+		"neither": func(*world.Plugin, *board.Plugin) {},
+		"motion only": func(w *world.Plugin, p *board.Plugin) {
+			p.WithMotion(motion.NewPlugin(w), nil)
+		},
+	} {
+		w := world.NewPlugin(world.Config{
+			Space:    world.SpaceCfg{Width: 50, Height: 30},
+			Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 1, MaxSize: 10},
+			Heights:  true,
+		})
+		p := board.NewPlugin(grid.DefaultGrids{}.Square(5, 3, 10), &cell.MultipleOccupancy{}, w)
+		given(w, p)
+		func() {
+			defer func() {
+				if msg, _ := recover().(string); !strings.Contains(msg, "WithMotion") {
+					t.Errorf("%s: units panic %q, want them refused", name, msg)
+				}
+			}()
+			board.NewUnits(p, board.Shape{Size: 10}, func(v geom.Vec) geom.Vec { return v })
+		}()
+	}
 }
 
 func banded(t *testing.T, g grid.Grid, height float32, keeps cell.Domain) *board.BoardRead {
@@ -92,7 +102,7 @@ func banded(t *testing.T, g grid.Grid, height float32, keeps cell.Domain) *board
 		Heights:  true,
 	})
 	p := board.NewPlugin(g, &cell.MultipleOccupancy{}, wd)
-	p.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Water})
+	p.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Water})
 	west, _ := grid.Direction(g, -1, 0)
 	east, _ := grid.Direction(g, 1, 0)
 	floor := cell.Floor{Allows: cell.Land, Height: height, Links: 1<<west | 1<<east, Width: 8}

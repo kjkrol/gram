@@ -40,6 +40,20 @@ func (d *Kinds) Define(name string, k cell.Kind, plays ...*ceremony.Part) {
 	if _, ok := d.entries[k.Name]; ok {
 		panic(fmt.Sprintf("board: the cell kind %q is defined already", name))
 	}
+	if k.Allows != 0 && k.Pace == 0 {
+		panic(fmt.Sprintf("board: the cell kind %q admits someone at no pace; a kind that admits "+
+			"gives a Pace in (0, 1]", name))
+	}
+	if !(k.Pace >= 0 && k.Pace <= 1) {
+		panic(fmt.Sprintf("board: the cell kind %q paces %v of the top speed; a share is at most 1",
+			name, k.Pace))
+	}
+	for i, s := range k.Paces {
+		if !(s >= 0 && s <= 1) {
+			panic(fmt.Sprintf("board: the cell kind %q paces domain bit %d at %v; a share is at "+
+				"most 1", name, i, s))
+		}
+	}
 	k.SpriteID = d.NewSprite()
 	d.entries[k.Name] = k
 	if len(plays) > 0 {

@@ -14,8 +14,8 @@ import (
 )
 
 // hills is the game's own map, given the board by WithMap: flat to the eye from above, its ground
-// rising in round hills, a step uphill dearer the steeper it climbs, and every grass tile shaded
-// by how high it lies
+// rising in round hills, every grass tile shaded by how high it lies; how dear a climb is, is
+// the hillside's (mobility.go)
 type hills struct {
 	grid   grid.Grid
 	board  *board.Plugin
@@ -27,10 +27,7 @@ var (
 	_ look.Dressing = (*hills)(nil)
 )
 
-const (
-	climbCost  = 4  // how many times dearer a step is for every cell's height it climbs
-	bandHeight = 25 // how high a band of the grass's shades is
-)
+const bandHeight = 25 // how high a band of the grass's shades is
 
 // a hill: its top at (x, y), r round, h high
 type peak struct{ x, y, r, h float32 }
@@ -65,17 +62,14 @@ func (m *hills) Top(c cell.ID, h float32) (corners [4]float32, level float32) {
 	return corners, height(at)
 }
 
-func (m *hills) Climb(from, to cell.ID, _ cell.Domain) float64 {
-	rise := float64(height(m.grid.CellCenter(to)) - height(m.grid.CellCenter(from)))
-	return 1 + climbCost*max(rise, 0)/CellSize
-}
-
-func (*hills) Least(cell.Domain) float64 { return 1 }
-
-func (*hills) Slope(p, dir geom.Vec, _ cell.Domain) float64 {
-	const run = CellSize / 4
-	rise := float64(height(geom.NewVec(p.X+dir.X*run, p.Y+dir.Y*run)) - height(p))
-	return 1 + climbCost*max(rise, 0)/run
+// Rise is the ground's rise between the two cells' middles over the run between them
+func (m *hills) Rise(from, to cell.ID) float64 {
+	a, b := m.grid.CellCenter(from), m.grid.CellCenter(to)
+	run := math.Hypot(float64(b.X-a.X), float64(b.Y-a.Y))
+	if run == 0 {
+		return 0
+	}
+	return float64(height(b)-height(a)) / run
 }
 
 func (*hills) Begin(*render.Frame, camera.Camera) {}
