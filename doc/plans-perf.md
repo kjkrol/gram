@@ -1299,3 +1299,87 @@ scalenie
 `feat/pace` `--no-ff`; osobne planowanie HPA* i szukania dwukierunkowego
 (`gram-perf-navigation`, „Co dalej"); zacięcie 36 jednostek na płaskowyżu sprawdzić na nowym
 kodzie.
+
+## Kolejka i pole grupy: zacięcie względem tempa, podążanie, jedno szukanie na rozkaz (plan 2026-10-28, gałęzie `fix/stall-pace`, `feat/trail`, `feat/field`)
+
+Analiza (2026-10-28, v0.7.0, sondy headless board/topography): 30 górali posłanych z
+płaskowyżu (66–71, 48–52) na Pico do Arieiro (115, 61) traci rozkazy na krawędzi płaskowyżu
+(77–81, 53–56) między 50 a 77 s gry, nikt nie dochodzi; trasa jest znajdowana od razu (62 kroki,
+`Ask 0`, `Fails 0`). Cztery przyczyny naraz: (1) keeping ciał uznaje za zacięcie brak postępu
+ćwierci ciała (0,72 jednostki) na sekundę bezwzględnie, a prawne zejście z krawędzi (udział
+0,049: skała × Tobler) to ~1,2 jednostki/s, więc jednostka idąca zgodnie z prawem jest
+„zacięta", a pięć zacięć gasi rozkaz; (2) przebieg stania wycenia udział po sąsiedzie w
+kierunku głowy, a w tłoku głowa obraca się ku stromym sąsiadom (udział 0,03–0,047), choć krok
+trasy jest wyceniony na 0,28; (3) współtowarzysz rozkazu idący albo czekający przede mną daje
+słowo `Blocks` (`Moving` znaczy „ma rozkaz") i `Detour`, obejście kogoś, kto się porusza, z
+powrotem w grupę; (4) każda jednostka pyta o własną trasę (30 A*), każde `Bumped` szuka od
+zera. Eksperyment z progiem 10× niższym: 4 liderów doszło, 26 straciło rozkazy w kolejce.
+Pasy (jednostka widząca ramki i prędkości innych) były próbowane i porzucone na słowo
+użytkownika; reguła domu zostaje: jednostka uczy się o innych uderzając.
+
+Decyzje użytkownika (2026-10-28): schody, każdy stopień osobno mierzalny: (1) poprawka:
+zacięcie względem prawnego tempa i tempo po stawianym kroku (`fix/stall-pace`, v0.7.1; pole
+`unit.At.Next`, stary zapis nie wczyta się); (2) kolejka: słowo przechodnie `WalksMyWay`
+(„idzie przede mną w moją stronę albo czeka w kolejce za kimś, kto idzie"), komenda `Trail`,
+reguła domyślna dla współtowarzysza (`feat/trail`); (3) plan grupy: pole przepływu
+(`pathfind.Field`, Dijkstra od celu z przejściami w lustrze, marsz po polu zamiast szukania,
+`spacing.Fields` w koordynatorze; `feat/field`); (4) kolumna nad polem jako formacja z
+porządkiem z kosztu do celu — własny plan po etapie 3; formacje kształtne poza planem. Stok po
+prowadzonym kroku tylko w ćwierci obrotu od głowy. Wykonanie w jednej sesji, po kolei; nazwy
+jak w planie sesji.
+
+**Etap 1** (`fix/stall-pace`): `bodies.Member` niesie `Share` (z opcjonalnej kolumny
+`steering.Pace` zapytania traffic, 1 bez niej) i `MaxSpeed`; `BodyKeeping.Watch` żąda postępu
+`min(ćwierć ciała, MaxSpeed·Share·StallAfter/4)` (na otwartym gruncie bez zmian: czapka), udział
+0 nie liczy; keeping komórek bez zmian (odmowa to komórka trzymana, nie powolność).
+`unit.At{Cell, Next}`: `Next` pisze traffic (`head` zeruje, `tail` wpisuje punkt trasy po
+rezerwacji i następny krok po `Index++`, `arrive`, ręka, `moveTo`), jazda (`open` oddaje
+komórkę przed; `Next` przy jeździe naprzód i w tył, zerowany przy zdjęciu ręki) i zajętość
+(pisarz zapasowy); przebieg stania wycenia stok `rise(c, Next)`, gdy `Next` jest sąsiadem w
+ćwierci obrotu od kierunku marszu (`grid.Way`, iloczyn > 0), inaczej po głowie jak dotąd; rodzaj
+kroku zostaje gruntem pod jednostką.
+
+**Etap 2** (`feat/trail`): `Touch` dostaje `Ahead`, `Along`, `SameWay`, `OtherTrailing`; słowa
+`WalksMyWay`, `Groupmate`; komenda `Trail{Of}` (`host.Aimed`), stan rozkazu `Trailing`,
+`TrailFor`, `Trailed`, `TrailPace`; `Body` niesie `Share`, `MaxSpeed`, `Trailing`; keeping ciał
+ogranicza prędkość chcianą do prędkości prowadzonego wzdłuż własnego kierunku (`along/Share`),
+`Watch` i `Blocked` nie liczą zacięcia przez czas, jakiego prowadzony prawnie potrzebuje na
+komórkę (najwyżej `maxTrailWait`); reguła domyślna `WalksMyWay && Groupmate → Trail` przed
+`Blocks → Detour`.
+
+**Etap 3** (`feat/field`): klucz pola (komórka celu z `At`, `Level`, domena, klasa ciała bez
+`Feet`), partia ≥ `fieldParty` liczona z żyjących rozkazów, `Sweep/Expect/Take/Give` w
+koordynatorze, `FillField` (Dijkstra, krok `n → t` sprawdzany i wyceniany jak `leveledFrom`,
+kopiec leniwy, stop po osiadaniu ziaren z marginesem), `Walk` (kawałek 64 kroków, ostatni
+odcinek do własnego celu przez `findFrom`), spadki do A* (mała partia, `Avoid`, komórka
+nieosiągnięta, duża plansza); `CellKeeping.Orders` ustawia `At`.
+
+**Pomiar** (po każdym etapie, kopia bazowa przeciw drzewu, na zmianę, bezczynna maszyna):
+`Navigation_Tick`, `Navigation_Path`, `Board_Altitude`, `Gravity_Standing` (etapy 1–2; w szumie),
+`Routing_Path`, `Routing_Routes`, nowe `Routing_Group` i `PathFinder_Field` (etap 3: jedna
+Dijkstra + 32 marsze wobec 32 A*, oczekiwane ≥ −70%); sonda płaskowyżu po każdym etapie (30
+górali jednym `MoveTo`: dojścia, czas ostatniego, max `Stalls`, szukania i pola).
+
+## Kolejka i pole grupy: wynik (2026-10-28)
+
+**Etap 1** (`fix/stall-pace`, v0.7.1): keeping ciał żąda postępu `min(ćwierć ciała,
+MaxSpeed·Share·StallAfter/4)`, `Share` z opcjonalnej kolumny `steering.Pace` zapytania traffic
+(1 bez niej), udział 0 nie liczy; keeping komórek bez zmian. `unit.At.Next` pisze traffic (0 na
+początku `head`, punkt trasy po rezerwacji, następny krok po `Index++`, 0 w `arrive`, pod ręką i
+w `moveTo`), jazda (komórka przed; 0 przy własnej komórce, bo w jej obrębie prowadzi głowa) i
+zajętość (0); przebieg stania wycenia stok kroku prowadzonego, gdy ten jest sąsiadem w ćwierci
+obrotu od kierunku marszu, a **krok w obrębie własnej komórki na płasko**: pierwsza sonda
+pokazała lidera pełznącego 100 s w komórce celu po udziale najstromszego boku (0,016 zamiast
+0,308), bo na szczycie każdy sąsiad jest stromy, a marsz do miejsca w komórce planner wycenia bez
+stoku. Testy: tempo po kroku (tabela sześciu przypadków), odmowa jazdy (brakujący dotąd test),
+zacięcie po prawnym tempie (goły keeping, cztery przypadki), pełzanie po pasie 0,01 bez zacięcia
+(pada na `main`, przechodzi na gałęzi; rig `fieldUnit.paced`), `Next` w marszu i po dojściu.
+Sonda płaskowyżu (30 górali jednym `MoveTo`, x4, kopia `main` przeciw drzewu): baza 0 z 30,
+wszystkie rozkazy gasną w 50–77 s; drzewo 3 z 30 dochodzi w 228–233 s gry z udziałem równym
+udziałowi kroku plannera (0,071 przy stoku 0,42, zero zacięć), 27 traci rozkazy w 51–71 s w
+kolejce za idącymi (`held by`, `Blocks → Detour`, `stalls 5`): to etap 2, jak zakładano. Pomiar
+(kopia `main` v0.7.0 w scratchpadzie przeciw drzewu, `GOWORK=off` po obu stronach,
+`BENCHTIME=200x`, 3 rundy × `-count=2`, zwykły i `-cpu=1`): `Navigation_Tick` cztery rungi i
+`Navigation_Path` w szumie (±1,5%); przebieg stania +1,5…+2,3% min przy 1 000 piechurów
+(`Board_Altitude` 398 → 405 µs: odczyt `At.Next`, `At` 8 → 16 B), w szumie przy 100; przyjęte.
+Dema z nawigacją i jazdą pod `timeout 20s` zdrowe. Stary zapis nie wczyta się (`At` większe).

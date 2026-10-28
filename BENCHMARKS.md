@@ -208,7 +208,10 @@ speed is the game's mobility over the rise to the cell ahead (`cell.Mobility`, t
 hiking function's `exp`; `Map.Rise` between the two cells' middles) where it was a slope read at
 a point under a factor of 1: against v0.6.0 alternately (the lower of 6 at the default
 benchtime) the four scenes cost +9…+10% at 1,000 walkers (altitude 367 → 404 µs), within
-noise at 100 — the strategy's price, 40 ns a walker a step.
+noise at 100 — the strategy's price, 40 ns a walker a step. At `fix/stall-pace` (v0.7.1,
+2026-10-28) the pass reads `unit.At.Next` to price the slope of the step the unit is led into
+(`At` 8 → 16 B): against v0.7.0 alternately (the lower of 6 at `BENCHTIME=200x`, plain and
+`-cpu=1` alike) +1.5…+2.3% at 1,000 walkers standing, within noise at 100.
 
 ## Terrain — `Benchmark_Board_Terrain`
 
@@ -315,7 +318,10 @@ arrays by an integer id and the planner's share of a cell on the level kept acro
 routes. Of the crowded tick (the profile at v0.6.0): the routing's A* three quarters (astar's
 solver, the finder's `leveledFrom` 53%, its `price` 13%) and the board's cell lookups under it
 (`dxdy` 9%, `NeighborCost` 7%, `Distance` 7%); in the open the A* two fifths, the traffic moving
-the units along their routes the rest.
+the units along their routes the rest. At `fix/stall-pace` (v0.7.1, 2026-10-28) the traffic
+reads an optional `steering.Pace` column for the keepings' lawful headway and writes
+`unit.At.Next` a tick: against v0.7.0 alternately (the lower of 6 at `BENCHTIME=200x`, plain and
+`-cpu=1`) every rung within ±1.5%, `Benchmark_Navigation_Path` too.
 
 `Benchmark_Navigation_Path` is one route across a 200×200 board of rocks and walls planned a
 tick: the walker sent to the far corner and the next tick to the other. The routing keeps its

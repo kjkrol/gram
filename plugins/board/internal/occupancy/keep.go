@@ -92,7 +92,7 @@ func (s *keepSystem) keep(starting bool) {
 				s.occupancy.Enter(c, deck, id, domain)
 				if c != at.Cell {
 					s.occupancy.Leave(at.Cell, id)
-					at.Cell = c
+					at.Cell, at.Next = c, 0
 					s.enter(states, i, id)
 				}
 			case raised:

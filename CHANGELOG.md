@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.7.1 — 2026-10-28
+
+**A unit crawling lawfully is no stall; the pace of the step it takes** (2026-10-28, branch
+`fix/stall-pace`, `doc/plans-perf.md` „Kolejka i pole grupy")
+- Fixed: a unit walking as slowly as the ground lawfully lets it (down a rim at a share of 0.05)
+  was judged stalled by a quarter of its body a second, bumped its route five times over and
+  gave its order up where it stood; the headway BodySpacing asks within `StallAfter` is now a
+  quarter of what the ground lawfully allows, at most a quarter of the body, so open ground
+  judges as before; a step the ground refuses counts no stall. Thirty highlanders sent down the
+  plateau of board/topography lost every order at its rim; their leaders now get down.
+- Fixed: the board priced a unit's pace by the slope toward the neighbour nearest its heading,
+  so a unit turning on the spot at a rim swung between its route's gentle step (a share of
+  0.28) and the steep neighbours beside it (0.03), and crawled the last cell to its spot on a
+  summit at the share of the steepest side. `unit.At.Next` is the cell whoever leads a unit
+  steps it into — navigation its route's next cell, the driving the cell ahead, its own cell for
+  the walk to its spot within it, 0 while nobody leads it — and the pace reads the slope of
+  that step while the heading lies within a quarter turn of it: a step within the cell is on the
+  level, as the planner prices it.
+- Breaking: `unit.At` grew a field, so a save from before does not load.
+
 ## v0.7.0 — 2026-10-28
 
 Needs astar v1.2.0 (a search's states in arrays by an integer id, a hand-written heap, one

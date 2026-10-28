@@ -114,6 +114,45 @@ func TestPace_ChargesTheEntitysOwnDomainAndSparesTheMoverless(t *testing.T) {
 	}
 }
 
+// flat on the step onto to, a rise of 0.3 on every other
+func flatOnto(to cell.ID) func(cell.ID, cell.ID) float64 {
+	return func(_, t cell.ID) float64 {
+		if t == to {
+			return 0
+		}
+		return 0.3
+	}
+}
+
+func TestPace_IsPricedByTheStepLedWhereItLiesAhead(t *testing.T) {
+	grid := grid.DefaultGrids{}.Square(5, 3, 10)
+	cells := terrain.New(grid)
+	cells.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
+	c, east, west, far := grid.At(2, 1), grid.At(3, 1), grid.At(1, 1), grid.At(0, 1)
+	eastward := world.Velocity{Dir: geom.NewVec(0.8, 0.6), Value: 1} // nearest the diagonal
+	cases := []struct {
+		name string
+		next cell.ID
+		vel  world.Velocity
+		flat cell.ID
+		want float32
+	}{
+		{"led east within a quarter turn", east, eastward, east, 1},
+		{"led behind its back", west, eastward, west, hiking(0.3)},
+		{"led into no neighbour", far, eastward, east, hiking(0.3)},
+		{"led within its own cell, on the level", c, eastward, west, 1},
+		{"led nowhere", 0, eastward, east, hiking(0.3)},
+		{"backing west, led west", west, world.Velocity{Dir: geom.NewVec(1, 0), Value: -1}, west, 1},
+	}
+	for _, tc := range cases {
+		w := walker{box: cellBox(grid, c, 4), vel: tc.vel, domain: cell.Land, next: tc.next}
+		got := paces(t, grid, cells, flatOnto(tc.flat), w)
+		if p := got[cellBox(grid, c, 4).TopLeft.X]; !near(p, tc.want) {
+			t.Errorf("%s: pace %v, want %v", tc.name, p, tc.want)
+		}
+	}
+}
+
 // a mobility refusing every step onto a cell
 type refusing map[cell.ID]bool
 
@@ -146,6 +185,7 @@ type walker struct {
 	box    plane.AABB
 	vel    world.Velocity
 	domain cell.Domain
+	next   cell.ID
 }
 
 func paces(t *testing.T, g grid.Grid, cells *terrain.Cells, rise func(from, to cell.ID) float64,
@@ -176,7 +216,7 @@ func walk(t *testing.T, r *Rules, steps int, walkers ...walker) map[float32]floa
 			f.Create(1)
 			for f.Next() {
 				base.Slice(&f.Cursor)[0] = world.Base{Pos: world.Position{AABB: w.box}, Vel: w.vel}
-				at.Slice(&f.Cursor)[0] = unit.At{Cell: c}
+				at.Slice(&f.Cursor)[0] = unit.At{Cell: c, Next: w.next}
 				pace.Slice(&f.Cursor)[0] = steering.Pace{Share: 1}
 				if w.domain != 0 {
 					mover.Slice(&f.Cursor)[0] = unit.Mover{Domain: w.domain}

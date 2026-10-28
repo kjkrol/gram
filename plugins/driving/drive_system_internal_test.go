@@ -37,6 +37,7 @@ type driveRig struct {
 	grid      grid.Grid
 	occupancy *cell.SingleOccupancy
 	kept      *cellKept
+	sys       *driveSystem
 	walker    uid.UID64
 
 	cell   goke.Comp[unit.At]
@@ -57,6 +58,7 @@ func newDriveRig(t *testing.T, mover ...unit.Mover) *driveRig {
 	brdW.Set(r.grid.At(6, 0), cell.Kind{Pace: 1, Allows: cell.Water})
 	r.kept = &cellKept{occupancy: r.occupancy}
 	sys := &driveSystem{board: brd, occupancy: r.occupancy, keeping: r.kept, units: &units{}}
+	r.sys = sys
 
 	var at goke.Comp[unit.At]
 	var base goke.Comp[world.Base]
@@ -118,6 +120,41 @@ func (r *driveRig) steering() steering.Course {
 		st = *s.Course
 	})
 	return st
+}
+
+func (r *driveRig) at() unit.At {
+	var at unit.At
+	r.with(func(c *unit.At, _ *world.Base, _ steering.Helm, _ *steering.Driven, _ bool) {
+		at = *c
+	})
+	return at
+}
+
+func TestDrive_AStepTheMobilityRefusesIsNotDrivenAndLeadsNowhere(t *testing.T) {
+	r := newDriveRig(t)
+	refused := r.grid.At(5, 0)
+	r.sys.pace = func(_, to cell.ID, _ cell.Kind, _ cell.Level, _ cell.Domain) float64 {
+		if to == refused {
+			return 0
+		}
+		return 1
+	}
+	r.place(28) // its box's edge and the margin reach into (3,0)
+	r.drive(steering.Driven{Ahead: 1})
+	if st, at := r.steering(), r.at(); st.WantSpeed != 20 || at.Next != r.grid.At(3, 0) {
+		t.Errorf("driven east over open ground: asks %v, led into %v, want its top speed into (3,0)",
+			st.WantSpeed, at.Next)
+	}
+	r.place(48) // in (4,0), the refused (5,0) ahead
+	r.drive(steering.Driven{Ahead: 1})
+	if st, at := r.steering(), r.at(); st.WantSpeed != 0 || st.Speed != 0 || at.Next != 0 {
+		t.Errorf("driven at a refused step: asks %v at speed %v, led into %v from %v, want stopped"+
+			" and led nowhere", st.WantSpeed, st.Speed, at.Next, at.Cell)
+	}
+	r.drive(steering.Driven{})
+	if at := r.at(); at.Next != 0 {
+		t.Errorf("the hand lifted: led into %v from %v, want nowhere", at.Next, at.Cell)
+	}
 }
 
 func TestDrive_WalksOnTheWayItFacesAndTurnsByHand(t *testing.T) {

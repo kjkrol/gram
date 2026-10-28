@@ -202,7 +202,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`cell.ID`, `cell.Kind`, `cell.Kinds` through `board.Plugin.CellKinds()`, `cell.Domain` —
   `Land`, `Water`, `Air`, a game's own bits — `cell.Plot`, `cell.Ground`, `cell.Way`/`Links`,
   `cell.On`, `Floor`, `Wall`, `Rail`, `Built`, the moment `cell.Now`, `cell.Entry`, `WayEntry`,
-  `cell.Terrain`, `TerrainMap`, `cell.Occupancy`), **`board/unit`** (`unit.At`, `unit.Mover`,
+  `cell.Terrain`, `TerrainMap`, `cell.Occupancy`), **`board/unit`** (`unit.At` — its `Cell`, and
+  `Next`, the cell whoever leads it steps it into: navigation its route's next cell, the driving
+  the cell ahead, its own cell for a step within it (on the level), 0 while nobody leads it; the
+  standing pass prices the slope of that step while the heading lies within a quarter turn of it,
+  else of the step toward the heading's nearest neighbour — `unit.Mover`,
   `unit.DomainAt`, the moment `unit.Standing`, the markers `unit.Entered`, `unit.Airborne`),
   **`board/grid`** (`grid.Grid` — every grid knows its own directions: `Directions`, `Opposite`,
   `Offset`, `Step`, `Corner`, `Flanks`, `Toward`; nobody else writes a table, a bit or a vector
@@ -897,7 +901,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   for that unit alone, the engine's rules kept there: `stepAside` goes where the ground takes the
   unit and its slope leaves it `YieldShare` (a third) of its pace on the level (`stepsAside`,
   `asides`: a flat forest is stepped into, a cliff not), nobody standing; the last word stays navigation's
-  (`stallAfter`, `maxStalls`, `bumpInterval`). A group gets its spots from `bodyKeeping.place` and
+  (`StallAfter`: no headway of a quarter of what the ground lawfully lets the unit make in a
+  second, at most a quarter of its body; `maxStalls`, `bumpInterval`). A group gets its spots
+  from `bodyKeeping.place` and
   goes cell centre to cell centre. The board has every unit hold the cell it stands on, navigation
   the cells of the steps in progress on their level (`Path.Decks`, a `Leg`'s `FromDeck`/`ToDeck`); a
   unit standing off its route plans again. The driving plugin gets its `driving.Keeping` from

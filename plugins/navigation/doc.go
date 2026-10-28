@@ -44,7 +44,8 @@
 // [NoWayRound], [WaitedLong] — and the other's role is cond.Other.If(role). The plugin's own rules
 // are StarCraft II's; a game gives its own with [Plugin.WithCrowd], or adds rules obeyed by the
 // roles its units play. Whatever the rules, navigation keeps the last word: a unit making no
-// headway plans afresh and, after a few stalls, stands where it is. A unit with a plan is told
+// headway at the pace the ground lawfully leaves it plans afresh and, after a few stalls, stands
+// where it is. A unit with a plan is told
 // the facts [Blocked] (its words [Stuck], [Cornered], [StrangerOnGoal], [IdleAlly],
 // [IdleAllyOnMyGoal]) and [Arrived].
 //
