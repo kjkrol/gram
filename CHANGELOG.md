@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.9.0 — 2026-10-28
+
+**A group's routes come off one field** (2026-10-28, branch `feat/field`, `doc/plans-perf.md`
+„Kolejka i pole grupy", etap 3)
+- Improved: the units of a `MoveTo` that sent four or more (`MoveOrder.Party`, set as the
+  MoveTo is carried out and kept through queued goals and a step aside; a party thinned by
+  arrivals still counts as sent; `fieldParty`) read their routes off one field of the way to
+  the group's goal — a Dijkstra from the goal's cell over
+  the cells and their levels, every step into a cell checked and priced by the same `step` the
+  planner takes out of one (`pathfind.Field`, `Finder.FillField`, `Finder.Walk`) — filled once
+  an order and again when the board changes, instead of a search a unit and a search a bump; a
+  bump reads the kept answer or the field. A unit's last leg to its own cell beside the goal is
+  searched from
+  the level it stands on. The fields are kept beside the kept answers (`spacing.Fields`: eight,
+  the least lately asked for let go first, all let go with the board's `Version`, a field filled
+  again after the board changes taking the place the last one held); the first router of the
+  pool fills, the others wait. Walks are kept answers like searches: a question asked again
+  over the same board is a lookup, walked or searched; only a miss walks the field, and a
+  failed walk searches. A unit with cells learned to go round, in a smaller
+  party, giving way with goals queued, off the field, on a board past `1<<18` cells or with a
+  finder that sees the others searches as before. New benchmarks: `Benchmark_Routing_Group` (32
+  units to one goal), `BenchmarkPathFinder_Field/{map,relief}` (one fill against one search),
+  `Benchmark_Navigation_Tick/grouped,entities=1000` (the crowded tick as one group).
+- Changed: under `CellSpacing` a `MoveTo`'s orders carry the point it was given for (its cell's
+  middle without one), as under `BodySpacing`, so the field's key reads it from either.
+- Changed: `MoveOrder.Party` is how many orders the MoveTo that gave one sent, 1 for one alone
+  (a party counted every Update by a map over the living orders cost every `Navigation_Tick`
+  rung +2%). A v0.8.0 save does not load.
+
 ## v0.8.0 — 2026-10-28
 
 **A queue: a groupmate going my way is trailed, not gone round** (2026-10-28, branch

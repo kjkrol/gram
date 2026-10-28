@@ -1426,3 +1426,44 @@ kopii `main` v0.7.1, `GOWORK=off` po obu stronach, `BENCHTIME=200x`, 3 rundy × 
 1 000 +1,9% min w przebiegu zwykłym, +0,7% `-cpu=1`). Sonda końcowa: 30 z 30 z ziarnem 7 i bez
 ziarna, ostatni w 291 s gry. Sześć dem z nawigacją pod `timeout 20s` zdrowe. Stary zapis nie
 wczyta się (rozkaz większy).
+
+**Etap 3** (`feat/field`, v0.9.0; agent Opus 5.5 z briefu `doc/briefs/t3-field.md`, siedem
+commitów: wyłuskanie `step`/`findFrom` (golden tras bez zmian), `pathfind.Field` z `FillField`,
+`Walk`, `Fills()`, `spacing.Fields` z `walkField` i gałęzią w `avoiding.find`, `Member.Field`,
+liczność partii w rozkazie (`MoveOrder.Party`), `At` w `CellKeeping.Orders`, testy grupy,
+`Benchmark_Routing_Group` i rung `grouped`). Odstępstwa agenta od briefu, przyjęte:
+`findFrom(start, to, end, dst)` bez drugiego `begin`; pole tylko dla findera `WithLevels`
+(wtyczka zawsze planuje po poziomach); bez ostatniego odcinka, gdy cel członka to cel grupy;
+węzły nieosiadłe przy stopie liczone jako nieosiągnięte (`Cost` dokładny, gdzie odpowiada);
+`Expect` nie przelicza wypełnionego wpisu (inaczej pole liczyłoby się co Update); `Key` odmawia
+rozkazowi ustępowania z kolejką celów; `Fields.Fill(f, finder)` między `Take` a `Give`.
+Poprawka po pomiarze (`dd24d2c2`): liczenie partii mapą po żywych rozkazach w każdym Update z
+prośbą grupy kosztowało +1,7…+3,0% min na rungach `Navigation_Tick` bez pola i `grouped,1000`
++5…+7,8%; liczność wpisuje się przy wykonaniu MoveTo (`MoveOrder.Party`, zachowany przez
+`Advance` i ustąpienie), mapa i drugi przebieg odpadły; ponowne wypełnienie po zmianie planszy
+bierze miejsce poprzedniego (bez alokacji); ustąpienie zachowuje `Party` (`1b6afb7b`); marsz
+jako odpowiedź pamiętana (`eddf3324`, odwraca brief: najpierw odpowiedzi pamiętane, po
+chybieniu marsz oddany pod tym samym pytaniem, po nieudanym marszu szukanie). Niezmiennik
+przeszedł na trzech planszach (2 362
+porównań kosztu komórki pola z
+trasą `Find`, 1e-4). Sonda płaskowyżu: 30 z 30 z ziarnem 7 i bez (jak v0.8.0; remisy Dijkstry
+nie zmieniły wyniku). Pomiar (`-cpu=1`, baza v0.8.0 z plikami benchmarków gałęzi, na zmianę,
+najniższy z 6): `Routing_Group` 347 → 55,2 ms na jednym wątku i 344 → 54,6 na puli (−84%;
+wypełnienie to praca jednego routera, marsze mikrosekundy, więc pula nic tu nie daje),
+`Routing_Path` +0,1%, `Routing_Routes` +1…+2,5% (w szumie), `PathFinder_Terrain` −2,3…+1,8%
+(wyłuskanie `step` bez kosztu), `PathFinder_Field` map 19,6 ms, relief 31,2 ms: ok. 3 × jedno
+szukanie tej planszy (Dijkstra bez heurystyki po całej planszy). W tłumie grupy
+(`grouped,1000`) pole nie wygrywa: liczniki agenta na 200 ticków — szukań wokół nauczonych
+komórek (`FindAround`, A* jak dawniej) 3 615 wobec 3 613 na bazie; z marszami niepamiętanymi
+147 marszów (każdy z ostatnim odcinkiem: cele w pierścieniach) i 104 zwykłe szukania wobec 71,
+`grouped,1000` +6,5…+13,9% min (w korku to samo pytanie wraca, baza odpowiada z pamięci); po
+poprawce `eddf3324` 15 marszów i 102 zwykłe szukania — zysk pola to trasy początkowe i replany
+bez nauczonych komórek, nie korek. Tick (baza v0.8.0 z plikami benchmarków gałęzi, `-cpu=1`,
+na zmianę, najniższy z 6): rungi bez pola w szumie (+0,2…+1,7% min; przed `Party` +1,7…+3,0%),
+`grouped,1000` +3,9% min (księgowość pól i marsze z ostatnimi odcinkami w korku, który i tak
+szuka wokół nauczonych komórek; przyjęte jako cena nowego reżimu, bo stare reżimy nie tracą).
+Sondy na cichej maszynie: po trzy przebiegi z ziarnem 7 na v0.8.0 i na drzewie, wszystkie 30 z
+30; jeden wcześniejszy przebieg drzewa 26 z 30 i jeden „w miejscu" przypadły na maszynę
+obciążoną po benchmarkach — sonda nie jest deterministyczna przy jednym ziarnie (liczba kroków
+symulacji na Update idzie za czasem rzeczywistym; pułapka w `gram-probe`). Stary zapis nie
+wczyta się (rozkaz o 2 B większy). Sześć dem z nawigacją pod `timeout 20s` zdrowe.

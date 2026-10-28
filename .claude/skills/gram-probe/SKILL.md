@@ -96,6 +96,11 @@ them too, and a probe left in by an interrupted run is a broken demo.
   are fine: keep a `.keep` copy in the scratchpad and restore it. A demo's file never.
 - A query over `world.Base` alone catches the entities standing on the board too (a bridge's
   decks): add `unit.At` to keep to the units.
+- **A crowd's outcome is not reproducible by a seed alone** (2026-10-28): how many simulation
+  steps an Update replays follows real time, so a loaded machine (benchmarks just finished, a
+  build in the cache) changes what a crowd does: one seed gave 26 and 30 of 30 arrivals in two
+  runs of one tree, and three unseeded runs on a loaded machine showed the whole group walking
+  in place. Judge a crowd change by several runs on a quiet machine, base and tree alike.
 
 ## Measuring a demo's frames and its garbage collector
 
