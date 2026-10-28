@@ -18,16 +18,14 @@ import (
 
 // Coordinator answers the orders' asks (MoveOrder.Ask): a route to the Target, or the nearest
 // free cell round it; an Update of d for a unit that has waited d more. The asks are shared
-// among the pool's goroutines, each searching through one of the routers at a time. The routes
-// of a party, fieldParty or more units under one MoveTo, are read off one field of the way to
-// its goal.
+// among the pool's goroutines, each searching through one of the routers at a time.
 type Coordinator struct {
 	pool    *parallel.Pool
 	read    func(w int) *board.Read // nil: the routers read what they were made over
 	routers []router
 	start   int         // the router the first goroutine takes, one on every Update
 	asks    []uid.UID64 // the units that asked
-	groups  []uint32    // by ask, the group of an ask for a route
+	parties []bool      // by ask, whether a party's unit asks for its route
 	next    atomic.Int64
 	lanes   int          // the routers the asks are shared among, the others idle
 	idled   atomic.Int64 // the idle routers taken
@@ -36,8 +34,7 @@ type Coordinator struct {
 	idle    func(w int)
 
 	fields  spacing.Fields
-	parties map[uint32]uint16 // by group, the orders under way, counted where a group asks
-	fielded bool              // some party asks this Update, its field expected
+	fielded bool // some party asks this Update, its field expected
 
 	query *goke.Query
 	forks []*goke.Query // by goroutine, query the first
@@ -48,8 +45,8 @@ type Coordinator struct {
 	z     goke.OptComp[world.Z]
 }
 
-// fieldParty is how many orders under way of one MoveTo have its asks read their routes off a
-// field
+// fieldParty is how many orders the MoveTo that gave one sent for its asks to read their routes
+// off a field
 const fieldParty = 4
 
 type router struct {
@@ -102,12 +99,11 @@ func (c *Coordinator) Init(si *goke.SysInit) {
 		c.forks = append(c.forks, c.query.Fork())
 	}
 	c.task, c.idle = c.route, c.wipe
-	c.parties = map[uint32]uint16{}
 }
 
 func (c *Coordinator) Update(_ *goke.CmdBuf, d time.Duration) {
-	c.asks, c.groups = c.asks[:0], c.groups[:0]
-	grouped := false
+	c.asks, c.parties = c.asks[:0], c.parties[:0]
+	partied := false
 	for c.query.All(); c.query.Next(); {
 		cursor := c.query.Cursor()
 		orders := c.order.Slice(cursor)
@@ -116,18 +112,15 @@ func (c *Coordinator) Update(_ *goke.CmdBuf, d time.Duration) {
 			if a != order.AskRoute && a != order.AskNearest {
 				continue
 			}
-			var group uint32
-			if a == order.AskRoute {
-				group = orders[i].Group
-			}
-			c.asks, c.groups = append(c.asks, cursor.IDs[i]), append(c.groups, group)
-			grouped = grouped || group != 0
+			party := a == order.AskRoute && orders[i].Party >= fieldParty
+			c.asks, c.parties = append(c.asks, cursor.IDs[i]), append(c.parties, party)
+			partied = partied || party
 		}
 	}
 	if len(c.asks) == 0 || len(c.routers) == 0 {
 		return
 	}
-	c.fielded = grouped && c.expect()
+	c.fielded = partied && c.expect()
 	c.d = d
 	c.next.Store(0)
 	c.lanes = min(len(c.routers), len(c.asks), c.pool.Size())
@@ -143,21 +136,12 @@ func (c *Coordinator) Update(_ *goke.CmdBuf, d time.Duration) {
 	c.start = (c.start + 1) % len(c.routers)
 }
 
-// expect counts the orders under way of each group and has the field of every party asking for
-// routes expected, from the cells its asks stand in; false where no party asks
+// expect has the field of every party asking for routes expected, from the cells its asks stand
+// in; false where none has one
 func (c *Coordinator) expect() bool {
-	clear(c.parties)
-	for c.query.All(); c.query.Next(); {
-		orders := c.order.Slice(c.query.Cursor())
-		for i := range orders {
-			if g := orders[i].Group; g != 0 {
-				c.parties[g]++
-			}
-		}
-	}
 	swept := false
 	for k, id := range c.asks {
-		if c.parties[c.groups[k]] < fieldParty || !c.query.Seek(id) {
+		if !c.parties[k] || !c.query.Seek(id) {
 			continue
 		}
 		m, o := c.member(c.query, id)
@@ -191,7 +175,7 @@ func (c *Coordinator) route(w, i int) {
 			continue
 		}
 		m, o := c.member(q, id)
-		if c.fielded && c.parties[c.groups[k]] >= fieldParty {
+		if c.fielded && c.parties[k] {
 			m.Field = c.field(r, m, o)
 		}
 		answer(r.keep, m, o, c.d)

@@ -80,6 +80,7 @@ func (r *routeBench) route(k int) {
 			orders[i] = MoveOrder{Target: to, Ask: order.AskRoute}
 			if r.group != 0 {
 				orders[i].At, orders[i].Group = r.nw.grid.CellCenter(to), r.group
+				orders[i].Party = uint16(len(r.goals))
 			}
 		}
 	}

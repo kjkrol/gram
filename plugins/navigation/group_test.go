@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -79,7 +80,7 @@ func (r *groupRig) order(id uid.UID64) (*MoveOrder, cell.ID) {
 	panic("no such unit")
 }
 
-// send gives the units, by their starts' order, one MoveTo to goal as the plugin's cell keeping
+// send gives the units, by their starts' order, one MoveTo to goal as the plugin's routing
 // orders them, each asking for its route
 func (r *groupRig) send(group uint32, goal cell.ID, units ...int) {
 	keep := spacing.NewCellKeeping(spacing.NewFinder(r.nw.grid, r.nw.board.BoardRead, nil,
@@ -91,7 +92,7 @@ func (r *groupRig) send(group uint32, goal cell.ID, units ...int) {
 			Domain: cell.Land})
 	}
 	keep.Orders(members, MoveTo{Cell: goal}, func(m bodies.Member, o MoveOrder) {
-		o.Group, o.Ask = group, order.AskRoute
+		o.Group, o.Party, o.Ask = group, uint16(len(members)), order.AskRoute
 		mine, _ := r.order(m.ID)
 		*mine = o
 	})
@@ -151,6 +152,26 @@ func every(n int) []int {
 	return units
 }
 
+// the selected units' MoveTo tells each of their orders how many it sent, a unit's own one alone
+func TestGroup_AMoveToTellsItsOrdersTheirParty(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(12, 3, roadCell)
+	units := []roadUnit{{selected: true}, {selected: true}, {selected: true}, {}}
+	for i := range units {
+		units[i].start = g.At(uint32(i), 1)
+	}
+	rw := newRoadWorld(t, 12, units)
+	rw.nav.moves.Add(command.Nobody, MoveTo{Cell: rw.at(10, 1)})
+	rw.nav.moves.AddFrom(rw.byRow[3], MoveTo{Cell: rw.at(11, 0)})
+	rw.ecs.Tick(time.Second / 60)
+	_, first := rw.state(rw.byRow[0])
+	for row, want := range []uint16{3, 3, 3, 1} {
+		_, o := rw.state(rw.byRow[row])
+		if o == nil || o.Party != want || (o.Group == first.Group) != (want == 3) {
+			t.Errorf("unit %d: order %+v, want a party of %d", row, o, want)
+		}
+	}
+}
+
 func TestGroup_OneFieldServesEveryMembersRoute(t *testing.T) {
 	r := newGroupRig(t, nil, westOf(8))
 	goal := r.nw.grid.At(26, 16)
@@ -208,6 +229,27 @@ func TestGroup_AChangedBoardRebuildsTheFieldOnce(t *testing.T) {
 		t.Errorf("%d fields filled, want the group's once and once more for the wall", fills)
 	}
 	r.routed(t, every(8)...)
+}
+
+// an Update a party asks in allocates nothing once warm: off the field kept, nor off one filled
+// again after the board changed, in the place the last one held
+func TestGroup_AnUpdateAllocatesNothing(t *testing.T) {
+	r := newGroupRig(t, nil, westOf(8))
+	r.send(1, r.nw.grid.At(26, 16), every(8)...)
+	for _, tc := range []struct {
+		name   string
+		update func()
+	}{
+		{"the field kept", func() { r.ask(every(8)...); r.update() }},
+		{"the board changed", func() { r.nw.board.Touch(0); r.ask(every(8)...); r.update() }},
+	} {
+		for range 3 {
+			tc.update()
+		}
+		if allocs := testing.AllocsPerRun(10, tc.update); allocs != 0 {
+			t.Errorf("%s: an Update allocates %v times; want none", tc.name, allocs)
+		}
+	}
 }
 
 // three, one fewer than a party

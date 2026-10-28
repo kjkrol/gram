@@ -99,7 +99,8 @@ func (fs *Fields) Sweep() {
 }
 
 // Expect has q's field wanted this Update, reaching seed: one filled already is kept as it is;
-// a new one takes the place of the least lately asked for, none where all are wanted.
+// a new one takes a free place, else that of the least lately asked for, none where all are
+// wanted.
 func (fs *Fields) Expect(q fieldAsked, seed cell.ID) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
@@ -113,8 +114,7 @@ func (fs *Fields) Expect(q fieldAsked, seed cell.ID) {
 			e.used = fs.update
 			return
 		}
-		if (e.state == fieldFree || e.state == fieldDone && e.used < fs.update) &&
-			(spare == nil || e.used < spare.used) {
+		if fs.sparer(e, spare) {
 			spare = e
 		}
 	}
@@ -123,6 +123,19 @@ func (fs *Fields) Expect(q fieldAsked, seed cell.ID) {
 	}
 	spare.key, spare.state, spare.used = q, fieldExpected, fs.update
 	spare.seeds = append(spare.seeds[:0], seed)
+}
+
+// whether e makes a better place for a new field than spare: the free one let go latest, whose
+// arrays are grown, so a field filled again after the board changed allocates nothing; with none
+// free, the filled one not asked for this Update and least lately before
+func (fs *Fields) sparer(e, spare *fieldEntry) bool {
+	switch {
+	case e.state == fieldFree:
+		return spare == nil || spare.state != fieldFree || e.used > spare.used
+	case e.state == fieldDone && e.used < fs.update:
+		return spare == nil || spare.state == fieldDone && e.used < spare.used
+	}
+	return false
 }
 
 // Take is q's field this Update: filled, or once another fills it, or with build to fill (Fill)
