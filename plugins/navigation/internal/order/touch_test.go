@@ -36,6 +36,34 @@ func TestTouch_TheRulesOfTheCrowd(t *testing.T) {
 	}
 }
 
+func TestTouch_WalksMyWay(t *testing.T) {
+	ahead := Touch{Moving: true, OtherMoving: true, Ahead: true}
+	for _, c := range []struct {
+		name  string
+		touch Touch
+		walks bool
+	}{
+		{"ahead, moving along", with(ahead, func(t *Touch) { t.Along = true }), true},
+		{"ahead, standing, trailing nobody", ahead, false},
+		{"ahead, standing in a queue, facing my way",
+			with(ahead, func(t *Touch) { t.OtherTrailing, t.SameWay = true, true }), true},
+		{"ahead, standing in a queue, facing me",
+			with(ahead, func(t *Touch) { t.OtherTrailing = true }), false},
+		{"behind, moving along", with(ahead, func(t *Touch) { t.Ahead, t.Along = false, true }),
+			false},
+		{"giving way itself", with(ahead, func(t *Touch) { t.Along, t.GivingWay = true, true }),
+			false},
+		{"ahead, giving way",
+			with(ahead, func(t *Touch) { t.Along, t.OtherGivingWay = true, true }), false},
+		{"ahead, under no order",
+			with(ahead, func(t *Touch) { t.Along, t.OtherMoving = true, false }), false},
+	} {
+		if got := WalksMyWay().Holds(c.touch); got != c.walks {
+			t.Errorf("%s: walks my way %v, want %v", c.name, got, c.walks)
+		}
+	}
+}
+
 func with(t Touch, fn func(*Touch)) Touch {
 	fn(&t)
 	return t

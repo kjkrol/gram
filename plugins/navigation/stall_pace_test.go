@@ -25,12 +25,19 @@ func TestBodySpacing_AStallIsJudgedByTheLawfulPace(t *testing.T) {
 		name    string
 		share   float32
 		speed   float32 // world units a second
+		trail   float32 // the lawful pace of the one it trails; 0, it trails nobody
+		lasts   time.Duration
 		stalled bool
 	}{
-		{"slow ground, a crawl over a quarter of the lawful pace", 0.049, 0.5, false},
-		{"open ground, the same crawl", 1, 0.5, true},
-		{"a step the ground refuses", 0, 0, false},
-		{"slow ground, under a quarter of the lawful pace", 0.049, 0.1, true},
+		{"slow ground, a crawl over a quarter of the lawful pace", 0.049, 0.5, 0, 2 * time.Second,
+			false},
+		{"open ground, the same crawl", 1, 0.5, 0, 2 * time.Second, true},
+		{"a step the ground refuses", 0, 0, 0, 2 * time.Second, false},
+		{"slow ground, under a quarter of the lawful pace", 0.049, 0.1, 0, 2 * time.Second, true},
+		{"trailing one making 1, no headway within the wait", 1, 0, 1, 2900 * time.Millisecond,
+			false},
+		{"trailing one making 1, no headway past the wait and a stall", 1, 0, 1,
+			4100 * time.Millisecond, true},
 	}
 	for _, c := range cases {
 		keep := spacing.NewBodyKeeping(finder, nil, nil)
@@ -38,15 +45,18 @@ func TestBodySpacing_AStallIsJudgedByTheLawfulPace(t *testing.T) {
 		m := bodies.Member{ID: 7, Cell: from, From: from, Domain: cell.Land, MaxSpeed: 24,
 			Share: c.share}
 		var o MoveOrder
+		if c.trail > 0 {
+			o.TrailFor, o.TrailPace = spacing.TrailMemory, c.trail
+		}
 		bumped := false
-		for tick := range 120 {
+		for tick := range int(c.lasts / (time.Second / 60)) {
 			x := start.X + c.speed*float32(tick)/60
 			m.Pos = world.Position{AABB: plane.NewAABB(geom.NewVec(x-1.44, start.Y-1.44), 2.88, 2.88)}
 			keep.Watch(m, &o, toward, want, time.Second/60)
 			bumped = bumped || o.Bumped
 		}
 		if bumped != c.stalled {
-			t.Errorf("%s: bumped %v after two seconds, want %v", c.name, bumped, c.stalled)
+			t.Errorf("%s: bumped %v after %v, want %v", c.name, bumped, c.lasts, c.stalled)
 		}
 	}
 }
