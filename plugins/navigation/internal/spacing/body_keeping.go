@@ -20,19 +20,20 @@ import (
 // leaves it, before it counts as held.
 const StallAfter = time.Second
 
-// TrailMemory is how long a unit goes on trailing one it last struck.
+// TrailMemory is how long a unit goes on trailing one it last touched.
 const TrailMemory = 500 * time.Millisecond
 
-// the longest a wait on one trailed is no stall
-const maxTrailWait = 3 * time.Second
+// the longest a wait on one trailed is no stall: a dead queue unwinds by the trails lapsing,
+// this is the safety
+const maxTrailWait = 30 * time.Second
 
-// whether o still waits on the one it trails: while the way they lawfully make in the wait is
-// under span, a cell's shorter side, and maxTrailWait at most
-func trailing(o *order.MoveOrder, span float32) bool {
+// whether o waits on the one it trails, among x's bodies, while they are under way
+func trailing(x *bodies.Index, o *order.MoveOrder) bool {
 	if o.TrailFor <= 0 || o.Trailed >= maxTrailWait {
 		return false
 	}
-	return o.TrailPace <= 0 || float32(o.Trailed.Seconds())*o.TrailPace < span
+	b, ok := x.Of(o.Trailing)
+	return ok && b.Alive()
 }
 
 const maxStalls = 5
@@ -60,7 +61,6 @@ type BodyKeeping struct {
 	ground  func() ground.Heights // nil, or giving nil: level
 	index   bodies.Index
 	avoid   avoiding
-	span    float32 // a cell's shorter side
 	// the one takes asks about and whether every cell so far takes it
 	taker bodies.Member
 	taken bool
@@ -79,8 +79,6 @@ func NewBodyKeeping(finder *Finder, space *aabbworld.Space, ground func() ground
 		ground:  ground,
 		index:   bodies.NewIndex(finder.grid),
 	}
-	w, h := finder.grid.CellBounds()
-	k.span = min(w, h)
 	k.take = k.takeCell
 	k.avoid.bind(finder, &Answers{})
 	return k
@@ -328,7 +326,7 @@ func (k *BodyKeeping) Watch(m bodies.Member, o *order.MoveOrder, toward cell.ID,
 	if m.Share == 0 { // the ground refusing the step is no stall of the unit's
 		return
 	}
-	if trailing(o, k.span) {
+	if trailing(&k.index, o) {
 		o.Trailed += d
 		return
 	}

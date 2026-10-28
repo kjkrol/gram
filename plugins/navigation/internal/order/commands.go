@@ -51,7 +51,7 @@ type (
 	// Settle has a unit on the move stand beside its goal, Beside on it.
 	Settle struct{ Beside uid.UID64 }
 	// Trail has a unit on the move follow Of, who goes its way: no faster than they go, its wait
-	// no stall for as long as they lawfully need to clear a cell.
+	// no stall while they are under way.
 	Trail struct{ Of uid.UID64 }
 	// Stop ends a unit's order where it stands, as come to the end of it.
 	Stop struct{}

@@ -39,6 +39,8 @@ type Body struct {
 	MaxSpeed  float32 // world units a second
 	Trailing  bool    // follows someone, for a while yet
 	TrailPace float32 // while Trailing, the ground speed whom it follows lawfully makes
+	// the point its order was given for, round which its group stands; zero with none
+	Point geom.Vec
 }
 
 // Member is b as a member of the tick, standing where it is.
@@ -47,6 +49,9 @@ func (b Body) Member() Member {
 		Vel: b.Vel, Facing: b.Facing, Z: b.Z, Lift: b.Lift, Owners: b.Owners,
 		Share: b.Share, MaxSpeed: b.MaxSpeed}
 }
+
+// Alive says b is under way: it moves, or trails someone itself.
+func (b Body) Alive() bool { return b.Trailing || b.Vel != (geom.Vec{}) }
 
 // Index is the bodies of a tick by the cells their boxes touch.
 type Index struct {

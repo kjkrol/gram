@@ -30,7 +30,8 @@ type Touch struct {
 	// WaitedOut says Self's Hold ran out with the way still closed, Cornered that its Detour found
 	// no way round.
 	WaitedOut, Cornered bool
-	// Ahead says Other lies the way Self faces.
+	// Ahead says Other stands ahead of Self on its way: nearer the point Self's order was given
+	// for.
 	Ahead bool
 	// Along says Other moves the way Self faces, SameWay that it faces that way too.
 	Along, SameWay bool
@@ -119,15 +120,13 @@ func WaitedLong() cond.Word[Touch] { return cond.NewWord("waited long", Touch.wa
 func (t Touch) waitedLong() bool { return t.WaitedOut }
 
 // WalksMyWay is the word of a touch where the one in Self's way goes Self's way: under an order,
-// not giving way, ahead of it and moving along its facing, or trailing someone and facing its
-// way.
+// not giving way, ahead of it, and moving along its facing or trailing someone itself.
 func WalksMyWay() cond.Word[Touch] { return cond.NewWord("walks my way", Touch.walksMyWay) }
 
-// one standing in a queue counts by its trailing; SameWay keeps two nose to nose, each trailing
-// someone, from renewing each other's
+// one standing in a queue counts by its trailing; Ahead keeps two from trailing each other
 func (t Touch) walksMyWay() bool {
 	return t.Moving && !t.GivingWay && t.OtherMoving && !t.OtherGivingWay && t.Ahead &&
-		(t.Along || t.OtherTrailing && t.SameWay)
+		(t.Along || t.OtherTrailing)
 }
 
 // Groupmate is the word of a touch where one MoveTo sent the two.

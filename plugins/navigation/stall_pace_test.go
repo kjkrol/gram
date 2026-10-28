@@ -21,32 +21,40 @@ func TestBodySpacing_AStallIsJudgedByTheLawfulPace(t *testing.T) {
 	finder := spacing.NewFinder(grid, terrain, nil, spacing.OpenOccupancy{})
 	from, toward := grid.At(0, 0), grid.At(1, 0)
 	start, want := grid.CellCenter(from), grid.CellCenter(toward)
+	underWay := bodies.Body{ID: 3, At: want, Half: geom.NewVec(1.44, 1.44), Vel: geom.NewVec(1, 0),
+		Domain: cell.Land, Moving: true}
+	standing := underWay
+	standing.Vel = geom.Vec{}
 	cases := []struct {
 		name    string
 		share   float32
-		speed   float32 // world units a second
-		trail   float32 // the lawful pace of the one it trails; 0, it trails nobody
+		speed   float32      // world units a second
+		trails  *bodies.Body // nil, nobody
 		lasts   time.Duration
 		stalled bool
 	}{
-		{"slow ground, a crawl over a quarter of the lawful pace", 0.049, 0.5, 0, 2 * time.Second,
+		{"slow ground, a crawl over a quarter of the lawful pace", 0.049, 0.5, nil, 2 * time.Second,
 			false},
-		{"open ground, the same crawl", 1, 0.5, 0, 2 * time.Second, true},
-		{"a step the ground refuses", 0, 0, 0, 2 * time.Second, false},
-		{"slow ground, under a quarter of the lawful pace", 0.049, 0.1, 0, 2 * time.Second, true},
-		{"trailing one making 1, no headway within the wait", 1, 0, 1, 2900 * time.Millisecond,
-			false},
-		{"trailing one making 1, no headway past the wait and a stall", 1, 0, 1,
-			4100 * time.Millisecond, true},
+		{"open ground, the same crawl", 1, 0.5, nil, 2 * time.Second, true},
+		{"a step the ground refuses", 0, 0, nil, 2 * time.Second, false},
+		{"slow ground, under a quarter of the lawful pace", 0.049, 0.1, nil, 2 * time.Second, true},
+		{"trailing one under way, no headway", 1, 0, &underWay, 10 * time.Second, false},
+		{"trailing one standing that trails nobody, no headway", 1, 0, &standing,
+			1500 * time.Millisecond, true},
 	}
 	for _, c := range cases {
 		keep := spacing.NewBodyKeeping(finder, nil, nil)
-		keep.Begin(func(dst []bodies.Body) []bodies.Body { return dst })
+		keep.Begin(func(dst []bodies.Body) []bodies.Body {
+			if c.trails != nil {
+				dst = append(dst, *c.trails)
+			}
+			return dst
+		})
 		m := bodies.Member{ID: 7, Cell: from, From: from, Domain: cell.Land, MaxSpeed: 24,
 			Share: c.share}
 		var o MoveOrder
-		if c.trail > 0 {
-			o.TrailFor, o.TrailPace = spacing.TrailMemory, c.trail
+		if c.trails != nil {
+			o.Trailing, o.TrailFor, o.TrailPace = c.trails.ID, spacing.TrailMemory, 1
 		}
 		bumped := false
 		for tick := range int(c.lasts / (time.Second / 60)) {

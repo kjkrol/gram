@@ -253,6 +253,7 @@ type walker struct {
 	st              steering.Helm
 	state           *tag.Tags[unit.States] // nil: its chunk has none, the id goes to lacking
 	last            *order.LastOrder       // nil: its chunk has none, the id goes to lastIDs
+	coll            *collision.Collider    // nil: it touches nobody
 	minded          bool
 	domain          cell.Domain
 	current, actual cell.ID
@@ -298,7 +299,7 @@ func (s *System) begin(w *walker, z *world.Z, mover *unit.Mover, owners *tag.Tag
 	if owners != nil {
 		w.m.Owners = *owners
 	}
-	if coll != nil {
+	if w.coll = coll; coll != nil {
 		w.m.Touching = waysOff(coll.Contacts())
 	}
 }
@@ -349,6 +350,9 @@ func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 	o.Cooldown = max(o.Cooldown-d, 0)
 	o.Retry = max(o.Retry-d, 0)
 	o.TrailFor = max(o.TrailFor-d, 0)
+	if o.TrailFor > 0 && s.against(w, o.Trailing) {
+		o.TrailFor = spacing.TrailMemory
+	}
 	if o.Bumped {
 		o.Bumped = false
 		answer := s.keep.Bump(w.m, o)
@@ -436,6 +440,23 @@ func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 		return asking
 	}
 	return onward
+}
+
+// whether w touches whom, who is under way and leads it still: resting against them it trails on
+// with no strike, and a trail the queue's order has turned round lapses
+func (s *System) against(w *walker, whom uid.UID64) bool {
+	if w.coll == nil {
+		return false
+	}
+	for _, c := range w.coll.Contacts() {
+		if c.Terrain || c.Sensed || c.Other != whom {
+			continue
+		}
+		b, ok := s.keep.Other(whom)
+		self := bodies.Body{At: w.m.Centre(), Facing: w.m.Facing, Point: w.o.At}
+		return ok && b.Alive() && s.leads(b, self, c.Normal)
+	}
+	return false
 }
 
 // walkOn has the units that asked the Routing go on with its answers, the same step
@@ -806,8 +827,7 @@ func (s *System) fire(tick host.Tick, hosted bool, self, other bodies.Body, way 
 		GivingWay: self.GivingWay, OtherGivingWay: other.GivingWay, LastGoal: self.LastGoal,
 		Ally: owner.Allies(self.Owners, other.Owners), Groupmate: self.Group != 0 && self.Group == other.Group,
 		HeadOn: head && self.Moving && other.Moving, WaitedOut: self.WaitedOut, Cornered: self.Cornered}
-	// way leads self off other, so other lies against it
-	t.Ahead = way.X*self.Facing.X+way.Y*self.Facing.Y < 0
+	t.Ahead = s.leads(other, self, way)
 	t.Along = other.Vel.X*self.Facing.X+other.Vel.Y*self.Facing.Y > 0
 	t.SameWay = other.Facing.X*self.Facing.X+other.Facing.Y*self.Facing.Y > 0
 	t.OtherTrailing = other.Trailing
@@ -826,6 +846,20 @@ func (s *System) fire(tick host.Tick, hosted bool, self, other bodies.Body, way 
 	if hosted {
 		s.Touches.Dispatch(tick, s.marksOf(self.ID), s.marksOf(other.ID), t)
 	}
+}
+
+// other leads self: nearer the point self's order was given for, the short way round; with none,
+// lying the way self faces, way leading self off other, and facing that way too, so that two
+// nose to nose never lead each other
+func (s *System) leads(other, self bodies.Body, way geom.Vec) bool {
+	p := self.Point
+	if p == (geom.Vec{}) {
+		return way.X*self.Facing.X+way.Y*self.Facing.Y < 0 &&
+			other.Facing.X*self.Facing.X+other.Facing.Y*self.Facing.Y > 0
+	}
+	o, m := s.unwrap(p, other.At), s.unwrap(p, self.At)
+	ox, oy, mx, my := o.X-p.X, o.Y-p.Y, m.X-p.X, m.Y-p.Y
+	return ox*ox+oy*oy < mx*mx+my*my
 }
 
 func (s *System) marksOf(id uid.UID64) host.Marks {
@@ -982,7 +1016,7 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 				o := &orders[i]
 				b.GivingWay, b.Goal, b.Spot, b.LastGoal = o.GivingWay, o.Target, s.goal(o.Target, o.Spot), o.Queued == 0
 				b.WaitedOut, b.Cornered = o.WaitedOut, o.Cornered
-				b.Trailing, b.TrailPace = o.TrailFor > 0, o.TrailPace
+				b.Trailing, b.TrailPace, b.Point = o.TrailFor > 0, o.TrailPace, o.At
 				if o.Group != 0 {
 					b.Group = o.Group
 				}

@@ -74,6 +74,9 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	})
 	rw.w = w
 	w.Write().Effects().Define("alarm", effect.Spec{})
+	w.Write().Effects().Define("halted", effect.Spec{
+		effect.Alter(func(s *steering.Steering) { s.Halted = true }),
+	})
 	occupancy := &cell.SingleOccupancy{}
 	m := motion.NewPlugin(w)
 	c := collision.NewPlugin(w, m)
