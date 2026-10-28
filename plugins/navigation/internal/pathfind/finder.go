@@ -277,11 +277,15 @@ func (p *Finder) Find(
 		}
 		return copy(dst, p.path[1:]), true
 	}
-	p.goal, p.end = to, end
+	return p.findFrom(node{from, p.levelOf(p.at(from), body)}, to, end, dst)
+}
+
+// findFrom is Find by levels from start, its level known, the search begun for its body
+func (p *Finder) findFrom(start node, to cell.ID, end Level, dst []cell.ID) (int, bool) {
+	p.decks, p.goal, p.end = 0, to, end
 	if len(p.levelsOf(p.at(to))) == 1 {
 		p.end = Either
 	}
-	start := node{from, p.levelOf(p.at(from), body)}
 	p.route = p.leveled.SolveInto(p.route, start, node{to, goal}, p.stepped)
 	full := p.route
 	if len(full) < 3 {
@@ -433,25 +437,29 @@ func (p *Finder) leveledFrom(from, prev node,
 		c := p.cornerOf(from.c, n, i)
 		cut := c.diagonal && p.cutOff(c)
 		for _, level := range p.levelsOf(rn) {
-			if !p.occupancy.CanEnter(n, level == deck, p.entity, p.domain) ||
-				!p.crosses(from, rf, rn, level, c.diagonal) ||
-				cut && !p.along(from, rf, rn, level) ||
-				!p.passes(from, rf, rn, level, p.body, c) ||
-				!p.fits(from.c, n, level == deck, p.body) {
-				continue
+			if cost, ok := p.step(from, rf, rn, level, c, cut); ok {
+				buf = append(buf, astar.Transition[node]{To: node{n, level}, Cost: cost})
 			}
-			k := p.stepAt(rn, level)
-			if !k.admits {
-				continue
-			}
-			cost, ok := p.price(from.c, rn, k, level, c.diagonal)
-			if !ok {
-				continue
-			}
-			buf = append(buf, astar.Transition[node]{To: node{n, level}, Cost: cost})
 		}
 	}
 	return buf
+}
+
+// step is what the step from from onto rn's cell on level costs, rf from's cell, c the corner
+// it cuts and cut whether that is cut off; false where the step is refused
+func (p *Finder) step(from node, rf, rn *read, level uint8, c corner, cut bool) (float64, bool) {
+	if !p.occupancy.CanEnter(rn.c, level == deck, p.entity, p.domain) ||
+		!p.crosses(from, rf, rn, level, c.diagonal) ||
+		cut && !p.along(from, rf, rn, level) ||
+		!p.passes(from, rf, rn, level, p.body, c) ||
+		!p.fits(from.c, rn.c, level == deck, p.body) {
+		return 0, false
+	}
+	k := p.stepAt(rn, level)
+	if !k.admits {
+		return 0, false
+	}
+	return p.price(from.c, rn, k, level, c.diagonal)
 }
 
 // a unit is no bigger than a cell's side, so only a deck's band narrower than the body across the
