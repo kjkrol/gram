@@ -21,6 +21,10 @@ type Finder struct {
 	versioned versioned   // nil: the terrain counts no changes, a cell is read every search
 	flats     []flatStep  // by ordinal, the ground steps kept across searches
 	searches  uint64
+	fills     uint64
+	frontier  frontier
+	seeded    []uint32 // by ordinal, seeding where a fill's seed has yet to be reached
+	seeding   uint32
 	ways      ways   // nil: no ways run
 	built     built  // nil: nothing stands
 	lanes     lanes  // nil: no band narrows a step
