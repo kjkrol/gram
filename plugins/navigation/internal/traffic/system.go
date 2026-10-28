@@ -442,26 +442,48 @@ func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 	return onward
 }
 
-// whether w touches whom, who is under way and ahead of it still: resting against them it trails
-// on with no strike, and a trail the queue has turned round lapses
+// whether w touches whom or has them within a body's reach, who are under way and ahead of it
+// still: a queue, packed or loose, trails on with no strike, and a trail it has turned round lapses
 func (s *System) against(w *walker, whom uid.UID64) bool {
-	if w.coll == nil {
+	b, ok := s.keep.Other(whom)
+	self, known := s.keep.Other(w.id)
+	if !ok || !known || !b.Alive() {
 		return false
 	}
-	for _, c := range w.coll.Contacts() {
-		if c.Terrain || c.Sensed || c.Other != whom {
-			continue
+	to := s.unwrap(self.At, b.At)
+	d := geom.NewVec(to.X-self.At.X, to.Y-self.At.Y)
+	if ahead, _, _ := s.bearing(self, b, geom.NewVec(-d.X, -d.Y)); !ahead {
+		return false
+	}
+	return touches(w.coll, whom) || withinReach(self, b, d)
+}
+
+func touches(coll *collision.Collider, whom uid.UID64) bool {
+	if coll == nil {
+		return false
+	}
+	for _, c := range coll.Contacts() {
+		if !c.Terrain && !c.Sensed && c.Other == whom {
+			return true
 		}
-		b, ok := s.keep.Other(whom)
-		self, known := s.keep.Other(w.id)
-		if !ok || !known || !b.Alive() {
-			return false
-		}
-		ahead, _, _ := s.bearing(self, b, c.Normal)
-		return ahead
 	}
 	return false
 }
+
+// whether other's box lies no more than a body's width past self's along the way self's route
+// leads it, or its facing with none, d leading from self to other
+func withinReach(self, other bodies.Body, d geom.Vec) bool {
+	u := self.Way
+	if u == (geom.Vec{}) {
+		u = self.Facing
+	}
+	gap := d.X*u.X + d.Y*u.Y - extent(self.Half, u) - extent(other.Half, u)
+	// a body's width, the gap the spacing keeps beside a body (spacing's gapFor)
+	return gap <= 2*max(self.Half.X, self.Half.Y)*spacing.SpacingGap
+}
+
+// the half of a box of half sizes h along the unit vector u
+func extent(h, u geom.Vec) float32 { return h.X*f32.Abs(u.X) + h.Y*f32.Abs(u.Y) }
 
 // walkOn has the units that asked the Routing go on with its answers, the same step
 func (s *System) walkOn(cb *goke.CmdBuf, d time.Duration) {

@@ -26,25 +26,31 @@ func TestTrail_HoldsAgainstOneUnderWayAheadOfTheUnit(t *testing.T) {
 	moving, queued, behind := ahead, ahead, ahead
 	moving.Vel, queued.Trailing = east, true
 	behind.At, behind.Vel = geom.NewVec(34, 16), east
+	at := func(x float32) bodies.Body { b := moving; b.At = geom.NewVec(x, 16); return b }
 	resting := collision.Contact{Normal: west, Resting: true}
+	backward := collision.Contact{Normal: east, Resting: true}
+	ground := collision.Contact{Normal: west, Terrain: true}
 	for _, c := range []struct {
 		name    string
 		other   bodies.Body
-		contact collision.Contact
+		contact *collision.Contact // nil, touching nobody
 		holds   bool
 	}{
-		{"resting against one moving ahead", moving, resting, true},
-		{"resting against one standing in a queue ahead", queued, resting, true},
-		{"resting against one standing that trails nobody", ahead, resting, false},
-		{"resting against one behind on the way", behind,
-			collision.Contact{Normal: east, Resting: true}, false},
-		{"against the ground alone", moving, collision.Contact{Normal: west, Terrain: true}, false},
+		{"resting against one moving ahead", moving, &resting, true},
+		{"resting against one standing in a queue ahead", queued, &resting, true},
+		{"resting against one standing that trails nobody", ahead, &resting, false},
+		{"resting against one behind on the way", behind, &backward, false},
+		{"one moving a body's width ahead, untouched", at(51), nil, true},
+		{"one moving two bodies' widths ahead, untouched", at(58), nil, false},
+		{"one moving two widths ahead, the ground alone touched", at(58), &ground, false},
 	} {
 		keep := spacing.NewBodyKeeping(finder, nil, nil)
 		keep.Begin(func(dst []bodies.Body) []bodies.Body { return append(dst, self, c.other) })
 		s := &System{keep: keep}
-		w := &walker{id: self.ID, o: &order.MoveOrder{}, coll: &collision.Collider{StruckCount: 1}}
-		w.coll.Struck[0] = c.contact
+		w := &walker{id: self.ID, o: &order.MoveOrder{}, coll: &collision.Collider{}}
+		if c.contact != nil {
+			w.coll.Struck[0], w.coll.StruckCount = *c.contact, 1
+		}
 		if got := s.against(w, c.other.ID); got != c.holds {
 			t.Errorf("%s: the trail holds %v, want %v", c.name, got, c.holds)
 		}

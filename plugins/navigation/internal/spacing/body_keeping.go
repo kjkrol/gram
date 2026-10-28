@@ -20,7 +20,8 @@ import (
 // leaves it, before it counts as held.
 const StallAfter = time.Second
 
-// TrailMemory is how long a unit goes on trailing one it last touched.
+// TrailMemory is how long a unit goes on trailing one it last touched or had within a body's reach
+// ahead.
 const TrailMemory = 500 * time.Millisecond
 
 // the longest a wait on one trailed is no stall: a dead queue unwinds by the trails lapsing,
