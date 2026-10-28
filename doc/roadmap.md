@@ -125,7 +125,12 @@ What is left to do. Take an item out when it lands.
 - **`motion.Leaving`** — a moment no game uses: motion tells its rules of an entity past an open
   edge and despawns it with none. Should it stay a moment, or should motion simply despawn
   whoever leaves?
-- **Big groups arriving** still strike each other where the column fans out to its spots.
+- **A crowd in a queue, a group's field, a column** (`doc/plans-perf.md` „Kolejka i pole
+  grupy", stages 2–4): a groupmate going my way, or queued behind one, is trailed (`WalksMyWay`,
+  `Trail`), not gone round; a group's routes read off one flow field from its goal instead of a
+  search a unit and a search a bump; a column over the field, its order the cost to the goal, the
+  head paced by the tail. Big groups arriving still strike each other where the column fans out
+  to its spots.
 
 ## Housekeeping
 
