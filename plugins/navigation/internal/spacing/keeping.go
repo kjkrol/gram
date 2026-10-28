@@ -122,9 +122,15 @@ type Answers struct {
 
 const keptAnswers = 4096
 
-// a search asked again over the board as it stands gets the answer it gave, unrun
+// a route m's group's field gives is walked off it, never kept; a search asked again over the
+// board as it stands gets the answer it gave, unrun
 func (a *avoiding) find(f *Finder, m bodies.Member, from cell.ID, o *order.MoveOrder,
 	around bool) (order.Path, bool) {
+	if !around && m.Field != nil {
+		if p, ok := f.walkField(m.Field, m, from, o); ok {
+			return p, true
+		}
+	}
 	q := asked{from: from, to: o.Target, end: o.Level, domain: m.Domain, body: m.Body(),
 		around: around}
 	if around {
@@ -257,11 +263,14 @@ func (k *CellKeeping) Begin(gather func([]bodies.Body) []bodies.Body) {
 
 func (k *CellKeeping) Orders(members []bodies.Member, cmd order.MoveTo, issue func(bodies.Member,
 	order.MoveOrder)) {
-	target := cmd.Cell
+	target, at := cmd.Cell, cmd.At
+	if at == (geom.Vec{}) {
+		at = k.finder.grid.CellCenter(target)
+	}
 	var moves []bodies.Member
 	for _, m := range members {
 		if cmd.Append && m.Order != nil {
-			m.Order.Enqueue(order.Goal{Cell: target, At: cmd.At, Level: cmd.Level})
+			m.Order.Enqueue(order.Goal{Cell: target, At: at, Level: cmd.Level})
 			continue
 		}
 		standing := m.Order == nil || !m.Order.Leg.Active
@@ -290,7 +299,7 @@ func (k *CellKeeping) Orders(members []bodies.Member, cmd order.MoveTo, issue fu
 		if i < 0 {
 			continue
 		}
-		issue(waiting[i], order.MoveOrder{Target: c, Level: cmd.Level, Leg: waiting[i].Leg})
+		issue(waiting[i], order.MoveOrder{Target: c, Level: cmd.Level, At: at, Leg: waiting[i].Leg})
 		if i == 0 {
 			waiting = waiting[1:]
 		} else {

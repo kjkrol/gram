@@ -29,6 +29,8 @@ type Member struct {
 	Share    float32 // of its top speed, what the ground leaves it this tick: 1 without a Pace
 	MaxSpeed float32 // world units a second
 	Order    *order.MoveOrder
+	// Field is the field of its group's goal this ask, nil for none.
+	Field *pathfind.Field
 	// who came at m last tick, a step into m's cell refused
 	PressedBy uid.UID64
 	Pressed   bool
