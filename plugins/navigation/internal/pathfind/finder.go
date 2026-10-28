@@ -22,6 +22,7 @@ type Finder struct {
 	flats     []flatStep  // by ordinal, the ground steps kept across searches
 	searches  uint64
 	fills     uint64
+	walks     uint64
 	frontier  frontier
 	seeded    []uint32 // by ordinal, seeding where a fill's seed has yet to be reached
 	seeding   uint32

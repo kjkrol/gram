@@ -81,6 +81,15 @@ func (c *Coordinator) Fills() uint64 {
 	return n
 }
 
+// Walks counts the routes the routers walked off fields since they were made.
+func (c *Coordinator) Walks() uint64 {
+	var n uint64
+	for i := range c.routers {
+		n += c.routers[i].finder.Walks()
+	}
+	return n
+}
+
 // Searches counts the routes the routers searched for since they were made: of a walk off a
 // field, its last leg alone.
 func (c *Coordinator) Searches() uint64 {

@@ -260,6 +260,7 @@ func (p *Finder) into(f *Field, t node, cost float32) {
 // fieldLastLeg of it or to the goal. False where f did not reach from or that leg found nothing.
 func (p *Finder) Walk(f *Field, entity uid.UID64, domain cell.Domain, body Body,
 	from, target cell.ID, end Level, dst []cell.ID) (int, bool) {
+	p.walks++
 	if p.levels == nil || len(f.cost) == 0 {
 		return 0, false
 	}
@@ -301,3 +302,6 @@ func (p *Finder) Walk(f *Field, entity uid.UID64, domain cell.Domain, body Body,
 
 // Fills counts the fields filled since the Finder was made.
 func (p *Finder) Fills() uint64 { return p.fills }
+
+// Walks counts the routes walked off fields since the Finder was made, those that found none too.
+func (p *Finder) Walks() uint64 { return p.walks }

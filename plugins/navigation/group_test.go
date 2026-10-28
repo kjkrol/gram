@@ -111,12 +111,16 @@ func (r *groupRig) ask(units ...int) {
 
 // walk stands the unit k steps along its route
 func (r *groupRig) walk(u, k int) {
-	id := r.nw.ids[u]
+	o, _ := r.order(r.nw.ids[u])
+	r.stand(u, o.Path.Steps[k-1])
+}
+
+func (r *groupRig) stand(u int, c cell.ID) {
 	for r.ordered.All(); r.ordered.Next(); {
 		cur := r.ordered.Cursor()
 		for i, got := range cur.IDs {
-			if got == id {
-				r.at.Slice(cur)[i].Cell = r.orders.Slice(cur)[i].Path.Steps[k-1]
+			if got == r.nw.ids[u] {
+				r.at.Slice(cur)[i].Cell = c
 			}
 		}
 	}
@@ -232,6 +236,30 @@ func TestGroup_AChangedBoardRebuildsTheFieldOnce(t *testing.T) {
 		t.Errorf("%d fields filled, want the group's once and once more for the wall", fills)
 	}
 	r.routed(t, every(8)...)
+}
+
+// a route walked off the field is kept as a search's is: the same question asked again, by
+// another unit of the party standing in the same cell for the same target, is not walked again
+func TestGroup_AWalkIsAKeptAnswer(t *testing.T) {
+	r := newGroupRig(t, nil, westOf(8))
+	r.send(1, r.nw.grid.At(26, 16), every(8)...)
+	first, from := r.order(r.nw.ids[0])
+	second, _ := r.order(r.nw.ids[1])
+	second.Target = first.Target
+	r.stand(1, from)
+	for _, u := range every(8)[2:] {
+		o, _ := r.order(r.nw.ids[u])
+		o.Ask = order.AskNone
+	}
+	r.update()
+	if fills, walks := r.coord.Fills(), r.coord.Walks(); fills != 1 || walks != 1 {
+		t.Errorf("%d fills and %d walks, want the field filled and walked once", fills, walks)
+	}
+	r.routed(t, 0, 1)
+	if second.Path != first.Path {
+		t.Errorf("the same question answered %v, then %v", first.Path.Steps[:first.Path.Length],
+			second.Path.Steps[:second.Path.Length])
+	}
 }
 
 // an Update a party asks in allocates nothing once warm: off the field kept, nor off one filled
