@@ -5,8 +5,8 @@ cytowane po numerze (`plans-gc Z4`), bo ich kroki z numerami linii nadal obowią
 roboczy, nie część dokumentacji biblioteki. Odwołania do linii sprawdzone na gram `51da9307`,
 goke `a6b663b` (v3.5.0), aabbworld `4889c6e` (v1.12.0).
 
-Źródła: `BENCHMARKS.md`, profil CPU `Benchmark_World_Tick/entities=5000` z 2026-10-18 (poniżej),
-przegląd systemów i renderera z tej samej sesji, `plans-gc.md`.
+Źródła: `doc/benchmarks-history.md`, profil CPU `Benchmark_World_Tick/entities=5000` z
+2026-10-18 (poniżej), przegląd systemów i renderera z tej samej sesji, `plans-gc.md`.
 
 ## Co wiadomo na starcie
 
@@ -20,10 +20,10 @@ Tick świata przy 5 000 encji, 259 µs na maszynie pomiarowej, 1 alloc, bez śla
 | iteracja goke, `Velocity.Delta`, `Position.MaxStep` | ok. 10% |
 
 `Grid.index()` w tym benchmarku nie biegnie ani razu, bo nikt nie pyta przestrzeni; w grze
-odpala je odświeżenie widoku raz na tick, ok. 20 µs (`BENCHMARKS.md`, "Drawing"). Wniosek:
-tick nie jest problemem GC, tylko trzech miejsc CPU. Klatka ma inne centra kosztu
-(`BENCHMARKS.md`: wyspa 1,8-4 ms, cienie i brzegi liczone na nowo 4-5 ms, encje 0,4-0,65 ms)
-i tam liczby per miejsce dopiero trzeba zebrać (etap 0).
+odpala je odświeżenie widoku raz na tick, ok. 20 µs (`doc/benchmarks-history.md`, "Drawing").
+Wniosek: tick nie jest problemem GC, tylko trzech miejsc CPU. Klatka ma inne centra kosztu
+(`doc/benchmarks-history.md`: wyspa 1,8-4 ms, cienie i brzegi liczone na nowo 4-5 ms, encje
+0,4-0,65 ms) i tam liczby per miejsce dopiero trzeba zebrać (etap 0).
 
 Decyzje projektowe przyjęte z góry, żeby nie wracać do nich w etapach:
 - `Position` zostaje autorytatywny na CPU. Jedenaście systemów czyta go losowo do struktur CPU
@@ -250,8 +250,8 @@ zmiana (zbiorcze operacje strukturalne); tu tylko odnotować w raporcie, nie rob
 ruch dotyka co tick każdego chunka z `Base` (bo każda encja ma `Vel` w `Base`), wersje
 mówią "wszystko brudne" i nic nie dają rendererowi. Decyzja do podjęcia wtedy, nie teraz:
 tag `Still` nadawany przez velocity, gdy prędkość spada do zera, i wykluczany z zapytania
-ruchu (migracja przy każdym zatrzymaniu i ruszeniu; `BENCHMARKS.md` "Markers" mówi, ile to
-kosztuje), albo rozbicie `Base` tak, by stojąca encja nie miała `Velocity` (duża zmiana,
+ruchu (migracja przy każdym zatrzymaniu i ruszeniu; `doc/benchmarks-history.md` "Markers" mówi,
+ile to kosztuje), albo rozbicie `Base` tak, by stojąca encja nie miała `Velocity` (duża zmiana,
 `Base` jest w ponad stu plikach). Bez tej decyzji etap 5 nie ma sensu.
 
 ---
@@ -452,8 +452,8 @@ reporter „Ground”. 5: integracja, pomiar, dokumenty.
 ## Etap R: wynik (2026-10-19, gałąź `perf/plans-perf`, `b9f2cffe` + dokumenty)
 
 Wykonanie: część 0 przez integratora, WA (części 1–3) i WB (część 4) równolegle w worktree,
-scalenie fast-forward, pomiar na bezczynnej maszynie. Liczby w `BENCHMARKS.md`, sekcja „The
-island's frame”.
+scalenie fast-forward, pomiar na bezczynnej maszynie. Liczby w `doc/benchmarks-history.md`,
+sekcja „The island's frame”.
 
 | Co | Wynik |
 |:--|--:|
@@ -514,7 +514,7 @@ drabinka `stepRings`, reporter „Picture: 0.60/0.80/1.00 of the pixels, ringed,
 
 Wykonanie: A0 i B3 przez integratora, WA (A1, A2, B1, B2, B4) i WB (B5, C) równolegle w
 worktree, cherry-pick na gałąź, pomiar na bezczynnej maszynie, baza `a25a4af2` i drzewo
-na przemian. Liczby w `BENCHMARKS.md`, „The island's frame”, akapit „In rings”.
+na przemian. Liczby w `doc/benchmarks-history.md`, „The island's frame”, akapit „In rings”.
 
 | Co | Wynik |
 |:--|--:|
@@ -580,7 +580,7 @@ kamerach), `Overlies()` w siedmiu źródłach, bench `iso,0.7,feed`, `iso,0.7,sh
 Wykonanie: interfejsy przez integratora, A (topografia), B1 (gpu, render) i B2 (plugin kamer,
 źródła, bench) równolegle w worktree, cherry-pick, pomiar na bezczynnej maszynie (pierwszy
 pomiar był skażony równoległym pomiarem innej sesji: baza raz 15, raz 24 ms). Liczby w
-`BENCHMARKS.md`, „The island's frame”, akapit „The ground at the camera's resolution…”.
+`doc/benchmarks-history.md`, „The island's frame”, akapit „The ground at the camera's resolution…”.
 
 | Co | Wynik |
 |:--|--:|
@@ -660,7 +660,8 @@ etapu (konflikty tylko w `render/feed.go` i dwóch testach: okna B pod ścieżka
 warstw bez bramki `IsCropped` i poprawka tras nawigacji (C wykrył: `routes.Lines` zrzucał
 odcinki przy pierwszym rysowaniu i trzymał prostokąty w pikselach kamery składającej, więc
 warstwy wewnętrzne nie miały tras) przez integratora, pomiar na bezczynnej maszynie. Liczby w
-`BENCHMARKS.md`, „The island's frame”, akapit „The picture in layers from one composition…”.
+`doc/benchmarks-history.md`, „The island's frame”, akapit „The picture in layers from one
+composition…”.
 
 | Co | Wynik |
 |:--|--:|

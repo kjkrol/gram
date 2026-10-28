@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.6.0 — 2026-10-26
+## v0.6.0 — 2026-10-27
 
 Needs aabbworld v1.19.0 (kjkrol/aabbworld#24: `Cone.Heights` and `Cone.Bend`, the scan's cone
 query, its slabs and the relief walked with SIMD) and ceremony v0.3.2 (kjkrol/ceremony#4:
@@ -39,7 +39,7 @@ query, its slabs and the relief walked with SIMD) and ceremony v0.3.2 (kjkrol/ce
   every layer, the sight baked once a frame; a Direct's Draw runs once a layer, so what its
   Compose gathered serves every one (`render.Direct`).
 
-**The controls screen** (branch `feat/camera-arm`)
+**The controls screen** (branch `fix/hot-corners`)
 - Breaking: the shortcuts scene is the controls screen, `players.ControlsScene`, `ControlsName`
   (`gram.controls`) and `ShowControls` (K, labelled "Controls"), laid as the settings screen is:
   the title in a framed panel at the top, a framed section a group ("Game", a plugin each,
@@ -50,7 +50,7 @@ query, its slabs and the relief walked with SIMD) and ceremony v0.3.2 (kjkrol/ce
 - `render.DefaultLargeFont`, a title's, is Go Bold at 28 (was 20): the settings screen's own
   theme is the default theme now, and both screens are drawn in it.
 
-**Hot corners, the minimap's click, macOS** (branch `feat/camera-arm`)
+**Hot corners, the minimap's click, macOS** (branch `fix/hot-corners`)
 - `ui.Element.Passing`: the pointer passes through the element and all in it to whatever lies
   under, a button or a control inside aside. A HUD laid over the picture covered it: a label, a
   picture and a Blank are hit over their whole box, so the player's picture under was covered —
@@ -149,7 +149,7 @@ query, its slabs and the relief walked with SIMD) and ceremony v0.3.2 (kjkrol/ce
 - board/topography starts its telemetry panel with the basics as every demo does (it forced
   everything).
 
-**Shaders on Metal, naga v0.20.3** (branch `feat/camera-arm`)
+**Shaders on Metal, naga v0.20.3** (branch `fix/hot-corners`)
 - Fixed: on a Mac every demo panicked at its first pipeline ("metal: shader module has no WGSL
   source"): wgpu's Metal backend translates a shader module's WGSL to MSL and takes no SPIR-V,
   and gram handed every backend the SPIR-V it keeps on disk since v0.5.0. The SPIR-V goes to
@@ -164,6 +164,16 @@ query, its slabs and the relief walked with SIMD) and ceremony v0.3.2 (kjkrol/ce
   wgpu's write at an origin still spoils the texture left of it, so a big part is still drawn
   into place from a texture of its own; a whole texture's write no longer submits a command
   buffer of nothing after it.
+
+**The benchmarks measured anew** (2026-10-27, `main`)
+- `BENCHMARKS.md` holds the numbers at v0.6.0 alone: every benchmark measured again (the median
+  of 5 runs, `make bench-save`, the later benchmarks of a long run measured again apart, the
+  machine warm by then), CPU profiles of the main ones, the demos' frames and collector at
+  1920×1080. What each stage measured, with its method and date, moved whole to
+  `doc/benchmarks-history.md`, which `doc/plans-perf.md` names where it cited those numbers.
+- Removed: `Benchmark_Board_Island`, `Benchmark_Board_Shadows` and `Benchmark_Board_Shores`,
+  planning only since the light plugin (~0.1 µs a frame); the island's frame is
+  `Benchmark_Frame_Topography`.
 
 ## v0.5.0 — 2026-10-25
 

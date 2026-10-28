@@ -112,14 +112,21 @@ a frame's cost or to allocations is judged on the same demos the same way, befor
    with `Shift+`, `Alt+` and `Ctrl+` (e.g. `PROBE_KEYS="Tab,V"`). A setting on the settings
    screen has no key (2026-10-20): a probe sets it by its command through the carrier
    (`cameras.Picture{Profile, Resolution}`, `topography.Care{Rings}`), the way the picture's
-   resolution and the ground's care are measured now. A new script is `zz_probe_script.go` beside a copy of
-   `zz_probe_common.go`: `play()` runs once a tick. `PROBE_SED` edits the copied demo's `.go`
-   files (`ScreenWidth  = 2560`), `PROBE_SEED` fixes its seed, `GRAM_FULLSCREEN=1` starts full.
+   resolution and the ground's care are measured: `probes/picture` sets board/topography's
+   tactical picture at the second second (`PROBE_PICTURE=whole` at `PROBE_RES` of the pixels,
+   or `layers`, both still) and presses Tab a tick later with `PROBE_TAB=1`. A new script is
+   `zz_probe_script.go` beside a copy of `zz_probe_common.go`: `play()` runs once a tick.
+   `PROBE_SED` edits the copied demo's `.go` files (`ScreenWidth  = 1920`), `PROBE_SEED` fixes
+   its seed, `GRAM_FULLSCREEN=1` starts full.
 2. `run_demo.sh run <work dir> <seconds> <log>` runs it under `timeout` with the environment
    given: `GODEBUG=gctrace=1 GRAM_FPS_LOG=1` for 60 s at 60 FPS (vsync on) for the collector
    and a frame's tick (the simulation and the publishing), barrier, drawing, presenting and
    waiting (for the GPU's next image); `GRAM_FPS_LOG=1 GRAM_VSYNC=off` for 35 s for the
-   frame rate; `GOGC=200` the same for the knob. Exit 124 is the timeout, as meant.
+   frame rate; `GOGC=200` the same for the knob. Exit 124 is the timeout, as meant. With vsync
+   on a window behind the desktop's active one (a new window opens behind the terminal) is
+   paced at 20 FPS by KWin, a frame then holding several steps: the 60 FPS regime runs
+   fullscreen, `GRAM_FULLSCREEN=1`. With vsync off a window behind is not paced, and a
+   fullscreen one is bound by the GPU, not the screen (2026-10-28).
 3. `gcstats.sh <log>` sums the gctrace lines (cycles a second, live and peak heap, the goal,
    the cumulative CPU share); `fpsstats.sh <log> [skip]` the medians of the per-second lines
    after the first `skip` (8) of them; `medians.py <go test -bench output>` the medians of

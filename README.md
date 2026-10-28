@@ -614,14 +614,15 @@ world, [gogpu](https://github.com/gogpu/gogpu) the window, the loop and the GPU 
 # ⏱️ Performance
 
 One tick of the built-in plugins on an Intel i5-8265U (see [BENCHMARKS.md](BENCHMARKS.md#environment)),
-0 allocs/op throughout once warm:
+0 allocs/op throughout once warm, the median of 5 runs at v0.6.0:
 
 | Tick | Scene | Cost |
 |:---|:---|---:|
-| World: move every entity, rebuild the space | 5,000 boxes, 20×20 each, on a 4000×4000 torus | 199 µs |
-| World + collisions | 524 boxes, 20×20 each, covering 20% of a 1024×1024 torus | 134 µs |
-| World + collisions | 8,388 boxes, 5×5 each, covering 20% of the same torus | 2.9 ms |
-| Vision: every observer scans its cone | 500 observers, 60° cones of radius 200 | 503 µs |
+| World: move every entity, the space reading them in place | 5,000 boxes, 20×20 each, on a 4000×4000 torus | 36 µs |
+| World + collisions | 524 boxes, 20×20 each, covering 20% of a 1024×1024 torus | 124 µs |
+| World + collisions | 8,388 boxes, 5×5 each, covering 20% of the same torus | 2.7 ms |
+| Vision: every observer scans its cone | 500 observers, 60° cones of radius 200 | 232 µs |
+| Navigation: walkers under orders, in the open / through one gap | 1,000 walkers on a 64×64 board | 3.0 / 10.5 ms |
 
 > **Deep dive**: every scene, what each benchmark measures, and how to reproduce, in
 > [**BENCHMARKS.md**](BENCHMARKS.md).

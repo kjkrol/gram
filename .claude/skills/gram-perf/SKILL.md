@@ -5,10 +5,12 @@ description: Where gram's time goes and what has been done about it — the map 
 
 # gram-perf
 
-The numbers live in `BENCHMARKS.md` (a section a benchmark, the method, the demos' frames) and
-the stages' stories in `doc/plans-perf.md` (Polish: a plan and a result a stage); `CHANGELOG.md`
-carries a tag's numbers. This skill is the map over them and the protocol: read it first, then
-the section the change touches, never the whole of either.
+The numbers live in `BENCHMARKS.md` (a section a benchmark, the method, the demos' frames,
+measured anew at v0.6.0), the stages' stories in `doc/plans-perf.md` (Polish: a plan and a result
+a stage) and the numbers as each stage measured them in `doc/benchmarks-history.md` (the
+paragraphs `plans-perf.md` names); `CHANGELOG.md` carries a tag's numbers. This skill is the map
+over them and the protocol: read it first, then the section the change touches, never the whole
+of any.
 
 ## Where the time goes
 
@@ -23,14 +25,15 @@ A tick (`bench/`, package `bench_test`: a Stage built as a game builds one, tick
   `step=cell`, `step=50m`, `15Hz`), `Views_Copy`;
 - behaviour — `Plans_Tick`, `Rules_Moving`, `Effects_Tick`, `Marker_*`;
 - the board and what stands on it — `Board_GroundAt`, `Board_Altitude`, `Gravity_Standing`,
-  `Board_Terrain`, `Board_Shadows`, `Board_Shores`, `Board_Island`, `Bullet_Flight`,
-  `Climate_Step`.
+  `Board_Terrain`, `Bullet_Flight`, `Climate_Step` (the board's composing benchmarks,
+  `Board_Island`, `Board_Shadows` and `Board_Shores`, went on 2026-10-27: composing is planning
+  only since the light plugin, ~0.1 µs a frame; the island's frame is `Frame_Topography`).
 
 A frame (a headless GPU): `World_Draw`, `World_Frame`, `Frame_Topography` (the island at 1440p:
 the field for every change to `render`), `Frame_Flat`, `Frame_UI`, `Text_Panel`; the painter's
 whole bake, `Painter_Bake`, in its own package. A headless frame includes ~10 ms of readback at
 1440p: frames compare with frames, never with a frame rate. The demos' frames and their
-collector: `gram-probe`, "Measuring a demo's frames". CPU profiles of eleven benchmarks:
+collector: `gram-probe`, "Measuring a demo's frames". CPU profiles of the main benchmarks:
 `BENCHMARKS.md`, "Where the time goes".
 
 ## What has been done, and what it rests on
@@ -133,10 +136,15 @@ motion's arithmetic (a dispatch costs as much), `Position` off the CPU.
   picture: noise, not a difference (`gram-probe`, "Checking a change").
 - A parallel regime on a laptop: four cores, eight threads, the clock falling under AVX2 or
   heat; a serial number (`-cpu=1`) is the steadier one to compare work by.
+- A long run warms the machine: in the 15-minute suite of 2026-10-27 the benchmarks late in its
+  order (`Text_Panel`, `Frame_UI`, `Vision_Relief`) came out 25–150% slower than apart, the
+  ticks before them within 5%. The record (`make bench-save`) is checked by measuring the late
+  ones again apart; a comparison alternates its sides anyway.
 
 ## Pointers
 
-- `BENCHMARKS.md`: "How to benchmark", "Where the time goes", "The demos", "The island's frame".
+- `BENCHMARKS.md`: "How to benchmark", "Where the time goes", "The demos", "The island's frame";
+  `doc/benchmarks-history.md`: the same sections as the stages measured them, to v0.6.0.
 - `doc/plans-perf.md`: "Co wiadomo na starcie", "Wspólne dla każdego etapu", a stage's "wynik".
 - `gram-probe`: "Checking a change", "Measuring a demo's frames and its garbage collector".
 - aabbworld: `BENCHMARKS.md` ("Key takeaways", "Wide pair sweep", "Sight in SIMD") and its `simd`

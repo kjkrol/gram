@@ -84,22 +84,15 @@ What is left to do. Take an item out when it lands.
   shot touching), a wounded unit slowed by its own Z in `collision.Field.Overhang`.
 - **Live hydrology** — the water worked out as the game goes: rivers swelling after rain, drying
   in summer, courses changing with the weather and the season.
-- **Sight's cost** — the scan of `vision` reads the ground along every ray exactly
-  (`ground.Profile`, the topography's `relief.Along`: about two points a crossed cell, each handed
-  to aabbworld's raycast by a callback). `Benchmark_Vision_Relief` (2026-10-24): the profile 1.60 ms
-  a tick, sampled a cell apart 1.31 ms, every 50 m 6.15 ms; of the scan the relief 53%, aabbworld's
-  raycast 24%, the board's cover 14%. Every entity with a `Sight` and an `Eye` is scanned, though
-  the views on screen are worked out on the GPU apart: in board/topography nothing reads the result.
-  Ways, for the coming AI plugin that filters what its entities see: scanning only whom something
-  reads (an AI's entities, a `Sighted` asked for, `SightOutline`, `Sighting` rules) — done
-  2026-10-26 (`vision.Watched`, `WithScanAll`); skipping ground that cannot raise a ray's horizon (a
-  max-height mip of the relief, the heightfield's walk told the angle to beat — aabbworld, since the
-  scan walks `Cone.Heights` itself, 2026-10-26); fewer rays or sampling far off (with the LOD); the
-  AVX2 kernels of the scan (slabs, the cone query, four rays over the field) on every hyperthread
-  lower the clock for the scalar callbacks a sampled ground is made of (2–6% on
-  `Vision_Relief/step=*` in parallel, faster on one CPU): 128-bit lanes would stay under the licence
-  (aabbworld). Measured: `Along` clamping with comparisons and folding a cell's corners once, −3–4%
-  of the scan, the same points.
+- **Sight's cost** — over a relief the scan hands aabbworld the lattice (`Cone.Heights`) and
+  walks every ray through it, the relief the larger half of a scan (`BENCHMARKS.md`,
+  `Benchmark_Vision_Relief`). Ways: skipping ground that cannot raise a ray's horizon (a
+  max-height mip of the relief, the walk told the angle to beat; aabbworld's, since the scan
+  walks `Cone.Heights` itself); fewer rays or sampling far off (with the LOD); 128-bit lanes for
+  the scan's AVX2 kernels, which on every hyperthread lower the clock for the scalar callbacks a
+  sampled ground is made of (2–6% on `Vision_Relief/step=*` in parallel); on the profile's path
+  (`relief.Along`) clamping with comparisons and folding a cell's corners once, measured −3–4%
+  of the scan with the same points, not landed.
 
 ## Landscape and Madeira
 
@@ -136,8 +129,4 @@ What is left to do. Take an item out when it lands.
 
 ## Housekeeping
 
-- **`BENCHMARKS.md`** — the old island's numbers predate the roads, the folded quads and the outline
-  fix: measure again on an idle machine, alternately against a baseline.
 - **A thumbnail in a save** — the frame at the moment of saving, for a load screen.
-- **The next tag** — after goke v3.4.1 and ceremony v0.2.1 are tagged and `go.mod` bumped; note
-  that saves written before the cell entities and what stands on the board do not load.
