@@ -16,7 +16,8 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// StallAfter is how long a unit comes no nearer its next cell before it counts as held.
+// StallAfter is how long a unit comes no nearer its next cell, at the pace the ground lawfully
+// leaves it, before it counts as held.
 const StallAfter = time.Second
 
 const maxStalls = 5
@@ -273,8 +274,15 @@ func (k *BodyKeeping) Watch(m bodies.Member, o *order.MoveOrder, toward cell.ID,
 		o.Toward, o.Closest, o.Stalled = toward, dist, 0
 		return
 	}
-	if dist < o.Closest-min(m.Pos.Size.X, m.Pos.Size.Y)/4 {
+	// headway is a quarter of the way the ground lawfully lets it make in StallAfter, at most a
+	// quarter of its body
+	need := min(min(m.Pos.Size.X, m.Pos.Size.Y)/4,
+		m.MaxSpeed*m.Share*float32(StallAfter.Seconds())/4)
+	if dist < o.Closest-need {
 		o.Closest, o.Stalled = dist, 0
+		return
+	}
+	if m.Share == 0 { // the ground refusing the step is no stall of the unit's
 		return
 	}
 	if o.Stalled += d; o.Stalled >= StallAfter {

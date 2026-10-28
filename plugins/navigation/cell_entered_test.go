@@ -20,12 +20,14 @@ type enteredWorld struct {
 
 	entered  map[uid.UID64]cell.ID
 	hasOrder map[uid.UID64]bool
+	ats      map[uid.UID64]unit.At
 }
 
 // with marks the entity carries its markers from the start, else it gets them at its first cell
 func newEnteredWorld(t *testing.T, w, h uint32, start, target cell.ID, marks bool) *enteredWorld {
 	t.Helper()
-	ew := &enteredWorld{entered: map[uid.UID64]cell.ID{}, hasOrder: map[uid.UID64]bool{}}
+	ew := &enteredWorld{entered: map[uid.UID64]cell.ID{}, hasOrder: map[uid.UID64]bool{},
+		ats: map[uid.UID64]unit.At{}}
 	g := grid.DefaultGrids{}.Square(w, h, legCellSize)
 	profile := steering.Steering{MaxSpeed: float32(legCellSize * 2)}
 
@@ -57,9 +59,10 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target cell.ID, marks boo
 		orderQ.All()
 		for orderQ.Next() {
 			cur := orderQ.Cursor()
-			orders := orderComp.Slice(cur)
-			for _, id := range cur.IDs {
+			orders, cells := orderComp.Slice(cur), cellComp.Slice(cur)
+			for i, id := range cur.IDs {
 				ew.hasOrder[id] = orders != nil
+				ew.ats[id] = cells[i]
 			}
 		}
 	}})

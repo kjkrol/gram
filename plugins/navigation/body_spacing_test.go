@@ -33,6 +33,7 @@ type fieldUnit struct {
 	side     float32
 	selected bool
 	driven   steering.Driven // non-zero: steered by hand
+	paced    bool            // carries a steering.Pace: the ground's share slows it
 	order    *MoveOrder
 	owner    command.Issuer
 	plays    *ceremony.Part
@@ -130,6 +131,9 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 		}
 		if u.driven != (steering.Driven{}) {
 			s = append(s, comp.Load(func(u fieldUnit) steering.Driven { return u.driven }))
+		}
+		if u.paced {
+			s = append(s, comp.Const(steering.Pace{Share: 1}))
 		}
 		if u.order != nil {
 			s = append(s, comp.Load(func(u fieldUnit) MoveOrder { return *u.order }))

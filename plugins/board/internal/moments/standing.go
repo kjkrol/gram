@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
@@ -106,7 +107,8 @@ func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 }
 
 // the share of its top speed the i-th unit keeps: the ground under it, on its level, at the
-// slope of the step ahead the way it goes, the one the planner priced
+// slope of the step ahead: the one it is led into, when that lies within a quarter turn of the
+// way it goes, else the neighbour the way it goes
 func (s *standingSystem) share(i int) float32 {
 	b := &s.bases[i]
 	at := b.Pos.Center()
@@ -122,11 +124,32 @@ func (s *standingSystem) share(i int) float32 {
 		if b.Vel.Value < 0 { // backing away: up or down the way it goes, not the way it faces
 			dir = geom.NewVec(-dir.X, -dir.Y)
 		}
-		if n, ok := s.r.grid.Toward(c, s.nearest(dir)); ok {
+		n, led := s.led(i, c, dir)
+		if !led {
+			n, led = s.r.grid.Toward(c, s.nearest(dir))
+		}
+		if led && n != c {
 			step.Slope = s.r.rise(c, n)
 		}
 	}
 	return float32(cell.PaceOf(s.r.Mobility, step))
+}
+
+// the cell the i-th unit is led into from c: c itself for a step within it, on the level as the
+// planner prices it, or a neighbour within a quarter turn of the way the unit goes
+func (s *standingSystem) led(i int, c cell.ID, dir geom.Vec) (cell.ID, bool) {
+	next := s.ats[i].Next
+	switch next {
+	case 0:
+		return 0, false
+	case c:
+		return c, true
+	}
+	k, ok := grid.Way(s.r.grid, c, next)
+	if !ok || s.dirs[k].X*dir.X+s.dirs[k].Y*dir.Y <= 0 {
+		return 0, false
+	}
+	return next, true
 }
 
 func (s *standingSystem) logFall(i int) {

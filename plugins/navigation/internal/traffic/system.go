@@ -50,6 +50,7 @@ type System struct {
 	z       goke.OptComp[world.Z]
 	coll    goke.OptComp[collision.Collider]
 	hand    goke.OptComp[steering.Driven]
+	pace    goke.OptComp[steering.Pace]
 	route   []geom.Vec
 
 	owners      goke.OptComp[tag.Tags[owner.Family]]
@@ -125,6 +126,7 @@ func (s *System) Init(si *goke.SysInit) {
 		Optional(&s.z).
 		Optional(&s.coll).
 		Optional(&s.hand).
+		Optional(&s.pace).
 		Optional(&s.owners, &s.lastOrder).
 		Optional(&s.mind, &s.blocked, &s.arrived).
 		Optional(&s.states)
@@ -187,19 +189,20 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 		movers, zs := s.mover.Slice(cursor), s.z.Slice(cursor)
 		minds, owned := s.mind.Slice(cursor), s.owners.Slice(cursor)
 		arrived, lasts := s.arrived.Slice(cursor), s.lastOrder.Slice(cursor)
-		hands, colls := s.hand.Slice(cursor), s.coll.Slice(cursor)
+		hands, colls, paces := s.hand.Slice(cursor), s.coll.Slice(cursor), s.pace.Slice(cursor)
 		arrivedIDs := s.finished[:0]
 
 		for i, id := range cursor.IDs {
 			w := walker{id: id, o: &orders[i], at: &cells[i], base: &bases[i],
 				st:    steering.Helm{Steering: &steers[i], Course: &courses[i]},
 				state: ref(states, i), last: ref(lasts, i), minded: minds != nil}
-			s.begin(&w, ref(zs, i), ref(movers, i), ref(owned, i), ref(colls, i))
+			s.begin(&w, ref(zs, i), ref(movers, i), ref(owned, i), ref(colls, i), ref(paces, i))
 			if hands != nil && hands[i].Steers() {
 				if w.o.Leg.Active {
 					s.releaseLeg(w.o.Leg, id)
 					s.occupancy.Enter(cells[i].Cell, w.onDeck, id, w.domain)
 				}
+				cells[i].Next = 0
 				cb.RemoveCompOne(id, s.orderID)
 				continue
 			}
@@ -267,7 +270,7 @@ func ref[T any](s []T, i int) *T {
 }
 
 func (s *System) begin(w *walker, z *world.Z, mover *unit.Mover, owners *tag.Tags[owner.Family],
-	coll *collision.Collider,
+	coll *collision.Collider, pace *steering.Pace,
 ) {
 	w.domain, w.current = unit.DomainAt(nil, 0), w.at.Cell
 	if mover != nil {
@@ -279,7 +282,10 @@ func (s *System) begin(w *walker, z *world.Z, mover *unit.Mover, owners *tag.Tag
 	}
 	w.m = bodies.Member{ID: w.id, Cell: w.current, From: w.current, Leg: w.o.Leg, Domain: w.domain,
 		Pos: w.base.Pos, Vel: w.base.Vel.Delta(), Facing: w.base.Vel.Dir, Order: w.o,
-		Brake: w.st.Braking()}
+		Brake: w.st.Braking(), Share: 1, MaxSpeed: w.st.MaxSpeed}
+	if pace != nil {
+		w.m.Share = pace.Share
+	}
 	if z != nil {
 		w.m.Z = *z
 	}
@@ -332,6 +338,7 @@ const (
 func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 	o, st := w.o, w.st
 	p, leg := &o.Path, &o.Leg
+	w.at.Next = 0 // led nowhere unless its route leads it below
 	if changed && p.Index < p.Length && !s.admitsAll(p.Steps[p.Index:p.Length], w.domain) {
 		p.Length = 0
 	}
@@ -444,7 +451,8 @@ func (s *System) walkOn(cb *goke.CmdBuf, d time.Duration) {
 			st:    steering.Helm{Steering: s.steer.At(cur), Course: s.course.At(cur)},
 			state: s.states.At(cur), last: s.lastOrder.At(cur), minded: s.mind.Present(cur),
 			entered: s.askedIn[k]}
-		s.begin(&w, s.z.At(cur), s.mover.At(cur), s.owners.At(cur), s.coll.At(cur))
+		s.begin(&w, s.z.At(cur), s.mover.At(cur), s.owners.At(cur), s.coll.At(cur),
+			s.pace.At(cur))
 		ask := w.o.Ask
 		w.o.Ask = order.AskNone
 		switch ask {
@@ -512,6 +520,7 @@ func (s *System) tail(w *walker, d time.Duration) {
 		*leg = reserved
 		o.Holding, o.WaitedOut, o.Cornered = 0, false, false
 	}
+	w.at.Next = waypoint
 
 	have := w.base.Pos.Center()
 	end := s.goal(target, o.Spot)
@@ -600,6 +609,9 @@ func (s *System) tail(w *walker, d time.Duration) {
 			p.Index++
 		}
 		// the next waypoint is aimed at now, reserved next tick
+		if p.Index < p.Length {
+			w.at.Next = p.Steps[p.Index]
+		}
 		s.drive(w.m, st, w.base.Vel.Dir, have,
 			s.ahead(have, want, p, waypoint, target, end)[1:], reach, st.MaxSpeed)
 		return
@@ -644,6 +656,7 @@ func (s *System) tail(w *walker, d time.Duration) {
 
 func (s *System) arrive(w *walker) {
 	w.arrived = true
+	w.at.Next = 0
 	switch {
 	case w.o.Group == 0: // giving way, or looking: the group stays
 	case w.last != nil:
@@ -661,7 +674,7 @@ func (s *System) moveTo(w *walker, c cell.ID) {
 	if c == w.at.Cell {
 		return
 	}
-	w.at.Cell = c
+	w.at.Cell, w.at.Next = c, 0
 	w.o.Retry = 0 // from another cell, another search
 	if w.entered {
 		return

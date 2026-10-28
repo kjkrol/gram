@@ -69,6 +69,7 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 				if in == (steering.Driven{}) {
 					cb.RemoveCompOne(id, s.drivenID)
 				}
+				lead(ats, i, 0)
 				continue
 			}
 			if ordered && !in.Steers() {
@@ -82,6 +83,7 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			if ats != nil && s.follow(id, &ats[i], base.Pos, z, domain) {
 				s.enter(places, i, id)
 			}
+			lead(ats, i, 0) // led nowhere unless the hand drives it on below
 
 			face := in.Face
 			// where an eye riding in it looks, before the hand's way
@@ -119,7 +121,8 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			}
 			right := geom.NewVec(-heading.Y, heading.X)
 			switch {
-			case in.Side != 0 && s.open(w, geom.NewVec(right.X*float32(in.Side), right.Y*float32(in.Side))):
+			case in.Side != 0 && s.opens(w,
+				geom.NewVec(right.X*float32(in.Side), right.Y*float32(in.Side))):
 				side := st.MaxSpeed * level
 				if in.Sprint {
 					side *= max(st.Sprint, 1)
@@ -133,21 +136,32 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 				heading.X*base.Vel.Dir.X+heading.Y*base.Vel.Dir.Y < turnBrake
 			// a tap on a standing unit only turns it
 			tapping := s.tap > 0 && facing && st.Speed == 0 && base.Vel.Value == 0 && in.Held <= s.tap
+			ahead, forward := w.at, false
+			if in.Ahead > 0 && !(turning || tapping) {
+				ahead, forward = s.open(w, heading)
+			}
+			behind, back := w.at, false
+			if in.Ahead < 0 && st.Speed <= 0 {
+				behind, back = s.open(w, geom.NewVec(-heading.X, -heading.Y))
+			}
 			switch {
 			case in.Ahead > 0 && (turning || tapping):
 				st.RequestSpeed(0)
-			case in.Ahead > 0 && s.open(w, heading) && in.Sprint:
+			case in.Ahead > 0 && forward && in.Sprint:
 				st.RequestSprint()
 				st.WantSpeed *= level
-			case in.Ahead > 0 && s.open(w, heading):
+				lead(ats, i, ahead)
+			case in.Ahead > 0 && forward:
 				st.RequestSpeed(st.MaxSpeed * level)
+				lead(ats, i, ahead)
 			case in.Ahead > 0:
 				st.RequestSpeed(0)
 				st.Speed = 0 // on the spot, at the water's edge
 			case in.Ahead < 0 && st.Speed > 0:
 				st.RequestSpeed(0) // braking before it backs away
-			case in.Ahead < 0 && s.open(w, geom.NewVec(-heading.X, -heading.Y)):
+			case in.Ahead < 0 && back:
 				st.RequestBack(backing(st.Steering))
+				lead(ats, i, behind)
 			case in.Ahead < 0:
 				st.RequestSpeed(0)
 				st.Speed = 0 // stopped at the edge behind it
@@ -191,6 +205,18 @@ func (s *driveSystem) follow(id uid.UID64, at *unit.At, pos world.Position, z *w
 	return true
 }
 
+// lead writes the cell the i-th unit is driven into, 0 while it is not: its own cell counts as
+// none, the hand leading it by its heading within the cell
+func lead(ats []unit.At, i int, c cell.ID) {
+	if ats == nil {
+		return
+	}
+	if c == ats[i].Cell {
+		c = 0
+	}
+	ats[i].Next = c
+}
+
 func (s *driveSystem) enter(places []tag.Tags[unit.States], i int, id uid.UID64) {
 	if places != nil {
 		places[i] = places[i].With(unit.Entered)
@@ -208,9 +234,15 @@ type walker struct {
 	falls  bool
 }
 
-func (s *driveSystem) open(w walker, heading geom.Vec) bool {
+func (s *driveSystem) opens(w walker, heading geom.Vec) bool {
+	_, ok := s.open(w, heading)
+	return ok
+}
+
+// open says whether w may be driven the way heading points, and into which cell
+func (s *driveSystem) open(w walker, heading geom.Vec) (cell.ID, bool) {
 	if s.board == nil {
-		return true
+		return w.at, true
 	}
 	// as far as the box runs out the way it heads, an oblong unit's side across its length
 	reach := (w.pos.Size.X*f32.Abs(heading.X)+w.pos.Size.Y*f32.Abs(heading.Y))/2 + driveMargin
@@ -219,19 +251,19 @@ func (s *driveSystem) open(w walker, heading geom.Vec) bool {
 	ahead, ok := s.board.CellAt(point)
 	switch {
 	case !ok:
-		return false
+		return ahead, false
 	case w.falls && w.z != nil && s.surfaces != nil:
 		if sf := s.surfaces(); sf != nil {
 			floor, _ := sf.Surface(point, w.domain, w.z.Altitude, w.z.Reach())
 			if floor > w.z.Altitude+w.z.Reach() {
-				return false
+				return ahead, false
 			}
 		}
 	case w.falls:
 	case w.z != nil && !s.board.KindFor(ahead, point, w.z.Altitude, w.z.Reach()).Admits(w.domain):
-		return false
+		return ahead, false
 	case w.z == nil && !s.board.Kind(ahead).Admits(w.domain):
-		return false
+		return ahead, false
 	}
 	kind, deck := s.board.Kind(ahead), false
 	if w.z != nil {
@@ -246,11 +278,11 @@ func (s *driveSystem) open(w walker, heading geom.Vec) bool {
 			level = cell.OnDeck
 		}
 		if s.pace(cur, ahead, kind, level, w.domain) == 0 {
-			return false
+			return ahead, false
 		}
 	}
 	if s.keeping == nil {
-		return true
+		return ahead, true
 	}
-	return s.keeping.MayStep(w.id, w.pos, w.at, ahead, deck, w.domain, heading)
+	return ahead, s.keeping.MayStep(w.id, w.pos, w.at, ahead, deck, w.domain, heading)
 }

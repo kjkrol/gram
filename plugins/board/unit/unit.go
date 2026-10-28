@@ -2,8 +2,10 @@ package unit
 
 import "github.com/kjkrol/gram/plugins/board/cell"
 
-// At is the cell an entity on the board stands in, kept by whoever moves it.
-type At struct{ Cell cell.ID }
+// At is the cell an entity on the board stands in, kept by whoever moves it, and Next the cell
+// it steps into next, set by whoever leads it: its own cell for a step within it, 0 while nobody
+// leads it.
+type At struct{ Cell, Next cell.ID }
 
 // Mover says which domains an entity moves in and how far above the ground it keeps (Lift), the
 // least it keeps over it (Clearance) and the highest over sea level it climbs to (Ceiling; 0 none).
