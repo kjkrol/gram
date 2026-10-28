@@ -442,8 +442,8 @@ func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 	return onward
 }
 
-// whether w touches whom, who is under way and leads it still: resting against them it trails on
-// with no strike, and a trail the queue's order has turned round lapses
+// whether w touches whom, who is under way and ahead of it still: resting against them it trails
+// on with no strike, and a trail the queue has turned round lapses
 func (s *System) against(w *walker, whom uid.UID64) bool {
 	if w.coll == nil {
 		return false
@@ -453,8 +453,12 @@ func (s *System) against(w *walker, whom uid.UID64) bool {
 			continue
 		}
 		b, ok := s.keep.Other(whom)
-		self := bodies.Body{At: w.m.Centre(), Facing: w.m.Facing, Point: w.o.At}
-		return ok && b.Alive() && s.leads(b, self, c.Normal)
+		self, known := s.keep.Other(w.id)
+		if !ok || !known || !b.Alive() {
+			return false
+		}
+		ahead, _, _ := s.bearing(self, b, c.Normal)
+		return ahead
 	}
 	return false
 }
@@ -827,12 +831,11 @@ func (s *System) fire(tick host.Tick, hosted bool, self, other bodies.Body, way 
 		GivingWay: self.GivingWay, OtherGivingWay: other.GivingWay, LastGoal: self.LastGoal,
 		Ally: owner.Allies(self.Owners, other.Owners), Groupmate: self.Group != 0 && self.Group == other.Group,
 		HeadOn: head && self.Moving && other.Moving, WaitedOut: self.WaitedOut, Cornered: self.Cornered}
-	t.Ahead = s.leads(other, self, way)
-	t.Along = other.Vel.X*self.Facing.X+other.Vel.Y*self.Facing.Y > 0
-	t.SameWay = other.Facing.X*self.Facing.X+other.Facing.Y*self.Facing.Y > 0
+	t.Ahead, t.Along, t.SameWay = s.bearing(self, other, way)
 	t.OtherTrailing = other.Trailing
 	if self.Moving {
 		t.OnMyGoal = s.keep.OnGoal(self, other)
+		t.NearMyGoal = s.grid.Distance(other.Cell, self.Goal) <= nearGoal
 		if !other.Moving {
 			_, t.Room = s.keep.StepAside(other.Member(), self)
 		}
@@ -848,18 +851,28 @@ func (s *System) fire(tick host.Tick, hosted bool, self, other bodies.Body, way 
 	}
 }
 
-// other leads self: nearer the point self's order was given for, the short way round; with none,
-// lying the way self faces, way leading self off other, and facing that way too, so that two
-// nose to nose never lead each other
-func (s *System) leads(other, self bodies.Body, way geom.Vec) bool {
-	p := self.Point
-	if p == (geom.Vec{}) {
-		return way.X*self.Facing.X+way.Y*self.Facing.Y < 0 &&
-			other.Facing.X*self.Facing.X+other.Facing.Y*self.Facing.Y > 0
+// cells from a unit's goal within which its group gathers
+const nearGoal = 2
+
+// the cosine of the eighth of a turn either side of a way, within which another lies ahead on it
+// or goes it too
+const quarterTurn = 0.7
+
+// how other stands to self's way: ahead within a quarter turn of it, moving along it, its route
+// leading that way too; with none, the same by self's facing, way leading self off other
+func (s *System) bearing(self, other bodies.Body, way geom.Vec) (ahead, along, same bool) {
+	w := self.Way
+	if w == (geom.Vec{}) {
+		f := self.Facing
+		return way.X*f.X+way.Y*f.Y < 0, other.Vel.X*f.X+other.Vel.Y*f.Y > 0,
+			other.Facing.X*f.X+other.Facing.Y*f.Y > 0
 	}
-	o, m := s.unwrap(p, other.At), s.unwrap(p, self.At)
-	ox, oy, mx, my := o.X-p.X, o.Y-p.Y, m.X-p.X, m.Y-p.Y
-	return ox*ox+oy*oy < mx*mx+my*my
+	at := s.unwrap(self.At, other.At)
+	d := geom.NewVec(at.X-self.At.X, at.Y-self.At.Y)
+	ahead = d.X*w.X+d.Y*w.Y > quarterTurn*f32.Hypot(d.X, d.Y)
+	along = other.Vel.X*w.X+other.Vel.Y*w.Y > 0
+	same = other.Way.X*w.X+other.Way.Y*w.Y > quarterTurn
+	return ahead, along, same
 }
 
 func (s *System) marksOf(id uid.UID64) host.Marks {
@@ -1016,7 +1029,7 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 				o := &orders[i]
 				b.GivingWay, b.Goal, b.Spot, b.LastGoal = o.GivingWay, o.Target, s.goal(o.Target, o.Spot), o.Queued == 0
 				b.WaitedOut, b.Cornered = o.WaitedOut, o.Cornered
-				b.Trailing, b.TrailPace, b.Point = o.TrailFor > 0, o.TrailPace, o.At
+				b.Trailing, b.TrailPace, b.Way = o.TrailFor > 0, o.TrailPace, s.wayOf(b.At, o)
 				if o.Group != 0 {
 					b.Group = o.Group
 				}
@@ -1028,6 +1041,24 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 		}
 	}
 	return dst
+}
+
+// the way o leads one at at next, a unit vector: to its step's end, else its route's next cell,
+// else its target; zero there
+func (s *System) wayOf(at geom.Vec, o *order.MoveOrder) geom.Vec {
+	next := o.Target
+	switch {
+	case o.Leg.Active:
+		next = o.Leg.To
+	case o.Path.Index < o.Path.Length:
+		next = o.Path.Steps[o.Path.Index]
+	}
+	to := s.unwrap(at, s.grid.CellCenter(next))
+	d := geom.NewVec(to.X-at.X, to.Y-at.Y)
+	if l := f32.Hypot(d.X, d.Y); l > 0 {
+		return geom.NewVec(d.X/l, d.Y/l)
+	}
+	return geom.Vec{}
 }
 
 func (s *System) goal(c cell.ID, spot geom.Vec) geom.Vec {

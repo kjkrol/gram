@@ -37,17 +37,18 @@
 //
 // How units get on among others is rules of the moment [Touch], which the plugin hosts: two units
 // touching, handed to each of the two every tick they do, with whether each is on the move or
-// giving way, allies or of one order, on the other's goal, head on, with room to step aside, and
-// whether the other lies ahead, moves or faces the unit's way, trails someone. A rule's commands
-// are carried out for the unit alone: [StepAside], [Detour], [Pass], [Hold], [Settle], [Stop],
-// [Trail]. A Touch's words are of the unit — [PushedByAlly], [ReachedTheGroup], [InTheWay],
-// [ClearsTheWay], [Blocks], [GoalTaken], [StrangerOnMyGoal], [WaitsFirst], [NoWayRound],
-// [WaitedLong], [WalksMyWay], [Groupmate] — and the other's role is cond.Other.If(role). The
-// plugin's own rules are StarCraft II's, but one of the unit's order walking its way is trailed,
-// not gone round; a game gives its own with [Plugin.WithCrowd], or adds rules obeyed by the roles
-// its units play. Whatever the rules, navigation keeps the last word: a unit making no headway at
-// the pace the ground lawfully leaves it, or the one it trails lawfully makes, plans afresh and,
-// after a few stalls, stands where it is. A unit with a plan is told
+// giving way, allies or of one order, on the other's goal or near it, head on, with room to step
+// aside, and whether the other lies ahead on the way the unit's route leads it, moves that way or
+// is routed it too, trails someone. A rule's commands are carried out for the unit alone:
+// [StepAside], [Detour], [Pass], [Hold], [Settle], [Stop], [Trail]. A Touch's words are of the
+// unit — [PushedByAlly], [ReachedTheGroup], [InTheWay], [ClearsTheWay], [Blocks], [GoalTaken],
+// [StrangerOnMyGoal], [WaitsFirst], [NoWayRound], [WaitedLong], [WalksMyWay], [Groupmate] — and
+// the other's role is cond.Other.If(role). The plugin's own rules are StarCraft II's, but one of
+// the unit's order walking its way is trailed, not gone round, and the group is joined round its
+// goal alone; a game gives its own with [Plugin.WithCrowd], or adds rules obeyed by the roles its
+// units play. Whatever the rules, navigation keeps the last word: a unit making no headway at the
+// pace the ground lawfully leaves it, or the one it trails lawfully makes, plans afresh and, after
+// a few stalls, stands where it is. A unit with a plan is told
 // the facts [Blocked] (its words [Stuck], [Cornered], [StrangerOnGoal], [IdleAlly],
 // [IdleAllyOnMyGoal]) and [Arrived].
 //

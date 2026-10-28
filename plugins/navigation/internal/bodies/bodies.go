@@ -39,8 +39,8 @@ type Body struct {
 	MaxSpeed  float32 // world units a second
 	Trailing  bool    // follows someone, for a while yet
 	TrailPace float32 // while Trailing, the ground speed whom it follows lawfully makes
-	// the point its order was given for, round which its group stands; zero with none
-	Point geom.Vec
+	// Way is the way its route leads it next, a unit vector; zero without one.
+	Way geom.Vec
 }
 
 // Member is b as a member of the tick, standing where it is.

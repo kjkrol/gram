@@ -30,13 +30,17 @@ type Touch struct {
 	// WaitedOut says Self's Hold ran out with the way still closed, Cornered that its Detour found
 	// no way round.
 	WaitedOut, Cornered bool
-	// Ahead says Other stands ahead of Self on its way: nearer the point Self's order was given
-	// for.
+	// Ahead says Other lies ahead of Self on its way: within a quarter turn of the way its route
+	// leads it, or of its facing with none.
 	Ahead bool
-	// Along says Other moves the way Self faces, SameWay that it faces that way too.
-	Along, SameWay bool
+	// Along says Other moves Self's way.
+	Along bool
+	// SameWay says Other's route leads it Self's way too.
+	SameWay bool
 	// OtherTrailing says Other trails someone itself.
 	OtherTrailing bool
+	// NearMyGoal says Other stands within two cells of Self's goal.
+	NearMyGoal bool
 }
 
 // Who is Self.
@@ -58,22 +62,22 @@ func (t Touch) pushedByAlly() bool {
 }
 
 // ReachedTheGroup is the word of a touch where Self, on the move to the last goal of its order,
-// touches one of
-// that order standing.
+// touches one of that order standing near that goal.
 func ReachedTheGroup() cond.Word[Touch] {
 	return cond.NewWord("reached the group", Touch.reachedTheGroup)
 }
 
+// one of the order standing far from the goal gave up on the way: no group to join
 func (t Touch) reachedTheGroup() bool {
-	return t.Moving && !t.GivingWay && t.LastGoal && !t.OtherMoving && t.Groupmate
+	return t.Moving && !t.GivingWay && t.LastGoal && !t.OtherMoving && t.Groupmate && t.NearMyGoal
 }
 
-// InTheWay is the word of a touch where Self is on the move and Other is in its way, not one of its
-// order that
-// has arrived.
+// InTheWay is the word of a touch where Self is on the move and Other lies ahead of it, not one of
+// its order gathered round its goal.
 func InTheWay() cond.Word[Touch] { return cond.NewWord("in the way", Touch.inTheWay) }
 
-func (t Touch) inTheWay() bool { return t.Moving && !t.reachedTheGroup() }
+// one striking Self from behind or beside is no one in its way
+func (t Touch) inTheWay() bool { return t.Moving && t.Ahead && !t.reachedTheGroup() }
 
 // ClearsTheWay is the word of a touch where an idle ally in Self's way with room to make way for
 // it.
@@ -120,13 +124,14 @@ func WaitedLong() cond.Word[Touch] { return cond.NewWord("waited long", Touch.wa
 func (t Touch) waitedLong() bool { return t.WaitedOut }
 
 // WalksMyWay is the word of a touch where the one in Self's way goes Self's way: under an order,
-// not giving way, ahead of it, and moving along its facing or trailing someone itself.
+// not giving way, ahead of it on a route leading its way, and moving along or trailing someone.
 func WalksMyWay() cond.Word[Touch] { return cond.NewWord("walks my way", Touch.walksMyWay) }
 
-// one standing in a queue counts by its trailing; Ahead keeps two from trailing each other
+// one standing in a queue counts by its trailing; ahead within a quarter turn and going within
+// one, two are never ahead of each other
 func (t Touch) walksMyWay() bool {
 	return t.Moving && !t.GivingWay && t.OtherMoving && !t.OtherGivingWay && t.Ahead &&
-		(t.Along || t.OtherTrailing)
+		t.SameWay && (t.Along || t.OtherTrailing)
 }
 
 // Groupmate is the word of a touch where one MoveTo sent the two.

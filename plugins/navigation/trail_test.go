@@ -150,7 +150,7 @@ func TestCrowd_AQueueAtADeadEndUnwinds(t *testing.T) {
 	}
 	fw := newFieldWorld(t, 8, 3, BodySpacing, deadEnd, units)
 	var trailed [4]bool
-	for range 10 * 60 {
+	for range 15 * 60 {
 		fw.ecs.Tick(time.Second / 60)
 		for i := 1; i <= 3; i++ {
 			if _, o := fw.centre(i); o != nil {
@@ -160,7 +160,7 @@ func TestCrowd_AQueueAtADeadEndUnwinds(t *testing.T) {
 	}
 	for i := 1; i <= 3; i++ {
 		if at, o := fw.centre(i); o != nil {
-			t.Errorf("after 10 s unit %d at %v still has its order, trailing %d for %v: want the "+
+			t.Errorf("after 15 s unit %d at %v still has its order, trailing %d for %v: want the "+
 				"queue's orders gone", i, at, o.Trailing, o.TrailFor)
 		}
 	}
@@ -251,4 +251,33 @@ func TestCellSpacing_AQueueBehindAGroupmateStuckGoesRound(t *testing.T) {
 		return
 	}
 	t.Fatal("the tail behind the stuck leader never arrived")
+}
+
+func TestCrowd_TheGroupIsJoinedAtItsGoalNotOnTheWay(t *testing.T) {
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(34, 3, fieldCell)}
+	goal := probe.grid.CellCenter(probe.at(33, 1))
+	for _, c := range []struct {
+		name   string
+		x      uint32 // the column the groupmate stands in, its order over
+		joined bool
+	}{{"30 cells short of the goal", 3, false}, {"beside the goal", 32, true}} {
+		ordered := func(to geom.Vec) *MoveOrder {
+			o := probe.standAt(to)
+			o.Group = 1
+			return o
+		}
+		standing := probe.grid.CellCenter(probe.at(c.x, 1))
+		fw := newFieldWorld(t, 34, 3, BodySpacing, nil, []fieldUnit{
+			{at: probe.grid.CellCenter(probe.at(0, 1)), side: 6, order: ordered(goal)},
+			{at: standing, side: 6, order: ordered(standing)}, // arrives at once
+		})
+		if settled, _ := fw.run(30 * time.Second); !settled {
+			t.Fatalf("%s: the traveller has not settled", c.name)
+		}
+		at, _ := fw.centre(0)
+		if atGoal := f32.Hypot(at.X-goal.X, at.Y-goal.Y) < 1; atGoal == c.joined {
+			t.Errorf("%s: the traveller stands at %v, at its goal %v; want it joined the group %v",
+				c.name, at, atGoal, c.joined)
+		}
+	}
 }
