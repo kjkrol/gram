@@ -75,6 +75,8 @@ type MoveOrder struct {
 	Face geom.Vec
 	// Group is the MoveTo that gave the order, one number to every unit it sent; zero, none.
 	Group uint32
+	// Party is how many orders the MoveTo that gave this one sent; 1 for one alone.
+	Party uint16
 }
 
 // Ask is a MoveOrder's request to the routing, which answers it the step it is made, or its

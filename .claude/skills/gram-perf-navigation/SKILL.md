@@ -13,11 +13,14 @@ repo go ładuje; stąd czyta się go ścieżką) i `BENCHMARKS.md` astara.
 
 ## Gdzie idzie czas
 
-`Navigation_Tick` (open i crowded, 100 i 1 000 piechurów na planszy 64×64), `Navigation_Path`
-(jedna trasa przez 200×200 co tick, od drugiego ticku odpowiedź pamiętana), `Routing_Path` i
-`Routing_Routes` (`plugins/navigation`: sam routing, 1 trasa albo 32 naraz na jednym wątku i na
+`Navigation_Tick` (open i crowded, 100 i 1 000 piechurów na planszy 64×64, każdy z własnym
+MoveTo; `grouped,1000` to tłum jednym MoveTo: partia, pole), `Navigation_Path`
+(jedna trasa przez 200×200 co tick, od drugiego ticku odpowiedź pamiętana), `Routing_Path`,
+`Routing_Routes` i `Routing_Group` (`plugins/navigation`: sam routing, 1 trasa, 32 naraz do 32
+celów, 32 naraz do jednego celu jako grupa — jedno pole i 32 marsze; na jednym wątku i na
 puli), `PathFinder_Terrain` (`pathfind`: jedna trasa przez 128×128 z ćwiercią ścian; `map`
-czyta seed, `cells` encje komórek, `relief` wzgórza po ordynale ze strategią na krok). W
+czyta seed, `cells` encje komórek, `relief` wzgórza po ordynale ze strategią na krok) i
+`PathFinder_Field` (jedno wypełnienie pola tej planszy z dalekim ziarnem, `map` i `relief`). W
 zatłoczonym ticku A* to trzy czwarte (solver astara, `leveledFrom`, `price`), pod nim odczyty
 komórek siatki (`dxdy`, `NeighborCost`, `Distance`); w otwartym A* to dwie piąte, resztę zjada
 ruch jednostek po trasach (`traffic`).
@@ -93,6 +96,44 @@ ruch jednostek po trasach (`traffic`).
   czytanie kodu. `Navigation_Tick` (piechurzy z własnymi MoveTo: partia 1, podążanie nie
   zachodzi) i `Navigation_Path` w szumie. Koszt podążania mierzy sonda płaskowyżu, nie
   benchmark.
+- **Pole grupy** (2026-10-28, `feat/field` v0.9.0, etap 3 planu „Kolejka i pole grupy",
+  agent Opus): prośby o trasę partii (MoveTo, który wysłał ≥ `fieldParty` = 4 rozkazy:
+  `MoveOrder.Party` wpisany przy wykonaniu MoveTo, zachowany przez `Advance` i ustąpienie;
+  partia przerzedzona dojściami liczy się wielkością przy wydaniu) czytają trasy z jednego pola
+  od celu grupy zamiast A* na członka i na uderzenie. `pathfind.Field`:
+  koszt float32 i krok uint8 po węźle {komórka, poziom}, 10 B na komórkę; `FillField`: Dijkstra
+  od poziomów celu, każdy krok `n → t` sprawdzany i wyceniany tym samym `step`, co
+  `leveledFrom` wyjmuje z `n` (stok od miejsca kroku: wycena w lustrze), kopiec leniwy z
+  remisami astara, stop gdy ziarna osiadły i front > 1,5 × najdalsze, reszta frontu to
+  nieosiągnięte (`Cost` dokładny, gdzie odpowiada); `Walk`: kawałek 64 kroków po `next`,
+  ostatni odcinek do celu innego niż cel grupy przez A* ze znanego poziomu (`findFrom`), bez
+  odcinka gdy cel to cel grupy; `spacing.Fields`: 8 wpisów LRU, klucz (komórka celu z `At`,
+  poziom, domena, klasa ciała bez `Feet`), puszczane po zmianie `Board.Version` jak odpowiedzi
+  pamiętane (nowe pole bierze wolne miejsce zwolnione ostatnio: tablice już urosły, ponowne
+  wypełnienie nie alokuje; `TestGroup_AnUpdateAllocatesNothing`), jeden router wypełnia
+  (`Take`/`Fill`/`Give`), reszta czeka na `Cond`; marsz jest odpowiedzią pamiętaną jak szukanie
+  (najpierw odpowiedzi pamiętane, po chybieniu marsz, po nieudanym marszu szukanie;
+  `Finder.Walks`, `Coordinator.Walks`). **Niezmiennik**:
+  koszt komórki w polu == koszt trasy `Find` z niej (1e-4, trzy
+  plansze: płaska z drogami, relief, hex); pole nie pomija rodzica jak A*, więc bywa tańsze,
+  nigdy droższe; `routes.golden` tras pojedynczych bez zmian (partia < 4 szuka jak dawniej).
+  Spadki do A*: `Avoids > 0` (`FindAround`), partia < 4, ustępowanie z kolejką celów, plansza
+  > 1<<18, finder widzący innych, komórka poza polem, ostatni odcinek nieznaleziony.
+  **Pułapki**: w `grouped,1000` (tłum jednym MoveTo) na 200 ticków szukań wokół nauczonych
+  komórek (`FindAround`, A* jak dawniej) tyle co na bazie (3 615 wobec 3 613); marsze
+  niepamiętane dały 147 marszów, każdy z ostatnim odcinkiem (cele w pierścieniach wokół celu
+  grupy), 104 zwykłe szukania wobec 71 i `grouped,1000` +6,5…+13,9% min: w korku to samo
+  pytanie wraca, a baza odpowiada na nie z pamięci; marsz pamiętany pod pytaniem (`eddf3324`):
+  15 marszów, 102 zwykłe szukania; księgowość pól bez próbki w profilu: zysk pola to trasy
+  początkowe i replany bez nauczonych komórek (`Routing_Group` −83%), nie korek; liczenie
+  partii mapą po żywych rozkazach w każdym Update z prośbą grupy
+  kosztowało +1,7…+3,0% min na każdym rungu `Navigation_Tick` bez pola (każdy piechur z
+  własnym MoveTo, więc każdy rozkaz z grupą): liczność wpisuje się w rozkaz przy wydaniu
+  (`Party`), koordynator czyta ją zbierając prośby; alokacja więcej na op w `grouped,1000` to
+  indeks ciał i zajętość rosnące z ruchem tłumu po innych komórkach (`addCell` 170 wobec 212 na
+  200 ticków), nie pole; remisy Dijkstry od celu są inne niż A* (te same koszty, inne komórki:
+  cała grupa idzie jednym drzewem); daleki cel przy małej partii wypełnia duży dysk (margines
+  1,5 × najdalsze); jednostka odcięta od celu wypełnia całą osiągalną planszę.
 
 ## Co dalej (poza etapem, osobne planowanie)
 

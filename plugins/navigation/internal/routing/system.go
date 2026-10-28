@@ -1,6 +1,7 @@
 package routing
 
 import (
+	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -232,9 +233,9 @@ func (s *System) carryOut(cb *goke.CmdBuf, cmd order.MoveTo, by issuer) {
 			members = append(members, m)
 		}
 	})
-	group := s.nextGroup()
+	group, party := s.nextGroup(), uint16(min(len(members), math.MaxUint16))
 	s.keep.Orders(members, cmd, func(m bodies.Member, o order.MoveOrder) {
-		o.Group = group
+		o.Group, o.Party = group, party
 		cb.AddOne(m.ID, s.orderID, o)
 	})
 }

@@ -930,7 +930,26 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   a safety; a dead queue unwinds 0.5 s a link; under cells a tail follows a crawling groupmate
   through the only way, and goes round one that stands. A group gets its spots
   from `bodyKeeping.place` and
-  goes cell centre to cell centre. The board has every unit hold the cell it stands on, navigation
+  goes cell centre to cell centre. **A party's routes** (2026-10-28, v0.9.0): the route asks of
+  the orders of a MoveTo that sent four or more (`MoveOrder.Party`, set by `routing.System` as
+  it carries the MoveTo out, kept by `Advance` and by a step aside; `fieldParty`) are answered
+  off one field of the way to that goal: the key is the cell under the order's `At` (under
+  cells set now too, the
+  cell's middle without a point), its `Level`, the domain and the body's class with its feet
+  left out, so two MoveTos to one cell share a field; `pathfind.Field` holds the cost and next
+  step per node {cell, level}, `Finder.FillField` fills it (a Dijkstra from the goal, every
+  step checked and priced by `Finder.step`, the one `leveledFrom` uses), `Finder.Walk` reads a
+  route off it (a 64-step chunk, the last leg searched from two cells off a target other than
+  the goal, `findFrom`); `spacing.Fields` keeps eight, the least lately asked for let go first,
+  all let go with the board's `Version`, a field filled again after the board changes taking
+  the free place let go latest (its arrays grown already: no allocation); `routing.Coordinator`
+  notes a party's asks as it gathers them (`Party >= fieldParty`), `Sweep`/`Expect` before they
+  are shared, then `Take`/`Fill`/`Give` (the first router fills, the others wait); a walked
+  route is a kept answer like a searched one (the kept answers looked up first, a miss walks
+  the field, a failed walk searches; `Coordinator.Walks()`); units with learned cells, smaller
+  parties, orders giving way with goals queued, boards past `1<<18` cells, finders that see the
+  others, units off the field and last legs not found search as before. The board has every
+  unit hold the cell it stands on, navigation
   the cells of the steps in progress on their level (`Path.Decks`, a `Leg`'s `FromDeck`/`ToDeck`); a
   unit standing off its route plans again. The driving plugin gets its `driving.Keeping` from
   navigation (`handKeeping`); a unit whose `steering.Driven.Steers()` gives its order up in

@@ -309,6 +309,16 @@ crowd replans every tick it is blocked.
 | open | 1,000 | 2.81 ms | 15 / 20 KB |
 | crowded | 100 | 503 µs | 1 |
 | crowded | 1,000 | 7.66 ms | 2 / 28 KB |
+| grouped | 1,000 | 9.7 ms (`-cpu=1`) | 2 |
+
+`grouped` (v0.9.0) is the crowded scene with every walker selected and sent by one MoveTo: a
+party, so its routes come off one field; on v0.8.0 the same bench is a search a route. Against
+v0.8.0 alternately at `feat/field` (`-cpu=1`, the lower of 6 at `BENCHTIME=200x`, the base with
+the branch's bench files): `grouped` +3.9% (the fields' bookkeeping and the walks' last legs,
+where the jam itself searches round the cells its units learned by striking as before: over 200
+ticks 3,615 such searches against the base's 3,613, 15 walks), the four older rungs within
+noise (+0.2…+1.7% min; a party counted every Update by a map over the living orders had cost
+them +2% before `MoveOrder.Party`), `Navigation_Path` within noise.
 
 Measured anew at `feat/pace` (2026-10-28, astar v1.2.0, the median of 5). Against v0.6.0 with
 astar v1.1.3, alternately at `BENCHTIME=200x` (the lower of three rounds): crowded 1,000 8.83 →
@@ -343,13 +353,30 @@ its route anew, nothing kept between two, and only the routing's work is timed
 (`go test ./plugins/navigation -bench Routing`). `Routing_Path` is the A* of one route across the
 board, a unit in the north-west corner to the far corner and then to the south-west one;
 `Routing_Routes` is 32 routes at once, units on the west edge each to the east edge, answered by
-the plugin's routers on one goroutine or on the pool of every CPU, 4 routers.
+the plugin's routers on one goroutine or on the pool of every CPU, 4 routers; `Routing_Group`
+(v0.9.0) the same 32 units sent to one goal by one MoveTo: a party, so one field of the way to
+the goal filled by the first router and 32 routes walked off it (on `main` before v0.9.0 the
+same bench is 32 searches).
 
 | Benchmark | Routes | A tick | Allocations |
 |:---|---:|---:|---:|
 | `Routing_Path` | 1 | 13.2 ms | 0 |
 | `Routing_Routes/workers=1` | 32 | 189 ms | 10 |
 | `Routing_Routes/workers=all` | 32 | 64.7 ms | 0 |
+| `Routing_Group/workers=1` | 32, one goal | 57.7 ms | 6 |
+| `Routing_Group/workers=all` | 32, one goal | 57.1 ms | 6 |
+
+`Routing_Group` at `feat/field` (2026-10-28, `-cpu=1`, the lower of 6 at `-benchtime=10x`)
+against v0.8.0 alternately: 347 → 57.7 ms on one goroutine (−83%) and 356 → 57.1 on the pool
+(−84%; the fill is one router's work, the walks are microseconds, so the pool gains nothing
+here where it gave 32 searches 3×; 6 allocations an op as `Routing_Routes`, a field filled
+again taking the place the last one held); `Routing_Path` +0.1% and `Routing_Routes` +1…+2.5% (min;
+within noise, the medians of that run drifted up to +13% under a rising load). Under the
+field: `BenchmarkPathFinder_Field/{map,relief}`, one fill of the 128×128 board from its far
+corner (every cell settled), 19.6 ms over the seed and 31.2 ms over the rolling hills (the
+medians of 6), about three times one `PathFinder_Terrain` search of the same board (6.5 and
+11.5 ms), as a Dijkstra with no heuristic over the whole board should; `PathFinder_Terrain`
+itself within noise after the `step` factoring (−2.3…+1.8%).
 
 Measured anew at `feat/pace` (2026-10-28, astar v1.2.0, the median of 5); against v0.6.0 with
 astar v1.1.3, alternately (the lower of three rounds), `Routing_Path` −4%, `Routing_Routes` −17%

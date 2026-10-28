@@ -46,6 +46,16 @@ func (p *Finder) FindPath(
 	return path, ok
 }
 
+// walkField is the route from from to o's Target read off f, the field of m's group's goal.
+func (p *Finder) walkField(f *pathfind.Field, m bodies.Member, from cell.ID,
+	o *order.MoveOrder) (order.Path, bool) {
+	path := order.Path{From: from}
+	n, ok := p.Walk(f, m.ID, m.Domain, m.Body(), from, o.Target, pathfind.Level(o.Level),
+		path.Steps[:])
+	path.Length, path.Decks = uint16(n), p.Decks()
+	return path, ok
+}
+
 func (p *Finder) findPathAround(
 	entity uid.UID64, domain cell.Domain, body pathfind.Body, from, to cell.ID, end order.Level,
 	blocked func(cell.ID) bool,
