@@ -105,6 +105,12 @@ them too, and a probe left in by an interrupted run is a broken demo.
   `column_probe2.go`: `PROBE_CLOSED`, `PROBE_SLACK`, `PROBE_MARCH=0`): in zsh a variable does
   not split into words, so a loop that does `set -- $v` over "name VAR=1 VAR2=0" passes
   nothing, and three "variants" run as one. Write each call out, or split with `${=v}`.
+- **A command a tick after its Select** (2026-10-29): within a tick navigation takes a `MoveTo`
+  before selection takes a `Select`, so a probe putting both on one tick sends nobody; put the
+  `MoveTo` a tick later. A long-route probe reads `navigation.Read(0).Counts()` (searches,
+  walks, fills, expansions) once a game second, with `GRAM_FPS_LOG=1`'s tick lines beside it,
+  and the board's `Version()` against `Passage()` under a windy start (`PROBE_SED` on
+  `Start: weather.Clear`); the measuring brief `doc/briefs/m-passage.md` is the pattern.
 
 ## Measuring a demo's frames and its garbage collector
 
