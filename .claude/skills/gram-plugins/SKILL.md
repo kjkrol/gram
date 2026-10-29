@@ -182,7 +182,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   rules/vision, scenes — stays flat); its grids wrap per axis, following the world's `Edges`. The
   root keeps the `Plugin`, the `Board` (`Plugin.Board()`: `At(x, y)`, `Kind`, `KindAt`, `KindFor`,
   `Bare`, `Set`, `SetAll`, `Way`, `SetWay`, `Along`, `DecksOver`, `Reaches`, `Fenced`, `Lane`,
-  `CellFor`, `LevelFor`, `CellVersion`, `Changes`, `Version`, `Touch`,
+  `CellFor`, `LevelFor`, `CellVersion`, `Changes`, `Version`, `Passage`, `CellPassage`, `Touch`,
   `Shape`, `Built`, `States`), the `Layout`, the `Map` contract, `NewUnits`, `NewEntities`, `Lay`.
   **The `Map` contract is a customization point for games, not plumbing** (`board.Map`:
   `Look`, `Heights`, `Dressing`, `Top`, `Rise(from, to)` — how steep a step is, the rise between
@@ -254,7 +254,17 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `CellVersion` count every change (writes, effects on cells, `Board.Touch(c)`) — of an effect
   only as it begins or ends, and only one the terrain changes under (`Plugin.mattering`: shown as
   a cover, granting tags or turning `cell.Ground`, `Floor`, `Wall`, `Rail`), never one turning
-  another's knob alone (`weathering.Wring`): each change repaints the topography's surface,
+  another's knob alone (`weathering.Wring`). **`Passage` and `CellPassage`** (2026-10-29,
+  v0.11.0) count only a cell's passage, what a step reads of it: its ground's and its way's
+  kinds as a step meets them (`Allows`, `Solid`, `Graded`, `Pace`, `Paces`; the ground's own
+  apart from the way's, since `Bare` prices a slantwise step off a way), the way kind's name,
+  `Width` and `Links`, `Built` whole (read from the store, never through `Read.Built`, which
+  `t.built` gates until the gathering ends), and its heights (`Touch` always counts). It is a
+  `maphash.Comparable` hash by ordinal, worked out in `touch` for the cell changed and counted
+  only where it differs; the cells made and `SetAll` count every cell at once; a load starts it
+  over as `Version`. `Veil`, `Veils`, `Height`, `Sway`, `Takes`, `SpriteID`, a kind's `Name`, a
+  way's `Fade`/`Mix`, a cell's label, roles and markers move the Version alone. Each change
+  repaints the topography's surface,
   ~2–3 ms a time over Madeira (2026-10-17, the uplands' rules first showed it). A cell plays the
   roles of its kind and its entry's own and is called by its entry's `Name` and `Group` (such
   cells are made apart). What the board does to its terrain over time is effects on the cells'
@@ -833,11 +843,16 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   94 → 18 ms, 14,740 → 19 allocations; a crowded tick of 1,000 walkers 306 → 104 ms). A route
   search asked again is answered as before, unrun (`avoiding.find`, wave 3): the answer kept by
   its question (start, target and level, domain, `pathfind.Body`, the cells gone round as a set
-  less the target, round or any way) till the board's `Version` changes (`keptAnswers` 4,096,
-  all let go when full; a finder asking the occupancy keeps none); units whose four learned
-  cells rotate ask a set again 2–10 ticks later (crowded 1,000: 94.9 → 40.3 ms, then 37.6 with
-  the slice dictionaries). Whatever changes what a search reads must count in the board's
-  Version before navigation's next search. `TestRoutes_AsPinned` pins every route, step and price on three
+  less the target, round or any way) till the board's `Passage` changes (v0.11.0; `Version`
+  before: the forest's sway let every answer go; `keptAnswers` 4,096, all let go when full; a
+  finder asking the occupancy keeps none); units whose four learned cells rotate ask a set
+  again 2–10 ticks later (crowded 1,000: 94.9 → 40.3 ms, then 37.6 with the slice
+  dictionaries). Whatever changes what a search reads must count in the board's `Passage`
+  before navigation's next search; the flat steps (`flatStep`) are kept by it too, the routers'
+  cleared every Update by `Finder.Reads` as before. `Read.Counts()` (`navigation.Counts`:
+  searches, walks, fills, climbs, builds and the nodes expanded, the coordinator's routers and
+  the traffic's finder together, read between ticks) and `Read.Reporter()` (the panel's line)
+  show the work. `TestRoutes_AsPinned` pins every route, step and price on three
   boards (square with bridges and relief, a torus, hex) to `testdata/routes.golden`: a change
   meant to keep the routes keeps it; one meant to change them rewrites it with `-update-routes`
   and says why. The keepings' passes allocate nothing per unit (2026-10-20, etap 2b): the body
@@ -941,7 +956,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   step checked and priced by `Finder.step`, the one `leveledFrom` uses), `Finder.Walk` reads a
   route off it (a 64-step chunk, the last leg searched from two cells off a target other than
   the goal, `findFrom`); `spacing.Fields` keeps eight, the least lately asked for let go first,
-  all let go with the board's `Version`, a field filled again after the board changes taking
+  all let go with the board's `Passage`, a field filled again after the board changes taking
   the free place let go latest (its arrays grown already: no allocation); `routing.Coordinator`
   notes a party's asks as it gathers them (`Party >= fieldParty`), `Sweep`/`Expect` before they
   are shared, then `Take`/`Fill`/`Give` (the first router fills, the others wait); a walked

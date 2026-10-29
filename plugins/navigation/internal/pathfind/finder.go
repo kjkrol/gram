@@ -12,39 +12,40 @@ import (
 // Finder computes routes over one grid, reusing its A* solver across calls; build one and share
 // it.
 type Finder struct {
-	grid      grid.Grid
-	terrain   cell.Terrain
-	occupancy cell.Occupancy
-	pacing    Pacing
-	sloped    bool        // the pacing feels the slope: a step is paced by the strategy
-	kinds     []cell.Kind // by ordinal, the ground kind read for a step over a relief
-	versioned versioned   // nil: the terrain counts no changes, a cell is read every search
-	flats     []flatStep  // by ordinal, the ground steps kept across searches
-	searches  uint64
-	fills     uint64
-	walks     uint64
-	frontier  frontier
-	seeded    []uint32 // by ordinal, seeding where a fill's seed has yet to be reached
-	seeding   uint32
-	ways      ways   // nil: no ways run
-	built     built  // nil: nothing stands
-	lanes     lanes  // nil: no band narrows a step
-	levels    Levels // nil: every cell one level
-	solver    *astar.Solver[cell.ID]
-	leveled   *astar.Solver[node]
-	plain     astar.Transitions[cell.ID]
-	stepped   astar.Transitions[node]
-	blocked   func(cell.ID) bool // nil: none
-	entity    uid.UID64
-	domain    cell.Domain
-	goal      cell.ID
-	end       Level
-	ended     uint8
-	decks     uint64
-	body      Body
-	reads     []read // by ordinal
-	search    uint32
-	rings     rings
+	grid       grid.Grid
+	terrain    cell.Terrain
+	occupancy  cell.Occupancy
+	pacing     Pacing
+	sloped     bool        // the pacing feels the slope: a step is paced by the strategy
+	kinds      []cell.Kind // by ordinal, the ground kind read for a step over a relief
+	passing    passing     // nil: the terrain counts no changes, a cell is read every search
+	flats      []flatStep  // by ordinal, the ground steps kept across searches
+	searches   uint64
+	fills      uint64
+	walks      uint64
+	expansions uint64
+	frontier   frontier
+	seeded     []uint32 // by ordinal, seeding where a fill's seed has yet to be reached
+	seeding    uint32
+	ways       ways   // nil: no ways run
+	built      built  // nil: nothing stands
+	lanes      lanes  // nil: no band narrows a step
+	levels     Levels // nil: every cell one level
+	solver     *astar.Solver[cell.ID]
+	leveled    *astar.Solver[node]
+	plain      astar.Transitions[cell.ID]
+	stepped    astar.Transitions[node]
+	blocked    func(cell.ID) bool // nil: none
+	entity     uid.UID64
+	domain     cell.Domain
+	goal       cell.ID
+	end        Level
+	ended      uint8
+	decks      uint64
+	body       Body
+	reads      []read // by ordinal
+	search     uint32
+	rings      rings
 	// the solvers' last results, written over by the next search
 	path  []cell.ID
 	route []node
@@ -80,9 +81,9 @@ type built interface {
 	Fenced(from, to cell.ID, d cell.Domain, deck bool) bool
 }
 
-// versioned counts every change to what a search reads, as a board does
-type versioned interface {
-	Version() uint64
+// passing counts every change to what a search reads, as a board's Passage does
+type passing interface {
+	Passage() uint64
 }
 
 // lanes says how wide a body may be across a step along a deck's band, +Inf where none narrows it
@@ -130,7 +131,7 @@ func New(grid grid.Grid, terrain cell.Terrain, pacing Pacing, occupancy cell.Occ
 	p.ways, _ = terrain.(ways)
 	p.built, _ = terrain.(built)
 	p.lanes, _ = terrain.(lanes)
-	p.versioned, _ = terrain.(versioned)
+	p.passing, _ = terrain.(passing)
 	p.solver = astar.New(grid.Distance,
 		astar.WithIndexedSliceDict(grid.CellCount()+1, p.slot),
 		astar.WithSuccessorCapacity[cell.ID](grid.Directions()))
@@ -146,7 +147,7 @@ func (p *Finder) Reads(terrain cell.Terrain, pacing Pacing, levels Levels) {
 	p.ways, _ = terrain.(ways)
 	p.built, _ = terrain.(built)
 	p.lanes, _ = terrain.(lanes)
-	p.versioned, _ = terrain.(versioned)
+	p.passing, _ = terrain.(passing)
 	clear(p.flats)
 }
 
@@ -260,6 +261,10 @@ func (p *Finder) Sloped() bool { return p.sloped }
 // Searches counts the routes searched for since the Finder was made, an answer kept by the
 // keeping searched for none.
 func (p *Finder) Searches() uint64 { return p.searches }
+
+// Expansions counts the nodes the Finder's searches expanded since it was made: the work a
+// search does, a fill's left out.
+func (p *Finder) Expansions() uint64 { return p.expansions }
 
 // a step over a relief is refused where the strategy paces it at 0
 func (p *Finder) paced(from cell.ID, r *read, level uint8) bool {
@@ -398,6 +403,7 @@ func (p *Finder) cutOff(c corner) bool {
 
 func (p *Finder) plainFrom(from, prev cell.ID,
 	buf []astar.Transition[cell.ID]) []astar.Transition[cell.ID] {
+	p.expansions++
 	buf = buf[:0]
 	for i := range p.grid.Directions() {
 		n, ok := p.grid.Toward(from, i)
@@ -425,6 +431,7 @@ func (p *Finder) plainFrom(from, prev cell.ID,
 
 func (p *Finder) leveledFrom(from, prev node,
 	buf []astar.Transition[node]) []astar.Transition[node] {
+	p.expansions++
 	buf = buf[:0]
 	if from.level == goal {
 		return buf

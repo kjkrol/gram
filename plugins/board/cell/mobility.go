@@ -22,7 +22,9 @@ type Step struct {
 }
 
 // Mobility is how a game's units fare on the ground: the share of its top speed a unit keeps on
-// a step, 1 full speed and nothing faster, 0 refusing the step. Factors multiply.
+// a step, 1 full speed and nothing faster, 0 refusing the step. Factors multiply, and rest on
+// the Step alone (whom the kind admits, its paces and grading, the slope and the domain): a
+// share read off anything else goes stale, as the board counts only these in a cell's passage.
 type Mobility interface {
 	Pace(s Step) float64
 }

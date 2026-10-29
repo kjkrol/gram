@@ -118,6 +118,15 @@ func (c *Coordinator) Searches() uint64 {
 	return n
 }
 
+// Expansions counts the nodes the routers' searches expanded since they were made.
+func (c *Coordinator) Expansions() uint64 {
+	var n uint64
+	for i := range c.routers {
+		n += c.routers[i].finder.Expansions()
+	}
+	return n
+}
+
 func (c *Coordinator) Init(si *goke.SysInit) {
 	c.query = si.NewQueryBuilder(&c.cell, &c.order).Optional(&c.mover).Optional(&c.base).
 		Optional(&c.z).Build()

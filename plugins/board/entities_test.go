@@ -86,6 +86,30 @@ func TestFloor_CarriesItsDomainsOverThePitUntilOpened(t *testing.T) {
 	}
 }
 
+// a deck laid where nothing stood, over ground already taking whom it carries: the kind is the
+// same, what a step along the deck reads is not
+func TestFloor_LaidWhereNothingStoodCountsAsPassage(t *testing.T) {
+	lays := effect.Spec{effect.Alter(func(f *cell.Floor) { f.Allows = cell.Land })}
+	s := newStrip(t, grass, lays, comp.Const(cell.Floor{}))
+	brd := s.Board.Read(0).Board()
+	if b := brd.Built(s.middle); b != (cell.Built{}) {
+		t.Fatalf("built before the deck is laid: %+v, want nothing", b)
+	}
+	passage, cellPassage := brd.Passage(), brd.CellPassage(s.middle)
+	besidePassage := brd.CellPassage(s.middle - 1)
+	s.cast(t)
+	if b := brd.Built(s.middle); b.Floor.Allows != cell.Land {
+		t.Fatalf("built once the deck is laid: %+v, want a Floor of Land", b)
+	}
+	if brd.Passage() <= passage || brd.CellPassage(s.middle) <= cellPassage {
+		t.Errorf("the deck laid moved the Passage %d to %d and the cell's %d to %d, want both up",
+			passage, brd.Passage(), cellPassage, brd.CellPassage(s.middle))
+	}
+	if brd.CellPassage(s.middle-1) != besidePassage {
+		t.Error("the deck laid changed the passage of the cell beside it")
+	}
+}
+
 func TestWall_KeepsItsDomainsOffTheCell(t *testing.T) {
 	opens := effect.Spec{effect.Alter(func(w *cell.Wall) { w.Keeps = 0 })}
 	s := newStrip(t, grass, opens, comp.Const(cell.Wall{Keeps: cell.Land}))

@@ -91,6 +91,52 @@ func TestPlugin_SaveLoad_TerrainRoundTripsAsCellEntities(t *testing.T) {
 		t.Errorf("Way(cell) after Load = %+v, want %+v", got, way)
 	}
 	if got, _ := game2.boardPlugin.Read(0).Board().CellEntity(here); got != id {
-		t.Errorf("the cell's entity after Load is %d, want %d, the one saved — none spawned anew", got, id)
+		t.Errorf("the cell's entity after Load is %d, want %d, the one saved — none spawned "+
+			"anew", got, id)
+	}
+}
+
+// a load makes the cells out of the save with every cell's passage counted at once, each as the
+// save holds it: a Set changing a loaded wall's look alone counts no passage
+func TestCells_ALoadStampsEveryCellsPassage(t *testing.T) {
+	t.Chdir(t.TempDir())
+	grid := grid.DefaultGrids{}.Square(5, 5, 10)
+	wall := cell.Kind{Name: cell.Named("wall"), Pace: 1, Solid: true}
+	here := grid.At(2, 2)
+	saved := &boardSaveLoadTestGame{grid: grid}
+	eng := engine.NewEngine(boardtest.OneStageGame{Stage: saved, GameProps: game.Props{}})
+	if err := eng.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	saved.boardPlugin.Write().Board().Set(here, wall)
+	if err := eng.Save(""); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	loaded := &boardSaveLoadTestGame{grid: grid, load: true}
+	eng2 := engine.NewEngine(boardtest.OneStageGame{Stage: loaded, GameProps: game.Props{}})
+	if err := eng2.Load("", ""); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if err := eng2.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	brd := loaded.boardPlugin.Read(0).Board()
+	passage := brd.Passage()
+	if passage == 0 {
+		t.Fatal("the load counted no passage")
+	}
+	brd.EachCell(func(c cell.ID) {
+		if got := brd.CellPassage(c); got != passage {
+			t.Errorf("cell %d's passage %d after the load, want every cell's %d", c, got, passage)
+		}
+	})
+	painted := wall
+	painted.SpriteID++
+	version := brd.Version()
+	loaded.boardPlugin.Write().Board().Set(here, painted)
+	if brd.Version() == version || brd.Passage() != passage {
+		t.Errorf("a loaded wall painted anew moved the Version %v and the Passage %v, want the "+
+			"Version alone", brd.Version() != version, brd.Passage() != passage)
 	}
 }

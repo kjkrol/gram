@@ -96,6 +96,13 @@
 // ([Plugin.WithRouteStyle], [DefaultRouteStyle]) is the lines' colour and width and the goals'
 // colour.
 //
+// # Counts
+//
+// [Read.Counts] are what the routing did since the plugin was made: the routes searched, those
+// read off a group's field, the fields filled, the nodes the searches expanded; [Read.Reporter]
+// is their line on the telemetry panel. A route asked again is answered as before, unsearched,
+// while the board's passage stands (board.BoardRead.Passage), as it does while a forest sways.
+//
 // # Vocabulary
 //
 // Moments, for a role's rules: [Touch] (a pair, host.Met, its subject the other; its words

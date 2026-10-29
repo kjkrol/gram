@@ -71,10 +71,10 @@ func (p *Finder) at(c cell.ID) *read {
 	return r
 }
 
-// a cell's ground step as read for a domain, good while the board's version stands: whatever
-// changes what a search reads counts in the version, as the kept answers rest on
+// a cell's ground step as read for a domain, good while the board's passage stands: whatever
+// changes what a search reads counts in it, as the kept answers rest on
 type flatStep struct {
-	version uint64
+	passage uint64
 	domain  cell.Domain
 	read    bool
 	step    step
@@ -88,18 +88,18 @@ func (p *Finder) groundOf(r *read) step {
 	return r.ground
 }
 
-// the ground step of c, kept across searches by the board's version where the terrain has one
+// the ground step of c, kept across searches by the board's passage where the terrain has one
 func (p *Finder) groundStep(c cell.ID) step {
 	o, ok := p.grid.Ordinal(c)
-	if !ok || p.versioned == nil {
+	if !ok || p.passing == nil {
 		return p.stepOn(c, p.kindAt(c, ground), ground)
 	}
 	if len(p.flats) == 0 {
 		p.flats = make([]flatStep, p.grid.CellCount())
 	}
-	f, version := &p.flats[o], p.versioned.Version()
-	if !f.read || f.version != version || f.domain != p.domain {
-		*f = flatStep{version: version, domain: p.domain, read: true,
+	f, passage := &p.flats[o], p.passing.Passage()
+	if !f.read || f.passage != passage || f.domain != p.domain {
+		*f = flatStep{passage: passage, domain: p.domain, read: true,
 			step: p.stepOn(c, p.kindAt(c, ground), ground)}
 	}
 	return f.step

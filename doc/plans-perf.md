@@ -1528,3 +1528,115 @@ mniej napiera na szczelinę, więc mniej szuka wokół nauczonych komórek; bez 
 rungi w szumie (−1,0…+3,4% min; +3,4% `open,1000` zwykłe to −1,0% przy `-cpu=1`);
 `Routing_Group` (w `plugins/navigation`, nie w `bench/`: `measure.sh` go nie widzi) bez zmian
 (+0,0% i −1,1% min, `-cpu=1`, 10x). Sześć dem z nawigacją pod `timeout 20s` zdrowe.
+
+## HPA*: planner hierarchiczny w astar, przejezdność planszy i adapter (plan 2026-10-29, gałęzie `feat/hierarchy` w astar, `feat/passage` i `feat/hpa` w gramie, litera `h`)
+
+Analiza (2026-10-29, v0.10.0, trzech agentów Explore i trzech Plan; plik planu sesji):
+(1) długie trasy zalewają planszę: na Maderze udziały poza drogami 0,13–0,4 czynią `h =
+odległość` 2,5–7,5× za małą, więc ślepe szukanie rozwija większość wyspy (~6 ms, 0,75 µs na
+rozwinięcie nad reliefem); `Routing_Path` (200×200, ≥195 kroków) rozwija ~33 tys. węzłów, 13,2
+ms; (2) kawałkowanie mnoży koszt: `Path` niesie 64 kroki, traffic pyta od końca kawałka, a
+klucz odpowiedzi pamiętanej ma `from`, więc trasa 195 kroków to trzy pełne szukania (~2×
+pracy jednego); (3) wiatr gasi pamięć: kołysanie lasu to `effect.Alter` na `cell.Ground`, każde
+przejście wiatru podbija `CellVersion` każdej komórki lasu i `Version`, a po `Version` lecą
+odpowiedzi pamiętane, pola i udziały płaskie (śnieg tak samo bez zmiany cen; lód zmienia
+przejezdność naprawdę); (4) cel nieosiągalny zalewa do 64 razy (`NearestFree`,
+`BodyKeeping.Lost`); (5) sektory świata to podział pod pasma tempa (bok z gęstości encji,
+bez publicznego dostępu, kwadratowe), a nawigacja nie ma żadnej struktury ponad komórką;
+(6) astar v1.2.0: jeden pakiet, `Solver[T]` bez odczytu G, wielu celów i licznika rozwinięć.
+
+Decyzje użytkownika (2026-10-29): korzeń astar staje się plannerem hierarchicznym — jeden
+pakiet z `Solver` (bez zmian: jeden poziom i silnik szukania abstrakcyjnego), `Dijkstra[T]`
+(jeden-do-wielu) i `Hierarchy[T]` (adaptacyjnie wiele poziomów: bok poziomu 1 od wołającego,
+wyżej bloki f×f = 4, poziomów tyle, by najwyższy miał ≤ 16 klastrów; Madera przy boku 16: dwa
+poziomy), przykład `examples/hpa` z mapami generowanymi 256²/1024²/4096², nic pod Maderę;
+plansza rozdziela zmiany przejezdne od reszty (licznik `Passage`), nawigacja pamięta po nim;
+klastry własne nawigacji po komórkach, domyślny bok = bok sektora w komórkach, gdy całkowity
+na kwadracie, inaczej 16, hex 16 w osiach, pokrętło `WithHierarchy{Side, From, Off}`;
+doprecyzowanie bez szukania (drzewa od wejść zapisane przy budowie, A* tylko abstrakcyjny;
+0,5 ms na kawałek odrzucone); schody: astar v1.3.0 i gram etap A równolegle, gram etap B po
+tagu; wykonanie i pomiary agentami Opus, integrator analizuje, scala i zleca poprawki.
+
+**Etap astar** (`feat/hierarchy`, v1.3.0, części `h/dijkstra` → `h/hierarchy` ∥ `h/example`,
+briefy w `doc/briefs/` astara): `Dijkstra[T]{NewDijkstra, Fill(sources, transitions, within,
+targets), Cost, Parent, Settled, Wipe}` nad kopcem i słownikiem solvera; `Hierarchy[T]`
+(`Graph{Forward, Backward, Heuristic}`, `Layout{Coords, Size, Indexer, Capacity}`; `WithSide`,
+`WithFactor`, `WithTop`, `WithSpan`, `WithTrees`; `Stale`, `Build(budget)`, `Ready`, `Find`
+leniwe do `dst`, `Reaches`, `Cost`, liczniki): wejścia na parę klastrów przerzedzone co `span`
+miarą heurystyki plus lokalne minima kosztu przejścia (drogi) plus końce biegów; krawędzie
+skierowane; poziom k nad grafem poziomu k−1; determinizm (porządek id i współrzędnych, remisy
+kopca); testy skali i golden kosztów; przykład i benchmarki. Tag v1.3.0: użytkownik.
+
+**Etap A** (`feat/passage`, v0.11.0; brief `doc/briefs/p1-passage.md`): rzut przejezdny
+komórki (`Allows`, `Solid`, `Graded`, `Pace`, `Paces`, droga: rodzaj, szerokość, linki,
+`Built`) haszowany na ordinal; `BoardRead.Passage()` i `CellPassage(c)` (nie startują od nowa;
+`Touch` zawsze liczy się; `Set`/`SetWay`/`SetAll` i przebieg efektów stemplują tylko przy
+zmianie rzutu; wczytanie stempluje wszystkie); nawigacja (`flatStep`, odpowiedzi pamiętane,
+pola, `terrainSeen`) po `Passage`; `navigation.Counts` i `Read.Counts()` (`Searches`, `Walks`,
+`Fills`, `Climbs`, `Builds`, `Expansions`) z linią w panelu. Pomiar (brief `m-passage.md`,
+agent mierzący): benchmarki nawigacji i planszy w szumie; sonda Madery jako punkt odniesienia
+(trzy jednostki graczy i 30 górali: szukania na rozkaz, rozwinięcia, czas `Routing.Update`,
+kadencja `Version`/`Passage` pod wiatrem).
+
+**Etap B** (`feat/hpa`, v0.12.0, po tagu astara i podbiciu `go.mod`; części `h/graph` ∥
+`h/route` od preludium kontraktów; briefy `h4-graph.md`, `h5-route.md`): `pathfind.Finder` jako
+`astar.Graph[node]` (Forward `leveledFrom`, Backward `leveledInto` z `into` pola) i
+`Layout[node]` (`Coords` komórki; sloty poza siatką bez klastra); `Key{Domain, Body bez Feet}`;
+`Climb`, `Reaches`, `Climbs()`; próg jako czysta funkcja pytania `grid.Distance(from, to) ≥ From`
+(64 = `MaxPathLength`), tylko szukania ślepe i gotowa hierarchia; `FindAround`, kandydaci
+`NearestFree`, `rings`, `Detour`, podgląd: jak dziś (golden i `fieldMatchesFind` nietknięte z
+konstrukcji); `spacing.Hierarchies` jak `Fields` bez Cond (`Sweep` na gorutynie wołającej: skan
+`CellPassage` gdy `Passage` ruszył → `Stale`, `Build(budget)` klastrów na Update, klucz
+dokładny póki nie `Ready`; `Expect` deterministyczne LRU 4; `Take` bez blokady);
+`Member.Hierarchy`; `find`: pole → wspinaczka → `FindPath`; `NearestFree` i `Lost`: `Reaches` po
+pierwszym nieudanym `Find`; pokrętło i domyślny bok z sektorów (jak minimapa czyta); demo
+topografii `From: 32`.
+
+**Pomiar** (agent mierzący, kopia bazowa v0.11.0 z plikami benchmarków gałęzi, na zmianę,
+najniższy z 6, 200x/10x, zwykły i `-cpu=1`, profil `Routing_Path` po obu stronach):
+`Routing_Path` 13,2 → ~1 ms (≥ −50%, 0 alokacji), `Routing_Routes` 189/64,7 → ~15/5 ms, nowy
+`Routing_Long` (≥ 3 kawałki, ~30 → ~2 ms), `Routing_Group` ±3%, `PathFinder_Terrain` bez zmian +
+rung `levels`, nowe `PathFinder_Hierarchy/{build,find,rebuild}×{map,relief}`, `Navigation_Tick`
+6 rungów i `Navigation_Path` w szumie; sonda Madery: wspinaczek tyle, co kawałków, szukań 0 na
+długą trasę, dojścia 30/30 ≤ 340 s, zero przebudów po przejściu wiatru.
+
+## HPA*: wynik (2026-10-29)
+
+**Etap A** (`feat/passage`, v0.11.0; agent Opus 5.5 z briefu `doc/briefs/p1-passage.md`, cztery
+commity: `6f7d1f23` przejezdność komórki, `dbd2737f` nawigacja po niej, `635153b2` liczniki,
+`e302126e` komentarz). Weszło: rzut przejezdny komórki haszowany na ordinal (`maphash.Comparable`,
+16 B na komórkę) — szerszy niż brief, i słusznie: `price` wycenia krok skośny poza drogą po
+`Bare`, czyli po gruncie pod drogą, więc rzut liczy grunt i drogę osobno (udziały, domeny,
+`Solid`, `Graded`; nazwa, szerokość i linki drogi; `Built` w całości czytany ze store'u, bo
+`Read.Built` jest bramkowane `t.built` ustawianym dopiero po dotknięciu: pierwszy pokład na
+pustej planszy nie liczyłby się); `Touch` liczy się zawsze; `Passage` startuje od nowa przy
+wczytaniu jak `Version` (nowa plansza, nowy etap); odpowiedzi pamiętane, pola, `flatStep` i
+`terrainSeen` po `Passage` (`entities.go` i `path_finder.go` bez zmian: oba przebiegi wołają
+`touch`); `navigation.Counts`, `Read.Counts()`, `Read.Reporter()` (demo topografii pokazuje
+linię; integrator), `Finder.Expansions` (`plainFrom`/`leveledFrom`); zdanie przy `cell.Mobility`
+(udział tylko z `Step`). Testy: 26 przypadków rzutu pole po polu, pokład na pustej planszy,
+flats po przejezdności (test w `pathfind`, bo routery czyszczą flats co Update), liczniki
+rozwinięć, kołysanie bez utraty odpowiedzi i pola, lód z utratą; golden, `-race`, SIMD zielone.
+Ryzyka: `Mobility` gry czytająca pole spoza `Step`; krok czyta sąsiadów (narożniki, pasma),
+więc klaster etapu B ocenia nieaktualność po komórkach i pierścieniu; koszt przeniesiony na
+zapisy (3 seeki i hasz na dotkniętą komórkę, `made`/`SetAll` O(komórek)). Pomiar (agent
+mierzący Opus z briefu `doc/briefs/m-passage.md`; baza v0.10.0, na zmianę, `GOWORK=off`, 200x
+3×2 zwykły i `-cpu=1`, routing i pathfind ręcznie 10x): nic nie traci ≥ 3% mediany z powodu
+etapu; hasz przejezdności (`passageOf`, `maphash`) widać w profilach tylko w układaniu planszy
+benchmarku (10–30 ms), nigdy na ścieżce mierzonej; `Routing_Path` +2,1% mediany z 30 próbek
+na stronę (po stronie drzewa w każdym przebiegu, pod progiem); `Routing_Group`, `PathFinder_*`,
+`Navigation_Tick` 1 000 w szumie. **Pułapki pomiaru znalezione**: rungi 2–60 µs przy 200x
+trwają ~10 ms i mówią tylko szum (powtórzone z `BENCHTIME=1s` wszystkie w −3,5…+1%); baza
+biegnie pierwsza i jej pierwsza runda w oknie boostu (~25–30 s) wychodzi 10–20% szybciej
+(zamiana stron odwraca znak); układ pamięci pod transparent huge pages (`[always]`) daje
+dwumodalność (`Routing_Routes/workers=1` 230–245 wobec 257–277 ms po obu stronach,
+`crowded,100` przy 2000x +28% z THP, −0,2% z `GODEBUG=disablethp=1`). Sonda Madery (burza na
+start, ziarno 7, po dwa przebiegi na stronę): dojścia co do ticku te same (Poiso→Faial 118 s,
+Funchal→Santana 170 s, Machico→Câmara de Lobos 210 s, 30 górali w 292 s); liczniki drzewa
+identyczne w obu przebiegach: 54 szukania, 51 marszów, 1 pole, 18 300 rozwinięć w 300 s;
+długa trasa to trzy kawałki i trzy szukania (Funchal→Santana 64+58+41 kroków; Machico 2912 i
+994 rozwinięć na kawałek), siedem rozkazów mapy na drugim ticku to 8 139 rozwinięć; jedyne
+przejście wiatru (43,8 → 15 przy 1,07 s, kołysanie 1 788 komórek lasu) podbiło `Version` o 1 i
+`Passage` o 0 (mosty na pierwszym ticku: `Passage` +65); ticki z szukaniem w medianie równe
+cichym (±0,1 ms). Sześć dem z nawigacją: w etapie B (demo topografii zbudowane z linią
+liczników).
