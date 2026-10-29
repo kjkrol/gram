@@ -1,6 +1,8 @@
 package terrain
 
 import (
+	"hash/maphash"
+
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/cond"
@@ -25,8 +27,13 @@ type Cells struct {
 	version   uint64
 	stamps    []uint64 // by ordinal: the count of changes when the cell last changed
 	changes   uint64
-	everyone  uint64 // the count when every cell last changed at once
-	built     int    // a board of none seeks none
+	everyone  uint64   // the count when every cell last changed at once
+	passage   []uint64 // by ordinal: the hash of the cell's passage as it last counted
+	passed    []uint64 // by ordinal: the count of passages when the cell's last changed
+	passages  uint64
+	allPassed uint64 // the count when every cell's passage last changed at once
+	hashing   maphash.Seed
+	built     int // a board of none seeks none
 	railed    int
 	bands     int
 	narrowest float32
@@ -44,10 +51,16 @@ type Cells struct {
 
 // New is the terrain of g's cells, every one of the zero kind until it is set.
 func New(g grid.Grid) *Cells {
-	t := &Cells{grid: g, seed: cell.NewTerrainMap(), stamps: make([]uint64, g.CellCount())}
+	n := g.CellCount()
+	t := &Cells{grid: g, seed: cell.NewTerrainMap(), stamps: make([]uint64, n),
+		passage: make([]uint64, n), passed: make([]uint64, n), hashing: maphash.MakeSeed()}
 	t.read.t = t
 	if sq, ok := g.(*grids.Square); ok {
 		t.square = uint64(sq.Width) * uint64(sq.Height)
+	}
+	bare := maphash.Comparable(t.hashing, passage{})
+	for i := range t.passage {
+		t.passage[i] = bare
 	}
 	return t
 }
@@ -377,28 +390,117 @@ func (t *Cells) Version() uint64 {
 	return t.version
 }
 
-// Touch counts a change to c made beyond the terrain: its heights.
+// CellPassage is the Passage at which c's passage last changed; it only grows, and changes to
+// other cells leave it as it is.
+func (t *Cells) CellPassage(c cell.ID) uint64 {
+	i, ok := t.Ordinal(c)
+	if !ok || i >= len(t.passed) {
+		return t.allPassed
+	}
+	return max(t.passed[i], t.allPassed)
+}
+
+// Passage counts the changes to what a step over the cells reads, one cell at a time or all at
+// once: while it stays as it was, no cell's passage changed. It only grows.
+func (t *Cells) Passage() uint64 { return t.passages }
+
+// CellPassage is the Passage at which c's passage last changed; it only grows.
+func (r *Read) CellPassage(c cell.ID) uint64 { return r.t.CellPassage(c) }
+
+// Passage counts the changes to what a step over the cells reads: while it stays as it was, no
+// cell's passage changed.
+func (r *Read) Passage() uint64 { return r.t.passages }
+
+// Touch counts a change to c made beyond the terrain: its heights, which a step reads.
 func (t *Cells) Touch(c cell.ID) {
-	t.touch(c)
+	if i, ok := t.Ordinal(c); ok && i < len(t.stamps) {
+		t.pass(i)
+		t.stamp(i, c)
+	}
 	t.version++
 }
 
+// touch counts a change to c's terrain, and to its passage where what a step reads of c differs
 func (t *Cells) touch(c cell.ID) {
 	if i, ok := t.Ordinal(c); ok && i < len(t.stamps) {
-		t.changes++
-		t.stamps[i] = t.changes
-		if t.changed != nil {
-			t.changed(c)
+		if h := t.passageOf(i, c); h != t.passage[i] {
+			t.passage[i] = h
+			t.pass(i)
 		}
+		t.stamp(i, c)
 	}
+}
+
+func (t *Cells) stamp(i int, c cell.ID) {
+	t.changes++
+	t.stamps[i] = t.changes
+	if t.changed != nil {
+		t.changed(c)
+	}
+}
+
+func (t *Cells) pass(i int) {
+	t.passages++
+	t.passed[i] = t.passages
 }
 
 func (t *Cells) touchAll() {
 	t.changes++
 	t.everyone = t.changes
+	t.passages++
+	t.allPassed = t.passages
+	t.grid.EachCell(func(c cell.ID) {
+		if i, ok := t.Ordinal(c); ok && i < len(t.passage) {
+			t.passage[i] = t.passageOf(i, c)
+		}
+	})
 	if t.all != nil {
 		t.all()
 	}
+}
+
+// passage is what a step over a cell reads of it beyond its heights: whom its ground and the way
+// across it admit and at what pace, how the way runs, what is built over it. Its Veil, Height,
+// Sway, look and name, and a way's fading, no step reads.
+type passage struct {
+	ground, way stride
+	wayName     cell.Name
+	width       float32
+	links       cell.Links
+	built       cell.Built
+}
+
+// stride is a kind as a step meets it
+type stride struct {
+	allows        cell.Domain
+	solid, graded bool
+	pace          float64
+	paces         [8]float64
+}
+
+func strideOf(k *cell.Kind) stride {
+	return stride{allows: k.Allows, solid: k.Solid, graded: k.Graded, pace: k.Pace,
+		paces: k.Paces}
+}
+
+// passageOf hashes the passage of c, of ordinal i, as its parts stand: read whole, not as the
+// gathered counts say, which the gathering of what is built sets after it changed the cells
+func (t *Cells) passageOf(i int, c cell.ID) uint64 {
+	var p passage
+	var ground *cell.Kind
+	var way cell.Way
+	if t.store == nil {
+		k := t.seed.Kind(c)
+		ground, way = &k, t.seed.Ways[c]
+	} else {
+		ground, way = &t.store.groundOf(i).Kind, *t.store.wayOf(i)
+		if b := t.store.builtOf(i); b != nil {
+			p.built = *b
+		}
+	}
+	p.ground, p.way, p.wayName = strideOf(ground), strideOf(&way.Kind), way.Kind.Name
+	p.width, p.links = way.Width, way.Links
+	return maphash.Comparable(t.hashing, p)
 }
 
 func (t *Cells) made(st *store) {

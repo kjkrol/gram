@@ -108,7 +108,9 @@
 // them, [BoardRead.Along] tells a step along a way from one over the ground beside it,
 // [BoardRead.Bare] is that ground. [BoardRead.CellVersion] and [BoardRead.Changes] count the
 // changes, so whoever keeps something worked out of a cell knows when it is stale;
-// [BoardWrite.Touch] counts one made beyond the board.
+// [BoardWrite.Touch] counts one made beyond the board. [BoardRead.Passage] and
+// [BoardRead.CellPassage] count only the changes to what a step over a cell reads, so a route
+// worked out stands while a forest sways or a cell is painted anew.
 //
 // # Heights, ground and occupancy
 //

@@ -188,6 +188,14 @@ func (r *BoardRead) Changes() uint64 { return r.cells.Changes() }
 // Version counts the changes to the terrain; it starts over with a load.
 func (r *BoardRead) Version() uint64 { return r.cells.Version() }
 
+// Passage counts the changes to what a step over the cells reads (who a cell admits and at what
+// pace, its way, what is built over it, its heights): while it stays as it was, no cell's
+// passage changed. It only grows.
+func (r *BoardRead) Passage() uint64 { return r.cells.Passage() }
+
+// CellPassage is the Passage at which c's passage last changed; it only grows.
+func (r *BoardRead) CellPassage(c cell.ID) uint64 { return r.cells.CellPassage(c) }
+
 // Map is what the board is drawn and priced by, its cells' kinds read through r: the plugin's,
 // or the simple map on a board no plugin runs.
 func (r *BoardRead) Map() MapRead { return readMap{r} }

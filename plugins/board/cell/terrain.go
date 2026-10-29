@@ -93,3 +93,7 @@ func (t *TerrainMap) SetAll(kind Kind) {
 // Version counts the changes made through Set, SetAll and SetWay; a write that changes nothing
 // does not count.
 func (t *TerrainMap) Version() uint64 { return t.version }
+
+// Passage counts the changes to what a step over the cells reads, here every change Version
+// counts.
+func (t *TerrainMap) Passage() uint64 { return t.version }
