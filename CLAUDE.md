@@ -256,8 +256,9 @@ Decisions the user has made; they are not up for revisiting in passing.
   entities, listed one by one, never placed by a legend's character. Kinds stay in Go.
 - **What stands on the board is an entity, not terrain**: a lever, a trapdoor, a gate, a plate.
 - **Terrain is never an entity in the space**; a bridge is an entity a cell.
-- **Never make a unit see the others ahead**: it learns by striking (navigation); lanes were
-  tried and dropped.
+- **Never make a unit see the others ahead**: it senses nothing of them and learns of them by
+  striking (navigation); its order may be told by the group's plan (a field, a column's place
+  and pace). Lanes were tried and dropped.
 - **Physics, not blocking**, for a unit under gravity: into the water and off an edge as it
   pleases, the rules deciding.
 - **The light plugin gives the instruments, never the sun**: a `light.Distant` light (way,

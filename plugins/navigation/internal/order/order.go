@@ -77,6 +77,25 @@ type MoveOrder struct {
 	Group uint32
 	// Party is how many orders the MoveTo that gave this one sent; 1 for one alone.
 	Party uint16
+	// Formation is how the March that gave the order lays its group out, zero for none; Place is
+	// the unit's place in it, 1 the head and 0 none, AheadOf the member just ahead of it and Lag
+	// how far behind them it walks the way to the goal, in world units.
+	Formation Formation
+	Place     uint16
+	AheadOf   uid.UID64
+	Lag       float32
+	// Gap is, on the head alone, the widest gap in its formation: how far the member lagging most
+	// lags behind the one ahead of it; Closing says it narrowed this step on Narrowest, the least
+	// it had been since the head's patience was last renewed.
+	Gap       float32
+	Closing   bool
+	Narrowest float32
+	// Patience is, on the head of a closed formation, how long more it waits on a gap that has
+	// stopped closing.
+	Patience time.Duration
+	// Kept says the formation keeps the unit: at the pace of the one ahead of it, or, the head,
+	// waiting for the rest; HeadWaits that its head did so the step before.
+	Kept, HeadWaits bool
 }
 
 // Ask is a MoveOrder's request to the routing, which answers it the step it is made, or its

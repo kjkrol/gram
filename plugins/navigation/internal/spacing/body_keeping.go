@@ -37,6 +37,75 @@ func trailing(x *bodies.Index, o *order.MoveOrder) bool {
 	return ok && b.Alive()
 }
 
+// Room is how far behind the one ahead of it, middle to middle, a member of formation f keeps:
+// its body and the gap beside it, as many times as f's spacing.
+func Room(m bodies.Member, f order.Formation) float32 {
+	h := half(m)
+	return f.Apart() * (2*max(h.X, h.Y) + gapFor(h))
+}
+
+// the one ahead of o's unit m in its formation, among x's bodies, whose pace it keeps: under
+// their order still, within two rooms of them, or so near that shedding its lawful speed down to
+// theirs takes the way left to its room; not while they wait for a cell m holds, met where two
+// ways merge
+func pacer(x *bodies.Index, m bodies.Member, o *order.MoveOrder) (bodies.Body, bool) {
+	room := Room(m, o.Formation)
+	if o.Place < 2 || o.Lag >= max(2*room, room+braking(m, m.MaxSpeed*m.Share)) ||
+		m.Pressed && m.PressedBy == o.AheadOf {
+		return bodies.Body{}, false
+	}
+	b, ok := x.Of(o.AheadOf)
+	return b, ok && b.Moving
+}
+
+// how much way m takes to shed a ground speed v: the steering brakes the speed asked, which the
+// ground's share scales
+func braking(m bodies.Member, v float32) float32 {
+	if m.Brake <= 0 || m.Share <= 0 {
+		return 0
+	}
+	return v * v / (2 * m.Brake * m.Share)
+}
+
+// no faster than b, the one ahead of m in its formation, goes its way, but for what m's braking
+// sheds over the way left to its room behind them: braking as they brake, it stops a room short
+func keepPace(m bodies.Member, o *order.MoveOrder, b bodies.Body, dir geom.Vec,
+	speed float32) float32 {
+	v, ok := speedAlong(b, dir, m.Facing)
+	if !ok || m.Share <= 0 {
+		return speed
+	}
+	if left := o.Lag - Room(m, o.Formation); left > 0 && m.Brake > 0 {
+		v = f32.Sqrt(v*v + 2*m.Brake*m.Share*left)
+	}
+	return min(speed, v/m.Share)
+}
+
+// the cosine of the eighth of a turn either side of a unit's way within which another lies ahead
+// of it, as a trail takes ahead
+const quarterTurn = 0.7
+
+// whether d, leading from a unit to another, leads ahead of it within a quarter turn about dir,
+// or its facing with none: one beside it in a crowd keeps no pace of it
+func ahead(d, dir, facing geom.Vec) bool {
+	if dir == (geom.Vec{}) {
+		dir = facing
+	}
+	return d.X*dir.X+d.Y*dir.Y > quarterTurn*f32.Hypot(d.X, d.Y)*f32.Hypot(dir.X, dir.Y)
+}
+
+// b's ground speed along dir, or along facing with none, none against it; false with neither
+func speedAlong(b bodies.Body, dir, facing geom.Vec) (float32, bool) {
+	if dir == (geom.Vec{}) {
+		dir = facing
+	}
+	n := f32.Hypot(dir.X, dir.Y)
+	if n == 0 {
+		return 0, false
+	}
+	return max(0, (b.Vel.X*dir.X+b.Vel.Y*dir.Y)/n), true
+}
+
 const maxStalls = 5
 
 const asideTime = 400 * time.Millisecond
@@ -217,10 +286,16 @@ func (k *BodyKeeping) Lost(m bodies.Member, from cell.ID, o *order.MoveOrder, wa
 }
 
 // while m steps round someone it struck, or touches someone, it never moves into them; trailing
-// someone, it goes no faster than they go its way
+// someone, it goes no faster than they go its way, nor near the one ahead of it in its formation
+// but for closing on its room behind them
 func (k *BodyKeeping) Steer(m bodies.Member, st steering.Helm, dir geom.Vec, speed float32) {
 	if o := m.Order; o != nil && o.TrailFor > 0 {
 		speed = k.trail(m, o.Trailing, dir, speed)
+	}
+	if o := m.Order; o != nil {
+		if b, ok := pacer(&k.index, m, o); ok && ahead(k.delta(m.Centre(), b.At), dir, m.Facing) {
+			speed, o.Kept = keepPace(m, o, b, dir, speed), true
+		}
 	}
 	if o := m.Order; o != nil && o.AsideFor > 0 {
 		if o.Aside == (geom.Vec{}) {
@@ -258,15 +333,10 @@ func (k *BodyKeeping) trail(m bodies.Member, whom uid.UID64, dir geom.Vec, speed
 	if !ok || m.Share <= 0 {
 		return speed
 	}
-	if dir == (geom.Vec{}) {
-		dir = m.Facing
+	if v, ok := speedAlong(b, dir, m.Facing); ok {
+		return min(speed, v/m.Share)
 	}
-	n := f32.Hypot(dir.X, dir.Y)
-	if n == 0 {
-		return speed
-	}
-	along := max(0, (b.Vel.X*dir.X+b.Vel.Y*dir.Y)/n)
-	return min(speed, along/m.Share)
+	return speed
 }
 
 // the way and speed that keep clear of one touched, n leading off them: facing into them it turns
@@ -314,10 +384,14 @@ func (k *BodyKeeping) Watch(m bodies.Member, o *order.MoveOrder, toward cell.ID,
 		return
 	}
 	// headway is a quarter of the way the ground lawfully lets it make in StallAfter, no more than
-	// the one it trails lawfully makes, and at most a quarter of its body
+	// the one it trails, or keeps the pace of, lawfully makes, and at most a quarter of its body
 	pace := m.MaxSpeed * m.Share
 	if o.TrailFor > 0 {
 		pace = min(pace, o.TrailPace)
+	}
+	b, paced := pacer(&k.index, m, o)
+	if paced {
+		pace = min(pace, b.MaxSpeed*b.Share)
 	}
 	need := min(min(m.Pos.Size.X, m.Pos.Size.Y)/4, pace*float32(StallAfter.Seconds())/4)
 	if dist < o.Closest-need {
@@ -329,6 +403,9 @@ func (k *BodyKeeping) Watch(m bodies.Member, o *order.MoveOrder, toward cell.ID,
 	}
 	if trailing(&k.index, o) {
 		o.Trailed += d
+		return
+	}
+	if paced || o.HeadWaits { // the formation waits as one
 		return
 	}
 	if o.Stalled += d; o.Stalled >= StallAfter {

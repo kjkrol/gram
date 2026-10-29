@@ -1,12 +1,20 @@
 package routing
 
 import (
+	"cmp"
+	"log"
+	"math"
+	"slices"
 	"sync/atomic"
 	"time"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
 	"github.com/kjkrol/gram/plugins/navigation/internal/order"
@@ -36,6 +44,10 @@ type Coordinator struct {
 	fields  spacing.Fields
 	fielded bool // some party asks this Update, its field expected
 
+	ranks     []ranked // the formations' members an Update lays out, in their order once sorted
+	forms     []formed
+	unordered bool // a formation marching unordered was said in the log
+
 	query *goke.Query
 	forks []*goke.Query // by goroutine, query the first
 	cell  goke.Comp[unit.At]
@@ -48,6 +60,12 @@ type Coordinator struct {
 // fieldParty is how many orders the MoveTo that gave one sent for its asks to read their routes
 // off a field
 const fieldParty = 4
+
+// whether o's asks read their routes off its party's field: a MoveTo's party, or any marching in
+// a formation, which the field lays out
+func byField(o *order.MoveOrder) bool {
+	return o.Party >= fieldParty || o.Formation.Shape != order.NoFormation && o.Party > 1
+}
 
 type router struct {
 	finder *spacing.Finder
@@ -121,7 +139,7 @@ func (c *Coordinator) Update(_ *goke.CmdBuf, d time.Duration) {
 			if a != order.AskRoute && a != order.AskNearest {
 				continue
 			}
-			party := a == order.AskRoute && orders[i].Party >= fieldParty
+			party := a == order.AskRoute && byField(&orders[i])
 			c.asks, c.parties = append(c.asks, cursor.IDs[i]), append(c.parties, party)
 			partied = partied || party
 		}
@@ -257,4 +275,270 @@ func answer(keep spacing.Keeping, m bodies.Member, o *order.MoveOrder, d time.Du
 	}
 	o.Target, o.Path, o.Waited, o.Ask = dest, path, 0, order.AskNone
 	order.Found(o)
+}
+
+// a member of a formation as an Update lays it out
+type ranked struct {
+	id    uid.UID64
+	order *order.MoveOrder
+	at    geom.Vec
+	z     world.Z
+	form  int32 // its formation among the Update's
+	cost  float32
+	per   float32 // what a world unit of the way to the goal costs where it stands
+}
+
+// a formation as an Update lays it out: its group, the first member met, whose key takes the
+// field, pending till every member has seeded it, and same, the formation it is where another
+// run of its members met it first; was, its head the Update before, waiting or not, with its
+// gap's narrowest and its patience
+type formed struct {
+	group   uint32
+	first   uid.UID64
+	field   *pathfind.Field
+	pending bool
+	same    int32
+	was     headWas
+}
+
+type headWas struct {
+	id        uid.UID64
+	met       bool
+	waited    bool
+	narrowest float32
+	patience  time.Duration
+}
+
+// Form lays out the formations the units ids march in, before they move, as the fields of their
+// goals lead them: each member's Place, AheadOf and Lag, the head's Gap and Closing. Made without
+// a board's read, it lays out none.
+func (c *Coordinator) Form(ids []uid.UID64) {
+	if c.read == nil || len(c.routers) == 0 || len(ids) == 0 {
+		return
+	}
+	brd := c.read(0).Board()
+	c.ranks, c.forms = c.ranks[:0], c.forms[:0]
+	c.fields.Sweep()
+	// no group's: a key no member's is
+	last, _ := c.fields.Key(bodies.Member{}, &order.MoveOrder{})
+	for _, id := range ids {
+		if !c.query.Seek(id) {
+			continue
+		}
+		m, o := c.member(c.query, id)
+		was := headWas{id: id, met: o.Place == 1, waited: o.Kept, narrowest: o.Narrowest,
+			patience: o.Patience}
+		o.Place, o.AheadOf, o.Lag, o.Gap, o.HeadWaits = 0, 0, 0, 0, false
+		if o.Party < 2 {
+			continue
+		}
+		q, ok := c.fields.Key(m, o)
+		if !ok {
+			if o.At != (geom.Vec{}) && !o.GivingWay {
+				c.unorder()
+			}
+			continue
+		}
+		if n := len(c.forms); n == 0 || q != last || c.forms[n-1].group != o.Group {
+			f := formed{group: o.Group, first: id, same: int32(n)}
+			field, build := c.fields.Take(q)
+			switch {
+			case build: // another run of the formation seeded it: filled before any other takes
+				c.fill(field)
+			case field == nil:
+				f.pending = true
+			default: // kept, and lately asked for
+				c.fields.Expect(q, m.Cell)
+			}
+			f.field, last = field, q
+			c.forms = append(c.forms, f)
+		}
+		if f := &c.forms[len(c.forms)-1]; was.met {
+			f.was = was
+		}
+		if c.forms[len(c.forms)-1].pending {
+			c.fields.Expect(q, m.Cell)
+		}
+		c.ranks = append(c.ranks, ranked{id: id, order: o, at: m.Centre(), z: m.Z,
+			form: int32(len(c.forms) - 1)})
+	}
+	c.takeFields()
+	for i := range c.ranks {
+		r := &c.ranks[i]
+		f := c.forms[r.form]
+		r.form, r.cost, r.per = f.same, f32.Inf(1), 0
+		if f.field == nil {
+			continue
+		}
+		at, deck, ok := spacing.LevelOf(brd, brd, r.at, &r.z)
+		if !ok {
+			continue
+		}
+		level := pathfind.Ground
+		if deck {
+			level = pathfind.Deck
+		}
+		if cost, on := f.field.Cost(at, level); on {
+			r.cost, r.per = costAt(brd, f.field, at, level, cost, r.at)
+		}
+	}
+	slices.SortFunc(c.ranks, func(a, b ranked) int {
+		return cmp.Or(cmp.Compare(a.form, b.form), cmp.Compare(a.cost, b.cost),
+			cmp.Compare(a.id, b.id))
+	})
+	for start := 0; start < len(c.ranks); {
+		end := start + 1
+		for end < len(c.ranks) && c.ranks[end].form == c.ranks[start].form {
+			end++
+		}
+		c.lay(c.ranks[start:end])
+		start = end
+	}
+}
+
+// takeFields has the fields of the formations pending filled, their members' cells the seeds; a
+// formation met in two runs is one
+func (c *Coordinator) takeFields() {
+	for i := range c.forms {
+		f := &c.forms[i]
+		if f.pending && c.query.Seek(f.first) {
+			m, o := c.member(c.query, f.first)
+			q, _ := c.fields.Key(m, o)
+			field, build := c.fields.Take(q)
+			if build {
+				c.fill(field)
+			}
+			f.field = field
+		}
+		for j := range i {
+			if c.forms[j].group == f.group && c.forms[j].field == f.field {
+				f.same = int32(j)
+				if f.was.met {
+					c.forms[j].was = f.was
+				}
+				break
+			}
+		}
+	}
+}
+
+// fill fills field, taken to build, through the first router on the caller's goroutine
+func (c *Coordinator) fill(field *pathfind.Field) {
+	r := &c.routers[0]
+	r.finder.Read(c.read(0))
+	c.fields.Fill(field, r.finder)
+	c.fields.Give(field)
+}
+
+// lay writes members, one formation's in its order, on their orders: each one's place, whom it
+// walks behind and how far, whether the head waited the step before, the widest gap on the head,
+// which a new head takes on with the old one's narrowest and patience; one none of whose members
+// stands on its field marches unordered
+func (c *Coordinator) lay(members []ranked) {
+	f := &c.forms[members[0].form]
+	if f32.IsInf(members[0].cost, 1) {
+		if f.field != nil {
+			c.unorder()
+		}
+		return
+	}
+	head := members[0].order
+	switch {
+	case !f.was.met:
+		head.Narrowest = 0
+	case f.was.id != members[0].id:
+		head.Narrowest, head.Patience = f.was.narrowest, f.was.patience
+	}
+	for k := range members {
+		r := &members[k]
+		r.order.Place, r.order.HeadWaits = uint16(min(k+1, math.MaxUint16)), f.was.waited
+		if k == 0 {
+			continue
+		}
+		ahead := &members[k-1]
+		r.order.AheadOf, r.order.Lag = ahead.id, f32.Inf(1)
+		if f32.IsInf(r.cost, 1) {
+			continue
+		}
+		// read at the dearer ground of the two it errs on the near side where the ground changes,
+		// and never past the straight way between them
+		lag := (r.cost - ahead.cost) / max(r.per, ahead.per)
+		lag = min(lag, f32.Hypot(r.at.X-ahead.at.X, r.at.Y-ahead.at.Y))
+		if r.order.Lag = lag; lag > head.Gap {
+			head.Gap = lag
+		}
+	}
+}
+
+func (c *Coordinator) unorder() {
+	if !c.unordered {
+		log.Printf("navigation: a formation marches unordered, as a MoveTo: no field of its goal " +
+			"is kept, or none reaches it")
+		c.unordered = true
+	}
+}
+
+// costAt is the cost of the way to f's goal from p, in c on level l, c's cost being cost, and
+// what a world unit of it costs there: between c's middle and the next cell's along the field's
+// step out of c, behind c's middle along the step from the neighbour that leads into c, so it
+// runs on unbroken from cell to cell; else as at full pace
+func costAt(g grid.Grid, f *pathfind.Field, c cell.ID, l pathfind.Level, cost float32,
+	p geom.Vec) (at, per float32) {
+	mid := g.CellCenter(c)
+	d := geom.NewVec(p.X-mid.X, p.Y-mid.Y)
+	t, drop, span := float32(-1), float32(0), float32(0)
+	if n, nl, ok := f.Next(c, l); ok {
+		t, drop, span = onStep(g, f, c, n, nl, cost, d)
+	}
+	if t >= 0 {
+		return cost - min(t, 1)*drop, drop / span
+	}
+	if at, per, ok := behind(g, f, c, cost, d); ok {
+		return at, per
+	}
+	if span > 0 {
+		return cost - max(t, -1)*drop, drop / span
+	}
+	step := g.Step(0)
+	unit := f32.Hypot(step.X, step.Y)
+	return cost + min(f32.Hypot(d.X, d.Y), unit)/unit, 1 / unit
+}
+
+// behind is costAt for d, off c's middle, on the step into c from the neighbour d points to,
+// where the field leads that one into c; false where it does not
+func behind(g grid.Grid, f *pathfind.Field, c cell.ID, cost float32,
+	d geom.Vec) (at, per float32, ok bool) {
+	i := grid.Nearest(g, d)
+	u, ok := g.Toward(c, i)
+	if !ok {
+		return 0, 0, false
+	}
+	if into, _, ok := f.Next(u, pathfind.Either); !ok || into != c {
+		return 0, 0, false
+	}
+	s := g.Step(i)
+	back, _ := f.Cost(u, pathfind.Either)
+	ss := s.X*s.X + s.Y*s.Y
+	rise := back - cost
+	if rise <= 0 || ss <= 0 {
+		return 0, 0, false
+	}
+	return cost + min((d.X*s.X+d.Y*s.Y)/ss, 1)*rise, rise / f32.Sqrt(ss), true
+}
+
+// onStep is where d, off c's middle, lies along the step from c to n, a share of it, what the
+// step costs and how long it is; a share of -1 where the step is none
+func onStep(g grid.Grid, f *pathfind.Field, c, n cell.ID, nl pathfind.Level, cost float32,
+	d geom.Vec) (t, drop, span float32) {
+	i, way := grid.Way(g, c, n)
+	if !way {
+		return -1, 0, 0
+	}
+	s := g.Step(i)
+	next, _ := f.Cost(n, nl)
+	ss := s.X*s.X + s.Y*s.Y
+	if drop = cost - next; drop <= 0 || ss <= 0 {
+		return -1, 0, 0
+	}
+	return (d.X*s.X + d.Y*s.Y) / ss, drop, f32.Sqrt(ss)
 }

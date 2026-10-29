@@ -310,6 +310,19 @@ crowd replans every tick it is blocked.
 | crowded | 100 | 503 µs | 1 |
 | crowded | 1,000 | 7.66 ms | 2 / 28 KB |
 | grouped | 1,000 | 9.7 ms (`-cpu=1`) | 2 |
+| column | 1,000 | 2.8 ms (`-cpu=1`) | 0 |
+
+`column` (v0.10.0) is the grouped scene sent by one `March` in a closed column (`ColumnOf(1,
+true, 1)`): the formation laid out every tick off the party's field, every walker paced behind
+the one ahead, the head waiting on the widest gap. At `feat/column` against v0.9.0 alternately
+(the lower of 6 at `BENCHTIME=200x`, plain and `-cpu=1`; the base with its own bench file, four
+rungs): the column's tick 2.84 ms plain and 2.77 ms at `-cpu=1`, 0 allocations an op, against
+the same tree's `grouped` 4.78 and 8.17 ms: the crowd paced behind its head presses the wall's
+gap less than a free crowd, so it searches round its learned cells less (not profiled); the
+older rungs within noise (−1.0…+3.4% min, the +3.4% of open 1,000 plain reading −1.0% at
+`-cpu=1`; the lay-out costs a formation member a seek, a key, a level, a few field lookups and
+one sort a formation, and an order without a formation one byte compare). `Routing_Group`
+unchanged (+0.0% and −1.1% min, `-cpu=1`, the lower of 6 at `-benchtime=10x`).
 
 `grouped` (v0.9.0) is the crowded scene with every walker selected and sent by one MoveTo: a
 party, so its routes come off one field; on v0.8.0 the same bench is a search a route. Against

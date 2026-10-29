@@ -948,7 +948,29 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   route is a kept answer like a searched one (the kept answers looked up first, a miss walks
   the field, a failed walk searches; `Coordinator.Walks()`); units with learned cells, smaller
   parties, orders giving way with goals queued, boards past `1<<18` cells, finders that see the
-  others, units off the field and last legs not found search as before. The board has every
+  others, units off the field and last legs not found search as before. **A March**
+  (2026-10-29, v0.10.0) is a MoveTo whose orders keep a `Formation` (`Shape`, `Spacing`,
+  `Closed`, `Slack`; `ColumnOf`; `routing.System.march` turns it into the MoveTo's `carryOut`
+  with the formation, a shape unknown going as a MoveTo, said once in the log): the traffic's
+  `gather` collects the members (`formed`) and `Coordinator.Form` lays every formation out
+  before the units move, off the party's field (`byField`: a formation from a party of two; a
+  missing field filled there with every member a seed): the members sorted by the cost of the
+  way to the goal read at the body's point (`costAt`: along the field's step out of the cell
+  past its middle, along the step from the neighbour leading in behind it, so unbroken from
+  cell to cell), `Place` (1 the head), `AheadOf`, `Lag` in world units (the cost difference
+  over the dearer ground's cost a unit, never more than the straight way), on the head the
+  widest `Gap`; `spacing.Room` (a body and its gap, times `Spacing`); `pacer` and `keepPace`
+  in both keepings' `Steer`: within two rooms of the one ahead (or the braking way), with it
+  within a quarter turn of the way (`ahead`, `quarterTurn`), a member asks no more than
+  `√(v² + 2·Brake·Share·(Lag − Room))`, so it stops a room short, not while they wait for a cell
+  it holds (`PressedBy`); `Kept` on the order (paced, or the head waiting), read in `gather`
+  as `Body.Trailing` so `WalksMyWay` holds behind it; `Body.Place`, so `against` and the
+  `Trail` case refuse one behind in the formation (`behind`: no loop of trails); the head's
+  `awaits` in `head` (a `Closed` column: `Gap` over `Slack`+1 rooms closing by an eighth of a
+  room on `Narrowest`, `Patience` = `StallAfter` once it stops, a new head taking the old
+  one's state; never while `Pressed`); `HeadWaits` copied by `lay` from the head's `Kept` of
+  the step before, so `Watch` and `Blocked` count no stall meanwhile, nor while paced; a step
+  aside keeps the formation. The board has every
   unit hold the cell it stands on, navigation
   the cells of the steps in progress on their level (`Path.Decks`, a `Leg`'s `FromDeck`/`ToDeck`); a
   unit standing off its route plans again. The driving plugin gets its `driving.Keeping` from
