@@ -49,6 +49,8 @@ type Plugin struct {
 	given   traffic.GivenQueues
 	finder  *spacing.Finder
 
+	coordinator *routing.Coordinator
+
 	touches  host.PairRules[Touch]
 	crowd    []act.Rule
 	crowdSet bool
@@ -141,7 +143,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	for range cmp.Or(p.routers, DefaultRouters) {
 		coordinator.Router(keeping(answers))
 	}
-	p.finder = finder
+	p.finder, p.coordinator = finder, coordinator
 	p.pathRenderer.Finder = finder
 	rules := p.crowd
 	if !p.crowdSet {

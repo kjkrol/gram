@@ -202,3 +202,38 @@ func TestFinder_ReadsTheGroundAgainOnlyAsThePassageMoves(t *testing.T) {
 		t.Error("a route through the wall once the passage moved, want the ground read anew")
 	}
 }
+
+// along a row of five the search expands each cell before the goal, and by levels the goal's
+// cell too, whence it steps onto the goal; a price, a step asked and a fill expand nothing
+func TestFinder_CountsTheNodesItsSearchesExpand(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(5, 1, 10)
+	terrain := openTerrain()
+	from, to := g.At(0, 0), g.At(4, 0)
+	for name, tc := range map[string]struct {
+		f    *Finder
+		want uint64
+	}{
+		"plain": {New(g, terrain, nil, &cell.MultipleOccupancy{}), 4},
+		"leveled": {New(g, terrain, nil, &cell.MultipleOccupancy{}).WithLevels(flat{terrain}),
+			5},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var dst [8]cell.ID
+			if _, ok := tc.f.Find(uid.UID64(1), cell.Land, Body{}, from, to, Either,
+				dst[:]); !ok {
+				t.Fatal("no route along the open row")
+			}
+			if got := tc.f.Expansions(); got != tc.want {
+				t.Errorf("%d nodes expanded, want %d", got, tc.want)
+			}
+			tc.f.Price(from, g.At(1, 0), terrain.Kind(g.At(1, 0)), cell.OnGround, cell.Land)
+			tc.f.Steps(cell.Land, Body{}, from, g.At(1, 0))
+			var field Field
+			tc.f.FillField(&field, to, Either, cell.Land, Body{}, []cell.ID{from}, 1.5)
+			if got := tc.f.Expansions(); got != tc.want {
+				t.Errorf("%d nodes expanded after a price, a step and a fill, want %d", got,
+					tc.want)
+			}
+		})
+	}
+}
