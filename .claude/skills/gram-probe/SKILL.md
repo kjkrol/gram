@@ -101,6 +101,10 @@ them too, and a probe left in by an interrupted run is a broken demo.
   build in the cache) changes what a crowd does: one seed gave 26 and 30 of 30 arrivals in two
   runs of one tree, and three unseeded runs on a loaded machine showed the whole group walking
   in place. Judge a crowd change by several runs on a quiet machine, base and tree alike.
+- **A probe's parameters go through the environment on that very command line** (2026-10-29,
+  `column_probe2.go`: `PROBE_CLOSED`, `PROBE_SLACK`, `PROBE_MARCH=0`): in zsh a variable does
+  not split into words, so a loop that does `set -- $v` over "name VAR=1 VAR2=0" passes
+  nothing, and three "variants" run as one. Write each call out, or split with `${=v}`.
 
 ## Measuring a demo's frames and its garbage collector
 
