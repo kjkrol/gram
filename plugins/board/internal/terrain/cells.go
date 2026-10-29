@@ -460,8 +460,9 @@ func (t *Cells) touchAll() {
 }
 
 // passage is what a step over a cell reads of it beyond its heights: whom its ground and the way
-// across it admit and at what pace, how the way runs, what is built over it. Its Veil, Height,
-// Sway, look and name, and a way's fading, no step reads.
+// across it admit and at what pace, how the way runs, what is built over it; the way's kind
+// counts by its name too. A kind's Veil, Height, Sway, look and name, and a way's fading, no
+// step reads.
 type passage struct {
 	ground, way stride
 	wayName     cell.Name
