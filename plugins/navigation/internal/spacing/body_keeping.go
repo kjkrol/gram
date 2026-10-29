@@ -45,10 +45,12 @@ func Room(m bodies.Member, f order.Formation) float32 {
 }
 
 // the one ahead of o's unit m in its formation, among x's bodies, whose pace it keeps: under
-// their order still, and so near that shedding its lawful speed down to theirs takes the way left
-// to its room behind them; not while they wait for a cell m holds, met where two ways merge
+// their order still, within two rooms of them, or so near that shedding its lawful speed down to
+// theirs takes the way left to its room; not while they wait for a cell m holds, met where two
+// ways merge
 func pacer(x *bodies.Index, m bodies.Member, o *order.MoveOrder) (bodies.Body, bool) {
-	if o.Place < 2 || o.Lag >= Room(m, o.Formation)+braking(m, m.MaxSpeed*m.Share) ||
+	room := Room(m, o.Formation)
+	if o.Place < 2 || o.Lag >= max(2*room, room+braking(m, m.MaxSpeed*m.Share)) ||
 		m.Pressed && m.PressedBy == o.AheadOf {
 		return bodies.Body{}, false
 	}
@@ -79,12 +81,17 @@ func keepPace(m bodies.Member, o *order.MoveOrder, b bodies.Body, dir geom.Vec,
 	return min(speed, v/m.Share)
 }
 
-// whether d, leading from a unit to another, leads ahead of it along dir, or its facing with none
+// the cosine of the eighth of a turn either side of a unit's way within which another lies ahead
+// of it, as a trail takes ahead
+const quarterTurn = 0.7
+
+// whether d, leading from a unit to another, leads ahead of it within a quarter turn about dir,
+// or its facing with none: one beside it in a crowd keeps no pace of it
 func ahead(d, dir, facing geom.Vec) bool {
 	if dir == (geom.Vec{}) {
 		dir = facing
 	}
-	return d.X*dir.X+d.Y*dir.Y > 0
+	return d.X*dir.X+d.Y*dir.Y > quarterTurn*f32.Hypot(d.X, d.Y)*f32.Hypot(dir.X, dir.Y)
 }
 
 // b's ground speed along dir, or along facing with none, none against it; false with neither
@@ -287,7 +294,7 @@ func (k *BodyKeeping) Steer(m bodies.Member, st steering.Helm, dir geom.Vec, spe
 	}
 	if o := m.Order; o != nil {
 		if b, ok := pacer(&k.index, m, o); ok && ahead(k.delta(m.Centre(), b.At), dir, m.Facing) {
-			speed = keepPace(m, o, b, dir, speed)
+			speed, o.Kept = keepPace(m, o, b, dir, speed), true
 		}
 	}
 	if o := m.Order; o != nil && o.AsideFor > 0 {
@@ -398,7 +405,7 @@ func (k *BodyKeeping) Watch(m bodies.Member, o *order.MoveOrder, toward cell.ID,
 		o.Trailed += d
 		return
 	}
-	if paced { // the formation waits as one
+	if paced || o.HeadWaits { // the formation waits as one
 		return
 	}
 	if o.Stalled += d; o.Stalled >= StallAfter {

@@ -85,12 +85,17 @@ type MoveOrder struct {
 	AheadOf   uid.UID64
 	Lag       float32
 	// Gap is, on the head alone, the widest gap in its formation: how far the member lagging most
-	// lags behind the one ahead of it; Closing says that member still comes on, under way.
-	Gap     float32
-	Closing bool
-	// Patience is, on the head of a closed formation, how long more it waits on a gap no member
-	// closes.
+	// lags behind the one ahead of it; Closing says it narrowed this step on Narrowest, the least
+	// it had been since the head's patience was last renewed.
+	Gap       float32
+	Closing   bool
+	Narrowest float32
+	// Patience is, on the head of a closed formation, how long more it waits on a gap that has
+	// stopped closing.
 	Patience time.Duration
+	// Kept says the formation keeps the unit: at the pace of the one ahead of it, or, the head,
+	// waiting for the rest; HeadWaits that its head did so the step before.
+	Kept, HeadWaits bool
 }
 
 // Ask is a MoveOrder's request to the routing, which answers it the step it is made, or its

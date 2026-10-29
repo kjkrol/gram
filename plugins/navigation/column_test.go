@@ -7,7 +7,9 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -311,7 +313,9 @@ func (h halting) longestStand(from, to int) (ticks, left int) {
 	return ticks, left
 }
 
-func TestColumn_AClosedHeadWaitsForItsTailWhileItComesOn(t *testing.T) {
+// the head waits on its halted tail while its patience lasts, then goes on: a closed column's
+// wait on a gap that does not close ends
+func TestColumn_AClosedHeadsWaitOnAStoppedTailEnds(t *testing.T) {
 	h := haltTheTail(t, true)
 	const halt, halted = 60, 3 * 60
 	if stood, _ := h.longestStand(halt, halt+150); stood < 48 {
@@ -322,14 +326,63 @@ func TestColumn_AClosedHeadWaitsForItsTailWhileItComesOn(t *testing.T) {
 		t.Errorf("the head still stands at %v as the halt ends, want it gone on, the tail not "+
 			"coming on", h.heads[halt+100])
 	}
-	stood, left := h.longestStand(halt+halted, len(h.heads))
-	if stood < 60 {
-		t.Errorf("with the tail coming on again the head stood %d ticks at most, want it "+
-			"waiting till the tail closes up", stood)
+	if stood, _ := h.longestStand(halt+halted, len(h.heads)); stood >= 90 {
+		t.Errorf("the tail come on at the head's pace, the head stood %d ticks; want it walking "+
+			"on, the gap no narrower while it walks", stood)
 	}
-	if left < len(h.gaps) && h.gaps[left] > 2*h.room {
-		t.Errorf("the head stepped on with a gap of %v, wider than the slack lets it, %v",
-			h.gaps[left], 2*h.room)
+}
+
+// five in a row along a corridor 14 apart, the head nearest the goal, and the tail 150 behind
+// them, longer on its way up than a head's patience, sent in a column
+func newLeftBehind(t *testing.T, closed bool) (*fieldWorld, float32) {
+	t.Helper()
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(12, 1, fieldCell)}
+	goal := probe.grid.CellCenter(probe.at(11, 0))
+	units := []fieldUnit{{at: geom.NewVec(16, 16), side: 6, selected: true}}
+	for i := range 5 {
+		units = append(units, fieldUnit{at: geom.NewVec(166+14*float32(i), 16), side: 6,
+			selected: true})
+	}
+	fw := newFieldWorld(t, 12, 1, BodySpacing, nil, units)
+	column := ColumnOf(1, closed, 1)
+	fw.nav.marches.Add(command.Nobody, March{Cell: fw.at(11, 0), At: goal, In: column})
+	box := world.Position{AABB: plane.NewAABB(geom.Vec{}, 6, 6)}
+	return fw, spacing.Room(bodies.Member{Pos: box}, column)
+}
+
+func TestColumn_AClosedHeadWaitsWhileItsGapCloses(t *testing.T) {
+	fw, room := newLeftBehind(t, true)
+	start, _ := fw.centre(5)
+	var gap float32
+	for tick := 1; ; tick++ {
+		if tick > 10*60 {
+			t.Fatal("the head never went on")
+		}
+		fw.ecs.Tick(time.Second / 60)
+		at, o := fw.centre(5)
+		if at.X > start.X+1 {
+			if tick < 70 || gap > 2*room+1 {
+				t.Errorf("the head went on at tick %d with a gap of %v; want it waiting till the "+
+					"tail closes it within the slack, %v", tick, gap, 2*room)
+			}
+			return
+		}
+		if o == nil || o.Place != 1 {
+			t.Fatalf("tick %d: the head's order %+v, want it the head", tick, o)
+		}
+		gap = o.Gap
+	}
+}
+
+func TestColumn_AnOpenHeadDoesNotWaitForOneLeftBehind(t *testing.T) {
+	fw, _ := newLeftBehind(t, false)
+	start, _ := fw.centre(5)
+	for range 60 {
+		fw.ecs.Tick(time.Second / 60)
+	}
+	if at, _ := fw.centre(5); at.X < start.X+20 {
+		t.Errorf("a second on, the open column's head stands at %v from %v, want it walking", at,
+			start)
 	}
 }
 
@@ -431,28 +484,33 @@ func TestColumn_AMemberKeepsThePaceOfTheOneAheadOfIt(t *testing.T) {
 			ahead   bodies.Body
 			place   uint16
 			pressed bool
+			top     float32 // its top speed
 			want    float32
+			kept    bool
 		}{
-			{"within its room", 10, lead, 2, false, 0.96},
-			{"short of its room by a braking's way", 15, lead, 2, false, 48.0096},
-			{"farther than its braking takes", 40, lead, 2, false, 96},
-			{"pressed into its cell by them", 10, lead, 2, true, 96},
-			{"them behind it", 10, movedTo(lead, geom.NewVec(30, 16)), 2, false, 96},
-			{"them under no order", 10, standing(lead), 2, false, 96},
-			{"the head", 10, lead, 1, false, 96},
+			{"within its room", 10, lead, 2, false, 96, 0.96, true},
+			{"short of its room by a braking's way", 15, lead, 2, false, 96, 48.0096, true},
+			{"farther than its braking takes", 40, lead, 2, false, 96, 96, false},
+			{"within two rooms, its braking short", 20, lead, 2, false, 24, 24, true},
+			{"pressed into its cell by them", 10, lead, 2, true, 96, 96, false},
+			{"them behind it", 10, movedTo(lead, geom.NewVec(30, 16)), 2, false, 96, 96, false},
+			{"them beside it", 10, movedTo(lead, geom.NewVec(51, 26)), 2, false, 96, 96, false},
+			{"them under no order", 10, standing(lead), 2, false, 96, 96, false},
+			{"the head", 10, lead, 1, false, 96, 96, false},
 		} {
 			k.Begin(func(dst []bodies.Body) []bodies.Body { return append(dst, c.ahead) })
 			o := MoveOrder{Formation: ColumnOf(1, false, 0), Place: c.place, AheadOf: c.ahead.ID,
 				Lag: c.lag}
 			m := bodies.Member{ID: 7, Cell: from, From: from, Domain: cell.Land,
 				Pos: world.Position{AABB: plane.NewAABB(geom.NewVec(45, 13), 6, 6)}, Facing: east,
-				Share: 1, MaxSpeed: 96, Brake: 384, Order: &o, Pressed: c.pressed,
+				Share: 1, MaxSpeed: c.top, Brake: 384, Order: &o, Pressed: c.pressed,
 				PressedBy: c.ahead.ID}
-			helm := steering.Helm{Steering: &steering.Steering{MaxSpeed: 96},
+			helm := steering.Helm{Steering: &steering.Steering{MaxSpeed: c.top},
 				Course: &steering.Course{}}
-			k.Steer(m, helm, east, 96)
-			if f32.Abs(helm.WantSpeed-c.want) > 1e-3 {
-				t.Errorf("%T, %s: asked for %v, want %v", k, c.name, helm.WantSpeed, c.want)
+			k.Steer(m, helm, east, c.top)
+			if f32.Abs(helm.WantSpeed-c.want) > 1e-3 || o.Kept != c.kept {
+				t.Errorf("%T, %s: asked for %v, kept %v; want %v, %v", k, c.name, helm.WantSpeed,
+					o.Kept, c.want, c.kept)
 			}
 		}
 	}
@@ -468,8 +526,8 @@ func standing(b bodies.Body) bodies.Body {
 	return b
 }
 
-// keeping its room behind one standing in its formation is no stall; behind one under no order
-// it is, as before
+// keeping its room behind one standing in its formation is no stall, nor any wait while its head
+// waits; behind one under no order it is, as before
 func TestColumn_WaitingOnTheOneAheadIsNoStall(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(4, 1, 32)
 	terrain := cell.NewTerrainMap()
@@ -479,19 +537,24 @@ func TestColumn_WaitingOnTheOneAheadIsNoStall(t *testing.T) {
 	waiting := bodies.Body{ID: 3, At: geom.NewVec(48+10, 16), Half: geom.NewVec(3, 3),
 		Domain: cell.Land, Moving: true}
 	for _, c := range []struct {
-		name    string
-		ahead   bodies.Body
-		stalled bool
+		name      string
+		ahead     bodies.Body
+		lag       float32
+		headWaits bool
+		stalled   bool
 	}{
-		{"one ahead standing in its order", waiting, false},
-		{"one ahead under no order", standing(waiting), true},
+		{"one ahead standing in its order", waiting, 10, false, false},
+		{"one ahead under no order", standing(waiting), 10, false, true},
+		{"one ahead far, its head waiting", waiting, 100, true, false},
+		{"one ahead far, its head walking", waiting, 100, false, true},
 	} {
 		body := spacing.NewBodyKeeping(finder, nil, nil)
 		cells := spacing.NewCellKeeping(finder, &cell.SingleOccupancy{})
 		for _, k := range []spacing.Keeping{body, cells} {
 			k.Begin(func(dst []bodies.Body) []bodies.Body { return append(dst, c.ahead) })
 		}
-		o := MoveOrder{Formation: ColumnOf(1, false, 0), Place: 2, AheadOf: c.ahead.ID, Lag: 10}
+		o := MoveOrder{Formation: ColumnOf(1, false, 0), Place: 2, AheadOf: c.ahead.ID,
+			Lag: c.lag, HeadWaits: c.headWaits}
 		held := o
 		m := bodies.Member{ID: 7, Cell: from, From: from, Domain: cell.Land,
 			Pos: world.Position{AABB: plane.NewAABB(geom.NewVec(45, 13), 6, 6)}, Share: 1,
@@ -534,5 +597,92 @@ func TestColumn_ALayOutAllocatesNothing(t *testing.T) {
 		if allocs := testing.AllocsPerRun(10, tc.form); allocs != 0 {
 			t.Errorf("%s: a lay-out allocates %v times; want none", tc.name, allocs)
 		}
+	}
+}
+
+// two touching where a fast cell gives onto one leading into slow ground: the one past the edge
+// is ahead of the other by the bodies' distance, the way's cost running on unbroken across it
+func TestColumn_TheWayToTheGoalRunsOnAcrossACellsEdge(t *testing.T) {
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(12, 1, fieldCell)}
+	goal := probe.grid.CellCenter(probe.at(11, 0))
+	slow := func(b testBoard, at func(x, y uint32) cell.ID) {
+		b.Set(at(6, 0), cell.Kind{Pace: 0.01, Allows: cell.Land})
+	}
+	fw := newFieldWorld(t, 12, 1, BodySpacing, slow, []fieldUnit{
+		{at: geom.NewVec(5*fieldCell-3, 16), side: 6, selected: true},
+		{at: geom.NewVec(5*fieldCell+3, 16), side: 6, selected: true},
+	})
+	fw.nav.marches.Add(command.Nobody, March{Cell: fw.at(11, 0), At: goal,
+		In: ColumnOf(1, false, 0)})
+	fw.ecs.Tick(time.Second / 60)
+	_, behind := fw.centre(0)
+	_, ahead := fw.centre(1)
+	if ahead == nil || ahead.Place != 1 || behind == nil || behind.AheadOf != fw.ids[1] {
+		t.Fatalf("the one past the edge %+v, the other %+v; want the first the head, the second "+
+			"behind it", ahead, behind)
+	}
+	if f32.Abs(behind.Lag-6) > 1 {
+		t.Errorf("the one behind lags %v, want the 6 their bodies stand apart", behind.Lag)
+	}
+}
+
+func TestColumn_AMemberTrailsNoneBehindItInItsFormation(t *testing.T) {
+	fw, goal := newCorridorColumn(t)
+	fw.nav.marches.Add(command.Nobody, March{Cell: fw.at(11, 0), At: goal,
+		In: ColumnOf(1, false, 0)})
+	fw.ecs.Tick(time.Second / 60)
+	head, second := fw.ids[5], fw.ids[4]
+	carrier := fw.nav.worldPlugin.Write().Carrier()
+	carrier.PutFrom(head, Trail{Of: second})
+	carrier.PutFrom(second, Trail{Of: head})
+	fw.ecs.Tick(time.Second / 60)
+	if _, o := fw.centre(5); o == nil || o.TrailFor > 0 {
+		t.Errorf("the head trails %v, the second, behind it in the column; want it trailing none",
+			o)
+	}
+	if _, o := fw.centre(4); o == nil || o.TrailFor == 0 || o.Trailing != head {
+		t.Errorf("the second's order %+v, want it trailing the head ahead of it", o)
+	}
+}
+
+// one walking up behind a column standing behind its halted head trails the one it strikes and
+// waits behind it with no stall: kept by its formation, that one counts as one of a queue
+func TestColumn_OneKeptByItsFormationIsTrailed(t *testing.T) {
+	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(12, 1, fieldCell)}
+	goal := probe.grid.CellCenter(probe.at(11, 0))
+	walker := probe.standAt(goal)
+	walker.Group, walker.Party = 99, 1
+	units := []fieldUnit{{at: geom.NewVec(20, 16), side: 6, order: walker}}
+	for i := range 3 {
+		units = append(units, fieldUnit{at: geom.NewVec(100+10*float32(i), 16), side: 6,
+			selected: true})
+	}
+	trail := act.Branch[Touch]{
+		Name: "one walking my way is trailed",
+		When: cond.Self.If(WalksMyWay()),
+		Then: act.Self.Do(Trail{}),
+	}
+	fw := newFieldWorldWith(t, 12, 1, BodySpacing, nil, units, func(p *Plugin) {
+		p.WithCrowd(trail)
+		p.worldPlugin.Write().Effects().Define("halted", effect.Spec{
+			effect.Alter(func(s *steering.Steering) { s.Halted = true }),
+		})
+	})
+	halted := fw.nav.worldPlugin.Write().Effects().Named("halted")
+	fw.nav.worldPlugin.Write().Carrier().Put(1, ceremony.Put(halted).On(ceremony.ID(fw.ids[3])))
+	fw.nav.marches.Add(command.Nobody, March{Cell: fw.at(11, 0), At: goal,
+		In: ColumnOf(1, false, 0)})
+	trailed := false
+	for tick := 1; tick <= 4*60; tick++ {
+		fw.ecs.Tick(time.Second / 60)
+		_, o := fw.centre(0)
+		if o == nil || o.Stalls > 0 {
+			t.Fatalf("tick %d: the one walking up has %+v, want it waiting with no stall", tick, o)
+		}
+		trailed = trailed || o.TrailFor > 0 && o.Trailing == fw.ids[1]
+	}
+	if _, o := fw.centre(0); !trailed || o.TrailFor == 0 {
+		t.Errorf("the one walking up trailed the column's last %v, still at the end %v; want it "+
+			"trailing it all along", trailed, o.TrailFor > 0)
 	}
 }

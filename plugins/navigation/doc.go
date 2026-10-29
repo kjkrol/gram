@@ -84,9 +84,9 @@
 //
 // A [March] sends them as a MoveTo does, in a [Formation] its orders keep: in a [Column]
 // ([ColumnOf]) each walks behind the one nearer the goal along the way there, as the way's cost
-// orders them, and within its spacing of them no faster than they go; a closed column's head
-// waits while one coming on lags behind the one ahead of it more than the slack lets it, and a
-// second more once it stops. The plugin binds it to no key.
+// orders them, near the one ahead of it no faster than they go and trailing none behind it; a
+// closed column's head waits while a gap wider than the slack lets it closes, a second more once
+// it stops closing, and the column with it. The plugin binds it to no key.
 //
 // # Renderer
 //

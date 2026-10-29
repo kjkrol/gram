@@ -354,7 +354,7 @@ func (k *CellKeeping) Steer(m bodies.Member, st steering.Helm, dir geom.Vec, spe
 		if b, ok := pacer(&k.index, m, o); ok {
 			c := m.Centre()
 			if ahead(geom.NewVec(b.At.X-c.X, b.At.Y-c.Y), dir, m.Facing) {
-				speed = keepPace(m, o, b, dir, speed)
+				speed, o.Kept = keepPace(m, o, b, dir, speed), true
 			}
 		}
 	}
@@ -373,8 +373,8 @@ func (k *CellKeeping) Watch(m bodies.Member, o *order.MoveOrder, _ cell.ID, _ ge
 }
 
 // Held after stallAfter is the last word against rules that never move the unit; a wait on one
-// it trails, while they are under way, or on the one ahead of it in its formation, under their
-// order still, is no stall
+// it trails, while they are under way, on the one ahead of it in its formation, under their
+// order still, or while its formation's head waits, is no stall
 func (k *CellKeeping) Blocked(m bodies.Member, o *order.MoveOrder, c cell.ID, deck bool,
 	d time.Duration) (uid.UID64, bool) {
 	if o.Toward != c {
@@ -389,7 +389,7 @@ func (k *CellKeeping) Blocked(m bodies.Member, o *order.MoveOrder, c cell.ID, de
 		o.Trailed += d
 		return holder, known
 	}
-	if _, paced := pacer(&k.index, m, o); paced {
+	if _, paced := pacer(&k.index, m, o); paced || o.HeadWaits {
 		return holder, known
 	}
 	if o.Stalled += d; o.Stalled >= StallAfter {

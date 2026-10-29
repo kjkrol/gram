@@ -283,7 +283,6 @@ type ranked struct {
 	order *order.MoveOrder
 	at    geom.Vec
 	z     world.Z
-	alive bool  // it moves, or trails someone
 	form  int32 // its formation among the Update's
 	cost  float32
 	per   float32 // what a world unit of the way to the goal costs where it stands
@@ -291,13 +290,23 @@ type ranked struct {
 
 // a formation as an Update lays it out: its group, the first member met, whose key takes the
 // field, pending till every member has seeded it, and same, the formation it is where another
-// run of its members met it first
+// run of its members met it first; was, its head the Update before, waiting or not, with its
+// gap's narrowest and its patience
 type formed struct {
 	group   uint32
 	first   uid.UID64
 	field   *pathfind.Field
 	pending bool
 	same    int32
+	was     headWas
+}
+
+type headWas struct {
+	id        uid.UID64
+	met       bool
+	waited    bool
+	narrowest float32
+	patience  time.Duration
 }
 
 // Form lays out the formations the units ids march in, before they move, as the fields of their
@@ -317,7 +326,9 @@ func (c *Coordinator) Form(ids []uid.UID64) {
 			continue
 		}
 		m, o := c.member(c.query, id)
-		o.Place, o.AheadOf, o.Lag, o.Gap, o.Closing = 0, 0, 0, 0, false
+		was := headWas{id: id, met: o.Place == 1, waited: o.Kept, narrowest: o.Narrowest,
+			patience: o.Patience}
+		o.Place, o.AheadOf, o.Lag, o.Gap, o.HeadWaits = 0, 0, 0, 0, false
 		if o.Party < 2 {
 			continue
 		}
@@ -342,12 +353,14 @@ func (c *Coordinator) Form(ids []uid.UID64) {
 			f.field, last = field, q
 			c.forms = append(c.forms, f)
 		}
+		if f := &c.forms[len(c.forms)-1]; was.met {
+			f.was = was
+		}
 		if c.forms[len(c.forms)-1].pending {
 			c.fields.Expect(q, m.Cell)
 		}
 		c.ranks = append(c.ranks, ranked{id: id, order: o, at: m.Centre(), z: m.Z,
-			alive: bodies.Body{Vel: m.Vel, Trailing: o.TrailFor > 0}.Alive(),
-			form:  int32(len(c.forms) - 1)})
+			form: int32(len(c.forms) - 1)})
 	}
 	c.takeFields()
 	for i := range c.ranks {
@@ -400,6 +413,9 @@ func (c *Coordinator) takeFields() {
 		for j := range i {
 			if c.forms[j].group == f.group && c.forms[j].field == f.field {
 				f.same = int32(j)
+				if f.was.met {
+					c.forms[j].was = f.was
+				}
 				break
 			}
 		}
@@ -415,19 +431,27 @@ func (c *Coordinator) fill(field *pathfind.Field) {
 }
 
 // lay writes members, one formation's in its order, on their orders: each one's place, whom it
-// walks behind and how far, the widest gap on the head; one none of whose members stands on its
-// field marches unordered
+// walks behind and how far, whether the head waited the step before, the widest gap on the head,
+// which a new head takes on with the old one's narrowest and patience; one none of whose members
+// stands on its field marches unordered
 func (c *Coordinator) lay(members []ranked) {
+	f := &c.forms[members[0].form]
 	if f32.IsInf(members[0].cost, 1) {
-		if c.forms[members[0].form].field != nil {
+		if f.field != nil {
 			c.unorder()
 		}
 		return
 	}
 	head := members[0].order
+	switch {
+	case !f.was.met:
+		head.Narrowest = 0
+	case f.was.id != members[0].id:
+		head.Narrowest, head.Patience = f.was.narrowest, f.was.patience
+	}
 	for k := range members {
 		r := &members[k]
-		r.order.Place = uint16(min(k+1, math.MaxUint16))
+		r.order.Place, r.order.HeadWaits = uint16(min(k+1, math.MaxUint16)), f.was.waited
 		if k == 0 {
 			continue
 		}
@@ -436,9 +460,12 @@ func (c *Coordinator) lay(members []ranked) {
 		if f32.IsInf(r.cost, 1) {
 			continue
 		}
-		// read at the dearer ground of the two, it errs on the near side where the ground changes
-		if r.order.Lag = (r.cost - ahead.cost) / max(r.per, ahead.per); r.order.Lag > head.Gap {
-			head.Gap, head.Closing = r.order.Lag, r.alive
+		// read at the dearer ground of the two it errs on the near side where the ground changes,
+		// and never past the straight way between them
+		lag := (r.cost - ahead.cost) / max(r.per, ahead.per)
+		lag = min(lag, f32.Hypot(r.at.X-ahead.at.X, r.at.Y-ahead.at.Y))
+		if r.order.Lag = lag; lag > head.Gap {
+			head.Gap = lag
 		}
 	}
 }
@@ -451,24 +478,67 @@ func (c *Coordinator) unorder() {
 	}
 }
 
-// costAt is the cost of the way to f's goal from p, in c on level l, c's cost being cost: off c's
-// middle along the field's step from c, a world unit of the way costing per there; in the goal's
-// cell, a world unit costs what it does at full pace
+// costAt is the cost of the way to f's goal from p, in c on level l, c's cost being cost, and
+// what a world unit of it costs there: between c's middle and the next cell's along the field's
+// step out of c, behind c's middle along the step from the neighbour that leads into c, so it
+// runs on unbroken from cell to cell; else as at full pace
 func costAt(g grid.Grid, f *pathfind.Field, c cell.ID, l pathfind.Level, cost float32,
 	p geom.Vec) (at, per float32) {
 	mid := g.CellCenter(c)
 	d := geom.NewVec(p.X-mid.X, p.Y-mid.Y)
+	t, drop, span := float32(-1), float32(0), float32(0)
 	if n, nl, ok := f.Next(c, l); ok {
-		if i, way := grid.Way(g, c, n); way {
-			s := g.Step(i)
-			next, _ := f.Cost(n, nl)
-			if drop, ss := cost-next, s.X*s.X+s.Y*s.Y; drop > 0 && ss > 0 {
-				t := min(max((d.X*s.X+d.Y*s.Y)/ss, -1), 1)
-				return cost - t*drop, drop / f32.Sqrt(ss)
-			}
-		}
+		t, drop, span = onStep(g, f, c, n, nl, cost, d)
+	}
+	if t >= 0 {
+		return cost - min(t, 1)*drop, drop / span
+	}
+	if at, per, ok := behind(g, f, c, cost, d); ok {
+		return at, per
+	}
+	if span > 0 {
+		return cost - max(t, -1)*drop, drop / span
 	}
 	step := g.Step(0)
-	span := f32.Hypot(step.X, step.Y)
-	return cost + min(f32.Hypot(d.X, d.Y), span)/span, 1 / span
+	unit := f32.Hypot(step.X, step.Y)
+	return cost + min(f32.Hypot(d.X, d.Y), unit)/unit, 1 / unit
+}
+
+// behind is costAt for d, off c's middle, on the step into c from the neighbour d points to,
+// where the field leads that one into c; false where it does not
+func behind(g grid.Grid, f *pathfind.Field, c cell.ID, cost float32,
+	d geom.Vec) (at, per float32, ok bool) {
+	i := grid.Nearest(g, d)
+	u, ok := g.Toward(c, i)
+	if !ok {
+		return 0, 0, false
+	}
+	if into, _, ok := f.Next(u, pathfind.Either); !ok || into != c {
+		return 0, 0, false
+	}
+	s := g.Step(i)
+	back, _ := f.Cost(u, pathfind.Either)
+	ss := s.X*s.X + s.Y*s.Y
+	rise := back - cost
+	if rise <= 0 || ss <= 0 {
+		return 0, 0, false
+	}
+	return cost + min((d.X*s.X+d.Y*s.Y)/ss, 1)*rise, rise / f32.Sqrt(ss), true
+}
+
+// onStep is where d, off c's middle, lies along the step from c to n, a share of it, what the
+// step costs and how long it is; a share of -1 where the step is none
+func onStep(g grid.Grid, f *pathfind.Field, c, n cell.ID, nl pathfind.Level, cost float32,
+	d geom.Vec) (t, drop, span float32) {
+	i, way := grid.Way(g, c, n)
+	if !way {
+		return -1, 0, 0
+	}
+	s := g.Step(i)
+	next, _ := f.Cost(n, nl)
+	ss := s.X*s.X + s.Y*s.Y
+	if drop = cost - next; drop <= 0 || ss <= 0 {
+		return -1, 0, 0
+	}
+	return (d.X*s.X + d.Y*s.Y) / ss, drop, f32.Sqrt(ss)
 }

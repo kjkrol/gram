@@ -346,6 +346,7 @@ func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 	o, st := w.o, w.st
 	p, leg := &o.Path, &o.Leg
 	w.at.Next = 0 // led nowhere unless its route leads it below
+	o.Kept = false
 	if changed && p.Index < p.Length && !s.admitsAll(p.Steps[p.Index:p.Length], w.domain) {
 		p.Length = 0
 	}
@@ -453,25 +454,31 @@ func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 	return onward
 }
 
-// how long the head of a closed formation waits on a gap the member behind which no longer
-// comes on: a Hold's while
+// how long the head of a closed formation waits on a gap that has stopped closing: a Hold's
+// while
 const patience = spacing.StallAfter
 
 // whether w heads a closed formation a member of which lags more than the slack lets it: waiting
-// on them while they come on, and for patience more once they stop; never in the way of one
-// refused its cell
+// while the gap closes, by an eighth of a room on the narrowest it was, and for patience more
+// once it stops; so never for good, nor in the way of one refused its cell
 func (s *System) awaits(w *walker, d time.Duration) bool {
 	o, f := w.o, w.o.Formation
+	o.Closing = false
 	if !f.Closed || o.Place != 1 || w.m.Pressed {
 		return false
 	}
-	open := o.Gap > float32(int(f.Slack)+1)*spacing.Room(w.m, f)
-	if !open || o.Closing {
-		o.Patience = patience
-		return open
+	room := spacing.Room(w.m, f)
+	switch {
+	case o.Gap <= float32(int(f.Slack)+1)*room:
+		o.Patience, o.Narrowest = patience, 0
+		return false
+	case o.Narrowest == 0 || o.Gap < o.Narrowest-room/8:
+		o.Patience, o.Narrowest, o.Closing = patience, o.Gap, true
+	default:
+		o.Patience = max(o.Patience-d, 0)
 	}
-	o.Patience = max(o.Patience-d, 0)
-	return o.Patience > 0
+	o.Kept = o.Patience > 0
+	return o.Kept
 }
 
 // whether w touches whom or has them within a body's reach, who are under way and ahead of it
@@ -479,7 +486,7 @@ func (s *System) awaits(w *walker, d time.Duration) bool {
 func (s *System) against(w *walker, whom uid.UID64) bool {
 	b, ok := s.keep.Other(whom)
 	self, known := s.keep.Other(w.id)
-	if !ok || !known || !b.Alive() {
+	if !ok || !known || !b.Alive() || behind(w.o, b) {
 		return false
 	}
 	to := s.unwrap(self.At, b.At)
@@ -488,6 +495,12 @@ func (s *System) against(w *walker, whom uid.UID64) bool {
 		return false
 	}
 	return touches(w.coll, whom) || withinReach(self, b, d)
+}
+
+// whether other marches behind o's unit in its formation: a unit trails none behind it there, so
+// the order the formation gives has no loop of trails
+func behind(o *order.MoveOrder, other bodies.Body) bool {
+	return o.Place > 0 && other.Place > o.Place && other.Group == o.Group
 }
 
 func touches(coll *collision.Collider, whom uid.UID64) bool {
@@ -996,7 +1009,7 @@ func (s *System) carryOut(m bodies.Member, o *order.MoveOrder, st steering.Helm,
 				s.keep.Settle(m, o, other)
 			}
 		case t.trail:
-			if other, ok := s.keep.Other(t.trailOf); ok {
+			if other, ok := s.keep.Other(t.trailOf); ok && !behind(o, other) {
 				if o.TrailFor == 0 { // a renewal goes on with the wait, a new trail starts it
 					o.Trailed = 0
 				}
@@ -1088,6 +1101,10 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 				b.GivingWay, b.Goal, b.Spot, b.LastGoal = o.GivingWay, o.Target, s.goal(o.Target, o.Spot), o.Queued == 0
 				b.WaitedOut, b.Cornered = o.WaitedOut, o.Cornered
 				b.Trailing, b.TrailPace, b.Way = o.TrailFor > 0, o.TrailPace, o.Way
+				if o.Kept && !b.Trailing { // kept by its formation, it is one of a queue
+					b.Trailing, b.TrailPace = true, b.MaxSpeed*b.Share
+				}
+				b.Place = o.Place
 				if o.Group != 0 {
 					b.Group = o.Group
 				}
