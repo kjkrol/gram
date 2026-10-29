@@ -156,8 +156,8 @@ func (s *System) Init(si *goke.SysInit) {
 
 func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 	changed := false
-	if v, ok := s.terrain.(interface{ Version() uint64 }); ok && v.Version() != s.terrainSeen {
-		s.terrainSeen, changed = v.Version(), true
+	if v, ok := s.terrain.(interface{ Passage() uint64 }); ok && v.Passage() != s.terrainSeen {
+		s.terrainSeen, changed = v.Passage(), true
 	}
 	s.keep.Begin(s.gathering)
 	if len(s.formed) > 0 && s.Formations != nil {

@@ -22,7 +22,8 @@ func TestPathFinder_FindPath_UnreachableTarget_ReportsNotFound(t *testing.T) {
 		terrain.Set(n, cell.Kind{Pace: 1, Solid: true})
 	}
 
-	_, ok := newPathFinder(grid, terrain, nil, occupancy).findPath(uid.UID64(1), cell.Land, from, to)
+	_, ok := newPathFinder(grid, terrain, nil, occupancy).findPath(uid.UID64(1), cell.Land,
+		from, to)
 	if ok {
 		t.Error("expected findPath to report not-found for a target walled in on every side")
 	}
@@ -71,7 +72,8 @@ func TestPathFinder_FindPath_NeverCutsThroughABlockedCorner(t *testing.T) {
 
 	from := grid.At(1, 2)
 	to := grid.At(3, 2)
-	path, ok := newPathFinder(grid, terrain, nil, occupancy).findPath(uid.UID64(1), cell.Land, from, to)
+	path, ok := newPathFinder(grid, terrain, nil, occupancy).findPath(uid.UID64(1), cell.Land,
+		from, to)
 	if !ok {
 		t.Fatal("expected a path around the wall to exist")
 	}
@@ -100,7 +102,8 @@ func TestPathFinder_NearestFree_SkipsOccupiedTakenAndUnreachableCells(t *testing
 
 	dest, _, ok := pf.nearestFree(mover, cell.Land, at(6), at(4), taken)
 	if !ok || dest != at(6) {
-		t.Errorf("nearestFree = %v, %v, want %v (only free, reachable cell near the target)", dest, ok, at(6))
+		t.Errorf("nearestFree = %v, %v, want %v (only free, reachable cell near the target)",
+			dest, ok, at(6))
 	}
 
 	if _, _, ok := pf.nearestFree(mover, cell.Land, at(0), at(4), taken); ok {
@@ -169,5 +172,33 @@ func TestFinder_FindAllocatesNothingOnceItsRoutesFit(t *testing.T) {
 				t.Errorf("a route found again allocates %v times; want none", allocs)
 			}
 		})
+	}
+}
+
+// a terrain whose passage moves only when told, whatever is set on it
+type unannounced struct {
+	*cell.TerrainMap
+	passage uint64
+}
+
+func (u *unannounced) Passage() uint64 { return u.passage }
+
+// the ground a search read is kept for the next while the board's passage stands, and read anew
+// once it moves
+func TestFinder_ReadsTheGroundAgainOnlyAsThePassageMoves(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(5, 1, 10)
+	terrain := &unannounced{TerrainMap: openTerrain()}
+	f := newPathFinder(g, terrain, nil, &cell.MultipleOccupancy{})
+	from, to := g.At(0, 0), g.At(4, 0)
+	if _, ok := f.findPath(uid.UID64(1), cell.Land, from, to); !ok {
+		t.Fatal("no route along the open row")
+	}
+	terrain.Set(g.At(2, 0), cell.Kind{Pace: 1, Solid: true})
+	if _, ok := f.findPath(uid.UID64(1), cell.Land, from, to); !ok {
+		t.Error("a wall set under the passage as it stood was read, want the ground kept")
+	}
+	terrain.passage++
+	if _, ok := f.findPath(uid.UID64(1), cell.Land, from, to); ok {
+		t.Error("a route through the wall once the passage moved, want the ground read anew")
 	}
 }

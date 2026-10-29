@@ -76,12 +76,12 @@ type avoiding struct {
 	kept    *Answers
 }
 
-// a search blind to the others reads nothing but the board, so over a board counting its
-// changes its answer is kept, in kept, till the next one
+// a search blind to the others reads nothing but the board, so over a board counting the
+// changes to its passage its answer is kept, in kept, till the next one
 func (a *avoiding) bind(f *Finder, kept *Answers) {
 	a.blocked, a.kept = a.avoids, kept
 	if _, blind := f.Occupancy.(OpenOccupancy); blind && kept.board == nil {
-		kept.board, _ = f.Terrain.(interface{ Version() uint64 })
+		kept.board, _ = f.Terrain.(interface{ Passage() uint64 })
 	}
 }
 
@@ -107,14 +107,14 @@ type answer struct {
 	done bool // false: being worked out
 }
 
-// Answers are the routes given since the board last changed, searched or walked off a field, at
-// most keptAnswers, all let go at once. Keepings on several goroutines may share them: one
-// asking what another works out waits for its answer. The zero value is ready.
+// Answers are the routes given since the board's passage last changed, searched or walked off a
+// field, at most keptAnswers, all let go at once. Keepings on several goroutines may share them:
+// one asking what another works out waits for its answer. The zero value is ready.
 type Answers struct {
 	mu      sync.Mutex
 	worked  sync.Cond                     // an answer worked out
-	board   interface{ Version() uint64 } // nil: none kept
-	version uint64
+	board   interface{ Passage() uint64 } // nil: none kept
+	passage uint64
 	index   map[asked]int32
 	given   []answer
 	working int // the answers being worked out
@@ -164,8 +164,8 @@ func (k *Answers) take(q asked) (slot int32, p order.Path, ok, known bool) {
 	}
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	if v := k.board.Version(); k.working == 0 && (v != k.version || len(k.given) >= keptAnswers) {
-		k.version, k.given = v, k.given[:0]
+	if v := k.board.Passage(); k.working == 0 && (v != k.passage || len(k.given) >= keptAnswers) {
+		k.passage, k.given = v, k.given[:0]
 		clear(k.index)
 	}
 	for {

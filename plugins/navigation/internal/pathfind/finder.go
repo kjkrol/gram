@@ -18,7 +18,7 @@ type Finder struct {
 	pacing    Pacing
 	sloped    bool        // the pacing feels the slope: a step is paced by the strategy
 	kinds     []cell.Kind // by ordinal, the ground kind read for a step over a relief
-	versioned versioned   // nil: the terrain counts no changes, a cell is read every search
+	passing   passing     // nil: the terrain counts no changes, a cell is read every search
 	flats     []flatStep  // by ordinal, the ground steps kept across searches
 	searches  uint64
 	fills     uint64
@@ -80,9 +80,9 @@ type built interface {
 	Fenced(from, to cell.ID, d cell.Domain, deck bool) bool
 }
 
-// versioned counts every change to what a search reads, as a board does
-type versioned interface {
-	Version() uint64
+// passing counts every change to what a search reads, as a board's Passage does
+type passing interface {
+	Passage() uint64
 }
 
 // lanes says how wide a body may be across a step along a deck's band, +Inf where none narrows it
@@ -130,7 +130,7 @@ func New(grid grid.Grid, terrain cell.Terrain, pacing Pacing, occupancy cell.Occ
 	p.ways, _ = terrain.(ways)
 	p.built, _ = terrain.(built)
 	p.lanes, _ = terrain.(lanes)
-	p.versioned, _ = terrain.(versioned)
+	p.passing, _ = terrain.(passing)
 	p.solver = astar.New(grid.Distance,
 		astar.WithIndexedSliceDict(grid.CellCount()+1, p.slot),
 		astar.WithSuccessorCapacity[cell.ID](grid.Directions()))
@@ -146,7 +146,7 @@ func (p *Finder) Reads(terrain cell.Terrain, pacing Pacing, levels Levels) {
 	p.ways, _ = terrain.(ways)
 	p.built, _ = terrain.(built)
 	p.lanes, _ = terrain.(lanes)
-	p.versioned, _ = terrain.(versioned)
+	p.passing, _ = terrain.(passing)
 	clear(p.flats)
 }
 

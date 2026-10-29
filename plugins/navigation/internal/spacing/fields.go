@@ -45,24 +45,25 @@ type fieldEntry struct {
 }
 
 // Fields are the fields of the groups' goals whose routes are read off them, at most keptFields,
-// all let go when the board changes. An Update has them expected before any ask is answered;
-// routers answering on several goroutines share them, one filling what the others wait for.
+// all let go when the board's passage changes. An Update has them expected before any ask is
+// answered; routers answering on several goroutines share them, one filling what the others
+// wait for.
 type Fields struct {
 	mu      sync.Mutex
 	worked  sync.Cond // a field filled
 	grid    grid.Grid
-	board   interface{ Version() uint64 } // nil: no fields kept
-	version uint64
+	board   interface{ Passage() uint64 } // nil: no fields kept
+	passage uint64
 	update  uint64
 	entries [keptFields]fieldEntry
 }
 
 // Bind has fs keep fields filled through finders as f searches: blind to the others, over a
-// board counting its changes; over any other, none.
+// board counting the changes to its passage; over any other, none.
 func (fs *Fields) Bind(f *Finder) {
 	fs.grid, fs.board, fs.worked.L = f.grid, nil, &fs.mu
 	if _, blind := f.Occupancy.(OpenOccupancy); blind {
-		fs.board, _ = f.Terrain.(interface{ Version() uint64 })
+		fs.board, _ = f.Terrain.(interface{ Passage() uint64 })
 	}
 }
 
@@ -81,20 +82,21 @@ func (fs *Fields) Key(m bodies.Member, o *order.MoveOrder) (fieldAsked, bool) {
 	return fieldAsked{goal: goal, end: o.Level, domain: m.Domain, body: body}, true
 }
 
-// Sweep begins an Update's asks: a board changed since the last lets every field go.
+// Sweep begins an Update's asks: a board whose passage changed since the last lets every field
+// go.
 func (fs *Fields) Sweep() {
 	if fs.board == nil {
 		return
 	}
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
-	v := fs.board.Version()
+	v := fs.board.Passage()
 	for i := range fs.entries {
-		if e := &fs.entries[i]; v != fs.version || e.state == fieldExpected {
+		if e := &fs.entries[i]; v != fs.passage || e.state == fieldExpected {
 			e.state = fieldFree
 		}
 	}
-	fs.version = v
+	fs.passage = v
 	fs.update++
 }
 

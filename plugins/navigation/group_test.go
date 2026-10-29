@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
@@ -42,14 +43,21 @@ type groupRig struct {
 
 func newGroupRig(t testing.TB, pool *parallel.Pool, starts []cell.ID) *groupRig {
 	t.Helper()
+	return newGroupRigWith(t, pool, starts, nil)
+}
+
+// prepare is handed the world and the board before they are installed
+func newGroupRigWith(t testing.TB, pool *parallel.Pool, starts []cell.ID,
+	prepare func(*world.Plugin, *board.Plugin)) *groupRig {
+	t.Helper()
 	g := groupGrid()
 	units := make([]navUnit, len(starts))
 	for i, c := range starts {
 		units[i] = navUnit{box: cellBox(g, c, 12), at: c, order: &MoveOrder{}}
 	}
 	r := &groupRig{}
-	r.nw = newNavWorldIn(t, pool, groupSide, groupSide, groupCell, units, world.SectorsCfg{}, nil,
-		goke.SystemFn{OnInit: func(si *goke.SysInit) {
+	r.nw = newNavWorldIn(t, pool, groupSide, groupSide, groupCell, units, world.SectorsCfg{},
+		prepare, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 			r.ordered = si.NewQueryBuilder(&r.orders, &r.at).Build()
 		}})
 	r.coord = r.nw.nav.module.navigationSystem.Routing.(*routing.Coordinator)
