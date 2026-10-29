@@ -324,6 +324,20 @@ older rungs within noise (−1.0…+3.4% min, the +3.4% of open 1,000 plain read
 one sort a formation, and an order without a formation one byte compare). `Routing_Group`
 unchanged (+0.0% and −1.1% min, `-cpu=1`, the lower of 6 at `-benchtime=10x`).
 
+At `feat/passage` (v0.11.0, 2026-10-29: the board's passage counters, navigation's caches keyed
+by them, the counters) against v0.10.0 alternately (`GOWORK=off`, 200x, 3 rounds × 2, plain and
+`-cpu=1`; the routing and pathfind benchmarks by hand at 10x): nothing the stage does moves a
+rung by 3% of its median; the hashing of a cell's passage shows in the profiles only while a
+benchmark lays its board (10–30 ms), never in a timed path; `Routing_Path` +2.1% of the median
+over 30 samples a side (on the tree's side in every run, under the bar), `Routing_Group`,
+`PathFinder_*` and the 1,000-walker rungs within noise. Three traps the measurement found, now
+in the gram-perf skill: a rung of 2–60 µs at 200x lasts ~10 ms and says only noise (at
+`BENCHTIME=1s` every one within −3.5…+1%); the base runs first and its first round falls in
+the CPU's boost window, 10–20% faster than any later sample (swapping the sides flips the
+sign); transparent huge pages (`[always]` here) lay the memory out bimodally
+(`Routing_Routes/workers=1` 230–245 against 257–277 ms on both sides; `crowded,100` at 2000x
++28% with them, −0.2% with `GODEBUG=disablethp=1`).
+
 `grouped` (v0.9.0) is the crowded scene with every walker selected and sent by one MoveTo: a
 party, so its routes come off one field; on v0.8.0 the same bench is a search a route. Against
 v0.8.0 alternately at `feat/field` (`-cpu=1`, the lower of 6 at `BENCHTIME=200x`, the base with

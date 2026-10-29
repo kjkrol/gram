@@ -1619,5 +1619,24 @@ flats po przejezdności (test w `pathfind`, bo routery czyszczą flats co Update
 rozwinięć, kołysanie bez utraty odpowiedzi i pola, lód z utratą; golden, `-race`, SIMD zielone.
 Ryzyka: `Mobility` gry czytająca pole spoza `Step`; krok czyta sąsiadów (narożniki, pasma),
 więc klaster etapu B ocenia nieaktualność po komórkach i pierścieniu; koszt przeniesiony na
-zapisy (3 seeki i hasz na dotkniętą komórkę, `made`/`SetAll` O(komórek)). Pomiar: agent
-mierzący z briefu `doc/briefs/m-passage.md` (po zakończeniu części astara, bezczynna maszyna).
+zapisy (3 seeki i hasz na dotkniętą komórkę, `made`/`SetAll` O(komórek)). Pomiar (agent
+mierzący Opus z briefu `doc/briefs/m-passage.md`; baza v0.10.0, na zmianę, `GOWORK=off`, 200x
+3×2 zwykły i `-cpu=1`, routing i pathfind ręcznie 10x): nic nie traci ≥ 3% mediany z powodu
+etapu; hasz przejezdności (`passageOf`, `maphash`) widać w profilach tylko w układaniu planszy
+benchmarku (10–30 ms), nigdy na ścieżce mierzonej; `Routing_Path` +2,1% mediany z 30 próbek
+na stronę (po stronie drzewa w każdym przebiegu, pod progiem); `Routing_Group`, `PathFinder_*`,
+`Navigation_Tick` 1 000 w szumie. **Pułapki pomiaru znalezione**: rungi 2–60 µs przy 200x
+trwają ~10 ms i mówią tylko szum (powtórzone z `BENCHTIME=1s` wszystkie w −3,5…+1%); baza
+biegnie pierwsza i jej pierwsza runda w oknie boostu (~25–30 s) wychodzi 10–20% szybciej
+(zamiana stron odwraca znak); układ pamięci pod transparent huge pages (`[always]`) daje
+dwumodalność (`Routing_Routes/workers=1` 230–245 wobec 257–277 ms po obu stronach,
+`crowded,100` przy 2000x +28% z THP, −0,2% z `GODEBUG=disablethp=1`). Sonda Madery (burza na
+start, ziarno 7, po dwa przebiegi na stronę): dojścia co do ticku te same (Poiso→Faial 118 s,
+Funchal→Santana 170 s, Machico→Câmara de Lobos 210 s, 30 górali w 292 s); liczniki drzewa
+identyczne w obu przebiegach: 54 szukania, 51 marszów, 1 pole, 18 300 rozwinięć w 300 s;
+długa trasa to trzy kawałki i trzy szukania (Funchal→Santana 64+58+41 kroków; Machico 2912 i
+994 rozwinięć na kawałek), siedem rozkazów mapy na drugim ticku to 8 139 rozwinięć; jedyne
+przejście wiatru (43,8 → 15 przy 1,07 s, kołysanie 1 788 komórek lasu) podbiło `Version` o 1 i
+`Passage` o 0 (mosty na pierwszym ticku: `Passage` +65); ticki z szukaniem w medianie równe
+cichym (±0,1 ms). Sześć dem z nawigacją: w etapie B (demo topografii zbudowane z linią
+liczników).

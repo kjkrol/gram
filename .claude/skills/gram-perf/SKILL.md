@@ -83,7 +83,18 @@ zmiana dotyka, nigdy wszystkie.
   ticki przed nimi w 5%. Zapis (`make bench-save`) sprawdza się, mierząc późne osobno;
   porównanie i tak zmienia strony.
 - `/tmp` to tmpfs z limitem na użytkownika: porzucone `/tmp/go-build*` i scratchpady innych
-  sesji zapełniają go, a linker odmawia („disk quota exceeded"); sprzątać tylko swoje.
+  sesji zapełniają go, a linker odmawia („disk quota exceeded"); sprzątać tylko swoje
+  (`GOTMPDIR` na dysku omija limit).
+- **Boost pierwszej rundy** (2026-10-29): `measure.sh` zaczyna każdy zestaw od bazy zaraz po
+  czekaniu na bezczynność, a pierwsze ~25–30 s biegną z boostem zegara: próbki bazy z pierwszej
+  rundy wychodzą 10–20% szybciej niż każda późniejsza (zamiana stron odwraca znak). Duży ruch
+  rungu, który biegnie pierwszy w kolejności źródła, sprawdzić z zamienionymi stronami albo
+  bez pierwszej rundy; rungi 2–60 µs przy 200x trwają ~10 ms i mówią tylko szum: mierzyć je z
+  `BENCHTIME=1s`.
+- **Transparent huge pages** (`/sys/kernel/mm/transparent_hugepage/enabled` `[always]` tu):
+  układ pamięci daje dwumodalne czasy po obu stronach (`Routing_Routes/workers=1` 230–245
+  wobec 257–277 ms; `crowded,100` przy 2000x +28% z THP, −0,2% bez). Duży ruch bez śladu w
+  profilu sprawdzić z `GODEBUG=disablethp=1` po obu stronach, zanim nazwie się go regresją.
 
 ## Odsyłacze
 

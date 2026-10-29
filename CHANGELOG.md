@@ -23,6 +23,11 @@ branch `feat/passage`, `doc/plans-perf.md` „HPA*", etap A, the brief `doc/brie
   `Builds` stay at none while navigation keeps no hierarchy; `Expansions` counts the nodes the
   searches expand) and `Read.Reporter()`, the telemetry panel's line "Routes: searches N, walks
   N, fills N, expansions N"; board/topography shows it.
+- Benchmarks: within noise (`Routing_Path` +2.1% of the median over 30 samples a side; the
+  hashing never in a timed path); on the Madeira probe the same arrivals to the tick, a long
+  route three searches (its chunks), and the wind's crossing moving `Version` but not
+  `Passage`. Two measuring traps noted in the gram-perf skill: the base's boosted first round
+  and transparent huge pages.
 
 ## v0.10.0 — 2026-10-29
 
