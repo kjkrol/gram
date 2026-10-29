@@ -134,6 +134,31 @@ ruch jednostek po trasach (`traffic`).
   200 ticków), nie pole; remisy Dijkstry od celu są inne niż A* (te same koszty, inne komórki:
   cała grupa idzie jednym drzewem); daleki cel przy małej partii wypełnia duży dysk (margines
   1,5 × najdalsze); jednostka odcięta od celu wypełnia całą osiągalną planszę.
+- **Kolumna nad polem** (2026-10-29, `feat/column` v0.10.0, etap 4 planu „Kolejka i pole
+  grupy", agent Opus w dwóch rundach; brief `doc/briefs/t4-column.md`): `March` to `MoveTo` z
+  `Formation` na każdym rozkazie; koordynator układa formacje co Update (`Form`, przed
+  ruchem: członkowie zbierani w `gather` bez dodatkowego przebiegu; `Seek`, `Key`, `LevelOf`,
+  koszt z pola ciągły między komórkami (`costAt`: za środkiem komórki wzdłuż kroku z sąsiada,
+  który do niej prowadzi: jeden odczyt sąsiada więcej), sortowanie formacji, jedno `Take` na
+  przebieg członków, zero alokacji po rozgrzaniu); keepingi w `Steer`: `pacer` (wyszukanie w
+  indeksie ciał) i `keepPace`; `Watch`/`Blocked` gałąź na `HeadWaits`. Rung
+  `Navigation_Tick/column,entities=1000` (tłum jednym `March` kolumną zwartą). Sonda
+  płaskowyżu (ziarno 7, cicha maszyna, sonda `column_probe2.go` w scratchpadzie sesji): `MoveTo`
+  30/30 w 291 s; kolumna zwarta `Slack` 1 30/30 w 340 s, zacięć 0, czoło czekało 10,8 s, 71
+  inwersji porządku dojścia na 435 par; rwana 30/30 w 330 s. **Pułapki dynamiki** (runda 1
+  dawała 1/30 zwartą i 14/30 rwaną): koszt pola skokowy na granicy komórek (o połowę różnicy
+  kosztów dwóch kroków) dał ciałom w styku `Lag` 6,6–7,3 przy ciele 2,88 i odwracał porządek
+  sąsiadów; „zamykanie" luki mierzone żywotnością marudera (prędkość albo flaga podążania)
+  nie kończy czekania czoła w węźle wzajemnych podążań (108 → 114 → 96 → 102 → 108); tempo za
+  kimś obok (półpłaszczyzna zamiast stożka ćwierci obrotu) zamraża przód kolumny, a tył ją
+  wyprzedza (340 inwersji); stojący członek formacji bez `Kept` pęka łańcuch podążania z
+  etapu 2 (`Blocks → Detour` wokół własnego czoła); sonda z parametrami przez zmienne
+  środowiska: w zsh zmienna nie dzieli się na słowa, więc `set -- $v` nie przekazuje ich.
+  Koszt (baza v0.9.0, na zmianę, najniższy z 6, 200x, zwykły i `-cpu=1`): stare rungi
+  `Navigation_Tick` w szumie (−1,0…+3,4% min), `Routing_Group` bez zmian (leży w
+  `plugins/navigation`, nie w `bench/`: `measure.sh` go nie widzi, mierzyć ręcznie); rung
+  `column,1000` 2,8 ms wobec `grouped,1000` 4,8 ms (8,2 przy `-cpu=1`) tego samego drzewa, 0
+  alokacji: tłum tempowany za czołem mniej napiera na szczelinę i mniej szuka (bez profilu).
 
 ## Co dalej (poza etapem, osobne planowanie)
 

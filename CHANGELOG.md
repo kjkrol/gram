@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.10.0 — 2026-10-29
+
+**Marching in formation: a column over the field** (2026-10-29, branch `feat/column`,
+`doc/plans-perf.md` „Kolejka i pole grupy", etap 4, the brief `doc/briefs/t4-column.md`)
+- Added: `navigation.March{Cell, To, At, Level, In}` sends the selected units the player owns,
+  or the entity giving it, as a `MoveTo` does, in a `Formation` their orders keep (`Shape`,
+  `Spacing` in bodies, `Closed`, `Slack`; `ColumnOf(spacing, closed, slack)`; the shapes
+  `NoFormation` and `Column`; a shape the plugin does not know goes as a MoveTo, said once in
+  the log). The plugin binds no key to it.
+- Added: the column. Every update the coordinator lays a formation out off its party's field
+  (a formation reads the field from a party of two): its members in the order of the cost of
+  the way to the goal, read unbroken from cell to cell (`MoveOrder.Place`, 1 the head,
+  `AheadOf`, `Lag` in world units and never more than the straight way between the two).
+  Within two rooms of the one ahead (`spacing.Room`: a body and its gap, times the spacing)
+  and with it within a quarter turn of its way, a member keeps that one's pace, braking to stop
+  a room short; its wait on it is no stall. A member the formation keeps (paced, or the head
+  waiting) counts as trailing to the touch, so the crowd behind it trails it as a queue
+  instead of going round, and a member trails nobody behind it in its formation. The head of a
+  `Closed` column waits while the widest gap between two consecutive members, wider than
+  `Slack`+1 rooms, is closing (`Gap`, `Narrowest`, `Closing`), a second more once it stops
+  (`Patience`), never for good and never while someone is refused its cell; meanwhile its
+  members count no stall (`HeadWaits`). An open column breaks up where the ground parts it,
+  each member still at the pace of the one ahead. On board/topography's plateau the 30
+  highlanders sent as one closed column all reach Pico do Arieiro, the last at 340 s of game
+  (an open column 330 s, a MoveTo 291 s), where a column of the first cut lost every order at
+  the rim's mouth.
+- Changed: a step aside keeps the formation. A v0.9.0 save does not load (the order grows).
+- Benchmarks: `Benchmark_Navigation_Tick/column,entities=1000` (the crowded scene sent as one
+  closed column: 2.8 ms a tick against the grouped scene's 4.8, the crowd paced behind its
+  head pressing the wall's gap less); the older rungs and `Routing_Group` within noise.
+
 ## v0.9.0 — 2026-10-28
 
 **A group's routes come off one field** (2026-10-28, branch `feat/field`, `doc/plans-perf.md`

@@ -1354,6 +1354,15 @@ kopiec leniwy, stop po osiadaniu ziaren z marginesem), `Walk` (kawałek 64 krok�
 odcinek do własnego celu przez `findFrom`), spadki do A* (mała partia, `Avoid`, komórka
 nieosiągnięta, duża plansza); `CellKeeping.Orders` ustawia `At`.
 
+**Etap 4** (`feat/column`, plan 2026-10-28 po etapie 3; decyzje użytkownika: nowa komenda
+nośna dla wielu formacji, nie pole w `MoveTo`, zwartość i luz kolumny jako parametry
+rozkazu): `March{Cell, To, At, Level, In Formation}`, `Formation{Shape, Spacing, Closed,
+Slack}`, `ColumnOf`; rozkaz niesie formację, miejsce w niej, poprzednika i odstęp; koordynator
+układa formację z kosztu pola co Update, keeping trzyma tempo poprzednika, czoło zwarte czeka
+na ogon; brief `doc/briefs/t4-column.md` (runda 2 po sondzie płaskowyżu). Pomiar:
+`Navigation_Tick` (nowy rung `column,1000` wobec `grouped,1000` drzewa; baza ma 4 rungi),
+`Routing_Group`; sonda: 30 górali jednym `March`, kolumna zwarta i rwana, wobec `MoveTo`.
+
 **Pomiar** (po każdym etapie, kopia bazowa przeciw drzewu, na zmianę, bezczynna maszyna):
 `Navigation_Tick`, `Navigation_Path`, `Board_Altitude`, `Gravity_Standing` (etapy 1–2; w szumie),
 `Routing_Path`, `Routing_Routes`, nowe `Routing_Group` i `PathFinder_Field` (etap 3: jedna
@@ -1467,3 +1476,55 @@ Sondy na cichej maszynie: po trzy przebiegi z ziarnem 7 na v0.8.0 i na drzewie, 
 obciążoną po benchmarkach — sonda nie jest deterministyczna przy jednym ziarnie (liczba kroków
 symulacji na Update idzie za czasem rzeczywistym; pułapka w `gram-probe`). Stary zapis nie
 wczyta się (rozkaz o 2 B większy). Sześć dem z nawigacją pod `timeout 20s` zdrowe.
+
+**Etap 4** (`feat/column`, v0.10.0; agent Opus 5.5 z briefu `doc/briefs/t4-column.md`, dwie
+rundy: `b07dc611`, `c6aae102`, `95effb44`, `76f88d45` i poprawka `19daf936`). Decyzje
+użytkownika: nowa komenda nośna dla wielu formacji (nie pole `MoveTo`), zwartość i luz kolumny
+jako parametry rozkazu. Weszło: `March{Cell, To, At, Level, In}` (ta sama droga co `MoveTo` w
+`carryOut`, każdy rozkaz z `Formation`), `Formation{Shape, Spacing, Closed, Slack}`,
+`ColumnOf`; rozkaz niesie `Place` (1 = czoło; id encji zaczynają się od 0, więc `AheadOf == 0`
+nie mogło znaczyć czoła), `AheadOf`, `Lag` w jednostkach świata (nie w koszcie: odstęp w
+koszcie to odstęp czasu i kurczy się na wolnym gruncie, przy udziale 0,01 z 12 px do 0,12;
+koszt dzielony przez stok pola na droższym gruncie z dwóch, ciągły między komórkami, nie
+większy od odległości w prostej), na czole `Gap`, `Narrowest`, `Closing`, `Patience`, na
+każdym `Kept` i `HeadWaits`; koordynator układa formacje co Update przed ruchem (`Form` z
+`traffic.Update`, członkowie zbierani w `gather`), formacja czyta pole od partii 2 (`byField`),
+brakujące pole wypełnia sama; keepingi tempują za poprzednikiem w zasięgu dwóch `Room` i w
+stożku ćwierci obrotu, z hamowaniem do zatrzymania `Room` przed nim
+(`√(v² + 2·Brake·Share·(Lag − Room))`; prosty przełącznik przy jednym `Room` dawał styk: 12 px
+drogi hamowania przy 96 px/s to dokładnie jeden `Room`); czoło zwarte czeka, póki najszersza
+luka między kolejnymi członkami (nie odstęp ogona od czoła: zwarta kolumna n ma go ok.
+(n−1)·`Room`, więc każda dłuższa niż `Slack`+2 czekałaby wiecznie) maleje, i `Patience` (1 s)
+dłużej, nigdy gdy ktoś odmawia mu komórki; `HeadWaits` zwalnia członków z zacięć na czas
+czekania czoła; członek trzymany liczy się dotykowi jak podążający; nikt nie podąża za kimś za
+sobą w formacji (bez pętli podążań); ustąpienie zachowuje formację; kształt nieznany idzie jak
+`MoveTo` (raz w logu); fakt `InFormation` niezrobiony (komenda na członka na tick). Runda 1
+przeszła testy (korytarz pod komórkami, dwie kolumny pod ciałami), ale sonda płaskowyżu dała
+kolumnę zwartą `Slack` 1 → 1 z 30 (wszystkie rozkazy stracone do 620 s), `Slack` 4 → 0 z 30
+(grupa stojąca w ujściu bez zacięć), rwaną → 14 z 30, przy `MoveTo` 30 z 30 w 291 s: cztery
+mechanizmy opisane w briefie (runda 2): `Lag` ciał w styku 6,6–7,3 przez skok kosztu na
+granicy komórek, poza zasięgiem tempa `Room` + hamowanie ≈ 6,4; `Closing` jako żywotność
+marudera (flaga podążania w węźle wzajemnych podążań 108 → 114 → 96 → 102 → 108) nie kończące
+czekania czoła; stojący członek formacji pękający łańcuch podążania z etapu 2 (`Blocks →
+Detour` wokół własnego czoła); brak zwolnienia z zacięć poza zasięgiem `pacer`. Same kontrakty
+rundy 2 dały 20 z 30; porządek podążań w formacji 30 z 30 w 399 s, ale 340 inwersji na 435 par
+(przód kolumny zamrożony za kimś obok, tył wyprzedzał); stożek ćwierci obrotu dał wynik
+końcowy. Sonda (ziarno 7, cicha maszyna, agent dwa razy i integrator dwa razy, co do sekundy
+te same): kolumna zwarta `Slack` 1 30 z 30, ostatni 339,7 s, zacięć 0, czoło czekało 10,8 s, 71
+inwersji porządku dojścia na 435 par (ujście przetasowuje kolumnę, za nim porządek wraca);
+rwana 30 z 30 w 329,7 s, zacięć najwyżej 1, 38 inwersji; `MoveTo` 30 z 30 w 291,3 s, zacięć do
+5 (jak v0.9.0). Test rundy 1 „czoło czeka, aż ogon nadrobi" zmieniony: ogon idący tempem czoła
+nic nie zamyka, więc czoło idzie dalej (`TestColumn_AClosedHeadsWaitOnAStoppedTailEnds`,
+`…WaitsWhileItsGapCloses`). Ryzyka z raportu agenta: kolumna przetasowana w ujściu; za
+zakrętem poprzednik wychodzi ze stożka, więc członek dochodzi do rogu, nim znów go tempuje;
+członek trzymany jest podążającym także dla obcych; mieszane rozmiary ciał to osobne kolumny
+(klucz pola z klasą ciała); szew torusa psuje „przed" na jeden tick; dwie grupy przez szczelinę
+jednej komórki pod komórkami chaotyczne jak przy `MoveTo` (z 64 w ośmiu wariantach rundy 1:
+`MoveTo` 7 straconych, zwarte 12, rwane 18). Stary zapis nie wczyta się (rozkaz większy).
+Pomiar (baza v0.9.0 z własnym plikiem benchmarków, cztery rungi; na zmianę, najniższy z 6 przy
+`BENCHTIME=200x`, zwykły i `-cpu=1`): rung `column,1000` 2,84 ms zwykły i 2,77 ms `-cpu=1`, 0
+alokacji, wobec `grouped,1000` tego samego drzewa 4,78 i 8,17 ms (tłum tempowany za czołem
+mniej napiera na szczelinę, więc mniej szuka wokół nauczonych komórek; bez profilu); stare
+rungi w szumie (−1,0…+3,4% min; +3,4% `open,1000` zwykłe to −1,0% przy `-cpu=1`);
+`Routing_Group` (w `plugins/navigation`, nie w `bench/`: `measure.sh` go nie widzi) bez zmian
+(+0,0% i −1,1% min, `-cpu=1`, 10x). Sześć dem z nawigacją pod `timeout 20s` zdrowe.

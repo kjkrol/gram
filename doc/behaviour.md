@@ -99,8 +99,10 @@ roles' tags, a plan's mind, a label) or a value in flight (a moment, a word).
   theirs; the engine carries every `plugin.CommandHandler` a Stage uses, and the `host.Tick` a
   plugin hands its rules carries the carrier. Nothing is dropped: a command waits for its
   handler's pass. `navigation.MoveTo` takes a cell, or an entity by name (`MoveTo{To:
-  ceremony.Named(GateName)}`); `bullet.Shoot{Ammo}` fires from the player's selected units, or
-  from the entity that gives it, aimed at its moment's subject.
+  ceremony.Named(GateName)}`); `navigation.March` is a MoveTo in a formation (`March{Cell, In:
+  navigation.ColumnOf(1, true, 1)}`), a player's or an entity's own, bound to no key;
+  `bullet.Shoot{Ammo}` fires from the player's selected units, or from the entity that gives
+  it, aimed at its moment's subject.
 
 ## Where a game defines things
 
