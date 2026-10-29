@@ -224,7 +224,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	})
 	a.telemetry = telemetry.NewPlugin(a.world).
 		With(a.atmosphere.Read(0).Reporter(), a.light.Read(0).Reporter(), a.topography.Read(0).Reporter(),
-			a.cameras.Read(0).Reporter(), a.world.Read(0).Sectors(), a.world.Read(0).Seen())
+			a.cameras.Read(0).Reporter(), a.nav.Read(0).Reporter(), a.world.Read(0).Sectors(),
+			a.world.Read(0).Seen())
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection,
 		a.nav, a.driving,
 		a.atmosphere, a.topography, a.vision, a.bridges, a.minimap, a.light)

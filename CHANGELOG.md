@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.11.0 — 2026-10-29
+
+**The board's passage, counted apart from how it looks; navigation's counters** (2026-10-29,
+branch `feat/passage`, `doc/plans-perf.md` „HPA*", etap A, the brief `doc/briefs/p1-passage.md`)
+- Added: `board.BoardRead.Passage()` and `CellPassage(c)` count only the changes to what a step
+  over a cell reads: whom its ground and the way across it admit and at what pace, whether they
+  are solid or graded, how the way runs (its kind, width and links), what is built over it, and
+  its heights (`BoardWrite.Touch`). `Version`, `CellVersion` and `Changes` still count
+  everything. A cell's passage is kept as a hash by ordinal, worked out for the cell a write, an
+  effect beginning or ending, or a change of what is built touches, and counted only where it
+  differs; a touch always counts; the cells made (afresh or by a load) or a `SetAll` count every
+  cell at once. `cell.TerrainMap.Passage` is its Version. A `cell.Mobility` may rest only on
+  what a Step carries, since the board counts only that in a cell's passage.
+- Improved: navigation keeps its answers, the groups' fields, the ground steps it read
+  (`flatStep`) and its check of the routes under way while the passage stands. The forest
+  swaying in the wind, a cell painted anew and snow keeping the paces let none of them go; ice,
+  a wall, a bridge or a shaped relief do, as before. The routers' flat steps are still cleared
+  every Update by `Finder.Reads`.
+- Added: `navigation.Counts{Searches, Walks, Fills, Climbs, Builds, Expansions}`,
+  `Read.Counts()` (the routers' and the traffic's together, read between ticks; `Climbs` and
+  `Builds` stay at none while navigation keeps no hierarchy; `Expansions` counts the nodes the
+  searches expand) and `Read.Reporter()`, the telemetry panel's line "Routes: searches N, walks
+  N, fills N, expansions N"; board/topography shows it.
+
 ## v0.10.0 — 2026-10-29
 
 **Marching in formation: a column over the field** (2026-10-29, branch `feat/column`,

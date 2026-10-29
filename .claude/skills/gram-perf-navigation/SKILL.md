@@ -33,8 +33,9 @@ ruch jednostek po trasach (`traffic`).
   (`MoveOrder.Retry`), keepingi bez alokacji, routing na puli. `Navigation_Tick` open 1 000
   9,56 → 6,32 → 4,55 ms, crowded 1 000 306 ms → poniżej 10; `Navigation_Path` 94 → 18 ms,
   14 740 → 19 alokacji; `Routing_Routes` na puli 3,2× szybciej niż na jednym wątku.
-  Niezmiennik: co zmienia to, co szukanie czyta, liczy się w `Board.Version` przed następnym
-  szukaniem; trasa raz zaplanowana jest śledzona, planowana na nowo tylko gdy pęknie.
+  Niezmiennik: co zmienia to, co szukanie czyta, liczy się w `Board.Passage` (do v0.10.0
+  `Version`) przed następnym szukaniem; trasa raz zaplanowana jest śledzona, planowana na nowo
+  tylko gdy pęknie.
 - **astar na tablicach** (2026-10-28, astar v1.2.0, `perf/arrays`): węzły w tablicach po
   `int32` bez wskaźników, kopiec binarny kluczy i id pisany ręcznie z sitem z dziurą, jeden
   słownik (zamknięty jako `^id`); ścieżki co do kroku jak v1.1.3. Kroki osobno: układ
@@ -58,8 +59,9 @@ ruch jednostek po trasach (`traffic`).
   długość; `Least` zniknęło); tempo i jazda czytają tę samą strategię tą samą miarą stoku (do
   sąsiada w kierunku marszu, nie w punkcie), więc co planner dopuścił, jednostka idzie, a
   odcięcie nie zatrzymuje jej w połowie kroku. **Niezmiennik kosztu**: udział gruntu na płaskim
-  czytany raz na komórkę i domenę, trzymany między szukaniami po wersji planszy (`flatStep`,
-  jak odpowiedzi pamiętane: co zmienia to, co szukanie czyta, liczy się w `Board.Version`), na
+  czytany raz na komórkę i domenę, trzymany między szukaniami po przejezdności planszy
+  (`flatStep`, jak odpowiedzi pamiętane: co zmienia to, co szukanie czyta, liczy się w
+  `Board.Passage`), na
   szukanie w `read.rate` mnożony jak dawniej; nad reliefem strategia wołana na każdy
   niestopniowany krok, rodzaj gruntu trzymany po ordynale (`kinds`, alokowane przy pierwszym
   szukaniu ze stokiem); bramka ustępowania nad płaską planszą nie woła strategii
@@ -108,7 +110,7 @@ ruch jednostek po trasach (`traffic`).
   nieosiągnięte (`Cost` dokładny, gdzie odpowiada); `Walk`: kawałek 64 kroków po `next`,
   ostatni odcinek do celu innego niż cel grupy przez A* ze znanego poziomu (`findFrom`), bez
   odcinka gdy cel to cel grupy; `spacing.Fields`: 8 wpisów LRU, klucz (komórka celu z `At`,
-  poziom, domena, klasa ciała bez `Feet`), puszczane po zmianie `Board.Version` jak odpowiedzi
+  poziom, domena, klasa ciała bez `Feet`), puszczane po zmianie `Board.Passage` jak odpowiedzi
   pamiętane (nowe pole bierze wolne miejsce zwolnione ostatnio: tablice już urosły, ponowne
   wypełnienie nie alokuje; `TestGroup_AnUpdateAllocatesNothing`), jeden router wypełnia
   (`Take`/`Fill`/`Give`), reszta czeka na `Cond`; marsz jest odpowiedzią pamiętaną jak szukanie
@@ -160,12 +162,32 @@ ruch jednostek po trasach (`traffic`).
   `column,1000` 2,8 ms wobec `grouped,1000` 4,8 ms (8,2 przy `-cpu=1`) tego samego drzewa, 0
   alokacji: tłum tempowany za czołem mniej napiera na szczelinę i mniej szuka (bez profilu).
 
+- **Przejezdność planszy** (2026-10-29, `feat/passage` v0.11.0, etap A planu „HPA*", agent
+  Opus; brief `doc/briefs/p1-passage.md`): rzut przejezdny komórki (grunt i droga osobno:
+  `Allows`, `Solid`, `Graded`, `Pace`, `Paces`; nazwa, szerokość i linki drogi; `Built` w
+  całości) haszowany na ordinal (`maphash.Comparable`, 16 B na komórkę), liczony w `touch` dla
+  dotkniętej komórki (3 seeki i hasz, 0 alokacji; `made`/`SetAll` O(komórek)); `Passage()` i
+  `CellPassage(c)` obok `Version`; odpowiedzi pamiętane, pola, `flatStep` i `terrainSeen`
+  traffic po `Passage`. Kołysanie lasu, śnieg (na Maderze ten sam `Kind` pod inną nazwą) i
+  przemalowanie nie gaszą pamięci; lód, mur, most i kształtowanie reliefu tak. **Pułapki**:
+  grunt pod drogą liczy się osobno, bo `Bare` wycenia krok skośny poza drogą; `Read.Built`
+  bramkowane `t.built` ustawianym po dotknięciu, więc rzut czyta `Built` ze store'u; flats
+  routerów czyszczone co Update (`Reads`), klucz przejezdności działa tylko dla findera
+  traffic; `Mobility` gry czytająca pole spoza `Step` (nazwa, `Veil`, `Height`, `Sway`) ma
+  stare ceny do następnej zmiany przejezdności (zdanie przy `cell.Mobility`); krok czyta też
+  sąsiadów (narożniki w `cutOff`, pasma w `Fenced`/`DecksOver`, narożniki celu w `Rise`), więc
+  nieaktualność klastra ocenia się po jego komórkach i pierścieniu jednej komórki wokół.
+  Liczniki `navigation.Counts`/`Read.Counts()`/`Read.Reporter()`, `Finder.Expansions`
+  (wywołania `leveledFrom`/`plainFrom`; wypełnienie pola nie liczy).
+
 ## Co dalej (poza etapem, osobne planowanie)
 
-- **HPA***: graf regionów nad komórkami; sektory świata mogą dać podział na siatce kwadratowej
-  (na heksach klastry z samej siatki); nowe są wejścia na granicach, koszty między wejściami
-  per domena i klasa jednostki, unieważnianie po `CellVersion`; trasy ograniczenie
-  nieoptymalne.
+- **HPA*** (plan 2026-10-29, `doc/plans-perf.md` „HPA*", w toku): planner hierarchiczny w
+  korzeniu astara (`Dijkstra`, `Hierarchy` adaptacyjnie wielopoziomowa, v1.3.0), adapter w
+  gramie (etap B, `feat/hpa`): klastry własne nawigacji po komórkach, wejścia na granicach,
+  koszty i drzewa od wejść per domena i klasa ciała, unieważnianie po `CellPassage` klastra z
+  pierścieniem, próg odległości jako czysta funkcja pytania, `Reaches` dla `NearestFree`;
+  trasy ograniczenie nieoptymalne (test ≤ 1,10 na parę).
 - **Szukanie dwukierunkowe**: cena zależna od kierunku (rodzaj docelowy, znak stoku) wymaga
   wyceny wstecznej w lustrze; warunek stopu to najlepsza znaleziona trasa ≤ mniejsze z
   najmniejszych F frontów; zysk co najwyżej ~2× przy drogim gruncie, żaden przy ciasnej

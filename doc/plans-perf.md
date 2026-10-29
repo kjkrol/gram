@@ -1599,3 +1599,25 @@ najniższy z 6, 200x/10x, zwykły i `-cpu=1`, profil `Routing_Path` po obu stron
 rung `levels`, nowe `PathFinder_Hierarchy/{build,find,rebuild}×{map,relief}`, `Navigation_Tick`
 6 rungów i `Navigation_Path` w szumie; sonda Madery: wspinaczek tyle, co kawałków, szukań 0 na
 długą trasę, dojścia 30/30 ≤ 340 s, zero przebudów po przejściu wiatru.
+
+## HPA*: wynik (2026-10-29)
+
+**Etap A** (`feat/passage`, v0.11.0; agent Opus 5.5 z briefu `doc/briefs/p1-passage.md`, cztery
+commity: `6f7d1f23` przejezdność komórki, `dbd2737f` nawigacja po niej, `635153b2` liczniki,
+`e302126e` komentarz). Weszło: rzut przejezdny komórki haszowany na ordinal (`maphash.Comparable`,
+16 B na komórkę) — szerszy niż brief, i słusznie: `price` wycenia krok skośny poza drogą po
+`Bare`, czyli po gruncie pod drogą, więc rzut liczy grunt i drogę osobno (udziały, domeny,
+`Solid`, `Graded`; nazwa, szerokość i linki drogi; `Built` w całości czytany ze store'u, bo
+`Read.Built` jest bramkowane `t.built` ustawianym dopiero po dotknięciu: pierwszy pokład na
+pustej planszy nie liczyłby się); `Touch` liczy się zawsze; `Passage` startuje od nowa przy
+wczytaniu jak `Version` (nowa plansza, nowy etap); odpowiedzi pamiętane, pola, `flatStep` i
+`terrainSeen` po `Passage` (`entities.go` i `path_finder.go` bez zmian: oba przebiegi wołają
+`touch`); `navigation.Counts`, `Read.Counts()`, `Read.Reporter()` (demo topografii pokazuje
+linię; integrator), `Finder.Expansions` (`plainFrom`/`leveledFrom`); zdanie przy `cell.Mobility`
+(udział tylko z `Step`). Testy: 26 przypadków rzutu pole po polu, pokład na pustej planszy,
+flats po przejezdności (test w `pathfind`, bo routery czyszczą flats co Update), liczniki
+rozwinięć, kołysanie bez utraty odpowiedzi i pola, lód z utratą; golden, `-race`, SIMD zielone.
+Ryzyka: `Mobility` gry czytająca pole spoza `Step`; krok czyta sąsiadów (narożniki, pasma),
+więc klaster etapu B ocenia nieaktualność po komórkach i pierścieniu; koszt przeniesiony na
+zapisy (3 seeki i hasz na dotkniętą komórkę, `made`/`SetAll` O(komórek)). Pomiar: agent
+mierzący z briefu `doc/briefs/m-passage.md` (po zakończeniu części astara, bezczynna maszyna).
