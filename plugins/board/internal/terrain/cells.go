@@ -39,6 +39,8 @@ type Cells struct {
 	narrowest float32
 	thinnest  float32
 	reached   []bool // by ordinal: a neighbour's band reaches into the cell
+	limits    []bool // by ordinal: a floor's Load or a wall's Gap limits whom the cell takes
+	limited   []int  // the ordinals limits holds true
 	bridges   Bridges
 	fresh     bool // made afresh, not found after a load
 	outline   []geom.Vec

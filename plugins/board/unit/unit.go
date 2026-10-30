@@ -15,6 +15,8 @@ type Mover struct {
 	Lift      float32
 	Clearance float32
 	Ceiling   float32
+	// Weight is how heavy it is in kg, for the floors it stands on (cell.Floor.Load); 0 any bears.
+	Weight float32
 }
 
 // DomainAt is the domain of the i-th entity of a chunk whose Mover column may be absent.

@@ -304,7 +304,7 @@ func (c *Coordinator) member(q *goke.Query, id uid.UID64) (bodies.Member, *order
 		m.Z = *z
 	}
 	if mv := c.mover.At(cur); mv != nil {
-		m.Domain, m.Lift = mv.Domain, mv.Lift
+		m.Domain, m.Lift, m.Weight = mv.Domain, mv.Lift, mv.Weight
 	}
 	return m, o
 }

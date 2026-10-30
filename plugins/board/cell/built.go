@@ -12,10 +12,12 @@ type Floor struct {
 	Allows    Domain
 	Height    float32
 	Thickness float32
-	Pace      float64
-	Graded    bool
-	Links     Links
-	Width     float32
+	// Load is the most whoever it carries may weigh, in kg (unit.Mover.Weight); 0 bears anyone.
+	Load   float32
+	Pace   float64
+	Graded bool
+	Links  Links
+	Width  float32
 }
 
 // Knob: an effect may turn it (effect.Knob).
@@ -24,16 +26,24 @@ func (Floor) Knob() {}
 var _ effect.Knob = Floor{}
 
 // Wall is a knob of an entity standing on a cell keeping the domains Keeps off it up to Height
-// over its level, 0 at every height: a gate.
+// over its level, 0 at every height: a gate. Whoever fits through its Gap passes all the same.
 type Wall struct {
 	Keeps  Domain
 	Height float32
+	Gap    Gap
 }
 
 // Knob: an effect may turn it (effect.Knob).
 func (Wall) Knob() {}
 
 var _ effect.Knob = Wall{}
+
+// Gap is an opening through a wall: a body no wider across its step than Width and no taller
+// than Height passes, a zero Height open at every height; a zero Width is no opening.
+type Gap struct {
+	Width  float32
+	Height float32
+}
 
 // Rail is a knob of an entity standing on a cell keeping the domains Keeps from crossing the edges
 // of the cell's band, up to Height over the deck, 0 at every height: a bridge's railings, a fence.
@@ -66,7 +76,10 @@ func (b Built) Over(under Kind) Kind {
 	}
 	under.Graded = under.Graded || b.Floor.Allows != 0 && b.Floor.Graded
 	if b.Wall.Keeps != 0 {
-		under.Allows &^= b.Wall.Keeps
+		// the cell admits whom an opening lets through: a step refuses a body it does not fit
+		if b.Wall.Gap.Width <= 0 {
+			under.Allows &^= b.Wall.Keeps
+		}
 		under.Solid = true
 	}
 	return under

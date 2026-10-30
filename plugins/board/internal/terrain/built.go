@@ -64,6 +64,7 @@ func (s *builtSystem) Init(si *goke.SysInit) {
 	slices.SortFunc(s.last, bySite)
 	s.cells.built, s.cells.railed = len(s.last), railed(s.last)
 	s.cells.decked(s.last)
+	s.cells.limit(s.last)
 	s.cells.standing = s
 }
 
@@ -88,7 +89,7 @@ func (s *builtSystem) Update(*goke.CmdBuf, time.Duration) {
 			if rails != nil {
 				b.Rail = rails[i]
 			}
-			s.refuse(cur.IDs[i], b.Floor)
+			s.refuse(cur.IDs[i], b)
 			if b.Floor.Allows == 0 {
 				b.Floor = cell.Floor{}
 			}
@@ -155,6 +156,7 @@ func (s *builtSystem) Update(*goke.CmdBuf, time.Duration) {
 	}
 	s.cells.built, s.cells.railed = len(s.now), railed(s.now)
 	s.cells.decked(s.now)
+	s.cells.limit(s.now)
 	s.now, s.last = s.last, s.now
 	s.checked = s.cells.version
 }
@@ -191,8 +193,14 @@ func (s *builtSystem) lay(floors []cell.Floor, rails []cell.Rail, bases []entity
 	}
 }
 
-func (s *builtSystem) refuse(id uid.UID64, f cell.Floor) {
+func (s *builtSystem) refuse(id uid.UID64, b cell.Built) {
+	f, gap := b.Floor, b.Wall.Gap
 	switch {
+	case f.Load < 0:
+		panic(fmt.Sprintf("board: entity %d's floor bears %v kg", id, f.Load))
+	case gap.Width < 0 || gap.Height < 0:
+		panic(fmt.Sprintf("board: entity %d's wall has a gap %v wide and %v tall", id,
+			gap.Width, gap.Height))
 	case f.Width < 0:
 		panic(fmt.Sprintf("board: entity %d's floor is %v wide", id, f.Width))
 	case f.Width > 0 && f.Links == 0:
@@ -255,6 +263,7 @@ func gather(sites []site) []site {
 		if n := len(out); n > 0 && out[n-1].cell == s.cell {
 			o := &out[n-1].built
 			o.Floor.Width = widest(o.Floor, s.built.Floor)
+			o.Floor.Load = strongest(o.Floor, s.built.Floor)
 			o.Floor.Allows |= s.built.Floor.Allows
 			o.Floor.Height = max(o.Floor.Height, s.built.Floor.Height)
 			o.Floor.Graded = o.Floor.Graded || s.built.Floor.Graded
@@ -262,6 +271,7 @@ func gather(sites []site) []site {
 			o.Floor.Pace = max(o.Floor.Pace, s.built.Floor.Pace)
 			if s.built.Wall.Keeps != 0 {
 				o.Wall.Height = tallest(o.Wall, s.built.Wall)
+				o.Wall.Gap = narrowest(o.Wall, s.built.Wall)
 				o.Wall.Keeps |= s.built.Wall.Keeps
 			}
 			o.Floor.Links |= s.built.Floor.Links
@@ -286,6 +296,19 @@ func widest(a, b cell.Floor) float32 {
 	return max(a.Width, b.Width)
 }
 
+// a Load of 0 bears anyone: two floors bear whom the stronger does
+func strongest(a, b cell.Floor) float32 {
+	switch {
+	case b.Allows == 0:
+		return a.Load
+	case a.Allows == 0:
+		return b.Load
+	case a.Load == 0 || b.Load == 0:
+		return 0
+	}
+	return max(a.Load, b.Load)
+}
+
 // a Height of 0 stands at every height
 func tallest(a, b cell.Wall) float32 {
 	switch {
@@ -295,4 +318,19 @@ func tallest(a, b cell.Wall) float32 {
 		return 0
 	}
 	return max(a.Height, b.Height)
+}
+
+// whoever passes two walls fits both their gaps: none where either has none
+func narrowest(a, b cell.Wall) cell.Gap {
+	switch {
+	case a.Keeps == 0:
+		return b.Gap
+	case a.Gap.Width <= 0 || b.Gap.Width <= 0:
+		return cell.Gap{}
+	}
+	height := min(a.Gap.Height, b.Gap.Height)
+	if a.Gap.Height == 0 || b.Gap.Height == 0 {
+		height = max(a.Gap.Height, b.Gap.Height) // a gap of no height is open at every height
+	}
+	return cell.Gap{Width: min(a.Gap.Width, b.Gap.Width), Height: height}
 }

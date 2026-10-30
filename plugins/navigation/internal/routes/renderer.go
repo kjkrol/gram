@@ -226,7 +226,11 @@ func (r *Renderer) Publish() {
 					r.point(o.Target, o.Spot)
 				b.cells = appendPath(b.cells, cells[i], *o)
 				from := u.end
-				body := bodies.BodyOf(world.Z{}, bases[i].Pos.Size)
+				var weight float32
+				if movers != nil {
+					weight = movers[i].Weight
+				}
+				body := bodies.BodyOf(world.Z{}, bases[i].Pos.Size, weight)
 				for k, route := range r.queued(cursor.IDs[i], domain, body, o) {
 					to := r.point(o.Waypoints[k].Cell, o.Waypoints[k].Spot)
 					b.legs = append(b.legs, leg{cells: route, from: from, to: to})

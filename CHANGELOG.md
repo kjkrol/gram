@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.13.0 — 2026-10-30
+
+**Passage limits: a floor's load, a wall's gap, a unit's weight** (2026-10-30, branch
+`feat/limits`, plan „klasy ciał w HPA*", etap A)
+- Added: `unit.Mover.Weight` (kg; 0 any floor bears) reaches the planner's body.
+  `cell.Floor.Load` (kg; 0 bears anyone) refuses a heavier body on a raised deck, and on a floor
+  lying over ground that would not carry the body (a rope's span over a river, not its heads on
+  the banks); `bridges.Spec.Load` gives a kind of bridge's decks their load.
+- Added: `cell.Wall.Gap{Width, Height}` lets through whom the wall keeps off where the body fits,
+  no wider across the step and no taller (a zero Height open at every height, a zero Width no
+  opening); the cell admits the wall's domains. The planner refuses a body the gap does not fit
+  and cuts a corner past a gap only for one it lets through; collision holds the gap's cell solid
+  only for a box that does not fit, so no unit freezes at a wall it is sent through.
+  `BoardRead.Limits`, `BoardRead.Limited`.
+- Changed: a unit's weight is part of its body, so another weight is planned as another class
+  (hierarchy, group field, kept answers) even on a board limiting nothing. `cell.Built` grows by
+  8 B a cell.
+- Improved: `Navigation_Tick` 3–19% faster, from `unit.Mover` growing to 20 B, a layout effect:
+  against a base of the same layout the limits cost 1.6–2.5%.
+- navigation/square: a rope bridge bearing the scouts; the wagon goes round by the ford.
+
 ## v0.12.0 — 2026-10-29
 
 Needs hpastar v1.3.0, the module astar renamed (kjkrol/hpastar#5: one `Solver` over a

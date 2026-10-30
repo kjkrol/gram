@@ -150,6 +150,17 @@ func (r *BoardRead) Fenced(from, to cell.ID, d cell.Domain, deck bool) bool {
 	return r.cells.Fenced(from, to, d, deck)
 }
 
+// Limited reports whether a floor's Load or a wall's Gap limits whom a cell takes anywhere on the
+// board.
+func (r *BoardRead) Limited() bool { return r.cells.Limited() }
+
+// Limits are what c limits a body moving in d by beyond its kind, on the decks' level when deck:
+// the Load of the floor carrying it where its ground would not, and the Gap of the wall keeping d
+// off; zero where nothing does.
+func (r *BoardRead) Limits(c cell.ID, d cell.Domain, deck bool) (load float32, gap cell.Gap) {
+	return r.cells.Limits(c, d, deck)
+}
+
 // Built is what the entities standing on c build over it as of the board's last step; none off
 // the board.
 func (r *BoardRead) Built(c cell.ID) cell.Built { return r.cells.Built(c) }

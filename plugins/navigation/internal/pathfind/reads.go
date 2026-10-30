@@ -7,7 +7,7 @@ import "github.com/kjkrol/gram/plugins/board/cell"
 type read struct {
 	c       cell.ID
 	search  uint32
-	has     uint8
+	has     uint16
 	carries cell.Domain
 	ground  step
 	bare    step
@@ -16,11 +16,17 @@ type read struct {
 }
 
 const (
-	hasGround uint8 = 1 << iota
+	hasGround uint16 = 1 << iota
 	hasBare
 	hasDeck
 	raisedDeck
 	hasKind
+	// the limits read on a level, the ground's bit and the deck's
+	hasLimits
+	_
+	// some limit on a level, the ground's bit and the deck's
+	limited
+	_
 )
 
 // a kind as a step onto it costs in the search's domain on the level: rate what a unit of
@@ -49,6 +55,7 @@ func (p *Finder) stepOn(c cell.ID, k cell.Kind, level uint8) step {
 // begin starts a search in domain: what the last one read holds no more.
 func (p *Finder) begin(domain cell.Domain) {
 	p.domain = domain
+	p.limited = p.limits != nil && p.limits.Limited()
 	if p.search++; p.search == 0 {
 		clear(p.reads)
 		p.search = 1

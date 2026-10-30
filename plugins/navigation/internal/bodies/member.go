@@ -25,6 +25,7 @@ type Member struct {
 	Touching geom.Vec
 	Z        world.Z
 	Lift     float32
+	Weight   float32 // kg
 	Brake    float32 // world units a second²
 	Share    float32 // of its top speed, what the ground leaves it this tick: 1 without a Pace
 	MaxSpeed float32 // world units a second
@@ -43,10 +44,11 @@ type Member struct {
 func (m Member) Centre() geom.Vec { return m.Pos.Center() }
 
 // BodyOf is the body a search for a route takes standing as z says over size, its box on the
-// ground, zero fitting any lane.
-func BodyOf(z world.Z, size geom.Vec) pathfind.Body {
-	return pathfind.Body{Feet: z.Altitude, Step: z.Reach(), Height: z.Height, Size: size}
+// ground, zero fitting any lane, weighing weight kg.
+func BodyOf(z world.Z, size geom.Vec, weight float32) pathfind.Body {
+	return pathfind.Body{Feet: z.Altitude, Step: z.Reach(), Height: z.Height, Size: size,
+		Weight: weight}
 }
 
 // Body is m as a search for its route takes it.
-func (m Member) Body() pathfind.Body { return BodyOf(m.Z, m.Pos.Size) }
+func (m Member) Body() pathfind.Body { return BodyOf(m.Z, m.Pos.Size, m.Weight) }

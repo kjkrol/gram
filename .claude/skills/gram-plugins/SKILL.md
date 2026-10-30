@@ -150,6 +150,14 @@ keeps only what those do not.
   `Floor`'s `Allows` or a `Wall`'s `Keeps` to 0). `Built.Over` puts the floors' domains on and
   the walls' off in `Kind` and `Bare`, so the planner, the driving, `Fallen` and collision's
   field all see them.
+- Limits beyond the kind (`BoardRead.Limits(c, d, deck)`, `Limited`): a `Floor.Load` counts on
+  a raised deck's level, and on a lying floor only where the cell's ground and way would not
+  carry the domain (a rope's span, not its heads). A `Wall` with a `Gap` leaves its domains in
+  `Kind`, so readers of `Kind` alone (`Fallen`, traffic's route re-check, the driving, spots)
+  see the gap open to everyone. Of several entities on a cell the strongest floor bears (0
+  wins) and a gap stays only where every wall has one, the narrowest. Collision holds a gapped
+  wall's cell solid only for a box whose narrower side or height does not fit, so it never
+  stops whom the planner sends through.
 - A bridge's head band runs from the middle of its flat tile into the bridge alone, no railings
   on it. A bridge breaking the rules panics as a fresh board is first gathered (a map's file and
   line); one broken later is not built, said in the log.
@@ -323,6 +331,13 @@ keeps only what those do not.
   either level, the goal's cell met mid-route is a waypoint; a slantwise step on or off a deck
   goes only along it, one on the ground cutting a corner of water only along a deck lying there
   (the flat map's slantwise bridges). A zero `Size` fits any lane.
+- A step is refused where the floor it enters does not bear the body (`Body.Weight` from
+  `unit.Mover.Weight`) or where either cell's gap does not fit its width across the step or
+  its height, a step and its way back alike; a corner is cut past a cell only where it bears
+  the body and fits its narrower side; a class stands only on nodes that bear it. Weight is
+  part of the body, so another weight is another class even on a board limiting nothing.
+  Trap: when the passage moves, traffic re-checks a planned route by kinds alone, so a load
+  lowered or a gap narrowed under it does not break it.
 - The lookahead is the turning radius, so a turn's corner is cut by about that; at a bridge's
   head the unit lands on the band past its railings' ends, and collision pushes it back. Trap: a
   unit wider than the lane slid along a railing's end over the water and stood there, frozen in.
@@ -462,6 +477,7 @@ keeps only what those do not.
   `board.NewEntities`); `<name>.pier`, spawned only over a relief (without heights a bridge is a
   deck at the ground, no piers). Each takes its `SpriteID` from the world's registry as it is
   registered; the plugin never calls the atlas: the look is the figure's.
+- `Spec.Load` is every deck's `Floor.Load`.
 - A level's bridges are planned at `Populate`, an error with the line; a player's `Build` levels
   the heads (`WithShaper`) and spawns the parts at the next step.
 

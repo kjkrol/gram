@@ -35,6 +35,7 @@ type Body struct {
 	Facing    geom.Vec // the way it faces, standing too
 	Z         world.Z
 	Lift      float32
+	Weight    float32 // kg
 	Share     float32 // of its top speed, what the ground leaves it this tick: 1 without a Pace
 	MaxSpeed  float32 // world units a second
 	Trailing  bool    // follows someone, for a while yet
@@ -47,7 +48,7 @@ type Body struct {
 // Member is b as a member of the tick, standing where it is.
 func (b Body) Member() Member {
 	return Member{ID: b.ID, Cell: b.Cell, From: b.Cell, Domain: b.Domain, Pos: world.Position{AABB: plane.NewAABB(geom.NewVec(b.At.X-b.Half.X, b.At.Y-b.Half.Y), 2*b.Half.X, 2*b.Half.Y)},
-		Vel: b.Vel, Facing: b.Facing, Z: b.Z, Lift: b.Lift, Owners: b.Owners,
+		Vel: b.Vel, Facing: b.Facing, Z: b.Z, Lift: b.Lift, Weight: b.Weight, Owners: b.Owners,
 		Share: b.Share, MaxSpeed: b.MaxSpeed}
 }
 
