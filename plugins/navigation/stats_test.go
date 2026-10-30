@@ -29,6 +29,8 @@ func TestNavigation_CountsAreTheRoutersSum(t *testing.T) {
 		Searches:   c.Searches() + traffic.Searches(),
 		Walks:      c.Walks() + traffic.Walks(),
 		Fills:      c.Fills() + traffic.Fills(),
+		Climbs:     c.Climbs() + traffic.Climbs(),
+		Builds:     c.Builds() + traffic.Builds(),
 		Expansions: c.Expansions() + traffic.Expansions(),
 	}
 	got := read.Counts()
@@ -50,8 +52,8 @@ func TestNavigation_TheReporterLinesTheCounts(t *testing.T) {
 	c := read.Counts()
 	var lines []string
 	read.Reporter().Report(func(label, value string) { lines = append(lines, label+": "+value) })
-	want := fmt.Sprintf("Routes: searches %d, walks %d, fills %d, expansions %d", c.Searches,
-		c.Walks, c.Fills, c.Expansions)
+	want := fmt.Sprintf("Routes: searches %d, climbs %d, walks %d, fills %d, builds %d, "+
+		"expansions %d", c.Searches, c.Climbs, c.Walks, c.Fills, c.Builds, c.Expansions)
 	if len(lines) != 1 || lines[0] != want {
 		t.Errorf("the reporter says %q, want %q", lines, want)
 	}

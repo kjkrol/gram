@@ -20,6 +20,7 @@ type Finder struct {
 	grid      grid.Grid
 	Terrain   cell.Terrain
 	Occupancy cell.Occupancy
+	leveled   bool // planning by levels, as a hierarchy is built over
 }
 
 // NewFinder searches grid's terrain, its pacing and occupancy.
@@ -27,6 +28,13 @@ func NewFinder(grid grid.Grid, terrain cell.Terrain, pacing pathfind.Pacing,
 	occupancy cell.Occupancy) *Finder {
 	return &Finder{Finder: pathfind.New(grid, terrain, pacing, occupancy), grid: grid,
 		Terrain: terrain, Occupancy: occupancy}
+}
+
+// WithLevels has p plan over the raised floors levels say, as it plans a board's routes.
+func (p *Finder) WithLevels(levels pathfind.Levels) *Finder {
+	p.Finder.WithLevels(levels)
+	p.leveled = true
+	return p
 }
 
 // Read has p, made over a board's read and WithLevels its BoardLevels, search through r: the
@@ -42,6 +50,18 @@ func (p *Finder) FindPath(
 ) (order.Path, bool) {
 	path := order.Path{From: from}
 	n, ok := p.Find(entity, domain, body, from, to, pathfind.Level(end), path.Steps[:])
+	path.Length, path.Decks = uint16(n), p.Decks()
+	return path, ok
+}
+
+// climbPath is FindPath climbed through h, the hierarchy of the body's class; false where h
+// refuses it.
+func (p *Finder) climbPath(
+	h *pathfind.Hierarchy, entity uid.UID64, domain cell.Domain, body pathfind.Body,
+	from, to cell.ID, end order.Level,
+) (order.Path, bool) {
+	path := order.Path{From: from}
+	n, ok := p.Climb(h, entity, domain, body, from, to, pathfind.Level(end), path.Steps[:])
 	path.Length, path.Decks = uint16(n), p.Decks()
 	return path, ok
 }
@@ -67,13 +87,15 @@ func (p *Finder) findPathAround(
 	return path, ok
 }
 
+// nearestFree is NearestFree asking h, the hierarchy of the body's class where nil is none,
+// which cells no route reaches once a search found none
 func (p *Finder) nearestFree(
-	entity uid.UID64, domain cell.Domain, body pathfind.Body, from, target cell.ID, end order.Level,
-	taken func(c cell.ID, deck bool) bool,
+	h *pathfind.Hierarchy, entity uid.UID64, domain cell.Domain, body pathfind.Body,
+	from, target cell.ID, end order.Level, taken func(c cell.ID, deck bool) bool,
 ) (cell.ID, order.Path, bool) {
 	path := order.Path{From: from}
-	dest, n, ok := p.NearestFree(entity, domain, body, from, target, pathfind.Level(end),
-		taken, path.Steps[:])
+	dest, n, ok := p.NearestFreeThrough(h, entity, domain, body, from, target,
+		pathfind.Level(end), taken, path.Steps[:])
 	path.Length, path.Decks = uint16(n), p.Decks()
 	return dest, path, ok
 }

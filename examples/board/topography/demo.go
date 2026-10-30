@@ -174,7 +174,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.driving = driving.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board)
 	a.nav = navigation.NewPlugin(a.board, a.world, a.motion, a.selection, a.driving).
 		WithCollision(a.collision).
-		WithSpacing(navigation.BodySpacing)
+		WithSpacing(navigation.BodySpacing).
+		WithHierarchy(navigation.Hierarchy{From: 32})
 	a.vision = vision.NewPlugin(a.world).WithBoard(a.board).WithFrequency(15)
 	a.atmosphere = atmosphere.NewPlugin(a.world, a.light, atmosphere.Config{
 		Calendar: calendar.Config{

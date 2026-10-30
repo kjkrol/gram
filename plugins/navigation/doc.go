@@ -71,6 +71,18 @@
 // against the unit, a step is refused, the unit is pushed off it or strikes someone), not when a
 // better way opens; a new order, a plan's step or a rule's command sends the unit on another.
 //
+// # Long routes
+//
+// A route whose ends lie at least From cells apart ([Hierarchy]) is climbed through a hierarchy
+// of square regions of the board's cells, one for each class of units (their domain and body),
+// instead of searched cell by cell: it costs at most a little more than the cheapest. A hierarchy
+// is built a few regions a step once a far route is asked of it, asked or not after, and again
+// where a cell's passage changes, the route searched meanwhile. The shorter routes, a party's
+// read off its field, those round the units a unit learnt of and the routes drawn are planned as
+// before, and a target no route reaches is given up without a search for every cell round it.
+// [Plugin.WithHierarchy] sets the regions' side and the distance, or has every route searched;
+// [Read.Hierarchy] says what was decided.
+//
 // # Commands
 //
 // A [MoveTo] sends every Selected entity of the player who gave it, those it owns alone, to a cell
@@ -99,9 +111,10 @@
 // # Counts
 //
 // [Read.Counts] are what the routing did since the plugin was made: the routes searched, those
-// read off a group's field, the fields filled, the nodes the searches expanded; [Read.Reporter]
-// is their line on the telemetry panel. A route asked again is answered as before, unsearched,
-// while the board's passage stands (board.BoardRead.Passage), as it does while a forest sways.
+// climbed, those read off a group's field, the fields filled, the hierarchies' regions built, the
+// nodes the searches expanded; [Read.Reporter] is their line on the telemetry panel. A route
+// asked again is answered as before, unsearched, while the board's passage stands
+// (board.BoardRead.Passage), as it does while a forest sways.
 //
 // # Vocabulary
 //

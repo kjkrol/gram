@@ -37,13 +37,13 @@ plugin's package layout), `gram-plugins` (the reference of the built-in plugins,
 sections, arena, scene, ui, players, persistence), `gram-probe` (a demo driven headless tick by
 tick), `gram-perf` (the index of performance, in Polish: where the numbers are, measuring a
 change: the protocol and its scripts, the traps) with its specific skills `gram-perf-tick`,
-`gram-perf-picture`, `gram-perf-navigation` and `gram-perf-sight` (each: what was done in that
-layer, what it rests on, its numbers, what was tried and dropped), `gram-pr` (a PR readied for
+`gram-perf-picture`, `gram-perf-navigation` and `gram-perf-sight` (each: what that
+layer's optimisations rest on, its traps, what was tried and dropped), `gram-pr` (a PR readied for
 review: the squash message, the PR's body, the squash), `goke` (the ECS: model, queries,
 release flow, `scripts/api.sh`), `ceremony` (the language and its pitfalls). aabbworld's kernels
 have their own `simd` skill (`/home/karol/CODE/aabbworld/.claude/skills/simd/SKILL.md`) and
-astar its `astar` skill (`/home/karol/CODE/astar/.claude/skills/astar/SKILL.md`), each loaded by
-a session in that repo and read by path from here.
+hpastar its `hpastar` skill (`/home/karol/CODE/hpastar/.claude/skills/hpastar/SKILL.md`), each
+loaded by a session in that repo and read by path from here.
 
 ## Commands
 
@@ -153,7 +153,8 @@ files it may touch and the seams it may not, the skills to read, the steps, the 
 measurement, the verification and the report), the user opens a Claude Code session on it, the
 session works and commits as a part's agent does, and the integrator (any later session, Fable
 or Opus, starting from `doc/plans-perf.md` "Wykonanie w sesjach" and the briefs) merges,
-measures and documents as above.
+measures and documents as above. A brief, a session's or an agent's, lasts while its stage runs:
+the integrator removes it as the stage merges (the user's word, 2026-10-30: no history kept).
 
 ## Rules of the house
 
@@ -236,7 +237,7 @@ Decisions the user has made; they are not up for revisiting in passing.
   line, the width of the cells held — is a surface's `Look` (`surface.go`, `board.Surface`), as
   the sky is a `Sky`'s. A scene names nothing that draws and declares no atlas: every plugin
   draws what it gave `ctx.Draws` in `Install`, a feed shows the Stage's one picture
-  (`render.NewFeed(cam, a.world.Picture())`) — a minimap alone shows a picture of its own
+  (`render.NewFeed(cam, a.world.Read(0).Picture())`) — a minimap alone shows a picture of its own
   (`minimap.Plugin.For(cam, player)`, placed and dressed by the scene) — and the Stage has the
   figures', tiles' and surfaces' looks declared and the atlases closed before its scenes
   (`ctx.Looks`).
@@ -276,8 +277,8 @@ Decisions the user has made; they are not up for revisiting in passing.
   surface at a small lift over it — a route's goal, a cell held, a bridge in hand — a figure at
   `world.FigureLift`, an entity's box at its base), the depth buffer deciding; the opaque ground
   first; the marks over the world at fixed levels (`render.OnTop(level)`: the selection's
-  outline, then its box, the cameras' zones over all); a Direct asks where it draws
-  (`Frame.DrawOpaque`, `DrawAt`, `ReadGround`).
+  outline, then its box, the cameras' layers over them), the scroll zones on the glass over
+  every picture; a Direct asks where it draws (`Frame.DrawOpaque`, `DrawAt`, `ReadGround`).
 - **A board stands in a world with heights** (`world.Config.Heights`), and so do the topography
   and the atmosphere: each panics in a flat one. A flat map is a board without relief; a side
   view (motion/platformer) is a world with heights, gravity pulling along Y, Z its depth. A

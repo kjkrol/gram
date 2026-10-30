@@ -17,6 +17,10 @@ func (p *Plugin) Write() *Write { return &p.write }
 // Spacing is how units keep out of each other's way: as asked until Use, then as decided.
 func (r *Read) Spacing() Spacing { return r.p.spacing }
 
+// Hierarchy is how the long routes are planned: as asked until Use, then as decided, its Side and
+// From set.
+func (r *Read) Hierarchy() Hierarchy { return r.p.hierarchy }
+
 // RoutesShown reports whether the routes are drawn.
 func (r *Read) RoutesShown() bool { return r.p.Res.Settings.Routes }
 
@@ -32,6 +36,8 @@ func (r *Read) Counts() Counts {
 		Searches:   c.Searches() + f.Searches(),
 		Walks:      c.Walks() + f.Walks(),
 		Fills:      c.Fills() + f.Fills(),
+		Climbs:     c.Climbs() + f.Climbs(),
+		Builds:     c.Builds() + f.Builds(),
 		Expansions: c.Expansions() + f.Expansions(),
 	}
 }

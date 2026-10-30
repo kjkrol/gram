@@ -140,7 +140,11 @@ type BodyKeeping struct {
 var _ Keeping = (*BodyKeeping)(nil)
 
 // NewBodyKeeping keeps the bodies apart over finder's board and space, on ground's heights.
-func NewBodyKeeping(finder *Finder, space *aabbworld.Space, ground func() ground.Heights) *BodyKeeping {
+func NewBodyKeeping(
+	finder *Finder,
+	space *aabbworld.Space,
+	ground func() ground.Heights,
+) *BodyKeeping {
 	k := &BodyKeeping{
 		finder:  finder,
 		grid:    finder.grid,
@@ -172,7 +176,10 @@ func (k *BodyKeeping) delta(a, b geom.Vec) geom.Vec {
 		return geom.NewVec(b.X-a.X, b.Y-a.Y)
 	}
 	w, h, e := k.space.Bounds()
-	return geom.NewVec(ShortestAxisDelta(a.X, b.X, w, e.WrapsX()), ShortestAxisDelta(a.Y, b.Y, h, e.WrapsY()))
+	return geom.NewVec(
+		ShortestAxisDelta(a.X, b.X, w, e.WrapsX()),
+		ShortestAxisDelta(a.Y, b.Y, h, e.WrapsY()),
+	)
 }
 
 func (k *BodyKeeping) fold(p geom.Vec) geom.Vec {
@@ -268,19 +275,32 @@ func (k *BodyKeeping) Route(m bodies.Member, from cell.ID, o *order.MoveOrder) (
 	return k.avoid.route(k.finder, m, from, o)
 }
 
-func (k *BodyKeeping) Lost(m bodies.Member, from cell.ID, o *order.MoveOrder, waited time.Duration) (cell.ID, order.Path, bool, bool) {
+func (k *BodyKeeping) Lost(
+	m bodies.Member,
+	from cell.ID,
+	o *order.MoveOrder,
+	waited time.Duration,
+) (cell.ID, order.Path, bool, bool) {
 	if waited < TargetWaitTimeout {
 		return 0, order.Path{}, true, false
 	}
+	body, failed := m.Body(), false
 	for _, c := range k.finder.tilesRound(o.Target, m.Domain, m.Domain) {
 		if c == from {
 			o.Level = order.EitherLevel
 			return c, order.Path{}, false, true
 		}
-		if p, ok := k.finder.FindPath(m.ID, m.Domain, m.Body(), from, c, order.EitherLevel); ok {
+		// a search for a tile no route reaches runs over every cell the unit reaches: once one
+		// found none, the hierarchy of its class says which tiles are as far out of reach
+		if failed && m.Hierarchy != nil &&
+			!k.finder.Reaches(m.Hierarchy, m.Domain, body, from, c) {
+			continue
+		}
+		if p, ok := k.finder.FindPath(m.ID, m.Domain, body, from, c, order.EitherLevel); ok {
 			o.Spot, o.Level = geom.Vec{}, order.EitherLevel
 			return c, p, false, true
 		}
+		failed = true
 	}
 	return 0, order.Path{}, false, false
 }
@@ -370,7 +390,13 @@ func clearOf(facing, dir geom.Vec, speed float32, n geom.Vec) (geom.Vec, float32
 	return dir, speed
 }
 
-func (k *BodyKeeping) Watch(m bodies.Member, o *order.MoveOrder, toward cell.ID, want geom.Vec, d time.Duration) {
+func (k *BodyKeeping) Watch(
+	m bodies.Member,
+	o *order.MoveOrder,
+	toward cell.ID,
+	want geom.Vec,
+	d time.Duration,
+) {
 	if o.AsideFor = max(o.AsideFor-d, 0); o.AsideFor == 0 {
 		o.Aside, o.Struck = geom.Vec{}, geom.Vec{}
 	}
@@ -436,7 +462,9 @@ func (k *BodyKeeping) Detour(m bodies.Member, o *order.MoveOrder, other bodies.B
 		order.Meet(o, other.ID)
 		if c, ok := k.grid.CellAt(other.At); ok && c != o.Target && c != m.Cell {
 			order.Learn(o, c)
-			if o.Path.Index < o.Path.Length && slices.Contains(o.Path.Steps[o.Path.Index:o.Path.Length], c) || o.Leg.Active && o.Leg.To == c {
+			if o.Path.Index < o.Path.Length &&
+				slices.Contains(o.Path.Steps[o.Path.Index:o.Path.Length], c) ||
+				o.Leg.Active && o.Leg.To == c {
 				o.Path, o.Leg = order.Path{}, order.Leg{}
 			}
 		}

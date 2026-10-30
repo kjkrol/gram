@@ -1,274 +1,115 @@
 ---
 name: gram-plugin
-description: How a gram plugin is built and how to write one — the plugin contract, the world's registers, the delivery of rules to hosts, the commands about effects, the store behind ceremony's contract (cgoke columns, command buffers), roles, a plugin as an entity (world.Self), tags and markers, kinds and the roster, a plugin's package layout (entries, vocabulary, internal), the module and System conventions, and how behaviour goes through rules. Use when reading or changing any package under plugins/, adding a moment, fact, word, knob or command, or wiring a new plugin into a Stage.
+description: How a gram plugin is built — its install and what it draws, its settings saved, a system in the world's bands, rules hosted in its own pass, the store behind ceremony's contract, roles, a plugin as an entity (world.Self), tags against markers, its packages, module and systems, where the marks sit, patterns of touch and state. Use when reading or changing any package under plugins/, adding a moment, fact, word, knob or command, or wiring a new plugin into a Stage.
 ---
 
 # gram-plugin
 
-## Plugin system
+The contract is `plugin/doc.go`; the house rules (behaviour in ceremony, no hooking, registers,
+a plugin's root and commands, settings, float32) are CLAUDE.md's; the game's side of ceremony is
+`doc/behaviour.md`, the language the `ceremony` skill; the registers, `Self` and the bands
+`plugins/world/doc.go`; each built-in plugin `gram-plugins`; drawing `gram-render`.
 
-`plugin.Plugin` — `Name`, `Install(ctx plugin.Installer) error`, `RunPlan`, `EventHandler`,
-`Serializable` — is the one extension point. **What a plugin draws it gives `ctx.Draws` in
-`Install`** (2026-10-15; `Renderer()` is gone): `render.Source`s made in `NewPlugin` or
-`Install`, existing from then on even where what they draw comes later (the world's and the
-board's renderers get their atlas in `SetAtlas`; a typed nil passes `Draws`' nil check, so a
-plugin with one of two renderers names the one it has). `world.Read.Picture()` is one composer
-of everything the Stage's plugins drew, read from the Installer the world keeps (an assertion
-for `Drawn()`, as telemetry reads `TPS`); a `Draws` after it panics. `ctx.Looks(declare)` has
-the looks declared and the atlases closed by the engine once the Stage's Init returns and the
-rules are delivered, before Spawn or Load, on both paths: `world` and `board` close theirs
-there (an atlas made, `Looks`, `Close`, which hands it to `SetAtlas`) unless a game closed its
-own; a test gives a foreign `render.AtlasSource` to `SetAtlas` by hand. A plugin's tests get
-its sources from a recording Installer (`topotest.Drawn`, the bench's `drawnAs`, a `drawsCtx`
-embedding `plugin.Installer`) or its fields in internal tests. What a plugin draws about a kind — an
-outline, a cone, a route — is styled by the
-figure: a `render.Style` type of the plugin's (`Style()` marker, asserted), declared on the
-kind's slot with `Slot.Styled`, read per entity with `render.StyleOf[S](world.Plugin.Styles(),
-appearance.SpriteID)`, the plugin's default where none; `render.Appearance` optional in the
-query (a bare test entity has none). A colour per entity on a GPU path is an instance
-attribute, never a uniform (vision's views, navigation's routes). `ctx.Use(p)` registers
-`p.Serializable()` (if any) and calls `p.Install`, which only queues ECS wiring
-(`ctx.UseModule`/`ctx.Setup`), flushed once by `ecs.Setup()` after `Stage.Init` returns — which
-lets `Persistence.Load` decide fresh-spawn vs. restore before the ECS commits. `ctx.Track(s)`
-registers non-`Plugin` state (a `Composition`, a ui scene) into the same save/load machinery.
+## Install and drawing
 
-**A plugin's settings** (2026-10-19): what a player adjusts of a plugin — a look it draws, how hard
-it works — is a field of an exported `Settings` struct in its `Res` (`Res.Settings`, exported
-fields, the zero value the plugin's default where it can be), written by setters
-(`ShowGrid`, `SetCare`) and by a command carrying the value (`Grid{Shown}`, `Care{Rings}`); a key
-builds the next value in its `control.Build` closure (a game's own key: a setting on the
-settings screen has no default key of the plugin's, 2026-10-20), never a
-command that means "the next one". `Settings()` (`plugin.Tunable`, asserted) lists them as
-`control.Switch`/`Choice`/`Range`, `Get` read once a frame after the ticks, `Set` building the command, a
-`Section` (`control.Picture`, `Graphics` and the rest, a path of levels) putting one under a
-section the plugins share: the players' settings screen (F10) is generated from them, the
-shared sections first, then a section a plugin, centred. `Serializable()` returns
-`plugin.Keep(&p.Res.Settings)` made in `NewPlugin`, whose `Persisted` encodes the struct whole
-into one `[]byte` — gob sends no zero field and zeroes none on decode, so a `false` saved over a
-`true` start would come back `true` through plain pointers — and `Restore()` calls
-`kept.Restore()` then applies what mirrors must (a baker's flag, a renderer's switch). A plugin
-with a `persisted` of its own (cameras) appends the kept's value; `decodeGroup` leaves the
-values an older save lacks as they are. The start value is the Config or a setter in
-`makePlugins`: a Stage's scenes are made after a load (`enterStage`: Init, Load+Restore, Loaded,
-makeScenes), so a setter in `screen()` would clobber the loaded setting.
+- `Install` only queues the ECS wiring, flushed by one `ecs.Setup` after `Stage.Init`, so
+  `Persistence.Load` decides between a fresh spawn and a restore before the ECS commits.
+- The sources are made in `NewPlugin` or `Install` and given `ctx.Draws` there, existing from then
+  on even where what they draw comes later (an atlas in `SetAtlas`). A typed nil passes `Draws`'
+  nil check: a plugin with one of two renderers names the one it has. A `Draws` after the world's
+  `Picture()` panics. Tests take the sources from a recording Installer (`topotest.Drawn`, the
+  bench's `drawnAs`, a `drawsCtx`) and hand `SetAtlas` a foreign `render.AtlasSource`.
+- A plugin's style for a kind is a `render.Style` type (`Style()`, asserted); `render.Appearance`
+  is optional in its query, as a bare test entity has none. A colour per entity on the GPU is an
+  instance attribute, never a uniform.
 
-**A system goes in the world's bands by a policy its plugin chooses** (`sector.Everywhere`,
-`Paced`, `Near`; `gram-plugins`, world): `w.Pace(policy)` is a goke query option
-(`goke.PacedBy` with `Every`/`Never` rules by the bands' marks), held by the system (set by the
-module, nil in a test building the system bare: `if s.pace != nil { qb.With(s.pace) }`) and
-added to its main query in `Init`; the work loop walks `for q.Paced(d); q.Next(); { dt :=
-q.Dt() … }` (a `host.Tick` of `dt` for its rules; what is "a tick" — a turn rate, a reflex —
-times `dt/d`), a loop that must also touch the blocks out of turn walks `All()` and asks
-`q.Due()` (collision's far boxes, vision's far observers). One query and one system, never a
-system per band: its command queues, its hosted rules and `Seek` stay as they are, and what
-rebuilds the space reads every entity but `sector.Off`. An exported system offers
-`Paced(pace goke.Opt) *System` (steering, vision's `ScanSystem`); ceremony's `NewPlans` and
-`NewEffects` take it among their options.
+## Settings saved
 
-**How entities behave is ceremony's**: a rule is an `act.Branch[P]{Name, When, Then}` run inside
-the pass of the plugin that catches its moment `P`; a plan `plan.New(name, root)` of
-`plan.Loop[P]{Name, When, Then, Until, Timeout, Cooldown}` on the entity's mind; an effect an
-`effect.Effect` with its marker; a role a `*ceremony.Part`; a command about an effect
-`ceremony.Put(e).On(whom)`. A plugin runs the rules of its moment with `host.Rules[P]`/
-`host.PairRules[P]`/`host.StepRules[P]` inside a pass it makes anyway — one walk, many rules,
-never a system per behaviour — handed a `host.Tick`.
+- `plugin.Keep` encodes `Res.Settings` whole because gob sends no zero field and zeroes none on
+  decode: a saved `false` over a `true` start would come back `true`. `Restore()` calls
+  `kept.Restore()`, then applies what mirrors must (a baker's flag, a renderer's switch). A plugin
+  with a `persisted` of its own (cameras) appends the kept's value; `decodeGroup` leaves what an
+  older save lacks as it is.
 
-**What gram keeps** is the store's side and the perceiving:
+## Systems and rules
 
-- The world's registers: `world.Write().Effects()` (`Define(name, Spec{Lasts, Stacking, Then, Grant,
-  Alter})`, `Named`, `Cast`, `Has`; the register and the `effect.Runtime` the world's
-  `*cgoke.Effects` is), `world.Roles()` (`Define(name, rules...)`, `Named` a `*ceremony.Part`
-  over a tag of `cond.Roles` from `Kinds.DefineTag`, 64 a Stage, noted with `Kinds.Play` for the
-  delivery), `world.Commands()` (`Define(name, cmd)`, `Named`), the kinds (`kind.Define[P]`,
-  `kind.Named[P]`, `board.Units.Define`/`Named`, `bullet.Shots.Define`/`Named`); the plans a kind
-  carries in its Spec (`plan.Planned`), registered on the world's `plan.Plans` by `Kinds.Register`.
-  A name defined twice or asked for unknown panics by name, in `Init`. Rules are not registered.
-  `ceremony.NewPart(name, tag)` is for plugins and tests without a world.
-- The delivery: a plugin tells the engine its hosts in `Install` (`ctx.Hosts(&p.pairs,
-  &p.entities)`); once `Init` returns the engine hands every rule of every role played
-  (`world.Kinds.Played`) to the first host, in `Use` order, that takes it (`ceremony.Deliver`;
-  a host refuses a moment made for another with `host.ErrUnhosted`); one none takes fails `Init`
-  naming the rule by its `String()`. A plugin's own rules (navigation's crowd) it adds to its host
-  itself.
-- The commands about effects carried out (`plugins/world/effect_commands.go`, the first system
-  of a step): `ceremony.Put/Take/Toggle(e).On(target).For(d).By(source)`, a target
-  `ceremony.Named(names...)` (one entity a name), `Group(names...)`, `World` (the world's own
-  entity, the clock's), `ID(id)`, or a plugin's `ceremony.Router` (`selection.Plugin.Selected(
-  roles...)`, `Pointed()`, a `world.Self`). Entities are found by their `ceremony.Label{Name,
-  Group}` through one query; a step's commands of one effect on one entity are netted (the last
-  wins). `act.Self.Do(ceremony.Trigger{})` gives every command whose `By` names the entity; a
-  command with a `By` is kept in the register, and a name nobody bears, or two bear, panics as the
-  first step begins. A command given to a key must come from the register (`control.Give` panics
-  otherwise). A `ceremony.Command` without an `On` is no step: `act.Self.Put(e)`/`Take(e)`
-  (`Other`, `At(board.Around(n))` the same) are the steps on effects.
-- The perceiving, each marked and asserted beside its type: a moment by `Who()` (`var _
-  host.About = Standing{}`; `host.Met` a pair; places a kind its plugin names, `host.NewPlacing`,
-  the board's `board.Around`/`board.Ahead`), a fact by
-  `Fact()` (`navigation.Blocked`, `Arrived`, `bullet.Flight`), a knob by `Knob()`
-  (`steering.Steering`, `cell.Ground`, `Floor`, `Wall`, `collision.Physics`, `gravity.Pull`,
-  `sky.Moon`, `vision.Sight`, `render.Appearance`, `world.Shadow`; saved with their originals,
-  so one under an effect at a save goes back as the effect ends after the load), a command by
-  `Command()`, a word by
-  `cond.NewWord(name, func(P) bool)` (`unit.Fallen()`, `vision.SeesNobody()`, `clock.At(t)`).
-  The moment's type — `collision.Meeting`, `collision.Struck`, `vision.Sighting`,
-  `unit.Standing`, `cell.Now`, `motion.Moving`, `clock.Moment` — says whose it is.
+- **One walk, many rules**: a plugin runs the rules of its moment (`host.Rules`, `PairRules`,
+  `StepRules`) inside a pass it makes anyway, never a system per behaviour. Rules are not
+  registered: they ride on roles. A plugin's own rules (navigation's crowd) it adds to its host.
+- **A system goes in the world's bands by its plugin's policy, one query and one system, never
+  one a band**: it holds `w.Pace(policy)` (nil in a test building it bare: `if s.pace != nil {
+  qb.With(s.pace) }`), walks `q.Paced(d)` scaling what is "a tick" by `q.Dt()/d`, and walks
+  `All()` asking `q.Due()` where it must touch blocks out of turn. An exported system offers
+  `Paced(pace goke.Opt)`.
+- **The store is behind a contract, at no cost over typed code** (`bench/behaviour_test.go`): rows
+  read a block at a time (`cgoke.Columns`), writes staged in goke's command buffer. `host.Tick`
+  carries no command buffer; the binding's systems write through their own. The tag families join
+  a host's queries as optional components, so a rule costs no query.
+- A knob is saved with its original, so one under an effect at a save goes back as the effect
+  ends after the load.
+- A `ceremony.Put(e)` without an `On` is no step: a rule's steps on effects are `act.Self.Put(e)`,
+  `Take(e)` (`Other`, `At(...)` alike).
 
-**The store is behind a contract**: the engine reads a `store.Row` a block at a time (an array a
-column out of goke's own accessors, `cgoke.Columns`, indexed as `Slice(cur)[i]`) and stages what
-it writes in goke's command buffer (`store.Facts.Stage` over `CmdBuf.Reserve`), so nothing costs
-more than typed code — `bench/behaviour_test.go` measures plans, rules and effects a tick. A pass
-binds its hosts with `cols := cgoke.NewColumns(qb); host.Bind(cols)` (`cols.Own(&s.col)` shares a
-column the pass reads itself) and runs them over each block with `cols.Row(cursor)`. `host.Tick`
-carries no command buffer; the binding's systems write through their own (`ECS.CmdBuf(runnable)`).
-The tag families join the host's queries as optional components, so a rule costs no query.
+## Roles, Self, tags and markers
 
-**Roles** say who obeys: a role is a behaviour (mortal, hasty, a trapdoor), not a group.
-`Part.Obeys(rules...)` narrows each rule to the role's players on top of its own filter (a pair
-rule: the pairs whose own entity plays it; a same-sided `collision.Meeting` rule still once a pair,
-`DispatchEitherWay`; a `Touch` each unit's own, a `Sighting` each observer's; an entity playing two
-roles that obey one rule obeys it once per role). A kind plays roles through
-`ceremony.Plays(roles...)` in its Spec (one component; a kind carrying a component type twice
-panics), a cell through its kind (`cell.Kinds.Define(name, kind, roles...)`) or its Layout entry
-(`cell.Entry.Plays`), a plugin through `world.Self.Plays`. A rule of a moment of the world as a
-whole (`clock.Moment`, `climate.Weathering`; `host.StepRules`, once a step, no entities walked)
-fires while the entity the moment is about plays its role. A role under
-`cond.At(board.Around(n))` or `cond.At(board.Ahead(n))` holds for the place turned to.
+- **A role is a behaviour (mortal, hasty, a trapdoor), not a group.** An entity playing two roles
+  that obey one rule obeys it once per role. A kind carrying a component type twice panics, and
+  `ceremony.Plays` is one. A `StepRules` rule fires while the entity its moment is about plays the
+  role; a role under `cond.At(...)` holds for the place turned to.
+- `world.NewSelf(w, p, knobs...)` in `NewPlugin` also notes `p` as made (`world.Plugin.Made()`,
+  the order the Stage uses). Its entity carries a `cgoke.Wide` (a slot for every definable effect,
+  where a unit's `Active` holds 8) and is found by its name in a loaded game. `Self.Changed()` is
+  the convention by which a plugin works costly things anew.
+- **Tags are the plugins' technique; a game says roles, names, groups and commands.** A tag is a
+  bit of a family (`tag.Tags[F]`, 64 a family), handed out and saved by name, a flip seen the same
+  tick; `host.PairRules.For(marks)` says whether any rule is for its carrier (vision scans only
+  those).
+- **A marker or a component**: putting a component on or off moves the entity (~200 ns against
+  1–2 ns for a bit). A state that changes often or lasts a step is a marker (a family `States`,
+  carried for good, asked of the kinds by `r.Default` in `KindTemplates`, the one place a plugin
+  writes them); one that lasts, on few entities, walked alone (`MoveOrder`, `Mind`, the facts)
+  keeps its own component; data that comes and goes keeps its component, empty when off.
 
-**A plugin is an entity** (`plugins/world/self.go`): `p.Self = world.NewSelf(w, p, knobs...)` in
-`NewPlugin`, which notes `p` as made over the world (`world.Plugin.Made()`, the order the Stage
-uses) and calls its entity by `p.Name()`. Embedded as `*world.Self` in every plugin (the world's
-own is the clock's entity, the clock's `State` its knob), it is one entity called by the plugin's
-name (`ceremony.Label`), carrying its knobs (`comp.Comp`s, listed for the saves), the effects'
-markers, `tag.Tags[cond.Roles]` and a `cgoke.Wide` (a slot for every definable effect, where a
-unit's `Active` holds 8). The world's first system (`selves.system`) finds them by name in a loaded
-game. `Self` is a `ceremony.Router` (`ceremony.Put(e).On(s.atmosphere)`), `Self.Entity()`,
-`Self.Changed()` (its `effect.Changed`: the convention by which a plugin works costly things
-anew), `Self.Plays(roles...)`; `cond.On(s.atmosphere).If(e)` reads it back. One thing of a kind a
-plugin.
+## Packages
 
-**Tags** are bits of a family, not component types (`ceremony/tag`): `tag.Tags[F]` holds up to 64
-tags of family `F` (an empty type a plugin names the family by; tags are the plugins' technique, a
-game says roles, names, groups and commands), `kinds.DefineTag[F](name)` hands out the bits by name
-through `world.Kinds` (saved by name, remapped on load), `comp.Tagged(tags...)` gives them to a
-kind, a query over the family's `Tags` narrows to those carrying any, a bit flip is seen the same
-tick; `host.PairRules.For(marks)` says whether any rule is for an entity carrying marks (vision
-scans only such observers). **Tags** are groups a kind gives;
-**markers** are states switched
-on and off — a plugin's family `States`, carried for good (`comp.Marks[F]()`,
-`r.Default(motion.UnitTemplate, …)` in the plugin's `KindTemplates(r *kind.Roster)`, the one place
-it writes what it asks of the kinds' templates), each a constant bit (`effect.Changed`, every
-effect's `Mark()`, `unit.Entered`). Putting a component on or off moves the entity (~200 ns) against
-1–2 ns for a bit: a state that changes often or lasts a step is a marker; one that lasts, on few
-entities, walked alone (`MoveOrder`, `Mind`, the facts, `motion.Outside`) keeps its own component.
-Data that comes and goes keeps its component, empty when off (`cgoke.Active`).
+- **A strategy a game writes is a contract** of a vocabulary package, given as the plugin is made
+  and read by every pass that needs it, never two copies of the logic: `cell.Mobility`
+  (`WithMotion(m, mobility)`, 2026-10-28) paces the standing pass, the planner and the driving
+  alike; the library gathers the facts (`cell.Step`), the strategy composes them (`cell.PaceOf`
+  checks the range), a default stands beside it (`cell.DefaultHiking`).
+- A public subpackage holds the vocabulary and contracts a game and other plugins both name, and
+  nothing else; `internal` never shows in a public signature.
+- A type the machinery needs goes to a vocabulary package; a command it carries out is defined in
+  the root with its queue, reaching the machinery through an interface the plugin implements
+  (`icameras.Orders`). Machinery reading the game's own types every step (navigation's systems)
+  stays unexported in the root.
+- An internal package imported beside its public namesake takes an `i` (`irelief`); inside it the
+  public one is `public`. Test helpers shared go to `internal/<plugin>test`, a package's insides
+  through `export_test.go`. A public name only tests read is no API; a package of one interface
+  and an alias is no package.
+- A `goke.Module` is the unexported `module`, the `Plugin` its facade; it never implements
+  `goke.System`: per-tick logic is a type with the `System` suffix (in `internal` a part type whose
+  method returns a private `goke.System`). No `Plugin` method hands out a system's state, no
+  plugin takes a callback into another's system, a system keeps no table beside the ECS.
+  `plugin.go` and `module.go` group the contract's methods first.
+- An interface asserted at run time (`x.(interface{ Proportions() (float32, float32, bool) })`)
+  misses an implementer of another float type without a word: a seam is changed on both sides.
 
-**Kinds** (`entity/kind`): `kind.Define[P](world.Kinds(), name, kind.Spec{...})` — a `Spec` is
-the list of a kind's components, each made in `ceremony/comp`: `comp.Const(v)` or
-`comp.Load(func(row P) T)`, `world.Position` and `world.Velocity` among them (one of each);
-`kind.Named[P](reg, name)` is the `kind.Of[P]`: `prey.Entry(row)` builds a roster entry for
-`world.Plugin.Seed`, `prey.ID()`/`SpriteID()` what its entities carry and are drawn from;
-`kind.Entry.Named(name)`/`InGroup(group)` give the entity its `Label`, `Entry.Told(cmds...)` the
-commands it gives itself as it is made. `kind` never imports `world`: the registry is
-`world.Kinds` behind `kind.Registry`, which also issues atlas slots no kind owns (`NewSprite`),
-lists every component type its kinds carry for `Persistence.Load` (`Kinds.LoadComps`) and gives
-`Lookup` (a kind's id and row type). Initial state: `Stage.Spawn` declares it through each
-plugin's typed `Seed`, and the engine calls `Populate()` on every tracked `plugin.Populator` for a
-Stage entered afresh.
+## Where the marks sit
 
-## Where the marks sit (the convention found in the code)
+- `# Vocabulary` lists moments (host kind, subject, words), facts, knobs, commands (an entity's
+  own, a player's, both; `host.Aimed`) in that order, a sentence each, every name a doc link.
+- A moment's assertions in a grouped `var (…)` at the bottom of its own file (bullet and gravity:
+  `moments.go`); a fact's and a knob's beside the type; commands and their `host.Aimed` in
+  `commands.go`'s block. A word's name is spaced lowercase (`"sees nobody"`): errors show it.
+- The board's `ringsRound` (the places round a box) is not reentrant.
 
-- Every plugin's `doc.go` ends with a `# Vocabulary` section — moments (host kind, subject,
-  words), facts for plans, knobs, commands (an entity's own / a player's / both, `host.Aimed`) —
-  in that order, each a sentence, every name a doc link. A new moment, word, fact, knob or
-  command is added there as it is defined; a plugin without any has no section.
+## Patterns
 
-- A moment's assertions (`_ host.About`, `_ host.Met`, `_ fact.Subject`) in a
-  grouped `var (…)` at the bottom of the moment's own file (`collision/meeting.go`,
-  `navigation/touch.go`, `board/unit/standing.go`); bullet and gravity keep a `moments.go`.
-- A fact's and a knob's one-liner beside the type (`var _ fact.Fact = Blocked{}`,
-  `var _ effect.Knob = Sight{}`); commands and their `host.Aimed` in `commands.go`'s block
-  (topography: `camera_commands.go`, `shaping.go`).
-- A word's name is spaced lowercase (`"sees nobody"`, `"full moon"`); it shows in errors.
-- Who may give a command is the handler's check of `Issued.ByEntity`: an entity's own
-  (`Despawn`, steering's, navigation's crowd commands, `Leap`, `Begin`), a player's (looks,
-  cameras, tools) or both (`Spawn`, `MoveTo`, `Shoot`, the driving's).
-- The board's places machinery: `board/internal/moments/around.go` (`Rules.around`, the cells
-  under the box, `ringsRound` by `grid.Neighbors` — not reentrant; each place the cell's entity
-  then `terrain.Cells.Standing`, which gives entities carrying `cell.On`, never units) filled
-  into `Tick.Places` (`Rules.places`, by the board's `AroundPlaces`/`AheadPlaces`) in
-  `moments/standing.go` and `cells.go`; the unit's heading is in
-  `s.bases[i].Vel.Dir` as the moment is built. The cell ahead of a driven unit is a world point
-  past the box in `driving/drive_system.go` `open()`; `grid.Nearest(g, v)` + `Grid.Toward(c, i)`
-  are the grid's way to it.
-
-## Package layout
-
-`render` (root, a facade over `render/internal/*`) — `Renderer`/`AtlasSource`/`Atlas`/`Composer`/`Frame`/`Source`/`At`/
-`SolidBackground`/`Feed`/`Direct`/`Font`, drawing
-with no knowledge of Stages, Scenes or plugins. `plugin` (root) — the extension contract
-(`Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`/`CommandHandler`/`Tunable`/`Keep`/
-`Made`, `plugin/section`); imports `render`, `control`, `ceremony/host`, `ceremony/command`. `game`
-(root) — what a Stage implements and receives, all in one package; imports `plugin` and `render`.
-`internal/engine` — the `Engine` plus the unexported `initializer`/`persistence`/`storage`/
-`stageRuntime`. Dependency direction: `render` ← `plugin` ← `game` ← `internal/engine` ← `gram`.
-Built-in plugins (`plugins/*`) import `plugin`/`render` directly, as a third-party plugin would.
-
-gram's core beside them: `ceremony` (`tag`, `comp`, `effect`, `fact`, `cond`, `act`, `plan`,
-`host`, `command`, the root), `entity` (with `entity/kind`), `clock`, `control`, `camera`. None
-imports a plugin; the world makes and runs their systems and registers their components for the
-saves.
-
-**A plugin's packages**: its root holds the entries (`NewPlugin`, `Config`, `With…`, `Seed`,
-`Plays`, the commands it handles); public subpackages hold the vocabulary and contracts a game and
-other plugins both name (`cell.Kind`, `unit.Mover`, `grid.Grid`, `board/look`, `board/ground`) and
-nothing else; `plugins/<plugin>/internal/...` the machinery, importable only inside the plugin,
-never in a public signature. **A strategy a game writes is such a contract**, given to the
-plugin as it is made and read by every pass that needs it, never two copies of the logic:
-`cell.Mobility` (`WithMotion(m, mobility)`, 2026-10-28) paces a step for the board's standing
-pass, the planner (through `board.Read.Pace`) and the driving alike; the library gathers the
-step's facts (`cell.Step`), the strategy composes them (`cell.PaceOf` asks it and checks the
-range), a default stands in the vocabulary package (`cell.DefaultHiking`). A type the machinery needs goes to a vocabulary package; a command
-the machinery carries out is defined in the root, its queue kept there, reaching the machinery
-through an interface the plugin implements (`icameras.Orders`). Where a file imports a public
-package and its internal namesake, the internal one gets an `i` prefix (`irelief`, `ipainter`);
-inside the internal package its public namesake is `public`. Systems in `internal` are a part
-type whose method returns a private `goke.System` (`terrain.Cells.System()`). What several
-packages' tests share goes to `internal/<plugin>test`; a test reading a package's insides uses
-`export_test.go`. A public name only tests read is no API: it goes, or moves to
-`export_test.go`. Where the machinery reads the game's own types every step (navigation's
-systems), it stays unexported in the root. A package of one interface and an alias is no package.
-
-Every package under `plugins/` implementing `goke.Module` names that type `module` (unexported);
-the exported `Plugin` is a facade. A `module` never implements `goke.System`; per-tick logic has
-its own type with the `System` suffix (`ScanSystem`, `altitudeSystem`), never leaking out of the
-plugin: no `Plugin` method hands out a system's state, no plugin takes a callback reaching into
-another's system. A system keeps no table beside the ECS: what it knows about an entity is a
-component on it. Each `plugin.go`/`module.go` groups contract methods first.
-
-**Numbers** (aabbworld v1.17.0): what a plugin keeps or hands across a seam of positions, sizes,
-speeds, heights, angles and pixels is a float32, `geom.Vec` and `plane.AABB` with it, the heights
-a map is built from too; float64 stays inside a computation that sums (a walk along a ray, a
-relief's draining), in costs and time ratios and in a setting's value. Math on float32 goes through `internal/f32` (`f32.Hypot`,
-`f32.Floor`, …); a tolerance on coordinates is `f32.Eps(scale)`, never a 1e-9 sized for float64.
-An interface asserted at run time (`x.(interface{ Proportions() (float32, float32, bool) })`)
-misses an implementer whose float type differs without a word, so a seam changed is changed on
-both sides.
-
-## Behaviour goes through rules
-
-The game's side of ceremony — the plugins' moments and words, what is marked a fact, a knob or a
-command, where a game defines things, commands from keys and ui, what a plugin does of its own,
-writing a new behaviour in a plugin, states as effects — is the public page `doc/behaviour.md`;
-read it rather than restating it. Two things to keep in mind beside it:
-
-**A thing used by touch** (the mechanisms demo's lever): a post (`Collider`, `Physics{Mass: +Inf}`)
-the hero (`Physics{Mass: 1}`) walks up to and rests against; the hero's rules of a
-`collision.Meeting` under `cond.Self.If(collision.Facing(angle))` hold `InReachEf` while a lever
-is at hand (a ui prompt pinned `Under` it) and, under the player's `ReachingEf` (the intent, a
-second, put by Space), put the lever's transition on it and give it `Trigger`; the lever's lower
-position is its own effect held for good (`LeverPulledEf`, the transition's `Then`), the
-trapdoors' command a `Toggle`. An intent and an animation are two effects: `ReachingEf` the
-intent, `PullingEf` the hands on the lever for the swing (the Phased look); a press during a
-swing waits for its end. **Boredom is a state too**: a rule of `motion.Moving` under
-`motion.Still()` puts `StillEf`, whose `Then` casts `BoredEf` after three seconds; a step takes
-both off.
+- A thing used by touch (the mechanisms' lever): a post (`Collider`, `Physics{Mass: +Inf}`) the
+  hero rests against; the hero's rules of a `collision.Meeting` under `collision.Facing(angle)`
+  hold `InReachEf` (a prompt pinned `Under` it) and, under the player's `ReachingEf` (the intent,
+  put by Space), put the lever's transition and `Trigger` it; its lower position is its own effect
+  held for good. An intent and an animation are two effects: one for both loses presses mid-swing.
+- Boredom is a state: a rule of `motion.Moving` under `motion.Still()` puts `StillEf`, whose `Then`
+  casts `BoredEf` after three seconds; a step takes both off.

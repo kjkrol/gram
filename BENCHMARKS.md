@@ -393,6 +393,18 @@ same bench is 32 searches).
 | `Routing_Group/workers=1` | 32, one goal | 57.7 ms | 6 |
 | `Routing_Group/workers=all` | 32, one goal | 57.1 ms | 6 |
 
+At `feat/hpa` (v0.12.0, 2026-10-29: long routes climbed over astar v1.3.0's hierarchy; one run a
+side against v0.11.0, `-cpu=1`, `-benchtime=5x`, the user's rule since then): `Routing_Path`
+12.25 → 3.88 ms (−68%), the new `Routing_Long` (one unit asking chunk by chunk to its goal across
+the board) 27.5 → 6.0 ms (−78%; 3.4 climbs and 1 search an op against 4.4 searches),
+`Routing_Group` +0.2% (one thread) and −1.7% (the pool) once the field's fill had its own loop
+again (`stepsInto` a neighbour had cost the fill +5–17%); each op's `Touch(0)` rebuilds two
+clusters and scans the cells' passage. `PathFinder_Hierarchy/rebuild/relief`: 3.0 ms for two
+clusters, one build tick. On astar v1.3.0's one `Solver` API (`h/api`, one run a side against
+`feat/hpa`) every regime within noise (−2.5…+2.5%); `Routing_Long` at 5x shows +184 KB an op,
+the routers' A* dictionaries astar now makes at a `Search`'s first search rather than as it is
+made, and none an op once warm on either side (40x, 400x).
+
 `Routing_Group` at `feat/field` (2026-10-28, `-cpu=1`, the lower of 6 at `-benchtime=10x`)
 against v0.8.0 alternately: 347 → 57.7 ms on one goroutine (−83%) and 356 → 57.1 on the pool
 (−84%; the fill is one router's work, the walks are microseconds, so the pool gains nothing
@@ -724,7 +736,7 @@ idle machine, the same build both sides (`GOEXPERIMENT=simd` or none); `measure.
 with the change in percent:
 
 ```bash
-.claude/skills/gram-perf/measure.sh <out dir> '<bench regex>' <base dir> <tree dir> 3 2
+.claude/skills/gram-perf/measure.sh <out dir> '<bench regex>' <base dir> <tree dir> 1 1
 ```
 
 A gain is taken when it is at least 3% in the regime it aims at, the two sides' runs do not

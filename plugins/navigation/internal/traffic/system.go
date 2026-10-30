@@ -236,9 +236,7 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 		s.finished = arrivedIDs
 		s.supply(cb)
 	}
-	if len(s.asked) > 0 {
-		s.walkOn(cb, d)
-	}
+	s.walkOn(cb, d)
 	s.touch(cb, d)
 	s.tell(cb, d)
 	for _, a := range s.arrivals {

@@ -608,7 +608,7 @@ commands, facts — which gram's plugins perceive for and carry out, with goke a
 [goke](https://github.com/kjkrol/goke) is the ECS every Stage runs on,
 [aabbworld](https://github.com/kjkrol/aabbworld) the space, collisions and line of sight under the
 world, [gogpu](https://github.com/gogpu/gogpu) the window, the loop and the GPU (WebGPU),
-[astar](https://github.com/kjkrol/astar) the pathfinding.
+[hpastar](https://github.com/kjkrol/hpastar) the pathfinding.
 
 <a id="performance"></a>
 # ⏱️ Performance
