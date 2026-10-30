@@ -9,9 +9,9 @@ require (
 	github.com/gogpu/naga v0.20.3
 	github.com/gogpu/wgpu v0.34.5
 	github.com/kjkrol/aabbworld v1.19.0
-	github.com/kjkrol/astar v1.2.0
 	github.com/kjkrol/ceremony v0.3.2
 	github.com/kjkrol/goke/v3 v3.6.0
+	github.com/kjkrol/hpastar v1.3.0
 	github.com/kjkrol/uid v0.3.0
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/image v0.46.0

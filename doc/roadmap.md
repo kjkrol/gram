@@ -31,6 +31,12 @@ What is left to do. Take an item out when it lands.
   radius `Speed / TurnRate` through the lookahead points, the queued waypoints marked; computed
   when the route or the waypoints change and kept beside the `Path`, sharing the lookahead's code
   with navigation so what is drawn and what is driven cannot drift.
+- **The wind in the pricing** — sailing ships and flyers priced by the wind (`cell.Mobility` by
+  domain and way against the wind's), a change of wind counted as one change of the board's
+  passage, never a gust: the hierarchy and the kept answers follow it.
+- **The hierarchy, further** — the queued goals' preview planned over it as the walked route is;
+  a unit standing where its class cannot stand climbs instead of searching; `Reaches` exact on
+  one-way steps (a level-1 label by directed reachability); its rebuilds allocating nothing.
 - **Covers** — a state of the ground drawn over its cells (`board.Plugin.Covering`) is the simple
   map's on a square grid: in relief (the topography's painter and its sheets), on a hex grid
   along a line of its own, a ragged edge (noise on the threshold), a cover narrowed to the cells

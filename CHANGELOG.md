@@ -1,9 +1,49 @@
 # Changelog
 
+## v0.12.0 — 2026-10-29
+
+Needs hpastar v1.3.0, the module astar renamed (kjkrol/hpastar#5: one `Solver` over a
+`graph.Implicit`, asked through a `Search` a goroutine, HPA* where the graph has a `Layout`).
+
+**Long routes climbed over a hierarchy of the board's cells** (2026-10-29, branch `feat/hpa`,
+`doc/plans-perf.md` „HPA*", etap B; hpastar v1.3.0's `Solver` with a `Layout` (HPA*) and its
+`Search`)
+- Added: navigation plans a route whose ends lie `Hierarchy.From` cells apart or more (64 by
+  default) over a hierarchy of clusters of the board's cells kept for its units' class (the
+  domain and the body, its feet left out; four classes at most, the least lately asked let go):
+  levels of clusters, entrances on their borders, the cheapest ways and their trees between
+  them, an abstract search on the level the route's length allows and the route walked down
+  the trees only as far as a chunk of 64 steps. A party sent by one MoveTo still reads its
+  field, a short route and a route round learned cells are searched as before, so the crowds'
+  routes are unchanged. `navigation.Hierarchy{Side, From, Off}`, `Plugin.WithHierarchy`,
+  `Read.Hierarchy`; the cluster's side is the world's sector in cells where the sectors span
+  whole cells of a square grid, else 16; `Off` searches every route. board/topography climbs
+  from 32 cells.
+- Added: the hierarchy holds only the levels of cells the class stands on, and a cell's
+  clusters, with its ring of one cell, are built again where its passage moves (the board's
+  `CellPassage`); a tick builds the hierarchy not ready that was asked for latest, asked for or
+  not, by 75,000 steps of hpastar's work (about 2.5 ms), the same on every machine, a route
+  searched meanwhile, and a change rebuilds the clusters above it only as far as it reaches.
+  `pathfind.Hierarchy`: one finder builds it, every router asks it through a `Search` of its
+  own, so the pool shares it.
+- Added: a target no route reaches is given up for the nearest free cell without a search for
+  every cell round it (`NearestFreeThrough`, the hierarchy's reach), under cells and bodies
+  alike. `Counts.Climbs` and `Counts.Builds`, on the panel's line.
+- Changed: the routing runs every tick, so a hierarchy grows while nobody asks.
+- Removed: an idle goroutine wiping the stamps of the routers idle that tick (`Finder.Wipe`):
+  hpastar v1.3.0 clears a slice of them every search.
+- Improved: `Routing_Path` 12.3 → about 1.9 ms, a long route asked chunk by chunk
+  (`Routing_Long`) 27.5 → about 3.7 ms (3.4 climbs and 1 search where 4.4 searches were; one run
+  a side against v0.11.0, then against the first cut of this branch), a build tick about 2.5 ms,
+  a changed cell rebuilding its cluster alone where its neighbours come out the same, the field's
+  fill and `Routing_Group` as on v0.11.0; the climbed routes cost 1.01–1.05 of the cheapest. New benchmarks: `Routing_Long`,
+  `PathFinder_Hierarchy/{build,find,rebuild}`, `PathFinder_Terrain/levels`. Nothing is saved:
+  a hierarchy is built again after a load.
+
 ## v0.11.0 — 2026-10-29
 
 **The board's passage, counted apart from how it looks; navigation's counters** (2026-10-29,
-branch `feat/passage`, `doc/plans-perf.md` „HPA*", etap A, the brief `doc/briefs/p1-passage.md`)
+branch `feat/passage`, `doc/plans-perf.md` „HPA*", etap A)
 - Added: `board.BoardRead.Passage()` and `CellPassage(c)` count only the changes to what a step
   over a cell reads: whom its ground and the way across it admit and at what pace, whether they
   are solid or graded, how the way runs (its kind, width and links), what is built over it, and
@@ -32,7 +72,7 @@ branch `feat/passage`, `doc/plans-perf.md` „HPA*", etap A, the brief `doc/brie
 ## v0.10.0 — 2026-10-29
 
 **Marching in formation: a column over the field** (2026-10-29, branch `feat/column`,
-`doc/plans-perf.md` „Kolejka i pole grupy", etap 4, the brief `doc/briefs/t4-column.md`)
+`doc/plans-perf.md` „Kolejka i pole grupy", etap 4)
 - Added: `navigation.March{Cell, To, At, Level, In}` sends the selected units the player owns,
   or the entity giving it, as a `MoveTo` does, in a `Formation` their orders keep (`Shape`,
   `Spacing` in bodies, `Closed`, `Slack`; `ColumnOf(spacing, closed, slack)`; the shapes

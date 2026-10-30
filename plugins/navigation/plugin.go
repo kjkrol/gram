@@ -3,6 +3,7 @@ package navigation
 import (
 	"cmp"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/kjkrol/ceremony/act"
@@ -13,6 +14,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
@@ -59,6 +61,7 @@ type Plugin struct {
 	collision    *collision.Plugin
 	spacing      Spacing
 	routers      int
+	hierarchy    Hierarchy
 	handKeeping  traffic.HandKeeping
 	read         Read
 	write        Write
@@ -95,7 +98,8 @@ func NewPlugin(
 	p.Self = world.NewSelf(worldPlugin, p)
 	drivingPlugin.WithKeeping(&p.handKeeping)
 	p.pathRenderer = routes.NewRenderer(boardPlugin.Read(0).Board(), DefaultRouteStyle, p.selected).
-		WithHeights(boardPlugin.Read(0).Heights).WithDrawnHeights(boardPlugin.Read(0).DrawnHeights).WithLook(worldPlugin.Read(0).Look).
+		WithHeights(boardPlugin.Read(0).Heights).
+		WithDrawnHeights(boardPlugin.Read(0).DrawnHeights).WithLook(worldPlugin.Read(0).Look).
 		WithStyles(worldPlugin.Read(0).Styles)
 	p.pathRenderer.BindSpace(worldPlugin.Write().Space())
 	return p
@@ -143,6 +147,9 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	for range cmp.Or(p.routers, DefaultRouters) {
 		coordinator.Router(keeping(answers))
 	}
+	if p.hierarchy = p.hierarchy.resolve(p.worldPlugin, brd); !p.hierarchy.Off {
+		coordinator.Hierarchy(int(p.hierarchy.Side), float64(p.hierarchy.From))
+	}
 	p.finder, p.coordinator = finder, coordinator
 	p.pathRenderer.Finder = finder
 	rules := p.crowd
@@ -172,7 +179,11 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		}
 	}
 
-	p.module = &module{navigationSystem: navSys, moveCommandSystem: moveCommandSystem, clock: p.worldPlugin.Write().Clock()}
+	p.module = &module{
+		navigationSystem:  navSys,
+		moveCommandSystem: moveCommandSystem,
+		clock:             p.worldPlugin.Write().Clock(),
+	}
 	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)
 	ctx.Draws(p.pathRenderer)
@@ -200,6 +211,62 @@ const DefaultRouters = 4
 // memory of its own on the board; 0, DefaultRouters. Call before Use.
 func (p *Plugin) WithRouters(k int) *Plugin {
 	p.routers = max(k, 0)
+	return p
+}
+
+// Hierarchy is how the long routes are planned: climbed through a hierarchy of square regions
+// of the board's cells kept for each class of units, not searched cell by cell. The zero value is
+// the default.
+type Hierarchy struct {
+	// Side is a region's side in cells; zero, the side of the world's sectors where they span
+	// whole cells of a square grid, else 16.
+	Side uint16
+	// From is how many cells apart a route's ends lie at least for it to be climbed; zero,
+	// MaxPathLength, past which a route is followed a Path at a time.
+	From uint16
+	// Off has every route searched, no hierarchy built.
+	Off bool
+}
+
+// the side of a hierarchy's regions, in cells, where the world's sectors give none
+const hierarchySide = 16
+
+// resolve is h with its zero Side and From as the plugin takes them over the world w and the
+// board b
+func (h Hierarchy) resolve(w *world.Plugin, b *board.BoardRead) Hierarchy {
+	if h.Off {
+		return h
+	}
+	if h.From == 0 {
+		h.From = MaxPathLength
+	}
+	if h.Side == 0 {
+		h.Side = sectorSide(w, b)
+	}
+	return h
+}
+
+// sectorSide is the side of w's sectors in b's cells, where they span whole cells of a square
+// grid; else hierarchySide
+func sectorSide(w *world.Plugin, b *board.BoardRead) uint16 {
+	sectors := w.Res.Config.Sectors
+	shape, square := b.Shape()
+	if len(sectors.Bands) == 0 || !square || shape.Hex || shape.Cell <= 0 {
+		return hierarchySide
+	}
+	// a sector spans Buckets of the space's buckets a side, four where none are given
+	side := float32(cmp.Or(sectors.Buckets, 4)) * float32(w.Write().Space().BucketSize) /
+		shape.Cell
+	if side < 1 || side > math.MaxUint16 || side != f32.Floor(side) {
+		return hierarchySide
+	}
+	return uint16(side)
+}
+
+// WithHierarchy sets how the long routes are planned, Hierarchy's zero value by default. Call
+// before Use.
+func (p *Plugin) WithHierarchy(h Hierarchy) *Plugin {
+	p.hierarchy = h
 	return p
 }
 

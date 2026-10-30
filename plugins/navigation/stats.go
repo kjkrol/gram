@@ -15,10 +15,9 @@ type Counts struct {
 	Walks uint64
 	// Fills are the groups' fields filled.
 	Fills uint64
-	// Climbs are the routes found through a hierarchy of regions over the board's cells; none
-	// while navigation keeps no hierarchy.
+	// Climbs are the long routes climbed through the hierarchy of their units' class (Hierarchy).
 	Climbs uint64
-	// Builds are the regions of such a hierarchy built; none while navigation keeps none.
+	// Builds are the regions of the hierarchies built, again where the board changed under them.
 	Builds uint64
 	// Expansions are the nodes the searches expanded: the work they did.
 	Expansions uint64
@@ -30,6 +29,6 @@ var _ render.Reporter = reporter{}
 
 func (rp reporter) Report(line func(label, value string)) {
 	c := rp.r.Counts()
-	line("Routes", fmt.Sprintf("searches %d, walks %d, fills %d, expansions %d", c.Searches,
-		c.Walks, c.Fills, c.Expansions))
+	line("Routes", fmt.Sprintf("searches %d, climbs %d, walks %d, fills %d, builds %d, "+
+		"expansions %d", c.Searches, c.Climbs, c.Walks, c.Fills, c.Builds, c.Expansions))
 }

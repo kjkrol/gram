@@ -5,118 +5,59 @@ description: ceremony, the language of behaviour gram builds on (github.com/kjkr
 
 # ceremony
 
-Grammar and layout: `/home/karol/CODE/ceremony/doc/ceremony.md` (the reference, read it for the
-clauses) and `CLAUDE.md` there; gram's side (its plugins' moments, words, facts, knobs and commands,
-where a game defines things) is gram's `doc/behaviour.md`. Nothing of a game goes in: an "obrzęd" is
-prescribed steps with roles, so `command.Issuer`, never a player; a sprite, a cell, a unit are
-gram's.
+The language: `/home/karol/CODE/ceremony/doc/ceremony.md` (clauses, how an effect runs, idioms,
+places, roles, knobs) and ceremony's `CLAUDE.md` (layout, what is refused at build, the store's
+zero cost). gram's side, what its plugins perceive and carry out and where a game defines
+things: gram's `doc/behaviour.md` and each plugin's `doc.go` `# Vocabulary`. Hosts, moments and
+the `cgoke` binding in a plugin: `gram-plugin`.
 
-## What is what
+## Decisions
 
-- **Rule**: `act.Branch[P]{Name, When, Then}` of a moment `P` a plugin's pass catches; runs its
-  `Then` **every time** the moment comes while `When` holds — no memory of its own. A rule's
-  memory is an effect (`When: cond.Self.If(cond.Not(e))` with `Put(e)` = at most once a while).
-- **Plan**: `plan.New(name, root)` of `plan.Loop[P]{Name, When, Then, Until, Timeout,
-  Cooldown}`, a mind on the entity; a loop of a fact runs once as the fact comes afresh.
-  `Around` is a rule's: a plan has no places.
-- **Effect**: `Effects.Define(name, Spec{Lasts, Stacking, Then, Grant, Alter})`, `Named`; its
-  marker `Mark()` is what rules ask (`cond.Self.If(e)`); `Alter[T Knob]` turns a knob (a
-  component its owner only reads) and puts it back.
-- **Command**: `act.Self.Do(cmd)`, fire and forget, carried to the handler of its type;
-  `ceremony.Put/Take/Toggle(e).On(whom).By(source).For(d)` are the commands about effects;
-  `Trigger{}` gives every command whose `By` names the entity.
-- **Fact**: a component told to entities with a mind (`fact.Fact` mark); `Subject` for `Aimed`.
+- Nothing of a game goes into ceremony's code, comments or examples: `command.Issuer`, never a
+  player (`CLAUDE.md`).
+- **Ceremony keeps no rhythm of its own** (the user's word, 2026-10-18): a schedule is the
+  executor's, the pace lives in goke. `NewPlans` and `NewEffects` take the caller's goke query
+  options (gram's `world.Plugin.Pace` is a `goke.PacedBy`) and walk each block over its `Dt`.
+- **Ceremony names no places** (the user's word, 2026-10-18): a library names its kinds with
+  `host.NewPlacing(name, takes)`, `takes` handed a **pointer** to the moment; gram's are the
+  board's `board.Around(n)` and `board.Ahead(n)`.
+- The user tags and publishes ceremony; gram's `go.mod` follows a tag, `go.work` joins the
+  working trees meanwhile.
 
-## How an effect runs (the table in doc/ceremony.md, "How an effect runs")
+## The model
 
-- A `Put` on a running, non-stacking effect **refreshes** its time (restart, not a sum, not
-  ignored) and does not re-run its begin; `Stacking` adds a slot (8 an entity, 63 a plugin's).
-- Running out puts the knobs back and begins `Then`'s next **in the same pass** (since v0.2.1;
-  before there was a step with neither marker, a false "not under" window). A `Take` casts no
-  `Then`.
-- `Hold` in a rule = a cast of two steps renewed each firing: it lapses two steps after the rule
-  stops. In a plan, held while the loop runs.
-- `Has` is true from the cast (pending); the marker from the begin, the next pass.
+- A rule (`act.Branch[P]`) runs its `Then` **every time** its moment comes while `When` holds,
+  with no memory of its own: its memory is an effect (`When: cond.Self.If(cond.Not(e))` with
+  `Put(e)`: at most once a while). A plan (`plan.New` of `plan.Loop[P]`s) is a mind on the
+  entity, a loop of a fact running once as the fact comes afresh; places are a rule's alone.
+- An effect misbehaving (fires once, too often, lingers, flickers) is answered by the table in
+  doc/ceremony.md, "How an effect runs": a `Put` on a running, non-stacking effect restarts its
+  time, `Then` begins in the same pass, `Hold` in a rule lapses two steps after it stops firing,
+  `Has` holds from the cast but the marker only from the next pass.
 - gram nets a step's commands of one effect on one entity (`effect_commands.go`): the last given
-  wins; a `Put` every tick keeps a `Lasts` effect open until a tick after the last.
+  wins, and a `Put` every tick keeps a `Lasts` effect open until a tick after the last.
 
-## Hosts and the binding
+## Shapes for periodic and random behaviour
 
-- A plugin hosts rules of its moment: `host.Rules[P]` (one), `host.PairRules[P]` (a pair,
-  `DispatchEitherWay` once a pair for a same-sided rule), `host.StepRules[P]` (the whole, once
-  a step); bound to columns with `cols := cgoke.NewColumns(qb); host.Bind(cols)`, run over a
-  chunk with `cols.Row(cursor)`; `host.Tick` from `world.Plugin.Tick(d)` (carrier, time, seed,
-  `Around` from the board's hosts, `Roles`).
-- A moment is a struct with `Who()` (`host.About`), `Whom` (`host.Met`), `Placed`; a word is
-  `cond.NewWord(name, func(P) bool)` beside it; a knob `Knob()`; a fact `Fact()`; a command
-  `Command()` — each asserted beside its type (`var _ host.About = Standing{}`).
-- `cgoke`: `Effects` (register + runtime, `Cast`, `CastFor`, `Dispel`, `Has`), `Active`/`Wide`
-  (`Left(e)`), `Plans`, `Columns`, `Spawner`. The effect system casts through its own `CmdBuf`
-  (`ECS.CmdBuf`) and stages facts with `Reserve`. `NewPlans(plans, opts...)` and
-  `NewEffects(register, opts...)` take the caller's goke options for their queries (a filter, a
-  pace: gram's `world.Plugin.Pace` is a `goke.PacedBy`) and walk them with `Query.Paced`, each
-  block over its `Dt` (an effect counts down by it; plans take time from `now`). **Ceremony keeps
-  no rhythm of its own**: the user's word 2026-10-18 — a schedule is the executor's, the pace
-  lives in goke.
-
-## How places run (cond.At, act.At)
-
-- **Ceremony names no places** (the user's word 2026-10-18: `Around`, `Ahead` were gram's and went
-  to the board). A library names its kinds: `host.NewPlacing(name, takes)` — `takes(moment)`,
-  handed a **pointer** to the moment (`&f.current`), says which moments have them — and gives
-  `host.Places{Placing, N}`; gram's board: `board.Around(n)`, `board.Ahead(n)`
-  (`board/internal/moments/around.go`: `AroundPlaces`, `AheadPlaces`, `Rules.places` dispatching
-  by `p.Placing`).
-- `cond.At(p)` / `act.At(p)` are one subject kind (`cond/cond.go` `who{kind, at}`,
-  `act/subject.go`), lowered to `steps.OfTarget` with `Lowering.At`/`Places` (`cond.go`
-  `whose`); the host's callback does the walking: `host.Tick.Places(moment, p, each)` copied
-  into `steps.Pass` by `act/rule.go` `fire`.
-- The exec `steps.around` (`internal/steps/instant.go`) wraps the **smallest part of the rule
-  holding every place clause** (`act/step.go` `build.place`; `placed{at, count, mixed, kinds}`),
-  runs it once a place with `c.id` the place, succeeds when any place does; `refuses(payload)` at
-  build (`NewInstant`) when the kind does not take the moment ("needs a moment with places X").
-- One kind and one reach (`N`) of places a rule (`cond.go` `whose`, `act/branch.go` `build`);
-  a plan refuses places (`act/lasting.go` `loop.node`, `branch.go` `topNode`).
-- A role under a place is `GuardPlaying(bit, OfTarget)` read through `Tick.Roles` (the host's;
-  gram: `world.effectCmds.RolesOf`); a word under a place is refused (words are of Self/Other).
-- Tests: ceremony's `act/clause_test.go` (`spot`/`facing` with the test kinds `Round`/`Front`
-  and a hand-written `Tick.Places`), `act/steps_test.go`, `cond/cond_test.go`,
-  `plan/loop_test.go`; gram's `board/internal/moments/rules_test.go`, `board/entities_test.go`,
-  `board/covering_test.go`.
-
-What each gram plugin perceives and carries out is the `# Vocabulary` section at the end of its
-`doc.go` (moments with words and subjects, facts for plans, knobs, commands).
-
-## Shapes found for periodic and random behaviour
-
-- A repeating cycle of effects (A `Then` B `Then` A) cannot be defined: `Named` before `Define`
-  panics. Periodic cosmetics (a blink every 3 s) are a look (`render.Timed` under the stage's
-  effect), not effects.
-- A plan's loop runs its `Then` once; repetition is the plan finishing and beginning again at
-  the top (`plan.OneOf` of loops gated on effects). Two periods at once (3 s and 4 s) do not fit
-  one plan: one of them is a look.
-- `act.Branch[any]` inside a plan takes an `act.Step` in its `Then`: `plan.Self.Do`/`Put` yes,
-  `plan.Self.Wait` no (a part, not a step). A random wait is a lasting effect: a coin `Put`s it
-  (`Lasts` the long time), the short wait passes, then `plan.Loop[any]{Then: Idle(), Until:
-  cond.Self.If(cond.Not(e))}` idles while it lasts. A `Put` lands at the step's end: a clause
-  reading its marker in the same step sees nothing yet, so a wait must lie between.
-- A plan's `Hold` runs as long as its loop: in a `plan.Steps` nothing after it ever comes.
-  A stage with a length is `Steps(Put(e), Wait(d), Take(e))`, the interrupting rule taking `e`
-  off too. A round is the plan done and beginning again at the top.
-- `cond.Chance` draws per guard (seed, time, entity, the guard's place), so two coins in one
-  step are independent.
-- `cond.Chance` is drawn afresh every step: never the `When` of a loop that should last (the
-  coin flips and the loop stops); use it in an instant `act.Branch[any]` inside the steps.
+- A cycle of effects (A `Then` B `Then` A) cannot be defined: `Named` before `Define` panics.
+  Periodic cosmetics are a look (`render.Timed` under the stage's effect), not effects.
+- A loop runs its `Then` once; repetition is the plan finishing and beginning again at the top
+  (`plan.OneOf` of loops gated on effects). Two periods at once do not fit one plan: one is a
+  look.
+- `act.Branch[any]` inside a plan takes steps: `plan.Self.Do`/`Put` yes, `plan.Self.Wait` no. A
+  random wait is a lasting effect a coin `Put`s, a short wait (its marker lands a pass later),
+  then a loop idling `Until` the effect is gone.
+- A plan's `Hold` lasts as long as its loop: in `plan.Steps` nothing after it comes. A stage
+  with a length is `Steps(Put(e), Wait(d), Take(e))`, the interrupting rule taking `e` off too.
+- `cond.Chance` is drawn afresh every step, per guard: two coins in one step are independent,
+  and a coin is never the `When` of a loop meant to last (use it in an instant branch inside).
 
 ## Pitfalls met
 
-- A state meant to end a rule's firing must be taken off in the rule's own `Then` (or the rule
-  must ask for it to be absent): a quarter-second effect as a "press" fired for fifteen ticks.
-- An intent and an animation are two effects (`ReachingEf` a second, `PullingEf` the swing):
-  one effect for both loses presses during the swing.
+- A state meant to end a rule's firing must be taken off in the rule's own `Then`, or the rule
+  must ask for its absence: a quarter-second "press" effect fired for fifteen ticks.
+- An intent and an animation are two effects (`ReachingEf`, `PullingEf`): one for both loses
+  presses during the swing.
 - Two effects' looks on one entity: gram draws the look declared later (`Under` order).
 - A pair rule of a sensor fires every tick the boxes overlap; a parted pair at rest keeps
-  meeting (gram's collision `Resting`), navigation ignores those.
-- ceremony's conventions: tests in the package they test (`goke/*_test.go` external, importing
-  `cgoke`), comments of two sentences, the user tags and publishes; gram's `go.mod` follows a
-  tag, go.work joins the working trees meanwhile.
+  meeting (collision's `Resting`), which navigation ignores.

@@ -81,10 +81,13 @@ func TestFinder_EndsOnTheLevelAsked(t *testing.T) {
 	} {
 		walker := Body{Feet: tc.feet, Step: 1, Height: 2}
 		for _, end := range []Level{Deck, Ground} {
-			_, ok := f.Find(uid.UID64(1), cell.Land, walker, tc.from, v.g.At(1, 2), end, steps[:])
-			if !ok || f.Ended() != end {
-				t.Errorf("%s, asked to end on %v: found %v, ending on %v", name, end, ok,
-					f.Ended())
+			// the route's end, though dst holds its first step alone
+			for _, dst := range [][]cell.ID{steps[:], steps[:1]} {
+				_, ok := f.Find(uid.UID64(1), cell.Land, walker, tc.from, v.g.At(1, 2), end, dst)
+				if !ok || f.Ended() != end {
+					t.Errorf("%s, asked to end on %v, dst of %d: found %v, ending on %v", name,
+						end, len(dst), ok, f.Ended())
+				}
 			}
 		}
 	}

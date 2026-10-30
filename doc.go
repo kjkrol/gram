@@ -123,5 +123,5 @@
 // — the layer under plugin and control, its store goke/v3 through its binding ceremony/goke
 // (the only package of it importing goke, imported in gram as cgoke); goke/v3 is the ECS every
 // Stage runs on, aabbworld the space, collisions and line of sight under the world, gogpu the
-// window, the loop and the GPU, astar the pathfinding, and uid the entity identifiers.
+// window, the loop and the GPU, hpastar the pathfinding, and uid the entity identifiers.
 package gram

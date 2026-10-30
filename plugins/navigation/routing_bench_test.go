@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
 	"github.com/kjkrol/gram/plugins/world"
@@ -28,7 +29,9 @@ type routeBench struct {
 	nw      *navWorld
 	coord   *routing.Coordinator
 	orders  goke.Comp[MoveOrder]
+	at      goke.Comp[unit.At]
 	ordered *goke.Query
+	starts  map[uid.UID64]cell.ID
 	goals   map[uid.UID64][2]cell.ID
 	group   uint32 // the units sent as one MoveTo, its point the goal's middle; 0 each alone
 }
@@ -42,13 +45,14 @@ func newRouteBench(b *testing.B, pool *parallel.Pool, group uint32,
 	for i, c := range starts {
 		units[i] = navUnit{box: cellBox(g, c, 12), at: c, order: &MoveOrder{Target: goals[i][0]}}
 	}
-	r := &routeBench{goals: map[uid.UID64][2]cell.ID{}, group: group}
+	r := &routeBench{starts: map[uid.UID64]cell.ID{}, goals: map[uid.UID64][2]cell.ID{},
+		group: group}
 	r.nw = newNavWorldIn(b, pool, routeSide, routeSide, routeCell, units, world.SectorsCfg{}, nil,
 		goke.SystemFn{OnInit: func(si *goke.SysInit) {
-			r.ordered = si.NewQueryBuilder(&r.orders).Build()
+			r.ordered = si.NewQueryBuilder(&r.orders, &r.at).Build()
 		}})
 	for i, id := range r.nw.ids {
-		r.goals[id] = goals[i]
+		r.starts[id], r.goals[id] = starts[i], goals[i]
 	}
 	r.coord = r.nw.nav.module.navigationSystem.Routing.(*routing.Coordinator)
 	clear := append([]cell.ID(nil), starts...)
@@ -64,6 +68,10 @@ func newRouteBench(b *testing.B, pool *parallel.Pool, group uint32,
 					o.Path.Length)
 			}
 		}
+	}
+	// a hierarchy navigation keeps is built before anything is timed, Updates asking nothing
+	for r.coord.Building() {
+		r.coord.Update(nil, time.Second/60)
 	}
 	return r
 }
@@ -85,6 +93,42 @@ func (r *routeBench) route(k int) {
 		}
 	}
 	r.coord.Update(nil, time.Second/60)
+}
+
+// long has every unit stand at its start and ask for a route to its k-th goal anew, the routes
+// kept let go, then again from the end of every chunk it is given, as a unit walking it asks,
+// till a chunk ends at the goal; it reports how many chunks the longest route took, 0 where a
+// unit was given none
+func (r *routeBench) long(k int) int {
+	r.nw.board.Touch(0)
+	for r.ordered.All(); r.ordered.Next(); {
+		cur := r.ordered.Cursor()
+		orders, ats := r.orders.Slice(cur), r.at.Slice(cur)
+		for i, id := range cur.IDs {
+			ats[i].Cell = r.starts[id]
+			orders[i] = MoveOrder{Target: r.goals[id][k%2], Ask: order.AskRoute}
+		}
+	}
+	for chunks := 1; ; chunks++ {
+		r.coord.Update(nil, time.Second/60)
+		asking := false
+		for r.ordered.All(); r.ordered.Next(); {
+			cur := r.ordered.Cursor()
+			orders, ats := r.orders.Slice(cur), r.at.Slice(cur)
+			for i := range orders {
+				o := &orders[i]
+				if o.Ask != order.AskNone || o.Path.Length == 0 {
+					return 0
+				}
+				if end := o.Path.Steps[o.Path.Length-1]; end != o.Target {
+					ats[i].Cell, o.Path, o.Ask, asking = end, Path{}, order.AskRoute, true
+				}
+			}
+		}
+		if !asking {
+			return chunks
+		}
+	}
 }
 
 // layRoutes lays the routes' board, the cells round the walls' gaps and round keep clear
@@ -126,6 +170,28 @@ func Benchmark_Routing_Path(b *testing.B) {
 	for k := 1; b.Loop(); k++ {
 		r.route(k)
 	}
+}
+
+// Benchmark_Routing_Long is one route across the board a chunk at a time, as a unit walking it
+// asks for it: from the north-west corner to the far corner, then from the end of each chunk till
+// one ends there, and the next time to the south-west one, nothing kept between two. Where
+// navigation keeps a hierarchy, the far chunks are climbed (climbs/op).
+func Benchmark_Routing_Long(b *testing.B) {
+	r := newRouteBench(b, nil, 0, func(g grid.Grid) ([]cell.ID, [][2]cell.ID) {
+		return []cell.ID{g.At(2, 2)},
+			[][2]cell.ID{{g.At(routeSide-3, routeSide-3), g.At(2, routeSide-3)}}
+	})
+	read := r.nw.nav.Read(0)
+	before := read.Counts()
+	b.ReportAllocs()
+	for k := 1; b.Loop(); k++ {
+		if chunks := r.long(k); chunks < 3 {
+			b.Fatalf("a route of %d chunks, want 3 at least", chunks)
+		}
+	}
+	after := read.Counts()
+	b.ReportMetric(float64(after.Climbs-before.Climbs)/float64(b.N), "climbs/op")
+	b.ReportMetric(float64(after.Searches-before.Searches)/float64(b.N), "searches/op")
 }
 
 // Benchmark_Routing_Routes is 32 routes across the board at once: units on its west edge ask each

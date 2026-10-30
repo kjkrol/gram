@@ -35,14 +35,19 @@ type Coordinator struct {
 	asks    []uid.UID64 // the units that asked
 	parties []bool      // by ask, whether a party's unit asks for its route
 	next    atomic.Int64
-	lanes   int          // the routers the asks are shared among, the others idle
-	idled   atomic.Int64 // the idle routers taken
+	lanes   int // the routers the asks are shared among, the others idle
 	d       time.Duration
-	task    func(w, i int) // the method values, bound once
-	idle    func(w int)
+	task    func(w, i int) // the method value, bound once
 
 	fields  spacing.Fields
 	fielded bool // some party asks this Update, its field expected
+
+	hierarchies spacing.Hierarchies
+	side        int     // of the hierarchies' clusters, in cells; 0, none kept
+	from        float64 // how many cells apart a route's ends lie at least for it to be climbed
+	// by ask, whether it is for a far route or the nearest free cell, its unit given the
+	// hierarchy of its class
+	far []bool
 
 	ranks     []ranked // the formations' members an Update lays out, in their order once sorted
 	forms     []formed
@@ -80,13 +85,25 @@ func NewCoordinator(pool *parallel.Pool, read func(w int) *board.Read) *Coordina
 	return &Coordinator{pool: pool, read: read}
 }
 
-// Router adds a router: keep, searching through f; the first's f has the fields filled as it
-// searches.
+// Router adds a router: keep, searching through f; the first's f has the fields filled and the
+// hierarchies built as it searches.
 func (c *Coordinator) Router(f *spacing.Finder, keep spacing.Keeping) *Coordinator {
 	if len(c.routers) == 0 {
 		c.fields.Bind(f)
+		c.hierarchies.Bind(f, c.side, c.from)
 	}
 	c.routers = append(c.routers, router{finder: f, keep: keep})
+	return c
+}
+
+// Hierarchy has a route whose ends lie at least from cells apart climbed through the hierarchy of
+// its unit's class, of clusters side cells a side; side 0, every route searched as before. Call
+// before the first Update.
+func (c *Coordinator) Hierarchy(side int, from float64) *Coordinator {
+	c.side, c.from = side, from
+	if len(c.routers) > 0 {
+		c.hierarchies.Bind(c.routers[0].finder, side, from)
+	}
 	return c
 }
 
@@ -118,6 +135,27 @@ func (c *Coordinator) Searches() uint64 {
 	return n
 }
 
+// Climbs counts the routes the routers climbed through hierarchies since they were made.
+func (c *Coordinator) Climbs() uint64 {
+	var n uint64
+	for i := range c.routers {
+		n += c.routers[i].finder.Climbs()
+	}
+	return n
+}
+
+// Building says a hierarchy kept has clusters left to stale or build.
+func (c *Coordinator) Building() bool { return c.hierarchies.Due() }
+
+// Builds counts the hierarchies' clusters the routers built since they were made.
+func (c *Coordinator) Builds() uint64 {
+	var n uint64
+	for i := range c.routers {
+		n += c.routers[i].finder.Builds()
+	}
+	return n
+}
+
 // Expansions counts the nodes the routers' searches expanded since they were made.
 func (c *Coordinator) Expansions() uint64 {
 	var n uint64
@@ -134,25 +172,30 @@ func (c *Coordinator) Init(si *goke.SysInit) {
 	for range c.pool.Size() - 1 {
 		c.forks = append(c.forks, c.query.Fork())
 	}
-	c.task, c.idle = c.route, c.wipe
+	c.task = c.route
 }
 
 func (c *Coordinator) Update(_ *goke.CmdBuf, d time.Duration) {
-	c.asks, c.parties = c.asks[:0], c.parties[:0]
-	partied := false
+	c.asks, c.parties, c.far = c.asks[:0], c.parties[:0], c.far[:0]
+	partied, climbing := false, false
 	for c.query.All(); c.query.Next(); {
 		cursor := c.query.Cursor()
-		orders := c.order.Slice(cursor)
+		orders, cells := c.order.Slice(cursor), c.cell.Slice(cursor)
 		for i := range orders {
 			a := orders[i].Ask
 			if a != order.AskRoute && a != order.AskNearest {
 				continue
 			}
 			party := a == order.AskRoute && byField(&orders[i])
+			// a party goes by its field, a walk that fails searched
+			far := !byField(&orders[i]) && (a == order.AskNearest && c.hierarchies.On() ||
+				c.hierarchies.Far(cells[i].Cell, orders[i].Target))
 			c.asks, c.parties = append(c.asks, cursor.IDs[i]), append(c.parties, party)
-			partied = partied || party
+			c.far = append(c.far, far)
+			partied, climbing = partied || party, climbing || far
 		}
 	}
+	c.climb(climbing)
 	if len(c.asks) == 0 || len(c.routers) == 0 {
 		return
 	}
@@ -160,12 +203,10 @@ func (c *Coordinator) Update(_ *goke.CmdBuf, d time.Duration) {
 	c.d = d
 	c.next.Store(0)
 	c.lanes = min(len(c.routers), len(c.asks), c.pool.Size())
-	c.idled.Store(int64(c.lanes))
 	if c.pool == nil {
 		c.route(0, 0)
-		c.wipe(0)
 	} else {
-		b := c.pool.Begin(c.task, c.idle)
+		b := c.pool.Begin(c.task, nil)
 		b.Add(c.lanes)
 		b.Wait()
 	}
@@ -194,6 +235,33 @@ func (c *Coordinator) expect() bool {
 	return swept
 }
 
+// climb has the hierarchy of the class of every unit asking far expected, where expect says one
+// does, then the hierarchies staled and built through the first router, reading the board as the
+// caller's goroutine does, before any ask is answered; an Update with nothing to stale or build
+// and none expected reads nothing
+func (c *Coordinator) climb(expect bool) {
+	if !c.hierarchies.On() {
+		return
+	}
+	for k := 0; expect && k < len(c.asks); k++ {
+		if !c.far[k] || !c.query.Seek(c.asks[k]) {
+			continue
+		}
+		m, _ := c.member(c.query, c.asks[k])
+		if key, ok := c.hierarchies.Key(m); ok {
+			c.hierarchies.Expect(key)
+		}
+	}
+	due := c.hierarchies.Due()
+	if !due && !expect {
+		return
+	}
+	if due && c.read != nil {
+		c.routers[0].finder.Read(c.read(0))
+	}
+	c.hierarchies.Sweep()
+}
+
 // route answers asks on goroutine w through the i-th router taken, till none is left
 func (c *Coordinator) route(w, i int) {
 	r := &c.routers[(c.start+i)%len(c.routers)]
@@ -213,6 +281,10 @@ func (c *Coordinator) route(w, i int) {
 		m, o := c.member(q, id)
 		if c.fielded && c.parties[k] {
 			m.Field = c.field(r, m, o)
+		}
+		if c.far[k] {
+			key, _ := c.hierarchies.Key(m)
+			m.Hierarchy = c.hierarchies.Take(key)
 		}
 		answer(r.keep, m, o, c.d)
 	}
@@ -249,21 +321,6 @@ func (c *Coordinator) field(r *router, m bodies.Member, o *order.MoveOrder) *pat
 		c.fields.Give(f)
 	}
 	return f
-}
-
-// wipeWithin is how few searches a router is left before its stamps wrap when an idle goroutine
-// wipes them
-const wipeWithin = 64
-
-// wipe wipes the stamps of the routers idle this Update near their wrap, on w with nothing to do
-func (c *Coordinator) wipe(int) {
-	for {
-		j := int(c.idled.Add(1) - 1)
-		if j >= len(c.routers) {
-			return
-		}
-		c.routers[(c.start+j)%len(c.routers)].finder.Wipe(wipeWithin)
-	}
 }
 
 func answer(keep spacing.Keeping, m bodies.Member, o *order.MoveOrder, d time.Duration) {

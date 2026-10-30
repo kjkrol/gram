@@ -91,6 +91,19 @@ func BenchmarkPathFinder_Terrain(b *testing.B) {
 		lay(brd, brdW)
 		run(b, brd, terrainHills(grid))
 	})
+	// by levels, as the navigation plans and a hierarchy climbs
+	b.Run("levels", func(b *testing.B) {
+		brd, brdW := board.NewBoard(grid)
+		lay(brd, brdW)
+		pf := New(grid, brd, nil, &cell.MultipleOccupancy{}).WithLevels(flat{brd})
+		var path Path
+		if _, ok := pf.Find(1, cell.Land, Body{}, from, to, Either, path.Steps[:]); !ok {
+			b.Fatal("no route across the board")
+		}
+		for b.Loop() {
+			pf.Find(1, cell.Land, Body{}, from, to, Either, path.Steps[:])
+		}
+	})
 	b.Run("cells", func(b *testing.B) {
 		w := world.NewPlugin(world.Config{
 			Space:    world.SpaceCfg{Width: side * size, Height: side * size},
@@ -143,5 +156,75 @@ func BenchmarkPathFinder_Field(b *testing.B) {
 		brd, brdW := board.NewBoard(grid)
 		layWalls(brd, brdW, from, to)
 		run(b, brd, terrainHills(grid))
+	})
+}
+
+// the hierarchy of the terrain rungs' board, its clusters 16 cells a side: built whole, the route
+// corner to corner climbed a chunk at a time, a cell inside a cluster turned wall or back and
+// its clusters built again
+func BenchmarkPathFinder_Hierarchy(b *testing.B) {
+	g := grid.DefaultGrids{}.Square(terrainSide, terrainSide, terrainCell)
+	from, to := g.At(0, 0), g.At(terrainSide-1, terrainSide-1)
+	boards := []struct {
+		name   string
+		pacing Pacing
+	}{{"map", nil}, {"relief", terrainHills(g)}}
+	laid := func(pacing Pacing) (*Finder, *board.BoardRead, *board.BoardWrite) {
+		brd, brdW := board.NewBoard(g)
+		layWalls(brd, brdW, from, to)
+		return New(g, brd, pacing, &cell.MultipleOccupancy{}).WithLevels(flat{brd}), brd, brdW
+	}
+	whole := func(f *Finder, h *Hierarchy) { f.Build(h, math.MaxInt) }
+	b.Run("build", func(b *testing.B) {
+		for _, bd := range boards {
+			b.Run(bd.name, func(b *testing.B) {
+				f, _, _ := laid(bd.pacing)
+				for b.Loop() {
+					whole(f, f.NewHierarchy(land, 16))
+				}
+				b.ReportMetric(float64(f.Builds())/float64(b.N), "clusters/op")
+			})
+		}
+	})
+	b.Run("find", func(b *testing.B) {
+		for _, bd := range boards {
+			b.Run(bd.name, func(b *testing.B) {
+				f, _, _ := laid(bd.pacing)
+				h := f.NewHierarchy(land, 16)
+				whole(f, h)
+				var path Path
+				if _, ok := f.Climb(h, 1, cell.Land, Body{}, from, to, Either,
+					path.Steps[:]); !ok {
+					b.Fatal("no climb across the board")
+				}
+				expanded := f.Expansions()
+				for b.Loop() {
+					f.Climb(h, 1, cell.Land, Body{}, from, to, Either, path.Steps[:])
+				}
+				b.ReportMetric(float64(f.Expansions()-expanded)/float64(b.N), "expansions/op")
+			})
+		}
+	})
+	b.Run("rebuild", func(b *testing.B) {
+		for _, bd := range boards {
+			b.Run(bd.name, func(b *testing.B) {
+				f, brd, brdW := laid(bd.pacing)
+				h := f.NewHierarchy(land, 16)
+				whole(f, h)
+				c := g.At(40, 40)
+				builds := f.Builds()
+				for b.Loop() {
+					since := brd.Passage()
+					if brd.Kind(c).Admits(cell.Land) {
+						brdW.Set(c, cell.Kind{Pace: 1, Solid: true})
+					} else {
+						brdW.Set(c, cell.Kind{Pace: 1, Allows: cell.Land})
+					}
+					f.Stale(h, since)
+					whole(f, h)
+				}
+				b.ReportMetric(float64(f.Builds()-builds)/float64(b.N), "clusters/op")
+			})
+		}
 	})
 }

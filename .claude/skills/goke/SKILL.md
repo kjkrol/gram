@@ -35,10 +35,8 @@ of the checkout; read it instead of grepping.
   tracked types); `comp.At(cur)`. `q.SeekH(id)` is the cheap one for a batch sharing the
   archetype of the last `Seek`; false when it differs. `q.Pick(ids); q.Next()` walks given
   entities, `comp.At(cur)`.
-- **One query for `Seek` and `All` is fine since v3.4.1** — before, a `Seek` after an `All` or
-  `Pick` kept the last chunk's offsets and `At` read another archetype's column (gram's
-  `effect_commands` read a wrong `Label`, so a plate's `Trigger` matched its command by chance).
-  Keep gram's pattern anyway: a `lookup` query for `Seek`, a `walk` query for `All`.
+- One query may serve `Seek` and `All`; gram keeps its pattern: a `lookup` query for `Seek`, a
+  `walk` query for `All`.
 - A query sees components as they are; what a `CmdBuf` added lands at `Sync`.
 
 ## Command buffers and columns
@@ -57,9 +55,9 @@ of the checkout; read it instead of grepping.
 ## Conventions of the repo
 
 - Go 1.27: generic methods are allowed and used (`func (c *Columns) Own[T any](...)`).
-- **100% statement coverage** in every package but `internal/chunk` (99.5% before any of my
-  work) and the examples; CI runs `go test -race -coverprofile`. A change without a test does
-  not go in. Check with `go test -cover ./...`.
+- **100% statement coverage** in every package but `internal/chunk` and the examples; CI runs
+  `go test -race -coverprofile`. A change without a test does not go in. Check with
+  `go test -cover ./...`.
 - Internal tests may build `AddOne` with nil defs: `stage()` fills a def from `T`.
 - Release: CHANGELOG entry **before** the tag (the tag then carries it); tags `vX.Y.Z`; release
   notes cover everything since the last published release, not since the last tag; the user
@@ -72,7 +70,6 @@ of the checkout; read it instead of grepping.
 - Memory read through a chunk's columns (aabbworld runs over `Base`) holds the same entities only
   until a Sync moves one of the table's entities (`ChunkSnapshot.TableVer`); an append changes
   the count, not the version: gather again after every Sync that may move a held entity.
-
 - `go doc -short Type | grep -v '^type'` hides the methods: use `scripts/api.sh Type`.
 - In zsh `echo ==` fails (`=cmd` expansion): write `echo '--'`.
 - A chunk's `Cursor.Offsets` belong to that chunk; never keep a `Cursor` across `Next`.

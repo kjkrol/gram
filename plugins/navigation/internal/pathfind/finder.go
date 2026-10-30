@@ -2,10 +2,11 @@ package pathfind
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/astar"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/hpastar"
+	"github.com/kjkrol/hpastar/graph"
 	"github.com/kjkrol/uid"
 )
 
@@ -31,10 +32,9 @@ type Finder struct {
 	built      built  // nil: nothing stands
 	lanes      lanes  // nil: no band narrows a step
 	levels     Levels // nil: every cell one level
-	solver     *astar.Solver[cell.ID]
-	leveled    *astar.Solver[node]
-	plain      astar.Transitions[cell.ID]
-	stepped    astar.Transitions[node]
+	plain      *hpastar.Search[cell.ID]
+	leveled    *hpastar.Search[node]
+	stepped    graph.Transitions[node]
 	blocked    func(cell.ID) bool // nil: none
 	entity     uid.UID64
 	domain     cell.Domain
@@ -46,9 +46,12 @@ type Finder struct {
 	reads      []read // by ordinal
 	search     uint32
 	rings      rings
-	// the solvers' last results, written over by the next search
+	// what the searches last wrote, from the start, written over by the next search
 	path  []cell.ID
 	route []node
+	// the hierarchies' last: ahead of the fields a fill reads, they made it 1.5% slower
+	climbs, builds uint64
+	climbing       climbing
 }
 
 // Level is which level of its goal cell a route ends on; a goal of one level takes any.
@@ -132,10 +135,12 @@ func New(grid grid.Grid, terrain cell.Terrain, pacing Pacing, occupancy cell.Occ
 	p.built, _ = terrain.(built)
 	p.lanes, _ = terrain.(lanes)
 	p.passing, _ = terrain.(passing)
-	p.solver = astar.New(grid.Distance,
-		astar.WithIndexedSliceDict(grid.CellCount()+1, p.slot),
-		astar.WithSuccessorCapacity[cell.ID](grid.Directions()))
-	p.plain = p.plainFrom
+	p.plain = hpastar.NewSolver(graph.Implicit[cell.ID]{
+		Forward:   p.plainFrom,
+		Heuristic: grid.Distance,
+		Index:     p.slot,
+		Size:      grid.CellCount() + 1,
+	}).Search()
 	return p
 }
 
@@ -153,15 +158,6 @@ func (p *Finder) Reads(terrain cell.Terrain, pacing Pacing, levels Levels) {
 
 func (p *Finder) paces(pacing Pacing) {
 	p.pacing, p.sloped = pacing, pacing != nil && pacing.Sloped()
-}
-
-// Wipe wipes the solvers' memory of their searches now, between two, where fewer than within
-// searches are left before one would.
-func (p *Finder) Wipe(within int) {
-	p.solver.Wipe(within)
-	if p.leveled != nil {
-		p.leveled.Wipe(within)
-	}
 }
 
 // a cell's slot in a solver's dictionaries; a start off the grid, the one cell of a search
@@ -187,11 +183,13 @@ func (p *Finder) nodeSlot(n node) int {
 // WithLevels has the Finder plan over the raised floors levels say.
 func (p *Finder) WithLevels(levels Levels) *Finder {
 	p.levels = levels
-	// a step onto either level of every neighbour, and the goal
-	p.leveled = astar.New(func(a, b node) float64 { return p.grid.Distance(a.c, b.c) },
-		astar.WithIndexedSliceDict(2*p.grid.CellCount()+2, p.nodeSlot),
-		astar.WithSuccessorCapacity[node](2*p.grid.Directions()+1))
 	p.stepped = p.leveledFrom
+	p.leveled = hpastar.NewSolver(graph.Implicit[node]{
+		Forward:   p.stepped,
+		Heuristic: func(a, b node) float64 { return p.grid.Distance(a.c, b.c) },
+		Index:     p.nodeSlot,
+		Size:      2*p.grid.CellCount() + 2,
+	}).Search()
 	return p
 }
 
@@ -281,11 +279,15 @@ func (p *Finder) Find(
 	p.decks, p.body, p.entity = 0, body, entity
 	p.begin(domain)
 	if p.levels == nil {
-		p.path = p.solver.SolveInto(p.path, from, to, p.plain)
-		if len(p.path) < 2 {
+		// the start, then as many steps as dst holds
+		if cap(p.path) < len(dst)+1 {
+			p.path = make([]cell.ID, len(dst)+1)
+		}
+		n, ok := p.plain.Path(from, to, p.path[:len(dst)+1])
+		if !ok || n < 2 {
 			return 0, false
 		}
-		return copy(dst, p.path[1:]), true
+		return copy(dst, p.path[1:n]), true
 	}
 	return p.findFrom(node{from, p.levelOf(p.at(from), body)}, to, end, dst)
 }
@@ -296,24 +298,45 @@ func (p *Finder) findFrom(start node, to cell.ID, end Level, dst []cell.ID) (int
 	if len(p.levelsOf(p.at(to))) == 1 {
 		p.end = Either
 	}
-	p.route = p.leveled.SolveInto(p.route, start, node{to, goal}, p.stepped)
-	full := p.route
-	if len(full) < 3 {
+	// the start, every step dst holds and the goal past them where the route ends there
+	if cap(p.route) < len(dst)+2 {
+		p.route = make([]node, len(dst)+2)
+	}
+	n, ok := p.leveled.Path(start, node{to, goal}, p.route[:len(dst)+2])
+	if !ok {
 		return 0, false
 	}
-	p.ended = full[len(full)-2].level
-	n := 0
-	for _, s := range full[1 : len(full)-1] {
-		if n == len(dst) {
-			break
-		}
-		dst[n] = s.c
-		if s.level == deck && n < 64 {
-			p.decks |= 1 << n
-		}
-		n++
+	return p.stepsOf(p.route[:n], dst)
+}
+
+// stepsOf writes the steps of route, what a search wrote from its start, into dst as Find writes
+// them, as many as dst holds, and notes the level the route ends on: its last step's where route
+// holds its goal, else the one its end asks for, the ground for Either; false where it takes none
+func (p *Finder) stepsOf(route []node, dst []cell.ID) (int, bool) {
+	route = route[1:]
+	whole := len(route) > 0 && route[len(route)-1].level == goal
+	if whole {
+		route = route[:len(route)-1]
 	}
-	return n, true
+	if len(route) == 0 {
+		return 0, false
+	}
+	switch {
+	case whole:
+		p.ended = route[len(route)-1].level
+	case p.end == Deck:
+		p.ended = deck
+	default:
+		p.ended = ground
+	}
+	route = route[:min(len(route), len(dst))]
+	for k, s := range route {
+		dst[k] = s.c
+		if s.level == deck && k < 64 {
+			p.decks |= 1 << k
+		}
+	}
+	return len(route), true
 }
 
 // Decks says which steps of the last route found lie on a raised deck, bit k the k-th.
@@ -402,7 +425,7 @@ func (p *Finder) cutOff(c corner) bool {
 }
 
 func (p *Finder) plainFrom(from, prev cell.ID,
-	buf []astar.Transition[cell.ID]) []astar.Transition[cell.ID] {
+	buf []graph.Transition[cell.ID]) []graph.Transition[cell.ID] {
 	p.expansions++
 	buf = buf[:0]
 	for i := range p.grid.Directions() {
@@ -424,20 +447,20 @@ func (p *Finder) plainFrom(from, prev cell.ID,
 		if !ok {
 			continue
 		}
-		buf = append(buf, astar.Transition[cell.ID]{To: n, Cost: cost})
+		buf = append(buf, graph.Transition[cell.ID]{To: n, Cost: cost})
 	}
 	return buf
 }
 
 func (p *Finder) leveledFrom(from, prev node,
-	buf []astar.Transition[node]) []astar.Transition[node] {
+	buf []graph.Transition[node]) []graph.Transition[node] {
 	p.expansions++
 	buf = buf[:0]
 	if from.level == goal {
 		return buf
 	}
 	if from.c == p.goal && (p.end == Either || p.end == Deck == (from.level == deck)) {
-		buf = append(buf, astar.Transition[node]{To: node{p.goal, goal}})
+		buf = append(buf, graph.Transition[node]{To: node{p.goal, goal}})
 	}
 	rf := p.at(from.c)
 	for i := range p.grid.Directions() {
@@ -450,7 +473,7 @@ func (p *Finder) leveledFrom(from, prev node,
 		cut := c.diagonal && p.cutOff(c)
 		for _, level := range p.levelsOf(rn) {
 			if cost, ok := p.step(from, rf, rn, level, c, cut); ok {
-				buf = append(buf, astar.Transition[node]{To: node{n, level}, Cost: cost})
+				buf = append(buf, graph.Transition[node]{To: node{n, level}, Cost: cost})
 			}
 		}
 	}
@@ -472,6 +495,64 @@ func (p *Finder) step(from node, rf, rn *read, level uint8, c corner, cut bool) 
 		return 0, false
 	}
 	return p.price(from.c, rn, k, level, c.diagonal)
+}
+
+// leveledInto is leveledFrom seen from where its steps end: the steps into to, each from the
+// node it is taken from and priced as leveledFrom prices it there, next's cell passed over as
+// leveledFrom passes over prev's; into the goal from its cell's levels a route may end on
+func (p *Finder) leveledInto(to, next node,
+	buf []graph.Transition[node]) []graph.Transition[node] {
+	buf = buf[:0]
+	if to.level == goal {
+		if to.c != p.goal {
+			return buf
+		}
+		for _, level := range p.levelsOf(p.at(to.c)) {
+			if p.end == Either || p.end == Deck == (level == deck) {
+				buf = append(buf, graph.Transition[node]{To: node{to.c, level}})
+			}
+		}
+		return buf
+	}
+	if p.blocked != nil && p.blocked(to.c) {
+		return buf
+	}
+	rt := p.at(to.c)
+	for i := range p.grid.Directions() {
+		n, ok := p.grid.Toward(to.c, i)
+		if !ok || n == next.c {
+			continue
+		}
+		in := p.stepsInto(to, rt, i, n)
+		for k := range in.count {
+			buf = append(buf, graph.Transition[node]{To: node{n, in.levels[k]},
+				Cost: in.prices[k]})
+		}
+	}
+	return buf
+}
+
+// the steps into a node from one of its neighbours, a level of the neighbour's each
+type stepsIn struct {
+	count  int
+	levels [2]uint8
+	prices [2]float64
+}
+
+// stepsInto is what the steps into t from its neighbour n, in direction i from t, cost, rt t's
+// cell: each checked and priced as leveledFrom checks and prices it from n
+func (p *Finder) stepsInto(t node, rt *read, i int, n cell.ID) stepsIn {
+	var in stepsIn
+	rn := p.at(n)
+	c := p.cornerOf(n, t.c, p.grid.Opposite(i))
+	cut := c.diagonal && p.cutOff(c)
+	for _, level := range p.levelsOf(rn) {
+		if price, ok := p.step(node{n, level}, rn, rt, t.level, c, cut); ok {
+			in.levels[in.count], in.prices[in.count] = level, price
+			in.count++
+		}
+	}
+	return in
 }
 
 // a unit is no bigger than a cell's side, so only a deck's band narrower than the body across the
@@ -625,8 +706,17 @@ func (p *Finder) NearestFree(
 	entity uid.UID64, domain cell.Domain, body Body, from, target cell.ID, end Level,
 	taken func(c cell.ID, deck bool) bool, dst []cell.ID,
 ) (cell.ID, int, bool) {
+	return p.NearestFreeThrough(nil, entity, domain, body, from, target, end, taken, dst)
+}
+
+// NearestFreeThrough is NearestFree searching, once a search for one cell has failed, no route
+// to a cell h says from cannot reach; with a nil h, NearestFree.
+func (p *Finder) NearestFreeThrough(
+	h *Hierarchy, entity uid.UID64, domain cell.Domain, body Body, from, target cell.ID,
+	end Level, taken func(c cell.ID, deck bool) bool, dst []cell.ID,
+) (cell.ID, int, bool) {
 	p.begin(domain)
-	n := 0
+	n, failed := 0, false
 	passable := func(c cell.ID) bool { return p.terrain.Kind(c).Admits(domain) }
 	own := p.levelOf(p.at(from), body)
 	reachableFree := func(c cell.ID) bool {
@@ -654,10 +744,14 @@ func (p *Finder) NearestFree(
 				n, p.decks = 0, 0
 				return true
 			}
+			if failed && h != nil && !p.Reaches(h, domain, body, from, c) {
+				return false
+			}
 			var ok bool
 			if n, ok = p.Find(entity, domain, body, from, c, on, dst); ok {
 				return true
 			}
+			failed = true
 		}
 		return false
 	}

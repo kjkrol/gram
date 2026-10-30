@@ -28,7 +28,12 @@ type Keeping interface {
 	Ready(m bodies.Member, o *order.MoveOrder)
 	Route(m bodies.Member, from cell.ID, o *order.MoveOrder) (order.Path, bool)
 	// Lost: wait on, or settle on dest along path, or with neither give up
-	Lost(m bodies.Member, from cell.ID, o *order.MoveOrder, waited time.Duration) (dest cell.ID, path order.Path, wait, ok bool)
+	Lost(
+		m bodies.Member,
+		from cell.ID,
+		o *order.MoveOrder,
+		waited time.Duration,
+	) (dest cell.ID, path order.Path, wait, ok bool)
 	// a zero dir keeps the heading m has
 	Steer(m bodies.Member, st steering.Helm, dir geom.Vec, speed float32)
 	Watch(m bodies.Member, o *order.MoveOrder, toward cell.ID, want geom.Vec, d time.Duration)
@@ -123,7 +128,8 @@ type Answers struct {
 const keptAnswers = 4096
 
 // a question asked again over the board as it stands gets the answer it got, unrun; a route the
-// field of m's group gives is walked off it, else searched, and kept alike
+// field of m's group gives is walked off it, else climbed through the hierarchy of m's class
+// where m is given one, a far route's, else searched, and kept alike
 func (a *avoiding) find(f *Finder, m bodies.Member, from cell.ID, o *order.MoveOrder,
 	around bool) (order.Path, bool) {
 	q := asked{from: from, to: o.Target, end: o.Level, domain: m.Domain, body: m.Body(),
@@ -147,6 +153,9 @@ func (a *avoiding) find(f *Finder, m bodies.Member, from cell.ID, o *order.MoveO
 	} else {
 		if m.Field != nil {
 			p, ok = f.walkField(m.Field, m, from, o)
+		}
+		if !ok && m.Hierarchy != nil {
+			p, ok = f.climbPath(m.Hierarchy, m.ID, m.Domain, q.body, from, o.Target, o.Level)
 		}
 		if !ok {
 			p, ok = f.FindPath(m.ID, m.Domain, q.body, from, o.Target, o.Level)
@@ -334,12 +343,17 @@ func (k *CellKeeping) isHeld(c cell.ID, deck bool) bool {
 	return !k.occ.CanEnter(c, deck, k.holder, k.holderIn)
 }
 
-func (k *CellKeeping) Lost(m bodies.Member, from cell.ID, o *order.MoveOrder, waited time.Duration) (cell.ID, order.Path, bool, bool) {
+func (k *CellKeeping) Lost(
+	m bodies.Member,
+	from cell.ID,
+	o *order.MoveOrder,
+	waited time.Duration,
+) (cell.ID, order.Path, bool, bool) {
 	if waited < TargetWaitTimeout {
 		return 0, order.Path{}, true, false
 	}
-	dest, path, ok := k.finder.nearestFree(m.ID, m.Domain, m.Body(), from, o.Target, o.Level,
-		k.held(m))
+	dest, path, ok := k.finder.nearestFree(m.Hierarchy, m.ID, m.Domain, m.Body(), from,
+		o.Target, o.Level, k.held(m))
 	return dest, path, false, ok
 }
 
@@ -407,8 +421,8 @@ func (k *CellKeeping) Bump(m bodies.Member, o *order.MoveOrder) BumpAnswer {
 		return GiveUp
 	}
 	if o.Toward == o.Target {
-		dest, path, ok := k.finder.nearestFree(m.ID, m.Domain, m.Body(), m.From, o.Target, o.Level,
-			k.held(m))
+		dest, path, ok := k.finder.nearestFree(nil, m.ID, m.Domain, m.Body(), m.From, o.Target,
+			o.Level, k.held(m))
 		if !ok {
 			return GiveUp
 		}
@@ -515,7 +529,8 @@ func (k *CellKeeping) Detour(m bodies.Member, o *order.MoveOrder, other bodies.B
 		return CarryOn
 	}
 	path, ok := k.Route(m, m.From, o)
-	o.Holding, o.Cornered = 0, !ok || path.Index < path.Length && slices.Contains(path.Steps[path.Index:path.Length], c)
+	o.Holding, o.Cornered = 0, !ok ||
+		path.Index < path.Length && slices.Contains(path.Steps[path.Index:path.Length], c)
 	if !o.Cornered {
 		o.Path = path
 	}
@@ -527,8 +542,8 @@ func (k *CellKeeping) Pass(bodies.Member, *order.MoveOrder, bodies.Body) {}
 func (k *CellKeeping) OnGoal(self, other bodies.Body) bool { return other.Cell == self.Goal }
 
 func (k *CellKeeping) Settle(m bodies.Member, o *order.MoveOrder, _ bodies.Body) bool {
-	dest, path, ok := k.finder.nearestFree(m.ID, m.Domain, m.Body(), m.From, o.Target, o.Level,
-		k.held(m))
+	dest, path, ok := k.finder.nearestFree(nil, m.ID, m.Domain, m.Body(), m.From, o.Target,
+		o.Level, k.held(m))
 	if !ok {
 		return false
 	}

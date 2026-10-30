@@ -828,7 +828,7 @@ opakowanie `rc` w `internal/engine/stage_runtime.go` jak w `Clock.Replay`.
 
 ## Fala 3 (plan 2026-10-21, gałąź `perf/wave-3`)
 
-Dziewięć części naraz (agenty Opus 5.5, bez pomiarów czasu), briefy w `doc/briefs/w3.md`: A
+Dziewięć części naraz (agenty Opus 5.5, bez pomiarów czasu): A
 Detour bez zmiany zachowania, B odstęp „dosłowny” (alternatywa A, wejdzie lepsza), C osiadanie
 po `Sync` poza symulacją (poprawność), D słowniki astar, E alokacje kroków ceremony, F `Scan` bez
 alokacji i niestabilny test w aabbworld, G tańszy ruch (aabbworld + gram), H bez `unindexed`
@@ -871,7 +871,7 @@ gram. Do tego czasu `/home/karol/CODE/go.work` używa `./astar` i `./aabbworld` 
 
 ## Fala 4 (plan 2026-10-21, ta sama gałąź `perf/wave-3`)
 
-Na życzenie użytkownika: pozostałe pomysły alokacyjne, brief `doc/briefs/w4.md`: E2 trzy kroki
+Na życzenie użytkownika: pozostałe pomysły alokacyjne: E2 trzy kroki
 ceremony, D2 ścieżka astar do bufora (astar + gram), K boksowanie uniformów i `DrawImageIn` w
 gram. Ta sama procedura; reguła akceptacji rozszerzona decyzją użytkownika: mniej alokacji przy
 czasie nie gorszym to ulepszenie. Przyjęte części wchodzą do tych samych PR-ów (`perf/wave-3`).
@@ -1100,7 +1100,7 @@ tolerancji ok. 1e-3 promienia, ten sam zbiór encji).
 `Cone.Heights *HeightField` (narożniki, Cols×Rows, Cell, WrapX/Y; komórka to dwa trójkąty
 złożone wzdłuż przekątnej o mniejszej różnicy wysokości, poza siatką 0), `Cone.Bend` (krzywizna:
 grunt opada o Bend·d²), `QueryableSpace.QueryCone` z adapterem `sight` odpowiadającym kołem wokół
-stożka. gram `perf/sight-simd` od `main` v0.5.0: ten plan i briefy `doc/briefs/s*.md`.
+stożka. gram `perf/sight-simd` od `main` v0.5.0: ten plan.
 
 **Części** (agenci Opus 5.5, worktree `/home/karol/worktrees/<repo>/<część>`, gałąź
 `s/<część>` od preludium; pomiary tylko integratora):
@@ -1359,7 +1359,7 @@ nośna dla wielu formacji, nie pole w `MoveTo`, zwartość i luz kolumny jako pa
 rozkazu): `March{Cell, To, At, Level, In Formation}`, `Formation{Shape, Spacing, Closed,
 Slack}`, `ColumnOf`; rozkaz niesie formację, miejsce w niej, poprzednika i odstęp; koordynator
 układa formację z kosztu pola co Update, keeping trzyma tempo poprzednika, czoło zwarte czeka
-na ogon; brief `doc/briefs/t4-column.md` (runda 2 po sondzie płaskowyżu). Pomiar:
+na ogon (runda 2 po sondzie płaskowyżu). Pomiar:
 `Navigation_Tick` (nowy rung `column,1000` wobec `grouped,1000` drzewa; baza ma 4 rungi),
 `Routing_Group`; sonda: 30 górali jednym `March`, kolumna zwarta i rwana, wobec `MoveTo`.
 
@@ -1393,7 +1393,7 @@ kolejce za idącymi (`held by`, `Blocks → Detour`, `stalls 5`): to etap 2, jak
 (`Board_Altitude` 398 → 405 µs: odczyt `At.Next`, `At` 8 → 16 B), w szumie przy 100; przyjęte.
 Dema z nawigacją i jazdą pod `timeout 20s` zdrowe. Stary zapis nie wczyta się (`At` większe).
 
-**Etap 2** (`feat/trail`, v0.8.0; wykonany przez agenta Opus 5.5 z briefu `doc/briefs/t2-trail.md`
+**Etap 2** (`feat/trail`, v0.8.0; wykonany przez agenta Opus 5.5
 w worktree, integrowany sondą): cztery rundy, bo sonda płaskowyżu obalała projekt trzy razy.
 (1) Brief jak w planie: słowa `Ahead`/`Along`/`SameWay`/`OtherTrailing` po głowie, `Trail` z
 pamięcią 0,5 s, czekanie ograniczone rozpiętością komórki przez tempo prowadzonego i 3 s;
@@ -1436,7 +1436,7 @@ kopii `main` v0.7.1, `GOWORK=off` po obu stronach, `BENCHTIME=200x`, 3 rundy × 
 ziarna, ostatni w 291 s gry. Sześć dem z nawigacją pod `timeout 20s` zdrowe. Stary zapis nie
 wczyta się (rozkaz większy).
 
-**Etap 3** (`feat/field`, v0.9.0; agent Opus 5.5 z briefu `doc/briefs/t3-field.md`, siedem
+**Etap 3** (`feat/field`, v0.9.0; agent Opus 5.5, siedem
 commitów: wyłuskanie `step`/`findFrom` (golden tras bez zmian), `pathfind.Field` z `FillField`,
 `Walk`, `Fills()`, `spacing.Fields` z `walkField` i gałęzią w `avoiding.find`, `Member.Field`,
 liczność partii w rozkazie (`MoveOrder.Party`), `At` w `CellKeeping.Orders`, testy grupy,
@@ -1477,7 +1477,7 @@ obciążoną po benchmarkach — sonda nie jest deterministyczna przy jednym zia
 symulacji na Update idzie za czasem rzeczywistym; pułapka w `gram-probe`). Stary zapis nie
 wczyta się (rozkaz o 2 B większy). Sześć dem z nawigacją pod `timeout 20s` zdrowe.
 
-**Etap 4** (`feat/column`, v0.10.0; agent Opus 5.5 z briefu `doc/briefs/t4-column.md`, dwie
+**Etap 4** (`feat/column`, v0.10.0; agent Opus 5.5, dwie
 rundy: `b07dc611`, `c6aae102`, `95effb44`, `76f88d45` i poprawka `19daf936`). Decyzje
 użytkownika: nowa komenda nośna dla wielu formacji (nie pole `MoveTo`), zwartość i luz kolumny
 jako parametry rozkazu. Weszło: `March{Cell, To, At, Level, In}` (ta sama droga co `MoveTo` w
@@ -1557,8 +1557,8 @@ doprecyzowanie bez szukania (drzewa od wejść zapisane przy budowie, A* tylko a
 0,5 ms na kawałek odrzucone); schody: astar v1.3.0 i gram etap A równolegle, gram etap B po
 tagu; wykonanie i pomiary agentami Opus, integrator analizuje, scala i zleca poprawki.
 
-**Etap astar** (`feat/hierarchy`, v1.3.0, części `h/dijkstra` → `h/hierarchy` ∥ `h/example`,
-briefy w `doc/briefs/` astara): `Dijkstra[T]{NewDijkstra, Fill(sources, transitions, within,
+**Etap astar** (`feat/hierarchy`, v1.3.0, części `h/dijkstra` → `h/hierarchy` ∥ `h/example`):
+`Dijkstra[T]{NewDijkstra, Fill(sources, transitions, within,
 targets), Cost, Parent, Settled, Wipe}` nad kopcem i słownikiem solvera; `Hierarchy[T]`
 (`Graph{Forward, Backward, Heuristic}`, `Layout{Coords, Size, Indexer, Capacity}`; `WithSide`,
 `WithFactor`, `WithTop`, `WithSpan`, `WithTrees`; `Stale`, `Build(budget)`, `Ready`, `Find`
@@ -1567,7 +1567,7 @@ miarą heurystyki plus lokalne minima kosztu przejścia (drogi) plus końce bieg
 skierowane; poziom k nad grafem poziomu k−1; determinizm (porządek id i współrzędnych, remisy
 kopca); testy skali i golden kosztów; przykład i benchmarki. Tag v1.3.0: użytkownik.
 
-**Etap A** (`feat/passage`, v0.11.0; brief `doc/briefs/p1-passage.md`): rzut przejezdny
+**Etap A** (`feat/passage`, v0.11.0): rzut przejezdny
 komórki (`Allows`, `Solid`, `Graded`, `Pace`, `Paces`, droga: rodzaj, szerokość, linki,
 `Built`) haszowany na ordinal; `BoardRead.Passage()` i `CellPassage(c)` (nie startują od nowa;
 `Touch` zawsze liczy się; `Set`/`SetWay`/`SetAll` i przebieg efektów stemplują tylko przy
@@ -1602,7 +1602,7 @@ długą trasę, dojścia 30/30 ≤ 340 s, zero przebudów po przejściu wiatru.
 
 ## HPA*: wynik (2026-10-29)
 
-**Etap A** (`feat/passage`, v0.11.0; agent Opus 5.5 z briefu `doc/briefs/p1-passage.md`, cztery
+**Etap A** (`feat/passage`, v0.11.0; agent Opus 5.5, cztery
 commity: `6f7d1f23` przejezdność komórki, `dbd2737f` nawigacja po niej, `635153b2` liczniki,
 `e302126e` komentarz). Weszło: rzut przejezdny komórki haszowany na ordinal (`maphash.Comparable`,
 16 B na komórkę) — szerszy niż brief, i słusznie: `price` wycenia krok skośny poza drogą po
@@ -1620,7 +1620,7 @@ rozwinięć, kołysanie bez utraty odpowiedzi i pola, lód z utratą; golden, `-
 Ryzyka: `Mobility` gry czytająca pole spoza `Step`; krok czyta sąsiadów (narożniki, pasma),
 więc klaster etapu B ocenia nieaktualność po komórkach i pierścieniu; koszt przeniesiony na
 zapisy (3 seeki i hasz na dotkniętą komórkę, `made`/`SetAll` O(komórek)). Pomiar (agent
-mierzący Opus z briefu `doc/briefs/m-passage.md`; baza v0.10.0, na zmianę, `GOWORK=off`, 200x
+mierzący Opus; baza v0.10.0, na zmianę, `GOWORK=off`, 200x
 3×2 zwykły i `-cpu=1`, routing i pathfind ręcznie 10x): nic nie traci ≥ 3% mediany z powodu
 etapu; hasz przejezdności (`passageOf`, `maphash`) widać w profilach tylko w układaniu planszy
 benchmarku (10–30 ms), nigdy na ścieżce mierzonej; `Routing_Path` +2,1% mediany z 30 próbek
@@ -1640,3 +1640,50 @@ przejście wiatru (43,8 → 15 przy 1,07 s, kołysanie 1 788 komórek lasu) podb
 `Passage` o 0 (mosty na pierwszym ticku: `Passage` +65); ticki z szukaniem w medianie równe
 cichym (±0,1 ms). Sześć dem z nawigacją: w etapie B (demo topografii zbudowane z linią
 liczników).
+
+**Etap astar** (`feat/hierarchy` w astar, do v1.3.0; agenci Opus):
+`Dijkstra[T]` (jeden-do-wielu, `within` pytane przed słownikiem, więc słownik
+lokalny klastra), `Hierarchy[T]` (poziomy adaptacyjnie, wejścia co `span` z podwajaniem w górę,
+lokalne minima kosztu przejścia, krawędzie zdominowane pominięte, budowa na tablicach lokalnych
+klastra, kaskada `Stale`), `Search[T]` na gorutynę (zapytania nic nie piszą w hierarchii,
+etykiety i bazy liczy `Build`), poziom szukania po odległości (słowo użytkownika: para bliska
+przez granicę wysokiego poziomu robiła objazd do jego wejść; testy padały na starym kodzie),
+`examples/hpa`, mapy generowane i testy skali (4096² za `ASTAR_SCALE=4096`). Pomiar (jeden
+przebieg na stronę): `Find` 1024² 1,35 ms wobec `Solver` 358 ms (266×), budowa 256² 168 ms,
+`Solver_Octile` wobec v1.2.0 −2,1% (wcześniejsze +5–7% to boost pierwszej rundy bazy).
+Scalenie do `main` i tag: użytkownik.
+
+**Etap B** (`feat/hpa`, v0.12.0; agenci Opus z briefów `h4-graph.md`, `h5-route.md`, rundy h4b,
+h4c, h5 2–3): `pathfind.Hierarchy` nad `astar.Hierarchy[node]` (jeden finder buduje, każdy pyta
+własnym `Search`; graf tylko po węzłach, na których klasa stoi — rzeka na granicy klastra
+łączyła brzegi w `Reaches`), `spacing.Hierarchies` (4 klasy LRU, `Expect` deterministyczne,
+`Sweep` co tick: `Stale` przy ruchu `Passage`, 2 klastry budowy na tick; partie bez hierarchii),
+`find`: odpowiedź pamiętana → pole → wspinaczka → szukanie; `Lost` z `Reaches`; routing co tick;
+`WithHierarchy{Side, From, Off}`, bok z sektorów świata; demo topografii `From: 32`. Pomiar
+(jeden przebieg na stronę, słowo użytkownika 2026-10-29: scenariusze raz albo dwa, nie serie;
+cały pomiar kilka minut): `Routing_Path` 12,25 → 3,88 ms (−68%), `Routing_Long` 27,5 → 6,0 ms
+(−78%), `Navigation_Tick` 1 000 w szumie (crowded +4–6% z THP, −2,9% bez), wypełnianie pola po
+h4c jak v0.11.0 (+0,4% map, −1,6% relief; przed h4c +5–17%: ramka `stepsInto` na sąsiada i
+pola findera przesunięte o 16 B), `Routing_Group` +0,2%/−1,7%; tick budowy ~3 ms; sonda Madery:
+klasa gotowa w 27 tickach (198 klastrów), długie rozkazy wspinane po pierwszym kawałku, Machico
+217 s wobec 210 s (trasa wspinaczki o kilka procent dłuższa), reszta dojść jak w etapie A.
+
+**API astara przed tagiem** (2026-10-29, `h/api` od `feat/hpa`, agent Opus): API
+astara przebudowane przed tagiem na jedno publiczne
+`Solver`/`Search`/`Path` (`Solver` nad `Graph`, z `Layout` HPA*; `Search` na gorutynę;
+`Changed`/`Update`/`Ready`; silniki nieeksportowane), wersja 1.3.0 na słowo użytkownika; gram na
+pseudowersji `aae2aec` do tagu. Szukania findera to `NewSolver(...).Search()` (`Path` pisze start
+i tyle kroków, ile mieści bufor, poziomowy jeszcze cel; `Ended` dalej koniec trasy), `Wipe` i
+bezczynne czyszczenie znaczników koordynatora zniknęły (astar czyści kawałek na szukanie);
+hierarchia to `Solver` z `Layout` (`WithClusterSide`, `WithNear` dwa boki), klastry poziomu 1
+liczone z własnych współrzędnych, `Stale` przez `Changed`, `Build` pętlą `Update(1)` (`Update(0)`
+buduje teraz wszystko), prośby `SearchVia`, wspinaczki ze `Stats().Climbs`; `Path` nie odmawia par
+bliskich, więc `Climb` odmawia sam pary bliższej niż dwa boki klastra (inaczej astar szukałby jej
+A* w słowniku każdego `Search` hierarchii). Trasy, wspinaczki, `Decks`, `Ended`, `Reaches` i
+liczniki co do bitu jak na `feat/hpa` (kwadrat, relief, heks, torus, wąwóz z pokładem, po 200
+par). Sprawdzenie kosztu (jeden przebieg na stronę, `-cpu=1`, baza 4273e957): wszystko w szumie,
+`Routing_Path` −0,9%, `Routing_Long` −0,9%, `Routing_Group` +1,6%/0,0%, `PathFinder_Terrain`
+−0,6…+2,5%, `PathFinder_Field` −2,5%/−0,6% (wypełnienie pola nie woła astara); B/op
+`Routing_Long` przy 5x +184 KB to słowniki A* routerów, które astar robi przy pierwszym szukaniu
+`Search`, nie przy budowie: przy 40x i 400x pętla alokuje tyle samo w sumie, zero na op po
+rozgrzaniu po obu stronach, a cały proces o 2,3 MB mniej.
