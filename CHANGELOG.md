@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.15.0 — 2026-10-31
+
+**A hex relief at its cells' corners, as a square one** (2026-10-31, branch `feat/hex-corners`)
+- Changed: a hex board's relief stands at its cells' corners, the neighbouring cells sharing
+  them, as a square board's: a cell is six triangles from its middle, at the mean of its six
+  corners, out to them, so a hill is a slope, not a terrace of prisms. Units, sight (`Along`
+  exact across every triangle) and the drawing stand on one surface, lit smoothly from the
+  corners, walls only at the board's edge. Raise and Lower move the nearest corner, Level and
+  Flatten lay corners flat, `Shaping.MaxStep` holds along the cells' edges. A save holding a hex
+  relief of a level a cell loads, every corner at the mean of the cells meeting there.
+- Changed: a hex cell's level is the mean of its corners, so routes over a hex relief price
+  their steps a little gentler: on the pinned hex board 4 of 100 routes take other cells, none
+  found or lost, and 462 of 570 priced steps cost up to 6% less. Benchmark `Board_AltitudeHex`.
+
 ## v0.14.1 — 2026-10-31
 
 **navigation/hex as navigation/square, the grid the one difference** (2026-10-31, branch

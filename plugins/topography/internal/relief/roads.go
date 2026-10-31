@@ -55,9 +55,11 @@ func (r *Relief) roadFits(c cell.ID, links cell.Links) bool {
 
 func (r *Relief) restore(values []float32) {
 	for i, h := range values {
-		v := vertex{x: i}
+		var v vertex
 		if r.square {
 			v = vertex{x: i % r.cols, y: i / r.cols}
+		} else {
+			v = r.hexVertex(i)
 		}
 		r.setValue(v, h)
 	}

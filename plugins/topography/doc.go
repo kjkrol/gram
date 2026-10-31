@@ -11,14 +11,15 @@
 //
 // # Relief
 //
-// The ground's heights are [Write.Relief], seeded by [Write.Seed] when a game starts fresh
-// (board.Level.Heights, or ground.MeanOfCells from a height per cell) and shaped at play by
-// [Raise], [Lower] and [Level] as the Config's [Shaping] says. Every step the plugin puts every
-// unit at the surface under it, the ground or a deck carrying its domain within its step, plus
-// its Mover's Lift; a unit carrying a motion.Drift is gravity's. How steep a step from cell to
-// cell is, is the relief's ([Plugin.Rise], the board's Map's); what the slope does to a unit is
-// the board's mobility's, in the planner and on the move alike. [Write.Flatten] lays a cell
-// flat: the Write is a ground.Shaper.
+// The ground's heights are [Write.Relief], standing at the cells' corners on a square board and
+// a hex one alike, seeded by [Write.Seed] when a game starts fresh (board.Level.Heights, or
+// ground.MeanOfCells from a height per cell) and shaped at play by [Raise], [Lower] and [Level]
+// as the Config's [Shaping] says. Every step the plugin puts every unit at the surface under it,
+// the ground or a deck carrying its domain within its step, plus its Mover's Lift; a unit
+// carrying a motion.Drift is gravity's. How steep a step from cell to cell is, is the relief's
+// ([Plugin.Rise], the board's Map's); what the slope does to a unit is the board's mobility's,
+// in the planner and on the move alike. [Write.Flatten] lays a cell flat: the Write is a
+// ground.Shaper.
 //
 // # Cage
 //
@@ -52,7 +53,7 @@
 // (board.Surface), and under no atmosphere hands the frame its still sky, giving way to a sky
 // some other source hands it. In a world cut into sectors the
 // ground drawn is that of the sectors a camera sees, a coarser mesh (or, on a hex board, the
-// prisms' tops) where it sees one coarsely, turning into the fog before its sight's end, and
+// cells' tops alone) where it sees one coarsely, turning into the fog before its sight's end, and
 // shaded with one care less every Care sectors out from the sector under the middle of the
 // screen ([Config.Care], [Write.SetCare], [Care]), down five cares: full within Care sectors;
 // then without the shore's swell, surf and foam, the water running down the ways and the glint

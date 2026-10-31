@@ -1,6 +1,7 @@
 package topotest
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -58,13 +59,18 @@ func (c *InstallCtx) Setup(providers ...goke.SetupProvider) {
 		c.pending = append(c.pending, p.SetupSystems)
 	}
 }
-func (c *InstallCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
-func (c *InstallCtx) ECS() *goke.ECS                                  { return c.ecs }
+
+func (c *InstallCtx) RegSys(factory func() goke.System) goke.Runnable {
+	return c.ecs.RegSys(factory())
+}
+
+func (c *InstallCtx) ECS() *goke.ECS { return c.ecs }
 
 // Recruit is a QuasiWorld unit's row: the cell it starts in.
 type Recruit struct{ Start cell.ID }
 
-// QuasiWorld is a world with heights over a 4x4 board in relief with a hill at (2,1).
+// QuasiWorld is a world with heights over a 4x4 board in relief with a hill at (2,1): a square
+// board of cells 32 across, or the grid NewQuasiWorldOn takes.
 type QuasiWorld struct {
 	ECS    *goke.ECS
 	World  *world.Plugin
@@ -75,7 +81,11 @@ type QuasiWorld struct {
 }
 
 // NewQuasiWorld is a QuasiWorld with the units define makes; collide adds the collision plugin.
-func NewQuasiWorld(t *testing.T, collide bool, define func(units *board.Units[Recruit], grid grid.Grid) []kind.Entry) *QuasiWorld {
+func NewQuasiWorld(
+	t *testing.T,
+	collide bool,
+	define func(units *board.Units[Recruit], grid grid.Grid) []kind.Entry,
+) *QuasiWorld {
 	t.Helper()
 	withWorld := func(qw *QuasiWorld, units *board.Units[Recruit]) []kind.Entry {
 		return define(units, qw.Grid)
@@ -102,9 +112,30 @@ func NewQuasiWorldUpTo(
 	define func(qw *QuasiWorld, units *board.Units[Recruit]) []kind.Entry,
 ) *QuasiWorld {
 	t.Helper()
-	qw := &QuasiWorld{Grid: grid.DefaultGrids{}.Square(4, 4, 32)}
+	return NewQuasiWorldOn(t, grid.DefaultGrids{}.Square(4, 4, 32), collide, size, define)
+}
+
+// NewQuasiWorldOn is NewQuasiWorldUpTo over g, of 4x4 cells, in a world as big as its board.
+func NewQuasiWorldOn(
+	t *testing.T,
+	g grid.Grid,
+	collide bool,
+	size uint32,
+	define func(qw *QuasiWorld, units *board.Units[Recruit]) []kind.Entry,
+) *QuasiWorld {
+	t.Helper()
+	qw := &QuasiWorld{Grid: g}
+	cw, ch := g.CellBounds()
+	var right, bottom float32
+	g.EachCell(func(c cell.ID) {
+		m := g.CellCenter(c)
+		right, bottom = max(right, m.X+cw/2), max(bottom, m.Y+ch/2)
+	})
 	qw.World = world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 128, Height: 128},
+		Space: world.SpaceCfg{
+			Width:  uint32(math.Ceil(float64(right))),
+			Height: uint32(math.Ceil(float64(bottom))),
+		},
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 20, MaxSize: size},
 		Heights:  true,
 	})
@@ -121,7 +152,11 @@ func NewQuasiWorldUpTo(
 	hillCell := qw.Grid.At(2, 1)
 	qw.Board.Write().Board().Set(hillCell, Hill)
 	RaiseHills(qw.Topo.Write().Relief(), qw.Grid, hillCell)
-	units := board.NewUnits[Recruit](qw.Board, board.Shape{Size: 20, Height: 2}, func(r Recruit) geom.Vec { return qw.Grid.CellCenter(r.Start) })
+	units := board.NewUnits[Recruit](
+		qw.Board,
+		board.Shape{Size: 20, Height: 2},
+		func(r Recruit) geom.Vec { return qw.Grid.CellCenter(r.Start) },
+	)
 	entries := define(qw, units)
 
 	ctx := NewInstallCtx()
@@ -168,7 +203,9 @@ func (qw *QuasiWorld) Zs() map[kind.ID][]world.Z {
 	var base goke.Comp[world.Base]
 	var z goke.Comp[world.Z]
 	var q *goke.Query
-	qw.ECS.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base, &z).Build() }})
+	qw.ECS.RegSys(
+		goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base, &z).Build() }},
+	)
 	out := map[kind.ID][]world.Z{}
 	for q.All(); q.Next(); {
 		cur := q.Cursor()

@@ -9,8 +9,7 @@ import (
 	irelief "github.com/kjkrol/gram/plugins/topography/internal/relief"
 )
 
-// Raise lifts the ground at At by one Shaping.Step: the nearest corner on a square grid, the cell
-// on a hex one.
+// Raise lifts the ground at the corner nearest At by one Shaping.Step.
 type Raise struct{ At geom.Vec }
 
 // Lower sinks the ground at At by one Shaping.Step, as Raise lifts it.
@@ -30,8 +29,8 @@ var (
 )
 
 // Shaping is how Raise, Lower and Level move the ground: Step per Raise or Lower, and at most
-// MaxStep between two corners along a cell's edge (two neighbouring cells on a hex grid), the
-// ground round about following as in Transport Tycoon. MaxStep zero lets any slope stand.
+// MaxStep between two corners along a cell's edge, the ground round about following as in
+// Transport Tycoon. MaxStep zero lets any slope stand.
 type Shaping struct{ Step, MaxStep float32 }
 
 type shaper struct {

@@ -54,9 +54,9 @@ What is left to do. Take an item out when it lands.
   the board's rules and not made by `cmd/gramap`.
 - **Roads with a tool** — a player lays a road as a bridge (`control.Tool`, a road's rules beside
   `bridges/site`'s), and takes a bridge down.
-- **Baked shadows over hex prisms** — the light bakes no shade over a hex grid's relief, so
-  what casts a Baked shadow (a bridge's deck and its piers) casts none there, and what stands
-  there receives only the clouds'.
+- **Baked shadows over a hex relief** — the light bakes over a square lattice of heights alone,
+  so a hex grid's relief casts no shade of its own, what casts a Baked shadow (a bridge's deck
+  and its piers) casts none there, and what stands there receives only the clouds'.
 - **The lamps' shadows in relief** — a lamp casts shadows on level ground alone; over a relief
   its cast would have to follow the ground as the sun's bake does.
 - **Clouds shading themselves** — the cover's own shade is the one look of a cloud's thickness;

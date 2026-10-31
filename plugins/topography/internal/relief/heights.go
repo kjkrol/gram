@@ -17,40 +17,62 @@ type heightsSystem struct {
 	relief  *Relief
 	query   *goke.Query
 	comp    goke.Comp[Heights]
-	spawn   goke.Comp[Heights]
+	spawned goke.Comp[Heights]
 	written uint64 // one more than the relief's version the runs hold; 0 none
 }
 
 func (s *heightsSystem) Init(si *goke.SysInit) {
 	s.query = si.NewQueryBuilder(&s.comp).Build()
 	var loaded []Heights
+	n := 0
 	for s.query.All(); s.query.Next(); {
-		loaded = append(loaded, s.comp.Slice(s.query.Cursor())...)
-	}
-	if len(loaded) > 0 {
-		if s.relief.adopt(loaded) {
-			s.written = s.relief.Version() + 1
+		runs := s.comp.Slice(s.query.Cursor())
+		loaded = append(loaded, runs...)
+		for _, h := range runs {
+			n += int(h.Count)
 		}
+	}
+	if len(loaded) == 0 {
+		s.spawn(si, 0)
+		s.written = s.relief.Version() + 1
 		return
 	}
-	f := si.NewFactory(&s.spawn)
-	f.Create(s.relief.Runs())
-	run := 0
+	if !s.relief.adopt(loaded) {
+		return
+	}
+	if n != len(s.relief.values) {
+		// a hex relief saved by cell: its runs laid anew by corner, as many more as they take
+		s.refill()
+		s.spawn(si, len(loaded))
+	}
+	s.written = s.relief.Version() + 1
+}
+
+// the relief's runs from the from-th on
+func (s *heightsSystem) spawn(si *goke.SysInit, from int) {
+	if from >= s.relief.Runs() {
+		return
+	}
+	f := si.NewFactory(&s.spawned)
+	f.Create(s.relief.Runs() - from)
+	run := from
 	for f.Next() {
 		for i := range f.Cursor.IDs {
-			h := &s.spawn.Slice(&f.Cursor)[i]
+			h := &s.spawned.Slice(&f.Cursor)[i]
 			h.First = uint32(run * HeightsRun)
 			s.relief.fill(h)
 			run++
 		}
 	}
-	s.written = s.relief.Version() + 1
 }
 
 func (s *heightsSystem) Update(*goke.CmdBuf, time.Duration) {
-	if s.written == s.relief.Version()+1 {
-		return
+	if s.written != s.relief.Version()+1 {
+		s.refill()
 	}
+}
+
+func (s *heightsSystem) refill() {
 	for s.query.All(); s.query.Next(); {
 		runs := s.comp.Slice(s.query.Cursor())
 		for i := range runs {
