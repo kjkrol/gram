@@ -31,6 +31,7 @@ type Finder struct {
 	ways       ways   // nil: no ways run
 	built      built  // nil: nothing stands
 	lanes      lanes  // nil: no band narrows a step
+	limits     limits // nil: nothing limits a step beyond the kinds
 	levels     Levels // nil: every cell one level
 	plain      *hpastar.Search[cell.ID]
 	leveled    *hpastar.Search[node]
@@ -38,6 +39,7 @@ type Finder struct {
 	blocked    func(cell.ID) bool // nil: none
 	entity     uid.UID64
 	domain     cell.Domain
+	limited    bool // something limits a step on the board as the search began
 	goal       cell.ID
 	end        Level
 	ended      uint8
@@ -108,11 +110,13 @@ type Levels interface {
 	KindAt(c cell.ID, deck bool) cell.Kind
 }
 
-// Body is whoever a route is planned for: where its feet are, how high it steps up, how tall it is
-// and its box on the ground, across and down. A zero Size fits any lane.
+// Body is whoever a route is planned for: where its feet are, how high it steps up, how tall it
+// is, its box on the ground, across and down, and its weight in kg. A zero Size fits any lane and
+// any gap, a zero Weight any floor.
 type Body struct {
 	Feet, Step, Height float32
 	Size               geom.Vec
+	Weight             float32
 }
 
 type node struct {
@@ -134,6 +138,7 @@ func New(grid grid.Grid, terrain cell.Terrain, pacing Pacing, occupancy cell.Occ
 	p.ways, _ = terrain.(ways)
 	p.built, _ = terrain.(built)
 	p.lanes, _ = terrain.(lanes)
+	p.limits, _ = terrain.(limits)
 	p.passing, _ = terrain.(passing)
 	p.plain = hpastar.NewSolver(graph.Implicit[cell.ID]{
 		Forward:   p.plainFrom,
@@ -152,6 +157,7 @@ func (p *Finder) Reads(terrain cell.Terrain, pacing Pacing, levels Levels) {
 	p.ways, _ = terrain.(ways)
 	p.built, _ = terrain.(built)
 	p.lanes, _ = terrain.(lanes)
+	p.limits, _ = terrain.(limits)
 	p.passing, _ = terrain.(passing)
 	clear(p.flats)
 }
@@ -368,7 +374,8 @@ func (p *Finder) Steps(domain cell.Domain, body Body, from, to cell.ID) (onto, o
 	p.begin(domain)
 	if p.levels == nil {
 		return false, !p.fenced(from, to, false) && p.fits(from, to, false, body) &&
-			p.terrain.Kind(to).Admits(domain) && p.paced(from, p.at(to), ground)
+			p.terrain.Kind(to).Admits(domain) && p.paced(from, p.at(to), ground) &&
+			(!p.limited || p.within(node{from, ground}, p.at(from), p.at(to), ground, body))
 	}
 	rf, rt := p.at(from), p.at(to)
 	at := node{from, p.levelOf(rf, body)}
@@ -376,7 +383,7 @@ func (p *Finder) Steps(domain cell.Domain, body Body, from, to cell.ID) (onto, o
 	for _, level := range p.levelsOf(rt) {
 		if p.crosses(at, rf, rt, level, c.diagonal) && p.passes(at, rf, rt, level, body, c) &&
 			p.fits(from, to, level == deck, body) && p.stepAt(rt, level).admits &&
-			p.paced(from, rt, level) {
+			p.paced(from, rt, level) && (!p.limited || p.within(at, rf, rt, level, body)) {
 			return level == deck, true
 		}
 	}
@@ -436,7 +443,8 @@ func (p *Finder) plainFrom(from, prev cell.ID,
 		rn := p.at(n)
 		k := p.groundOf(rn)
 		if !k.admits || !p.occupancy.CanEnter(n, false, p.entity, p.domain) ||
-			p.blocked != nil && p.blocked(n) {
+			p.blocked != nil && p.blocked(n) ||
+			p.limited && !p.within(node{from, ground}, p.at(from), rn, ground, p.body) {
 			continue
 		}
 		c := p.cornerOf(from, n, i)
@@ -487,7 +495,8 @@ func (p *Finder) step(from node, rf, rn *read, level uint8, c corner, cut bool) 
 		!p.crosses(from, rf, rn, level, c.diagonal) ||
 		cut && !p.along(from, rf, rn, level) ||
 		!p.passes(from, rf, rn, level, p.body, c) ||
-		!p.fits(from.c, rn.c, level == deck, p.body) {
+		!p.fits(from.c, rn.c, level == deck, p.body) ||
+		p.limited && !p.within(from, rf, rn, level, p.body) {
 		return 0, false
 	}
 	k := p.stepAt(rn, level)
@@ -569,9 +578,12 @@ func (p *Finder) fits(from, n cell.ID, deck bool, body Body) bool {
 	if !ok {
 		return true
 	}
-	s := p.grid.Step(way)
-	across := (body.Size.X*f32.Abs(s.Y) + body.Size.Y*f32.Abs(s.X)) / f32.Hypot(s.X, s.Y)
-	return across <= lane
+	return breadth(p.grid.Step(way), body.Size) <= lane
+}
+
+// breadth is how wide a box of size is across a step along s
+func breadth(s, size geom.Vec) float32 {
+	return (size.X*f32.Abs(s.Y) + size.Y*f32.Abs(s.X)) / f32.Hypot(s.X, s.Y)
 }
 
 // a deck reaches through a corner only along its link
@@ -695,7 +707,8 @@ func (p *Finder) kindAt(c cell.ID, level uint8) cell.Kind {
 }
 
 func (p *Finder) enterable(r *read) bool {
-	return p.groundOf(r).admits && p.occupancy.CanEnter(r.c, false, p.entity, p.domain)
+	return p.groundOf(r).admits && p.occupancy.CanEnter(r.c, false, p.entity, p.domain) &&
+		p.bears(r, ground)
 }
 
 const maxVisitedCells = 64

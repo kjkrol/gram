@@ -71,5 +71,8 @@ Pomysłu z ich „Odrzucone" nie proponuje się bez nowego powodu.
 - Cztery rdzenie, osiem wątków, zegar spada pod AVX2 i z ciepła: `-cpu=1` porównuje pracę
   stabilniej. Benchmarki późne w długim zestawie wychodzą wolniej niż osobno: mierzy się je
   osobno.
+- Rozmiar komponentu przesuwa tick bez śladu w zmienianym kodzie: `unit.Mover` 16 → 20 B
+  przyspieszył `Navigation_Tick` o 3–19% (`world.moved`, `motion.moveSystem`). Zmianę dodającą
+  pole do komponentu porównuje się też z bazą o tym samym układzie (overlay z samym polem).
 - `/tmp` to tmpfs z limitem na użytkownika: porzucone `/tmp/go-build*` zapełniają go i linker
   odmawia („disk quota exceeded"). Sprząta się tylko swoje; `GOTMPDIR` na dysku omija limit.

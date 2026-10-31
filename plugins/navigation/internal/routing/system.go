@@ -168,7 +168,7 @@ func (s *System) members(by issuer, fn func(bodies.Member)) {
 		}
 	}
 	if mv := s.selfMover.At(cur); mv != nil {
-		m.Domain, m.Lift = mv.Domain, mv.Lift
+		m.Domain, m.Lift, m.Weight = mv.Domain, mv.Lift, mv.Weight
 	}
 	if b := s.selfBase.At(cur); b != nil {
 		m.Pos, m.Vel, m.Facing = b.Pos, b.Vel.Delta(), b.Vel.Dir
@@ -212,7 +212,7 @@ func (s *System) selectedMembers(by command.Issuer, fn func(bodies.Member)) {
 				m.Z = zs[i]
 			}
 			if movers != nil {
-				m.Lift = movers[i].Lift
+				m.Lift, m.Weight = movers[i].Lift, movers[i].Weight
 			}
 			if steers != nil {
 				m.Brake = steers[i].Braking()

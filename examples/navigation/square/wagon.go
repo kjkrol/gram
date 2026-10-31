@@ -14,11 +14,13 @@ import (
 )
 
 const (
-	wagonPx    = 28 // wider than the bridge's lane between its railings
-	wagonSpeed = CellSize * 2
+	wagonPx     = 28 // wider than the bridge's lane between its railings
+	wagonSpeed  = CellSize * 2
+	wagonWeight = 1500 // kg: more than the rope bridge bears
 )
 
-// wagon is too wide for the bridge: its routes go round by the ford.
+// wagon is too wide for the bridge and too heavy for the rope bridge: its routes go round by the
+// ford.
 type wagon struct{}
 
 var _ board.Figure = wagon{}
@@ -33,7 +35,8 @@ func (wagon) Define(b *board.Plugin) {
 	}
 	units := board.NewUnits[unitRow](b, board.Shape{Size: wagonPx, Height: 2},
 		func(u unitRow) geom.Vec { return b.Read(0).Board().CellCenter(u.Start) })
-	units.Define(WagonKind, unit.Mover{Domain: cell.Land}, profile, ordered())
+	units.Define(WagonKind, unit.Mover{Domain: cell.Land, Weight: wagonWeight}, profile,
+		ordered())
 }
 
 func (wagon) Look(a *world.Atlas, w *world.Plugin) {

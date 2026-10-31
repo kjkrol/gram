@@ -9,8 +9,8 @@ board:
     "~": water
     "f": ford
   # a hill in the first unit's way: its cone climbs the slope and stops, the hawk's passes over;
-  # a river beyond the wall's gap, a bridge over it too narrow for the wagon and a ford at its
-  # foot
+  # a river beyond the wall's gap, a bridge over it too narrow for the wagon, a rope bridge too
+  # weak for it and a ford at its foot
   cells: |
     ..............~.........
     ..============~=======..
@@ -30,6 +30,7 @@ board:
     ............#.f.........
   entities:
     - {kind: bridge, from: [13, 8], to: [15, 8]}
+    - {kind: rope, from: [13, 12], to: [15, 12]}
 relief:
   cells: |
     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0

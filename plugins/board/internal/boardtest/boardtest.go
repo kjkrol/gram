@@ -57,6 +57,14 @@ type Mover struct {
 	Domain  cell.Domain
 	Offset  float32 // shifts the box right, to straddle two cells
 	Brakes  bool    // standing, it brakes to rest as a unit does
+	Size    uint32  // the side of its box; 0: UnitSize
+}
+
+func (m Mover) side() uint32 {
+	if m.Size == 0 {
+		return UnitSize
+	}
+	return m.Size
 }
 
 // UnitSize is the side of a unit's box.
@@ -91,9 +99,13 @@ func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*boa
 func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(*world.Plugin, *board.Plugin) []act.Rule, units []Mover) *World {
 	t.Helper()
 	bw := &World{t: t}
+	least, most := uint32(UnitSize), uint32(UnitSize)
+	for _, u := range units {
+		least, most = min(least, u.side()), max(most, u.side())
+	}
 	bw.World = world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: width, Height: height},
-		Entities: world.EntitiesCfg{MaxCount: 16, MinSize: UnitSize, MaxSize: UnitSize},
+		Entities: world.EntitiesCfg{MaxCount: 16, MinSize: least, MaxSize: most},
 		Heights:  true,
 	})
 	bw.Motion = motion.NewPlugin(bw.World)
@@ -127,7 +139,7 @@ func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(
 	for i, u := range units {
 		spec := kind.Spec{
 			comp.Load(func(m Mover) world.Position {
-				box := CellBox(g, m.Here, UnitSize)
+				box := CellBox(g, m.Here, m.side())
 				box.TopLeft.X += m.Offset
 				box.BottomRight.X += m.Offset
 				return world.Position{AABB: box}

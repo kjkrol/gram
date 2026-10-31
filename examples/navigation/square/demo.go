@@ -60,8 +60,9 @@ func main() {
 	props := game.Props{
 		Title: "gram navigation demo",
 		Description: "Units selected and sent by a right click along routes that go round the " +
-			"wall and over the bridge; the wagon, too wide for the bridge, goes round by the " +
-			"ford. Sight: walls cut, forests dim, a hawk flies over.",
+			"wall and over the bridges; the wagon, too wide for the bridge and too heavy for the " +
+			"rope bridge that bears the scouts, goes round by the ford. Sight: walls cut, " +
+			"forests dim, a hawk flies over.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -138,7 +139,7 @@ func (a *arena) defineFigures() {
 		hawk{},
 		wagon{},
 	)
-	a.bridges.Figures(bridge{})
+	a.bridges.Figures(bridge{}, rope{})
 }
 
 func (a *arena) spawn() error {

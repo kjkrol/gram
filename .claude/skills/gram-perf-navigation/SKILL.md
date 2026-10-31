@@ -30,6 +30,9 @@ wynik etapów: `doc/plans-perf.md` (Etap 2, Fale 3–5, „Udziały tempa", „K
 - Rzut przejezdny komórki liczy grunt pod drogą osobno, bo `Bare` wycenia krok skośny obok
   drogi. Krok czyta sąsiadów (`cutOff`, `Fenced`/`DecksOver`, `Rise`), więc nieaktualność
   klastra obejmuje pierścień jednej komórki: krok czytający dalej musi go poszerzyć.
+- **Plansza bez limitów płaci gałąź na krok**: `p.limited` czytane raz w `begin`, `bears`
+  inline; limity komórki czytane raz na szukanie w bitach `read.has`, komórki z limitem pytane
+  za każdym razem.
 - Trasa raz zaplanowana jest śledzona i planowana na nowo tylko, gdy pęknie.
 - `routes.golden` stoi na remisach hpastara (jak `container/heap`): ich zmiana przepisuje go z
   powodem i zmienia dynamikę tłumu.

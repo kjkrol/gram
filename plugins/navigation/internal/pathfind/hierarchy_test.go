@@ -137,10 +137,17 @@ func TestHierarchy_TheBackwardStepsMirrorTheForward(t *testing.T) {
 	cw.terrain.Set(causewayG.At(4, 4), cell.Kind{Pace: 1, Allows: cell.Land})
 	railed := fenced{openTerrain(), sq, geom.NewVec(95, 100), geom.NewVec(141, 100)}
 	lane := newBridged()
+	ropeG, rope := roped()
+	gapG := grid.DefaultGrids{}.Square(7, 5, 10)
+	gap := gapped(gapG)
 	for name, tc := range map[string]struct {
 		f    *Finder
 		body Body
 	}{
+		"a rope too weak for the body": {New(ropeG, rope, nil, &cell.MultipleOccupancy{}).
+			WithLevels(flat{rope}), Body{Weight: 1500}},
+		"a gap the body fits along alone": {New(gapG, gap, nil, &cell.MultipleOccupancy{}).
+			WithLevels(flat{gap}), Body{Size: geom.NewVec(8, 4)}},
 		"a gorge under a deck": {New(v.g, v.terrain, nil, &cell.MultipleOccupancy{}).
 			WithLevels(v), Body{Step: 1, Height: 2}},
 		"a tall body in the gorge": {New(v.g, v.terrain, nil, &cell.MultipleOccupancy{}).
@@ -1228,6 +1235,9 @@ func TestHierarchy_ItsGraphHoldsTheNodesItsClassStandsOn(t *testing.T) {
 	rg, river := moated(11)
 	sq := grid.DefaultGrids{}.Square(24, 24, 10)
 	roads, _ := scattered(sq, 3, 5)
+	weak := weakDeck(rg, river)
+	gapG := grid.DefaultGrids{}.Square(7, 5, 10)
+	gap := gapped(gapG)
 	for name, tc := range map[string]struct {
 		f    *Finder
 		body Body
@@ -1238,6 +1248,12 @@ func TestHierarchy_ItsGraphHoldsTheNodesItsClassStandsOn(t *testing.T) {
 			WithLevels(bridgedRiver{rg, river}), Body{Step: 1, Height: 2}},
 		"rocks among roads over hills": {New(sq, roads, hillsOver(sq),
 			&cell.MultipleOccupancy{}).WithLevels(flat{roads}), Body{}},
+		"a deck too weak for the class": {New(rg, weak, nil, &cell.MultipleOccupancy{}).
+			WithLevels(bridgedRiver{rg, river}), Body{Step: 1, Height: 2, Weight: 1500}},
+		"a gap the class fits along alone": {New(gapG, gap, nil, &cell.MultipleOccupancy{}).
+			WithLevels(flat{gap}), Body{Size: geom.NewVec(8, 4)}},
+		"a gap too narrow for the class": {New(gapG, gap, nil, &cell.MultipleOccupancy{}).
+			WithLevels(flat{gap}), Body{Size: geom.NewVec(8, 8)}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := tc.f
@@ -1248,7 +1264,9 @@ func TestHierarchy_ItsGraphHoldsTheNodesItsClassStandsOn(t *testing.T) {
 			var buf []graph.Transition[node]
 			held, outside := 0, 0
 			for _, a := range nodesOf(f) {
-				if stands := f.stepAt(f.at(a.c), a.level).admits; stands != h.stands(a) {
+				r := f.at(a.c)
+				if stands := f.stepAt(r, a.level).admits && f.bears(r, a.level); stands !=
+					h.stands(a) {
 					t.Fatalf("%v held %v, its class standing on it %v", a, h.stands(a), stands)
 				}
 				if !h.stands(a) {

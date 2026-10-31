@@ -173,14 +173,15 @@ func (f *Field) walkSteps(origin, dir geom.Vec, length float32, blockers world.L
 	}
 }
 
-// Solid is the solid ground of the board round box for an entity on layers spanning band, the
-// collision.Field contract: every cell that stops it, and every raised deck's slab over its step,
-// as boxes. A side is open where the neighbour across it does not stop the entity; on a wrapping
-// square grid the boxes lie in box's frame.
+// Solid is the solid ground of the board round box, an entity's on layers spanning band, the
+// collision.Field contract: every cell that stops it, a wall's not where box fits through its gap,
+// and every raised deck's slab over its step, as boxes. A side is open where the neighbour across
+// it does not stop the entity; on a wrapping square grid the boxes lie in box's frame.
 func (f *Field) Solid(layers world.Layers, band collision.Band, box geom.AABB, visit func(collide.FieldBox) bool) {
 	sq := f.square
+	body := sizeOf(box)
 	if sq == nil {
-		f.solidCells(layers, band, box, visit)
+		f.solidCells(layers, band, box, body, visit)
 		return
 	}
 	size := float32(sq.CellSize)
@@ -192,7 +193,7 @@ func (f *Field) Solid(layers world.Layers, band collision.Band, box geom.AABB, v
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
 			c, ok := f.square.Fold(x, y)
-			if !ok || !f.stops(c, layers, band) {
+			if !ok || !f.stops(c, layers, band, body) {
 				continue
 			}
 			var open collide.Sides
@@ -200,7 +201,8 @@ func (f *Field) Solid(layers world.Layers, band collision.Band, box geom.AABB, v
 				dx, dy int64
 				side   collide.Sides
 			}{{-1, 0, collide.Left}, {1, 0, collide.Right}, {0, -1, collide.Top}, {0, 1, collide.Bottom}} {
-				if nc, ok := f.square.Fold(x+n.dx, y+n.dy); !ok || !f.stops(nc, layers, band) {
+				nc, ok := f.square.Fold(x+n.dx, y+n.dy)
+				if !ok || !f.stops(nc, layers, band, body) {
 					open |= n.side
 				}
 			}
@@ -308,9 +310,9 @@ func ends(freeA, freeB bool) collide.Ends {
 	return e
 }
 
-// Overhang is how much of box, as area, lies over ground that does not take an entity on layers,
-// a deck taking one left out: the collision.Field contract, a push never makes it more. Off the
-// board is none of it.
+// Overhang is how much of box, an entity's on layers, as area, lies over ground that does not take
+// it, a deck or a wall's gap box fits through taking it: the collision.Field contract, a push never
+// makes it more. Off the board is none of it.
 func (f *Field) Overhang(layers world.Layers, box geom.AABB) float32 {
 	sq := f.square
 	if sq == nil {
@@ -354,11 +356,14 @@ func (f *Field) bare(c cell.ID, m geom.Vec, layers world.Layers, box, cb geom.AA
 		return 0
 	}
 	b := f.cells.Built(c)
-	allows := k.Allows
+	allows, keeps := k.Allows, b.Wall.Keeps
 	if b.Floor.Width == 0 {
 		allows |= b.Floor.Allows
 	}
-	if admits(allows&^b.Wall.Keeps, layers) {
+	if keeps != 0 && through(b.Wall.Gap, sizeOf(box), collision.Everywhere) {
+		keeps = 0
+	}
+	if admits(allows&^keeps, layers) {
 		return 0
 	}
 	area := (r.BottomRight.X - r.TopLeft.X) * (r.BottomRight.Y - r.TopLeft.Y)
@@ -367,7 +372,7 @@ func (f *Field) bare(c cell.ID, m geom.Vec, layers world.Layers, box, cb geom.AA
 	}
 	f.decks = f.cells.Bands(c, f.decks[:0])
 	for _, d := range f.decks {
-		if admits(d.Built.Floor.Allows&^b.Wall.Keeps, layers) {
+		if admits(d.Built.Floor.Allows&^keeps, layers) {
 			area -= f.cells.BandArea(d.Built.Floor, geom.NewVec(m.X+d.Off.X, m.Y+d.Off.Y), r)
 		}
 	}
@@ -394,11 +399,12 @@ func overlap(a, b geom.AABB) float32 {
 	return w * h
 }
 
-func (f *Field) solidCells(layers world.Layers, band collision.Band, box geom.AABB, visit func(collide.FieldBox) bool) {
+func (f *Field) solidCells(layers world.Layers, band collision.Band, box geom.AABB, body geom.Vec,
+	visit func(collide.FieldBox) bool) {
 	const all = collide.Left | collide.Right | collide.Top | collide.Bottom
 	done := false
 	f.grid.CellsUnder(box, func(c cell.ID) {
-		if done || !f.stops(c, layers, band) {
+		if done || !f.stops(c, layers, band, body) {
 			return
 		}
 		f.boxes = f.grid.CellBoxes(c, f.boxes[:0])
@@ -411,14 +417,16 @@ func (f *Field) solidCells(layers world.Layers, band collision.Band, box geom.AA
 	})
 }
 
-func (f *Field) stops(c cell.ID, layers world.Layers, band collision.Band) bool {
+// body is the size of the entity's box
+func (f *Field) stops(c cell.ID, layers world.Layers, band collision.Band, body geom.Vec) bool {
 	k := f.cells.KindOf(c)
 	if solidFor(k, layers) && f.solidBand(c, k.Height).Meets(band) {
 		return true
 	}
 	b := f.cells.Built(c)
 	keeps := world.Layers(b.Wall.Keeps)
-	if keeps != 0 && keeps.Meets(layers) && f.solidBand(c, b.Wall.Height).Meets(band) {
+	if keeps != 0 && keeps.Meets(layers) && f.solidBand(c, b.Wall.Height).Meets(band) &&
+		!through(b.Wall.Gap, body, band) {
 		return true
 	}
 	fl := b.Floor
@@ -440,4 +448,24 @@ func (f *Field) solidBand(c cell.ID, height float32) collision.Band {
 
 func solidFor(k *cell.Kind, layers world.Layers) bool {
 	return k != nil && k.Solid && world.Layers(^uint8(k.Allows)).Meets(layers)
+}
+
+// through says whether a body of size spanning band passes through gap as navigation lets it: no
+// step's width across it is less than its narrower side, and a body of no height fits any
+func through(gap cell.Gap, size geom.Vec, band collision.Band) bool {
+	switch {
+	case gap.Width <= 0 || min(size.X, size.Y) > gap.Width:
+		return false
+	case gap.Height <= 0 || f32.IsInf(band.Top, 1) || f32.IsInf(band.Bottom, -1):
+		return true
+	}
+	return band.Top-band.Bottom-f32.Eps(band.Top) <= gap.Height
+}
+
+// the size of box less what float32 rounds off where it lies: a body as wide as a gap fits it
+func sizeOf(box geom.AABB) geom.Vec {
+	slack := f32.Eps(max(f32.Abs(box.TopLeft.X), f32.Abs(box.TopLeft.Y),
+		f32.Abs(box.BottomRight.X), f32.Abs(box.BottomRight.Y)))
+	return geom.NewVec(box.BottomRight.X-box.TopLeft.X-slack,
+		box.BottomRight.Y-box.TopLeft.Y-slack)
 }

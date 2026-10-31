@@ -49,8 +49,9 @@
 // A Floor with a Height is a deck, and the cell has two levels ([BoardRead.KindAt],
 // [BoardRead.KindFor], [BoardRead.CellFor], [BoardRead.LevelFor]); one with a Width and Links is a
 // band ([BoardRead.DecksOver], [BoardRead.Reaches]), its railings never stepped across
-// ([BoardRead.Fenced]); a step along it takes a body no wider than its [BoardRead.Lane]. A unit is
-// no bigger than a cell's side ([NewUnits] panics past it), so any other step takes it.
+// ([BoardRead.Fenced]); a step along it takes a body no wider than its [BoardRead.Lane].
+// [BoardRead.Limits] is what a cell limits a body by beyond its kind, a floor's load and a wall's
+// gap ([BoardRead.Limited]). A unit is no bigger than a cell's side ([NewUnits] panics past it).
 //
 // # Bridges
 //

@@ -3,8 +3,8 @@
 //
 // [NewPlugin] takes the world, the board and the [Config]: where a bridge may stand (site.Rules)
 // and the kind of bridge a player builds. A game defines its kinds of bridges in the Kinds
-// section ([Plugin.Types], [Types.Define] a [Spec]): whom the deck carries, how wide and thick
-// it is, its railings and its piers.
+// section ([Plugin.Types], [Types.Define] a [Spec]): whom the deck carries and how much it bears,
+// how wide and thick it is, its railings and its piers.
 //
 // # A bridge is its parts
 //

@@ -143,11 +143,12 @@ func (h *Hierarchy) setStood(slot int, on bool) {
 }
 
 // standing reads which of c's levels, o its ordinal, h's class stands on into h: the cell has
-// the level and admits the class's domain there
+// the level, admits the class's domain there and takes its body by what limits it
 func (p *Finder) standing(h *Hierarchy, c cell.ID, o int) {
 	r := p.at(c)
-	h.setStood(2*o+int(ground), p.stepAt(r, ground).admits)
-	h.setStood(2*o+int(deck), len(p.levelsOf(r)) > 1 && p.stepAt(r, deck).admits)
+	h.setStood(2*o+int(ground), p.stepAt(r, ground).admits && p.bears(r, ground))
+	h.setStood(2*o+int(deck), len(p.levelsOf(r)) > 1 && p.stepAt(r, deck).admits &&
+		p.bears(r, deck))
 }
 
 // building has p read the board as h is built over it: for its key, blind to the others, no

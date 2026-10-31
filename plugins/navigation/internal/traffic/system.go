@@ -295,7 +295,7 @@ func (s *System) begin(w *walker, z *world.Z, mover *unit.Mover, owners *tag.Tag
 		w.m.Z = *z
 	}
 	if mover != nil {
-		w.m.Lift = mover.Lift
+		w.m.Lift, w.m.Weight = mover.Lift, mover.Weight
 	}
 	if by, ok := s.wanted[w.id]; ok {
 		w.m.PressedBy, w.m.Pressed = by, true
@@ -827,7 +827,7 @@ func (s *System) standing(cb *goke.CmdBuf, cursor *goke.Cursor) {
 			m.Z = zs[i]
 		}
 		if movers != nil {
-			m.Lift = movers[i].Lift
+			m.Lift, m.Weight = movers[i].Lift, movers[i].Weight
 		}
 		if order, ok := s.keep.StepAside(m, of); ok {
 			cb.AddOne(id, s.orderID, order)
@@ -1089,7 +1089,7 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 				b.Z = zs[i]
 			}
 			if movers != nil {
-				b.Lift = movers[i].Lift
+				b.Lift, b.Weight = movers[i].Lift, movers[i].Weight
 			}
 			if lasts != nil {
 				b.Group = lasts[i].Group

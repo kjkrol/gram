@@ -34,6 +34,9 @@ What is left to do. Take an item out when it lands.
 - **The wind in the pricing** — sailing ships and flyers priced by the wind (`cell.Mobility` by
   domain and way against the wind's), a change of wind counted as one change of the board's
   passage, never a gust: the hierarchy and the kept answers follow it.
+- **Why a 16-byte component slows the crowd's tick** — with `unit.Mover` at 16 B, `world.moved`
+  and `motion.moveSystem` ran about ten times longer than at 20 B: find the mechanism (a
+  column's stride, alignment) and whether other components pay it.
 - **The hierarchy, further** — the queued goals' preview planned over it as the walked route is;
   a unit standing where its class cannot stand climbs instead of searching; `Reaches` exact on
   one-way steps (a level-1 label by directed reachability); its rebuilds allocating nothing.
