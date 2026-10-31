@@ -128,11 +128,11 @@ type Answers struct {
 const keptAnswers = 4096
 
 // a question asked again over the board as it stands gets the answer it got, unrun; a route the
-// field of m's group gives is walked off it, else climbed through the hierarchy of m's class
+// field of m's group gives is walked off it, else climbed through the hierarchy serving m's class
 // where m is given one, a far route's, else searched, and kept alike
 func (a *avoiding) find(f *Finder, m bodies.Member, from cell.ID, o *order.MoveOrder,
 	around bool) (order.Path, bool) {
-	q := asked{from: from, to: o.Target, end: o.Level, domain: m.Domain, body: m.Body(),
+	q := asked{from: from, to: o.Target, end: o.Level, domain: m.Domain, body: f.bodyOf(m),
 		around: around}
 	if around {
 		for _, c := range o.Avoid[:o.Avoids] {
@@ -152,7 +152,7 @@ func (a *avoiding) find(f *Finder, m bodies.Member, from cell.ID, o *order.MoveO
 		p, ok = f.findPathAround(m.ID, m.Domain, q.body, from, o.Target, o.Level, a.blocked)
 	} else {
 		if m.Field != nil {
-			p, ok = f.walkField(m.Field, m, from, o)
+			p, ok = f.walkField(m.Field, m, q.body, from, o)
 		}
 		if !ok && m.Hierarchy != nil {
 			p, ok = f.climbPath(m.Hierarchy, m.ID, m.Domain, q.body, from, o.Target, o.Level)
@@ -352,8 +352,8 @@ func (k *CellKeeping) Lost(
 	if waited < TargetWaitTimeout {
 		return 0, order.Path{}, true, false
 	}
-	dest, path, ok := k.finder.nearestFree(m.Hierarchy, m.ID, m.Domain, m.Body(), from,
-		o.Target, o.Level, k.held(m))
+	dest, path, ok := k.finder.nearestFree(m.Hierarchy, m.ID, m.Domain, k.finder.bodyOf(m),
+		from, o.Target, o.Level, k.held(m))
 	return dest, path, false, ok
 }
 
@@ -421,8 +421,8 @@ func (k *CellKeeping) Bump(m bodies.Member, o *order.MoveOrder) BumpAnswer {
 		return GiveUp
 	}
 	if o.Toward == o.Target {
-		dest, path, ok := k.finder.nearestFree(nil, m.ID, m.Domain, m.Body(), m.From, o.Target,
-			o.Level, k.held(m))
+		dest, path, ok := k.finder.nearestFree(nil, m.ID, m.Domain, k.finder.bodyOf(m), m.From,
+			o.Target, o.Level, k.held(m))
 		if !ok {
 			return GiveUp
 		}
@@ -542,8 +542,8 @@ func (k *CellKeeping) Pass(bodies.Member, *order.MoveOrder, bodies.Body) {}
 func (k *CellKeeping) OnGoal(self, other bodies.Body) bool { return other.Cell == self.Goal }
 
 func (k *CellKeeping) Settle(m bodies.Member, o *order.MoveOrder, _ bodies.Body) bool {
-	dest, path, ok := k.finder.nearestFree(nil, m.ID, m.Domain, m.Body(), m.From, o.Target,
-		o.Level, k.held(m))
+	dest, path, ok := k.finder.nearestFree(nil, m.ID, m.Domain, k.finder.bodyOf(m), m.From,
+		o.Target, o.Level, k.held(m))
 	if !ok {
 		return false
 	}

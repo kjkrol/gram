@@ -52,6 +52,7 @@
 // ([BoardRead.Fenced]); a step along it takes a body no wider than its [BoardRead.Lane].
 // [BoardRead.Limits] is what a cell limits a body by beyond its kind, a floor's load and a wall's
 // gap ([BoardRead.Limited]). A unit is no bigger than a cell's side ([NewUnits] panics past it).
+// [Plugin.UnitKinds] lists the kinds of unit defined over the board ([UnitKind]).
 //
 // # Bridges
 //

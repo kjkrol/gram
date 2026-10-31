@@ -1,17 +1,11 @@
 package spacing
 
 import (
-	"log"
-
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
 	"github.com/kjkrol/gram/plugins/navigation/internal/pathfind"
 )
-
-// the most classes of units whose hierarchies are kept at once, the least lately asked for let go
-// first
-const keptHierarchies = 4
 
 // the work an Update spends building a hierarchy, in hpastar's steps: a step of a cluster of level
 // 1 costs about 33 ns, its board's steps read over relief, and about 11 ns above
@@ -26,16 +20,16 @@ type passages interface {
 
 type hierarchyEntry struct {
 	key   pathfind.Key
-	h     *pathfind.Hierarchy // nil: a free place
-	since uint64              // the board's passage its clusters were last marked stale against
-	used  uint64              // the Update it was last asked for
-	ready bool                // none of its clusters stale: routes are climbed through it
+	h     *pathfind.Hierarchy
+	since uint64 // the board's passage its clusters were last marked stale against
+	used  uint64 // the Update it was last asked for
+	ready bool   // none of its clusters stale: routes are climbed through it
 }
 
-// Hierarchies are the hierarchies of the units' classes whose far routes are climbed, at most
-// keptHierarchies, the least lately asked for let go first. An Update has them asked for, staled
-// and built on its own goroutine before any ask is answered; routers answering on several
-// goroutines read them as they stand.
+// Hierarchies are the hierarchies whose far routes are climbed, one a domain serving the classes
+// its units are planned as, made as the domain's first far route is asked for. An Update has them
+// asked for, staled and built on its own goroutine before any ask is answered; routers answering
+// on several goroutines read them as they stand.
 type Hierarchies struct {
 	finder  *Finder  // the one they are built through; nil: none kept
 	board   passages // the passage of the finder's board
@@ -43,8 +37,7 @@ type Hierarchies struct {
 	from    float64
 	budget  int // the work a Sweep builds, buildBudget
 	update  uint64
-	entries [keptHierarchies]hierarchyEntry
-	dropped bool // a hierarchy let go for another's was said in the log
+	entries []hierarchyEntry // a domain each
 }
 
 // Bind has hs keep hierarchies of clusters side cells a side, built through f, for routes whose
@@ -82,56 +75,37 @@ func (hs *Hierarchies) Far(from, to cell.ID) bool {
 	return hs.finder != nil && hs.finder.grid.Distance(from, to) >= hs.from
 }
 
-// Key is the class of units m's hierarchy is built for: its domain and its body, its feet left
-// out; false where hs keeps none.
+// Key is what m's far routes are climbed through: the hierarchy of its domain, which serves the
+// class of its body; false where hs keeps none or no class holds its body.
 func (hs *Hierarchies) Key(m bodies.Member) (pathfind.Key, bool) {
-	if hs.finder == nil {
+	if hs.finder == nil || hs.finder.classes == nil {
 		return pathfind.Key{}, false
 	}
-	body := m.Body()
-	body.Feet = 0
-	return pathfind.Key{Domain: m.Domain, Body: body}, true
+	if _, _, ok := hs.finder.classes.Class(m.Domain, m.Body()); !ok {
+		return pathfind.Key{}, false
+	}
+	return pathfind.Key{Domain: m.Domain}, true
 }
 
-// Expect has key's hierarchy wanted this Update: one kept is kept on; a new one takes a free
-// place, else that of the least lately asked for, none where all are wanted.
+// Expect has key's hierarchy wanted this Update, made the first time it is, of the classes of its
+// domain.
 func (hs *Hierarchies) Expect(key pathfind.Key) {
-	if hs.finder == nil {
+	if hs.finder == nil || hs.finder.classes == nil {
 		return
 	}
-	var spare *hierarchyEntry
 	for i := range hs.entries {
-		e := &hs.entries[i]
-		if e.h != nil && e.key == key {
+		if e := &hs.entries[i]; e.key == key {
 			e.used = hs.update
 			return
 		}
-		if hs.sparer(e, spare) {
-			spare = e
-		}
 	}
-	if spare == nil {
+	classes := hs.finder.classes.Of(key.Domain)
+	if len(classes) == 0 {
 		return
 	}
-	if spare.h != nil && !hs.dropped {
-		log.Printf("navigation: more classes of units ask for far routes than the %d whose "+
-			"hierarchies are kept: the least lately asked for is let go", keptHierarchies)
-		hs.dropped = true
-	}
-	*spare = hierarchyEntry{key: key, h: hs.finder.NewHierarchy(key, hs.side),
-		since: hs.board.Passage(), used: hs.update}
-}
-
-// whether e makes a better place for a new hierarchy than spare: a free one, the first; with
-// none free, the one not wanted this Update and least lately before
-func (hs *Hierarchies) sparer(e, spare *hierarchyEntry) bool {
-	switch {
-	case e.h == nil:
-		return spare == nil || spare.h != nil
-	case e.used < hs.update:
-		return spare == nil || spare.h != nil && e.used < spare.used
-	}
-	return false
+	hs.entries = append(hs.entries, hierarchyEntry{key: key,
+		h: hs.finder.NewHierarchy(key, hs.side, classes), since: hs.board.Passage(),
+		used: hs.update})
 }
 
 // Due reports whether a Sweep has clusters to mark stale or to build.
@@ -141,7 +115,7 @@ func (hs *Hierarchies) Due() bool {
 	}
 	v := hs.board.Passage()
 	for i := range hs.entries {
-		if e := &hs.entries[i]; e.h != nil && (!e.ready || e.since != v) {
+		if e := &hs.entries[i]; !e.ready || e.since != v {
 			return true
 		}
 	}
@@ -157,7 +131,7 @@ func (hs *Hierarchies) Sweep() {
 	}
 	v := hs.board.Passage()
 	for i := range hs.entries {
-		if e := &hs.entries[i]; e.h != nil && e.since != v {
+		if e := &hs.entries[i]; e.since != v {
 			hs.finder.Stale(e.h, e.since)
 			e.since, e.ready = v, e.h.Ready()
 		}
@@ -176,7 +150,7 @@ func (hs *Hierarchies) unbuilt() int {
 	k := -1
 	for i := range hs.entries {
 		e := &hs.entries[i]
-		if e.h != nil && !e.ready && (k < 0 || e.used > hs.entries[k].used) {
+		if !e.ready && (k < 0 || e.used > hs.entries[k].used) {
 			k = i
 		}
 	}

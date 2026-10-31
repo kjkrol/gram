@@ -156,7 +156,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
 	}
-	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+	systems = append(systems, asKinds(fw.nav), goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		fw.q = si.NewQueryBuilder(&fw.base, &fw.cell).Optional(&fw.orderComp).Optional(&fw.coll).Build()
 	}})
 	ctx.ecs.Setup(systems...)

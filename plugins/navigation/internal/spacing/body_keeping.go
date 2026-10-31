@@ -284,14 +284,14 @@ func (k *BodyKeeping) Lost(
 	if waited < TargetWaitTimeout {
 		return 0, order.Path{}, true, false
 	}
-	body, failed := m.Body(), false
+	body, failed := k.finder.bodyOf(m), false
 	for _, c := range k.finder.tilesRound(o.Target, m.Domain, m.Domain) {
 		if c == from {
 			o.Level = order.EitherLevel
 			return c, order.Path{}, false, true
 		}
 		// a search for a tile no route reaches runs over every cell the unit reaches: once one
-		// found none, the hierarchy of its class says which tiles are as far out of reach
+		// found none, the hierarchy serving its class says which tiles are as far out of reach
 		if failed && m.Hierarchy != nil &&
 			!k.finder.Reaches(m.Hierarchy, m.Domain, body, from, c) {
 			continue

@@ -2,6 +2,7 @@ package board
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
@@ -53,6 +54,7 @@ func NewUnits[P any](brd *Plugin, shape Shape, at func(row P) geom.Vec) *Units[P
 // Define registers one kind of unit: how it moves, its steering profile and whatever else the
 // game gives its entities. A unit standing off the board panics when spawned.
 func (u *Units[P]) Define(name string, mover unit.Mover, steering steering.Steering, extra ...comp.Comp) {
+	k := UnitKind{Name: name, Mover: mover, Shape: u.shape}
 	brd := &u.brd.board.read
 	own := []comp.Comp{
 		comp.Load(func(row P) world.Position {
@@ -68,13 +70,28 @@ func (u *Units[P]) Define(name string, mover unit.Mover, steering steering.Steer
 		comp.Const(mover),
 		comp.Const(world.Layers(mover.Domain)),
 		comp.Const(steering),
-		comp.Const(world.Z{Height: u.shape.Height}), // Altitude is the board's to write
+		comp.Const(k.Z()), // Altitude is the board's to write
 	}
 	spec := u.brd.worldPlugin.Roster().Spec(motion.UnitTemplate, append(own, extra...)...)
 	kind.Define[P](u.brd.worldPlugin.Kinds(), name, spec)
+	u.brd.unitKinds = append(u.brd.unitKinds, k)
 }
 
 // Named is the kind of unit defined as name.
 func (u *Units[P]) Named(name string) kind.Of[P] {
 	return kind.Named[P](u.brd.worldPlugin.Kinds(), name)
 }
+
+// UnitKind is a kind of unit defined over the board: its name, how it moves and its body.
+type UnitKind struct {
+	Name  string
+	Mover unit.Mover
+	Shape Shape
+}
+
+// Z is the place in height the kind's units carry: the Shape's Height, their Altitude the
+// board's to write.
+func (k UnitKind) Z() world.Z { return world.Z{Height: k.Shape.Height} }
+
+// UnitKinds are the kinds of unit defined over the board so far, in the order defined.
+func (p *Plugin) UnitKinds() []UnitKind { return slices.Clone(p.unitKinds) }

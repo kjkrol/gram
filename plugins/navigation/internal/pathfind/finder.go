@@ -571,7 +571,21 @@ func (p *Finder) fits(from, n cell.ID, deck bool, body Body) bool {
 		return true
 	}
 	lane := p.lanes.Lane(from, n, p.domain, deck)
-	if f32.IsInf(lane, 1) {
+	return f32.IsInf(lane, 1) || p.fitsLane(lane, from, n, body)
+}
+
+// laneOf is how wide a body may be across the step from from to n, on the decks' level when
+// deck: +Inf where no band narrows it
+func (p *Finder) laneOf(from, n cell.ID, deck bool) float32 {
+	if p.lanes == nil {
+		return f32.Inf(1)
+	}
+	return p.lanes.Lane(from, n, p.domain, deck)
+}
+
+// fitsLane is fits with the step's lane read
+func (p *Finder) fitsLane(lane float32, from, n cell.ID, body Body) bool {
+	if body.Size == (geom.Vec{}) || f32.IsInf(lane, 1) {
 		return true
 	}
 	way, ok := grid.Way(p.grid, from, n)

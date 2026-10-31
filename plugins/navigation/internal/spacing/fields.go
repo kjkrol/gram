@@ -18,8 +18,8 @@ const keptFields = 8
 // on its way
 const fieldMargin = 1.5
 
-// what a field is filled for: the goal of a group, the level it ends on, the domain and the
-// body's class, its feet left out
+// what a field is filled for: the goal of a group, the level it ends on, the domain and the body
+// of the class its units are planned as, its feet left out
 type fieldAsked struct {
 	goal   cell.ID
 	end    order.Level
@@ -53,15 +53,17 @@ type Fields struct {
 	worked  sync.Cond // a field filled
 	grid    grid.Grid
 	board   interface{ Passage() uint64 } // nil: no fields kept
+	classes *pathfind.Classes
 	passage uint64
 	update  uint64
 	entries [keptFields]fieldEntry
 }
 
 // Bind has fs keep fields filled through finders as f searches: blind to the others, over a
-// board counting the changes to its passage; over any other, none.
+// board counting the changes to its passage, planning the units as its classes; over any other,
+// none.
 func (fs *Fields) Bind(f *Finder) {
-	fs.grid, fs.board, fs.worked.L = f.grid, nil, &fs.mu
+	fs.grid, fs.board, fs.classes, fs.worked.L = f.grid, nil, f.classes, &fs.mu
 	if _, blind := f.Occupancy.(OpenOccupancy); blind {
 		fs.board, _ = f.Terrain.(interface{ Passage() uint64 })
 	}
@@ -77,7 +79,7 @@ func (fs *Fields) Key(m bodies.Member, o *order.MoveOrder) (fieldAsked, bool) {
 	if !ok {
 		return fieldAsked{}, false
 	}
-	body := m.Body()
+	body := planned(fs.classes, m)
 	body.Feet = 0
 	return fieldAsked{goal: goal, end: o.Level, domain: m.Domain, body: body}, true
 }

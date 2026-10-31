@@ -158,6 +158,7 @@ keeps only what those do not.
   wins) and a gap stays only where every wall has one, the narrowest. Collision holds a gapped
   wall's cell solid only for a box whose narrower side or height does not fit, so it never
   stops whom the planner sends through.
+- `Units.Define` notes its kind (`UnitKinds`, in the order defined): navigation's classes.
 - A bridge's head band runs from the middle of its flat tile into the bridge alone, no railings
   on it. A bridge breaking the rules panics as a fresh board is first gathered (a map's file and
   line); one broken later is not built, said in the log.
@@ -375,8 +376,15 @@ keeps only what those do not.
   `StallAfter` more once it stops closing; no stall counts while paced or while the head waits;
   a step aside keeps the formation.
 - Long routes: ends `From` cells apart or more (64 by default; board/topography 32) climb a
-  hierarchy of hpastar's, one a class (domain, body less its feet), four classes kept, its graph
-  only over the nodes the class stands on. It is built and staled by the one finder that made
+  hierarchy of hpastar's, one a domain serving the classes of its units' bodies: the table comes
+  from `board.Plugin.UnitKinds` at Setup (at most 8 a domain, the nearest merged beyond into a
+  class no laxer), and a unit is planned everywhere as its body's class or the nearest no laxer
+  (fields and kept answers key by class), else by A*. Built steps carry `Refuses` (the body-free
+  part read once, a fast path where `bodily` is false); a class refuses every step out of a node
+  it does not stand on; `At` lists the nodes any class stands on; a domain of one class builds
+  over its body's steps; a query computes only its class's body. Trap: a kind defined by hand,
+  not through `board.Units.Define`, has no class, so its units are searched by A* (the test
+  rigs class theirs with `asKinds`). It is built and staled by the one finder that made
   it (another panics) and asked by every finder through its own `hpastar.Search`; the `Layout`
   is pure. A `Sweep` before any ask stales each where the passage moved (`CellPassage`: the
   changed cells and a ring of one) and builds the one not ready asked for latest by

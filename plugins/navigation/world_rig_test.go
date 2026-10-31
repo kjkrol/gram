@@ -18,11 +18,44 @@ import (
 	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/motion/steering"
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/pathfind"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
+
+// asKinds has nav plan the units standing as Setup ends as the classes of their bodies: a game's
+// kinds of unit are the board's, whose bodies it reads, a test's are defined by hand, a unit's
+// box its row's
+func asKinds(nav *Plugin) goke.System {
+	return goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		var base goke.Comp[world.Base]
+		var at goke.Comp[unit.At]
+		var mover goke.OptComp[unit.Mover]
+		var z goke.OptComp[world.Z]
+		q := si.NewQueryBuilder(&base, &at).Optional(&mover).Optional(&z).Build()
+		var kinds []pathfind.Kind
+		for q.All(); q.Next(); {
+			cur := q.Cursor()
+			bases, movers, zs := base.Slice(cur), mover.Slice(cur), z.Slice(cur)
+			for i := range cur.IDs {
+				var place world.Z
+				var weight float32
+				if zs != nil {
+					place = zs[i]
+				}
+				if movers != nil {
+					weight = movers[i].Weight
+				}
+				kinds = append(kinds, pathfind.Kind{Domain: unit.DomainAt(movers, i),
+					Body: bodies.BodyOf(place, bases[i].Pos.Size, weight)})
+			}
+		}
+		nav.classes.Set(kinds)
+	}}
+}
 
 // an ownerless unit is the virtual player's, an ally of every other ownerless unit
 type navUnit struct {
@@ -150,7 +183,7 @@ func newNavWorldIn(t testing.TB, pool *parallel.Pool, cols, rows, cellSize uint3
 			}
 		}
 	}})
-	ctx.ecs.Setup(append(systems, after...)...)
+	ctx.ecs.Setup(append(append(systems, asKinds(nw.nav)), after...)...)
 	nw.step = func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
 		m.RunPlan(rc, d)

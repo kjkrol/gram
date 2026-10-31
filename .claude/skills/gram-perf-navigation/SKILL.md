@@ -58,8 +58,12 @@ wynik etapów: `doc/plans-perf.md` (Etap 2, Fale 3–5, „Udziały tempa", „K
   `NearestFree` idą jak bez niej. Próg `From` to czysta funkcja pytania (klucz odpowiedzi
   pamiętanych zostaje); budowa i `Stale` jednym finderem przed prośbami, prośby przez `Search`
   każdego findera, funkcje `Layout` czyste.
-- Graf hierarchii tylko po węzłach, na których klasa stoi: etykiety hpastara łączą w obie strony,
-  a woda na granicy klastra łączyła brzegi. `Backward` jest lustrem `Forward` co do bitu.
+- Jedna hierarchia na domenę, klasy hpastara z rodzajów jednostek: krok niesie `Refuses`, część
+  niezależna od ciała czytana raz, szybka ścieżka tam, gdzie `bodily` jest fałszywe; domena
+  jednej klasy buduje się po krokach swojego ciała. Klasa odmawia każdego kroku z węzła, na
+  którym nie stoi, bo etykiety łączą w obie strony, a woda na granicy klastra łączyła brzegi;
+  `At` wymienia węzły, na których stoi którakolwiek klasa. `Backward` jest lustrem `Forward` co
+  do bitu, maski też.
 - **Budowa liczy kroki pracy, nie czas** (`buildBudget`): gotowość zależy od ciągu ticków, nie od
   maszyny. `Sweep` buduje jedną hierarchię: niegotową, o którą proszono najpóźniej.
 - `Climb` sam odmawia pary bliższej niż dwa boki klastra (`WithNear` tak samo): hpastar
@@ -82,9 +86,7 @@ wynik etapów: `doc/plans-perf.md` (Etap 2, Fale 3–5, „Udziały tempa", „K
   `Kept` rwie łańcuch podążania (`Blocks → Detour` wokół własnego czoła).
 - `Read.Built` bramkuje `t.built`, ustawiane po dotknięciu, więc rzut czyta `Built` ze store'u.
   Flats routerów czyści się co Update: klucz przejezdności trzyma tylko finder traffic.
-- Graf hierarchii tylko po węzłach, na których klasa stoi: etykiety spójności łączą węzły w obie
-  strony, więc woda na granicy klastra z krokiem z niej łączyła brzegi. Jednokierunkowe kroki
-  między węzłami stojącymi dalej zawyżają `Reaches`.
+- Jednokierunkowe kroki między węzłami stojącymi dalej zawyżają `Reaches`.
 - Para bliska przez granicę wysokiego poziomu, szukana na najwyższym poziomie, na którym klastry
   się różnią, robiła objazd do jego wejść: hpastar wybiera poziom po odległości.
 - Koniec budowy to `Building()` albo `left == 0`, nie tick bez ukończonego klastra. Budżet 0 po
@@ -115,6 +117,8 @@ wynik etapów: `doc/plans-perf.md` (Etap 2, Fale 3–5, „Udziały tempa", „K
 - Mała hierarchia buduje się w pierwszym ticku: „bez hierarchii" to świat z `Hierarchy{Off}`.
   Przy tempie ×4 klatka niesie cztery budżety budowy.
 - Liczniki (szukania, marsze, wypełnienia, rozwinięcia, wspinaczki): `Read.Counts()`.
+- `PathFinder_Hierarchy/build/{classes=4,solvers=4}`: jeden Solver czterech klas wobec czterech
+  Solverów jednej; `find/classes=4` to wspinaczka pytana jako ostatnia z czterech klas.
 
 ## Na później
 

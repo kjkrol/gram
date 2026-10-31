@@ -5,6 +5,7 @@ import (
 	"math/rand/v2"
 	"testing"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -159,9 +160,13 @@ func BenchmarkPathFinder_Field(b *testing.B) {
 	})
 }
 
-// the hierarchy of the terrain rungs' board, its clusters 16 cells a side: built whole, the route
-// corner to corner climbed a chunk at a time, a cell inside a cluster turned wall or back and
-// its clusters built again
+// four bodies the terrain rungs' board takes alike, as hierarchies of four classes serve them
+var fourBodies = []Body{{}, {Size: geom.NewVec(4, 4)}, {Size: geom.NewVec(8, 8)}, {Weight: 80}}
+
+// the hierarchy of the terrain rungs' board, its clusters 16 cells a side: built whole, of one
+// body, of four bodies as one hierarchy of four classes or four of one class each; the route
+// corner to corner climbed a chunk at a time, of one class or the last of four; a cell inside a
+// cluster turned wall or back and its clusters built again
 func BenchmarkPathFinder_Hierarchy(b *testing.B) {
 	g := grid.DefaultGrids{}.Square(terrainSide, terrainSide, terrainCell)
 	from, to := g.At(0, 0), g.At(terrainSide-1, terrainSide-1)
@@ -180,36 +185,62 @@ func BenchmarkPathFinder_Hierarchy(b *testing.B) {
 			b.Run(bd.name, func(b *testing.B) {
 				f, _, _ := laid(bd.pacing)
 				for b.Loop() {
-					whole(f, f.NewHierarchy(land, 16))
+					whole(f, f.NewHierarchy(land, 16, unsized))
+				}
+				b.ReportMetric(float64(f.Builds())/float64(b.N), "clusters/op")
+			})
+		}
+		for _, bd := range boards {
+			b.Run("classes=4/"+bd.name, func(b *testing.B) {
+				f, _, _ := laid(bd.pacing)
+				for b.Loop() {
+					whole(f, f.NewHierarchy(land, 16, fourBodies))
+				}
+				b.ReportMetric(float64(f.Builds())/float64(b.N), "clusters/op")
+			})
+			b.Run("solvers=4/"+bd.name, func(b *testing.B) {
+				f, _, _ := laid(bd.pacing)
+				for b.Loop() {
+					for _, body := range fourBodies {
+						whole(f, f.NewHierarchy(land, 16, []Body{body}))
+					}
 				}
 				b.ReportMetric(float64(f.Builds())/float64(b.N), "clusters/op")
 			})
 		}
 	})
 	b.Run("find", func(b *testing.B) {
-		for _, bd := range boards {
-			b.Run(bd.name, func(b *testing.B) {
-				f, _, _ := laid(bd.pacing)
-				h := f.NewHierarchy(land, 16)
-				whole(f, h)
-				var path Path
-				if _, ok := f.Climb(h, 1, cell.Land, Body{}, from, to, Either,
-					path.Steps[:]); !ok {
-					b.Fatal("no climb across the board")
+		for _, classes := range [][]Body{unsized, fourBodies} {
+			for _, bd := range boards {
+				name := bd.name
+				if len(classes) > 1 {
+					name = "classes=4/" + name
 				}
-				expanded := f.Expansions()
-				for b.Loop() {
-					f.Climb(h, 1, cell.Land, Body{}, from, to, Either, path.Steps[:])
-				}
-				b.ReportMetric(float64(f.Expansions()-expanded)/float64(b.N), "expansions/op")
-			})
+				b.Run(name, func(b *testing.B) {
+					f, _, _ := laid(bd.pacing)
+					h := f.NewHierarchy(land, 16, classes)
+					whole(f, h)
+					body := classes[len(classes)-1]
+					var path Path
+					if _, ok := f.Climb(h, 1, cell.Land, body, from, to, Either,
+						path.Steps[:]); !ok {
+						b.Fatal("no climb across the board")
+					}
+					expanded := f.Expansions()
+					for b.Loop() {
+						f.Climb(h, 1, cell.Land, body, from, to, Either, path.Steps[:])
+					}
+					b.ReportMetric(float64(f.Expansions()-expanded)/float64(b.N),
+						"expansions/op")
+				})
+			}
 		}
 	})
 	b.Run("rebuild", func(b *testing.B) {
 		for _, bd := range boards {
 			b.Run(bd.name, func(b *testing.B) {
 				f, brd, brdW := laid(bd.pacing)
-				h := f.NewHierarchy(land, 16)
+				h := f.NewHierarchy(land, 16, unsized)
 				whole(f, h)
 				c := g.At(40, 40)
 				builds := f.Builds()

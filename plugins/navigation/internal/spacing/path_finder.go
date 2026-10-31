@@ -14,13 +14,15 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Finder searches the board for a unit's route, over its terrain, pacing and occupancy.
+// Finder searches the board for a unit's route, over its terrain, pacing and occupancy, as the
+// class of its body.
 type Finder struct {
 	*pathfind.Finder
 	grid      grid.Grid
 	Terrain   cell.Terrain
 	Occupancy cell.Occupancy
-	leveled   bool // planning by levels, as a hierarchy is built over
+	leveled   bool              // planning by levels, as a hierarchy is built over
+	classes   *pathfind.Classes // nil: every unit planned as its own body
 }
 
 // NewFinder searches grid's terrain, its pacing and occupancy.
@@ -35,6 +37,24 @@ func (p *Finder) WithLevels(levels pathfind.Levels) *Finder {
 	p.Finder.WithLevels(levels)
 	p.leveled = true
 	return p
+}
+
+// WithClasses has p plan every unit as the class classes holds its body in, classes set at the
+// latest before the first route is asked.
+func (p *Finder) WithClasses(classes *pathfind.Classes) *Finder {
+	p.classes = classes
+	return p
+}
+
+// bodyOf is m as its routes are planned: the body of its class, on its own feet
+func (p *Finder) bodyOf(m bodies.Member) pathfind.Body { return planned(p.classes, m) }
+
+// planned is m's body as classes plan it, its own where classes is nil
+func planned(classes *pathfind.Classes, m bodies.Member) pathfind.Body {
+	if classes == nil {
+		return m.Body()
+	}
+	return classes.Planned(m.Domain, m.Body())
 }
 
 // Read has p, made over a board's read and WithLevels its BoardLevels, search through r: the
@@ -54,7 +74,7 @@ func (p *Finder) FindPath(
 	return path, ok
 }
 
-// climbPath is FindPath climbed through h, the hierarchy of the body's class; false where h
+// climbPath is FindPath climbed through h, the hierarchy serving the body's class; false where h
 // refuses it.
 func (p *Finder) climbPath(
 	h *pathfind.Hierarchy, entity uid.UID64, domain cell.Domain, body pathfind.Body,
@@ -66,11 +86,12 @@ func (p *Finder) climbPath(
 	return path, ok
 }
 
-// walkField is the route from from to o's Target read off f, the field of m's group's goal.
-func (p *Finder) walkField(f *pathfind.Field, m bodies.Member, from cell.ID,
+// walkField is the route from from to o's Target for a body of body's class read off f, the
+// field of m's group's goal.
+func (p *Finder) walkField(f *pathfind.Field, m bodies.Member, body pathfind.Body, from cell.ID,
 	o *order.MoveOrder) (order.Path, bool) {
 	path := order.Path{From: from}
-	n, ok := p.Walk(f, m.ID, m.Domain, m.Body(), from, o.Target, pathfind.Level(o.Level),
+	n, ok := p.Walk(f, m.ID, m.Domain, body, from, o.Target, pathfind.Level(o.Level),
 		path.Steps[:])
 	path.Length, path.Decks = uint16(n), p.Decks()
 	return path, ok
@@ -87,7 +108,7 @@ func (p *Finder) findPathAround(
 	return path, ok
 }
 
-// nearestFree is NearestFree asking h, the hierarchy of the body's class where nil is none,
+// nearestFree is NearestFree asking h, the hierarchy serving the body's class where nil is none,
 // which cells no route reaches once a search found none
 func (p *Finder) nearestFree(
 	h *pathfind.Hierarchy, entity uid.UID64, domain cell.Domain, body pathfind.Body,
@@ -101,7 +122,7 @@ func (p *Finder) nearestFree(
 }
 
 func (p *Finder) on(m bodies.Member, c cell.ID, level order.Level) bool {
-	return p.On(m.Domain, m.Body(), c, pathfind.Level(level))
+	return p.On(m.Domain, p.bodyOf(m), c, pathfind.Level(level))
 }
 
 func (p *Finder) price(from, to cell.ID, kind cell.Kind, d cell.Domain) (float64, bool) {
@@ -137,11 +158,11 @@ func (p *Finder) stepsOnto(m bodies.Member, c cell.ID) (deck, ok bool) {
 	if _, ok := grid.Way(p.grid, m.Cell, c); !ok {
 		return false, true
 	}
-	return p.Steps(m.Domain, m.Body(), m.Cell, c)
+	return p.Steps(m.Domain, p.bodyOf(m), m.Cell, c)
 }
 
 func (p *Finder) onDeck(m bodies.Member, c cell.ID) bool {
-	return p.Level(m.Domain, m.Body(), c) == pathfind.Deck
+	return p.Level(m.Domain, p.bodyOf(m), c) == pathfind.Deck
 }
 
 // rings are the cells round target dom crosses, the nearest first, priced for costs as a route

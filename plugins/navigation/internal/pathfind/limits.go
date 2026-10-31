@@ -40,11 +40,19 @@ func (p *Finder) within(from node, rf, rn *read, level uint8, body Body) bool {
 // bears says whether the body searched for may stand on r's cell on level by what limits it
 // there: the floor bears it, and the wall's gap lets it through whichever way it turns. Small
 // enough to inline, it costs a board limiting nothing a branch.
-func (p *Finder) bears(r *read, level uint8) bool { return !p.limited || p.borne(r, level) }
+func (p *Finder) bears(r *read, level uint8) bool {
+	return !p.limited || p.borne(r, level, &p.body)
+}
 
-func (p *Finder) borne(r *read, level uint8) bool {
+func (p *Finder) borne(r *read, level uint8, body *Body) bool {
 	load, gap := p.limitsOf(r, level)
-	return (load <= 0 || p.body.Weight <= load) && p.through(gap, r.c, r.c, p.body)
+	return (load <= 0 || body.Weight <= load) && p.through(gap, r.c, r.c, *body)
+}
+
+// limiting says whether r's cell limits a body on level beyond its kind
+func (p *Finder) limiting(r *read, level uint8) bool {
+	load, gap := p.limitsOf(r, level)
+	return load > 0 || gap.Width > 0
 }
 
 // through says whether gap lets body through, as tall as it is and as wide across the step from
