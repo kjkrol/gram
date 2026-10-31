@@ -344,6 +344,24 @@ func TestHex_KeepRoadsTakesBackWhatBreaksARoad(t *testing.T) {
 	}
 }
 
+func TestHex_KeepRoadsHoldsARoadUpAnEvenRamp(t *testing.T) {
+	g := grid.DefaultGrids{}.Hex(6, 4, 16)
+	brd, brdW := board.NewBoard(g)
+	road := cell.Kind{Name: cell.Named("road"), Pace: 1, Allows: cell.Land, Graded: true}
+	east, _ := grid.Direction(g, 1, 0)
+	west := g.Opposite(east)
+	for q := range uint32(3) {
+		brdW.SetWay(g.At(q, 1), cell.Way{Kind: road, Width: 6, Links: 1<<east | 1<<west})
+	}
+	r := New(brd, brdW.Touch)
+	r.SetHeights(func(p geom.Vec) float32 { return p.X / 20 })
+	before := slices.Clone(r.values)
+	beside := g.CellOutline(g.At(1, 1), nil)[0] // halfway up a road's ramp, off its way
+	if r.KeepRoads(func() { r.Lift(beside, 1, 0) }) || !slices.Equal(r.values, before) {
+		t.Error("a corner of a road's even ramp was lifted off it")
+	}
+}
+
 func TestHex_ARunGoesThroughASaveAndASaveByCellComesBackByCorner(t *testing.T) {
 	g := grid.DefaultGrids{}.Hex(30, 24, 16)
 	r := onBoard(g)

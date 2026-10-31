@@ -185,34 +185,90 @@ func TestPlan_AFlatWorldCrossesWater(t *testing.T) {
 }
 
 func TestPlan_Hex(t *testing.T) {
-	g := grid.DefaultGrids{}.Hex(12, 12, 10)
-	v := &hexes{g: g, wet: map[cell.ID]bool{}}
-	from := g.At(2, 5)
-	at := from
-	for range 3 {
-		at, _ = g.Toward(at, 0)
+	v := newHexes(func(geom.Vec) float32 { return 10 })
+	for at, _ := v.g.Toward(v.from, 0); at != v.to; at, _ = v.g.Toward(at, 0) {
 		v.wet[at] = true
 	}
-	to, _ := g.Toward(at, 0)
-	b, err := site.Plan(v, site.Rules{Longest: 3, Under: 5, Heights: true}, from, to, 10)
+	b, err := site.Plan(v, site.Rules{Longest: 3, Under: 5, Heights: true}, v.from, v.to, 10)
 	if err != nil || len(b.Spans) != 3 {
 		t.Errorf("planned %+v, %v; want three spans", b, err)
 	}
 }
 
+func TestPlan_HexHeadBesideARoad(t *testing.T) {
+	const deck = 35
+	for name, tc := range map[string]struct {
+		banks func(x, edge float32) float32 // edge: the head's west edge
+		why   string
+	}{
+		"a road up to the head": {
+			banks: func(x, edge float32) float32 { return deck - max(0, edge-x)/20 },
+		},
+		"a road the head levelled bends": {
+			banks: func(x, _ float32) float32 { return 30 + x/20 },
+			why:   "levelling the head would break the road",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			v := newHexes(nil)
+			west := way(v.g, -1, 0)
+			road, _ := v.g.Toward(v.from, west)
+			v.roads[road] = 1<<west | 1<<v.g.Opposite(west)
+			edge := grid.Exit(v.g, v.from, west).X
+			v.banks = func(p geom.Vec) float32 { return tc.banks(p.X, edge) }
+			_, err := site.Plan(v, rules, v.from, v.to, deck)
+			if tc.why == "" {
+				if err != nil {
+					t.Fatalf("refused: %v", err)
+				}
+				return
+			}
+			var r *site.Refusal
+			if !errors.As(err, &r) || r.At != road || !strings.Contains(r.Why(), tc.why) {
+				t.Fatalf("got %v, want the road west of the head refused, %q", err, tc.why)
+			}
+		})
+	}
+}
+
+// hexes is a hex board 12 x 12 of cells 10 big, the ground its banks but for a valley at 0 between
+// the heads of a bridge running east from (2, 5) to (6, 5).
 type hexes struct {
-	g   grid.Grid
-	wet map[cell.ID]bool
+	g        grid.Grid
+	from, to cell.ID
+	wet      map[cell.ID]bool
+	roads    map[cell.ID]cell.Links
+	banks    func(p geom.Vec) float32
+}
+
+func newHexes(banks func(p geom.Vec) float32) *hexes {
+	g := grid.DefaultGrids{}.Hex(12, 12, 10)
+	return &hexes{
+		g:     g,
+		from:  g.At(2, 5),
+		to:    g.At(6, 5),
+		wet:   map[cell.ID]bool{},
+		roads: map[cell.ID]cell.Links{},
+		banks: banks,
+	}
 }
 
 func (h *hexes) Grid() grid.Grid { return h.g }
+
 func (h *hexes) Heights(c cell.ID, dst []float32) []float32 {
-	if h.wet[c] {
-		return append(dst, 0)
+	// past the heads' edges, short of the corners of the spans beside them
+	west, east := h.g.CellCenter(h.from).X+10, h.g.CellCenter(h.to).X-10
+	for _, p := range h.g.CellOutline(c, nil) {
+		if p.X > west && p.X < east {
+			dst = append(dst, 0)
+		} else {
+			dst = append(dst, h.banks(p))
+		}
 	}
-	return append(dst, 10)
+	return dst
 }
+
 func (h *hexes) Takes(c cell.ID) bool              { return !h.wet[c] }
 func (h *hexes) Wet(c cell.ID) bool                { return h.wet[c] }
-func (h *hexes) Road(cell.ID) cell.Links           { return 0 }
+func (h *hexes) Road(c cell.ID) cell.Links         { return h.roads[c] }
 func (h *hexes) Bridged(cell.ID) (site.Part, bool) { return site.Part{}, false }

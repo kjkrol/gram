@@ -398,10 +398,43 @@ func TestLay_ARoadLiesAsTransportTycoonLaysIt(t *testing.T) {
 			t.Errorf("%s: %v, want %q", name, err, c.want)
 		}
 	}
-	hex := newLevelBoard(t, grid.DefaultGrids{}.Hex(3, 1, 10), 0)
-	hexRoad := "ways:\n  roads: {road: {width: 4, paths: [[[0, 0], [2, 0]]]}}\n"
-	_, err := lay(t, hex, "relief:\n  cells: |\n    0 0 5\n"+hexRoad)
-	if err == nil || !strings.Contains(err.Error(), "joins cells at different levels") {
-		t.Errorf("a road over a step between hexes: %v, want it refused", err)
+}
+
+func TestLay_AHexRoadLiesAsTransportTycoonLaysIt(t *testing.T) {
+	for name, c := range map[string]struct {
+		cols, rows uint32
+		cells      string
+		paths      string
+		want       string
+	}{
+		"a step between hexes": {
+			cols:  3,
+			rows:  1,
+			cells: "0 0 5",
+			paths: "[[[0, 0], [2, 0]]]",
+			want:  "level.yaml:5: the road at [1, 0] lies on ground",
+		},
+		"an even ramp, led onto at both ends": {
+			cols:  5,
+			rows:  3,
+			cells: "0 1 2 3 4\n    0.5 1.5 2.5 3.5 4.5\n    1 2 3 4 5",
+			paths: "[[{onto: [0, 1]}, {onto: [4, 1]}]]",
+		},
+		"beside a hill": {
+			cols:  5,
+			rows:  3,
+			cells: "0 0 6 0 0\n    0 0 0 0 0\n    0 0 0 0 0",
+			paths: "[[[0, 1], [4, 1]]]",
+			want:  "level.yaml:7: the road at [1, 1] lies on ground",
+		},
+	} {
+		p := newLevelBoard(t, grid.DefaultGrids{}.Hex(c.cols, c.rows, 10), 0)
+		file := "relief:\n  cells: |\n    " + c.cells + "\n" +
+			"ways:\n  roads: {road: {width: 4, paths: " + c.paths + "}}\n"
+		_, err := lay(t, p, file)
+		if c.want == "" && err != nil || c.want != "" && (err == nil ||
+			!strings.Contains(err.Error(), c.want)) {
+			t.Errorf("%s: %v, want %q", name, err, c.want)
+		}
 	}
 }

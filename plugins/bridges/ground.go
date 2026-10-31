@@ -15,7 +15,6 @@ type boardGround struct {
 	brd     *board.BoardRead
 	heights func(p geom.Vec) float32 // nil: flat at 0
 	allows  cell.Domain
-	hex     bool
 	laid    []site.Bridge // a level's, before its entities are
 	outline []geom.Vec
 }
@@ -24,16 +23,12 @@ var _ site.Ground = (*boardGround)(nil)
 
 func newGround(brd *board.BoardRead, heights func(p geom.Vec) float32,
 	allows cell.Domain) *boardGround {
-	shape, _ := grid.ShapeOf(brd.Grid)
-	return &boardGround{brd: brd, heights: heights, allows: allows, hex: shape.Hex}
+	return &boardGround{brd: brd, heights: heights, allows: allows}
 }
 
 func (g *boardGround) Grid() grid.Grid { return g.brd.Grid }
 
 func (g *boardGround) Heights(c cell.ID, dst []float32) []float32 {
-	if g.hex || g.heights == nil {
-		return append(dst, g.at(g.brd.CellCenter(c)))
-	}
 	g.outline = g.brd.CellOutline(c, g.outline[:0])
 	for _, p := range g.outline {
 		dst = append(dst, g.at(p))
@@ -49,7 +44,7 @@ func (g *boardGround) at(p geom.Vec) float32 {
 }
 
 func (g *boardGround) level(c cell.ID) float32 {
-	var buf [4]float32
+	var buf [6]float32
 	hs := g.Heights(c, buf[:0])
 	sum := float32(0)
 	for _, h := range hs {
