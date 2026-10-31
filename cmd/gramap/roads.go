@@ -969,7 +969,7 @@ func (r *roads) grade() error {
 	}
 	var bad []string
 	for _, j := range jobs {
-		if !ground.RoadFits(w.grid, j.c, w.outline(j.c), j.links, float32(w.size)) {
+		if !ground.RoadFits(w.grid, j.c, w.outline(j.c), j.links) {
 			x, y := w.xy(j.c)
 			bad = append(bad, fmt.Sprintf("[%d, %d]", x, y))
 		}

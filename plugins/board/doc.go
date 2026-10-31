@@ -99,7 +99,10 @@
 // A [Sides] is the commands the game gives its entities as they are made. An error says the file
 // and the line; an entity no Spawn took fails the board's Populate. A road never runs over a
 // river: a point {onto: [x, y]} leads it onto the bridge or the ford standing there. With a
-// relief every cell of a Graded road lies level or on an even ramp (ground.RoadFits).
+// relief every cell of a Graded road lies level or on an even ramp (ground.RoadFits), by its
+// corners on either grid. A hex relief given by cells bends the cell where level ground turns
+// into a ramp, a corner being the mean of three cells, so a road climbing there leads onto a
+// bridge or a ford at its ends.
 //
 // # Commands
 //
