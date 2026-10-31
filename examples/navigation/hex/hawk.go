@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/motion/steering"
+	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -28,5 +29,6 @@ func (hawk) Define(b *board.Plugin) {
 }
 
 func (hawk) Look(a *world.Atlas, w *world.Plugin) {
-	a.Add(kind.Named[unitRow](w.Kinds(), HawkKind), scoutPx, render.Diamond(hawkColor))
+	a.Add(kind.Named[unitRow](w.Kinds(), HawkKind), scoutPx, render.Diamond(hawkColor)).
+		Styled(vision.Cone{Color: hawkColor})
 }

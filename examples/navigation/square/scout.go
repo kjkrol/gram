@@ -63,7 +63,7 @@ func ordered() comp.Comp {
 }
 
 func sight() comp.Comp {
-	return comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 200, Ahead: true})
+	return comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: CellSize * 6.25, Ahead: true})
 }
 
 func eye(height float32) comp.Comp {

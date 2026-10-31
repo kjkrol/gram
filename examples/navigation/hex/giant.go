@@ -15,7 +15,7 @@ import (
 
 const (
 	giantPx     = 60 // past a hex: a footprint of three hexes a side, its hex and the ring round it
-	giantSpeed  = HexSize * 1.5
+	giantSpeed  = HexStep
 	giantWeight = 3000 // kg
 )
 

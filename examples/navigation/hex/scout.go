@@ -20,7 +20,7 @@ import (
 
 const (
 	scoutPx     = 16
-	scoutSpeed  = HexSize * 3
+	scoutSpeed  = HexStep * 2
 	scoutWeight = 80 // kg
 )
 
@@ -46,7 +46,7 @@ func (s scout) Define(b *board.Plugin) {
 
 // each side outlined and routed in its own colour
 func (s scout) Look(a *world.Atlas, w *world.Plugin) {
-	a.Add(kind.Named[unitRow](w.Kinds(), s.kind), scoutPx, render.Hexagon(s.color)).
+	a.Add(kind.Named[unitRow](w.Kinds(), s.kind), scoutPx, render.Solid(s.color)).
 		Styled(selection.Highlight{Line: s.color, Width: 2}).
 		Styled(navigation.RouteStyle{Line: s.color, Goal: s.color, Width: 1.5})
 }
@@ -63,7 +63,7 @@ func ordered() comp.Comp {
 }
 
 func sight() comp.Comp {
-	return comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 200, Ahead: true})
+	return comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: HexStep * 6.25, Ahead: true})
 }
 
 func eye(height float32) comp.Comp {

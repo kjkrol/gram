@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.14.1 — 2026-10-31
+
+**navigation/hex as navigation/square, the grid the one difference** (2026-10-31, branch
+`fix/navigation-hex`)
+- Fixed: navigation/hex differed from navigation/square beyond its grid: its scouts were drawn as
+  hexagons, its hawk's cone in the default colour, and its units walked slower and saw less far
+  in cells (the scouts 1.7, the wagon 1.15 and the giant 0.87 cells a second, sight 4.8 cells,
+  against 2, 2, 1 and 6.25). Now the same, speeds and sight counted in steps between two cells'
+  centres (`HexStep`, √3·`HexSize`), and one description.
+
 ## v0.14.0 — 2026-10-31
 
 **Bodies bigger than a cell, planned where their footprint fits** (2026-10-31, branch
