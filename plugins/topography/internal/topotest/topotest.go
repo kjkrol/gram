@@ -91,10 +91,21 @@ func NewQuasiWorldWith(
 	define func(qw *QuasiWorld, units *board.Units[Recruit]) []kind.Entry,
 ) *QuasiWorld {
 	t.Helper()
+	return NewQuasiWorldUpTo(t, collide, 20, define)
+}
+
+// NewQuasiWorldUpTo is NewQuasiWorldWith of entities up to size wide.
+func NewQuasiWorldUpTo(
+	t *testing.T,
+	collide bool,
+	size uint32,
+	define func(qw *QuasiWorld, units *board.Units[Recruit]) []kind.Entry,
+) *QuasiWorld {
+	t.Helper()
 	qw := &QuasiWorld{Grid: grid.DefaultGrids{}.Square(4, 4, 32)}
 	qw.World = world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 128, Height: 128},
-		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 20, MaxSize: 20},
+		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 20, MaxSize: size},
 		Heights:  true,
 	})
 	qw.Motion = motion.NewPlugin(qw.World)

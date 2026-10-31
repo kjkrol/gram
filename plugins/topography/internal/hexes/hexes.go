@@ -53,8 +53,8 @@ const (
 var _ render.Direct = (*Ground)(nil)
 
 // Ground is the ground of a hex board in relief drawn on the GPU, a render.Direct in the opaque
-// pass in place of the tiles: every cell a prism to its top, coloured from the tiles and the ways
-// drawn from above.
+// pass in place of the tiles: every cell a prism to its ground, coloured from the tiles and the
+// ways drawn from above.
 type Ground struct {
 	world   *world.Plugin
 	board   *board.Plugin
@@ -71,7 +71,7 @@ type Ground struct {
 	top     *render.Image
 	stale   bool      // the tops drawn before the board or the relief last changed
 	px      float32   // pixels a world unit
-	cells   []float32 // three vec4s a cell: centre and top, the six neighbours' tops
+	cells   []float32 // three vec4s a cell: centre and ground, the six neighbours' grounds
 	// the sectors the cells are laid by, nil for none, and each one's run of them
 	sectors view.Sectors
 	runs    []run
@@ -81,9 +81,9 @@ type Ground struct {
 	pixel   any // the top's Pixel, a []float32 of one
 }
 
-// New is the ground of b's hex board over w, as the frame drawn holds it: the cells cells, standing
-// as m says on the relief ground gives, hazed and gridded as drawn says, under sky, the ways
-// across their tops drawn by p.
+// New is the ground of b's hex board over w, as the frame drawn holds it: the cells cells on the
+// relief ground gives, their tops drawn in m's look, hazed and gridded as drawn says, under sky,
+// the ways across their tops drawn by p.
 func New(w *world.Plugin, b *board.Plugin, cells look.Board, m look.Map,
 	ground func() *relief.Relief, drawn func() (hazed bool, grid look.RenderState), sky Sky,
 	p *painter.Painter) *Ground {
@@ -230,19 +230,18 @@ func (h *Ground) drawTop(u render.Uniforms) {
 // the cells' instances, sector after sector where the world has them
 func (h *Ground) lay() {
 	h.cells = h.cells[:0]
-	low, _ := h.ground().Extent()
+	ground := h.ground()
+	low, _ := ground.Extent()
 	across := h.edges()
 	add := func(c cell.ID) {
 		centre := h.grid.CellCenter(c)
-		top, _ := h.m.Top(c)
-		h.cells = append(h.cells, centre.X, centre.Y, top[0],
+		h.cells = append(h.cells, centre.X, centre.Y, ground.Altitude(c),
 			float32(takesOf(h.cellsOf.Kind(c).Takes)))
 		for _, i := range across {
 			n, ok := h.grid.Toward(c, i)
 			lowest := min(low, 0)
 			if ok {
-				nt, _ := h.m.Top(n)
-				lowest = nt[0]
+				lowest = ground.Altitude(n)
 			}
 			h.cells = append(h.cells, lowest)
 		}

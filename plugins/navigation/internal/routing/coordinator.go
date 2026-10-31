@@ -350,7 +350,8 @@ type ranked struct {
 	z     world.Z
 	form  int32 // its formation among the Update's
 	cost  float32
-	per   float32 // what a world unit of the way to the goal costs where it stands
+	per   float32  // what a world unit of the way to the goal costs where it stands
+	laid  geom.Vec // a point of the cell its footprint is laid from, where in it it stands
 }
 
 // a formation as an Update lays it out: its group, the first member met, whose key takes the
@@ -382,6 +383,7 @@ func (c *Coordinator) Form(ids []uid.UID64) {
 		return
 	}
 	brd := c.read(0).Board()
+	span := brd.CellSpan()
 	c.ranks, c.forms = c.ranks[:0], c.forms[:0]
 	c.fields.Sweep()
 	// no group's: a key no member's is
@@ -424,8 +426,11 @@ func (c *Coordinator) Form(ids []uid.UID64) {
 		if c.forms[len(c.forms)-1].pending {
 			c.fields.Expect(q, m.Cell)
 		}
-		c.ranks = append(c.ranks, ranked{id: id, order: o, at: m.Centre(), z: m.Z,
-			form: int32(len(c.forms) - 1)})
+		r := ranked{id: id, order: o, at: m.Centre(), z: m.Z, form: int32(len(c.forms) - 1)}
+		if r.laid = r.at; max(m.Pos.Size.X, m.Pos.Size.Y) > span {
+			r.laid = unit.LaidFrom(brd, m.Pos.Size, r.at)
+		}
+		c.ranks = append(c.ranks, r)
 	}
 	c.takeFields()
 	for i := range c.ranks {
@@ -435,7 +440,7 @@ func (c *Coordinator) Form(ids []uid.UID64) {
 		if f.field == nil {
 			continue
 		}
-		at, deck, ok := spacing.LevelOf(brd, brd, r.at, &r.z)
+		at, deck, ok := spacing.LevelOf(brd, brd, r.laid, &r.z)
 		if !ok {
 			continue
 		}
@@ -444,7 +449,7 @@ func (c *Coordinator) Form(ids []uid.UID64) {
 			level = pathfind.Deck
 		}
 		if cost, on := f.field.Cost(at, level); on {
-			r.cost, r.per = costAt(brd, f.field, at, level, cost, r.at)
+			r.cost, r.per = costAt(brd, f.field, at, level, cost, r.laid)
 		}
 	}
 	slices.SortFunc(c.ranks, func(a, b ranked) int {

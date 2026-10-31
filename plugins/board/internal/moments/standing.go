@@ -40,10 +40,11 @@ type standingSystem struct {
 	about  func(i int) unit.Standing // bound once
 	cols   *cgoke.Columns
 	dirs   []geom.Vec // the grid's directions, each of length 1
+	span   float32    // a cell's, past which a unit's footprint may be laid off its middle
 }
 
 func newStandingSystem(r *Rules) *standingSystem {
-	s := &standingSystem{r: r}
+	s := &standingSystem{r: r, span: r.grid.CellSpan()}
 	s.about = s.standing
 	for i := range r.grid.Directions() {
 		step := r.grid.Step(i)
@@ -112,6 +113,9 @@ func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 func (s *standingSystem) share(i int) float32 {
 	b := &s.bases[i]
 	at := b.Pos.Center()
+	if max(b.Pos.Size.X, b.Pos.Size.Y) > s.span {
+		at = s.laid(&b.Pos)
+	}
 	c, ok := s.r.grid.CellAt(at)
 	if !ok {
 		return 1
@@ -165,7 +169,11 @@ func (s *standingSystem) logFall(i int) {
 }
 
 func (s *standingSystem) standing(i int) unit.Standing {
-	at := s.bases[i].Pos.Center()
+	pos := &s.bases[i].Pos
+	at := pos.Center()
+	if max(pos.Size.X, pos.Size.Y) > s.span {
+		at = s.laid(pos)
+	}
 	c, ok := s.r.grid.CellAt(at)
 	if !ok {
 		c = s.ats[i].Cell
@@ -181,6 +189,12 @@ func (s *standingSystem) standing(i int) unit.Standing {
 		Domain:   unit.DomainAt(s.movers, i),
 		Airborne: s.states != nil && s.states[i].Has(unit.Airborne), Feet: feet, Level: level,
 		Reach: reach}
+}
+
+// laid is a point of the cell the footprint of a unit bigger than a cell at pos is laid from; a
+// unit within a cell's is its middle, read inline
+func (s *standingSystem) laid(pos *world.Position) geom.Vec {
+	return unit.LaidFrom(s.r.grid, pos.Size, pos.Center())
 }
 
 func (s *standingSystem) feet(i int) (float32, float32) {

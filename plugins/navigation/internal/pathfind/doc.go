@@ -3,6 +3,8 @@
 // the caller says is blocked, and the nearest free cell to a taken one. A Field is the way to one
 // goal from the cells round it, filled once for a group and walked as each of its units' route.
 //
-// A unit is no bigger than a cell's side (board.NewUnits refuses a bigger one), so every step
-// takes it but one along a deck's band narrower than the unit is across the step.
+// A unit within a cell takes every step but one along a deck's band narrower than it is across
+// the step; one bigger than a cell stands on a node only where every cell of its footprint's
+// window takes it, laid round the node for an odd side and from it right and down for an even
+// one, a slantwise step's flanks too.
 package pathfind

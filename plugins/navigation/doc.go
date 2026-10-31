@@ -66,7 +66,11 @@
 // railing is never planned. A
 // step along a deck's band is planned only for a unit no wider across it than the band's lane
 // (board.BoardRead.Lane), onto a floor only for a unit it bears, through a wall's gap only for one
-// the gap fits (board.BoardRead.Limits).
+// the gap fits (board.BoardRead.Limits). A unit bigger than a cell is planned where its footprint
+// fits: every cell of the footprint laid from a route's cell takes it on that level, a slantwise
+// step's flanks too, and it steers to the footprint's middle, its cells' corner for an even side;
+// it keeps to one level, off a deck's band and from under a deck too low for it, and holds the
+// cell its footprint is laid from alone.
 //
 // A route once planned is followed: it is planned again when it breaks (the ground under it turns
 // against the unit, a step is refused, the unit is pushed off it or strikes someone), not when a

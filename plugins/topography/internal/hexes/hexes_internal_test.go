@@ -1,6 +1,7 @@
 package hexes
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/kjkrol/gram/plugins/board"
@@ -8,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
+	"github.com/kjkrol/gram/plugins/topography/internal/relief"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -39,6 +41,41 @@ func TestGround_OutlinesThePrismsInTheBoardsGridLine(t *testing.T) {
 	b.Write().ShowGrid(false)
 	if _, width := h.gridOf(cam); width != 0 {
 		t.Errorf("the board's grid hidden, the prisms outlined %v pixels wide, want none", width)
+	}
+}
+
+func TestGround_StandsEveryPrismToItsGroundWhateverItsKindsHeight(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 256, Height: 256},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 4},
+		Heights:  true,
+	})
+	b := board.NewPlugin(grid.DefaultGrids{}.Hex(4, 4, 20), &cell.MultipleOccupancy{}, w)
+	brd := b.Read(0).Board()
+	forest, beside := brd.At(1, 1), brd.At(2, 1)
+	b.Write().Board().Set(forest, cell.Kind{Name: cell.Named("forest"), Pace: 1, Height: 8})
+	r := relief.New(brd, nil)
+	r.SetCorners(forest, relief.Corners{3})
+	r.SetCorners(beside, relief.Corners{5})
+	gridded := func() (bool, look.RenderState) { return false, *b.Res.Render }
+	h := New(w, b, b.Read(0).Drawn(), nil, func() *relief.Relief { return r }, gridded, nil, nil)
+	h.lay()
+	laid := func(c cell.ID) []float32 {
+		centre := brd.CellCenter(c)
+		for i := 0; i < len(h.cells); i += cellFloats {
+			if h.cells[i] == centre.X && h.cells[i+1] == centre.Y {
+				return h.cells[i : i+cellFloats]
+			}
+		}
+		t.Fatalf("no prism laid at %v", centre)
+		return nil
+	}
+	if top := laid(forest)[2]; top != 3 {
+		t.Errorf("the forest stands to %v, want its ground's 3: a kind's Height is not drawn", top)
+	}
+	if sides := laid(beside)[4:10]; !slices.Contains(sides, 3) || slices.Contains(sides, 11) {
+		t.Errorf("the forest's neighbour's sides go down to %v, want one to the forest's ground 3",
+			sides)
 	}
 }
 

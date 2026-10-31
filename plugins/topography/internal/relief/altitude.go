@@ -3,6 +3,7 @@ package relief
 import (
 	"time"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -30,13 +31,15 @@ type altitudeSystem struct {
 	standing *goke.Query
 	on       goke.Comp[cell.On]
 	floor    goke.OptComp[cell.Floor]
+
+	span float32 // a cell's: a body wider stands on the highest ground under its box
 }
 
 // AltitudeSystem is the goke.System keeping the movers on r at their heights, standing on what
-// surfaces says, or on r's ground where it is nil. Run it in every step of the simulation, after
-// movement and collisions.
+// surfaces says, or on r's ground where it is nil, one bigger than a cell on the highest ground
+// under its box. Run it in every step of the simulation, after movement and collisions.
 func (r *Relief) AltitudeSystem(surfaces ground.Surfaces) goke.System {
-	return &altitudeSystem{relief: r, surfaces: surfaces}
+	return &altitudeSystem{relief: r, surfaces: surfaces, span: r.grid.CellSpan()}
 }
 
 func (s *altitudeSystem) Init(si *goke.SysInit) {
@@ -55,9 +58,12 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 			m := &movers[i]
 			at := bases[i].Pos.Center()
 			var ground float32
-			if s.surfaces != nil {
+			switch {
+			case max(bases[i].Pos.Size.X, bases[i].Pos.Size.Y) > s.span:
+				ground = s.under(&bases[i].Pos)
+			case s.surfaces != nil:
 				ground, _ = s.surfaces.Surface(at, m.Domain, zs[i].Altitude-m.Lift, zs[i].Reach())
-			} else {
+			default:
 				ground = s.relief.GroundAt(at)
 			}
 			alt := ground + m.Lift
@@ -86,9 +92,32 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 				zs[i].Altitude = s.relief.Altitude(ons[i].Cell) + floors[i].Height
 				continue
 			}
+			if pos := &bases[i].Pos; max(pos.Size.X, pos.Size.Y) > s.span {
+				zs[i].Altitude = s.under(pos)
+				continue
+			}
 			zs[i].Altitude = s.relief.GroundAt(bases[i].Pos.Center())
 		}
 	}
+}
+
+// under is the highest ground at the middle and the corners on the board of the box at pos, a
+// body bigger than a cell's: drawn flat at the ground under its middle, the box sank into a slope
+// under its corners. Such a body keeps to the ground, never on a deck.
+func (s *altitudeSystem) under(pos *world.Position) float32 {
+	c, h := pos.Center(), geom.NewVec(pos.Size.X/2, pos.Size.Y/2)
+	ground := s.relief.GroundAt(c)
+	for _, q := range [4]geom.Vec{
+		geom.NewVec(c.X-h.X, c.Y-h.Y),
+		geom.NewVec(c.X+h.X, c.Y-h.Y),
+		geom.NewVec(c.X-h.X, c.Y+h.Y),
+		geom.NewVec(c.X+h.X, c.Y+h.Y),
+	} {
+		if _, ok := s.relief.grid.CellAt(q); ok {
+			ground = max(ground, s.relief.GroundAt(q))
+		}
+	}
+	return ground
 }
 
 // the ground wins over the Ceiling

@@ -31,9 +31,10 @@ func (o *askedOccupancy) CanEnter(cell.ID, bool, uid.UID64, cell.Domain) bool {
 
 const retryTick = time.Second / 60
 
-// five cells across, a wall down the fourth: nothing gets from the first three to the fifth
+// five cells across, a wall down the fourth: nothing gets from the first three to the fifth; a
+// unit's box fits a cell
 func walled(rows uint32) (grid.Grid, *cell.TerrainMap, func(x, y uint32) cell.ID) {
-	g := grid.DefaultGrids{}.Square(5, rows, 10)
+	g := grid.DefaultGrids{}.Square(5, rows, 32)
 	at := func(x, y uint32) cell.ID { c := g.At(x, y); return c }
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})

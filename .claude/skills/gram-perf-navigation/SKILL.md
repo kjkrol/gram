@@ -33,6 +33,12 @@ wynik etapów: `doc/plans-perf.md` (Etap 2, Fale 3–5, „Udziały tempa", „K
 - **Plansza bez limitów płaci gałąź na krok**: `p.limited` czytane raz w `begin`, `bears`
   inline; limity komórki czytane raz na szukanie w bitach `read.has`, komórki z limitem pytane
   za każdym razem.
+- **Obrys kosztuje tylko ciała większe od pola**: płaskie szukanie idzie pętlą bez testu obrysu,
+  ciało większe od pola własną (`plainSpanFrom`) i własnym solverem; krok po poziomach płaci
+  gałąź (`p.print != nil`), krok klasowy test maski; obrys szuka się tylko powyżej `span`
+  Findera. W traffic `place`, `goal` i `offOf` muszą się inline'ować, nowe pola stoją na końcach
+  struktur. Prześwit finder trzyma po `Passage`: węzły w oknie zmienionych pól czytane
+  ponownie, całość, gdy taniej.
 - Trasa raz zaplanowana jest śledzona i planowana na nowo tylko, gdy pęknie.
 - `routes.golden` stoi na remisach hpastara (jak `container/heap`): ich zmiana przepisuje go z
   powodem i zmienia dynamikę tłumu.
@@ -119,6 +125,10 @@ wynik etapów: `doc/plans-perf.md` (Etap 2, Fale 3–5, „Udziały tempa", „K
 - Liczniki (szukania, marsze, wypełnienia, rozwinięcia, wspinaczki): `Read.Counts()`.
 - `PathFinder_Hierarchy/build/{classes=4,solvers=4}`: jeden Solver czterech klas wobec czterech
   Solverów jednej; `find/classes=4` to wspinaczka pytana jako ostatnia z czterech klas.
+- `PathFinder_Footprint/{lay,find,find/within,change,build/within,build/wide}`: prześwit i trasy
+  ciała większego od pola.
+- Jedna para nie rozstrzyga tu ±1%: baza przeciw bazie daje `PathFinder_Terrain/map` ±2,6%,
+  `Navigation_Tick/open` ±1,6%; ±1% rozstrzyga średnia z czterech porównań pozycja do pozycji.
 
 ## Na później
 

@@ -51,7 +51,11 @@
 // band ([BoardRead.DecksOver], [BoardRead.Reaches]), its railings never stepped across
 // ([BoardRead.Fenced]); a step along it takes a body no wider than its [BoardRead.Lane].
 // [BoardRead.Limits] is what a cell limits a body by beyond its kind, a floor's load and a wall's
-// gap ([BoardRead.Limited]). A unit is no bigger than a cell's side ([NewUnits] panics past it).
+// gap ([BoardRead.Limited]). A unit's box past a cell takes a footprint of cells a side
+// (unit.Footprint), up to [DefaultFootprint] unless [Plugin.WithFootprint] sets another
+// ([NewUnits] panics past it): an odd one laid round the cell its unit is At, an even one from
+// it right and down, its unit standing on the corner its middle cells share (unit.Place).
+// [BoardRead.Railed] says whether a railing runs along a cell's own band.
 // [Plugin.UnitKinds] lists the kinds of unit defined over the board ([UnitKind]).
 //
 // # Bridges

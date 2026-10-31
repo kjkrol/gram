@@ -14,7 +14,9 @@ const (
 	YellowKind = "yellow"
 	HawkKind   = "hawk"
 	WagonKind  = "wagon"
+	GiantKind  = "giant"
 	BridgeKind = "bridge"
+	RopeKind   = "rope"
 
 	PlayerSide  = "player"
 	ReserveSide = "reserve"

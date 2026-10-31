@@ -9,23 +9,25 @@ board:
     "~": water
     "f": ford
   # a hill in the first unit's way: its cone climbs the slope and stops, the hawk's passes over;
-  # a river beyond the wall's gap, a bridge over it too narrow for the wagon and a ford at its
-  # foot
+  # a river three hexes beyond the wall's gap, a bridge over it too narrow for the wagon, a rope
+  # bridge too weak for it and a ford at its foot; above the gap a hole in the wall and a ford,
+  # both three hexes wide: the giant's one way over
   cells: |
-    . . = = = = = = = = = = ~ = = = = = . .
-     . . = . . . . . . . # . ~ . . . . = . .
-      . . = . . . . . ^ ^ # . ~ . . . . = . .
-       . . = . . . . . ^ ^ # . ~ . . . . = . .
-        . . = . . T T T ^ ^ # . ~ . . . . = . .
-         . . = . . T T T . . # . ~ . . . . = . .
-          . . = . . T T T . . . . ~ . . . . = . .
-           . . = . . . . . . . # . ~ . . . . = . .
-            . . = . . . . . . . # . ~ T T T . = . .
-             . . = . . . . . . . # . ~ T T T . = . .
-              . . = . . . . . . . # . ~ T T T . = . .
-               . . = . . . . . . . # . f . . . . = . .
+    . . = = = = = = = = = = = = ~ = = = . .
+     . . = . . . . . . . # . . . ~ . . = . .
+      . . = . . . . . ^ ^ . . . . f . . = . .
+       . . = . . . . . ^ ^ . . . . f . . = . .
+        . . = . . T T T ^ ^ . . . . f . . = . .
+         . . = . . T T T . . # . . . ~ . . = . .
+          . . = . . T T T . . . . . . ~ . . = . .
+           . . = . . . . . . . # . . . ~ . . = . .
+            . . = . . . . . . . # . . . ~ T T = . .
+             . . = . . . . . . . # . . . ~ T T = . .
+              . . = . . . . . . . # . . . ~ T T = . .
+               . . = . . . . . . . # . . . f . . = . .
   entities:
-    - {kind: bridge, from: [11, 6], to: [13, 6]}
+    - {kind: bridge, from: [13, 6], to: [15, 6]}
+    - {kind: rope, from: [13, 8], to: [15, 8]}
 relief:
   cells: |
     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
@@ -41,9 +43,11 @@ relief:
     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 units:
-  - {kind: red, side: player, start: [3, 3], target: [16, 3]}
+  - {kind: red, side: player, start: [3, 3], target: [18, 3]}
   - {kind: blue, side: player, start: [3, 9], target: [16, 9]}
   - {kind: yellow, side: player, start: [16, 6], target: [3, 6]}
   # the hawk crosses the wall and the second forest head-on
   - {kind: hawk, side: reserve, start: [1, 9], target: [18, 9]}
   - {kind: wagon, side: player, start: [1, 11], target: [18, 11]}
+  # too big for the gap and the bridges, a hex wide, it goes up by the hole and the ford
+  - {kind: giant, side: player, start: [5, 8], target: [16, 6]}

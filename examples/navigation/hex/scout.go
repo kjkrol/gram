@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	scoutPx    = 16
-	scoutSpeed = HexSize * 3
+	scoutPx     = 16
+	scoutSpeed  = HexSize * 3
+	scoutWeight = 80 // kg
 )
 
 // scout is a walker looking ahead, sent to its target from the map; one kind a colour.
@@ -39,7 +40,8 @@ func (s scout) Define(b *board.Plugin) {
 		V0:       scoutSpeed / 2,
 		TurnRate: 0.15,
 	}
-	units(b).Define(s.kind, unit.Mover{Domain: cell.Land}, profile, ordered(), sight(), eye(1.5))
+	walks := unit.Mover{Domain: cell.Land, Weight: scoutWeight}
+	units(b).Define(s.kind, walks, profile, ordered(), sight(), eye(1.5))
 }
 
 // each side outlined and routed in its own colour

@@ -150,6 +150,12 @@ func (r *BoardRead) Fenced(from, to cell.ID, d cell.Domain, deck bool) bool {
 	return r.cells.Fenced(from, to, d, deck)
 }
 
+// Railed reports whether a railing keeping d off runs along c's own band, on the decks' level
+// when deck, else on the ground's: a band running on through c, a head carrying none.
+func (r *BoardRead) Railed(c cell.ID, d cell.Domain, deck bool) bool {
+	return r.cells.Railed(c, d, deck)
+}
+
 // Limited reports whether a floor's Load or a wall's Gap limits whom a cell takes anywhere on the
 // board.
 func (r *BoardRead) Limited() bool { return r.cells.Limited() }

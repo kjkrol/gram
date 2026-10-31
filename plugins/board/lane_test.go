@@ -51,24 +51,6 @@ func TestBoard_ALaneIsTheBandLessItsRailingsOnItsOwnLevel(t *testing.T) {
 	}
 }
 
-func TestBoard_AUnitBiggerThanACellsSidePanics(t *testing.T) {
-	w := world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 50, Height: 30},
-		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 1, MaxSize: 10},
-		Heights:  true,
-	})
-	p := board.NewPlugin(grid.DefaultGrids{}.Square(5, 3, 10), &cell.MultipleOccupancy{}, w).
-		WithMotion(motion.NewPlugin(w), cell.DefaultHiking)
-	at := func(v geom.Vec) geom.Vec { return v }
-	board.NewUnits(p, board.Shape{Size: 10}, at)
-	defer func() {
-		if recover() == nil {
-			t.Error("a unit 11 across on cells 10 wide did not panic")
-		}
-	}()
-	board.NewUnits(p, board.Shape{Size: 6, Width: 11}, at)
-}
-
 func TestBoard_UnitsOnABoardWithoutMotionPanic(t *testing.T) {
 	for name, given := range map[string]func(w *world.Plugin, p *board.Plugin){
 		"neither": func(*world.Plugin, *board.Plugin) {},

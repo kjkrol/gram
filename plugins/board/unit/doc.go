@@ -5,6 +5,10 @@
 // [Entered] and [Airborne] are markers of the board's [States] every unit carries: on for the
 // step a unit came into another cell, and while it is in the air.
 //
+// [Footprint] is how many cells a side a unit's box takes, past a cell holding it with room to
+// spare (an even side rounded up to an odd one on a hex grid); [Place] is where the unit stands
+// on the footprint laid from a cell, [LaidFrom] that cell's point from where it stands.
+//
 // # Vocabulary
 //
 // Moments, for a role's rules: [Standing] (every unit a step; places board.Around and

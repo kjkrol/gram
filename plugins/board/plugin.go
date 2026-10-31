@@ -71,6 +71,7 @@ type Plugin struct {
 	bridges     Bridges
 	cellOf      map[string]func(row any) cell.ID
 	unitKinds   []UnitKind
+	footprint   int // the most cells a side a unit's footprint may take
 	tiles       []Tile
 	surfaces    []Surface
 	where       map[cell.ID]string // the file and line a level laid the entity on a cell by
@@ -97,6 +98,7 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 		occupancy:   occupancy,
 		worldPlugin: worldPlugin,
 		kinds:       terrain.NewKinds(),
+		footprint:   DefaultFootprint,
 	}
 	p.Res.Settings.Grid = true
 	p.kept = plugin.Keep(&p.Res.Settings)
@@ -160,7 +162,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		built:     p.board.cells.BuiltSystem(p.worldPlugin.Write().Space),
 		roster:    p.worldPlugin.Roster(),
 		template:  CellTemplate,
-		keep:      occupancy.KeepSystem(p.occupancy, p.board.read.footing),
+		keep:      occupancy.KeepSystem(p.occupancy, p.board.read.footing, &p.board.read),
 		standing:  p.rules.StandingSystem(),
 		cellRules: p.rules.CellSystem(),
 		clock:     p.worldPlugin.Write().Clock(),

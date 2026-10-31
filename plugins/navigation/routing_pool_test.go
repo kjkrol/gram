@@ -12,16 +12,33 @@ import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
 	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
+	"github.com/kjkrol/gram/plugins/world"
 )
 
 // asks answered on a pool's goroutines, many of them asked by several units at once, get the
 // routes one goroutine alone gives them
 func TestCoordinator_AsksOnAPoolGetTheRoutesOfOneGoroutine(t *testing.T) {
+	samePoolRoutes(t, func(y uint32) bool { return y%8 == 4 }, 0)
+}
+
+// as asks answered on a pool's goroutines alike, of units bigger than a cell, each router keeping
+// their footprints of its own
+func TestCoordinator_AsksOfBodiesBiggerThanACellOnAPoolGetTheRoutesOfOneGoroutine(t *testing.T) {
+	samePoolRoutes(t, func(y uint32) bool { return y%8 >= 3 && y%8 <= 5 }, 40)
+}
+
+// samePoolRoutes has 200 units of boxes side wide, none for 0, ask their routes across a wall down
+// the middle of a board 32 cells by 32 of 16, open in the rows open says, on a pool of goroutines
+// and on one, and wants the same routes; a unit with a box stands and is sent a cell off the
+// board's edges, where its footprint stands
+func samePoolRoutes(t *testing.T, open func(y uint32) bool, side uint32) {
+	t.Helper()
 	g := grid.DefaultGrids{}.Square(32, 32, 16)
+	off := uint32(min(side, 1))
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	for y := range uint32(32) {
-		if y%8 != 4 {
+		if !open(y) {
 			terrain.Set(g.At(16, y), cell.Kind{Pace: 1, Solid: true})
 		}
 	}
@@ -35,17 +52,22 @@ func TestCoordinator_AsksOnAPoolGetTheRoutesOfOneGoroutine(t *testing.T) {
 		}
 		var at goke.Comp[unit.At]
 		var orders goke.Comp[MoveOrder]
+		var base goke.Comp[world.Base]
 		var q *goke.Query
 		ecs := goke.New()
 		ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-			f := si.NewFactory(&at, &orders)
+			f := si.NewFactory(&at, &orders, &base)
 			f.Create(200)
 			k := 0
 			for f.Next() {
 				for i := range f.Cursor.IDs {
-					at.Slice(&f.Cursor)[i] = unit.At{Cell: g.At(uint32(k%10), uint32(k%30))}
-					orders.Slice(&f.Cursor)[i] = MoveOrder{Target: g.At(31, uint32(k%5*6)),
-						Ask: order.AskRoute}
+					c := g.At(uint32(k%10)+off, uint32(k%30)+off)
+					at.Slice(&f.Cursor)[i] = unit.At{Cell: c}
+					orders.Slice(&f.Cursor)[i] = MoveOrder{Target: g.At(31-off,
+						uint32(k%5*6)+off), Ask: order.AskRoute}
+					if side > 0 {
+						base.Slice(&f.Cursor)[i].Pos = world.Position{AABB: cellBox(g, c, side)}
+					}
 					k++
 				}
 			}

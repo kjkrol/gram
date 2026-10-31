@@ -293,6 +293,25 @@ func (r *Read) Fenced(from, to cell.ID, d cell.Domain, deck bool) bool {
 	return r.fencedBy(from, geom.Vec{}, s, d, deck) || r.fencedBy(to, s, s, d, deck)
 }
 
+// Railed reports whether a railing keeping d off runs along c's own band: one raised on the decks'
+// level when deck, else one lying on the ground's; a head carries none.
+func (r *Read) Railed(c cell.ID, d cell.Domain, deck bool) bool {
+	t := r.t
+	if t.railed == 0 || r.store == nil {
+		return false
+	}
+	i, ok := t.Ordinal(c)
+	if !ok {
+		return false
+	}
+	b := r.store.builtOf(i)
+	if !banded(b) || b.Rail.Keeps&d == 0 || (b.Floor.Height > 0) != deck {
+		return false
+	}
+	_, through, ok := t.run(b.Floor)
+	return ok && through
+}
+
 // an end of the railing counts: where two railings join, each ends on the step
 func crosses(p, q, a, b geom.Vec) bool {
 	side := func(o, e, x geom.Vec) float32 { return (e.X-o.X)*(x.Y-o.Y) - (e.Y-o.Y)*(x.X-o.X) }
