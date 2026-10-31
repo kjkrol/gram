@@ -288,9 +288,9 @@ func TestRouting_HierarchyOffPlansEveryRouteExact(t *testing.T) {
 	}
 }
 
-// the asks of five classes of units for far routes, one more than the hierarchies kept, answered
-// on a pool's goroutines get the routes and the counts one goroutine alone gives them, Update
-// after Update: the hierarchies are expected on the caller's goroutine, in the asks' order
+// the asks of units of five classes for far routes, one hierarchy serving them all, answered on a
+// pool's goroutines get the routes and the counts one goroutine alone gives them, Update after
+// Update: the hierarchy is expected on the caller's goroutine, in the asks' order
 func TestRouting_AnExpectIsDeterministicOnThePool(t *testing.T) {
 	run := func(pool *parallel.Pool) ([]Path, [3]uint64) {
 		var units []climber
@@ -351,10 +351,14 @@ func TestRouting_ASweepStalesOnPassageAlone(t *testing.T) {
 	}
 }
 
-// an Update climbing the far routes allocates nothing once warm: the hierarchy kept, nor where
-// the board changed under it
+// an Update climbing the far routes of units of two classes allocates nothing once warm: the
+// hierarchy kept, nor where the board changed under it
 func TestRouting_AnUpdateWithHierarchiesAllocatesNothing(t *testing.T) {
-	r := newClimbRig(t, nil, Hierarchy{Side: 8, From: 8}, climbers(westOf(8)))
+	units := climbers(westOf(8))
+	for i := range units {
+		units[i].side -= uint32(6 * (i % 2))
+	}
+	r := newClimbRig(t, nil, Hierarchy{Side: 8, From: 8}, units)
 	r.sendEach(r.nw.grid.At(28, 28), every(8)...)
 	r.update()
 	r.built(t)

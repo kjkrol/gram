@@ -115,7 +115,7 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
 	}
-	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+	systems = append(systems, asKinds(tw.nav), goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		tw.q = si.NewQueryBuilder(&tw.cell, &tw.base).Optional(&tw.orderComp).Build()
 		for tw.q.All(); tw.q.Next(); { // the units hold the cells they start in
 			cur := tw.q.Cursor()

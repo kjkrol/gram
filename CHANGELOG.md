@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.14.0 — 2026-10-30
+
+Needs hpastar v1.4.0 (kjkrol/hpastar#7: classes, one `Solver` serving up to 8 of them).
+
+**One hierarchy a domain, serving the classes of its units' bodies** (2026-10-30, branch
+`feat/classes`, plan „klasy ciał w HPA*", etap C)
+- Changed: a domain's long routes climb one hierarchy serving the classes of its units' bodies,
+  instead of a hierarchy a body with four kept: a fifth body no longer falls back to A*, and a
+  cluster's board is read once for all its classes. The classes come from the kinds of unit
+  defined over the board as the Stage is set up, at most eight a domain, the nearest merged
+  beyond that into a class no laxer than either; a unit is planned everywhere as its class: its
+  body's, else the nearest no laxer, else exactly as itself by A*. A domain of one class builds
+  over the steps it had before.
+- Added: `board.UnitKind`, `UnitKind.Z`, `board.Plugin.UnitKinds`: the kinds of unit defined over
+  the board, in the order defined.
+- Improved: four bodies' hierarchy built in 0.46–0.62× the time of four, with 39% less memory and
+  61% fewer allocations (`PathFinder_Hierarchy/build/classes=4` against `solvers=4`); one class,
+  the tick, the climbs and the routing as before.
+
 ## v0.13.0 — 2026-10-30
 
 **Passage limits: a floor's load, a wall's gap, a unit's weight** (2026-10-30, branch

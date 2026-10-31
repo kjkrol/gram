@@ -41,13 +41,31 @@ func (flat) Ground(geom.Vec) float32              { return 0 }
 func (flat) Over(geom.Vec) (float32, bool)        { return 0, false }
 func (f flat) KindAt(c cell.ID, _ bool) cell.Kind { return f.terrain.Kind(c) }
 
+// units moving on land and in the water alike, a domain of its own
+const amphibious = cell.Land | cell.Water
+
+// the classes of the hierarchies' tests: units of boxes 2 to 6 across on land, of 4 amphibious
+func testClasses() *pathfind.Classes {
+	var kinds []pathfind.Kind
+	for side := float32(2); side <= 6; side++ {
+		kinds = append(kinds, pathfind.Kind{Domain: cell.Land,
+			Body: pathfind.Body{Size: geom.NewVec(side, side)}})
+	}
+	kinds = append(kinds, pathfind.Kind{Domain: amphibious,
+		Body: pathfind.Body{Size: geom.NewVec(4, 4)}})
+	var c pathfind.Classes
+	c.Set(kinds)
+	return &c
+}
+
 // hierarchies over an open 16x16 board of four clusters 8 cells a side on one level, a route
-// climbed from 8 cells apart, built through the finder given
+// climbed from 8 cells apart, built through the finder given, planning the testClasses
 func newHierarchies(t *testing.T) (*Hierarchies, passingMap, grid.Grid, *Finder) {
 	t.Helper()
 	g := grid.DefaultGrids{}.Square(16, 16, 10)
 	terrain := newPassingMap()
-	f := NewFinder(g, terrain, nil, OpenOccupancy{}).WithLevels(flat{terrain})
+	f := NewFinder(g, terrain, nil, OpenOccupancy{}).WithLevels(flat{terrain}).
+		WithClasses(testClasses())
 	hs := &Hierarchies{}
 	if hs.Bind(f, 8, 8); !hs.On() {
 		t.Fatal("no hierarchies kept over a blind finder of a board counting its passage")
@@ -67,16 +85,21 @@ func settle(t *testing.T, hs *Hierarchies) {
 	t.Fatal("hierarchies never built")
 }
 
-// the class of units whose boxes are side across
-func classOf(t *testing.T, hs *Hierarchies, side float32) pathfind.Key {
-	t.Helper()
-	m := bodies.Member{Domain: cell.Land, Pos: world.Position{}}
+// a unit moving in domain, its box side across, its feet anywhere
+func unitOf(domain cell.Domain, side float32) bodies.Member {
+	m := bodies.Member{Domain: domain, Pos: world.Position{}}
 	m.Pos.Size = geom.NewVec(side, side)
 	m.Z.Altitude = 3
-	key, ok := hs.Key(m)
-	if !ok || key.Body.Feet != 0 || key.Body.Size != m.Pos.Size || key.Domain != cell.Land {
-		t.Fatalf("the class of %v: %+v, %v; want its domain and body, its feet left out", m, key,
-			ok)
+	return m
+}
+
+// the hierarchy a unit moving in domain, its box side across, climbs through
+func keyOf(t *testing.T, hs *Hierarchies, domain cell.Domain, side float32) pathfind.Key {
+	t.Helper()
+	key, ok := hs.Key(unitOf(domain, side))
+	if !ok || key != (pathfind.Key{Domain: domain}) {
+		t.Fatalf("a unit of %v across in %v climbs through %+v, %v; want its domain's", side,
+			domain, key, ok)
 	}
 	return key
 }
@@ -122,10 +145,10 @@ func TestHierarchies_ARouteIsFarByTheDistanceOfItsEnds(t *testing.T) {
 }
 
 // four clusters, built over Sweeps of a budget below a cluster's work
-func TestHierarchies_AClassIsTakenOnceExpectedAndBuilt(t *testing.T) {
-	hs, _, _, _ := newHierarchies(t)
+func TestHierarchies_ADomainsIsTakenOnceExpectedAndBuilt(t *testing.T) {
+	hs, _, _, f := newHierarchies(t)
 	hs.budget = 3000
-	key := classOf(t, hs, 4)
+	key := keyOf(t, hs, cell.Land, 4)
 	if hs.Take(key) != nil {
 		t.Fatal("a hierarchy taken before it was asked for")
 	}
@@ -139,48 +162,41 @@ func TestHierarchies_AClassIsTakenOnceExpectedAndBuilt(t *testing.T) {
 	}
 	settle(t, hs)
 	h := hs.Take(key)
-	if h == nil || h.Key() != key || h.Side() != 8 || !h.Ready() {
-		t.Fatalf("taken once built: %v; want the class's, of regions 8 a side", h)
+	if h == nil || h.Key() != key || h.Side() != 8 || !h.Ready() ||
+		!slices.Equal(h.Classes(), f.classes.Of(cell.Land)) {
+		t.Fatalf("taken once built: %v; want the domain's, of regions 8 a side, serving its "+
+			"classes", h)
 	}
 	hs.Expect(key)
 	if hs.Sweep(); hs.Take(key) != h {
-		t.Error("asked for again, the class's hierarchy made anew")
+		t.Error("asked for again, the domain's hierarchy made anew")
 	}
 }
 
-// an Update wants a hierarchy by expecting it; a fifth class takes the place of the one asked
-// for least lately, none wanted the same Update
-func TestHierarchies_TheLeastLatelyAskedForIsLetGo(t *testing.T) {
+// the units of five classes on land climb through one hierarchy, the amphibious through
+// another; one whose body no class holds through none
+func TestHierarchies_OneADomainServesItsClasses(t *testing.T) {
 	hs, _, _, _ := newHierarchies(t)
-	var keys [keptHierarchies + 1]pathfind.Key
-	for i := range keys {
-		keys[i] = classOf(t, hs, float32(2+i))
+	for side := float32(2); side <= 6; side += 0.5 {
+		hs.Expect(keyOf(t, hs, cell.Land, side))
 	}
-	update := func(asked ...int) {
-		for _, i := range asked {
-			hs.Expect(keys[i])
-		}
-		hs.Sweep()
-		settle(t, hs)
+	hs.Expect(keyOf(t, hs, amphibious, 4))
+	if _, ok := hs.Key(unitOf(cell.Land, 7)); ok {
+		t.Error("a unit wider than every class of its domain climbs")
 	}
-	kept := func(want ...int) {
-		t.Helper()
-		for i, key := range keys {
-			if taken := hs.Take(key) != nil; taken != slices.Contains(want, i) {
-				t.Errorf("class %d kept %v, want the classes %v kept", i, taken, want)
-			}
-		}
+	if _, ok := hs.Key(unitOf(cell.Water, 4)); ok {
+		t.Error("a unit of a domain no class moves in climbs")
 	}
-	update(0, 1, 2, 3)
-	kept(0, 1, 2, 3)
-	update(1, 2)
-	update(3, 4)
-	kept(1, 2, 3, 4)
-	update(1, 2, 3, 4, 0)
-	kept(1, 2, 3, 4)
-	update(2, 3, 4)
-	update(0)
-	kept(0, 2, 3, 4)
+	settle(t, hs)
+	if len(hs.entries) != 2 {
+		t.Fatalf("%d hierarchies kept, want one a domain asked for", len(hs.entries))
+	}
+	land, water := hs.Take(pathfind.Key{Domain: cell.Land}),
+		hs.Take(pathfind.Key{Domain: amphibious})
+	if land == nil || water == nil || len(land.Classes()) != 5 || len(water.Classes()) != 1 {
+		t.Errorf("the land's hierarchy %v, the amphibious' %v; want five classes and one", land,
+			water)
+	}
 }
 
 // a Sweep builds the hierarchy asked for most lately of those not ready, the one asked for
@@ -188,7 +204,7 @@ func TestHierarchies_TheLeastLatelyAskedForIsLetGo(t *testing.T) {
 func TestHierarchies_ASweepBuildsTheLatestAskedFirst(t *testing.T) {
 	hs, _, _, f := newHierarchies(t)
 	hs.budget = 3000
-	first, second := classOf(t, hs, 4), classOf(t, hs, 6)
+	first, second := keyOf(t, hs, cell.Land, 4), keyOf(t, hs, amphibious, 4)
 	hs.Expect(first)
 	hs.Sweep()
 	hs.Expect(second)
@@ -209,18 +225,20 @@ func TestHierarchies_ASweepBuildsTheLatestAskedFirst(t *testing.T) {
 	}
 }
 
-// two classes of three clusters each asked for alike: a Sweep builds one hierarchy, the first's
-// till it is built, then the second's, a cluster's work spread over Sweeps of a small budget
+// the hierarchies of two domains of three clusters each asked for alike: a Sweep builds one
+// hierarchy, the first's till it is built, then the second's, a cluster's work spread over Sweeps
+// of a small budget
 func TestHierarchies_ASweepBuildsOneHierarchyAtATime(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(24, 8, 10)
 	terrain := newPassingMap()
-	f := NewFinder(g, terrain, nil, OpenOccupancy{}).WithLevels(flat{terrain})
+	f := NewFinder(g, terrain, nil, OpenOccupancy{}).WithLevels(flat{terrain}).
+		WithClasses(testClasses())
 	hs := &Hierarchies{}
 	if hs.Bind(f, 8, 8); !hs.On() {
 		t.Fatal("no hierarchies kept")
 	}
 	hs.budget = 3000
-	first, second := classOf(t, hs, 4), classOf(t, hs, 6)
+	first, second := keyOf(t, hs, cell.Land, 4), keyOf(t, hs, amphibious, 4)
 	hs.Expect(first)
 	hs.Expect(second)
 	var built []uint64
@@ -241,7 +259,7 @@ func TestHierarchies_ASweepBuildsOneHierarchyAtATime(t *testing.T) {
 	}
 	if finished != 6 || slices.Max(built) > 1 || len(built) <= 6 || hs.Take(first) == nil ||
 		hs.Take(second) == nil {
-		t.Errorf("built %v a Sweep; want three clusters of each class, at most one a Sweep, "+
+		t.Errorf("built %v a Sweep; want three clusters of each domain's, at most one a Sweep, "+
 			"both taken", built)
 	}
 }
@@ -250,12 +268,12 @@ func TestHierarchies_ASweepBuildsOneHierarchyAtATime(t *testing.T) {
 // them again: a cell inside a cluster, that cluster alone
 func TestHierarchies_ASweepStalesWhereThePassageMoved(t *testing.T) {
 	hs, terrain, g, f := newHierarchies(t)
-	key := classOf(t, hs, 4)
+	key := keyOf(t, hs, cell.Land, 4)
 	hs.Expect(key)
 	settle(t, hs)
 	e := &hs.entries[0]
 	if e.key != key || !e.ready || e.since != terrain.Passage() {
-		t.Fatalf("the class's hierarchy %+v, want it built at the board's passage %d", e,
+		t.Fatalf("the domain's hierarchy %+v, want it built at the board's passage %d", e,
 			terrain.Passage())
 	}
 	terrain.Set(g.At(3, 3), cell.Kind{Pace: 1, Solid: true})

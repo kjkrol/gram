@@ -21,6 +21,7 @@ import (
 	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/motion/steering"
+	"github.com/kjkrol/gram/plugins/navigation/internal/pathfind"
 	"github.com/kjkrol/gram/plugins/navigation/internal/routes"
 	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
 	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
@@ -42,6 +43,8 @@ type Plugin struct {
 
 	board  *board.BoardRead
 	module *module
+	// the classes every finder plans the units as, set once the kinds are defined
+	classes pathfind.Classes
 
 	moves   command.Queue[MoveTo]
 	marches command.Queue[March]
@@ -126,7 +129,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	// routing plans the routes, the traffic searches but round a unit, each with its own
 	keeping := func(answers *spacing.Answers) (*spacing.Finder, spacing.Keeping) {
 		finder := spacing.NewFinder(brd, brd, read, spacing.OpenOccupancy{})
-		finder.WithLevels(spacing.BoardLevels{Read: read})
+		finder.WithLevels(spacing.BoardLevels{Read: read}).WithClasses(&p.classes)
 		if p.spacing == BodySpacing {
 			k := spacing.NewBodyKeeping(finder, p.worldPlugin.Write().Space(), read.Heights)
 			if answers != nil {
@@ -183,6 +186,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		navigationSystem:  navSys,
 		moveCommandSystem: moveCommandSystem,
 		clock:             p.worldPlugin.Write().Clock(),
+		classify:          p.classify,
 	}
 	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)
@@ -215,8 +219,8 @@ func (p *Plugin) WithRouters(k int) *Plugin {
 }
 
 // Hierarchy is how the long routes are planned: climbed through a hierarchy of square regions
-// of the board's cells kept for each class of units, not searched cell by cell. The zero value is
-// the default.
+// of the board's cells kept for each domain, serving the classes of its units' bodies, not
+// searched cell by cell. The zero value is the default.
 type Hierarchy struct {
 	// Side is a region's side in cells; zero, the side of the world's sectors where they span
 	// whole cells of a square grid, else 16.

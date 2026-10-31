@@ -46,7 +46,7 @@ type Coordinator struct {
 	side        int     // of the hierarchies' clusters, in cells; 0, none kept
 	from        float64 // how many cells apart a route's ends lie at least for it to be climbed
 	// by ask, whether it is for a far route or the nearest free cell, its unit given the
-	// hierarchy of its class
+	// hierarchy serving its class
 	far []bool
 
 	ranks     []ranked // the formations' members an Update lays out, in their order once sorted
@@ -96,9 +96,9 @@ func (c *Coordinator) Router(f *spacing.Finder, keep spacing.Keeping) *Coordinat
 	return c
 }
 
-// Hierarchy has a route whose ends lie at least from cells apart climbed through the hierarchy of
-// its unit's class, of clusters side cells a side; side 0, every route searched as before. Call
-// before the first Update.
+// Hierarchy has a route whose ends lie at least from cells apart climbed through the hierarchy
+// serving its unit's class, of clusters side cells a side; side 0, every route searched as
+// before. Call before the first Update.
 func (c *Coordinator) Hierarchy(side int, from float64) *Coordinator {
 	c.side, c.from = side, from
 	if len(c.routers) > 0 {
@@ -235,10 +235,10 @@ func (c *Coordinator) expect() bool {
 	return swept
 }
 
-// climb has the hierarchy of the class of every unit asking far expected, where expect says one
-// does, then the hierarchies staled and built through the first router, reading the board as the
-// caller's goroutine does, before any ask is answered; an Update with nothing to stale or build
-// and none expected reads nothing
+// climb has the hierarchy serving the class of every unit asking far expected, where expect says
+// one does, then the hierarchies staled and built through the first router, reading the board as
+// the caller's goroutine does, before any ask is answered; an Update with nothing to stale or
+// build and none expected reads nothing
 func (c *Coordinator) climb(expect bool) {
 	if !c.hierarchies.On() {
 		return
@@ -282,8 +282,7 @@ func (c *Coordinator) route(w, i int) {
 		if c.fielded && c.parties[k] {
 			m.Field = c.field(r, m, o)
 		}
-		if c.far[k] {
-			key, _ := c.hierarchies.Key(m)
+		if key, ok := c.hierarchies.Key(m); ok && c.far[k] {
 			m.Hierarchy = c.hierarchies.Take(key)
 		}
 		answer(r.keep, m, o, c.d)

@@ -76,10 +76,14 @@ func walled(g grid.Grid) *board.BoardRead {
 	return brd
 }
 
-// builtWhole is a hierarchy f built whole for key, its clusters side cells a side
-func builtWhole(t testing.TB, f *Finder, key Key, side int) *Hierarchy {
+// builtWhole is a hierarchy f built whole for key, its clusters side cells a side, serving the
+// classes given, unsized where none are
+func builtWhole(t testing.TB, f *Finder, key Key, side int, classes ...Body) *Hierarchy {
 	t.Helper()
-	h := f.NewHierarchy(key, side)
+	if len(classes) == 0 {
+		classes = unsized
+	}
+	h := f.NewHierarchy(key, side, classes)
 	if f.Build(h, math.MaxInt); !h.Ready() {
 		t.Fatal("the hierarchy is not built")
 	}
@@ -87,6 +91,9 @@ func builtWhole(t testing.TB, f *Finder, key Key, side int) *Hierarchy {
 }
 
 var land = Key{Domain: cell.Land}
+
+// the one class of a body of no size, stepping up nothing, weighing nothing
+var unsized = []Body{{}}
 
 // every node of f's grid, each level of each cell
 func nodesOf(f *Finder) []node {
@@ -309,7 +316,7 @@ func TestHierarchy_TheBuildLeadsNoStepToAGoal(t *testing.T) {
 	if _, on := g.Ordinal(f.goal); !on {
 		t.Fatalf("the goal %v searched for lies off the grid", f.goal)
 	}
-	h := f.NewHierarchy(land, 16)
+	h := f.NewHierarchy(land, 16, unsized)
 	f.building(h)
 	if _, on := g.Ordinal(f.goal); on {
 		t.Fatalf("the builder's goal %v lies on the grid", f.goal)
@@ -342,8 +349,7 @@ func TestHierarchy_ClustersFollowTheGrid(t *testing.T) {
 			48 + 3},
 	} {
 		t.Run(name, func(t *testing.T) {
-			key := Key{Domain: cell.Land, Body: Body{Step: 1, Height: 2}}
-			h := builtWhole(t, tc.f, key, tc.side)
+			h := builtWhole(t, tc.f, land, tc.side, Body{Step: 1, Height: 2})
 			if len(h.counted) != tc.clusters || tc.f.Builds() != uint64(tc.built) {
 				t.Fatalf("%d clusters on level 1, %d built on every level; want %d and %d",
 					len(h.counted), tc.f.Builds(), tc.clusters, tc.built)
@@ -503,7 +509,7 @@ func TestHierarchy_AClimbCrossesADeck(t *testing.T) {
 	v := newGorge()
 	at := func(x, y uint32) cell.ID { return v.g.At(x, y) }
 	f := New(v.g, v.terrain, nil, &cell.MultipleOccupancy{}).WithLevels(v)
-	h := builtWhole(t, f, Key{Domain: cell.Land, Body: Body{Step: 1, Height: 2}}, 8)
+	h := builtWhole(t, f, land, 8, Body{Step: 1, Height: 2})
 	rim := Body{Feet: 10, Step: 1, Height: 2}
 	var climbed, found [64]cell.ID
 	n, ok := f.Climb(h, 1, cell.Land, rim, at(2, 6), at(45, 6), Either, climbed[:])
@@ -843,7 +849,7 @@ func TestHierarchy_ABuildBuildsItsBudgetAndNoMore(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(terrainSide, terrainSide, terrainCell)
 	terrain := openTerrain()
 	f := New(g, terrain, nil, &cell.MultipleOccupancy{}).WithLevels(flat{terrain})
-	h := f.NewHierarchy(land, 16)
+	h := f.NewHierarchy(land, 16, unsized)
 	if built := f.Build(h, 0); built != 0 || f.Builds() != 0 || h.Ready() {
 		t.Fatalf("a budget of none built %d, counted %d, ready %v", built, f.Builds(),
 			h.Ready())
@@ -867,7 +873,7 @@ func TestHierarchy_AClimbRefusesWhatItCannotAnswer(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(terrainSide, terrainSide, terrainCell)
 	terrain := passingTerrain()
 	f := New(g, terrain, nil, &cell.MultipleOccupancy{}).WithLevels(flat{terrain})
-	h := f.NewHierarchy(land, 16)
+	h := f.NewHierarchy(land, 16, unsized)
 	from, to := g.At(2, 64), g.At(120, 64)
 	var dst [64]cell.ID
 	climbs := func(f *Finder, domain cell.Domain, body Body) bool {
@@ -898,7 +904,7 @@ func TestHierarchy_AClimbRefusesWhatItCannotAnswer(t *testing.T) {
 	if climbs(plain, cell.Land, Body{}) || !plain.Reaches(h, cell.Land, Body{}, from, to) {
 		t.Error("a finder without levels: climbed, or a reach denied")
 	}
-	if h := plain.NewHierarchy(land, 16); h.Ready() || plain.Stale(h, 0) != 0 {
+	if h := plain.NewHierarchy(land, 16, unsized); h.Ready() || plain.Stale(h, 0) != 0 {
 		t.Error("a hierarchy over a finder without levels is ready or staled")
 	} else if built := plain.Build(h, math.MaxInt); built != 0 || h.Ready() {
 		t.Errorf("a hierarchy over a finder without levels built %d, ready %v", built,
@@ -1160,7 +1166,7 @@ func TestHierarchy_ADeckOverWaterStillJoinsTheBanks(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := New(g, terrain, nil, &cell.MultipleOccupancy{}).WithLevels(tc.levels)
-			h := builtWhole(t, f, Key{Domain: cell.Land, Body: class}, 4)
+			h := builtWhole(t, f, land, 4, class)
 			from, to := g.At(1, 4), g.At(14, 4)
 			if reached := f.Reaches(h, cell.Land, class, from, to); reached != tc.joined {
 				t.Errorf("across the river reached %v, want %v", reached, tc.joined)
@@ -1228,9 +1234,10 @@ func TestHierarchy_AStartInTheWaterIsSearched(t *testing.T) {
 	}
 }
 
-// h's graph holds the levels of cells its class stands on and no other: the steps out of one
-// lead to another, and the steps into one seen from it are those out of the others, to the bit
-func TestHierarchy_ItsGraphHoldsTheNodesItsClassStandsOn(t *testing.T) {
+// each class's graph holds the levels of cells the class stands on and no other: its steps out
+// of one lead to another, and its steps into one seen from it are those out of the others, to
+// the bit
+func TestHierarchy_EachClasssGraphHoldsTheNodesItStandsOn(t *testing.T) {
 	v := newGorge()
 	rg, river := moated(11)
 	sq := grid.DefaultGrids{}.Square(24, 24, 10)
@@ -1239,54 +1246,59 @@ func TestHierarchy_ItsGraphHoldsTheNodesItsClassStandsOn(t *testing.T) {
 	gapG := grid.DefaultGrids{}.Square(7, 5, 10)
 	gap := gapped(gapG)
 	for name, tc := range map[string]struct {
-		f    *Finder
-		body Body
+		f       *Finder
+		classes []Body
 	}{
 		"a gorge under a deck": {New(v.g, v.terrain, nil, &cell.MultipleOccupancy{}).
-			WithLevels(v), Body{Step: 1, Height: 2}},
+			WithLevels(v), []Body{{Step: 1, Height: 2}, {Step: 1, Height: 12}}},
 		"a river bridged": {New(rg, river, nil, &cell.MultipleOccupancy{}).
-			WithLevels(bridgedRiver{rg, river}), Body{Step: 1, Height: 2}},
+			WithLevels(bridgedRiver{rg, river}), []Body{{Step: 1, Height: 2}, {Height: 2}}},
 		"rocks among roads over hills": {New(sq, roads, hillsOver(sq),
-			&cell.MultipleOccupancy{}).WithLevels(flat{roads}), Body{}},
-		"a deck too weak for the class": {New(rg, weak, nil, &cell.MultipleOccupancy{}).
-			WithLevels(bridgedRiver{rg, river}), Body{Step: 1, Height: 2, Weight: 1500}},
-		"a gap the class fits along alone": {New(gapG, gap, nil, &cell.MultipleOccupancy{}).
-			WithLevels(flat{gap}), Body{Size: geom.NewVec(8, 4)}},
-		"a gap too narrow for the class": {New(gapG, gap, nil, &cell.MultipleOccupancy{}).
-			WithLevels(flat{gap}), Body{Size: geom.NewVec(8, 8)}},
+			&cell.MultipleOccupancy{}).WithLevels(flat{roads}), unsized},
+		"a deck too weak for a class": {New(rg, weak, nil, &cell.MultipleOccupancy{}).
+			WithLevels(bridgedRiver{rg, river}),
+			[]Body{{Step: 1, Height: 2, Weight: 80}, {Step: 1, Height: 2, Weight: 1500}}},
+		"a gap one class fits along alone": {New(gapG, gap, nil, &cell.MultipleOccupancy{}).
+			WithLevels(flat{gap}), []Body{{Size: geom.NewVec(4, 4)},
+			{Size: geom.NewVec(8, 4)}, {Size: geom.NewVec(8, 8)}}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := tc.f
-			h := builtWhole(t, f, Key{Domain: cell.Land, Body: tc.body}, 4)
-			f.building(h)
-			into := backward{f, h}.steps
-			forward, backward := map[edge]int{}, map[edge]int{}
-			var buf []graph.Transition[node]
-			held, outside := 0, 0
-			for _, a := range nodesOf(f) {
-				r := f.at(a.c)
-				if stands := f.stepAt(r, a.level).admits && f.bears(r, a.level); stands !=
-					h.stands(a) {
-					t.Fatalf("%v held %v, its class standing on it %v", a, h.stands(a), stands)
-				}
-				if !h.stands(a) {
-					outside++
-					continue
-				}
-				held++
-				for _, s := range f.leveledFrom(a, a, buf) {
-					if !h.stands(s.To) {
-						t.Fatalf("the step %v->%v leads out of the graph", a, s.To)
+			h := builtWhole(t, f, land, 4, tc.classes...)
+			for k, body := range h.Classes() {
+				f.building(h)
+				f.body, f.climbing.class = body, k
+				steps := via{f, h}
+				forward, backward := map[edge]int{}, map[edge]int{}
+				var buf []graph.Transition[node]
+				held, outside := 0, 0
+				for _, a := range nodesOf(f) {
+					r := f.at(a.c)
+					if stands := f.stepAt(r, a.level).admits && f.bears(r, a.level); stands !=
+						h.standsAs(a, k) {
+						t.Fatalf("class %d: %v held %v, the class standing on it %v", k, a,
+							h.standsAs(a, k), stands)
 					}
-					forward[edge{a, s.To, math.Float64bits(s.Cost)}]++
+					if !h.standsAs(a, k) {
+						outside++
+						continue
+					}
+					held++
+					for _, s := range steps.forward(a, a, buf) {
+						if !h.standsAs(s.To, k) {
+							t.Fatalf("class %d: the step %v->%v leads out of its graph", k, a,
+								s.To)
+						}
+						forward[edge{a, s.To, math.Float64bits(s.Cost)}]++
+					}
+					for _, s := range steps.backward(a, a, buf) {
+						backward[edge{s.To, a, math.Float64bits(s.Cost)}]++
+					}
 				}
-				for _, s := range into(a, a, buf) {
-					backward[edge{s.To, a, math.Float64bits(s.Cost)}]++
+				if outside == 0 || held == 0 || !maps.Equal(forward, backward) {
+					t.Errorf("class %d: %d nodes held, %d not; %d steps forward, %d backward", k,
+						held, outside, len(forward), len(backward))
 				}
-			}
-			if outside == 0 || held == 0 || !maps.Equal(forward, backward) {
-				t.Errorf("%d nodes held, %d not; %d steps forward, %d backward", held, outside,
-					len(forward), len(backward))
 			}
 		})
 	}

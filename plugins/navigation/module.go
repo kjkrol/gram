@@ -15,6 +15,7 @@ type module struct {
 	moveCommandSystem *routing.System
 	clock             *clock.Clock
 	step              clock.Block // bound once, so a tick allocates no method value
+	classify          func()      // the units' classes read off their kinds, at Setup
 
 	navSysRunnable     goke.Runnable
 	moveCmdSysRunnable goke.Runnable
@@ -39,7 +40,10 @@ func (m *module) simulate(ctx goke.RunCtx, step time.Duration) {
 	ctx.Sync()
 }
 
-func (m *module) SetupSystems() []goke.System { return nil }
+// the kinds are all defined by Setup, and nothing plans a route before it
+func (m *module) SetupSystems() []goke.System {
+	return []goke.System{goke.SystemFn{OnInit: func(*goke.SysInit) { m.classify() }}}
+}
 
 func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{

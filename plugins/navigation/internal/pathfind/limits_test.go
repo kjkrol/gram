@@ -230,7 +230,7 @@ func TestHierarchy_ALimitHoldsItsClassBack(t *testing.T) {
 		over   bool
 	}{{80, true}, {1500, false}} {
 		class := Body{Step: 1, Height: 2, Weight: tc.weight}
-		h := builtWhole(t, f, Key{Domain: cell.Land, Body: class}, 4)
+		h := builtWhole(t, f, land, 4, class)
 		if reached := f.Reaches(h, cell.Land, class, from, island); reached != tc.over {
 			t.Errorf("%v kg: the island reached %v, want %v", tc.weight, reached, tc.over)
 		}
@@ -242,9 +242,9 @@ func TestHierarchy_ALimitHoldsItsClassBack(t *testing.T) {
 				ok, climbed[:n], fok, found[:m], tc.over)
 		}
 		deck := node{g.At(11, 4), deck}
-		if h.stands(deck) != tc.over {
+		if h.standsAs(deck, 0) != tc.over {
 			t.Errorf("%v kg: the deck over the river held %v, want %v", tc.weight,
-				h.stands(deck), tc.over)
+				h.standsAs(deck, 0), tc.over)
 		}
 	}
 }

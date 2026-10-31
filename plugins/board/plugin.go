@@ -70,6 +70,7 @@ type Plugin struct {
 	kept        *plugin.Kept[Settings]
 	bridges     Bridges
 	cellOf      map[string]func(row any) cell.ID
+	unitKinds   []UnitKind
 	tiles       []Tile
 	surfaces    []Surface
 	where       map[cell.ID]string // the file and line a level laid the entity on a cell by

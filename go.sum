@@ -20,8 +20,8 @@ github.com/kjkrol/ceremony v0.3.2 h1:yadX4TEo6Cjecs4aIljpPTgLsrO/D2J68RvUU8BEnkc
 github.com/kjkrol/ceremony v0.3.2/go.mod h1:RJqzzlsO5y1b88TYUtnZk59rqgXilX2bYo6Eg53J4QU=
 github.com/kjkrol/goke/v3 v3.6.0 h1:J1SqRys/IC6aLaYip5xNxBcSL0auX+NfEaYYekMQMgE=
 github.com/kjkrol/goke/v3 v3.6.0/go.mod h1:58uVZD5rzMFkDp7kOxpwobjcwDV04SYZ58eQzxLeusU=
-github.com/kjkrol/hpastar v1.3.0 h1:oWf8L2hIYHLEDl7nCl1ZHau5b1Vtkdm382O6GDLfHmg=
-github.com/kjkrol/hpastar v1.3.0/go.mod h1:G4KCPyJqUFGZhjYI/iX5vMibEwIVNVCt8o2FpoDEXPI=
+github.com/kjkrol/hpastar v1.4.0 h1:Rhi2XP60eD7PAnYi5JPPWlalf+eH/Ee3jq4OmRdFnkE=
+github.com/kjkrol/hpastar v1.4.0/go.mod h1:G4KCPyJqUFGZhjYI/iX5vMibEwIVNVCt8o2FpoDEXPI=
 github.com/kjkrol/uid v0.3.0 h1:awbHtzOA6tUF/aICp6M/TOMPh6yldNZrzhQd0cvFOjs=
 github.com/kjkrol/uid v0.3.0/go.mod h1:NdpQ5cqvoXGfMDtmgGY4WGmvOK/JrwI74lKWF5SHeWA=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=

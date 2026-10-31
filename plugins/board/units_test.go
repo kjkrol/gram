@@ -165,3 +165,50 @@ func TestUnits_CastAsTheirKindSays(t *testing.T) {
 		}
 	}
 }
+
+// the kinds of unit defined over the board are listed in the order defined, with what their units
+// are made of: the box and the place in height a unit of each carries
+func TestUnits_TheKindsOfUnitAreListedAsTheirUnitsAreMade(t *testing.T) {
+	ecs, w, _ := unitsWorld(t, func(units *board.Units[recruit]) kind.Of[recruit] {
+		units.Define("recruit", unit.Mover{Domain: cell.Land, Weight: 80}, steering.Steering{})
+		units.Define("swimmer", unit.Mover{Domain: cell.Water}, steering.Steering{})
+		return units.Named("recruit")
+	})
+	var brd *board.Plugin
+	for _, p := range w.Made().All() {
+		if b, ok := p.(*board.Plugin); ok {
+			brd = b
+		}
+	}
+	got := brd.UnitKinds()
+	want := []board.UnitKind{
+		{Name: "recruit", Mover: unit.Mover{Domain: cell.Land, Weight: 80},
+			Shape: board.Shape{Size: 20}},
+		{Name: "swimmer", Mover: unit.Mover{Domain: cell.Water}, Shape: board.Shape{Size: 20}},
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("the kinds of unit %v, want %v", got, want)
+	}
+	var base goke.Comp[world.Base]
+	var z goke.Comp[world.Z]
+	var q *goke.Query
+	ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		q = si.NewQueryBuilder(&base, &z).Build()
+	}})
+	found := 0
+	for q.All(); q.Next(); {
+		cur := q.Cursor()
+		for i := range cur.IDs {
+			found++
+			size, place := base.Slice(cur)[i].Pos.Size, z.Slice(cur)[i]
+			place.Altitude = 0
+			if size != got[0].Shape.Box(geom.Vec{}).Size || place != got[0].Z() {
+				t.Errorf("a recruit of %v in %+v, want its kind's box and place in height %+v",
+					size, place, got[0].Z())
+			}
+		}
+	}
+	if found != 1 {
+		t.Errorf("%d recruits found, want the one seeded", found)
+	}
+}

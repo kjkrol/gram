@@ -75,12 +75,14 @@
 // # Long routes
 //
 // A route whose ends lie at least From cells apart ([Hierarchy]) is climbed through a hierarchy
-// of square regions of the board's cells, one for each class of units (their domain and body),
-// instead of searched cell by cell: it costs at most a little more than the cheapest. A hierarchy
-// is built a few regions a step once a far route is asked of it, asked or not after, and again
-// where a cell's passage changes, the route searched meanwhile. The shorter routes, a party's
-// read off its field, those round the units a unit learnt of and the routes drawn are planned as
-// before, and a target no route reaches is given up without a search for every cell round it.
+// of square regions of the board's cells, one a domain serving the classes of its units' bodies
+// (the kinds of unit defined over the board, at most eight; a unit planned as its body's class or
+// the nearest no laxer), instead of searched cell by cell: it costs at most a little more than
+// the cheapest. A hierarchy is built a few regions a step once a far route is asked of it, asked
+// or not after, and again where a cell's passage changes, the route searched meanwhile. The
+// shorter routes, a party's read off its field, those round the units a unit learnt of and the
+// routes drawn are planned as before, and a target no route reaches is given up without a search
+// for every cell round it.
 // [Plugin.WithHierarchy] sets the regions' side and the distance, or has every route searched;
 // [Read.Hierarchy] says what was decided.
 //

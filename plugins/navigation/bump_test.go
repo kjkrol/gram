@@ -183,7 +183,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
 	}
-	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+	systems = append(systems, asKinds(rw.nav), goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		rw.q = si.NewQueryBuilder(&rw.cell, &rw.base).Optional(&rw.orderComp).Build()
 	}})
 	ctx.ecs.Setup(systems...)
