@@ -11,7 +11,7 @@ import (
 )
 
 // Corners is a cell's ground height at its corners: top-left, top-right, bottom-left,
-// bottom-right. A hex cell is level, its four heights one.
+// bottom-right. A hex cell's are its level four times, its six corners Relief.Hex's.
 type Corners [4]float32
 
 // Level is the mean of the corners.
@@ -30,8 +30,9 @@ type Heights struct {
 	Values       [HeightsRun]float32
 }
 
-// Relief is the ground's height over a board's grid: on a square grid a lattice of corners the
-// neighbouring cells share, on any other a level per cell. Not safe for concurrent use.
+// Relief is the ground's height over a board's grid at its cells' corners, which the
+// neighbouring cells share: a square grid's lattice, a hex grid's corners with every cell's
+// middle at their mean. Not safe for concurrent use.
 type Relief struct {
 	grid      grid.Grid
 	board     *board.BoardRead // nil where the grid is no board's
@@ -46,16 +47,21 @@ type Relief struct {
 }
 
 // New is level ground at 0 over g; every change to a cell's corners is counted by touched, if
-// given: over a board, the board's (board.BoardWrite.Touch).
+// given: over a board, the board's (board.BoardWrite.Touch). It panics for a grid neither square
+// nor a hex grid wrapping along no axis.
 func New(g grid.Grid, touched func(c cell.ID)) *Relief {
 	r := &Relief{grid: g, touched: touched}
+	known := false
 	if b, ok := g.(*board.BoardRead); ok {
 		r.board = b
-		r.sq, r.square = b.Shape()
+		r.sq, known = b.Shape()
 	} else {
-		r.sq, r.square = grid.ShapeOf(g)
+		r.sq, known = grid.ShapeOf(g)
 	}
-	r.square = r.square && !r.sq.Hex
+	if !known || r.sq.Hex && (r.sq.WrapX || r.sq.WrapY) {
+		panic("relief: a relief lies over a square grid or a hex one wrapping along no axis")
+	}
+	r.square = !r.sq.Hex
 	if r.square {
 		r.cols, r.rows = int(r.sq.Cols)+1, int(r.sq.Rows)+1
 		if r.sq.WrapX {
@@ -66,7 +72,7 @@ func New(g grid.Grid, touched func(c cell.ID)) *Relief {
 		}
 		r.values = make([]float32, r.cols*r.rows)
 	} else {
-		r.values = make([]float32, g.CellCount())
+		r.values = make([]float32, HexCount(int(r.sq.Cols), int(r.sq.Rows)))
 	}
 	return r
 }
@@ -92,9 +98,6 @@ func (r *Relief) CopyInto(dst *Relief) {
 	dst.values = append(dst.values[:0], r.values...)
 	dst.version, dst.low, dst.high = r.version, r.low, r.high
 }
-
-// Sloped reports whether the ground runs between a cell's corners: a square grid's.
-func (r *Relief) Sloped() bool { return r.square }
 
 // Version counts the changes to the heights; it only grows.
 func (r *Relief) Version() uint64 { return r.version }
@@ -128,31 +131,57 @@ func (r *Relief) fill(h *Heights) {
 	clear(h.Values[n:])
 }
 
-// only when together the runs cover the grid exactly
+// only when together the runs cover the grid exactly: its corners, or on a hex grid its cells,
+// a level a cell as a hex relief was saved before it held the corners
 func (r *Relief) adopt(runs []Heights) bool {
-	total := 0
+	n := 0
 	for _, h := range runs {
-		if int(h.First)+int(h.Count) > len(r.values) || h.Count > HeightsRun {
-			return false
-		}
-		total += int(h.Count)
+		n += int(h.Count)
 	}
-	if total != len(r.values) {
+	cells := !r.square && n == r.grid.CellCount()
+	if n != len(r.values) && !cells {
 		return false
 	}
 	for _, h := range runs {
-		copy(r.values[h.First:], h.Values[:h.Count])
+		if int(h.First)+int(h.Count) > n || h.Count > HeightsRun {
+			return false
+		}
+	}
+	values := r.values
+	if cells {
+		values = make([]float32, n)
+	}
+	for _, h := range runs {
+		copy(values[h.First:], h.Values[:h.Count])
+	}
+	if cells {
+		r.levelled(values)
 	}
 	r.changed()
 	return true
 }
 
-// a corner of the lattice on a square grid, or a cell's ordinal in x on any other
+// every corner at the mean of the levels of the cells meeting at it, the levels by the cells'
+// ordinals; in float64, as ground.MeanOfCells means them
+func (r *Relief) levelled(levels []float32) {
+	for i := range r.values {
+		sum, n := 0.0, 0.0
+		r.touching(r.hexVertex(i), func(c cell.ID) {
+			o, _ := r.grid.Ordinal(c)
+			sum, n = sum+float64(levels[o]), n+1
+		})
+		r.values[i] = float32(sum / n)
+	}
+}
+
+// a corner of the lattice on a square grid, on a hex one a corner on the lattice of its
+// triangles (onLattice)
 type vertex struct{ x, y int }
 
 func (r *Relief) index(v vertex) int {
 	if !r.square {
-		return v.x
+		i, _ := r.hexIndex(v)
+		return i
 	}
 	return v.y*r.cols + v.x
 }
@@ -169,18 +198,18 @@ func (r *Relief) corner(x, y int64) (vertex, bool) {
 	return vertex{int(fx), int(fy)}, okX && okY
 }
 
-func (r *Relief) corners(c cell.ID) (vs [4]vertex, n int, ok bool) {
-	if !r.square {
-		i, ok := r.grid.Ordinal(c)
-		if !ok {
-			return vs, 0, false
-		}
-		vs[0] = vertex{x: i}
-		return vs, 1, true
-	}
+// a square cell's four corners, a hex cell's six clockwise from the top
+func (r *Relief) corners(c cell.ID) (vs [6]vertex, n int, ok bool) {
 	x, y, ok := r.grid.Coords(c)
 	if !ok {
 		return vs, 0, false
+	}
+	if !r.square {
+		mi, mj := 2*int(x)+int(y), int(y)-int(x)
+		for k, d := range hexCorner {
+			vs[k] = vertex{mi + d[0], mj + d[1]}
+		}
+		return vs, 6, true
 	}
 	for k, d := range [4][2]int64{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
 		vs[k], _ = r.corner(int64(x)+d[0], int64(y)+d[1])
@@ -190,13 +219,13 @@ func (r *Relief) corners(c cell.ID) (vs [4]vertex, n int, ok bool) {
 
 // Corners is the ground height at c's corners; zero off the board.
 func (r *Relief) Corners(c cell.ID) Corners {
-	vs, n, ok := r.corners(c)
+	if !r.square {
+		level := r.levelOf(c)
+		return Corners{level, level, level, level}
+	}
+	vs, _, ok := r.corners(c)
 	if !ok {
 		return Corners{}
-	}
-	if n == 1 {
-		h := r.values[r.index(vs[0])]
-		return Corners{h, h, h, h}
 	}
 	var out Corners
 	for k := range out {
@@ -205,8 +234,8 @@ func (r *Relief) Corners(c cell.ID) Corners {
 	return out
 }
 
-// SetCorners puts c's corners at k's heights, the neighbours' corners meeting them going with
-// them, or a hex cell level at k's first.
+// SetCorners puts c's corners at k's heights, or a hex cell's six at k's first, the neighbours'
+// corners meeting them going with them.
 func (r *Relief) SetCorners(c cell.ID, k Corners) {
 	vs, n, ok := r.corners(c)
 	if !ok {
@@ -214,7 +243,11 @@ func (r *Relief) SetCorners(c cell.ID, k Corners) {
 	}
 	changed := false
 	for i := range n {
-		changed = r.setValue(vs[i], k[i]) || changed
+		h := k[0]
+		if r.square {
+			h = k[i]
+		}
+		changed = r.setValue(vs[i], h) || changed
 	}
 	if changed {
 		r.changed()
@@ -228,16 +261,20 @@ func (r *Relief) setValue(v vertex, h float32) bool {
 	}
 	r.values[i] = h
 	if r.touched != nil {
-		r.touching(v, func(c cell.ID, _ int) { r.touched(c) })
+		r.touching(v, r.touched)
 	}
 	return true
 }
 
 // Altitude is c's ground level, the mean of its corners.
-func (r *Relief) Altitude(c cell.ID) float32 { return r.Corners(c).Level() }
+func (r *Relief) Altitude(c cell.ID) float32 {
+	if !r.square {
+		return r.levelOf(c)
+	}
+	return r.Corners(c).Level()
+}
 
-// SetHeights sets the ground to heights, sampled at every corner on a square grid and at every
-// cell's centre on any other.
+// SetHeights sets the ground to heights, sampled at every corner.
 func (r *Relief) SetHeights(heights func(p geom.Vec) float32) {
 	changed := false
 	if r.square {
@@ -248,11 +285,10 @@ func (r *Relief) SetHeights(heights func(p geom.Vec) float32) {
 			}
 		}
 	} else {
-		r.grid.EachCell(func(c cell.ID) {
-			if i, ok := r.grid.Ordinal(c); ok {
-				changed = r.setValue(vertex{x: i}, heights(r.grid.CellCenter(c))) || changed
-			}
-		})
+		for i := range r.values {
+			v := r.hexVertex(i)
+			changed = r.setValue(v, heights(r.hexPoint(v))) || changed
+		}
 	}
 	if changed {
 		r.changed()
@@ -262,11 +298,7 @@ func (r *Relief) SetHeights(heights func(p geom.Vec) float32) {
 // GroundAt is the ground height under p as it is drawn, 0 off the board.
 func (r *Relief) GroundAt(p geom.Vec) float32 {
 	if !r.square {
-		c, ok := r.grid.CellAt(p)
-		if !ok {
-			return 0
-		}
-		return r.Corners(c)[0]
+		return r.hexGround(p)
 	}
 	// in float64, the ground's own reading of where p lies in its cell, rounded once
 	size := float64(r.sq.Cell)
@@ -322,8 +354,13 @@ func (r *Relief) Step() float32 {
 	return min(w, h)
 }
 
-// Top is c's corners with height standing on them, and its level.
+// Top is c's corners with height standing on them, and its level; a hex cell's level four times.
 func (r *Relief) Top(c cell.ID, height float32) (corners [4]float32, level float32) {
+	if !r.square {
+		level = r.Altitude(c)
+		h := level + height
+		return [4]float32{h, h, h, h}, level
+	}
 	k := r.Corners(c)
 	level = k.Level()
 	for i := range k {
@@ -332,21 +369,21 @@ func (r *Relief) Top(c cell.ID, height float32) (corners [4]float32, level float
 	return k, level
 }
 
-// k is the index of v among the cell's corners, -1 for a hex cell
-func (r *Relief) touching(v vertex, fn func(c cell.ID, k int)) {
+// the cells meeting at the corner v
+func (r *Relief) touching(v vertex, fn func(c cell.ID)) {
 	if !r.square {
-		r.grid.EachCell(func(c cell.ID) {
-			if i, ok := r.grid.Ordinal(c); ok && i == v.x {
-				fn(c, -1)
+		for _, d := range hexSpokes[class(v.x, v.y)-1] {
+			if q, row, ok := r.middle(v.x+d[0], v.y+d[1]); ok {
+				fn(r.grid.At(uint32(q), uint32(row)))
 			}
-		})
+		}
 		return
 	}
-	for k, d := range [4][2]int64{{0, 0}, {-1, 0}, {0, -1}, {-1, -1}} {
+	for _, d := range [4][2]int64{{0, 0}, {-1, 0}, {0, -1}, {-1, -1}} {
 		cx, okX := foldAxis(int64(v.x)+d[0], int64(r.sq.Cols), r.sq.WrapX)
 		cy, okY := foldAxis(int64(v.y)+d[1], int64(r.sq.Rows), r.sq.WrapY)
 		if okX && okY {
-			fn(r.grid.At(uint32(cx), uint32(cy)), 3-k)
+			fn(r.grid.At(uint32(cx), uint32(cy)))
 		}
 	}
 }

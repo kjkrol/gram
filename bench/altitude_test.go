@@ -1,6 +1,7 @@
 package bench_test
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -35,17 +36,35 @@ func Benchmark_Board_AltitudeBands(b *testing.B) { standing(b, false, true) }
 // Benchmark_Gravity_StandingBands is Benchmark_Gravity_Standing over a railed bridge.
 func Benchmark_Gravity_StandingBands(b *testing.B) { standing(b, true, true) }
 
-func standing(b *testing.B, bodies, bands bool) {
+// Benchmark_Board_AltitudeHex is Benchmark_Board_Altitude over a hex board, its ground running
+// from every cell's middle to its corners.
+func Benchmark_Board_AltitudeHex(b *testing.B) { standingOn(b, true, false, false) }
+
+func standing(b *testing.B, bodies, bands bool) { standingOn(b, false, bodies, bands) }
+
+func standingOn(b *testing.B, hex, bodies, bands bool) {
 	const side, size = 64, 16
 	for _, n := range []int{100, 1000} {
 		b.Run(entities(n), func(b *testing.B) {
+			g := grid.DefaultGrids{}.Square(side, side, size)
+			if hex {
+				g = grid.DefaultGrids{}.Hex(side, side, size)
+			}
+			cw, ch := g.CellBounds()
+			var right, bottom float32
+			g.EachCell(func(c cell.ID) {
+				m := g.CellCenter(c)
+				right, bottom = max(right, m.X+cw/2), max(bottom, m.Y+ch/2)
+			})
 			ctx := newHeadless()
 			ctx.UseWorld(world.Config{
-				Space:    world.SpaceCfg{Width: side * size, Height: side * size},
+				Space: world.SpaceCfg{
+					Width:  uint32(math.Ceil(float64(right))),
+					Height: uint32(math.Ceil(float64(bottom))),
+				},
 				Entities: world.EntitiesCfg{MaxCount: n + side, MinSize: 1, MaxSize: size},
 				Heights:  true,
 			})
-			g := grid.DefaultGrids{}.Square(side, side, size)
 			m := motion.NewPlugin(ctx.world)
 			if err := ctx.Use(m); err != nil {
 				b.Fatal(err)
@@ -62,7 +81,8 @@ func standing(b *testing.B, bodies, bands bool) {
 			var fall *gravity.Plugin
 			var extra []comp.Comp
 			if bodies {
-				fall = gravity.NewPlugin(ctx.world, m, gravity.Config{}).WithSurfaces(p.Read(0).Footing)
+				fall = gravity.NewPlugin(ctx.world, m, gravity.Config{}).
+					WithSurfaces(p.Read(0).Footing)
 				if err := ctx.Use(fall); err != nil {
 					b.Fatal(err)
 				}

@@ -24,15 +24,27 @@ import (
 
 func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 	var walker, hawk kind.Of[topotest.Recruit]
-	qw := topotest.NewQuasiWorld(t, false, func(units *board.Units[topotest.Recruit], grid grid.Grid) []kind.Entry {
-		units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
-		walker = units.Named("walker")
-		units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40}, steering.Steering{MaxSpeed: 10})
-		hawk = units.Named("hawk")
-		onHill := grid.At(2, 1)
-		onGrass := grid.At(0, 3)
-		return []kind.Entry{walker.Entry(topotest.Recruit{Start: onHill}), hawk.Entry(topotest.Recruit{Start: onHill}), walker.Entry(topotest.Recruit{Start: onGrass})}
-	})
+	qw := topotest.NewQuasiWorld(
+		t,
+		false,
+		func(units *board.Units[topotest.Recruit], grid grid.Grid) []kind.Entry {
+			units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
+			walker = units.Named("walker")
+			units.Define(
+				"hawk",
+				unit.Mover{Domain: cell.Air, Lift: 40},
+				steering.Steering{MaxSpeed: 10},
+			)
+			hawk = units.Named("hawk")
+			onHill := grid.At(2, 1)
+			onGrass := grid.At(0, 3)
+			return []kind.Entry{
+				walker.Entry(topotest.Recruit{Start: onHill}),
+				hawk.Entry(topotest.Recruit{Start: onHill}),
+				walker.Entry(topotest.Recruit{Start: onGrass}),
+			}
+		},
+	)
 	qw.ECS.Tick(time.Second / 60)
 
 	zs := qw.Zs()
@@ -46,10 +58,19 @@ func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 	onHill := qw.Grid.At(2, 1)
 	hillGround := qw.Topo.Write().Relief().At(qw.Grid.CellCenter(onHill))
 	if hillGround <= 0 || !alts[hillGround] || !alts[0] {
-		t.Errorf("walkers stand at %v, want one at the hill's ground %v and one at 0 on the grass", alts, hillGround)
+		t.Errorf(
+			"walkers stand at %v, want one at the hill's ground %v and one at 0 on the grass",
+			alts,
+			hillGround,
+		)
 	}
-	if got := zs[hawk.ID()]; len(got) != 1 || got[0].Altitude != hillGround+40 || got[0].Height != 2 {
-		t.Errorf("hawk's Z = %v, want altitude %v (the hill plus its lift) and height 2", got, hillGround+40)
+	if got := zs[hawk.ID()]; len(got) != 1 || got[0].Altitude != hillGround+40 ||
+		got[0].Height != 2 {
+		t.Errorf(
+			"hawk's Z = %v, want altitude %v (the hill plus its lift) and height 2",
+			got,
+			hillGround+40,
+		)
 	}
 	if qw.Board.Read(0).Heights() != qw.Topo.Write().Relief() {
 		t.Error("the board's heights are not the topography's relief")
@@ -94,6 +115,69 @@ func TestAltitude_ABodyBiggerThanACellStandsOnTheHighestGroundUnderItsBox(t *tes
 	}
 	if got := zs[walker.ID()]; len(got) != 1 || got[0].Altitude != under {
 		t.Errorf("the walker stands at %v, want on the ground under its middle, %v", got, under)
+	}
+}
+
+// on a hex board the ground runs from a cell's middle to its corners: a unit up the slope to the
+// hill stands on the ground under it, not on its cell's level
+func TestAltitude_AUnitOnAHexSlopeStandsOnTheGroundUnderIt(t *testing.T) {
+	g := grid.DefaultGrids{}.Hex(4, 4, 32)
+	hill, beside := g.CellCenter(g.At(2, 1)), g.CellCenter(g.At(1, 1))
+	slope := geom.NewVec(beside.X+0.4*(hill.X-beside.X), beside.Y+0.4*(hill.Y-beside.Y))
+	var walker kind.Of[topotest.Recruit]
+	define := func(qw *topotest.QuasiWorld, _ *board.Units[topotest.Recruit]) []kind.Entry {
+		units := board.NewUnits(qw.Board, board.Shape{Size: 20, Height: 2},
+			func(topotest.Recruit) geom.Vec { return slope })
+		units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
+		walker = units.Named("walker")
+		return []kind.Entry{walker.Entry(topotest.Recruit{Start: qw.Grid.At(1, 1)})}
+	}
+	qw := topotest.NewQuasiWorldOn(t, g, false, 20, define)
+	qw.ECS.Tick(time.Second / 60)
+
+	relief := qw.Topo.Write().Relief()
+	ground := relief.At(slope)
+	if level := relief.Altitude(g.At(1, 1)); ground < level+1 {
+		t.Fatalf("the ground up the slope stands at %v, its cell's level at %v: no slope", ground,
+			level)
+	}
+	if got := qw.Zs()[walker.ID()]; len(got) != 1 || f32.Abs(got[0].Altitude-ground) > 1e-4 {
+		t.Errorf("the walker up the slope stands at %v, want on the ground under it, %v", got,
+			ground)
+	}
+}
+
+func TestAltitude_ABodyBiggerThanAHexStandsOnTheHighestGroundUnderItsBox(t *testing.T) {
+	g := grid.DefaultGrids{}.Hex(4, 4, 32)
+	middle := g.CellCenter(g.At(1, 1)) // beside the hill, its box reaching up the slope
+	var giant kind.Of[topotest.Recruit]
+	define := func(qw *topotest.QuasiWorld, _ *board.Units[topotest.Recruit]) []kind.Entry {
+		big := board.NewUnits(qw.Board, board.Shape{Size: 60, Height: 4},
+			func(topotest.Recruit) geom.Vec { return middle })
+		big.Define("giant", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
+		giant = big.Named("giant")
+		return []kind.Entry{giant.Entry(topotest.Recruit{Start: qw.Grid.At(1, 1)})}
+	}
+	qw := topotest.NewQuasiWorldOn(t, g, false, 60, define)
+	qw.ECS.Tick(time.Second / 60)
+
+	relief := qw.Topo.Write().Relief()
+	under, highest := relief.At(middle), relief.At(middle)
+	for _, d := range [4][2]float32{{-30, -30}, {30, -30}, {-30, 30}, {30, 30}} {
+		if q := geom.NewVec(middle.X+d[0], middle.Y+d[1]); func() bool {
+			_, ok := g.CellAt(q)
+			return ok
+		}() {
+			highest = max(highest, relief.At(q))
+		}
+	}
+	if highest <= under {
+		t.Fatalf("the ground under the giant's box rises to %v, under its middle to %v: no slope",
+			highest, under)
+	}
+	if got := qw.Zs()[giant.ID()]; len(got) != 1 || f32.Abs(got[0].Altitude-highest) > 1e-4 {
+		t.Errorf("the giant stands at %v, want on the highest ground under its box, %v", got,
+			highest)
 	}
 }
 
@@ -206,12 +290,21 @@ func TestStanding_UnderADeckOverWaterHasFallenIn(t *testing.T) {
 }
 
 func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
-	qw := topotest.NewQuasiWorld(t, false, func(units *board.Units[topotest.Recruit], grid grid.Grid) []kind.Entry {
-		units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40}, steering.Steering{MaxSpeed: 10}, comp.Const(steering.Driven{}))
-		hawk := units.Named("hawk")
-		onGrass := grid.At(0, 3)
-		return []kind.Entry{hawk.Entry(topotest.Recruit{Start: onGrass})}
-	})
+	qw := topotest.NewQuasiWorld(
+		t,
+		false,
+		func(units *board.Units[topotest.Recruit], grid grid.Grid) []kind.Entry {
+			units.Define(
+				"hawk",
+				unit.Mover{Domain: cell.Air, Lift: 40},
+				steering.Steering{MaxSpeed: 10},
+				comp.Const(steering.Driven{}),
+			)
+			hawk := units.Named("hawk")
+			onGrass := grid.At(0, 3)
+			return []kind.Entry{hawk.Entry(topotest.Recruit{Start: onGrass})}
+		},
+	)
 	onHill := qw.Grid.At(2, 1)
 	onGrass := qw.Grid.At(0, 3)
 	put := func(c cell.ID) func(*world.Base) {
@@ -223,9 +316,12 @@ func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
 	step := func(fn func(b *world.Base, z *world.Z, m *unit.Mover, d *steering.Driven, st *steering.Course)) (alt, lift float32) {
 		flown(qw, fn)
 		qw.ECS.Tick(time.Second / 60)
-		flown(qw, func(_ *world.Base, z *world.Z, m *unit.Mover, _ *steering.Driven, _ *steering.Course) {
-			alt, lift = z.Altitude, m.Lift
-		})
+		flown(
+			qw,
+			func(_ *world.Base, z *world.Z, m *unit.Mover, _ *steering.Driven, _ *steering.Course) {
+				alt, lift = z.Altitude, m.Lift
+			},
+		)
 		return alt, lift
 	}
 	hill := qw.Topo.Write().Relief().At(qw.Grid.CellCenter(onHill))
@@ -235,17 +331,26 @@ func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
 	if alt, lift := step(func(b *world.Base, _ *world.Z, _ *unit.Mover, d *steering.Driven, _ *steering.Course) {
 		*d = steering.Driven{Flown: true}
 		put(onHill)(b)
-	}); alt != 40 || lift != 40-hill {
-		t.Errorf("flown over the hill %v high: at %v, lift %v; want at 40, lift %v", hill, alt, lift, 40-hill)
+	}); alt != 40 ||
+		lift != 40-hill {
+		t.Errorf(
+			"flown over the hill %v high: at %v, lift %v; want at 40, lift %v",
+			hill,
+			alt,
+			lift,
+			40-hill,
+		)
 	}
 	if alt, _ := step(func(b *world.Base, _ *world.Z, _ *unit.Mover, _ *steering.Driven, _ *steering.Course) {
 		put(onGrass)(b)
 	}); alt != 40 {
 		t.Errorf("flown back over the grass: at %v, want at 40, not falling with the ground", alt)
 	}
-	alt, _ := step(func(_ *world.Base, _ *world.Z, _ *unit.Mover, d *steering.Driven, st *steering.Course) {
-		d.Climb, st.Speed, st.WantSpeed = 0.6, 10, 10
-	})
+	alt, _ := step(
+		func(_ *world.Base, _ *world.Z, _ *unit.Mover, d *steering.Driven, st *steering.Course) {
+			d.Climb, st.Speed, st.WantSpeed = 0.6, 10, 10
+		},
+	)
 	if want := float32(40 + 10*0.75/60); f32.Abs(alt-want) > f32.Eps(want) {
 		t.Errorf("flown at 10 a second at a rise of 0.6: at %v after a tick, want %v", alt, want)
 	}
@@ -253,7 +358,11 @@ func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
 		d.Climb, st.Speed, st.WantSpeed, m.Clearance = 0, 0, 0, 39
 		put(onHill)(b)
 	}); alt != hill+39 {
-		t.Errorf("flown over the hill with a clearance of 39: at %v, want %v, the clearance over the ground", alt, hill+39)
+		t.Errorf(
+			"flown over the hill with a clearance of 39: at %v, want %v, the clearance over the ground",
+			alt,
+			hill+39,
+		)
 	}
 	if alt, _ := step(func(b *world.Base, _ *world.Z, m *unit.Mover, _ *steering.Driven, _ *steering.Course) {
 		m.Clearance, m.Ceiling = 0, 41
@@ -264,22 +373,43 @@ func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
 	if alt, lift := step(func(b *world.Base, _ *world.Z, m *unit.Mover, d *steering.Driven, _ *steering.Course) {
 		*d, m.Ceiling = steering.Driven{}, 0
 		put(onHill)(b)
-	}); alt != hill+41 || lift != 41 {
-		t.Errorf("let go over the hill: at %v, lift %v; want its lift 41 over the ground again", alt, lift)
+	}); alt != hill+41 ||
+		lift != 41 {
+		t.Errorf(
+			"let go over the hill: at %v, lift %v; want its lift 41 over the ground again",
+			alt,
+			lift,
+		)
 	}
 }
 
 func TestAltitude_AFlyerKeepsUnderItsCeiling(t *testing.T) {
 	var hawk, low kind.Of[topotest.Recruit]
-	qw := topotest.NewQuasiWorld(t, false, func(units *board.Units[topotest.Recruit], grid grid.Grid) []kind.Entry {
-		units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40, Ceiling: 41}, steering.Steering{MaxSpeed: 10})
-		hawk = units.Named("hawk")
-		units.Define("low", unit.Mover{Domain: cell.Air, Lift: 40, Ceiling: 1}, steering.Steering{MaxSpeed: 10})
-		low = units.Named("low")
-		onHill := grid.At(2, 1)
-		onGrass := grid.At(0, 3)
-		return []kind.Entry{hawk.Entry(topotest.Recruit{Start: onHill}), hawk.Entry(topotest.Recruit{Start: onGrass}), low.Entry(topotest.Recruit{Start: onHill})}
-	})
+	qw := topotest.NewQuasiWorld(
+		t,
+		false,
+		func(units *board.Units[topotest.Recruit], grid grid.Grid) []kind.Entry {
+			units.Define(
+				"hawk",
+				unit.Mover{Domain: cell.Air, Lift: 40, Ceiling: 41},
+				steering.Steering{MaxSpeed: 10},
+			)
+			hawk = units.Named("hawk")
+			units.Define(
+				"low",
+				unit.Mover{Domain: cell.Air, Lift: 40, Ceiling: 1},
+				steering.Steering{MaxSpeed: 10},
+			)
+			low = units.Named("low")
+			onHill := grid.At(2, 1)
+			onGrass := grid.At(0, 3)
+			return []kind.Entry{
+				hawk.Entry(topotest.Recruit{Start: onHill}),
+				hawk.Entry(topotest.Recruit{Start: onGrass}),
+				low.Entry(topotest.Recruit{Start: onHill}),
+			}
+		},
+	)
 	qw.ECS.Tick(time.Second / 60)
 	onHill := qw.Grid.At(2, 1)
 	hill := qw.Topo.Write().Relief().At(qw.Grid.CellCenter(onHill))
@@ -292,27 +422,47 @@ func TestAltitude_AFlyerKeepsUnderItsCeiling(t *testing.T) {
 		alts[z.Altitude] = true
 	}
 	if len(alts) != 2 || !alts[40] || !alts[41] {
-		t.Errorf("hawks fly at %v, want one at its lift 40 over the grass and one held to the ceiling 41 over the hill", alts)
+		t.Errorf(
+			"hawks fly at %v, want one at its lift 40 over the grass and one held to the ceiling 41 over the hill",
+			alts,
+		)
 	}
 	for _, z := range zs[low.ID()] {
 		if z.Altitude != hill {
-			t.Errorf("a flyer whose ceiling lies under the hill flies at %v, want on the hill %v", z.Altitude, hill)
+			t.Errorf(
+				"a flyer whose ceiling lies under the hill flies at %v, want on the hill %v",
+				z.Altitude,
+				hill,
+			)
 		}
 	}
 }
 
-func flown(qw *topotest.QuasiWorld, fn func(b *world.Base, z *world.Z, m *unit.Mover, d *steering.Driven, st *steering.Course)) {
+func flown(
+	qw *topotest.QuasiWorld,
+	fn func(b *world.Base, z *world.Z, m *unit.Mover, d *steering.Driven, st *steering.Course),
+) {
 	var base goke.Comp[world.Base]
 	var z goke.Comp[world.Z]
 	var mover goke.Comp[unit.Mover]
 	var driven goke.Comp[steering.Driven]
 	var steer goke.Comp[steering.Course]
 	var q *goke.Query
-	qw.ECS.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base, &z, &mover, &driven, &steer).Build() }})
+	qw.ECS.RegSys(
+		goke.SystemFn{
+			OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base, &z, &mover, &driven, &steer).Build() },
+		},
+	)
 	for q.All(); q.Next(); {
 		cur := q.Cursor()
 		for i := range cur.IDs {
-			fn(&base.Slice(cur)[i], &z.Slice(cur)[i], &mover.Slice(cur)[i], &driven.Slice(cur)[i], &steer.Slice(cur)[i])
+			fn(
+				&base.Slice(cur)[i],
+				&z.Slice(cur)[i],
+				&mover.Slice(cur)[i],
+				&driven.Slice(cur)[i],
+				&steer.Slice(cur)[i],
+			)
 		}
 	}
 }
@@ -388,5 +538,26 @@ func TestSurface_ASlantwiseDeckCarriesOverTheCornerItCuts(t *testing.T) {
 	if ceiling != top-thick {
 		t.Errorf("under it by the corner: a ceiling at %v, want the deck's underside %v",
 			ceiling, top-thick)
+	}
+}
+
+func TestAltitude_StandsUnitsOnAHexBoardWithoutAllocating(t *testing.T) {
+	define := func(qw *topotest.QuasiWorld, units *board.Units[topotest.Recruit]) []kind.Entry {
+		walks := steering.Steering{MaxSpeed: 10}
+		units.Define("walker", unit.Mover{Domain: cell.Land}, walks)
+		at := func(r topotest.Recruit) geom.Vec { return qw.Grid.CellCenter(r.Start) }
+		big := board.NewUnits(qw.Board, board.Shape{Size: 60, Height: 4}, at)
+		big.Define("giant", unit.Mover{Domain: cell.Land}, walks)
+		return []kind.Entry{
+			units.Named("walker").Entry(topotest.Recruit{Start: qw.Grid.At(1, 1)}),
+			big.Named("giant").Entry(topotest.Recruit{Start: qw.Grid.At(2, 2)}),
+		}
+	}
+	qw := topotest.NewQuasiWorldOn(t, grid.DefaultGrids{}.Hex(4, 4, 32), false, 60, define)
+	for range 10 {
+		qw.ECS.Tick(time.Second / 60)
+	}
+	if n := testing.AllocsPerRun(50, func() { qw.ECS.Tick(time.Second / 60) }); n != 0 {
+		t.Errorf("a step of the units on a hex board allocates %v, want nothing", n)
 	}
 }

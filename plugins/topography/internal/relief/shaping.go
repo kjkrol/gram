@@ -9,8 +9,8 @@ import (
 // keeps float32 heights from chasing a slope limit they cannot store exactly
 const shapeTolerance = 1e-3
 
-// Lift moves the ground at p by `by`, then the ground round it until no two neighbouring
-// corners differ by more than maxStep (zero: any).
+// Lift moves the ground at the corner nearest p by `by`, then the ground round it until no two
+// corners along a cell's edge differ by more than maxStep (zero: any).
 func (r *Relief) Lift(p geom.Vec, by, maxStep float32) {
 	v, ok := r.vertexAt(p)
 	if !ok || by == 0 {
@@ -22,8 +22,8 @@ func (r *Relief) Lift(p geom.Vec, by, maxStep float32) {
 	}
 }
 
-// Flatten brings the ground between from and to to the height at from, then the ground round
-// it within maxStep, as Lift.
+// Flatten brings the corners nearest from and to and those between them to the height of the one
+// nearest from, then the ground round them within maxStep, as Lift.
 func (r *Relief) Flatten(from, to geom.Vec, maxStep float32) {
 	v0, ok := r.vertexAt(from)
 	if !ok {
@@ -32,12 +32,9 @@ func (r *Relief) Flatten(from, to geom.Vec, maxStep float32) {
 	h := r.heightAt(v0)
 	var set []vertex
 	if !r.square {
-		lo, hi := geom.NewVec(min(from.X, to.X), min(from.Y, to.Y)), geom.NewVec(max(from.X, to.X), max(from.Y, to.Y))
-		r.grid.CellsUnder(geom.NewAABB(lo, hi), func(c cell.ID) {
-			if i, ok := r.grid.Ordinal(c); ok {
-				if v := (vertex{x: i}); r.setValue(v, h) {
-					set = append(set, v)
-				}
+		r.hexCornersIn(r.hexPoint(v0), r.hexPoint(r.nearestCorner(to)), func(v vertex) {
+			if r.setValue(v, h) {
+				set = append(set, v)
 			}
 		})
 	} else {
@@ -61,8 +58,9 @@ func (r *Relief) Flatten(from, to geom.Vec, maxStep float32) {
 func (r *Relief) Level(c cell.ID, h, maxStep float32) {
 	var set []vertex
 	if !r.square {
-		if i, ok := r.grid.Ordinal(c); ok {
-			if v := (vertex{x: i}); r.setValue(v, h) {
+		vs, n, _ := r.corners(c)
+		for _, v := range vs[:n] {
+			if r.setValue(v, h) {
 				set = append(set, v)
 			}
 		}
@@ -115,33 +113,22 @@ func (r *Relief) lattice(p geom.Vec) (x, y int64) {
 
 func (r *Relief) vertexAt(p geom.Vec) (vertex, bool) {
 	if !r.square {
-		c, ok := r.grid.CellAt(p)
-		if !ok {
-			return vertex{}, false
-		}
-		i, ok := r.grid.Ordinal(c)
-		return vertex{x: i}, ok
+		v := r.nearestCorner(p)
+		_, ok := r.hexIndex(v)
+		return v, ok
 	}
 	return r.corner(r.lattice(p))
 }
 
 func (r *Relief) heightAt(v vertex) float32 { return r.values[r.index(v)] }
 
+// the corners along the cells' edges from v
 func (r *Relief) vertexNeighbours(v vertex, dst []vertex) []vertex {
 	if !r.square {
-		var here cell.ID
-		found := false
-		r.grid.EachCell(func(c cell.ID) {
-			if i, ok := r.grid.Ordinal(c); ok && i == v.x {
-				here, found = c, true
-			}
-		})
-		if !found {
-			return dst
-		}
-		for _, n := range r.grid.Neighbors(here) {
-			if i, ok := r.grid.Ordinal(n); ok {
-				dst = append(dst, vertex{x: i})
+		for _, d := range hexSpokes[2-class(v.x, v.y)] {
+			n := vertex{v.x + d[0], v.y + d[1]}
+			if _, ok := r.hexIndex(n); ok {
+				dst = append(dst, n)
 			}
 		}
 		return dst

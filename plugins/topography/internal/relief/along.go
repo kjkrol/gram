@@ -12,7 +12,11 @@ var _ ground.Profile = (*Relief)(nil)
 // Along calls visit with every point of the ray from origin along the unit dir, up to length,
 // where the ground's slope changes, and with length itself: the ground.Profile contract.
 func (r *Relief) Along(origin, dir geom.Vec, length float32, visit func(d, alt float32) bool) {
-	if !r.square || r.sq.Cell == 0 {
+	if !r.square {
+		r.hexAlong(origin, dir, length, visit)
+		return
+	}
+	if r.sq.Cell == 0 {
 		step := r.Step()
 		for d := step; d < length; d += step {
 			if !visit(d, r.GroundAt(geom.NewVec(origin.X+dir.X*d, origin.Y+dir.Y*d))) {
@@ -74,6 +78,54 @@ func (r *Relief) Along(origin, dir geom.Vec, length float32, visit func(d, alt f
 		}
 		t = exit
 	}
+}
+
+// the ray crosses from triangle to triangle where it crosses a line of the lattice (onLattice):
+// i, j or i + j whole
+func (r *Relief) hexAlong(origin, dir geom.Vec, length float32, visit func(d, alt float32) bool) {
+	end := float64(length)
+	if r.sq.Cell == 0 {
+		visit(length, 0)
+		return
+	}
+	s := float64(r.sq.Cell)
+	fi, fj := r.onLattice(origin)
+	bi := 2 * float64(dir.X) / (math.Sqrt(3) * s) // the lattice a unit along the ray
+	bj := float64(dir.Y)/s - bi/2
+	_, nextI, deltaI := lattice(fi, bi)
+	_, nextJ, deltaJ := lattice(fj, bj)
+	_, nextS, deltaS := lattice(fi+fj, bi+bj)
+	last, walked := 0.0, false // the ground where the stretch before ended
+	for t := 0.0; t < end; {
+		next := min(nextI, nextJ, nextS, end)
+		switch next {
+		case nextI:
+			nextI += deltaI
+		case nextJ:
+			nextJ += deltaJ
+		case nextS:
+			nextS += deltaS
+		}
+		if next <= t {
+			continue // a corner, the lines through it crossed at once
+		}
+		// the stretch from t to next lies in one triangle, the one its middle lies in
+		m := (t + next) / 2
+		entry, exit := 0.0, 0.0
+		if f, ok := r.facet(fi+bi*m, fj+bj*m); ok {
+			entry, exit = f.at(fi+bi*t, fj+bj*t), f.at(fi+bi*next, fj+bj*next)
+		}
+		// off the board's edge the ground drops to 0: the step down, or up, is a second point
+		if walked && math.Abs(entry-last) > 1e-9*max(1, math.Abs(last)) &&
+			!visit(float32(t), float32(entry)) {
+			return
+		}
+		if next < end && !visit(float32(next), float32(exit)) {
+			return
+		}
+		last, walked, t = exit, true, next
+	}
+	visit(length, r.GroundAt(geom.NewVec(origin.X+dir.X*length, origin.Y+dir.Y*length)))
 }
 
 func entered(h [4]float64, acrossX bool, stepX, stepY, u, v float64) float64 {

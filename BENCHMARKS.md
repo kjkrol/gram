@@ -213,6 +213,12 @@ noise at 100 — the strategy's price, 40 ns a walker a step. At `fix/stall-pace
 (`At` 8 → 16 B): against v0.7.0 alternately (the lower of 6 at `BENCHTIME=200x`, plain and
 `-cpu=1` alike) +1.5…+2.3% at 1,000 walkers standing, within noise at 100.
 
+`Benchmark_Board_AltitudeHex` is the same over a 64×64 hex board, cells 16 from middle to
+corner: 53 µs at 100 walkers, 468 µs at 1,000, 0 allocs/op. Its ground at the cells' corners
+(v0.15.0, six triangles a cell) costs what the level a cell before it did: within ±1.5% of
+v0.14.0 alternately (`feat/hex-corners`, 2026-10-31, two rounds a side), the square board's
+within ±1.7%.
+
 ## Terrain — `Benchmark_Board_Terrain`
 
 One tick of world, collision, board and vision over an 80×80 board of 16-unit cells, a quarter of

@@ -193,9 +193,14 @@ keeps only what those do not.
 - What it draws reads what it published once a frame: the relief copied as its version moves,
   its settings, the board's grid; the terrain encodes the heights as it composes, so the frame's
   `GroundSpan` is theirs.
-- The relief: on a square grid a lattice of corners the neighbouring cells share, on a hex one a
-  level a cell; it lives on the plugin's own entity. `world.Z`, the relief and `Heights` are the
-  world's heights, not the view: sight reads them in a top-down game too.
+- The relief: the cells' corners, which the neighbouring cells share, on both grids (the user,
+  2026-10-31: a hex is six equilateral triangles from its middle, at the mean of its corners);
+  on a hex grid each cell owns its top and top-right corners (`relief.HexCorners`). `GroundAt`,
+  `Along` and the hexes' shader share one triangular lattice (`onLattice`): change one, change
+  all. The corners' facing lives in an image in the relief's order, the middle's worked out in
+  the shader. A hex save of a level a cell loads, every corner at the mean of its cells. It lives
+  on the plugin's own entity. `world.Z`, the relief and `Heights` are the world's heights, not
+  the view: sight reads them in a top-down game too.
 - The painter paints the cells within two of a changed one anew, all of them past an eighth.
 - A kind's detail (`painter.Style.Detail`): a uniform cell's detail comes from its flags; the
   kinds sheet is read only where a cell is `painter.Dressed` (a way on it or beside it, a ground

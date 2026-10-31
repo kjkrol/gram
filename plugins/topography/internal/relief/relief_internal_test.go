@@ -43,8 +43,9 @@ func TestRelief_GroundAtReadsTheReliefAndFollowsIt(t *testing.T) {
 			c := grid.At(2, 1)
 			raiseHills(r, grid, c)
 
-			// a lone hill on a square grid is smoothed to its corners' mean; a hex cell stays level
-			want := float32(12)
+			// a lone hill is smoothed to its corners' mean, each the mean of the cells meeting at
+			// it: four on a square grid, three on a hex one
+			want := float32(4)
 			if name == "square" {
 				want = 3
 			}
@@ -93,7 +94,10 @@ func TestRelief_GroundSlopesBetweenCellsOnASquareGrid(t *testing.T) {
 	}
 	corner := grid.At(2, 2)
 	if got := r.GroundAt(grid.CellCenter(corner)); got != 6 {
-		t.Errorf("the plateau's corner cell stands at %v in its middle, want 6: its corners 3, 6, 6 and 12 are drawn split along the diagonal of the two 6s", got)
+		t.Errorf(
+			"the plateau's corner cell stands at %v in its middle, want 6: its corners 3, 6, 6 and 12 are drawn split along the diagonal of the two 6s",
+			got,
+		)
 	}
 	if got := r.Altitude(corner); got != 6.75 {
 		t.Errorf("the plateau's corner cell's level is %v, want 6.75, the mean of its corners", got)
@@ -119,7 +123,10 @@ func TestRelief_FoldsWhereTheBoardWraps(t *testing.T) {
 	east := grid.At(3, 1)
 	r.SetCorners(west, Corners{5, 0, 5, 0})
 	if got := r.Corners(east); got != (Corners{0, 5, 0, 5}) {
-		t.Errorf("across the seam the east cell's corners are %v, want its right ones the west cell's left, 5", got)
+		t.Errorf(
+			"across the seam the east cell's corners are %v, want its right ones the west cell's left, 5",
+			got,
+		)
 	}
 	if got := r.GroundAt(geom.NewVec(127.9, 48)); got < 4.9 {
 		t.Errorf("the ground at the seam stands at %v, want about 5", got)
@@ -138,7 +145,12 @@ func TestHeights_ARunGoesThroughASave(t *testing.T) {
 		t.Fatal(err)
 	}
 	if out != in {
-		t.Errorf("a run came back as from %d, %d of them, %v...; want it as it went", out.First, out.Count, out.Values[:3])
+		t.Errorf(
+			"a run came back as from %d, %d of them, %v...; want it as it went",
+			out.First,
+			out.Count,
+			out.Values[:3],
+		)
 	}
 }
 
@@ -153,7 +165,13 @@ func TestRelief_CutsItsHeightsIntoRunsAndTakesThemBack(t *testing.T) {
 		r.fill(&runs[i])
 	}
 	if len(runs) != 2 || runs[0].Count != HeightsRun || runs[1].Count != 41*41-HeightsRun {
-		t.Fatalf("%d runs of %d and %d, want two: 1024 and the other %d of 1681 corners", len(runs), runs[0].Count, runs[1].Count, 41*41-HeightsRun)
+		t.Fatalf(
+			"%d runs of %d and %d, want two: 1024 and the other %d of 1681 corners",
+			len(runs),
+			runs[0].Count,
+			runs[1].Count,
+			41*41-HeightsRun,
+		)
 	}
 	back := onBoard(grid)
 	if back.adopt(runs[:1]) {
@@ -180,7 +198,13 @@ func TestRelief_TheGroundIsTheGroundDrawn(t *testing.T) {
 		{28, 4, 15.25}, // near the 20
 	} {
 		if got := r.GroundAt(geom.NewVec(p.x, p.y)); f32.Abs(got-p.want) > f32.Eps(p.want) {
-			t.Errorf("the ground at (%v, %v) is %v, want %v on the triangles drawn", p.x, p.y, got, p.want)
+			t.Errorf(
+				"the ground at (%v, %v) is %v, want %v on the triangles drawn",
+				p.x,
+				p.y,
+				got,
+				p.want,
+			)
 		}
 	}
 	// corners 10, 0, 0, 20: split along the two 0s, 1–2; the middle is 0, not the mean 7.5

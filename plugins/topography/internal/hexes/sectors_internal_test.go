@@ -47,9 +47,9 @@ func TestEach_DrawsTheSectorsSeenWholeOrTheirTopsAloneNeighboursAtOneGo(t *testi
 	h.each(v, func(cells []float32, vertices int) {
 		got = append(got, drawn{len(cells) / cellFloats, vertices})
 	})
-	want := []drawn{{3, prismVertices}, {3, topVertices}}
+	want := []drawn{{3, wholeVertices}, {3, topVertices}}
 	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
-		t.Errorf("drawn %v, want the near sectors' prisms whole at one go, the far one's tops, "+
+		t.Errorf("drawn %v, want the near sectors' cells whole at one go, the far one's tops, "+
 			"nothing beyond", got)
 	}
 }

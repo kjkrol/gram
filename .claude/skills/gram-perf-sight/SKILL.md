@@ -21,6 +21,8 @@ views' copy"); etap: `doc/plans-perf.md` („SIMD w widzeniu"). Kernele: skill `
   obu.
 - Indeks przestrzeni gotowy przed partią wzroku (`SpaceRead.Ready`); bez tego skan płaci jego
   budowę.
+- Relief heksowy też jest `ground.Profile`: `Along` idzie dokładnie po trójkątach siatki (ok. 4
+  punkty na przebytą komórkę), jak marsz kwadratowy. Benchmarku wzroku nad heksami nie ma.
 
 ## Pułapki
 
