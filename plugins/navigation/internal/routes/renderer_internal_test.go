@@ -104,7 +104,7 @@ func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 		var f render.Frame
 		f.Reset(cam)
 		r.Compose(&f, cam)
-		r.goal(geom.NewVec(10, 10), r.point(c, tc.spot), 0)
+		r.goal(geom.NewVec(10, 10), r.point(c, tc.spot, geom.Vec{}), 0)
 		var starts [][2]float32
 		f.Each(func(at render.At, v []render.Vertex) {
 			if at.Top() || at.Z() != goalLift {
@@ -147,7 +147,7 @@ func TestPathRenderer_OutlinesNoStepAside(t *testing.T) {
 		f.Reset(cam)
 		r.Compose(&f, cam)
 		var p planned
-		r.goals(&p, nil, cell.Land, &o)
+		r.goals(&p, nil, cell.Land, &o, geom.Vec{})
 		for _, g := range p.goals {
 			r.goal(geom.NewVec(10, 10), g.at, g.alt)
 		}

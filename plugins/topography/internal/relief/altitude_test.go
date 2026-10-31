@@ -56,6 +56,47 @@ func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 	}
 }
 
+// a body bigger than a cell stands on the highest ground under its box, read at its middle and
+// its corners, as its box is drawn flat over the slope; one within a cell, standing at the same
+// middle, on the ground there
+func TestAltitude_ABodyBiggerThanACellStandsOnTheHighestGroundUnderItsBox(t *testing.T) {
+	var giant, walker kind.Of[topotest.Recruit]
+	// the corner of (1,1), whose cells are flat, its box reaching up the slope to the hill at (2,1)
+	middle := geom.NewVec(32, 32)
+	define := func(qw *topotest.QuasiWorld, _ *board.Units[topotest.Recruit]) []kind.Entry {
+		at := func(topotest.Recruit) geom.Vec { return middle }
+		walks := steering.Steering{MaxSpeed: 10}
+		big := board.NewUnits(qw.Board, board.Shape{Size: 60, Height: 4}, at)
+		big.Define("giant", unit.Mover{Domain: cell.Land}, walks)
+		giant = big.Named("giant")
+		small := board.NewUnits(qw.Board, board.Shape{Size: 20, Height: 2}, at)
+		small.Define("walker", unit.Mover{Domain: cell.Land}, walks)
+		walker = small.Named("walker")
+		row := topotest.Recruit{Start: qw.Grid.At(0, 0)}
+		return []kind.Entry{giant.Entry(row), walker.Entry(row)}
+	}
+	qw := topotest.NewQuasiWorldUpTo(t, false, 60, define)
+	qw.ECS.Tick(time.Second / 60)
+
+	relief := qw.Topo.Write().Relief()
+	under, highest := relief.At(middle), relief.At(middle)
+	for _, corner := range []geom.Vec{{X: 2, Y: 2}, {X: 62, Y: 2}, {X: 2, Y: 62}, {X: 62, Y: 62}} {
+		highest = max(highest, relief.At(corner))
+	}
+	if highest <= under {
+		t.Fatalf("the ground under the giant's box rises to %v, under its middle to %v: no slope",
+			highest, under)
+	}
+	zs := qw.Zs()
+	if got := zs[giant.ID()]; len(got) != 1 || got[0].Altitude != highest {
+		t.Errorf("the giant stands at %v, want on the highest ground under its box, %v", got,
+			highest)
+	}
+	if got := zs[walker.ID()]; len(got) != 1 || got[0].Altitude != under {
+		t.Errorf("the walker stands at %v, want on the ground under its middle, %v", got, under)
+	}
+}
+
 func TestAltitude_AFloorCarriesItsDomainsAtItsHeight(t *testing.T) {
 	var walker, hawk, bridge kind.Of[topotest.Recruit]
 	define := func(qw *topotest.QuasiWorld, units *board.Units[topotest.Recruit]) []kind.Entry {

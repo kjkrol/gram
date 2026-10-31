@@ -9,28 +9,29 @@ board:
     "~": water
     "f": ford
   # a hill in the first unit's way: its cone climbs the slope and stops, the hawk's passes over;
-  # a river beyond the wall's gap, a bridge over it too narrow for the wagon, a rope bridge too
-  # weak for it and a ford at its foot
+  # a river two cells beyond the wall's gap, a bridge over it too narrow for the wagon, a rope
+  # bridge too weak for it and a ford at its foot; above the gap a hole in the wall and a ford,
+  # both two cells wide: the giant's one way over
   cells: |
-    ..............~.........
-    ..============~=======..
-    ..=.........#.~......=..
-    ..=....^^^..#.~......=..
-    ..=....^^^..#.~......=..
-    ..=....^^^..#.~......=..
-    ..=...TTTT..#.~......=..
-    ..=...TTTT..#.~......=..
-    ..=...TTTT....~......=..
-    ..=.........#.~......=..
-    ..=.........#.~..TTTT=..
-    ..=.........#.~..TTTT=..
-    ..=.........#.~..TTTT=..
-    ..=.........#.~......=..
-    ............#.~.........
-    ............#.f.........
+    ...............~........
+    ..=============~======..
+    ..=.........#..~.....=..
+    ..=....^^^..#..~.....=..
+    ..=....^^^.....f.....=..
+    ..=....^^^.....f.....=..
+    ..=...TTTT..#..~.....=..
+    ..=...TTTT..#..~.....=..
+    ..=...TTTT.....~.....=..
+    ..=.........#..~.....=..
+    ..=.........#..~.TTTT=..
+    ..=.........#..~.TTTT=..
+    ..=.........#..~.TTTT=..
+    ..=.........#..~.....=..
+    ............#..~........
+    ............#..f........
   entities:
-    - {kind: bridge, from: [13, 8], to: [15, 8]}
-    - {kind: rope, from: [13, 12], to: [15, 12]}
+    - {kind: bridge, from: [14, 8], to: [16, 8]}
+    - {kind: rope, from: [14, 12], to: [16, 12]}
 relief:
   cells: |
     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
@@ -56,3 +57,5 @@ units:
   # the hawk crosses the wall and the second forest head-on
   - {kind: hawk, side: reserve, start: [1, 11], target: [22, 11]}
   - {kind: wagon, side: player, start: [1, 14], target: [22, 14]}
+  # too big for the gap and the bridges, a cell wide, it goes up by the hole and the ford
+  - {kind: giant, side: player, start: [4, 7], target: [18, 7]}

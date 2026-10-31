@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.14.0 — 2026-10-31
+
+**Bodies bigger than a cell, planned where their footprint fits** (2026-10-31, branch
+`feat/footprint`, plan „klasy ciał w HPA*", etap B)
+- Added: a unit's box may reach past its cell: it takes a footprint of cells a side
+  (`unit.Footprint`: one within a cell, past it the fewest, two at least, holding its longer side
+  with room to spare for collision; an even side rounded up to an odd one on a hex grid), up to
+  the board's (`board.Plugin.WithFootprint`, `DefaultFootprint` 3; `NewUnits` panics past it). An
+  odd footprint is laid round its cell, an even one from it right and down, its unit standing on
+  the corner its middle cells share (`unit.Place`, `unit.LaidFrom`, `unit.Offset`). Such a body
+  stands only where every cell of its footprint takes it on that level, a slantwise step's flanks
+  too; each finder keeps its clearance by the board's passage and the hierarchy widens its stale
+  ring by the footprint's extent. `BoardRead.Railed`. Benchmarks `PathFinder_Footprint`: a wide
+  body's route costs 7.7× a narrow one's, all of it the larger search; bodies within a cell pay
+  nothing, the tick and the planner within ±0.5% of main.
+- Fixed: a hex board in relief draws every cell to its ground, as a square one does: a kind's
+  Height (a forest's, a wall's) is no longer raised over the units passing through it.
+- Changed: a body bigger than a cell keeps to one level, off a deck's band and from under a deck
+  too low for it, and holds the cell its footprint is laid from alone; the board's keep, standing
+  and `At` read a unit's cell from where its footprint is laid. On a relief it stands on the
+  highest ground under its box, its middle and corners, so a slope never shows through it.
+- navigation/square: a giant just under two cells wide goes round the gap and the bridges by a
+  hole in the wall and a ford above the gap, both two cells wide; the river a column further
+  east, two cells from the wall.
+- navigation/hex: a rope bridge bearing the scouts, too weak for the wagon, which goes round; a
+  giant (a 60-px box, a footprint of three hexes: its hex and the ring round it) round the gap
+  and the bridges by a hole in the wall and a ford, both three hexes wide; the river two columns
+  further east, three hexes from the wall.
+
 ## v0.13.0 — 2026-10-31
 
 Needs hpastar v1.4.0 (kjkrol/hpastar#7: classes, one `Solver` serving up to 8 of them).

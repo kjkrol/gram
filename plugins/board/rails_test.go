@@ -211,3 +211,71 @@ func TestField_OverWaterOnlyTheBandTakesAWalker(t *testing.T) {
 		}
 	}
 }
+
+// a band of a bridge: its cell and floor
+type bandRow struct {
+	At    cell.ID
+	Floor cell.Floor
+}
+
+// a railing runs along a band where it runs on through a cell, on the level of its deck alone,
+// never along a head nor beside the band
+func TestBoard_ARailingRunsAlongABandThroughACell(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(5, 3, 10)
+	west, _ := grid.Direction(g, -1, 0)
+	east, _ := grid.Direction(g, 1, 0)
+	for _, tc := range []struct {
+		name   string
+		height float32
+	}{{"raised", 10}, {"lying", 0}} {
+		t.Run(tc.name, func(t *testing.T) {
+			wd := world.NewPlugin(world.Config{
+				Space:    world.SpaceCfg{Width: 50, Height: 30},
+				Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 1, MaxSize: 10},
+				Heights:  true,
+			})
+			p := board.NewPlugin(g, &cell.MultipleOccupancy{}, wd)
+			p.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
+			bands := board.NewEntities(p, board.Shape{Size: 10},
+				func(r bandRow) cell.ID { return r.At })
+			bands.Define("band", comp.Load(func(r bandRow) cell.Floor { return r.Floor }),
+				comp.Const(cell.Rail{Keeps: cell.Land, Height: 1}))
+			floor := cell.Floor{Allows: cell.Land, Height: tc.height, Thickness: 1, Width: 6}
+			for x, links := range map[uint32]cell.Links{1: 1 << east, 2: 1<<west | 1<<east,
+				3: 1 << west} {
+				f := floor
+				f.Links = links
+				wd.Write().Seed(bands.Named("band").Entry(bandRow{At: g.At(x, 1), Floor: f}))
+			}
+			ctx := boardtest.NewInstallCtx()
+			if err := wd.Install(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if err := p.Install(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if err := wd.Populate(); err != nil {
+				t.Fatal(err)
+			}
+			ctx.ECS().Setup(ctx.Systems()...)
+			ctx.ECS().SetPlan(func(rc goke.RunCtx, d time.Duration) {
+				wd.RunPlan(rc, d)
+				p.RunPlan(rc, d)
+				rc.Sync()
+				wd.Write().Clock().Replay(rc, d)
+			})
+			ctx.ECS().Tick(time.Second / 60)
+			brd := p.Read(0).Board()
+			deck := tc.height > 0
+			g.EachCell(func(c cell.ID) {
+				want := c == g.At(2, 1)
+				if got := brd.Railed(c, cell.Land, deck); got != want {
+					t.Errorf("%v railed %v on its band's level, want %v", c, got, want)
+				}
+				if brd.Railed(c, cell.Land, !deck) || brd.Railed(c, cell.Water, deck) {
+					t.Errorf("%v railed on the other level or for the water", c)
+				}
+			})
+		})
+	}
+}

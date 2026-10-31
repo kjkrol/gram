@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/comp"
@@ -210,5 +211,113 @@ func TestUnits_TheKindsOfUnitAreListedAsTheirUnitsAreMade(t *testing.T) {
 	}
 	if found != 1 {
 		t.Errorf("%d recruits found, want the one seeded", found)
+	}
+}
+
+// a box whose footprint takes no more cells a side than the board's footprint is taken, one that
+// takes more panics, naming the footprint and the room it holds a box with, whichever of its
+// sides is the longer
+func TestUnits_ABoxOfAFootprintPastTheBoardsPanics(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		cells   int // the board's footprint, its default where 0
+		shape   board.Shape
+		refused bool
+	}{
+		{"a cell", 0, board.Shape{Size: 32}, false},
+		{"just past a cell, two cells a side", 0, board.Shape{Size: 32.5}, false},
+		{"just under three cells, three a side", 0, board.Shape{Size: 95.5}, false},
+		{"three cells, four a side", 0, board.Shape{Size: 96}, true},
+		{"three cells across", 0, board.Shape{Size: 20, Width: 96}, true},
+		{"a cell on a footprint of one", 1, board.Shape{Size: 32}, false},
+		{"just past a cell on a footprint of one", 1, board.Shape{Size: 32.5}, true},
+		{"just under two cells on a footprint of two", 2, board.Shape{Size: 63.9}, false},
+		{"two cells on a footprint of two", 2, board.Shape{Size: 64}, true},
+		{"three cells on a footprint of four", 4, board.Shape{Size: 96}, false},
+		{"four cells across on a footprint of four", 4, board.Shape{Size: 20, Width: 128},
+			true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := world.NewPlugin(world.Config{
+				Space:    world.SpaceCfg{Width: 128, Height: 128},
+				Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 20, MaxSize: 20},
+				Heights:  true,
+			})
+			brd := board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32),
+				&cell.MultipleOccupancy{}, w).WithMotion(motion.NewPlugin(w), cell.DefaultHiking)
+			if tc.cells > 0 {
+				brd.WithFootprint(tc.cells)
+			}
+			defer func() {
+				msg, _ := recover().(string)
+				if refused := msg != ""; refused != tc.refused || refused &&
+					(!strings.Contains(msg, "footprint") || !strings.Contains(msg, "spare")) {
+					t.Errorf("panic %q; want one naming the footprint and its room %v", msg,
+						tc.refused)
+				}
+			}()
+			board.NewUnits(brd, tc.shape, func(recruit) geom.Vec { return geom.Vec{} })
+		})
+	}
+}
+
+// a unit of an even footprint standing about the corner its middle cells share is At the cell its
+// footprint is laid from, the board keeping it there and holding it for the unit, a step after
+// another
+func TestUnits_AnEvenFootprintIsAtTheCellItIsLaidFrom(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(6, 6, 32)
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 192, Height: 192},
+		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 20, MaxSize: 64},
+		Heights:  true,
+	})
+	m := motion.NewPlugin(w)
+	occ := &cell.SingleOccupancy{}
+	brd := board.NewPlugin(g, occ, w).WithMotion(m, cell.DefaultHiking)
+	brd.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
+	laid := g.At(2, 2)
+	mid := g.CellCenter(laid)
+	// past the corner rightwards, short of it downwards: the cell under it is laid's right one
+	corner := geom.NewVec(mid.X+16.5, mid.Y+15.5)
+	units := board.NewUnits[recruit](brd, board.Shape{Size: 60},
+		func(recruit) geom.Vec { return corner })
+	units.Define("giant", unit.Mover{Domain: cell.Land}, steering.Steering{})
+	ctx := boardtest.NewInstallCtx()
+	for _, install := range []func() error{
+		func() error { return w.Install(ctx) },
+		func() error { return m.Install(ctx) },
+		func() error { return brd.Install(ctx) },
+	} {
+		if err := install(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.Write().Seed(units.Named("giant").Entry(recruit{}))
+	if err := w.Populate(); err != nil {
+		t.Fatal(err)
+	}
+	ctx.ECS().Setup(ctx.Systems()...)
+	ctx.ECS().SetPlan(func(rc goke.RunCtx, d time.Duration) {
+		w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
+		brd.RunPlan(rc, d)
+		rc.Sync()
+		w.Write().Clock().Replay(rc, d)
+	})
+	var at goke.Comp[unit.At]
+	var q *goke.Query
+	ctx.ECS().RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		q = si.NewQueryBuilder(&at).Build()
+	}})
+	for step := range 3 {
+		ctx.ECS().Tick(time.Second / 60)
+		for q.All(); q.Next(); {
+			for _, a := range at.Slice(q.Cursor()) {
+				if a.Cell != laid || occ.CanEnter(laid, false, 99, cell.Land) {
+					t.Errorf("step %d: At %v, its cell %v held %v; want At it and holding it",
+						step, a.Cell, laid, !occ.CanEnter(laid, false, 99, cell.Land))
+				}
+			}
+		}
 	}
 }

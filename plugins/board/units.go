@@ -36,19 +36,37 @@ func (s Shape) Box(c geom.Vec) plane.AABB {
 }
 
 // NewUnits binds a game's rows to the board: shape is the units' body, at reads a unit's centre
-// from its row. A unit is no bigger than a cell's side, so it takes any step a deck does not
-// narrow; a bigger shape, or a board without motion and a mobility (Plugin.WithMotion), panics.
+// from its row. A unit bigger than a cell is planned where every cell its footprint takes takes it
+// (unit.Footprint); a footprint past the board's (WithFootprint), or a board without motion and
+// a mobility (Plugin.WithMotion), panics.
 func NewUnits[P any](brd *Plugin, shape Shape, at func(row P) geom.Vec) *Units[P] {
 	if brd.motion == nil || brd.mobility == nil {
 		panic("board: units move by motion as a mobility paces them, and the board was given " +
 			"none (WithMotion)")
 	}
-	if box, side := shape.Box(geom.Vec{}), brd.board.read.CellSpan(); max(box.Size.X,
-		box.Size.Y) > side {
-		panic(fmt.Sprintf("board: units %v across and %v down, bigger than a cell's side, %v",
-			box.Size.X, box.Size.Y, side))
+	box := shape.Box(geom.Vec{})
+	if cells := unit.Footprint(&brd.board.read, box.Size); cells > brd.footprint {
+		panic(fmt.Sprintf("board: units %v across and %v down take a footprint of %d cells a "+
+			"side, past the board's %d (WithFootprint): past a cell a footprint holds its box "+
+			"with room to spare, slack for collision", box.Size.X, box.Size.Y, cells,
+			brd.footprint))
 	}
 	return &Units[P]{brd: brd, shape: shape, at: at}
+}
+
+// DefaultFootprint is the most cells a side a unit's footprint takes on a board: a box past a cell
+// narrower than three cells.
+const DefaultFootprint = 3
+
+// WithFootprint has the board take units whose footprint takes up to cells cells a side
+// (unit.Footprint; DefaultFootprint without): the wider, the wider the planner's work round every
+// cell changed. Call before NewUnits.
+func (p *Plugin) WithFootprint(cells int) *Plugin {
+	if cells < 1 {
+		panic(fmt.Sprintf("board: a footprint of %d cells a side; one is the least", cells))
+	}
+	p.footprint = cells
+	return p
 }
 
 // Define registers one kind of unit: how it moves, its steering profile and whatever else the
@@ -61,7 +79,7 @@ func (u *Units[P]) Define(name string, mover unit.Mover, steering steering.Steer
 			return world.Position{AABB: u.shape.Box(u.at(row))}
 		}),
 		comp.Load(func(row P) unit.At {
-			c, ok := brd.CellAt(u.at(row))
+			c, ok := brd.CellAt(unit.LaidFrom(brd, k.Shape.Box(geom.Vec{}).Size, u.at(row)))
 			if !ok {
 				panic(fmt.Sprintf("board: a %q stands off the board at %v", name, u.at(row)))
 			}

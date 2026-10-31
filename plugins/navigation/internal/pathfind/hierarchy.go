@@ -25,6 +25,8 @@ type Hierarchy struct {
 	key     Key
 	classes []Body // hpastar's classes by index, their feet left out
 	all     uint8  // a bit a class
+	footed  uint8  // the classes bigger than a cell, a bit a class
+	extent  int    // how far past its node the footprint of the widest class reaches
 	side    int
 	since   uint64 // the board's Passage the clusters were last marked stale against
 	h       *hpastar.Solver[node]
@@ -59,6 +61,9 @@ func (p *Finder) NewHierarchy(key Key, side int, classes []Body) *Hierarchy {
 	for k, body := range classes {
 		body.Feet = 0
 		h.classes[k] = body
+		if side := p.sideOf(body); side > 1 {
+			h.footed, h.extent = h.footed|1<<k, max(h.extent, extent(side))
+		}
 	}
 	shape, ok := shapeOf(p.grid)
 	if !ok || p.levels == nil || p.stepped == nil {
@@ -175,32 +180,47 @@ func (p *Finder) standing(h *Hierarchy, c cell.ID, o int) {
 }
 
 // standers are the classes of h standing on r's cell on level, a bit a class: the cell admits
-// h's domain there and takes each body by what limits it
+// h's domain there and takes each body by what limits it, and a body bigger than a cell's
+// footprint stands there
 func (p *Finder) standers(h *Hierarchy, r *read, level uint8) uint8 {
 	if !p.stepAt(r, level).admits {
 		return 0
 	}
-	if !p.limited || !p.limiting(r, level) {
-		return h.all
+	on := h.all
+	if p.limited && p.limiting(r, level) {
+		on = 0
+		for k := range h.classes {
+			if p.borne(r, level, &h.classes[k]) {
+				on |= 1 << k
+			}
+		}
 	}
-	var on uint8
+	if h.footed == 0 {
+		return on
+	}
 	for k := range h.classes {
-		if p.borne(r, level, &h.classes[k]) {
-			on |= 1 << k
+		if h.footed&(1<<k) != 0 && !p.standsOn(p.classPrints[k], r.c, level) {
+			on &^= 1 << k
 		}
 	}
 	return on
 }
 
 // building has p read the board as h is built over it: for every class of its domain, blind to
-// the others, no step leading to a goal
+// the others, no step leading to a goal, the footprints of those bigger than a cell kept
 func (p *Finder) building(h *Hierarchy) {
 	if h.builder != p {
 		panic("pathfind: a hierarchy is built and staled by the Finder that made it")
 	}
-	p.body, p.entity, p.blocked = h.classes[0], 0, nil
+	p.entity, p.blocked = 0, nil
 	p.goal, p.end = offGrid, Either
 	p.begin(h.key.Domain)
+	for k := range h.classes {
+		if p.classPrints[k] = nil; h.footed&(1<<k) != 0 {
+			p.classPrints[k] = p.footprintOf(h.classes[k])
+		}
+	}
+	p.body, p.print = h.classes[0], p.classPrints[0]
 }
 
 // lay reads which of h's classes stand on each node of h's cells, h then stale against the
@@ -225,7 +245,8 @@ func (p *Finder) passage() uint64 {
 }
 
 // Stale marks the clusters of the cells whose passage moved since the board's passage since,
-// their ring of one cell and what lies across their borders, and reports how many it marked.
+// their ring of a cell past the extent of the widest footprint of h's classes and what lies
+// across their borders, and reports how many it marked.
 func (p *Finder) Stale(h *Hierarchy, since uint64) int {
 	if h.h == nil {
 		return 0
@@ -259,6 +280,10 @@ func (p *Finder) Stale(h *Hierarchy, since uint64) int {
 			if cells == nil {
 				continue
 			}
+			if h.extent > 0 {
+				marked += p.staleRound(h, c)
+				continue
+			}
 			// a step reads its neighbours: the corners it cuts, the bands over it, the slope
 			for i := range p.grid.Directions() {
 				if n, ok := p.grid.Toward(c, i); ok {
@@ -268,6 +293,20 @@ func (p *Finder) Stale(h *Hierarchy, since uint64) int {
 		}
 	}
 	h.since = now
+	return marked
+}
+
+// staleRound is staleAt of the cells round c up to a step past the extent of the widest footprint
+// of h's classes, but c: within it a footprint reads c, a step further a step reads such a
+// footprint
+func (p *Finder) staleRound(h *Hierarchy, c cell.ID) int {
+	marked := 0
+	p.ring, p.ringOn = p.rim(c, p.windowOf(2*(h.extent+1)+1, false), p.ring, p.ringOn)
+	for j := 1; j < len(p.ring); j++ {
+		if p.ringOn[j] {
+			marked += p.staleAt(h, p.ring[j])
+		}
+	}
 	return marked
 }
 
@@ -321,11 +360,12 @@ func (p *Finder) Climb(h *Hierarchy, entity uid.UID64, domain cell.Domain, body 
 	if !ok || !h.h.Ready() {
 		return 0, false
 	}
-	p.decks, p.body, p.entity = 0, body, entity
+	p.decks, p.entity = 0, entity
 	if p.grid.Distance(from, to) < h.near() {
 		return 0, false
 	}
 	p.begin(domain)
+	p.as(body)
 	start := node{from, p.levelOf(p.at(from), body)}
 	// hpastar sets a start into its own cluster alone: from one h holds no node of, its steps
 	// across the border go unseen
@@ -358,8 +398,9 @@ func (p *Finder) Reaches(h *Hierarchy, domain cell.Domain, body Body, from, to c
 	if !ok {
 		return true
 	}
-	p.body, p.entity = body, 0
+	p.entity = 0
 	p.begin(domain)
+	p.as(body)
 	start := node{from, p.levelOf(p.at(from), body)}
 	if !h.standsAs(start, k) {
 		return true
@@ -601,6 +642,13 @@ func (p *Finder) classedStep(h *Hierarchy, from node, rf, rn *read, level uint8,
 		}
 	} else if !p.takes(from, rf, rn, level, c, lane, h.classes[0]) {
 		return 0, 0, false
+	}
+	if footed := h.footed &^ refuses; footed != 0 {
+		for i := range h.classes {
+			if footed&(1<<i) != 0 && !p.spans(p.classPrints[i], rn, level, c) {
+				refuses |= 1 << i
+			}
+		}
 	}
 	if refuses == h.all {
 		return 0, 0, false

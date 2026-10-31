@@ -94,6 +94,7 @@ type System struct {
 	formed     []uid.UID64 // the units marching in one, as the bodies are gathered
 
 	terrainSeen uint64
+	span        float32 // a cell's, past which a unit's footprint may be laid off its middle
 }
 
 var _ goke.System = (*System)(nil)
@@ -104,6 +105,7 @@ const bumpInterval = 500 * time.Millisecond
 func NewSystem(pathFinder *spacing.Finder, grid grid.Grid, terrain cell.Terrain, occupancy cell.Occupancy) *System {
 	s := &System{
 		grid:       grid,
+		span:       grid.CellSpan(),
 		terrain:    terrain,
 		occupancy:  occupancy,
 		pathFinder: pathFinder,
@@ -265,6 +267,7 @@ type walker struct {
 	m               bodies.Member
 	entered         bool
 	arrived         bool
+	off             geom.Vec // how far off its cells' middles it stands
 }
 
 func ref[T any](s []T, i int) *T {
@@ -282,7 +285,9 @@ func (s *System) begin(w *walker, z *world.Z, mover *unit.Mover, owners *tag.Tag
 		w.domain = mover.Domain
 	}
 	var ok bool
-	if w.actual, w.onDeck, ok = spacing.LevelOf(s.grid, s.terrain, w.base.Pos.Center(), z); !ok {
+	w.off = s.offOf(w.base.Pos.Size)
+	if w.actual, w.onDeck, ok = spacing.LevelOf(s.grid, s.terrain, s.from(w.base.Pos.Center(),
+		w.off), z); !ok {
 		w.actual = w.current
 	}
 	w.m = bodies.Member{ID: w.id, Cell: w.current, From: w.current, Leg: w.o.Leg, Domain: w.domain,
@@ -614,8 +619,8 @@ func (s *System) tail(w *walker, d time.Duration) {
 	w.at.Next = waypoint
 
 	have := w.base.Pos.Center()
-	end := s.goal(target, o.Spot)
-	want := s.unwrap(have, s.grid.CellCenter(waypoint))
+	end := s.goal(target, o.Spot, w.off)
+	want := s.unwrap(have, s.place(waypoint, w.off))
 	// the goal's cell met on the way, its deck over the goal under it, is a waypoint
 	final := waypoint == target && !order.Through(p, waypoint)
 	if final {
@@ -651,16 +656,16 @@ func (s *System) tail(w *walker, d time.Duration) {
 		if leg.Active {
 			from = leg.From
 		}
-		if !passed(have, want, s.unwrap(have, s.grid.CellCenter(from)), reach) {
-			s.drive(w.m, st, w.base.Vel.Dir, have, s.ahead(have, want, p, waypoint, target, end),
-				reach, st.MaxSpeed)
+		if !passed(have, want, s.unwrap(have, s.place(from, w.off)), reach) {
+			s.drive(w.m, st, w.base.Vel.Dir, have, s.ahead(have, want, p, waypoint, target, end,
+				w.off), reach, st.MaxSpeed)
 			return
 		}
 		if leg.Active && w.actual != leg.To {
 			// passed by the lookahead, not yet entered: the leg held, the next goal aimed
 			// at
 			next := o.Waypoints[0]
-			s.route = append(s.route[:0], s.unwrap(have, s.goal(next.Cell, next.Spot)))
+			s.route = append(s.route[:0], s.unwrap(have, s.goal(next.Cell, next.Spot, w.off)))
 			s.drive(w.m, st, w.base.Vel.Dir, have, s.route, reach, st.MaxSpeed)
 			return
 		}
@@ -671,7 +676,7 @@ func (s *System) tail(w *walker, d time.Duration) {
 			*leg = order.Leg{}
 		}
 		order.Advance(o)
-		s.route = append(s.route[:0], s.unwrap(have, s.goal(o.Target, o.Spot)))
+		s.route = append(s.route[:0], s.unwrap(have, s.goal(o.Target, o.Spot, w.off)))
 		s.drive(w.m, st, w.base.Vel.Dir, have, s.route, reach, st.MaxSpeed)
 		return
 	}
@@ -681,9 +686,9 @@ func (s *System) tail(w *walker, d time.Duration) {
 		if leg.Active {
 			from = leg.From
 		}
-		if !passed(have, want, s.unwrap(have, s.grid.CellCenter(from)), reach) {
-			s.drive(w.m, st, w.base.Vel.Dir, have, s.ahead(have, want, p, waypoint, target, end),
-				reach, st.MaxSpeed)
+		if !passed(have, want, s.unwrap(have, s.place(from, w.off)), reach) {
+			s.drive(w.m, st, w.base.Vel.Dir, have, s.ahead(have, want, p, waypoint, target, end,
+				w.off), reach, st.MaxSpeed)
 			return
 		}
 		if leg.Active && w.actual != leg.To {
@@ -691,7 +696,7 @@ func (s *System) tail(w *walker, d time.Duration) {
 			// than half a cell, and let go the next tick finds it short of its cell and
 			// plans again
 			s.drive(w.m, st, w.base.Vel.Dir, have,
-				s.ahead(have, want, p, waypoint, target, end)[1:], reach, st.MaxSpeed)
+				s.ahead(have, want, p, waypoint, target, end, w.off)[1:], reach, st.MaxSpeed)
 			return
 		}
 		if leg.Active {
@@ -708,7 +713,7 @@ func (s *System) tail(w *walker, d time.Duration) {
 			w.at.Next = p.Steps[p.Index]
 		}
 		s.drive(w.m, st, w.base.Vel.Dir, have,
-			s.ahead(have, want, p, waypoint, target, end)[1:], reach, st.MaxSpeed)
+			s.ahead(have, want, p, waypoint, target, end, w.off)[1:], reach, st.MaxSpeed)
 		return
 	}
 
@@ -734,7 +739,8 @@ func (s *System) tail(w *walker, d time.Duration) {
 		s.moveTo(w, leg.To)
 		*leg = order.Leg{}
 	}
-	if at, deck, ok := spacing.LevelOf(s.grid, s.terrain, want, &w.m.Z); ok && at != w.at.Cell {
+	if at, deck, ok := spacing.LevelOf(s.grid, s.terrain, s.from(want, w.off), &w.m.Z); ok &&
+		at != w.at.Cell {
 		s.occupancy.Leave(w.at.Cell, w.id)
 		s.occupancy.Enter(at, deck, w.id, w.domain)
 		s.moveTo(w, at)
@@ -1061,7 +1067,7 @@ func (s *System) stepAside(m bodies.Member, o *order.MoveOrder, of uid.UID64) {
 // a unit vector
 func (s *System) wayTo(m bodies.Member, c cell.ID) geom.Vec {
 	have := m.Centre()
-	to := s.unwrap(have, s.grid.CellCenter(c))
+	to := s.unwrap(have, s.place(c, s.offOf(m.Pos.Size)))
 	d := geom.NewVec(to.X-have.X, to.Y-have.Y)
 	if l := f32.Hypot(d.X, d.Y); l > 0 {
 		d = geom.NewVec(d.X/l, d.Y/l)
@@ -1096,7 +1102,8 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 			}
 			if orders != nil {
 				o := &orders[i]
-				b.GivingWay, b.Goal, b.Spot, b.LastGoal = o.GivingWay, o.Target, s.goal(o.Target, o.Spot), o.Queued == 0
+				b.GivingWay, b.Goal, b.LastGoal = o.GivingWay, o.Target, o.Queued == 0
+				b.Spot = s.goal(o.Target, o.Spot, s.offOf(pos.Size))
 				b.WaitedOut, b.Cornered = o.WaitedOut, o.Cornered
 				b.Trailing, b.TrailPace, b.Way = o.TrailFor > 0, o.TrailPace, o.Way
 				if o.Kept && !b.Trailing { // kept by its formation, it is one of a queue
@@ -1119,11 +1126,42 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 	return dst
 }
 
-func (s *System) goal(c cell.ID, spot geom.Vec) geom.Vec {
+// goal is where a unit off its cells' middles by off stands on its goal c: at spot where it has
+// one
+func (s *System) goal(c cell.ID, spot, off geom.Vec) geom.Vec {
 	if spot == (geom.Vec{}) {
-		return s.grid.CellCenter(c)
+		// added in place: a call to place or NewVec takes it past the inliner's budget
+		spot = s.grid.CellCenter(c)
+		spot.X += off.X
+		spot.Y += off.Y
 	}
 	return spot
+}
+
+// place is where a unit off its cells' middles by off stands on c: on its middle, the corner of
+// the middle cells of an even footprint laid from c
+func (s *System) place(c cell.ID, off geom.Vec) geom.Vec {
+	m := s.grid.CellCenter(c)
+	m.X += off.X // added in place: NewVec takes it past the inliner's budget
+	m.Y += off.Y
+	return m
+}
+
+// from is a point of the cell the footprint of a unit standing at p off by off is laid from
+func (s *System) from(p, off geom.Vec) geom.Vec { return geom.NewVec(p.X-off.X, p.Y-off.Y) }
+
+// offOf is how far off its cells' middles a unit of a box of size stands: unit.Offset of its
+// footprint, none within a cell
+func (s *System) offOf(size geom.Vec) geom.Vec {
+	if max(size.X, size.Y) <= s.span {
+		return geom.Vec{}
+	}
+	return s.offPast(size)
+}
+
+// offPast is offOf of a unit bigger than a cell, apart for offOf to inline
+func (s *System) offPast(size geom.Vec) geom.Vec {
+	return unit.Offset(s.grid, unit.Footprint(s.grid, size))
 }
 
 // the short way round on a wrapping axis
@@ -1137,7 +1175,8 @@ func (s *System) unwrap(have, to geom.Vec) geom.Vec {
 	)
 }
 
-func (s *System) ahead(have, want geom.Vec, p *order.Path, waypoint, target cell.ID, end geom.Vec) []geom.Vec {
+func (s *System) ahead(have, want geom.Vec, p *order.Path, waypoint, target cell.ID, end,
+	off geom.Vec) []geom.Vec {
 	s.route = append(s.route[:0], want)
 	if waypoint == target && !order.Through(p, waypoint) {
 		return s.route
@@ -1148,7 +1187,7 @@ func (s *System) ahead(have, want geom.Vec, p *order.Path, waypoint, target cell
 	}
 	last := want
 	for ; k < int(p.Length) && len(s.route) < maxAhead; k++ {
-		c := s.grid.CellCenter(p.Steps[k])
+		c := s.place(p.Steps[k], off)
 		if p.Steps[k] == target && k == int(p.Length)-1 {
 			c = end
 		}

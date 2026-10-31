@@ -27,6 +27,12 @@ const (
 	// some limit on a level, the ground's bit and the deck's
 	limited
 	_
+	// a railing asked of on a level, the ground's bit and the deck's
+	hasRailing
+	_
+	// a railing along the cell's band on a level, the ground's bit and the deck's
+	railing
+	_
 )
 
 // a kind as a step onto it costs in the search's domain on the level: rate what a unit of

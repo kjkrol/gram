@@ -152,8 +152,9 @@ func (p *Finder) FillField(f *Field, goal cell.ID, end Level, domain cell.Domain
 		return 0
 	}
 	p.fills++
-	p.body, p.entity, p.blocked = body, 0, nil
+	p.entity, p.blocked = 0, nil
 	p.begin(domain)
+	p.as(body)
 	if cap(f.cost) < 2*count {
 		f.cost, f.next = make([]float32, 2*count), make([]uint8, 2*count)
 	}
@@ -266,8 +267,9 @@ func (p *Finder) Walk(f *Field, entity uid.UID64, domain cell.Domain, body Body,
 	if p.levels == nil || len(f.cost) == 0 {
 		return 0, false
 	}
-	p.decks, p.body, p.entity = 0, body, entity
+	p.decks, p.entity = 0, entity
 	p.begin(domain)
+	p.as(body)
 	at := node{from, p.levelOf(p.at(from), body)}
 	s, ok := f.node(at)
 	if !ok {

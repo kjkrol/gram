@@ -120,6 +120,7 @@ type planned struct {
 type routed struct {
 	style             RouteStyle
 	size, center, dir geom.Vec
+	off               geom.Vec // how far off its cells' middles it stands
 	end               geom.Vec // where its path ends
 	path, goals, legs [2]int32 // from, to
 }
@@ -210,7 +211,9 @@ func (r *Renderer) Publish() {
 			if !marks[i].Has(r.selected) {
 				continue
 			}
-			u := routed{style: r.Style, size: bases[i].Pos.Size}
+			size := bases[i].Pos.Size
+			u := routed{style: r.Style, size: size,
+				off: unit.Offset(r.grid, unit.Footprint(r.grid, size))}
 			if apps != nil {
 				if st, ok := render.StyleOf[RouteStyle](styles, apps[i].SpriteID); ok {
 					u.style = st
@@ -218,12 +221,12 @@ func (r *Renderer) Publish() {
 			}
 			o, domain := &orders[i], unit.DomainAt(movers, i)
 			u.goals[0] = int32(len(b.goals))
-			r.goals(b, g, domain, o)
+			r.goals(b, g, domain, o, u.off)
 			u.goals[1], u.path[0], u.legs[0] = int32(len(b.goals)), int32(len(b.cells)),
 				int32(len(b.legs))
 			if r.routes {
 				u.center, u.dir, u.end = bases[i].Pos.Center(), bases[i].Vel.Dir,
-					r.point(o.Target, o.Spot)
+					r.point(o.Target, o.Spot, u.off)
 				b.cells = appendPath(b.cells, cells[i], *o)
 				from := u.end
 				var weight float32
@@ -232,7 +235,7 @@ func (r *Renderer) Publish() {
 				}
 				body := bodies.BodyOf(world.Z{}, bases[i].Pos.Size, weight)
 				for k, route := range r.queued(cursor.IDs[i], domain, body, o) {
-					to := r.point(o.Waypoints[k].Cell, o.Waypoints[k].Spot)
+					to := r.point(o.Waypoints[k].Cell, o.Waypoints[k].Spot, u.off)
 					b.legs = append(b.legs, leg{cells: route, from: from, to: to})
 					from = to
 				}
@@ -273,9 +276,9 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		if !d.routes {
 			continue
 		}
-		r.drawPath(u.center, u.dir, d.cells[u.path[0]:u.path[1]], u.end)
+		r.drawPath(u.center, u.dir, d.cells[u.path[0]:u.path[1]], u.end, u.off)
 		for _, l := range d.legs[u.legs[0]:u.legs[1]] {
-			r.drawRoute(l.cells, l.from, l.to)
+			r.drawRoute(l.cells, l.from, l.to, u.off)
 		}
 	}
 	if r.onGPU && r.gpu.Len() > 0 {
@@ -291,15 +294,16 @@ const (
 	goalLift  = 0.8
 )
 
-// a step aside is no goal; each stands on g
-func (r *Renderer) goals(b *planned, g ground.Heights, domain cell.Domain, o *order.MoveOrder) {
+// a step aside is no goal; each stands on g, where a unit off its cells' middles by off stands
+func (r *Renderer) goals(b *planned, g ground.Heights, domain cell.Domain, o *order.MoveOrder,
+	off geom.Vec) {
 	if !o.GivingWay {
-		at := r.point(o.Target, o.Spot)
+		at := r.point(o.Target, o.Spot, off)
 		b.goals = append(b.goals, goalAt{at: at, alt: standing(g, at, domain, o.Level)})
 	}
 	for k := range o.Waypoints[:o.Queued] {
 		w := &o.Waypoints[k]
-		at := r.point(w.Cell, w.Spot)
+		at := r.point(w.Cell, w.Spot, off)
 		b.goals = append(b.goals, goalAt{at: at, alt: standing(g, at, domain, w.Level)})
 	}
 }
@@ -315,17 +319,23 @@ func standing(g ground.Heights, p geom.Vec, domain cell.Domain, level order.Leve
 	return g.At(p)
 }
 
-func (r *Renderer) point(c cell.ID, spot geom.Vec) geom.Vec {
+// point is where a unit off its cells' middles by off stands on c: at spot where it has one
+func (r *Renderer) point(c cell.ID, spot, off geom.Vec) geom.Vec {
 	if spot != (geom.Vec{}) {
 		return spot
 	}
-	return r.grid.CellCenter(c)
+	return r.place(c, off)
 }
 
-func (r *Renderer) drawPath(entityCenter, travel geom.Vec, cells []cell.ID, end geom.Vec) {
+func (r *Renderer) place(c cell.ID, off geom.Vec) geom.Vec {
+	m := r.grid.CellCenter(c)
+	return geom.NewVec(m.X+off.X, m.Y+off.Y)
+}
+
+func (r *Renderer) drawPath(entityCenter, travel geom.Vec, cells []cell.ID, end, off geom.Vec) {
 	from := entityCenter
 	for i, c := range cells {
-		to := r.grid.CellCenter(c)
+		to := r.place(c, off)
 		if i == len(cells)-1 {
 			to = end
 		}
@@ -337,14 +347,14 @@ func (r *Renderer) drawPath(entityCenter, travel geom.Vec, cells []cell.ID, end 
 	}
 }
 
-func (r *Renderer) drawRoute(cells []cell.ID, from, to geom.Vec) {
+func (r *Renderer) drawRoute(cells []cell.ID, from, to, off geom.Vec) {
 	if len(cells) < 2 {
 		r.line(from, to)
 		return
 	}
 	at := from
 	for _, c := range cells[1 : len(cells)-1] {
-		next := r.grid.CellCenter(c)
+		next := r.place(c, off)
 		r.line(at, next)
 		at = next
 	}

@@ -159,6 +159,12 @@ keeps only what those do not.
   wall's cell solid only for a box whose narrower side or height does not fit, so it never
   stops whom the planner sends through.
 - `Units.Define` notes its kind (`UnitKinds`, in the order defined): navigation's classes.
+- Footprint (`WithFootprint(cells)`, `DefaultFootprint` 3): a box past a cell takes the fewest
+  cells a side holding its longer side with room to spare (`unit.Footprint`), slack for
+  collision: a box exactly as wide as its cells froze at a passage's mouth. An even side is laid
+  from its cell right and down, its unit standing on the shared corner (`unit.Place`,
+  `LaidFrom`); the keep, the standing pass and `At` read the cell through `LaidFrom`. Hex has odd
+  sides only. `Railed` says whether a railing runs along a cell's own band.
 - A bridge's head band runs from the middle of its flat tile into the bridge alone, no railings
   on it. A bridge breaking the rules panics as a fresh board is first gathered (a map's file and
   line); one broken later is not built, said in the log.
@@ -207,6 +213,10 @@ keeps only what those do not.
   even in tests.
 - The haze is off by default through every camera (`topography.Haze`, the user's choice,
   2026-10-18); the camera trap behind it is the atmosphere's.
+- A unit bigger than a cell stands on the highest ground under its box, its middle and four
+  corners (the ground alone, never a deck): its figure is drawn flat at its altitude, so a slope
+  under a corner higher than the middle showed through it. A body within a cell reads the ground
+  under its middle alone.
 
 ## atmosphere
 
@@ -393,6 +403,14 @@ keeps only what those do not.
   `WithNear` alike), a start the class cannot stand on and a hierarchy not staled since the
   passage moved. Trap: `Finder.Build` with a budget of 0 builds nothing, hpastar's `Update(0)`
   builds all. The solver's own skill: `/home/karol/CODE/hpastar/.claude/skills/hpastar/SKILL.md`.
+- A body bigger than a cell stands on a node only where every cell of its footprint's window
+  takes it on its level (the domain, the limits, no railing along the band, no deck lower than
+  it overhead), a slantwise step's flanks too; it steers to the window's middle (a corner for an
+  even side), and traffic reads its node from its place less that offset. Each finder keeps its
+  footprints by `Passage`, re-read within the window of the changed cells; the hierarchy's stale
+  ring widens to the largest extent plus one. Such a body keeps to one level. Known gaps: no side
+  check on hex steps (under 1% overhang), neighbours' diagonal bands unseen, its footprint not
+  held (one cell), traffic's route re-check and BodySpacing's spots reading kinds alone.
 
 ## selection, players and owner
 

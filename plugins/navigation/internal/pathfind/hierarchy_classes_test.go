@@ -97,7 +97,9 @@ type classedBoard struct {
 
 // the boards of the classes: a band, a deck raised over a gorge and one over a river, a deck
 // bearing a class and not another, a rope, a gap, a gap and a floor flanking slantwise steps, a
-// deck slantwise; roads over hills limit none
+// deck slantwise, passages a body bigger than a cell fits one of on a square board and on a hex
+// one, a platform it stands on within its edge, a railing it keeps off; roads over hills limit
+// none
 func classedBoards() map[string]classedBoard {
 	v := newGorge()
 	rg, river := moated(11)
@@ -121,12 +123,28 @@ func classedBoards() map[string]classedBoard {
 	open.Set(openG.At(2, 2), cell.Kind{Pace: 1, Allows: cell.Land, Solid: true})
 	sized := []Body{{}, {Size: box(4), Height: 1.5}, {Size: geom.NewVec(8, 4)},
 		{Size: geom.NewVec(4, 8)}, {Size: box(8)}, {Size: box(4), Height: 3}}
+	narrowG, narrow := narrowed(1, 3, 4, 6, 7, 8)
+	hexG, hexNarrow := hexNarrowed()
+	platformG := grid.DefaultGrids{}.Square(12, 12, 10)
+	low := platform{g: platformG, terrain: openTerrain(), top: 1, under: 0.5}
+	railG := grid.DefaultGrids{}.Square(10, 10, 10)
+	rails := railedTerrain{openTerrain(), map[cell.ID]bool{railG.At(5, 5): false,
+		railG.At(6, 2): true}}
 	return map[string]classedBoard{
+		"narrows": {New(narrowG, narrow, nil, &cell.MultipleOccupancy{}).
+			WithLevels(flat{narrow}), []Body{{}, small, even, big,
+			{Size: box(25), Weight: 1500}}},
+		"narrows on a hex board": {New(hexG, hexNarrow, nil, &cell.MultipleOccupancy{}).
+			WithLevels(flat{hexNarrow}), []Body{{}, small, even, big}},
+		"a platform": {New(platformG, low.terrain, nil, &cell.MultipleOccupancy{}).
+			WithLevels(low), []Body{{Step: 1, Height: 2}, {Step: 1, Height: 2, Size: box(25)}}},
+		"railings": {New(railG, rails, nil, &cell.MultipleOccupancy{}).WithLevels(flat{rails}),
+			[]Body{{}, big}},
 		"a band": {New(lane.g, lane, nil, &cell.MultipleOccupancy{}).WithLevels(flat{lane}),
 			sized},
 		"a gorge under a deck": {New(v.g, v.terrain, nil, &cell.MultipleOccupancy{}).
 			WithLevels(v), []Body{{Height: 2}, {Step: 1, Height: 2}, {Step: 1, Height: 12},
-			{Step: 1, Height: 2, Size: box(8)}}},
+			{Step: 1, Height: 2, Size: box(8)}, {Step: 1, Height: 2, Size: box(25)}}},
 		"a river bridged": {New(rg, river, nil, &cell.MultipleOccupancy{}).
 			WithLevels(bridgedRiver{rg, river}), []Body{{Height: 2}, {Step: 0.5, Height: 0.4},
 			{Step: 1, Height: 2}}},
@@ -188,10 +206,11 @@ func TestHierarchy_TheGraphRefusesAClassWhatItsBodyIsRefused(t *testing.T) {
 					backward[classedEdge{s.To, a, math.Float64bits(s.Cost), s.Refuses}]++
 				}
 				for k, body := range h.Classes() {
-					f.body = body
+					f.as(body)
 					r := f.at(a.c)
 					want := map[node]uint64{}
-					if f.stepAt(r, a.level).admits && f.bears(r, a.level) {
+					if f.stepAt(r, a.level).admits && f.bears(r, a.level) &&
+						(f.print == nil || f.standsOn(f.print, a.c, a.level)) {
 						for _, s := range f.leveledFrom(a, a, nil) {
 							want[s.To] = math.Float64bits(s.Cost)
 						}

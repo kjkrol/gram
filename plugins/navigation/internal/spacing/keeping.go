@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
 	"github.com/kjkrol/gram/plugins/navigation/internal/order"
@@ -482,8 +483,11 @@ func (k *CellKeeping) aside(m bodies.Member, from cell.ID, way geom.Vec) []score
 }
 
 func (k *CellKeeping) wayFrom(m bodies.Member, asker bodies.Body) (cell.ID, geom.Vec) {
-	grid := k.finder.grid
-	from, _ := grid.CellAt(asker.At)
+	grid, at := k.finder.grid, asker.At
+	if size := geom.NewVec(2*asker.Half.X, 2*asker.Half.Y); max(size.X, size.Y) > grid.CellSpan() {
+		at = unit.LaidFrom(grid, size, at)
+	}
+	from, _ := grid.CellAt(at)
 	a, b := grid.CellCenter(from), grid.CellCenter(m.Cell)
 	d := geom.NewVec(b.X-a.X, b.Y-a.Y)
 	if l := f32.Hypot(d.X, d.Y); l > 0 {

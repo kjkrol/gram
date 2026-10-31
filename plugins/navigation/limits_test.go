@@ -35,11 +35,26 @@ var (
 func limitedWorld(t *testing.T, lay func(brd *board.Plugin, w *world.Plugin), walker limited,
 ) (*goke.ECS, func() geom.Vec) {
 	t.Helper()
-	g := limitedGrid
+	ecs, at, _ := walkerWorld(t, limitedGrid, limitedFrom, limitedEnd, lay, walker)
+	return ecs, at
+}
+
+// walkerWorld is a board of grass over g, of cells 32 wide, with collision, the walker alone sent
+// from from to to, the board and the navigation as configure has them; lay lays the board and
+// stands what it builds on it
+func walkerWorld(t *testing.T, g grid.Grid, from, to cell.ID,
+	lay func(brd *board.Plugin, w *world.Plugin), walker limited,
+	configure ...func(*board.Plugin, *Plugin)) (*goke.ECS, func() geom.Vec, *Plugin) {
+	t.Helper()
+	shape, _ := grid.ShapeOf(g)
 	w := world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 320, Height: 224},
-		Entities: world.EntitiesCfg{MaxCount: 32, MinSize: 2, MaxSize: 32},
-		Heights:  true,
+		Space: world.SpaceCfg{Width: shape.Cols * 32, Height: shape.Rows * 32},
+		Entities: world.EntitiesCfg{
+			MaxCount: 32,
+			MinSize:  2,
+			MaxSize:  uint32(max(32, f32.Ceil(walker.size))),
+		},
+		Heights: true,
 	})
 	m := motion.NewPlugin(w)
 	c := collision.NewPlugin(w, m)
@@ -48,6 +63,9 @@ func limitedWorld(t *testing.T, lay func(brd *board.Plugin, w *world.Plugin), wa
 	sel := selection.NewPlugin(w)
 	drive := driving.NewPlugin(w, m, sel).WithGround(brd)
 	nav := NewPlugin(brd, w, m, sel, drive).WithCollision(c).WithSpacing(CellSpacing)
+	for _, f := range configure {
+		f(brd, nav)
+	}
 	brd.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	lay(brd, w)
 	units := board.NewUnits(brd, board.Shape{Size: walker.size, Height: 1.5},
@@ -55,8 +73,8 @@ func limitedWorld(t *testing.T, lay func(brd *board.Plugin, w *world.Plugin), wa
 	units.Define("walker", unit.Mover{Domain: cell.Land, Weight: walker.weight},
 		steering.Steering{MaxSpeed: 48, Accel: 96, Brake: 192, V0: 24, TurnRate: 0.15},
 		comp.Load(func(r walkerRow) MoveOrder { return MoveOrder{Target: r.Target} }))
-	w.Write().Seed(units.Named("walker").Entry(walkerRow{At: g.CellCenter(limitedFrom),
-		Target: limitedEnd}))
+	start := unit.Place(g, geom.NewVec(walker.size, walker.size), from)
+	w.Write().Seed(units.Named("walker").Entry(walkerRow{At: start, Target: to}))
 	if err := w.Carry(nav); err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +127,7 @@ func limitedWorld(t *testing.T, lay func(brd *board.Plugin, w *world.Plugin), wa
 		t.Fatal("the walker is gone")
 		return geom.Vec{}
 	}
-	return ctx.ecs, at
+	return ctx.ecs, at, nav
 }
 
 // walked ticks ecs for seconds and reports whether the walker came to its target, and whether it

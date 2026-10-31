@@ -54,6 +54,23 @@ type Finder struct {
 	// the hierarchies' last: ahead of the fields a fill reads, they made it 1.5% slower
 	climbs, builds uint64
 	climbing       climbing
+	// the footprints of the bodies bigger than a cell searched for, after them: the body searched
+	// for's first, nil for one no bigger than a cell
+	print       *footprint
+	spanned     *hpastar.Search[cell.ID] // plain's for a body bigger than a cell
+	prints      []*footprint
+	classPrints [MaxClasses]*footprint // by class of the hierarchy built
+	asked       uint64
+	railings    railings     // nil: no railing runs on the board
+	cells       cellPassages // nil: the terrain says not which cells changed
+	windows     [][]outward  // by side twice, plus whether turned
+	ball, ring  []cell.ID
+	ringOn      []bool
+	scan        scanned
+	laying      *footprint
+	span        float32 // a cell's, past which a body has a footprint
+	// the method values, bound once
+	layCell, scanCell func(cell.ID)
 }
 
 // Level is which level of its goal cell a route ends on; a goal of one level takes any.
@@ -133,13 +150,15 @@ const (
 // New is a Finder over grid that respects terrain, its pacing and occupancy. No step costs less
 // than its length, so the grid's Distance never overestimates.
 func New(grid grid.Grid, terrain cell.Terrain, pacing Pacing, occupancy cell.Occupancy) *Finder {
-	p := &Finder{grid: grid, terrain: terrain, occupancy: occupancy}
+	p := &Finder{grid: grid, terrain: terrain, occupancy: occupancy, span: grid.CellSpan()}
 	p.paces(pacing)
 	p.ways, _ = terrain.(ways)
 	p.built, _ = terrain.(built)
 	p.lanes, _ = terrain.(lanes)
 	p.limits, _ = terrain.(limits)
 	p.passing, _ = terrain.(passing)
+	p.railings, _ = terrain.(railings)
+	p.cells, _ = terrain.(cellPassages)
 	p.plain = hpastar.NewSolver(graph.Implicit[cell.ID]{
 		Forward:   p.plainFrom,
 		Heuristic: grid.Distance,
@@ -159,6 +178,8 @@ func (p *Finder) Reads(terrain cell.Terrain, pacing Pacing, levels Levels) {
 	p.lanes, _ = terrain.(lanes)
 	p.limits, _ = terrain.(limits)
 	p.passing, _ = terrain.(passing)
+	p.railings, _ = terrain.(railings)
+	p.cells, _ = terrain.(cellPassages)
 	clear(p.flats)
 }
 
@@ -282,20 +303,39 @@ func (p *Finder) Find(
 	entity uid.UID64, domain cell.Domain, body Body, from, to cell.ID, end Level, dst []cell.ID,
 ) (int, bool) {
 	p.searches++
-	p.decks, p.body, p.entity = 0, body, entity
+	p.decks, p.entity = 0, entity
 	p.begin(domain)
+	p.as(body)
 	if p.levels == nil {
 		// the start, then as many steps as dst holds
 		if cap(p.path) < len(dst)+1 {
 			p.path = make([]cell.ID, len(dst)+1)
 		}
-		n, ok := p.plain.Path(from, to, p.path[:len(dst)+1])
+		search := p.plain
+		if p.print != nil {
+			search = p.spanning()
+		}
+		n, ok := search.Path(from, to, p.path[:len(dst)+1])
 		if !ok || n < 2 {
 			return 0, false
 		}
 		return copy(dst, p.path[1:n]), true
 	}
 	return p.findFrom(node{from, p.levelOf(p.at(from), body)}, to, end, dst)
+}
+
+// spanning is the search by plain steps of a body bigger than a cell, made as one is first
+// searched for
+func (p *Finder) spanning() *hpastar.Search[cell.ID] {
+	if p.spanned == nil {
+		p.spanned = hpastar.NewSolver(graph.Implicit[cell.ID]{
+			Forward:   p.plainSpanFrom,
+			Heuristic: p.grid.Distance,
+			Index:     p.slot,
+			Size:      p.grid.CellCount() + 1,
+		}).Search()
+	}
+	return p.spanned
 }
 
 // findFrom is Find by levels from start, its level known, the search begun for its body
@@ -372,10 +412,12 @@ func (p *Finder) FindAround(
 // whether onto to's raised deck.
 func (p *Finder) Steps(domain cell.Domain, body Body, from, to cell.ID) (onto, ok bool) {
 	p.begin(domain)
+	fp := p.footprintOf(body)
 	if p.levels == nil {
 		return false, !p.fenced(from, to, false) && p.fits(from, to, false, body) &&
 			p.terrain.Kind(to).Admits(domain) && p.paced(from, p.at(to), ground) &&
-			(!p.limited || p.within(node{from, ground}, p.at(from), p.at(to), ground, body))
+			(!p.limited || p.within(node{from, ground}, p.at(from), p.at(to), ground, body)) &&
+			(fp == nil || p.spans(fp, p.at(to), ground, p.flanks(from, to)))
 	}
 	rf, rt := p.at(from), p.at(to)
 	at := node{from, p.levelOf(rf, body)}
@@ -383,7 +425,8 @@ func (p *Finder) Steps(domain cell.Domain, body Body, from, to cell.ID) (onto, o
 	for _, level := range p.levelsOf(rt) {
 		if p.crosses(at, rf, rt, level, c.diagonal) && p.passes(at, rf, rt, level, body, c) &&
 			p.fits(from, to, level == deck, body) && p.stepAt(rt, level).admits &&
-			p.paced(from, rt, level) && (!p.limited || p.within(at, rf, rt, level, body)) {
+			p.paced(from, rt, level) && (!p.limited || p.within(at, rf, rt, level, body)) &&
+			(fp == nil || p.spans(fp, rt, level, c)) {
 			return level == deck, true
 		}
 	}
@@ -460,6 +503,38 @@ func (p *Finder) plainFrom(from, prev cell.ID,
 	return buf
 }
 
+// plainSpanFrom is plainFrom of a body bigger than a cell, stepping only where its footprint
+// spans: a loop of its own, as the test in plainFrom cost bodies within a cell 2-3% of a search
+func (p *Finder) plainSpanFrom(from, prev cell.ID,
+	buf []graph.Transition[cell.ID]) []graph.Transition[cell.ID] {
+	p.expansions++
+	buf = buf[:0]
+	for i := range p.grid.Directions() {
+		n, ok := p.grid.Toward(from, i)
+		if !ok || n == prev || p.fenced(from, n, false) || !p.fits(from, n, false, p.body) {
+			continue
+		}
+		rn := p.at(n)
+		k := p.groundOf(rn)
+		if !k.admits || !p.occupancy.CanEnter(n, false, p.entity, p.domain) ||
+			p.blocked != nil && p.blocked(n) ||
+			p.limited && !p.within(node{from, ground}, p.at(from), rn, ground, p.body) {
+			continue
+		}
+		c := p.cornerOf(from, n, i)
+		if c.diagonal && !p.decked(from, n) && p.cutOff(c) ||
+			!p.spans(p.print, rn, ground, c) {
+			continue
+		}
+		cost, ok := p.price(from, rn, k, ground, c.diagonal)
+		if !ok {
+			continue
+		}
+		buf = append(buf, graph.Transition[cell.ID]{To: n, Cost: cost})
+	}
+	return buf
+}
+
 func (p *Finder) leveledFrom(from, prev node,
 	buf []graph.Transition[node]) []graph.Transition[node] {
 	p.expansions++
@@ -500,7 +575,7 @@ func (p *Finder) step(from node, rf, rn *read, level uint8, c corner, cut bool) 
 		return 0, false
 	}
 	k := p.stepAt(rn, level)
-	if !k.admits {
+	if !k.admits || p.print != nil && !p.spans(p.print, rn, level, c) {
 		return 0, false
 	}
 	return p.price(from.c, rn, k, level, c.diagonal)
@@ -564,8 +639,8 @@ func (p *Finder) stepsInto(t node, rt *read, i int, n cell.ID) stepsIn {
 	return in
 }
 
-// a unit is no bigger than a cell's side, so only a deck's band narrower than the body across the
-// step, on the decks' level when deck, keeps it from stepping
+// a deck's band narrower than the body across a step along it, on the decks' level when deck,
+// keeps it from stepping; the cells round a body bigger than a cell are its footprint's to take
 func (p *Finder) fits(from, n cell.ID, deck bool, body Body) bool {
 	if p.lanes == nil || body.Size == (geom.Vec{}) {
 		return true
@@ -745,7 +820,7 @@ func (p *Finder) NearestFreeThrough(
 	p.begin(domain)
 	n, failed := 0, false
 	passable := func(c cell.ID) bool { return p.terrain.Kind(c).Admits(domain) }
-	own := p.levelOf(p.at(from), body)
+	own, fp := p.levelOf(p.at(from), body), p.footprintOf(body)
 	reachableFree := func(c cell.ID) bool {
 		if !p.terrain.Kind(c).Admits(domain) {
 			return false
@@ -770,6 +845,10 @@ func (p *Finder) NearestFreeThrough(
 			if c == from && (on == Either || l == own) {
 				n, p.decks = 0, 0
 				return true
+			}
+			// a cell its footprint does not stand on, no route reaches
+			if fp != nil && !p.standsOn(fp, c, l) {
+				continue
 			}
 			if failed && h != nil && !p.Reaches(h, domain, body, from, c) {
 				return false

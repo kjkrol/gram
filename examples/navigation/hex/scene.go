@@ -28,8 +28,11 @@ var (
 	waterColor  = color.RGBA{R: 40, G: 90, B: 170, A: 255}
 	fordColor   = color.RGBA{R: 80, G: 130, B: 170, A: 255}
 	wagonColor  = color.RGBA{R: 170, G: 120, B: 70, A: 255}
+	giantColor  = color.RGBA{R: 150, G: 110, B: 160, A: 255}
 	deckColor   = color.RGBA{R: 115, G: 85, B: 55, A: 255}
 	railColor   = color.RGBA{R: 70, G: 50, B: 35, A: 255}
+	plankColor  = color.RGBA{R: 160, G: 125, B: 80, A: 255}
+	ropeColor   = color.RGBA{R: 205, G: 185, B: 140, A: 255}
 )
 
 func (m *mainScene) screen() *ui.Element {

@@ -8,16 +8,17 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
 
 // KeepSystem keeps o true to the world: every step it lets go of the holds of whoever left the
-// world and has every unit hold the cell it stands on, on the level its feet are on. As it starts
-// every unit holds the cell it is At.
-func KeepSystem(o cell.Occupancy, footing Footing) goke.System {
-	s := &keepSystem{occupancy: o, footing: footing}
+// world and has every unit hold the cell it stands on, on the level its feet are on, the one its
+// footprint on g is laid from. As it starts every unit holds the cell it is At.
+func KeepSystem(o cell.Occupancy, footing Footing, g grid.Grid) goke.System {
+	s := &keepSystem{occupancy: o, footing: footing, grid: g, span: g.CellSpan()}
 	s.gone, s.holding = s.isGone, s.isHolding
 	return s
 }
@@ -43,6 +44,8 @@ type keepSystem struct {
 	holding   func(uid.UID64, cell.Domain, bool)
 	asked     uid.UID64 // whom holding looks for
 	held      bool      // whether holding found it
+	grid      grid.Grid
+	span      float32 // a cell's, past which a unit's footprint may be laid off its middle
 }
 
 func (s *keepSystem) Init(si *goke.SysInit) {
@@ -80,7 +83,11 @@ func (s *keepSystem) keep(starting bool) {
 			if zs != nil {
 				feet, reach = zs[i].Altitude, zs[i].Reach()
 			}
-			c, deck, raised, ok := s.footing(bases[i].Pos.Center(), feet, reach)
+			p := bases[i].Pos.Center()
+			if size := bases[i].Pos.Size; max(size.X, size.Y) > s.span {
+				p = unit.LaidFrom(s.grid, size, p)
+			}
+			c, deck, raised, ok := s.footing(p, feet, reach)
 			if !ok {
 				continue
 			}

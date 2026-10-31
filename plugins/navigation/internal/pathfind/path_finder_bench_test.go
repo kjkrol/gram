@@ -259,3 +259,84 @@ func BenchmarkPathFinder_Hierarchy(b *testing.B) {
 		}
 	})
 }
+
+// the footprint rungs' board: the terrain rungs' size, walled down every sixteenth column from
+// the eighth but in passages three cells wide every sixteenth row from the fourth
+func layPassages(brdW *board.BoardWrite, g grid.Grid) {
+	brdW.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
+	for x := uint32(8); x < terrainSide; x += 16 {
+		for y := range uint32(terrainSide) {
+			if (y+12)%16 > 2 {
+				brdW.Set(g.At(x, y), cell.Kind{Pace: 1, Solid: true})
+			}
+		}
+	}
+}
+
+// a body reaching over a cell round its own on cells 16 wide
+var wideBody = Body{Size: box(40)}
+
+// on the footprint rungs' board: a body's footprint laid whole; the route corner to corner of the
+// body reaching over a cell, and of one within a cell; that route searched again after a cell
+// turned wall or back, the footprint read anew round it; the hierarchy of a class within a cell
+// built whole, and of it and the wide body's
+func BenchmarkPathFinder_Footprint(b *testing.B) {
+	g := grid.DefaultGrids{}.Square(terrainSide, terrainSide, terrainCell)
+	from, to := g.At(2, 2), g.At(terrainSide-3, terrainSide-3)
+	laid := func() (*Finder, *board.BoardRead, *board.BoardWrite) {
+		brd, brdW := board.NewBoard(g)
+		layPassages(brdW, g)
+		return New(g, brd, nil, &cell.MultipleOccupancy{}).WithLevels(flat{brd}), brd, brdW
+	}
+	b.Run("lay", func(b *testing.B) {
+		f, _, _ := laid()
+		f.begin(cell.Land)
+		fp := f.footprintOf(wideBody)
+		for b.Loop() {
+			f.begin(cell.Land)
+			f.layPrint(fp)
+		}
+	})
+	for _, tc := range []struct {
+		name string
+		body Body
+	}{{"find", wideBody}, {"find/within", Body{}}} {
+		b.Run(tc.name, func(b *testing.B) {
+			f, _, _ := laid()
+			var path Path
+			if _, ok := f.Find(1, cell.Land, tc.body, from, to, Either, path.Steps[:]); !ok {
+				b.Fatal("no route across the board")
+			}
+			expanded := f.Expansions()
+			for b.Loop() {
+				f.Find(1, cell.Land, tc.body, from, to, Either, path.Steps[:])
+			}
+			b.ReportMetric(float64(f.Expansions()-expanded)/float64(b.N), "expansions/op")
+		})
+	}
+	b.Run("change", func(b *testing.B) {
+		f, brd, brdW := laid()
+		c := g.At(40, 70)
+		var path Path
+		for b.Loop() {
+			if brd.Kind(c).Admits(cell.Land) {
+				brdW.Set(c, cell.Kind{Pace: 1, Solid: true})
+			} else {
+				brdW.Set(c, cell.Kind{Pace: 1, Allows: cell.Land})
+			}
+			f.Find(1, cell.Land, wideBody, from, to, Either, path.Steps[:])
+		}
+	})
+	for _, tc := range []struct {
+		name    string
+		classes []Body
+	}{{"build/within", unsized}, {"build/wide", []Body{{}, wideBody}}} {
+		b.Run(tc.name, func(b *testing.B) {
+			f, _, _ := laid()
+			for b.Loop() {
+				f.Build(f.NewHierarchy(land, 16, tc.classes), math.MaxInt)
+			}
+			b.ReportMetric(float64(f.Builds())/float64(b.N), "clusters/op")
+		})
+	}
+}

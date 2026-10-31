@@ -66,8 +66,10 @@ func main() {
 	props := game.Props{
 		Title: "gram navigation hex demo",
 		Description: "Units selected and sent by a right click across a hex board, through " +
-			"the wall's gap and over the bridge; the wagon, too wide for the bridge, goes round " +
-			"by the ford. Sight: walls cut, forests dim, a hawk flies over.",
+			"the wall's gap and over the bridges; the wagon, too wide for the bridge and too " +
+			"heavy for the rope bridge that bears the scouts, goes round by the ford; the " +
+			"giant, too big for every way a hex wide, by the hole in the wall and the ford, " +
+			"both three hexes wide. Sight: walls cut, forests dim, a hawk flies over.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -78,7 +80,7 @@ func main() {
 			Entities: world.EntitiesCfg{
 				MaxCount: MaxEntCount,
 				MinSize:  scoutPx,
-				MaxSize:  HexSize, // a bridge's deck spans a cell
+				MaxSize:  giantPx,
 			},
 			Heights: true,
 		}).
@@ -143,8 +145,9 @@ func (a *arena) defineFigures() {
 		scout{kind: YellowKind, color: yellowColor},
 		hawk{},
 		wagon{},
+		giant{},
 	)
-	a.bridges.Figures(bridge{})
+	a.bridges.Figures(bridge{}, rope{})
 }
 
 func (a *arena) spawn() error {
