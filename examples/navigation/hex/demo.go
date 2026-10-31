@@ -33,6 +33,7 @@ const (
 	GridWidth   = 20
 	GridHeight  = 12
 	HexSize     = 24
+	HexStep     = HexSize * 1.7320508075688772 // from a hex's centre to its neighbour's: √3·HexSize
 	MaxEntCount = 32
 )
 
@@ -65,11 +66,11 @@ type arena struct {
 func main() {
 	props := game.Props{
 		Title: "gram navigation hex demo",
-		Description: "Units selected and sent by a right click across a hex board, through " +
-			"the wall's gap and over the bridges; the wagon, too wide for the bridge and too " +
-			"heavy for the rope bridge that bears the scouts, goes round by the ford; the " +
-			"giant, too big for every way a hex wide, by the hole in the wall and the ford, " +
-			"both three hexes wide. Sight: walls cut, forests dim, a hawk flies over.",
+		Description: "Units selected and sent by a right click along routes that go round the " +
+			"wall and over the bridges; the wagon, too wide for the bridge and too heavy for the " +
+			"rope bridge that bears the scouts, goes round by the ford; the giant, too big for " +
+			"every way a hex wide, by the hole in the wall and the ford, both three hexes wide. " +
+			"Sight: walls cut, forests dim, a hawk flies over.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}

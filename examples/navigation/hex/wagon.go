@@ -15,7 +15,7 @@ import (
 
 const (
 	wagonPx     = 22 // wider than the bridge's lane between its railings
-	wagonSpeed  = HexSize * 2
+	wagonSpeed  = HexStep * 2
 	wagonWeight = 1500 // kg: more than the rope bridge bears
 )
 
