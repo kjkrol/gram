@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.14.0 — 2026-10-30
+## v0.13.0 — 2026-10-31
 
 Needs hpastar v1.4.0 (kjkrol/hpastar#7: classes, one `Solver` serving up to 8 of them).
 
@@ -18,8 +18,6 @@ Needs hpastar v1.4.0 (kjkrol/hpastar#7: classes, one `Solver` serving up to 8 of
 - Improved: four bodies' hierarchy built in 0.46–0.62× the time of four, with 39% less memory and
   61% fewer allocations (`PathFinder_Hierarchy/build/classes=4` against `solvers=4`); one class,
   the tick, the climbs and the routing as before.
-
-## v0.13.0 — 2026-10-30
 
 **Passage limits: a floor's load, a wall's gap, a unit's weight** (2026-10-30, branch
 `feat/limits`, plan „klasy ciał w HPA*", etap A)
