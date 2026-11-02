@@ -23,6 +23,7 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/topography"
+	irelief "github.com/kjkrol/gram/plugins/topography/internal/relief"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -78,6 +79,9 @@ type QuasiWorld struct {
 	Board  *board.Plugin
 	Topo   *topography.Plugin
 	Grid   grid.Grid
+	// Later runs in every tick's plan after the topography's RunPlan, as a plugin made after it
+	// would; nil, nothing.
+	Later func(ctx goke.RunCtx, d time.Duration)
 }
 
 // NewQuasiWorld is a QuasiWorld with the units define makes; collide adds the collision plugin.
@@ -191,6 +195,9 @@ func NewQuasiWorldOn(
 		}
 		qw.Board.RunPlan(settling, d)
 		qw.Topo.RunPlan(settling, d)
+		if qw.Later != nil {
+			qw.Later(settling, d)
+		}
 		settling.Sync()
 		qw.World.Write().Clock().Replay(rc, d)
 	})
@@ -211,6 +218,23 @@ func (qw *QuasiWorld) Zs() map[kind.ID][]world.Z {
 		cur := q.Cursor()
 		for i := range cur.IDs {
 			out[base.Slice(cur)[i].TypeID] = append(out[base.Slice(cur)[i].TypeID], z.Slice(cur)[i])
+		}
+	}
+	return out
+}
+
+// Heights are the runs of heights the topography's entities carry, where the ECS keeps them.
+func (qw *QuasiWorld) Heights() []*irelief.Heights {
+	var comp goke.Comp[irelief.Heights]
+	var q *goke.Query
+	qw.ECS.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		q = si.NewQueryBuilder(&comp).Build()
+	}})
+	var out []*irelief.Heights
+	for q.All(); q.Next(); {
+		runs := comp.Slice(q.Cursor())
+		for i := range runs {
+			out = append(out, &runs[i])
 		}
 	}
 	return out

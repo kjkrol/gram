@@ -60,6 +60,9 @@ type Config struct {
 	// how a camera is held behind an entity from the start (Settings.Arm): the arm's pitch,
 	// length and aim, and whether the player leans and draws it; zero, DefaultArm, hands off
 	Arm Arm
+	// how the scroll zones start (Settings.Zones, StillEdges, StillCorners, ZonesOpacity,
+	// EdgeSpeed); zero, the edges scrolling, the corners turning where Turn, the zones hidden
+	Zones ZonesCfg
 }
 
 // plain is the camera from above that neither turns nor tilts nor sees anything in relief
@@ -98,6 +101,7 @@ type Plugin struct {
 	centerAts      command.Queue[CenterAt]
 	zones          command.Queue[Zones]
 	edgeScrolls    command.Queue[EdgeScroll]
+	cornerTurns    command.Queue[CornerTurn]
 	edgeSpeeds     command.Queue[EdgeSpeed]
 	zonesOpacities command.Queue[ZonesOpacity]
 	holds          command.Queue[Hold]
@@ -145,10 +149,17 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.levers = cfg.Levers
 	p.Res.Settings = Settings{
-		Tactical: cfg.Tactical.filled(),
-		Riding:   cfg.Riding.filled(),
-		Arm:      cfg.Arm.filled().bounded(),
+		Tactical:     cfg.Tactical.filled(),
+		Riding:       cfg.Riding.filled(),
+		Arm:          cfg.Arm.filled().bounded(),
+		Zones:        cfg.Zones.Shown,
+		StillEdges:   cfg.Zones.Still,
+		StillCorners: cfg.Zones.StillCorners,
 	}
+	if cfg.Zones.Opacity > 0 {
+		p.write.SetZonesOpacity(cfg.Zones.Opacity)
+	}
+	p.write.SetEdgeSpeed(cfg.Zones.Speed)
 	p.write.SetBudget(cfg.FrameBudget)
 	p.write.SetSampling(DefaultSampling)
 	p.write.SetThresholds(DefaultUnder, DefaultMet)

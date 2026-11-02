@@ -37,9 +37,11 @@ type Surfaces interface {
 	Surface(p geom.Vec, d cell.Domain, feet, step float32) (floor, ceiling float32)
 }
 
-// Shaper is ground that can be shaped: Flatten lays the cell c flat at h, the ground round it
-// following, and reports whether it did. It does nothing where a road would then lie where
-// Transport Tycoon would not lay it (RoadFits).
+// Shaper is ground that can be shaped: Flatten lays the cell c flat at h and Grade puts c's
+// corners at corners, in CellOutline's order, the ground round them following; each reports
+// whether it did. Neither does anything where a road would then lie where Transport Tycoon
+// would not lay it (RoadFits).
 type Shaper interface {
 	Flatten(c cell.ID, h float32) bool
+	Grade(c cell.ID, corners []float32) bool
 }

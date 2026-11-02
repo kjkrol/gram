@@ -1,6 +1,8 @@
 package bridges_test
 
 import (
+	"bytes"
+	"encoding/gob"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -290,6 +292,68 @@ func TestTool_CancelBuildsNothing(t *testing.T) {
 	d.ticks(5)
 	if got := d.decks(); len(got) != 5 {
 		t.Errorf("marked again after Cancel, built %d pieces, want 5", len(got))
+	}
+}
+
+// load decodes into d's bridges what from's give to be saved, as the engine does with every
+// Serializable, and has d's take it (Restore)
+func (d *dale) load(from *dale) {
+	d.t.Helper()
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	for _, v := range from.bridges.Serializable().Persisted() {
+		if err := enc.Encode(v); err != nil {
+			d.t.Fatal(err)
+		}
+	}
+	dec := gob.NewDecoder(&buf)
+	for _, v := range d.bridges.Serializable().Persisted() {
+		if err := dec.Decode(v); err != nil {
+			d.t.Fatal(err)
+		}
+	}
+	d.bridges.Restore()
+}
+
+func TestSave_ABridgeOrderedInThePauseIsBuiltAfterALoad(t *testing.T) {
+	saved := newDale(t)
+	saved.start(valley)
+	at := func(x, y uint32) geom.Vec { return saved.g.CellCenter(saved.g.At(x, y)) }
+	saved.give(world.Pause{})
+	saved.give(bridges.Mark{At: at(2, 3)})
+	saved.give(bridges.Aim{At: at(6, 3)})
+	saved.give(bridges.Mark{At: at(6, 3)})
+	saved.give(bridges.Build{})
+	saved.ticks(5)
+	if got := saved.decks(); len(got) != 0 {
+		t.Fatalf("built %d pieces of deck in the tactical pause, want the bridge waiting",
+			len(got))
+	}
+	loaded := newDale(t)
+	loaded.load(saved)
+	orders := loaded.bridges.Res.Orders
+	if len(orders) != 1 {
+		t.Fatalf("loaded %d bridges ordered, want the one confirmed in the pause", len(orders))
+	}
+	o := orders[0]
+	if o.Kind != "bridge" || o.Plan.From != saved.g.At(2, 3) || o.Plan.To != saved.g.At(6, 3) ||
+		o.Plan.Deck != 20 || len(o.Plan.Spans) != 3 || len(o.Plan.Piers) != 2 ||
+		o.Plan.Piers[0] != geom.NewVec(40, 35) {
+		t.Errorf("loaded the order %+v, want a bridge from [2, 3] to [6, 3], its deck at 20, "+
+			"over 3 spans on piers from (40, 35)", o)
+	}
+	loaded.start(valley)
+	loaded.give(world.Pause{})
+	loaded.ticks(5)
+	if got := loaded.decks(); len(got) != 0 {
+		t.Fatalf("built %d pieces of deck in the tactical pause after the load, want none yet",
+			len(got))
+	}
+	loaded.give(world.Pause{})
+	loaded.ticks(5)
+	if got := loaded.decks(); len(got) != 5 || len(loaded.bridges.Res.Orders) != 0 {
+		t.Errorf("after the pause, built %d pieces of deck, %d bridges still ordered; want 5 "+
+			"pieces and none", len(got), len(loaded.bridges.Res.Orders))
 	}
 }
 

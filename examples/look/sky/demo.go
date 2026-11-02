@@ -43,14 +43,15 @@ var scale = world.Scale{Metres: 100.0 / CellSize}
 
 type arena struct {
 	world      *world.Plugin
+	light      *light.Plugin
 	board      *board.Plugin
 	topography *topography.Plugin
 	atmosphere *atmosphere.Plugin
-	light      *light.Plugin
 	cameras    *cameras.Plugin
 	telemetry  *telemetry.Plugin
 	players    *players.Plugin
-	player     *players.Player
+
+	player *players.Player
 }
 
 func main() {

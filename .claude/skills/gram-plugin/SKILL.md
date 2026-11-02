@@ -30,6 +30,14 @@ a plugin's root and commands, settings, float32) are CLAUDE.md's; the game's sid
   `kept.Restore()`, then applies what mirrors must (a baker's flag, a renderer's switch). A plugin
   with a `persisted` of its own (cameras) appends the kept's value; `decodeGroup` leaves what an
   older save lacks as it is.
+- A setting added to a saved `Settings` is a negation whose zero is the start (the world's
+  `Unbanded`, the atmosphere's `NoGroundShade`): an older save, which gob decodes into zeros,
+  then loads at the start.
+- What a plugin holds between ticks that is no entity — an order confirmed and waiting for its
+  step, a receipt not read — is a field of `Res` beside `Settings`, the whole `Res` kept by
+  `plugin.Keep(&p.Res)` (exported fields gob can encode: no pointer, func or interface); what
+  is derived (a router, a cache) follows lazily after `Restore`. A plain field would be lost by a
+  save (CLAUDE.md: an entity or a resource).
 
 ## Systems and rules
 

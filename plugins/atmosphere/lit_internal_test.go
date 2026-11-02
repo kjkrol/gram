@@ -1,11 +1,11 @@
 package atmosphere
 
 import (
-	"github.com/kjkrol/ceremony/command"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/parallel"
@@ -104,8 +104,8 @@ func TestPlugin_TheSkyHandsTheFrameTheSunAndTheWeatherOfItsDaylight(t *testing.T
 	c := render.NewComposer(ctx.drawn...)
 	c.DrawWorld(nil, cameratest.NewFromSpace(128, 128, 0))
 	got := c.Uniforms()
-	for _, name := range []string{"LightWay", "LightStrength", "LightColor", "AmbientColor", "Ambience", "Wind",
-		"Drift", "Cover", "Billow", "Fog", "SkyOverhead"} {
+	for _, name := range []string{"LightWay", "LightStrength", "LightColor", "AmbientColor",
+		"Ambience", "Wind", "Drift", "Cover", "Billow", "Fog", "SkyOverhead"} {
 		if _, ok := got[name]; !ok {
 			t.Errorf("the atmosphere alone hands the frame no %s", name)
 		}
@@ -144,7 +144,7 @@ func TestPlugin_ReportsTheDaylightHowTheCloudsLookAndWhoseShadowsFall(t *testing
 		t.Errorf("the clouds look %q, their shadows %q; want the low as bodies, both layers' "+
 			"shadows as the game starts", got["Clouds"], got["Shadows"])
 	}
-	a.shades.Put(command.Nobody, HighShade{On: !a.shadows.High})
+	a.shades.Put(command.Nobody, HighShade{On: !a.read.CloudShadows().High})
 	a.carryOut()
 	a.read.Reporter().Report(func(label, value string) { got[label] = value })
 	if a.read.Air().HighShade || got["Shadows"] != "the low clouds' on the ground and the figures" {

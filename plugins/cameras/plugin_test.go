@@ -188,11 +188,13 @@ func TestSettings_AreSavedWithTheCamerasAndAZeroSavedComesBackSo(t *testing.T) {
 	saved := cameras.NewPlugin(newWorld(), cameras.Config{})
 	saved.Write().ShowZones(true)
 	saved.Write().SetZonesOpacity(0.5)
+	saved.Write().TurnInCorners(false)
 	loaded := cameras.NewPlugin(newWorld(),
 		cameras.Config{Tactical: cameras.Knobs{Strategy: cameras.Uniform}})
 	carried(t, saved, loaded)
-	if !loaded.Read(0).ZonesShown() || loaded.Read(0).ZonesOpacity() != 0.5 {
-		t.Error("the zones shown and their opacity were not saved with the cameras")
+	if !loaded.Read(0).ZonesShown() || loaded.Read(0).ZonesOpacity() != 0.5 ||
+		loaded.Read(0).CornersTurn() {
+		t.Error("the zones shown, their opacity and the still corners were not saved")
 	}
 	if loaded.Read(0).Strategy(cameras.Tactical) != cameras.Still {
 		t.Error("the resolution follows the budget after a load that saved it still")
@@ -749,5 +751,45 @@ func TestLevers_GoCoarserBeforeThePicturesAndFinerAfterThemWhileFollowing(t *tes
 	if len(d.turns) != 0 || camera.ResolutionOf(cam) != cameras.ResolutionStep {
 		t.Errorf("not following, the dial was turned %v and the picture is at %v; want it left "+
 			"alone, the picture stepped", d.turns, camera.ResolutionOf(cam))
+	}
+}
+
+func TestNew_TheZonesStartAsTheConfigSaysAndAZeroConfigAsTheDefaults(t *testing.T) {
+	r := cameras.NewPlugin(newWorld(), cameras.Config{Zones: cameras.ZonesCfg{
+		Still:        true,
+		StillCorners: true,
+		Shown:        true,
+		Opacity:      0.5,
+		Speed:        12,
+	}}).Read(0)
+	if r.EdgesScroll() || r.CornersTurn() || !r.ZonesShown() || r.ZonesOpacity() != 0.5 ||
+		r.EdgeSpeed() != 12 {
+		t.Errorf("the zones start scrolling %v, turning %v, shown %v, at %v, %v px a tick; want "+
+			"still, still, shown, 0.5, 12", r.EdgesScroll(), r.CornersTurn(), r.ZonesShown(),
+			r.ZonesOpacity(), r.EdgeSpeed())
+	}
+	r = cameras.NewPlugin(newWorld(), cameras.Config{}).Read(0)
+	if !r.EdgesScroll() || !r.CornersTurn() || r.ZonesShown() ||
+		r.ZonesOpacity() != cameras.DefaultZonesOpacity || r.EdgeSpeed() != 0 {
+		t.Errorf("the zero Config starts scrolling %v, turning %v, shown %v, at %v, %v px a tick; "+
+			"want scrolling, turning, hidden, the default, the keys' own", r.EdgesScroll(),
+			r.CornersTurn(), r.ZonesShown(), r.ZonesOpacity(), r.EdgeSpeed())
+	}
+}
+
+func TestSettings_TurnInTheCornersIsListedWhereTheConfigTurns(t *testing.T) {
+	listedIn := func(cfg cameras.Config) bool {
+		for _, s := range cameras.NewPlugin(reliefWorld(), cfg).Settings() {
+			if labelOf(s) == "Turn in the corners" {
+				return true
+			}
+		}
+		return false
+	}
+	if !listedIn(cameras.Config{Turn: true, Cell: 32}) {
+		t.Error("a Config turning lists no switch for the corners")
+	}
+	if listedIn(cameras.Config{}) {
+		t.Error("a Config not turning lists a switch for the corners")
 	}
 }

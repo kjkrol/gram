@@ -18,8 +18,11 @@
 // the ground or a deck carrying its domain within its step, plus its Mover's Lift; a unit
 // carrying a motion.Drift is gravity's. How steep a step from cell to cell is, is the relief's
 // ([Plugin.Rise], the board's Map's); what the slope does to a unit is the board's mobility's,
-// in the planner and on the move alike. [Write.Flatten] lays a cell flat: the Write is a
-// ground.Shaper.
+// in the planner and on the move alike. [Write.Flatten] lays a cell flat and [Write.Grade] puts
+// a cell's corners at heights of their own, the ground round following within the Shaping's
+// MaxStep: the Write is a ground.Shaper. The heights live on the topography's own entities,
+// saved with the game, and are there as each tick ends: a save between ticks holds the ground
+// shaped in it, by a command or in a step of the simulation.
 //
 // # Cage
 //

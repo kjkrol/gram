@@ -30,10 +30,22 @@ type Config struct {
 	Builds string
 }
 
+// Resources is the state of bridges, saved with the game whole: the bridges ordered and not yet
+// built.
+type Resources struct{ Orders []Order }
+
+// Order is a bridge its player confirmed (Build), built at the next step of the simulation: the
+// name of its kind of bridge (Types.Named) and its plan.
+type Order struct {
+	Kind string
+	Plan site.Bridge
+}
+
 // Plugin builds bridges by one set of rules, a level's and a player's, as entities standing on
 // the board.
 type Plugin struct {
 	*world.Self
+	Res Resources
 
 	worldPlugin *world.Plugin
 	board       *board.Plugin
@@ -42,11 +54,11 @@ type Plugin struct {
 	shaper      ground.Shaper
 	module      *module
 	renderer    *renderer
+	kept        *plugin.Kept[Resources]
 
-	hands   map[command.Issuer]*hand
-	pending []pending
-	laid    []laid
-	tick    uint64
+	hands map[command.Issuer]*hand
+	laid  []laid
+	tick  uint64
 
 	aims    command.Queue[Aim]
 	marks   command.Queue[Mark]
@@ -59,6 +71,7 @@ var (
 	_ plugin.Plugin         = (*Plugin)(nil)
 	_ plugin.CommandHandler = (*Plugin)(nil)
 	_ plugin.Populator      = (*Plugin)(nil)
+	_ plugin.Restorer       = (*Plugin)(nil)
 )
 
 // NewPlugin builds the bridges plugin over w and brd.
@@ -67,6 +80,7 @@ func NewPlugin(w *world.Plugin, brd *board.Plugin, cfg Config) *Plugin {
 		cfg.Rules.Longest = 3
 	}
 	p := &Plugin{worldPlugin: w, board: brd, cfg: cfg, hands: map[command.Issuer]*hand{}}
+	p.kept = plugin.Keep(&p.Res)
 	p.write.p = p
 	p.types = &Types{p: p}
 	p.renderer = &renderer{p: p}
@@ -164,10 +178,11 @@ func (p *Plugin) ground(t Type) *boardGround {
 	return newGround(p.board.Read(0).Board(), at, t.spec.Allows)
 }
 
-func (p *Plugin) build(b pending) {
-	g := p.ground(b.t)
+func (p *Plugin) build(o Order) {
+	t := p.types.Named(o.Kind)
+	g := p.ground(t)
 	rules := p.rules()
-	plan, err := site.Plan(g, rules, b.plan.From, b.plan.To, b.plan.Deck)
+	plan, err := site.Plan(g, rules, o.Plan.From, o.Plan.To, o.Plan.Deck)
 	if err != nil {
 		log.Printf("bridges: not built: %v", err)
 		return
@@ -182,7 +197,7 @@ func (p *Plugin) build(b pending) {
 			}
 		}
 	}
-	p.worldPlugin.Write().Spawn(p.parts(b.t, plan, g)...)
+	p.worldPlugin.Write().Spawn(p.parts(t, plan, g)...)
 }
 
 // Window is the window asking a player whether to build the bridge it marked out, shown while it
@@ -217,7 +232,11 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ct
 
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is nil: a bridge is its parts, saved as entities.
-func (p *Plugin) Serializable() plugin.Serializable { return nil }
+// Serializable is the plugin's Resources, kept whole; a bridge built is its parts, saved as
+// entities.
+func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
+
+// Restore takes the Resources loaded.
+func (p *Plugin) Restore() { p.kept.Restore() }
 
 func (p *Plugin) String() string { return fmt.Sprintf("bridges %v", p.types.names) }

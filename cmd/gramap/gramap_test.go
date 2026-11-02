@@ -2,18 +2,25 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
 	"io"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
+	"github.com/kjkrol/gram/plugins/board/water"
+	roadsite "github.com/kjkrol/gram/plugins/roads/site"
 )
 
 // isle is an island 18 km by 8 km, high along its north coast, a valley cut through it north to
@@ -31,9 +38,12 @@ rivers:
   river: 15
   ford: {every: 3, slope: 0.2}
 roads:
-  deep: 200
-  grade: 3 # cheap enough for a bridge's flat heads to beat the way round the valley
-  bridge: 0.5
+  cut: 200
+  fill: 200
+  # the way round the valley by its dry divide climbs for nothing within 200 m of cut and fill:
+  # a bridge beats it a tenth dearer than the ground it spans, its heads' earth free
+  cubic: 0
+  bridge: 0.1
   high: 200
   longest: 3
   places:
@@ -64,7 +74,7 @@ func TestBuild_RoadsLieAsTransportTycoonLaysThem(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(c.roads.laid) == 0 {
-		t.Fatalf("no road laid; skipped %v", c.roads.skipped)
+		t.Fatalf("no road laid; left out %v", c.roads.skipped)
 	}
 	for _, cl := range c.roads.net.Cells() {
 		units := c.outline(cl)
@@ -73,24 +83,23 @@ func TestBuild_RoadsLieAsTransportTycoonLaysThem(t *testing.T) {
 			t.Errorf("the road at [%d, %d] lies on ground no road may: %v", x, y, units)
 		}
 	}
-	bridges := 0
+	overWater := 0
 	for _, s := range c.roads.live() {
 		if s.ford {
 			continue
 		}
-		bridges++
 		if len(s.heads) != 2 {
 			t.Errorf("a bridge with %d heads, want 2", len(s.heads))
 		}
 		for _, h := range s.heads {
-			for _, k := range c.cornersOf(h.at) {
+			for _, k := range c.cornersOf(h) {
 				if c.corners[k] != s.deck {
 					t.Errorf("a bridge's head stands at %v, its deck at %v", c.corners[k], s.deck)
 				}
 			}
 		}
-		if len(s.cells) > 3 {
-			t.Errorf("a bridge spans %d cells, 3 at most", len(s.cells))
+		if len(s.cells) > r.Roads.Longest {
+			t.Errorf("a bridge spans %d cells, %d at most", len(s.cells), r.Roads.Longest)
 		}
 		low, wet := math.Inf(1), false
 		for _, cl := range s.cells {
@@ -110,12 +119,14 @@ func TestBuild_RoadsLieAsTransportTycoonLaysThem(t *testing.T) {
 				}
 			}
 		}
-		if !wet && s.deck-low < c.roads.underpass() {
-			t.Errorf("a bridge over dry ground %v under its deck, want %v", s.deck-low,
-				c.roads.underpass())
+		if wet {
+			overWater++
+		} else if s.deck-low < c.roads.underpass() {
+			t.Errorf("a bridge over dry ground %v under its deck, want %v: neither water nor a "+
+				"chasm crossed", s.deck-low, c.roads.underpass())
 		}
 	}
-	if bridges == 0 {
+	if overWater == 0 {
 		t.Error("no bridge carries the road over the valley's water")
 	}
 	if err := c.check(c.text("isle.yaml", "")); err != nil {
@@ -123,9 +134,44 @@ func TestBuild_RoadsLieAsTransportTycoonLaysThem(t *testing.T) {
 	}
 }
 
+func TestBuild_EveryLegRunsFromPlaceToPlace(t *testing.T) {
+	r, height := isle(t)
+	c, err := build(r, height, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legs := 0
+	for _, route := range r.Roads.Routes {
+		legs += len(route) - 1
+	}
+	if got := len(c.roads.laid) + len(c.roads.skipped); got != legs {
+		t.Errorf("%d legs laid or left out, want the recipe's %d", got, legs)
+	}
+	if len(c.roads.laid) == 0 {
+		t.Fatalf("no leg laid; left out %v", c.roads.skipped)
+	}
+	places := slices.Collect(maps.Values(c.roads.places))
+	for _, rd := range c.roads.laid {
+		ends := [2]int{0, len(rd.cells) - 1}
+		for _, i := range ends {
+			if x, y := c.xy(rd.cells[i]); !slices.Contains(places, rd.cells[i]) || rd.over[i] {
+				t.Errorf("a leg ends at [%d, %d], over %v, no place", x, y, rd.over[i])
+			}
+		}
+		for i := 1; i < len(rd.cells); i++ {
+			if _, ok := grid.Way(c.grid, rd.cells[i-1], rd.cells[i]); !ok {
+				x, y := c.xy(rd.cells[i])
+				t.Errorf("a leg breaks off before [%d, %d]", x, y)
+			}
+		}
+	}
+}
+
 func TestBuild_AFlatBridgeIsACellLong(t *testing.T) {
 	r, height := isle(t)
-	c, err := build(r, height, true)
+	r.Flat = flatCfg{Longest: 1}
+	r.Roads.Fords = false
+	c, err := build(r.asFlat(), height, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,5 +305,329 @@ func TestRecipe_AFlatMapTakesItsOwnValues(t *testing.T) {
 		f.Rivers.Width != 2*r.Rivers.Width {
 		t.Errorf("flat: units %d, road %v, deck %v, rivers %v; want 64, 30, 34 and twice %v",
 			f.Area.Units, f.Roads.Width, f.Roads.Deck, f.Rivers.Width, r.Rivers.Width)
+	}
+}
+
+func TestRecipe_TheRoadsSectionIsTheSitesRules(t *testing.T) {
+	r, err := parseRecipe([]byte(`
+area: {centre: [0, 0], cells: [4, 4], cell: 100, units: 25}
+roads:
+  cut: 30
+  fill: 20
+  earth: 1000000
+  step: 8
+  spread: 2
+  slope: 8
+  fords: false
+  metre: 2
+  cubic: 0.5
+  climb: 3
+  route: {cut: 12, fill: 8}
+`), "rules.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Roads.Step != 8 {
+		t.Errorf("step %v, want 8", r.Roads.Step)
+	}
+	got := r.Roads.rules(4, 16)
+	if want := 8 * math.Pi / 180; math.Abs(got.Slope-want) > 1e-12 {
+		t.Errorf("slope %v rad, want 8° in radians, %v", got.Slope, want)
+	}
+	got.Slope = 0
+	want := roadsite.Rules{
+		Cut:       7.5,
+		Fill:      5,
+		Earth:     15625,
+		Spread:    2,
+		Crossings: true,
+		Longest:   16,
+		Ends:      true,
+		Metre:     8,
+		Cubic:     32,
+		Climb:     3,
+	}
+	if got != want {
+		t.Errorf("rules at 4 m a world unit %+v, want %+v", got, want)
+	}
+	route := r.Roads.routing(4, 16, 0.5)
+	route.Slope = 0
+	want.Cut, want.Fill = 1.5, 1
+	if route != want {
+		t.Errorf("a route planned with half its cut and fill under %+v, want %+v", route, want)
+	}
+}
+
+func TestRecipe_WithoutARoadsSectionTheDefaultsServe(t *testing.T) {
+	r, err := parseRecipe([]byte("area: {centre: [0, 0], cells: [4, 4], cell: 100, units: 25}\n"),
+		"plain.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(r.Roads, defaultRecipe().Roads) {
+		t.Errorf("roads %+v, want the defaults %+v", r.Roads, defaultRecipe().Roads)
+	}
+	got := r.Roads.rules(4, 16)
+	if got.Cut != 15 || got.Fill != 15 || !math.IsInf(float64(got.Earth), 1) || !got.Fords ||
+		!got.Crossings || !got.Ends || got.Decks || got.Longest != 16 ||
+		math.Abs(got.Slope-ground.RoadSlope) > 1e-12 {
+		t.Errorf("the default rules %+v: 60 m cut and filled, earth without end, fords, roads "+
+			"crossed, ends loose, no deck, any length, a road's slope", got)
+	}
+	if route := r.Roads.routing(4, 16, 0.25); route.Cut != 3.75 || route.Fill != 3.75 {
+		t.Errorf("a route planned with a quarter of the levelling's cut and fill under %v and %v, "+
+			"want 3.75", route.Cut, route.Fill)
+	}
+}
+
+// strip is a chart cols by rows of earth, cells of 100 m and 32 units, its corners at heights[x]
+// by their column, a river down each column of wet
+func strip(t *testing.T, cols, rows int, heights []float64, wet ...int) *chart {
+	t.Helper()
+	r := defaultRecipe()
+	r.Area = area{Cells: [2]int{cols, rows}, Cell: 100, Units: 32}
+	r.Roads.High = 200
+	w := &chart{
+		r:       r,
+		cols:    cols,
+		rows:    rows,
+		grid:    grid.DefaultGrids{}.Square(uint32(cols), uint32(rows), 32),
+		size:    32,
+		perUnit: 100.0 / 32,
+		land:    make([]bool, cols*rows),
+		corners: make([]float64, (cols+1)*(rows+1)),
+		soils:   make([]string, cols*rows),
+		rivers:  &water.Network{Courses: map[cell.ID]water.Course{}},
+	}
+	for i := range w.land {
+		w.land[i], w.soils[i] = true, r.Kinds.Earth
+	}
+	for k := range w.corners {
+		w.corners[k] = heights[k%(cols+1)]
+	}
+	for _, x := range wet {
+		for y := range rows {
+			w.rivers.Courses[w.cell(x, y)] = water.River
+		}
+	}
+	w.roads = newRoads(w)
+	return w
+}
+
+func TestDeckFor_StandsBetweenItsHeadsOverTheGround(t *testing.T) {
+	w := strip(t, 9, 5, []float64{50, 50, 50, 50, -40, -40, 70, 70, 70, 70})
+	a, b := w.cell(2, 2), w.cell(6, 2)
+	east, _ := grid.Way(w.grid, a, w.cell(3, 2))
+	if deck, ok := w.roads.deckFor(a, b, east, 3); !ok || deck != 60 {
+		t.Errorf("a deck at %v, %v; want 60, between heads at 50 and 70", deck, ok)
+	}
+	w.roads.cfg.Cut, w.roads.cfg.Fill = 5, 5
+	if deck, ok := w.roads.deckFor(a, b, east, 3); ok {
+		t.Errorf("a deck at %v, its heads 20 apart and 5 to cut or fill each", deck)
+	}
+	w = strip(t, 9, 5, []float64{50, 50, 50, 50, 49, 49, 50, 50, 50, 50})
+	// a span's top folds from a head's corner at the deck down to one at 49: its middle clears
+	// the clearance under the deck only with the deck twice the clearance over 49
+	if deck, ok := w.roads.deckFor(a, b, east, 3); !ok || math.Abs(deck-55.05) > 1e-9 {
+		t.Errorf("a deck at %v, %v; want 55.05, twice the clearance and its margin over 49",
+			deck, ok)
+	}
+}
+
+func TestLeaps_BridgeTheRiverFromBankToBank(t *testing.T) {
+	w := strip(t, 9, 5, []float64{50, 50, 50, 50, 20, 20, 50, 50, 50, 50}, 4)
+	a := w.cell(2, 2)
+	east, _ := grid.Way(w.grid, a, w.cell(3, 2))
+	got := w.roads.leaps(a, east, nil)
+	// four cells of 100 m at Bridge 4 a metre, the heads flat at 50 already
+	want := []roadsite.Leap{{To: w.cell(6, 2), Spans: 3, Cost: 1600}}
+	if !slices.Equal(got, want) {
+		t.Errorf("leaps %v, want %v: from bank to bank, the banks by the water taking none", got,
+			want)
+	}
+	w.roads.barred[w.cell(6, 2)] = true
+	if got := w.roads.leaps(a, east, nil); len(got) != 0 {
+		t.Errorf("leaps %v onto a cell barred", got)
+	}
+}
+
+func TestUnfold_PutsTheSpansBackBetweenTheHeads(t *testing.T) {
+	w := strip(t, 9, 5, []float64{50, 50, 50, 50, 20, 20, 50, 50, 50, 50}, 4)
+	rd := w.roads.unfold([]cell.ID{w.cell(1, 2), w.cell(2, 2), w.cell(6, 2), w.cell(7, 2)})
+	var cells []cell.ID
+	for x := 1; x <= 7; x++ {
+		cells = append(cells, w.cell(x, 2))
+	}
+	over := []bool{false, false, true, true, true, false, false}
+	if !slices.Equal(rd.cells, cells) || !slices.Equal(rd.over, over) {
+		t.Errorf("unfolded %v, over %v; want %v, over %v", rd.cells, rd.over, cells, over)
+	}
+	for i, at := range rd.at {
+		if at != 50 {
+			t.Errorf("the road at %d stands at %v, want 50: the ground and the deck", i, at)
+		}
+	}
+}
+
+// row is a straight road east along row 2 from column x0 to x1, over the columns over
+func row(w *chart, x0, x1 int, over ...int) road {
+	var rd road
+	for x := x0; x <= x1; x++ {
+		rd.cells = append(rd.cells, w.cell(x, 2))
+		rd.over = append(rd.over, slices.Contains(over, x))
+		rd.at = append(rd.at, 10)
+	}
+	return rd
+}
+
+func TestClash_NoBridgeBeginsWhereOneEnds(t *testing.T) {
+	w := strip(t, 13, 5, slices.Repeat([]float64{10}, 14))
+	rd := row(w, 1, 11, 3, 4, 5, 7, 8, 9)
+	if !w.roads.clash(rd, rd.cells[0], rd.cells[len(rd.cells)-1]) {
+		t.Fatal("two bridges head to head clash with nothing")
+	}
+	second := [2]cell.ID{w.cell(6, 2), w.cell(10, 2)}
+	if !w.roads.banned[second] || len(w.roads.banned) != 1 || len(w.roads.barred) != 0 {
+		t.Errorf("banned %v, barred %v; want the second bridge banned alone", w.roads.banned,
+			w.roads.barred)
+	}
+	if w.roads.clash(rd, rd.cells[0], rd.cells[len(rd.cells)-1]) {
+		t.Error("the clash found again, its bridge banned already")
+	}
+}
+
+// path is the road through the cells at xys, over those at over
+func path(w *chart, over [][2]int, xys ...[2]int) road {
+	var rd road
+	for _, xy := range xys {
+		rd.cells = append(rd.cells, w.cell(xy[0], xy[1]))
+		rd.over = append(rd.over, slices.Contains(over, xy))
+		rd.at = append(rd.at, 10)
+	}
+	return rd
+}
+
+func TestClash_NoRoadFlanksABridgeAcrossACorner(t *testing.T) {
+	w := strip(t, 12, 10, slices.Repeat([]float64{10}, 13))
+	// up to the head of a bridge running south-east, from the side its span's corner touches
+	rd := path(w, [][2]int{{5, 5}, {6, 6}}, [2]int{4, 8}, [2]int{4, 7}, [2]int{4, 6},
+		[2]int{4, 5}, [2]int{4, 4}, [2]int{5, 5}, [2]int{6, 6}, [2]int{7, 7}, [2]int{8, 7},
+		[2]int{9, 7})
+	if !w.roads.clash(rd, rd.cells[0], rd.cells[len(rd.cells)-1]) ||
+		!w.roads.barred[w.cell(4, 5)] || len(w.roads.barred) != 1 {
+		t.Errorf("barred %v, want the cell beside the head and the span", w.roads.barred)
+	}
+	way, _ := grid.Way(w.grid, w.cell(4, 4), w.cell(5, 5))
+	w.roads.marks[w.cell(4, 4)] = mark{paved: true, head: true, headWay: way}
+	w.roads.marks[w.cell(5, 5)] = mark{bridged: true, axis: way}
+	past := path(w, nil, [2]int{2, 4}, [2]int{3, 4}, [2]int{4, 3}, [2]int{5, 4}, [2]int{6, 4},
+		[2]int{7, 4})
+	if !w.roads.clash(past, past.cells[0], past.cells[len(past.cells)-1]) ||
+		!w.roads.barred[w.cell(5, 4)] {
+		t.Errorf("barred %v, want the cell beside a laid bridge's head and its span",
+			w.roads.barred)
+	}
+}
+
+func TestAway_MakesWhatWasRefusedDearer(t *testing.T) {
+	w := strip(t, 13, 5, slices.Repeat([]float64{10}, 14))
+	rd := row(w, 1, 9, 3, 4, 5)
+	from, to := rd.cells[0], rd.cells[len(rd.cells)-1]
+	if !w.roads.away(rd, roadsite.Refuse(w.grid, w.cell(6, 2), "lies askew"), from, to) {
+		t.Fatal("a bridge's head refused, nothing kept off")
+	}
+	if !w.roads.banned[[2]cell.ID{w.cell(2, 2), w.cell(6, 2)}] || len(w.roads.dear) != 0 {
+		t.Errorf("banned %v, dearer %v; want the bridge whose head was refused banned alone",
+			w.roads.banned, w.roads.dear)
+	}
+	dearAround := func(x0, y0, reach int) map[cell.ID]float32 {
+		want := map[cell.ID]float32{}
+		for y := max(y0-reach, 0); y <= min(y0+reach, w.rows-1); y++ {
+			for x := x0 - reach; x <= x0+reach; x++ {
+				if c := w.cell(x, y); c != from && c != to {
+					want[c] = dearer
+				}
+			}
+		}
+		return want
+	}
+	if !w.roads.away(rd, roadsite.Refuse(w.grid, w.cell(8, 2), "lies askew"), from, to) {
+		t.Fatal("a cell of the road refused, nothing kept off")
+	}
+	if want := dearAround(8, 2, 1); !maps.Equal(w.roads.dear, want) {
+		t.Errorf("dearer %v, want the cell refused and those round it but the leg's end, %v",
+			w.roads.dear, want)
+	}
+	w.roads.away(rd, roadsite.Refuse(w.grid, w.cell(8, 2), "lies askew"), from, to)
+	if got := w.roads.dear[w.cell(8, 2)]; got != dearer*dearer {
+		t.Errorf("a cell refused twice %v times dearer, want %v", got, dearer*dearer)
+	}
+	clear(w.roads.dear)
+	w.roads.marks[w.cell(8, 2)] = mark{paved: true}
+	w.roads.away(rd, roadsite.Refuse(w.grid, w.cell(8, 2), "lies askew"), from, to)
+	if want := dearAround(8, 2, 2); !maps.Equal(w.roads.dear, want) {
+		t.Errorf("dearer %v, want two rings round a road standing refused, %v", w.roads.dear,
+			want)
+	}
+	if w.roads.away(rd, errors.New("no planner"), from, to) {
+		t.Error("an error naming no cell kept the road off one")
+	}
+}
+
+func TestPlannerGround_LaysACellFlatWhereTheLevellingMay(t *testing.T) {
+	w := strip(t, 9, 5, []float64{0, 0, 10, 30, 30, 230, 0, 0, 0, 0})
+	g := plannerGround{chartGround{r: w.roads}}
+	heights := g.Heights(w.cell(2, 2), nil)
+	mid := 20 / w.perUnit
+	for _, h := range heights {
+		if h != heights[0] || math.Abs(float64(h)-mid) > 1e-5 {
+			t.Errorf("a cell 20 m uneven planned at %v, want flat at its middle, %v", heights, mid)
+			break
+		}
+	}
+	heights = g.Heights(w.cell(4, 2), nil)
+	if want := (chartGround{r: w.roads}).Heights(w.cell(4, 2), nil); !slices.Equal(heights, want) {
+		t.Errorf("a cell 200 m uneven planned at %v, want its ground, %v: the levelling's 60 m "+
+			"each way cannot lay it flat", heights, want)
+	}
+	w.roads.dear[w.cell(2, 2)] = 9
+	if got := g.Price(w.cell(2, 2)); got != 9 {
+		t.Errorf("a cell made 9 times dearer priced %v", got)
+	}
+}
+
+func TestChartGround_HoldsTheWaterAndPricesTheRock(t *testing.T) {
+	w := strip(t, 9, 5, slices.Repeat([]float64{10}, 10), 4)
+	g := chartGround{r: w.roads}
+	w.soils[2*w.cols+2] = w.r.Kinds.Rock
+	if got := g.Price(w.cell(2, 2)); got != 4 {
+		t.Errorf("rock at %v, want the recipe's 4", got)
+	}
+	if got := g.Price(w.cell(6, 2)); got != 1 {
+		t.Errorf("earth at %v, want 1", got)
+	}
+	if !g.Fixed(w.cell(4, 2)) || g.Fixed(w.cell(6, 2)) {
+		t.Error("want the water's bed fixed, the dry ground free")
+	}
+	if g.Takes(w.cell(3, 2)) || !g.Takes(w.cell(6, 2)) || g.Held(w.cell(6, 2)) {
+		t.Error("want the river's bank taking no road, the dry ground taking one, nothing held")
+	}
+	ford := w.cell(4, 2)
+	w.rivers.Courses[ford] = water.Ford
+	if !g.Ford(ford) || g.Takes(ford) {
+		t.Error("want the ford a ford, through which alone a road runs into water")
+	}
+	w.roads.barred[ford] = true
+	if g.Ford(ford) {
+		t.Error("a ford barred is still a way through")
+	}
+	way, _ := grid.Way(w.grid, w.cell(4, 2), w.cell(5, 2))
+	w.roads.marks[w.cell(5, 2)] = mark{bridged: true, axis: way}
+	along := cell.Links(1<<way | 1<<w.grid.Opposite(way))
+	if links, ok := g.Decked(w.cell(5, 2)); !ok || links != along {
+		t.Errorf("a bridge laid over the cell decks it %v, %v; want %v", links, ok, along)
+	}
+	if _, ok := (chartGround{r: w.roads, l: &layout{}}).Decked(w.cell(5, 2)); ok {
+		t.Error("a levelling's road runs on a deck")
 	}
 }

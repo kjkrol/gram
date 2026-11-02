@@ -72,6 +72,14 @@ func (w *Write) Flatten(c cell.ID, h float32) bool {
 	return p.relief.KeepRoads(func() { p.relief.Level(c, h, p.cfg.Shaping.MaxStep) })
 }
 
+// Grade puts the cell c's corners at corners, in CellOutline's order, the ground round them
+// following within the Shaping's MaxStep, and reports whether they stand so. Nothing moves
+// where a road would be left lying as Transport Tycoon would not lay it.
+func (w *Write) Grade(c cell.ID, corners []float32) bool {
+	p := w.p
+	return p.relief.KeepRoads(func() { p.relief.Grade(c, corners, p.cfg.Shaping.MaxStep) })
+}
+
 // Seed sets the ground's heights raised when the Stage starts fresh.
 func (w *Write) Seed(heights func(p geom.Vec) float32) {
 	if err := w.p.worldPlugin.InSection("the ground's heights seeded", section.Spawn); err != nil {

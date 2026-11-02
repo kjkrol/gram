@@ -64,6 +64,7 @@ make demo-rules-vision                                          # sight, avoidan
 make demo-rules-guard                                           # guards on a plan: patrol, step aside, rest, run to the gate while the alarm (A) is on
 make demo-board-atlas                                           # a small flat board from the game's own atlas, the water a material
 make demo-board-flat                                            # Madeira on the simple map: a flat board, bands for the ways, bridges and fords
+make demo-board-roads                                           # two villages either side of a river: roads laid with Shift+R, planned, priced and built; I brings the winter
 make demo-board-topography                                      # Madeira in relief: light, water, roads, bridges, the camera on a stick (Q/E, R/F, Tab), the weather; the ground textured from photographs
 make demo-board-topography-ghibli                               # the same ground painted, the light in bands (-look ghibli)
 make demo-board-topography-widgets                              # the hour, the date and the weather apart by the corners, not in a bar (-hud widgets)
@@ -189,7 +190,8 @@ Decisions the user has made; they are not up for revisiting in passing.
   tactical pause, Shift+Esc quits, K the controls screen, F10 the settings screen, ~ the telemetry panel (the
   basics, everything, hidden, in turn), F5 saves, F9 loads, F11 full screen (on a Mac the
   window's own Ctrl+Cmd+F, the system keeping F11), ] and [ the tempo,
-  Shift+B the bridge tool, Space jumps riding and behind, C follows the selected unit and V
+  Shift+B the bridge tool, Shift+R the road tool, Space jumps riding and behind, C follows the
+  selected unit and V
   rides it, in the perspective alone (behind, on the arm the game's `cameras.Config.Arm` sets:
   W/S/A/D walk the way the screen lies, the mouse turns the camera round it and tilts it where
   the arm lets, = and - draw it in and out where it lets; inside; over it again, in the view it
@@ -197,13 +199,13 @@ Decisions the user has made; they are not up for revisiting in passing.
   = and - zoom, Shift+= and Shift+- shape
   the relief (L and a left drag level it), Ctrl+= and Ctrl+- the camera's sight (farther,
   nearer). **An option on the settings screen has no key** (the user's word, 2026-10-20): the
-  boxes, the scroll zones and their opacity, the arm behind a unit (its tilt and zoom allowed,
-  its pitch, distance and aim), the grid, the cells held, the routes, the cones, the weather, the
-  clouds' look and the high clouds' shadows, the frozen light and its hour, the picture's
-  resolution and its following the frame budget, the ground's care and haze, the shadows'
-  detail and the lamps' shadows, the sectors and their bands, the minimap shown and turning are
-  set on F10 alone; the command stays, for a game to bind a key of its own. The tempo and the
-  telemetry panel keep theirs.
+  boxes, the scroll zones, their corners' turning and their opacity, the arm behind a unit (its
+  tilt and zoom allowed, its pitch, distance and aim), the grid, the cells held, the routes, the
+  cones, the weather, the clouds' look and the high clouds' shadows, the frozen light and its
+  hour, the picture's resolution and its following the frame budget, the ground's care and
+  haze, the shadows' detail and the lamps' shadows, the sectors and their bands, the minimap
+  shown and turning are set on F10 alone; the command stays, for a game to bind a key of its own.
+  The tempo and the telemetry panel keep theirs.
   A key held, down or let go leaves the chords with Shift, Ctrl or Alt to these shortcuts unless
   its binding is `InChords()` (a sprint, a jump while sprinting). A plugin's keys a game sets up
   (`driving.Compass`, `selection.FollowKey`, the cameras' zoom keys, the cameras' grab of the
@@ -215,6 +217,19 @@ Decisions the user has made; they are not up for revisiting in passing.
 - **The order a game makes its plugins in is the order they are used in**; no list, no `ctx` in
   a game's code. A plugin needing another's logic takes it as a constructor argument.
 - **A thing in its section**: what is defined in another section is refused (`gram-game`).
+- **Game state is an entity or a resource, never a field** (the user's word, one of gram's
+  first, 2026-11-02): what the game knows between ticks is either an ECS entity — a thing with
+  a place or an identity: many of a kind, or addressed by rules through roles, effects and words
+  (units, cells, bridge pieces, a plugin's `world.Self`, the world's entity carrying its
+  effects) — or a resource: one state of the whole Stage with no place (a treasury, a score, a
+  plugin's settings), a struct of exported fields saved whole with the game (a plugin's `Res`
+  through `plugin.Keep` and its `Serializable`, a game's own through `stage.Keeps`). A field of the
+  arena or of a Stage struct holds a handle (a plugin, a player), a per-frame cache, a telemetry
+  count rebuilt each tick or a flag read at the start, never state: it would not be saved. A
+  state rules must read is an effect on an entity; the number behind it is a resource. What a
+  plugin holds between a command and the step that carries it out (a road or a bridge confirmed,
+  a receipt not yet read) is state too: it lives in its `Res`. Configuration (`Config`, rules, a
+  tariff) is neither.
 - **A plugin's settings are its own, saved with the game**: what a plugin shows or how hard it
   works at a player's word — the grid, the boxes, the cones, the routes, the zones, the clouds'
   look, the shadows' detail, the haze, the tempo — is a field of its `Res.Settings`, set by a
@@ -322,7 +337,9 @@ lamps, the shadows baked and cast; made before the board and the topography, whi
 `cmd/gramap` makes maps of the
 Earth), `topography` (a map in relief, the cameras' cage), `atmosphere` (the time of day, the
 climate, the weather), `collision`, `navigation`, `selection`, `dialog`, `players` (with
-`players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`, `bullet`, `minimap`
+`players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`, `roads` (roads laid
+with a tool: planned, priced, judged by the game's rules and built, by `roads/site`'s rules, which
+`cmd/gramap` plans its roads by too), `bullet`, `minimap`
 (small pictures round the players' cameras), `telemetry`
 (the panel in the corner, a scene of its own in every Stage with a world). Each package has a
 `doc.go` describing what it brings, ending with its `# Vocabulary`.

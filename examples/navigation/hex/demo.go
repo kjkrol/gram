@@ -54,13 +54,14 @@ type arena struct {
 	board      *board.Plugin
 	topography *topography.Plugin
 	bridges    *bridges.Plugin
-	nav        *navigation.Plugin
-	driving    *driving.Plugin
 	selection  *selection.Plugin
-	players    *players.Plugin
-	cameras    *cameras.Plugin
-	player     *players.Player
+	driving    *driving.Plugin
+	nav        *navigation.Plugin
 	vision     *vision.Plugin
+	cameras    *cameras.Plugin
+	players    *players.Plugin
+
+	player *players.Player
 }
 
 func main() {
@@ -108,10 +109,11 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.nav = navigation.NewPlugin(a.board, a.world, a.motion, a.selection, a.driving)
 	a.vision = vision.NewPlugin(a.world).WithBoard(a.board).WithLog(log.Default())
 	a.cameras = cameras.NewPlugin(a.world, cameras.Config{
-		Turn: true,
-		Tilt: true,
-		Cell: HexSize,
-		Cage: a.topography.Read(0),
+		Turn:  true,
+		Tilt:  true,
+		Zones: cameras.ZonesCfg{StillCorners: true},
+		Cell:  HexSize,
+		Cage:  a.topography.Read(0),
 	})
 	a.players = players.NewPlugin(
 		a.world,

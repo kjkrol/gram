@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/kjkrol/gram/render"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
@@ -16,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -27,9 +27,10 @@ const (
 type gameplayArena struct {
 	world   *world.Plugin
 	motion  *motion.Plugin
-	players *players.Plugin
-	player  *players.Player
 	cameras *cameras.Plugin
+	players *players.Plugin
+
+	player *players.Player
 }
 
 func NewGameplayStage() game.Stage {

@@ -423,7 +423,8 @@ func (p *Plugin) Rise(from, to cell.ID) float64 { return p.relief.Rise(from, to)
 
 func (p *Plugin) Name() string { return "gram.topography" }
 
-// Install registers the plugin's systems.
+// Install registers the plugin's systems, and has the heights on the topography's entities as
+// each tick ends.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
 		heights:  p.relief.HeightsSystem(),
@@ -433,6 +434,9 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	}
 	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)
+	// the ground shaped after the heights ran, by a command or in a step of the simulation (a
+	// road graded, a bridge's head levelled), is on the entities before a save between ticks
+	p.worldPlugin.Write().Clock().Replayed(p.module.heights.Fill)
 	if p.ground != nil {
 		ctx.Draws(p.ground, p.careView)
 	} else {

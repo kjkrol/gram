@@ -60,6 +60,25 @@ func (s AfterWorld) Plugins(plugins func(w *world.Plugin)) AfterPlugins {
 
 type AfterPlugins struct{ AfterFigures }
 
+// Keeps has the Stage keep the game's own resources: each a pointer to a struct of exported
+// fields, saved whole with the game as a plugin's settings are (plugin.KeepOf) and a loaded
+// game's state put back into it at once.
+func (s AfterPlugins) Keeps(resources ...any) AfterPlugins {
+	kept := make([]plugin.Serializable, len(resources))
+	for i, r := range resources {
+		kept[i] = plugin.KeepOf(r)
+	}
+	s.d.add(section.Plugins, func(ctx game.Initializer) error {
+		for _, r := range kept {
+			if err := ctx.Track(r); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return s
+}
+
 // Figures notes the figures, the tiles, the surfaces and the skies (world.Plugin.Figures,
 // board.Plugin.Figures, Tiles and Surfaces, atmosphere.Plugin.Skies): the Stage runs their
 // Effects, Rules and Define in those sections after the game's own functions, in the order

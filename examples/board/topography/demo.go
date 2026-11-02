@@ -49,21 +49,21 @@ import (
 
 const (
 	TPS          = 60
-	GridWidth    = 204
-	GridHeight   = 106
+	GridWidth    = 640
+	GridHeight   = 320
 	CellSize     = 32
 	WorldWidth   = GridWidth * CellSize
 	WorldHeight  = GridHeight * CellSize
 	ScreenWidth  = 1024
 	ScreenHeight = 768
-	MaxEntCount  = 320
+	MaxEntCount  = 512
 )
 
 //go:embed map.yaml
 var mapFile embed.FS
 
-// A cell is 333 m of Madeira; the figures on it are drawn 50 times bigger than life.
-var scale = world.Scale{Metres: 333.0 / CellSize, Figures: 50}
+// A cell is 100 m of Madeira; the figures on it are drawn 15 times bigger than life.
+var scale = world.Scale{Metres: 100.0 / CellSize, Figures: 15}
 
 // figure is how tall a walker stands as drawn: what passes under a bridge.
 var figure = scale.Figure(1.8)
@@ -71,25 +71,26 @@ var figure = scale.Figure(1.8)
 type arena struct {
 	world      *world.Plugin
 	motion     *motion.Plugin
+	collision  *collision.Plugin
+	light      *light.Plugin
 	board      *board.Plugin
+	gravity    *gravity.Plugin
 	topography *topography.Plugin
 	bridges    *bridges.Plugin
-	nav        *navigation.Plugin
-	driving    *driving.Plugin
-	collision  *collision.Plugin
-	gravity    *gravity.Plugin
 	selection  *selection.Plugin
-	players    *players.Plugin
-	telemetry  *telemetry.Plugin
-	cameras    *cameras.Plugin
-	minimap    *minimap.Plugin
-	light      *light.Plugin
-	player     *players.Player
-	rival      *players.Player
+	driving    *driving.Plugin
+	nav        *navigation.Plugin
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
-	look       string
-	hud        string
+	cameras    *cameras.Plugin
+	minimap    *minimap.Plugin
+	telemetry  *telemetry.Plugin
+	players    *players.Plugin
+
+	player *players.Player
+	rival  *players.Player
+	look   string
+	hud    string
 }
 
 func main() {
@@ -157,17 +158,18 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		WithMotion(a.motion, madeira{cell.DefaultHiking}).
 		WithCollision(a.collision).
 		WithLog(log.Default())
-	a.gravity = gravity.NewPlugin(a.world, a.motion, gravity.Config{}).WithSurfaces(a.board.Read(0).Footing)
+	a.gravity = gravity.NewPlugin(a.world, a.motion, gravity.Config{}).
+		WithSurfaces(a.board.Read(0).Footing)
 	a.topography = topography.NewPlugin(a.world, a.board, a.light, topography.Config{
 		Shaping: topography.Shaping{
-			Step:    scale.Units(40),
-			MaxStep: scale.Units(160),
+			Step:    scale.Units(12),
+			MaxStep: scale.Units(48),
 		}})
 	a.bridges = bridges.NewPlugin(a.world, a.board, bridges.Config{Rules: site.Rules{
-		Longest:   3,
+		Longest:   4,
 		Under:     figure + deckThickness + scale.Units(1),
 		Clearance: deckThickness + scale.Units(1),
-		Reshape:   scale.Units(200),
+		Reshape:   scale.Units(60),
 		High:      scale.Units(200),
 	}}).WithShaper(a.topography.Write())
 	a.selection = selection.NewPlugin(a.world)

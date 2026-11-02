@@ -43,6 +43,14 @@ no world and a modal panel over the ticking world: `examples/start/scenes`.
 
 ## A demo
 
+- The arena holds handles and no state: the plugins in the order made, then, a blank line
+  apart, the players, the game's resources (`*treasury`, a struct of exported fields given to
+  the chain's `Keeps`, saved whole with the game), a telemetry count (`collision.ContactStats`)
+  or a flag read at the start (`-look`). Game state never lies in a plain field, it would not be
+  saved (CLAUDE.md: an entity or a resource); a HUD caches its words per frame (`status`), no
+  state; a fresh game's start values are set in `spawn`, a loaded game's come from the save. An
+  effect mirroring a resource (`BrokeEf` of an empty treasury) is put or taken every tick they
+  differ, never while the clock stands, when no step would carry the command.
 - The sections are the arena's methods: `makePlugins`, `defineFigures`, `definePlayer`,
   `defineEffects`, `defineRules`, `defineCommands`, `bindKeys`, `spawn`, `defineScenes`,
   `update`. `defineScenes` only makes the `mainScene{arena: a, …}` of `scene.go`. A sun of the

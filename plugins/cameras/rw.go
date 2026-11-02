@@ -75,6 +75,9 @@ func (r *Read) ZonesOpacity() float32 { return r.p.Res.Settings.zonesOpacity() }
 // EdgesScroll reports whether the cursor at a picture's edge scrolls the camera.
 func (r *Read) EdgesScroll() bool { return !r.p.Res.Settings.StillEdges }
 
+// CornersTurn reports whether the cursor in a picture's corner turns the camera.
+func (r *Read) CornersTurn() bool { return !r.p.Res.Settings.StillCorners }
+
 // EdgeSpeed is how fast the cursor at the very edge scrolls, 0 for the keys' own.
 func (r *Read) EdgeSpeed() float32 { return r.p.Res.Settings.EdgeSpeed }
 
@@ -209,6 +212,10 @@ func (w *Write) SetZonesOpacity(opacity float32) {
 // ScrollFromEdges has the cursor at a picture's edge scroll the camera, or not
 // (Settings.StillEdges); on from the start.
 func (w *Write) ScrollFromEdges(on bool) { w.p.Res.Settings.StillEdges = !on }
+
+// TurnInCorners has the cursor in a picture's corner turn the camera as Q and E do, or not
+// (Settings.StillCorners); on from the start, where the Config turns.
+func (w *Write) TurnInCorners(on bool) { w.p.Res.Settings.StillCorners = !on }
 
 // SetEdgeSpeed sets how fast the cursor at the very edge scrolls, screen pixels a tick
 // (Settings.EdgeSpeed); 0 or less, the keys' own.

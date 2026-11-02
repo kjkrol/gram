@@ -57,7 +57,8 @@ type arena struct {
 	dialog    *dialog.Plugin
 	cameras   *cameras.Plugin
 	players   *players.Plugin
-	player    *players.Player
+
+	player *players.Player
 }
 
 func main() {

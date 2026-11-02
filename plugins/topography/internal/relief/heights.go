@@ -9,11 +9,13 @@ import (
 // HeightsSystem is the goke.System keeping r's heights on entities of their own (Heights), saved
 // with the game. Run it first of all, so a loaded game's heights are the relief's before anything
 // reads them.
-func (r *Relief) HeightsSystem() goke.System { return &heightsSystem{relief: r} }
+func (r *Relief) HeightsSystem() *HeightsSystem { return &HeightsSystem{relief: r} }
 
-var _ goke.System = (*heightsSystem)(nil)
+var _ goke.System = (*HeightsSystem)(nil)
 
-type heightsSystem struct {
+// HeightsSystem keeps a relief's heights on its entities as the relief changes: as it runs, and
+// as Fill is called between its runs.
+type HeightsSystem struct {
 	relief  *Relief
 	query   *goke.Query
 	comp    goke.Comp[Heights]
@@ -21,7 +23,7 @@ type heightsSystem struct {
 	written uint64 // one more than the relief's version the runs hold; 0 none
 }
 
-func (s *heightsSystem) Init(si *goke.SysInit) {
+func (s *HeightsSystem) Init(si *goke.SysInit) {
 	s.query = si.NewQueryBuilder(&s.comp).Build()
 	var loaded []Heights
 	n := 0
@@ -49,7 +51,7 @@ func (s *heightsSystem) Init(si *goke.SysInit) {
 }
 
 // the relief's runs from the from-th on
-func (s *heightsSystem) spawn(si *goke.SysInit, from int) {
+func (s *HeightsSystem) spawn(si *goke.SysInit, from int) {
 	if from >= s.relief.Runs() {
 		return
 	}
@@ -66,13 +68,17 @@ func (s *heightsSystem) spawn(si *goke.SysInit, from int) {
 	}
 }
 
-func (s *heightsSystem) Update(*goke.CmdBuf, time.Duration) {
-	if s.written != s.relief.Version()+1 {
+func (s *HeightsSystem) Update(*goke.CmdBuf, time.Duration) { s.Fill() }
+
+// Fill writes the relief's heights on the entities anew if it changed since they were last
+// written, between the system's runs too; nothing before the system is set up.
+func (s *HeightsSystem) Fill() {
+	if s.query != nil && s.written != s.relief.Version()+1 {
 		s.refill()
 	}
 }
 
-func (s *heightsSystem) refill() {
+func (s *HeightsSystem) refill() {
 	for s.query.All(); s.query.Next(); {
 		runs := s.comp.Slice(s.query.Cursor())
 		for i := range runs {

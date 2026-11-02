@@ -66,7 +66,6 @@ type Plugin struct {
 	skies        []Sky
 	vault        *backdrop.Renderer
 	aloft        *aloft.Renderer // the low clouds: the high ones from above would veil the map
-	shadows      CloudShadows
 	kept         *plugin.Kept[Settings]
 	published    render.Buffered[drawnSky]
 	live         drawnSky // drawn before any was published
@@ -88,7 +87,8 @@ var _ plugin.Publisher = (*Plugin)(nil)
 // A world without heights panics.
 func NewPlugin(worldPlugin *world.Plugin, lightPlugin *light.Plugin, cfg Config) *Plugin {
 	if !worldPlugin.Read(0).HasHeights() {
-		panic("atmosphere: an atmosphere stands over a world with heights; set world.Config.Heights")
+		panic("atmosphere: an atmosphere stands over a world with heights; " +
+			"set world.Config.Heights")
 	}
 	cal := calendar.New(worldPlugin.Write().Clock(), cfg.Calendar)
 	clim := climate.New(worldPlugin, cal, cfg.Climate)
@@ -98,7 +98,6 @@ func NewPlugin(worldPlugin *world.Plugin, lightPlugin *light.Plugin, cfg Config)
 	p.aloft = aloft.New(p.drawnAir, air.Low)
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.write.ShowClouds(AllBodies)
-	p.CastClouds(CloudShadows{Ground: true, Figures: true, High: true})
 	p.Self = world.NewSelf(worldPlugin, p, comp.Const(p.sky.Moonlight()),
 		comp.Const(climate.DefaultSpread()), comp.Const(light.Source{Strength: 1, Ambient: 1}),
 		comp.Const(light.Shining{}))
@@ -117,17 +116,13 @@ func NewPlugin(worldPlugin *world.Plugin, lightPlugin *light.Plugin, cfg Config)
 // body lit from above, darker under its brow.
 type CloudShadows struct{ Ground, Figures, High bool }
 
-// CastClouds has the clouds' shadows fall as c says; all three as the atmosphere starts. A
-// scene sets it as it begins.
+// CastClouds has the clouds' shadows fall as c says (Settings), all three as the atmosphere
+// starts: a game's start, set as its plugins are made.
 func (p *Plugin) CastClouds(c CloudShadows) *Plugin {
-	p.shadows = c
-	p.Res.Settings.HighShade = c.High
+	p.Res.Settings.NoGroundShade = !c.Ground
+	p.Res.Settings.NoFigureShade = !c.Figures
+	p.Res.Settings.NoHighShade = !c.High
 	return p
-}
-
-func (p *Plugin) shadeHigh(on bool) {
-	p.shadows.High = on
-	p.Res.Settings.HighShade = on
 }
 
 // CloudLook is how the clouds are drawn: FlatClouds as flat sheets on the sky and the low ones
@@ -218,7 +213,9 @@ func (p *Plugin) skyClouds() backdrop.Clouds {
 // ground, the sea's or the valleys', up to its peaks. Call it as the plugin is made;
 // WithWeathering does.
 func (p *Plugin) Over(brd *board.Plugin) *Plugin {
-	p.climate.Over(func() (low, peaks float32) { return reliefOf(brd.Read(0).Heights(), brd.Read(0).Board()) })
+	p.climate.Over(func() (low, peaks float32) {
+		return reliefOf(brd.Read(0).Heights(), brd.Read(0).Board())
+	})
 	return p
 }
 
@@ -258,7 +255,13 @@ func (p *Plugin) Name() string { return "gram.atmosphere" }
 // Install wires the sky's, the weather's and the weathering's systems, and draws the sky behind
 // the world, looking as its Skies say, the clouds seen from above and what falls before it.
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	p.module = &module{p: p, sky: p.sky.System(), climate: p.climate.System(), comps: p.climate.LoadComps(), clock: p.worldPlugin.Write().Clock()}
+	p.module = &module{
+		p:       p,
+		sky:     p.sky.System(),
+		climate: p.climate.System(),
+		comps:   p.climate.LoadComps(),
+		clock:   p.worldPlugin.Write().Clock(),
+	}
 	p.module.step = p.module.simulate
 	if p.weathering != nil {
 		p.module.comps = append(p.module.comps, goke.LoadComp[weathering.Wring]())
@@ -299,7 +302,6 @@ func (p *Plugin) Restore() {
 	p.write.ShowClouds(s.Clouds)
 	p.write.DrawCloudsAt(s.CloudCoarse)
 	p.write.ReachClouds(s.CloudReach)
-	p.shadeHigh(s.HighShade)
 }
 
 var _ goke.Module = (*module)(nil)
@@ -365,7 +367,7 @@ func (r cloudsReport) Report(line func(label, value string)) {
 			100*c[0], 100*c[1], 100*c[2])
 	}
 	line("Clouds", look)
-	line("Shadows", r.p.shadows.String())
+	line("Shadows", r.p.read.CloudShadows().String())
 }
 
 // String says whose shadows fall: "both layers' on the ground and the figures".

@@ -59,7 +59,7 @@ func (w *chart) check(data []byte) (err error) {
 		}
 	}
 	kinds.Define(k.Road, cell.Kind{Pace: 1, Allows: ground, Graded: true})
-	br := bridges.NewPlugin(wp, b, bridges.Config{Rules: w.roads.rules()})
+	br := bridges.NewPlugin(wp, b, bridges.Config{Rules: w.roads.bridgeRules()})
 	plugins = append(plugins, br)
 	br.Types().Define(k.Bridge, bridges.Spec{
 		Allows:    cell.Land,

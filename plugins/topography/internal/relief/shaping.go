@@ -1,6 +1,9 @@
 package relief
 
 import (
+	"fmt"
+	"slices"
+
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -17,7 +20,7 @@ func (r *Relief) Lift(p geom.Vec, by, maxStep float32) {
 		return
 	}
 	if r.setValue(v, r.heightAt(v)+by) {
-		r.settle([]vertex{v}, maxStep)
+		r.settle([]vertex{v}, maxStep, nil)
 		r.changed()
 	}
 }
@@ -49,7 +52,7 @@ func (r *Relief) Flatten(from, to geom.Vec, maxStep float32) {
 		}
 	}
 	if len(set) > 0 {
-		r.settle(set, maxStep)
+		r.settle(set, maxStep, nil)
 		r.changed()
 	}
 }
@@ -73,12 +76,40 @@ func (r *Relief) Level(c cell.ID, h, maxStep float32) {
 		}
 	}
 	if len(set) > 0 {
-		r.settle(set, maxStep)
+		r.settle(set, maxStep, nil)
 		r.changed()
 	}
 }
 
-func (r *Relief) settle(queue []vertex, maxStep float32) {
+// Grade puts c's corners at heights, one a corner in the order of its grid's CellOutline, then
+// the ground round them within maxStep as Lift does, c's own corners staying put, and reports
+// whether the ground moved. It panics for heights of another count.
+func (r *Relief) Grade(c cell.ID, heights []float32, maxStep float32) bool {
+	vs, n, ok := r.outline(c)
+	if !ok {
+		return false
+	}
+	if len(heights) != n {
+		panic(fmt.Sprintf("relief: a cell of %d corners graded to %d heights", n, len(heights)))
+	}
+	var buf [6]vertex
+	set := buf[:0]
+	for k, v := range vs[:n] {
+		if r.setValue(v, heights[k]) {
+			set = append(set, v)
+		}
+	}
+	if len(set) == 0 {
+		return false
+	}
+	r.settle(set, maxStep, vs[:n])
+	r.changed()
+	return true
+}
+
+// pinned stay put: a graded cell's corners may stand farther apart than maxStep, as a road's
+// ramp does
+func (r *Relief) settle(queue []vertex, maxStep float32, pinned []vertex) {
 	if maxStep <= 0 {
 		return
 	}
@@ -98,7 +129,7 @@ func (r *Relief) settle(queue []vertex, maxStep float32) {
 			default:
 				continue
 			}
-			if r.setValue(n, want) {
+			if !slices.Contains(pinned, n) && r.setValue(n, want) {
 				queue = append(queue, n)
 			}
 		}

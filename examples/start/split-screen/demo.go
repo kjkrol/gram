@@ -42,15 +42,16 @@ const (
 var mapFile embed.FS
 
 type arena struct {
-	world      *world.Plugin
-	motion     *motion.Plugin
-	collision  *collision.Plugin
-	board      *board.Plugin
-	selection  *selection.Plugin
-	nav        *navigation.Plugin
-	driving    *driving.Plugin
-	cameras    *cameras.Plugin
-	players    *players.Plugin
+	world     *world.Plugin
+	motion    *motion.Plugin
+	collision *collision.Plugin
+	board     *board.Plugin
+	selection *selection.Plugin
+	driving   *driving.Plugin
+	nav       *navigation.Plugin
+	cameras   *cameras.Plugin
+	players   *players.Plugin
+
 	redPlayer  *players.Player
 	bluePlayer *players.Player
 }

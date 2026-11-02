@@ -6,7 +6,6 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/minimap"
-	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
@@ -14,7 +13,6 @@ import (
 
 type mainScene struct {
 	arena *arena
-	keys  players.SceneKeys
 }
 
 var unitColor = color.RGBA{R: 230, G: 80, B: 80, A: 255}

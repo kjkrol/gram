@@ -53,8 +53,9 @@ type buildSystem struct{ p *Plugin }
 func (buildSystem) Init(*goke.SysInit) {}
 
 func (s buildSystem) Update(*goke.CmdBuf, time.Duration) {
-	for _, b := range s.p.pending {
-		s.p.build(b)
+	res := &s.p.Res
+	for _, o := range res.Orders {
+		s.p.build(o)
 	}
-	s.p.pending = s.p.pending[:0]
+	res.Orders = res.Orders[:0]
 }
