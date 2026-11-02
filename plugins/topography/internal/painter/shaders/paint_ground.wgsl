@@ -109,7 +109,7 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>) -> Cell 
         var most = 0;
         var reached = 9;
         for (var j = 0; j < 9; j++) {
-            if !land(near[j]) || earlier(near, j) {
+            if !land(near[j]) || earlier(&near, j) {
                 continue;
             }
             var n = 0;
@@ -138,7 +138,7 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>) -> Cell 
     var running = 0u;
     for (var j = 0; j < 9; j++) {
         let o = near[j];
-        if land(o) && o.sprite != t.sprite && !earlier(near, j) {
+        if land(o) && o.sprite != t.sprite && !earlier(&near, j) {
             running = running | (1u << u32(j));
         }
     }
@@ -171,14 +171,14 @@ fn fs_main(in: Cell) -> @location(0) vec4<f32> {
     let s = uv * 2.0 - q;
     let t = near[in.plan.y];
     if (in.plan.w & planTop) != 0u {
-        laid = over(quarterOf(t, weighed(near, q, t.sprite, true), s, t.spread), laid);
+        laid = over(quarterOf(t, weighed(&near, q, t.sprite, true), s, t.spread), laid);
     }
     for (var j = 0; j < 9; j++) {
         if ((in.plan.z >> u32(j)) & 1u) == 0u {
             continue;
         }
         let o = near[j];
-        let w = weighed(near, q, o.sprite, false);
+        let w = weighed(&near, q, o.sprite, false);
         laid = over(quarterOf(o, w, s, (t.spread + o.spread) / 2.0), laid);
     }
     return laid;
@@ -225,9 +225,11 @@ fn runOf(g: vec4<f32>, flow: f32) -> vec2<f32> {
 }
 
 // earlier reports whether a cell of land before the k-th round, row by row, is of its sprite.
-fn earlier(near: array<Top, 9>, k: i32) -> bool {
+fn earlier(near: ptr<function, array<Top, 9>>, k: i32) -> bool {
+    // near by pointer: naga's MSL leaves a parameter indexed at run time unscoped beside an
+    // operator, which Metal refuses (gram-render: Traps)
     for (var j = 0; j < k; j++) {
-        if land(near[j]) && near[j].sprite == near[k].sprite {
+        if land((*near)[j]) && (*near)[j].sprite == (*near)[k].sprite {
             return true;
         }
     }
@@ -254,7 +256,7 @@ fn quarterOf(t: Top, w: vec4<f32>, s: vec2<f32>, soft: f32) -> vec4<f32> {
 
 // weighed is the share of the 3×3 cells round the corners of the quarter q lying not under the
 // rest (dry) or of the sprite id: at each corner the cells meeting there (weigh).
-fn weighed(near: array<Top, 9>, q: vec2<f32>, id: u32, dry: bool) -> vec4<f32> {
+fn weighed(near: ptr<function, array<Top, 9>>, q: vec2<f32>, id: u32, dry: bool) -> vec4<f32> {
     var w: vec4<f32>;
     for (var corner = 0; corner < 4; corner++) {
         let point = vec2<i32>(i32(q.x) + corner % 2, i32(q.y) + corner / 2);
@@ -265,7 +267,7 @@ fn weighed(near: array<Top, 9>, q: vec2<f32>, id: u32, dry: bool) -> vec4<f32> {
         var all = 0.0;
         for (var y = lo.y; y <= hi.y; y++) {
             for (var x = lo.x; x <= hi.x; x++) {
-                let c = near[y * 3 + x];
+                let c = (*near)[y * 3 + x];
                 var on = c.sprite == id;
                 if dry {
                     on = (c.flags & flagUnder) == 0u;

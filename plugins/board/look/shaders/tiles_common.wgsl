@@ -105,7 +105,10 @@ fn texelOf(b: vec2<f32>, dx: f32, dy: f32) -> vec4<f32> {
 
 // byteIn is the byte k, 0 to 3, of the pixel t.
 fn byteIn(t: vec4<f32>, k: i32) -> u32 {
-    return u32(t[k] * 255.0 + 0.5);
+    // from a var: naga's MSL leaves a parameter indexed at run time unscoped beside an
+    // operator, which Metal refuses (gram-render: Traps)
+    var v = t;
+    return u32(v[k] * 255.0 + 0.5);
 }
 
 // byteOf is the byte k, 0 to 3, of the pixel (dx, dy) of the board's cell b's block.

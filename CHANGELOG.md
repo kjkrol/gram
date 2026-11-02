@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.17.1 — 2026-11-02
+
+**Shaders on Metal: a parameter indexed at run time** (2026-11-02, branch
+`fix/metal-indexed-params`)
+- Fixed: on a Mac every demo with a board panicked at its first tiles or painter pipeline
+  ("metal: failed to compile MSL: unknown error"): naga's MSL writer leaves a function parameter
+  indexed at run time as a bounds-checked ternary without parentheses, which Metal reads as
+  `DefaultConstructible() == …` and refuses. The board's and the painter's `byteIn` load the
+  pixel from a var first, and the painter's `earlier` and `weighed` take the cells round a cell
+  by pointer (`ptr<function, array<Top, 9>>`, no copy of nine either). A load from a var or
+  through a pointer is baked before its operator. `render/internal/gpu/msl_test.go` keeps naga's
+  MSL in view: one test says the trap is still there (when it fails, the vars go), one that a
+  var and a pointer are loaded first.
+
 ## v0.17.0 — 2026-11-02
 
 **Roads laid with a tool, as bridges are** (2026-11-02, branch `feat/roads`)

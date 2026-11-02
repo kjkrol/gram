@@ -114,6 +114,13 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
 - A fragment shader takes `@builtin(position)` once, in its input struct, never also as a
   parameter: naga and Vulkan let it by, Metal refuses (`wgsl_test.go`). On Metal gogpu ignores
   `@invariant`; a shader writing `frag_depth` should draw with a depth buffer.
+- naga's MSL writer leaves a function parameter indexed at run time (`t[k]`, `near[j].sprite`)
+  as a bounds-checked ternary without parentheses, which Metal reads as
+  `DefaultConstructible() == …` and refuses (naga v0.20.5 still; `msl_test.go` says when it is
+  fixed): load such a parameter from a `var` first or take an array by
+  `ptr<function, array<T, N>>`; a load from a var or a pointer is baked before its operator.
+  Without a Mac, a shader's Metal verdict is naga's `msl.Compile` of its `Source()` read for the
+  pattern, or clang on the output.
 - naga leaves a `var` without an initialiser undefined, garbage (stray shadows in single pixels):
   write `var c = T(...)`. Before v0.20.3 it read a module-scope vector `const` as zero against a
   runtime value, miscompiled `+=` on a local array's element and took no `all()`/`any()`
