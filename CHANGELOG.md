@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.16.0 — 2026-10-31
+
+**A hex road by its cell's corners, as a square one** (2026-10-31, branch `fix/hex-roads`)
+- Breaking: `ground.RoadFits(g, c, corners, links)` loses its `run`: it works out the run
+  between the middles of the two edges a road crosses (a square's side, √3 sizes on a hex) and
+  allocates nothing.
+- Breaking: `ground.RoadJoins` is gone.
+- Breaking: `site.Ground.Heights` gives a cell's heights at its outline on every grid, in
+  `CellOutline`'s order: six on a hex, not one.
+- Changed: a hex road lies by its six corners as a square one by its four: level, or an even ramp
+  straight up across opposite edges, its side corners on the plane, 10° at most over √3 sizes.
+  The map, the shaping and the bridge tool check it alike: a hex road beside a slope is refused,
+  one up an even ramp is held, and a road may ramp up to a bridge's head. A hex bridge's deck and
+  a span's middle lie at the mean of the corners. Square roads are unchanged.
+
 ## v0.15.0 — 2026-10-31
 
 **A hex relief at its cells' corners, as a square one** (2026-10-31, branch `feat/hex-corners`)

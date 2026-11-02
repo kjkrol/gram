@@ -14,8 +14,7 @@ import (
 // Ground is what a bridge is planned over: a board and its heights.
 type Ground interface {
 	Grid() grid.Grid
-	// Heights are the ground's heights at c's outline, in CellOutline's order; on a grid of level
-	// cells one, its level.
+	// Heights are the ground's heights at c's outline, in CellOutline's order.
 	Heights(c cell.ID, dst []float32) []float32
 	// Takes reports whether a bridge's head may stand on c: ground its road may take.
 	Takes(c cell.ID) bool
@@ -95,17 +94,15 @@ func Plan(g Ground, r Rules, from, to cell.ID, deck float32) (Bridge, error) {
 		}
 		buf = g.Heights(s, buf[:0])
 		at = gr.CellOutline(s, at[:0])
-		if len(buf) > 1 {
-			for k := range buf {
-				if on(at[k], ends, gr.CellSpan()) {
-					buf[k] = deck // a head's, levelled
-				}
+		for k := range buf {
+			if on(at[k], ends, gr.CellSpan()) {
+				buf[k] = deck // a head's, levelled
 			}
 		}
 		lo, hi := f32.Inf(1), middle(buf)
 		for k, h := range buf {
 			lo = min(lo, h)
-			if len(buf) == 1 || !on(at[k], ends, gr.CellSpan()) {
+			if !on(at[k], ends, gr.CellSpan()) {
 				hi = max(hi, h)
 			}
 		}
@@ -196,34 +193,20 @@ func Line(g grid.Grid, from, to cell.ID, longest int) (int, []cell.ID, error) {
 }
 
 func level(g Ground, r Rules, h cell.ID, deck float32) error {
-	var buf [4]float32
-	heights := g.Heights(h, buf[:0])
-	for _, v := range heights {
+	var buf [6]float32
+	for _, v := range g.Heights(h, buf[:0]) {
 		if d := f32.Abs(v - deck); d > r.Reshape+1e-6*max(1, f32.Abs(deck)) {
 			return refusal(g.Grid(), h, "a head's ground lies %.1f off the deck, %.1f at most", d,
 				r.Reshape)
 		}
 	}
-	return roads(g, h, deck, heights)
+	return roads(g, h, deck)
 }
 
 // roads refuses levelling h where a road beside it would lie as Transport Tycoon would not lay it.
-func roads(g Ground, h cell.ID, deck float32, heights []float32) error {
+func roads(g Ground, h cell.ID, deck float32) error {
 	gr := g.Grid()
-	if len(heights) == 1 {
-		for i := range gr.Directions() {
-			n, ok := gr.Toward(h, i)
-			if !ok || !g.Road(n).Has(gr.Opposite(i)) {
-				continue
-			}
-			if !ground.RoadJoins(g.Heights(n, nil)[0], deck) {
-				return refusal(gr, n, "the road would not join the head levelled")
-			}
-		}
-		return nil
-	}
 	moved := gr.CellOutline(h, nil)
-	run := gr.CellSpan()
 	var outline []geom.Vec
 	for i := range gr.Directions() {
 		n, ok := gr.Toward(h, i)
@@ -232,17 +215,17 @@ func roads(g Ground, h cell.ID, deck float32, heights []float32) error {
 			continue
 		}
 		before := g.Heights(n, nil)
-		if !ground.RoadFits(gr, n, before, links, run) {
+		if !ground.RoadFits(gr, n, before, links) {
 			continue
 		}
 		after := slices.Clone(before)
 		outline = gr.CellOutline(n, outline[:0])
 		for k, p := range outline {
-			if on(p, moved, run) {
+			if on(p, moved, gr.CellSpan()) {
 				after[k] = deck
 			}
 		}
-		if !ground.RoadFits(gr, n, after, links, run) {
+		if !ground.RoadFits(gr, n, after, links) {
 			return refusal(gr, n, "levelling the head would break the road")
 		}
 	}
@@ -275,12 +258,17 @@ func under(g Ground, r Rules, s cell.ID, way int, deck float32, heights []float3
 	return nil
 }
 
-// a square cell's top is folded along one of its diagonals, its middle halfway along it
+// a square cell's top is folded along one of its diagonals, its middle halfway along it; a hex's
+// middle lies at the mean of its corners
 func middle(heights []float32) float32 {
-	if len(heights) != 4 {
-		return heights[0]
+	if len(heights) == 4 {
+		return max((heights[0]+heights[2])/2, (heights[1]+heights[3])/2)
 	}
-	return max((heights[0]+heights[2])/2, (heights[1]+heights[3])/2)
+	sum := float32(0)
+	for _, h := range heights {
+		sum += h
+	}
+	return sum / float32(len(heights))
 }
 
 func on(p geom.Vec, ends []geom.Vec, run float32) bool {

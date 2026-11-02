@@ -416,33 +416,18 @@ func (l *leveler) ways(w *levelWays, layout *Layout, heights func(geom.Vec) floa
 func (l *leveler) graded(roads *network.Network, laidBy map[cell.ID]*yaml.Node,
 	heights func(geom.Vec) float32) error {
 	brd := &l.p.board.read
-	run := l.shape.Cell
 	for _, c := range roads.Cells() {
 		node, _ := roads.Node(c)
 		if kind, _ := l.p.kinds.Get(node.Kind); !kind.Graded {
 			continue
 		}
 		x, y, _ := brd.Coords(c)
-		links := roads.Links(c)
-		if l.shape.Hex {
-			for i := range brd.Directions() {
-				nb, ok := brd.Toward(c, i)
-				if !ok || !links.Has(i) {
-					continue
-				}
-				if !ground.RoadJoins(heights(brd.CellCenter(c)), heights(brd.CellCenter(nb))) {
-					return l.errorf(laidBy[c], "the %s at [%d, %d] joins cells at different levels",
-						node.Kind, x, y)
-				}
-			}
-			continue
-		}
 		var corners [6]float32
 		outline := brd.CellOutline(c, nil)
 		for k, p := range outline {
 			corners[k] = heights(p)
 		}
-		if !ground.RoadFits(brd, c, corners[:len(outline)], links, run) {
+		if !ground.RoadFits(brd, c, corners[:len(outline)], roads.Links(c)) {
 			return l.errorf(laidBy[c], "the %s at [%d, %d] lies on ground no road may: level, or "+
 				"an even ramp it runs straight up", node.Kind, x, y)
 		}

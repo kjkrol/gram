@@ -9,7 +9,7 @@ import (
 )
 
 // KeepRoads runs shape and takes back all it did when it broke a road that lay well before
-// (ground.RoadFits, ground.RoadJoins), reporting whether it kept it.
+// (ground.RoadFits), reporting whether it kept it.
 func (r *Relief) KeepRoads(shape func()) bool {
 	if r.board == nil {
 		shape()
@@ -37,20 +37,15 @@ func (r *Relief) KeepRoads(shape func()) bool {
 
 func (r *Relief) roadFits(c cell.ID, links cell.Links) bool {
 	if !r.square {
-		for i := range r.grid.Directions() {
-			nb, ok := r.grid.Toward(c, i)
-			if ok && links.Has(i) && !ground.RoadJoins(r.Altitude(c), r.Altitude(nb)) {
-				return false
-			}
-		}
-		return true
+		corners, _, _ := r.Hex(c)
+		return ground.RoadFits(r.grid, c, corners[:], links)
 	}
 	var buf [4]geom.Vec
 	var corners [4]float32
 	for k, p := range r.grid.CellOutline(c, buf[:0]) {
 		corners[k] = r.GroundAt(p)
 	}
-	return ground.RoadFits(r.grid, c, corners[:], links, r.sq.Cell)
+	return ground.RoadFits(r.grid, c, corners[:], links)
 }
 
 func (r *Relief) restore(values []float32) {

@@ -25,7 +25,8 @@ Each script's header says its arguments and variables.
   124 the timeout, 2 a panic (`probe.log`). `PROBE_TREE` builds another copy of gram,
   `PROBE_SEED` fixes the seed, `PROBE_SED` is a sed expression over the copied `demo.go`. A GPU
   is needed (`GRAM_GPU=software` draws wrong but runs).
-- `run_demo.sh build|run`: `probe.sh` without the tempo, built and run apart, for frames.
+- `run_demo.sh build|run`: `probe.sh` without the tempo, built and run apart, for frames;
+  `PROBE_TREE` and `PROBE_SEED` as there, `PROBE_SED` over every copied `.go` file.
   `probes/`: `generic` (entities moved a second), `keys` (`PROBE_KEYS`), `picture`
   (board/topography's tactical picture), `light`, `square`, `bullet`; a new one is
   `zz_probe_script.go` beside a copy of `zz_probe_common.go`.

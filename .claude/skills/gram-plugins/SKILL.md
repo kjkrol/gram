@@ -172,8 +172,10 @@ keeps only what those do not.
   under it share a cell); one mid-step holds both cells and is left to navigation.
 - Maps: a hex row is indented; `relief` is `cells` or `corners`, in metres through `world.Scale`;
   a river flows down in the order its points are given; with a relief every cell of a `Graded`
-  road lies level or on an even ramp (`ground.RoadFits`), and the shaping (`relief.KeepRoads`)
-  takes back what would break one; every error names the file and the line.
+  road lies level or on an even ramp by its corners on either grid (`ground.RoadFits`; on a hex
+  relief by cells the cell where level ground turns into a ramp bends, so a climbing road leads
+  onto a bridge or a ford); the shaping (`relief.KeepRoads`) takes back what would break one and
+  the bridge tool refuses it; every error names the file and the line.
 - `cmd/gramap` (Madeira's maps, from `cmd/gramap/madeira.yaml`): heights from the Terrain Tiles
   on AWS, rivers by `water.Drain`, roads routed with their height in the search and no tunnels
   (a leg past `deep` metres of cut or fill is left out and named), bridges planned by
