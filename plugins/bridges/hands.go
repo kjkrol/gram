@@ -24,11 +24,6 @@ type hand struct {
 	seen   uint64
 }
 
-type pending struct {
-	t    Type
-	plan site.Bridge
-}
-
 // forget is the ticks a hand nobody aims is kept: the cursor off the picture a moment.
 const forget = 30
 
@@ -63,7 +58,7 @@ func (p *Plugin) carryOut() {
 	})
 	p.builds.Drain(func(i command.Issued[Build]) {
 		if h := p.hands[i.Issuer]; h != nil && h.asked {
-			p.pending = append(p.pending, pending{t: h.t, plan: h.plan})
+			p.Res.Orders = append(p.Res.Orders, Order{Kind: h.t.Name(), Plan: h.plan})
 			h.marked, h.aimed, h.asked, h.err = false, false, false, nil
 		}
 	})

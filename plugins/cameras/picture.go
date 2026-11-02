@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/kjkrol/ceremony/command"
@@ -85,6 +86,7 @@ type Settings struct {
 	Zones        bool
 	ZonesOpacity float32 // how opaque at the picture's edge, 0 to 1; zero, the default
 	StillEdges   bool    // the cursor at a picture's edge scrolls nothing
+	StillCorners bool    // the cursor in a picture's corner turns nothing
 	EdgeSpeed    float32 // screen pixels a tick at the very edge; zero, the keys' own
 	FrameBudget  time.Duration
 	Sampling     time.Duration // the frame rate averaged over this before it is followed
@@ -238,9 +240,9 @@ func budgetRate(budget time.Duration) float64 {
 	return math.Round(float64(time.Second) / float64(budget))
 }
 
-// Settings are the scroll zones (scrolling, shown, their speed), the frame budget and each
-// profile's knobs (the strategy following the budget, the resolution, the figures at every
-// pixel, the layers and their edges shown) (plugin.Tunable).
+// Settings are the scroll zones (scrolling, turning in the corners where the camera turns, shown,
+// their speed), the frame budget and each profile's knobs (the strategy following the budget, the
+// resolution, the figures at every pixel, the layers and their edges shown) (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {
 	out := []control.Setting{
 		control.Switch{
@@ -315,6 +317,13 @@ func (p *Plugin) Settings() []control.Setting {
 			},
 			Shows: percent,
 		},
+	}
+	if p.cfg.Turn {
+		out = slices.Insert(out, 1, control.Setting(control.Switch{
+			Label: "Turn in the corners",
+			Get:   p.read.CornersTurn,
+			Set:   func(on bool) command.Command { return CornerTurn{On: on} },
+		}))
 	}
 	out = append(out,
 		p.knobSettings(Tactical, control.PictureTactical, control.PictureTacticalLayers)...)

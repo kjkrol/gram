@@ -26,7 +26,8 @@
 // click or Esc puts the bridge down. [Plugin.Renderer] draws the bridge in hand, yellow where
 // it may not stand ([Plugin.Reason] says why), green where it may. [Plugin.Window] asks "Build
 // the bridge?": [Build] has it built at the next step of the simulation, its heads levelled on
-// the ground [Plugin.WithShaper] gives, [Cancel] builds nothing.
+// the ground [Plugin.WithShaper] gives, [Cancel] builds nothing. A bridge confirmed waits for
+// its step in Resources.Orders, saved with the game.
 //
 // # Figures
 //

@@ -13,7 +13,7 @@ import (
 var _ goke.Module = (*module)(nil)
 
 type module struct {
-	heights  goke.System
+	heights  *irelief.HeightsSystem
 	shaping  goke.System
 	altitude goke.System
 	clock    *clock.Clock // nil: at once

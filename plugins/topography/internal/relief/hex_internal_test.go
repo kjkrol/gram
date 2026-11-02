@@ -459,3 +459,134 @@ func TestHex_GroundAtAllocatesNothing(t *testing.T) {
 		t.Errorf("Along allocates %v a call, want none", n)
 	}
 }
+
+func TestHex_SetHexAndHexAreAPair(t *testing.T) {
+	g := grid.DefaultGrids{}.Hex(5, 4, 16)
+	brd, write := board.NewBoard(g)
+	r := New(brd, write.Touch)
+	c := g.At(2, 1)
+	set := [6]float32{1, 2, 3, 4, 5, 6}
+	before := map[cell.ID]uint64{}
+	g.EachCell(func(n cell.ID) { before[n] = brd.CellVersion(n) })
+	version := r.Version()
+	r.SetHex(c, set)
+	if corners, level, ok := r.Hex(c); !ok || corners != set || level != 3.5 {
+		t.Errorf("set to %v, the cell reads %v, level %v; want them back, level 3.5", set,
+			corners, level)
+	}
+	if r.Version() == version {
+		t.Error("setting the corners left the relief's Version as it was")
+	}
+	touched := 0
+	g.EachCell(func(n cell.ID) {
+		if brd.CellVersion(n) != before[n] {
+			touched++
+		}
+	})
+	if touched != 7 {
+		t.Errorf("%d cells touched, want the cell and its six neighbours", touched)
+	}
+	version = r.Version()
+	r.SetHex(c, set)
+	if r.Version() != version {
+		t.Error("set as they stand, the corners counted a change")
+	}
+	// on the board's rim too
+	g.EachCell(func(n cell.ID) {
+		o, _ := g.Ordinal(n)
+		var want [6]float32
+		for k := range want {
+			want[k] = float32(10*o + k)
+		}
+		r.SetHex(n, want)
+		if got, _, _ := r.Hex(n); got != want {
+			t.Errorf("%v set to %v reads %v", n, want, got)
+		}
+	})
+
+	square := grid.DefaultGrids{}.Square(4, 4, 32)
+	sq := onBoard(square)
+	version = sq.Version()
+	sq.SetHex(square.At(1, 1), set)
+	if sq.Version() != version || slices.ContainsFunc(sq.values, func(h float32) bool {
+		return h != 0
+	}) {
+		t.Error("SetHex moved a square relief")
+	}
+}
+
+func TestHex_GradePutsTheSixCornersInTheOutlinesOrder(t *testing.T) {
+	g := grid.DefaultGrids{}.Hex(6, 5, 16)
+	r := onBoard(g)
+	c := g.At(2, 2)
+	heights := []float32{1, 2, 3, 4, 5, 6}
+	if !r.Grade(c, heights, 0) {
+		t.Fatal("grading level ground reports it unmoved")
+	}
+	if corners, level, _ := r.Hex(c); corners != [6]float32{1, 2, 3, 4, 5, 6} || level != 3.5 {
+		t.Errorf("the cell's corners %v, level %v; want 1 to 6 clockwise from the top, 3.5",
+			corners, level)
+	}
+	outline := g.CellOutline(c, nil)
+	for k, p := range outline {
+		if got := r.GroundAt(p); f32.Abs(got-heights[k]) > 1e-4 {
+			t.Errorf("the ground at the outline's corner %d is %v, want %v", k, got, heights[k])
+		}
+	}
+	shared := 0
+	g.EachCell(func(n cell.ID) {
+		corners, _, _ := r.Hex(n)
+		for k, p := range g.CellOutline(n, nil) {
+			want := float32(0)
+			for j, q := range outline {
+				if near(p, q) {
+					want = heights[j]
+					shared++
+				}
+			}
+			if corners[k] != want {
+				t.Errorf("%v's corner %d stands at %v, want %v", n, k, corners[k], want)
+			}
+		}
+	})
+	if shared != 18 {
+		t.Errorf("the cell's corners are %d cells' corners, want each three cells'", shared)
+	}
+	before := slices.Clone(r.values)
+	if r.Grade(c, heights, 0) || !slices.Equal(r.values, before) {
+		t.Error("graded again as it stands, the ground moved or reports it did")
+	}
+}
+
+// a ramp up east steeper than MaxStep along the cell's own edges
+func TestHex_AGradedCellsCornersStayAndTheGroundRoundFollowsWithinMaxStep(t *testing.T) {
+	g := grid.DefaultGrids{}.Hex(8, 6, 16)
+	r := onBoard(g)
+	c := g.At(3, 2)
+	if !r.Grade(c, []float32{3, 6, 6, 3, 0, 0}, 1) {
+		t.Fatal("grading a ramp into level ground reports it unmoved")
+	}
+	if corners, _, _ := r.Hex(c); corners != [6]float32{3, 6, 6, 3, 0, 0} {
+		t.Errorf("the ramp's corners stand at %v, want them as graded", corners)
+	}
+	vs, n, _ := r.outline(c)
+	own := vs[:n]
+	r.eachEdge(func(a, b vertex) {
+		if slices.Contains(own, a) || slices.Contains(own, b) {
+			return
+		}
+		if d := f32.Abs(r.heightAt(a) - r.heightAt(b)); d > 1+shapeTolerance {
+			t.Errorf("the corners at %v and %v differ by %v along their edge, more than 1",
+				r.hexPoint(a), r.hexPoint(b), d)
+		}
+	})
+	moved := 0
+	for i, h := range r.values {
+		if h != 0 && !slices.Contains(own, r.hexVertex(i)) {
+			moved++
+		}
+	}
+	if moved == 0 {
+		t.Error("the ground round the graded cell stayed level")
+	}
+}

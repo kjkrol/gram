@@ -141,8 +141,10 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 			side := c.Edges()
 			speed := edgeStep(c) * (0.25 + 0.75*side.Depth)
 			if side.Corner != control.NoCorner {
+				// a corner that turns scrolls nothing
+				turning := k.CornersTurn && (p == nil || p.read.CornersTurn())
 				sx, sy := side.Corner.Signs()
-				return Pan{Camera: c.Camera, Dx: sx * speed, Dy: sy * speed}, !k.CornersTurn
+				return Pan{Camera: c.Camera, Dx: sx * speed, Dy: sy * speed}, !turning
 			}
 			switch {
 			case side.Left:
@@ -163,7 +165,7 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 				"Turn the world in a corner: anticlockwise in the bottom-left and the top-right, "+
 					"clockwise in the other two",
 				func(c control.Context) (Turn, bool) {
-					if p != nil && !p.read.EdgesScroll() {
+					if p != nil && !p.read.CornersTurn() {
 						return Turn{}, false
 					}
 					// the corners of a diagonal turn alike: the top ones the other way round from

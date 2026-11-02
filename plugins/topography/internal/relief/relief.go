@@ -217,6 +217,16 @@ func (r *Relief) corners(c cell.ID) (vs [6]vertex, n int, ok bool) {
 	return vs, 4, true
 }
 
+// c's corners in the order of its grid's CellOutline: a square cell's bottom ones the other way
+// round than corners lists them
+func (r *Relief) outline(c cell.ID) (vs [6]vertex, n int, ok bool) {
+	vs, n, ok = r.corners(c)
+	if r.square {
+		vs[2], vs[3] = vs[3], vs[2]
+	}
+	return vs, n, ok
+}
+
 // Corners is the ground height at c's corners; zero off the board.
 func (r *Relief) Corners(c cell.ID) Corners {
 	if !r.square {

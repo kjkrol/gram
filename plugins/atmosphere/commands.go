@@ -31,8 +31,8 @@ type SetWeather struct{ Name string }
 // alone.
 type Clouds struct{ Look CloudLook }
 
-// GroundShade has the clouds shade the ground, or not (CloudShadows.Ground); FigureShade the
-// figures (CloudShadows.Figures). The settings screen alone.
+// GroundShade has the clouds shade the ground, or not (Settings.NoGroundShade); FigureShade the
+// figures (Settings.NoFigureShade). The settings screen alone.
 type GroundShade struct{ On bool }
 
 type FigureShade struct{ On bool }
@@ -73,19 +73,31 @@ func (AdaptClouds) Command() {}
 var _ command.Command = AdaptClouds{}
 
 // HighShade has the high clouds shade the ground too, as the game starts, or no longer: the low
-// ones alone do (Settings.HighShade). The settings screen alone.
+// ones alone do (Settings.NoHighShade). The settings screen alone.
 type HighShade struct{ On bool }
 
 // Settings is what the atmosphere lets the players adjust, saved with the game: the frozen
-// light and its hour, the clouds' look, the high clouds' shadows.
+// light and its hour, the clouds' look and whose shadows they cast.
 type Settings struct {
 	Frozen         bool
 	Hour           float32
 	Clouds         CloudLook
 	CloudReach     float32 // of the camera's sight the clouds are bodies out to; zero, all
 	CloudCoarse    int     // of the pixels each way the clouds are drawn at; zero, 4
-	HighShade      bool
 	AdaptiveClouds bool
+	// whose shadows the clouds do not cast (CloudShadows); zero, all of them fall
+	NoGroundShade bool
+	NoFigureShade bool
+	NoHighShade   bool
+}
+
+// whose shadows the clouds cast: the settings' negations turned over
+func (s Settings) shadows() CloudShadows {
+	return CloudShadows{
+		Ground:  !s.NoGroundShade,
+		Figures: !s.NoFigureShade,
+		High:    !s.NoHighShade,
+	}
 }
 
 // the coarse the clouds are drawn at, coarses' first for none
@@ -190,17 +202,17 @@ func (p *Plugin) Settings() []control.Setting {
 		},
 		control.Switch{
 			Label: "Clouds shade the ground",
-			Get:   func() bool { return p.shadows.Ground },
+			Get:   func() bool { return p.read.CloudShadows().Ground },
 			Set:   func(on bool) command.Command { return GroundShade{On: on} },
 		},
 		control.Switch{
 			Label: "Clouds shade the figures",
-			Get:   func() bool { return p.shadows.Figures },
+			Get:   func() bool { return p.read.CloudShadows().Figures },
 			Set:   func(on bool) command.Command { return FigureShade{On: on} },
 		},
 		control.Switch{
 			Label: "High clouds' shadows",
-			Get:   func() bool { return p.shadows.High },
+			Get:   func() bool { return p.read.CloudShadows().High },
 			Set:   func(on bool) command.Command { return HighShade{On: on} },
 		},
 	}
@@ -229,12 +241,20 @@ func (p *Plugin) carryOut() {
 	p.changes.Drain(func(command.Issued[ChangeWeather]) { p.climate.Change() })
 	p.sets.Drain(func(i command.Issued[SetWeather]) { p.climate.Set(i.Command.Name) })
 	p.reaches.Drain(func(i command.Issued[CloudReach]) { p.write.ReachClouds(i.Command.Share) })
-	p.coarses.Drain(func(i command.Issued[CloudsDrawnAt]) { p.write.DrawCloudsAt(i.Command.Coarse) })
+	p.coarses.Drain(func(i command.Issued[CloudsDrawnAt]) {
+		p.write.DrawCloudsAt(i.Command.Coarse)
+	})
 	p.adapts.Drain(func(i command.Issued[AdaptClouds]) { p.write.AdaptClouds(i.Command.On) })
 	p.clouds.Drain(func(i command.Issued[Clouds]) { p.write.ShowClouds(i.Command.Look) })
-	p.shades.Drain(func(i command.Issued[HighShade]) { p.shadeHigh(i.Command.On) })
-	p.groundShades.Drain(func(i command.Issued[GroundShade]) { p.shadows.Ground = i.Command.On })
-	p.figureShades.Drain(func(i command.Issued[FigureShade]) { p.shadows.Figures = i.Command.On })
+	p.shades.Drain(func(i command.Issued[HighShade]) {
+		p.Res.Settings.NoHighShade = !i.Command.On
+	})
+	p.groundShades.Drain(func(i command.Issued[GroundShade]) {
+		p.Res.Settings.NoGroundShade = !i.Command.On
+	})
+	p.figureShades.Drain(func(i command.Issued[FigureShade]) {
+		p.Res.Settings.NoFigureShade = !i.Command.On
+	})
 	p.downpours.Drain(func(command.Issued[Downpour]) { p.climate.Set(weather.Rain) })
 	p.Res.Settings.Frozen, p.Res.Settings.Hour = p.sky.Frozen(), p.sky.Hour()
 }

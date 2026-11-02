@@ -4,6 +4,7 @@
 //	mainStage := stage.New(MeadowStage).
 //		World(worldCfg).
 //		Plugins(a.makePlugins).
+//		Keeps(a.treasury).
 //		Players(a.definePlayer).
 //		Effects(a.defineEffects).
 //		Rules(a.defineRules).
@@ -20,7 +21,9 @@
 // [Start.World] makes the Stage's world from its world.Config each time the Stage is entered;
 // [AfterWorld.Plugins] hands it to a function of the game's that makes the plugins over it, and
 // the Stage uses them in the order made. [Start.Plugins] does the same for a Stage without a
-// world, its plugins adding themselves to a plugin.Made.
+// world, its plugins adding themselves to a plugin.Made. [AfterPlugins.Keeps] has the Stage keep
+// the game's own resources, structs of exported fields saved whole with the game: what the game
+// knows between ticks is an entity of the world or such a resource, never a field of its own.
 //
 // # The order
 //

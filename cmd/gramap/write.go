@@ -29,6 +29,13 @@ func (w *chart) text(recipePath, units string) []byte {
 		b.WriteString(", flat")
 	}
 	b.WriteString(".\n")
+	a := w.r.Area
+	fmt.Fprintf(&b, "# %d x %d cells of %s m", a.Cells[0], a.Cells[1], number(a.Cell))
+	if w.cols != a.Cells[0] || w.rows != a.Cells[1] {
+		fmt.Fprintf(&b, ", %d x %d with the sea", w.cols, w.rows)
+	}
+	fmt.Fprintf(&b, "; a world unit %s m.\n",
+		strconv.FormatFloat(math.Round(w.perUnit*1000)/1000, 'f', -1, 64))
 	if w.origin != [2]int{} {
 		fmt.Fprintf(&b, "%s[%d, %d].\n", originLine, w.origin[0], w.origin[1])
 	}
@@ -104,8 +111,8 @@ func (w *chart) standing() []standing {
 	taken := map[cell.ID]bool{}
 	for _, s := range w.roads.live() {
 		if !s.ford {
-			out = append(out, standing{kind: w.r.Kinds.Bridge, at: s.heads[0].at,
-				to: s.heads[len(s.heads)-1].at, bridge: true})
+			out = append(out, standing{kind: w.r.Kinds.Bridge, at: s.heads[0],
+				to: s.heads[len(s.heads)-1], bridge: true})
 			continue
 		}
 		for _, c := range s.cells {

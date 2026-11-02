@@ -49,12 +49,13 @@ type body struct {
 func bodyKind(ci, si int) string { return fmt.Sprintf("entity-%d-%d", ci, si) }
 
 type arena struct {
-	world          *world.Plugin
-	motion         *motion.Plugin
-	collision      *collision.Plugin
-	players        *players.Plugin
-	telemetry      *telemetry.Plugin
-	cameras        *cameras.Plugin
+	world     *world.Plugin
+	motion    *motion.Plugin
+	collision *collision.Plugin
+	cameras   *cameras.Plugin
+	telemetry *telemetry.Plugin
+	players   *players.Plugin
+
 	player         *players.Player
 	collisionStats collision.ContactStats
 }

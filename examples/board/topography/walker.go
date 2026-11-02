@@ -27,7 +27,7 @@ const (
 )
 
 // three quarters of a cell a second: a man walks 1.4 m/s
-var walkerSpeed = scale.Units(250)
+var walkerSpeed = scale.Units(75)
 
 // walker is a figure on foot: mortal, looking ahead, standing on the ground under gravity; an
 // ordered one sets out for its target from the map, a highland one climbs the steeper slopes.

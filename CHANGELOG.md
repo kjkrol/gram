@@ -1,5 +1,100 @@
 # Changelog
 
+## v0.17.0 — 2026-11-02
+
+**Roads laid with a tool, as bridges are** (2026-11-02, branch `feat/roads`)
+- Added: `plugins/roads`, a road in a player's hand on Shift+R (`roads.Tool`): a route marked
+  point by point (`Mark`), each leg found by the cheapest way the rules allow, or one piece laid
+  in a cell toward a neighbour (`Piece`), joining the roads ending there; the road in hand drawn
+  over the ground as its levelling will leave it, green where it may lie and yellow where not,
+  the cells levelled outlined, those a unit stands on marked; a window asking "Build the road?"
+  with what the road takes and what it costs (`Config.Tariff`, the game's own price of a
+  `site.Estimate`); `Build` planning the road anew (a plan the ground changed under shown again
+  and waiting for a second Build, one levelling under a unit waiting for the unit to go) and
+  building it at the next step: every cell graded on the `ground.Shaper` given (`WithShaper`),
+  then the ways laid, none on a bridge's span or a ford, which the road leads onto, a head's
+  leading onto the span, a road along a road standing laying and costing nothing anew; the setting
+  "Level the ground under roads" (`Levelling`, F10, saved); `Config.MaxStep` the topography's
+  `Shaping.MaxStep`; `Config.InPause` holding the game in the tactical pause while the road is
+  in hand. The game's rules decide: the moment `Estimated` of the plugin's own entity every tick
+  a plan stands, in the pause too (words `Levels`, `Blocks`, `Crosses`, `Decked`, `Longer`,
+  `Moves`), a rule of a role the plugin `Plays` answering `Refuse{Why}`; the moment `Built`
+  (`Levelled`, `Crossed`) as a road is laid; `Read.Built` the receipts for the game's own pass,
+  `Read.Estimate` the plan in a hand.
+- Added: `plugins/roads/site`, the rules of a road without a game: `Rules` are what the game
+  allows, zero allowing nothing (`Cut`, `Fill`, `Earth`, `Spread`, `Slope`, `Crossings`, `Decks`,
+  `Fords`, `Ends`; `Longest` a cap, 0 no limit; `Metre`, `Climb`, `Cubic` the planner's
+  weights); `Route` and the `Planner`, the cheapest way for a road on a square or a hex board by
+  hpastar's A*, a step priced by its length, its ground's `Price` and the slope left after the
+  permitted levelling, a graded cell that cannot be levelled passed straight only, a bend or a
+  diagonal step where both cells level to one height, no corner of water or of a road standing
+  cut, a deck entered along its links alone, a map maker's bridges as `Leaps`; `Plan`, a road's
+  links, its crossings and joins, the decks and fords it runs over and its levelling on either
+  grid (cmd/gramap's grading ported: the corners the neighbouring cells share classed together,
+  the ramps relaxed to the slope allowed within `Cut` and `Fill`, the ground round the road
+  following within the shaping's step no further than `Spread` cells, the corners that may not
+  move holding), its `Estimate` (cells, links, ways, the corners moved, the earth cut and
+  filled, the cells graded and blocked) or a `Refusal` with its cell and why.
+- Added: `stage.Keeps`, the Stage keeping the game's own resources (structs of exported fields,
+  saved whole and loaded with the game; `plugin.KeepOf` underneath), the second of the two ways a
+  game holds its state beside the world's entities.
+- Added: `cameras.Config.Zones` (`ZonesCfg`), how the scroll zones start: the edges still, the
+  corners still, the zones shown, their opacity and their speed at the very edge; the setting
+  `StillCorners`, its command `CornerTurn{On}` and the switch "Turn in the corners" on the
+  settings screen where the camera turns.
+- Added: `topography.Write.Grade`, `ground.Shaper.Grade`: a cell's corners put at the heights
+  asked, in `CellOutline`'s order, on square and hex boards (`relief.SetHex`), the ground round
+  following within `Shaping.MaxStep` and the cell's own corners never moved by it; nothing moves
+  where a road would break.
+- Added: `examples/board/roads`, a valley with two villages either side of a river, a bridge and
+  a ford: roads laid with Shift+R, priced and paid from a treasury kept with the game
+  (`stage.Keeps`), refused by the game's rules
+  while the treasury is empty or the ground is frozen (I brings the winter), the roadworks set
+  going for half a minute by a road levelled.
+- Changed: `cmd/gramap` plans and levels Madeira's roads by `roads/site`: its routes by the
+  `Planner`, up a ladder of allowances from none to the recipe's `route: {cut, fill}`, its
+  bridges over water and valleys as `Leaps` of its own (`bridges/site` still planning each), the
+  whole network levelled by `site.Plan` after every leg, a leg kept only where the network still
+  levels and every bridge stands, else planned anew with the refused ground dearer and at last
+  left out and named; the recipe's `roads:` carry `site.Rules` in metres (`cut`, `fill`, `earth`,
+  `step`, `spread`, `slope`, `fords`, `metre`, `cubic`, `climb`, `route`); a leg is searched in
+  a corridor round it (a way from its start through a cell to its end half as long again as the
+  leg and 16 cells, its bridges landing there too), 24 tries a rung, a bridge weighed once an
+  attempt; the roads line is printed as the map is made.
+- Changed: Madeira in cells of 100 m. The recipe lays the whole island in 640×320 cells
+  (192×96 of 333 m before), its figures 15 times bigger than life (50 before), a world unit
+  3.125 m; the sand's and the forest's patches are as wide in metres whatever a cell's size; a
+  map's header says its cells, their size and a world unit's metres. Both demos' maps are made
+  anew by it, the units where they stood and the lantern on a bridge's head: board/topography
+  with `Scale{Metres: 100 / 32, Figures: 15}`, its walkers at 75 m/s (three quarters of a cell a
+  second, as before), its shaping, bridges and textures keeping their look on the screen, bridges
+  of up to 4 spans; board/flat alike. In relief: 1089 road cells, 21 bridges and 6 legs left out
+  (Porto Moniz–Seixal, Seixal–São Vicente, São Vicente–Ponta Delgada, Faial–Machico, Ribeira
+  Brava–Encumeada, Poiso–Faial), in 189 s; flat: 1317, 21 and none, in 2 s.
+- Fixed: a unit cutting a corner of a slantwise step stood for good where the straight step out
+  of that corner was refused by its mobility (pace 0 counts no stall): navigation leads it
+  through the corner as within that cell, on the level, under either spacing.
+- Fixed: a save holds the ground graded in a step of the simulation (a road built, a bridge's
+  heads) or shaped in the tactical pause: the topography writes its heights onto their entities
+  as each tick ends, not at the next tick's start.
+- Fixed: the clouds' shadows on the ground and on the figures, switched on the settings screen,
+  are saved with the game (`atmosphere.Settings.NoGroundShade`, `NoFigureShade`).
+- Fixed: a road or a bridge confirmed in the tactical pause, and a road's receipt the game has
+  not read yet, are saved with the game (`roads.Resources.Orders` and `Receipts`,
+  `bridges.Resources.Orders`): a save in the pause no longer loses them, nor a save right after
+  a build its payment.
+- Changed: the demos' arenas hold their plugins in the order made and, a blank line apart, the
+  players' handles, the game's resources and the counters; game state is an entity or a resource,
+  never a field of the arena (CLAUDE.md).
+- Changed: the corners' turning stands apart from the edges' scrolling: `StillEdges` stills the
+  scrolling alone, and the corners turn where `Config.Turn` unless `StillCorners`; the
+  navigation demos' corners scroll and turn nothing.
+- Breaking: `ground.Shaper` has `Grade(c, corners) bool` beside `Flatten`.
+- Breaking: `atmosphere.Settings.HighShade` gives way to `NoHighShade`, as `NoGroundShade` and
+  `NoFigureShade`: zero is the start, every shadow falling; a save with the high clouds' shadows
+  switched off loads with them on.
+- Breaking: cmd/gramap's recipe keys `turn`, `grade`, `reuse`, `deep` and `bank` are gone.
+
 ## v0.16.0 — 2026-10-31
 
 **A hex road by its cell's corners, as a square one** (2026-10-31, branch `fix/hex-roads`)

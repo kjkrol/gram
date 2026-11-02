@@ -42,14 +42,15 @@ var mapFile embed.FS
 type arena struct {
 	world     *world.Plugin
 	motion    *motion.Plugin
-	board     *board.Plugin
 	collision *collision.Plugin
 	gravity   *gravity.Plugin
+	board     *board.Plugin
 	selection *selection.Plugin
 	driving   *driving.Plugin
 	cameras   *cameras.Plugin
 	players   *players.Plugin
-	player    *players.Player
+
+	player *players.Player
 }
 
 func main() {

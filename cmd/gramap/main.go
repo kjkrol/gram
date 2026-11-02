@@ -8,8 +8,14 @@
 // https://github.com/tilezen/joerd/blob/master/docs/attribution.md), fetched once into a cache.
 // The recipe says where, what the ground is, what makes a river and the roads as chains of named
 // places; the map gets its relief (none with -flat), its kinds, its rivers, its roads laid as
-// Transport Tycoon lays them and its bridges and fords. A units: section in the file made before
-// stays as it was. The map is laid on a board before it is written: what a board refuses, gramap
+// Transport Tycoon lays them and its bridges and fords. The roads are the roads tool's
+// (plugins/roads/site): routed from place to place by its planner, which gramap lets bridge water
+// and valleys, and levelled all together, as the recipe's roads: section allows (cut, fill,
+// earth, step, spread, slope, fords) and prices (metre, cubic, climb, rock, bridge). A leg is
+// routed forgiving its steps none of the cut and fill first, then a quarter, a half and all of
+// route: {cut, fill}, each time planned anew where the levelling fails, the ground there dearer;
+// a leg that cannot be laid is left out and named. A units: section in the file made before stays
+// as it was. The map is laid on a board before it is written: what a board refuses, gramap
 // refuses.
 package main
 
@@ -72,11 +78,11 @@ func run(recipePath, out, cache string, flat bool) error {
 		return err
 	}
 	for _, leg := range c.roads.skipped {
-		fmt.Fprintf(os.Stderr, "gramap: no road from %s to %s: the ground would be cut or filled "+
-			"deeper than %v m (roads.deep)\n", leg[0], leg[1], r.Roads.Deep)
+		fmt.Fprintf(os.Stderr, "gramap: no road from %s to %s: %v\n", leg.from, leg.to, leg.why)
 	}
 	fmt.Printf("%d x %d cells, the recipe's area from [%d, %d]\n", c.cols, c.rows, c.origin[0],
 		c.origin[1])
+	fmt.Println(c.roads.summary())
 	names := make([]string, 0, len(c.roads.places))
 	for name := range c.roads.places {
 		names = append(names, name)

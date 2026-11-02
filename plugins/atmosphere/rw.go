@@ -51,10 +51,9 @@ func (r *Read) Heavens() celestial.Heavens { return r.p.sky.Heavens() }
 // Air is the weather as the last step of the simulation left it, its clouds shading as
 // CloudShadows say.
 func (r *Read) Air() air.Weather {
-	p := r.p
-	w := p.climate.Air()
-	w.HighShade, w.ShadeGround, w.ShadeFigures = p.shadows.High, p.shadows.Ground,
-		p.shadows.Figures
+	w := r.p.climate.Air()
+	c := r.p.Res.Settings.shadows()
+	w.HighShade, w.ShadeGround, w.ShadeFigures = c.High, c.Ground, c.Figures
 	return w
 }
 
@@ -62,8 +61,8 @@ func (r *Read) Air() air.Weather {
 // was.
 func (r *Read) DrawnAir() air.Weather { return r.p.drawnAir() }
 
-// CloudShadows is whose shadows the clouds cast.
-func (r *Read) CloudShadows() CloudShadows { return r.p.shadows }
+// CloudShadows is whose shadows the clouds cast (Settings).
+func (r *Read) CloudShadows() CloudShadows { return r.p.Res.Settings.shadows() }
 
 // ShownClouds is how the clouds are drawn.
 func (r *Read) ShownClouds() CloudLook { return r.p.Res.Settings.Clouds }

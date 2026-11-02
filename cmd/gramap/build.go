@@ -152,16 +152,6 @@ func (w *chart) cornersOf(c cell.ID) [4]int {
 	return [4]int{k, k + 1, k + w.cols + 1, k + w.cols + 2}
 }
 
-func (w *chart) rim(c cell.ID, i int) []int {
-	var buf [4]geom.Vec
-	outline := w.grid.CellOutline(c, buf[:0])
-	a, b := grid.Rim(w.grid, c, i)
-	if a == b {
-		return []int{w.corner(outline[a])}
-	}
-	return []int{w.corner(outline[a]), w.corner(outline[b])}
-}
-
 func (w *chart) corner(p geom.Vec) int {
 	return int(math.Round(float64(p.Y)/w.size))*(w.cols+1) + int(math.Round(float64(p.X)/w.size))
 }
@@ -228,6 +218,12 @@ func (w *chart) drain() error {
 
 func (w *chart) wet(c cell.ID) bool { return w.rivers.Courses[c] != water.Dry }
 
+// metres over which the noise laying out the sand and the forest changes, whatever a cell's size
+const (
+	sandPatch   = 2000
+	forestPatch = 1700
+)
+
 func (w *chart) soil() {
 	g := w.r.Ground
 	inland := w.fromSea()
@@ -252,14 +248,15 @@ func (w *chart) soil() {
 			}
 			steep /= w.r.Area.Cell
 			w.soils[y*w.cols+x] = w.r.Kinds.Earth
-			fx, fy := float64(x-w.origin[0])+0.5, float64(y-w.origin[1])+0.5
+			mx := (float64(x-w.origin[0]) + 0.5) * w.r.Area.Cell
+			my := (float64(y-w.origin[1]) + 0.5) * w.r.Area.Cell
 			switch {
 			case steep >= g.Rock.Slope || top >= g.Rock.Above:
 				w.soils[y*w.cols+x] = w.r.Kinds.Rock
 			case float64(inland[c]) <= g.Sand.Within && top < g.Sand.Below:
-				sands = append(sands, candidate{c, fbm(fx/6+50, fy/6+20)})
+				sands = append(sands, candidate{c, fbm(mx/sandPatch+50, my/sandPatch+20)})
 			case w.level(c) >= g.Forest.From && w.level(c) <= g.Forest.To:
-				forests = append(forests, candidate{c, fbm(fx/5+31, fy/5+17)})
+				forests = append(forests, candidate{c, fbm(mx/forestPatch+31, my/forestPatch+17)})
 			}
 		}
 	}

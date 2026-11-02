@@ -34,14 +34,14 @@ import (
 
 const (
 	TPS          = 60
-	GridWidth    = 204
-	GridHeight   = 106
+	GridWidth    = 640
+	GridHeight   = 320
 	CellSize     = 50
 	WorldWidth   = GridWidth * CellSize
 	WorldHeight  = GridHeight * CellSize
 	ScreenWidth  = 1024
 	ScreenHeight = 768
-	MaxEntCount  = 128
+	MaxEntCount  = 256
 )
 
 //go:embed map.yaml
@@ -50,20 +50,21 @@ var mapFile embed.FS
 type arena struct {
 	world      *world.Plugin
 	motion     *motion.Plugin
+	collision  *collision.Plugin
+	light      *light.Plugin
 	board      *board.Plugin
 	bridges    *bridges.Plugin
-	nav        *navigation.Plugin
-	driving    *driving.Plugin
-	collision  *collision.Plugin
 	selection  *selection.Plugin
-	players    *players.Plugin
-	telemetry  *telemetry.Plugin
-	cameras    *cameras.Plugin
-	minimap    *minimap.Plugin
-	light      *light.Plugin
-	player     *players.Player
+	driving    *driving.Plugin
+	nav        *navigation.Plugin
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
+	cameras    *cameras.Plugin
+	minimap    *minimap.Plugin
+	telemetry  *telemetry.Plugin
+	players    *players.Plugin
+
+	player *players.Player
 }
 
 func main() {

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"container/heap"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -13,64 +13,99 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/network"
 	"github.com/kjkrol/gram/plugins/board/water"
-	"github.com/kjkrol/gram/plugins/bridges/site"
+	bridgesite "github.com/kjkrol/gram/plugins/bridges/site"
+	roadsite "github.com/kjkrol/gram/plugins/roads/site"
 )
 
 type roads struct {
-	w       *chart
-	cfg     roadsCfg
-	net     *network.Network
-	laid    []road
-	places  map[string]cell.ID
-	spans   []*span
-	spanOf  map[cell.ID]*span
-	wetK    []bool    // the corners of running water: its beds, never graded
-	ground  []float64 // the corners' heights before grading
-	planned map[int]float64
-	under   map[int]float64 // the most a road rises to under a bridge, its heads' corners aside
-	skipped [][2]string
+	w        *chart
+	cfg      roadsCfg
+	rules    roadsite.Rules
+	planners []*roadsite.Planner // a leg's, tightest first
+	net      *network.Network
+	laid     []road
+	places   map[string]cell.ID
+	spans    []*span
+	spanOf   map[cell.ID]*span
+	wetK     []bool // the corners of running water: its beds, never moved
+	marks    map[cell.ID]mark
+	barred   map[cell.ID]bool
+	banned   map[[2]cell.ID]bool
+	dear     map[cell.ID]float32     // how many times dearer to the planner, where levelling failed
+	offered  map[[2]cell.ID]bridging // to an attempt's searches, weighed anew once a cell is barred
+	// the leg under search and the corridor round it a planner keeps to, a way from its start
+	// through a cell to its end reach long at most (0: none): a failed try searched all 205k cells
+	leg     [2]cell.ID
+	reach   float64
+	graded  roadsite.Estimate // the levelling of every road laid
+	skipped []skip
+	route   []cell.ID
+	outline []geom.Vec
 }
 
+// a leg of a route, from one place to the next
 type road struct {
 	cells []cell.ID
-	over  []bool
-	at    []float64 // metres
+	over  []bool    // a bridge's span, or a ford led onto
+	at    []float64 // metres: the ground's middle, a bridge's deck
 }
 
 type span struct {
 	cells  []cell.ID
 	way    int
 	ford   bool
-	edges  [][]int // the corners the road meets a ford at
-	heads  []head
+	heads  []cell.ID
 	deck   float64 // metres
 	merged bool
 }
 
-type head struct {
-	at  cell.ID
-	way int // from it into the bridge
-}
-
-// none is the way into the cell a road begins on, and out of the one it ends on
-const none = -1
-
-// metres
-const planSlack = 0.5
-
-// metres: heights this near are one to the search
-const heightBand = 20.0
-
 type mark struct {
 	paved   bool
 	ways    cell.Links
-	at      float64
-	bridged bool
+	bridged bool // a span, or a ford
+	ford    bool
 	axis    int
 	deck    float64
 	head    bool
 	headWay int
 }
+
+// a bridge offered to the search: its way and spans, its deck in metres and its price on top of
+// the road's length over it
+type bridging struct {
+	way, n int
+	deck   float64
+	cost   float32
+	ok     bool
+}
+
+type skip struct {
+	from, to string
+	why      error
+}
+
+// a corner and its height, metres
+type height struct {
+	k int
+	h float64
+}
+
+// none is the way into the cell a road begins on, and out of the one it ends on
+const none = -1
+
+// how often a leg is planned anew under one route allowance, a cell made dearer, barred or a
+// bridge banned each time
+const tries = 24
+
+// the shares of the route's cut and fill a leg is planned with in turn: none of it, so a road
+// climbs as it may lie, then more where none leads on
+var rungs = [...]float64{0, 0.25, 0.5, 1}
+
+// how many times dearer to the planner a cell gets where the levelling cannot lay the road
+const dearer = 3
+
+// metres a deck keeps further off the ground than the rules ask, so the map's centimetres keep it
+const margin = 0.05
 
 // metres: the deck's thickness and a metre to spare
 func (r *roads) clearance() float64 { return r.cfg.Thickness + 1 }
@@ -81,7 +116,14 @@ func (r *roads) underpass() float64 { return max(r.cfg.Figure, 2) + r.clearance(
 func newRoads(w *chart) *roads {
 	r := &roads{w: w, cfg: w.r.Roads, net: network.New(w.grid), places: map[string]cell.ID{},
 		spanOf: map[cell.ID]*span{}, wetK: make([]bool, len(w.corners)),
-		planned: map[int]float64{}, under: map[int]float64{}}
+		marks: map[cell.ID]mark{}, barred: map[cell.ID]bool{}, banned: map[[2]cell.ID]bool{},
+		dear: map[cell.ID]float32{}, offered: map[[2]cell.ID]bridging{}}
+	r.rules = r.cfg.rules(w.perUnit, w.grid.CellCount())
+	for _, share := range rungs {
+		rules := r.cfg.routing(w.perUnit, w.grid.CellCount(), share)
+		r.planners = append(r.planners, roadsite.NewPlanner(plannerGround{chartGround{r: r}}, rules,
+			true, !w.flat, r.leaps))
+	}
 	w.grid.EachCell(func(c cell.ID) {
 		if w.wet(c) {
 			for _, k := range w.cornersOf(c) {
@@ -105,43 +147,28 @@ func (r *roads) lay() error {
 		}
 		r.places[name] = c
 	}
-	laid := map[cell.ID]mark{}
-	keep := func(rd road) {
-		if len(rd.cells) > 0 {
+	for _, route := range r.cfg.Routes {
+		for i := 1; i < len(route); i++ {
+			rd, err := r.once(r.places[route[i-1]], r.places[route[i]])
+			if err != nil {
+				r.skipped = append(r.skipped, skip{route[i-1], route[i], err})
+				continue
+			}
 			r.laid = append(r.laid, rd)
 		}
 	}
-	for _, route := range r.cfg.Routes {
-		var rd road
-		for i := 1; i < len(route); i++ {
-			from := r.places[route[i-1]]
-			h := r.w.level(from)
-			if _, ok := laid[from]; ok && !r.w.flat {
-				h = r.height(r.w.cornersOf(from)[0])
-			}
-			leg, ok := r.once(from, r.places[route[i]], h, laid)
-			if !ok {
-				r.skipped = append(r.skipped, [2]string{route[i-1], route[i]})
-				keep(rd)
-				rd = road{}
-				continue
-			}
-			r.plan(leg, laid)
-			if len(rd.cells) > 0 {
-				leg.cells, leg.over, leg.at = leg.cells[1:], leg.over[1:], leg.at[1:]
-			}
-			rd.cells, rd.over = append(rd.cells, leg.cells...), append(rd.over, leg.over...)
-			rd.at = append(rd.at, leg.at...)
-		}
-		keep(rd)
-	}
+	r.net = r.layout(r.laid).net
 	for _, rd := range r.laid {
-		r.crossings(rd)
+		for _, b := range crossed(rd) {
+			spans := rd.cells[b[0]+1 : b[1]]
+			r.add(&span{cells: slices.Clone(spans), way: r.wayOf(rd.cells[b[0]], spans[0]),
+				heads: []cell.ID{rd.cells[b[0]], rd.cells[b[1]]}})
+		}
 	}
 	if r.w.flat {
 		return nil
 	}
-	return r.grade()
+	return r.settle()
 }
 
 func (r *roads) roadable(c cell.ID) bool {
@@ -169,6 +196,17 @@ func (r *roads) crossing(c cell.ID) bool {
 	return false
 }
 
+// ford reports whether a road may cross c through its ford, leading onto it
+func (r *roads) ford(c cell.ID) bool {
+	return r.cfg.Fords && r.w.rivers.Courses[c] == water.Ford
+}
+
+// within reports whether c lies in the corridor round the leg under search
+func (r *roads) within(c cell.ID) bool {
+	g := r.w.grid
+	return r.reach == 0 || g.Distance(r.leg[0], c)+g.Distance(c, r.leg[1]) <= r.reach
+}
+
 func (r *roads) nearest(at [2]float64) (cell.ID, bool) {
 	a := r.w.r.Area
 	x, y := metresOf(a.Centre, at[0], at[1])
@@ -183,7 +221,7 @@ func (r *roads) nearest(at [2]float64) (cell.ID, bool) {
 		for _, k := range r.w.cornersOf(c) {
 			lo, hi = min(lo, r.w.corners[k]), max(hi, r.w.corners[k])
 		}
-		if !r.w.flat && (hi-lo)/2 > r.cfg.Deep {
+		if !r.w.flat && (hi-lo)/2 > min(r.cfg.Cut, r.cfg.Fill) {
 			return
 		}
 		cx, cy := r.w.xy(c)
@@ -201,127 +239,631 @@ func (r *roads) nearest(at [2]float64) (cell.ID, bool) {
 	return best, found
 }
 
-func (r *roads) find(from, to cell.ID, h0 float64, laid map[cell.ID]mark,
-	barred map[cell.ID]bool, banned map[[2]cell.ID]bool) (road, bool) {
-	type state struct {
-		c    cell.ID
-		way  int8
-		band int16 // the height it comes at, in heightBands
-		head bool  // landed on from a bridge
+// once lays the leg from one place to the next, planned under each route allowance in turn
+func (r *roads) once(from, to cell.ID) (road, error) {
+	r.leg, r.reach = [2]cell.ID{from, to}, 1.5*r.w.grid.Distance(from, to)+16
+	defer func() { r.reach = 0 }()
+	var why error
+	for _, p := range r.planners {
+		rd, err := r.attempt(p, from, to)
+		if err == nil {
+			return rd, nil
+		}
+		why = err
 	}
-	band := func(h float64) int16 { return int16(math.Round(h / heightBand)) }
-	start := state{from, none, band(h0), false}
-	dist := map[state]float64{start: 0}
-	height := map[state]float64{start: h0}
-	prev := map[state]state{}
-	spans := map[state]int{}
-	type leapKey struct {
-		c      cell.ID
-		way, n int
-		centi  int64
-	}
-	type leapCost struct {
-		c  float64
-		ok bool
-	}
-	leaps := map[leapKey]leapCost{}
-	var q queue
-	at := map[int]state{}
-	pushed := 0
-	push := func(s state, d float64) {
-		at[pushed] = s
-		heap.Push(&q, entry{id: pushed, at: d})
-		pushed++
-	}
-	push(start, 0)
-	for q.Len() > 0 {
-		e := heap.Pop(&q).(entry)
-		s := at[e.id]
-		delete(at, e.id)
-		if e.at > dist[s] {
+	return road{}, why
+}
+
+// attempt lays the leg as p finds it, planned anew with a cell made dearer, barred or a bridge
+// banned while it crosses itself or a bridge, or while the roads laid cannot all be levelled with
+// it
+func (r *roads) attempt(p *roadsite.Planner, from, to cell.ID) (road, error) {
+	clear(r.barred)
+	clear(r.banned)
+	clear(r.dear)
+	clear(r.offered)
+	why := errors.New("no way but across itself or a bridge")
+	for range tries {
+		cells, err := p.Route(from, to, r.route[:0])
+		if err != nil {
+			return road{}, err
+		}
+		r.route = cells
+		rd := r.unfold(cells)
+		if r.clash(rd, from, to) {
+			clear(r.offered)
 			continue
 		}
-		if s.c == to {
-			var rd road
-			for p := s; ; p = prev[p] {
-				rd.cells, rd.over = append(rd.cells, p.c), append(rd.over, false)
-				rd.at = append(rd.at, height[p])
-				if p.way == none {
-					break
-				}
-				back := r.w.grid.Opposite(int(p.way))
-				c := p.c
-				for range spans[p] {
-					c, _ = r.w.grid.Toward(c, back)
-					rd.cells, rd.over = append(rd.cells, c), append(rd.over, true)
-					rd.at = append(rd.at, height[p])
-				}
-			}
-			slices.Reverse(rd.cells)
-			slices.Reverse(rd.over)
-			slices.Reverse(rd.at)
-			return rd, true
+		if why = r.trial(rd); why == nil {
+			return rd, nil
 		}
-		h := height[s]
-		under := s.way != none && laid[s.c].bridged
-		try := func(n state, c, at, leave float64, over int) {
-			if math.IsInf(c, 1) || math.IsInf(leave, 1) {
-				return
-			}
-			c += e.at + leave
-			n.band = band(at)
-			if d, seen := dist[n]; !seen || c < d {
-				dist[n], prev[n], height[n], spans[n] = c, s, at, over
-				push(n, c)
+		if !r.away(rd, why, from, to) {
+			break
+		}
+	}
+	return road{}, why
+}
+
+// unfold is the road the planner's cells lay: a bridge's spans put back between its heads, a ford
+// led onto
+func (r *roads) unfold(cells []cell.ID) road {
+	var rd road
+	for i, c := range cells {
+		if i > 0 {
+			if _, near := grid.Way(r.w.grid, cells[i-1], c); !near {
+				var b bridging
+				way, n, ok := r.spanning(cells[i-1], c)
+				if ok {
+					b = r.bridge(cells[i-1], c, way, n)
+				}
+				if !b.ok {
+					x, y := r.w.xy(cells[i-1])
+					panic(fmt.Sprintf("gramap: the road leaps from [%d, %d] by no bridge", x, y))
+				}
+				s := cells[i-1]
+				for range n {
+					s = r.must(r.leap(s, way, 1))
+					rd.cells = append(rd.cells, s)
+					rd.over = append(rd.over, true)
+					rd.at = append(rd.at, b.deck)
+				}
 			}
 		}
-		for way := range int8(r.w.grid.Directions()) {
-			if under && way != s.way {
-				continue // a road under a bridge runs straight across it
-			}
-			b, ok := r.w.grid.Toward(s.c, int(way))
-			if !ok || barred[b] {
-				continue
-			}
-			leave, next := 0.0, h
-			if !s.head {
-				leave, next = r.earthwork(s.c, int(s.way), int(way), h)
-			}
-			if r.paveable(s.c, b, int(way), next, laid) {
-				c := r.travel(s.c, b, int(s.way), int(way), h, next, laid)
-				if b == to {
-					end, _ := r.earthwork(b, int(way), none, next)
-					c += end
-				}
-				try(state{b, way, 0, false}, c, next, leave, 0)
-			}
-			if s.head || r.w.flat && r.w.grid.Corner(int(way)) {
-				continue // no bridge begins where one ends; a flat map's run along a side
-			}
-			for n := 1; n <= r.longest(); n++ {
-				head, ok := r.leap(s.c, int(way), n+1)
-				if !ok || barred[head] {
-					break
-				}
-				if banned[[2]cell.ID{s.c, head}] {
-					continue
-				}
-				key := leapKey{s.c, int(way), n, int64(math.Round(h * 100))}
-				lc, seen := leaps[key]
-				if !seen {
-					lc.c, lc.ok = r.bridge(s.c, head, int(way), n, h, laid)
-					leaps[key] = lc
-				}
-				if !lc.ok {
-					continue
-				}
-				c := lc.c
-				c += r.flatten(head, none, h)
-				try(state{head, way, 0, true}, c, h, r.flatten(s.c, int(s.way), h), n)
+		rd.cells = append(rd.cells, c)
+		rd.over = append(rd.over, r.ford(c))
+		rd.at = append(rd.at, r.w.level(c))
+	}
+	return rd
+}
+
+// spanning is the way a bridge runs from the head a to the head b and the cells it spans; false
+// where b lies on no line from a a bridge may span
+func (r *roads) spanning(a, b cell.ID) (way, n int, ok bool) {
+	for way := range r.w.grid.Directions() {
+		for n := 1; n <= r.longest(); n++ {
+			if head, on := r.leap(a, way, n+1); on && head == b {
+				return way, n, true
 			}
 		}
 	}
-	return road{}, false
+	return 0, 0, false
+}
+
+// crossed are the stretches rd crosses over, a bridge's spans or a ford, by the heads either side
+func crossed(rd road) [][2]int {
+	var out [][2]int
+	for i := 1; i < len(rd.cells); i++ {
+		if rd.over[i] && !rd.over[i-1] {
+			j := i
+			for j < len(rd.cells) && rd.over[j] {
+				j++
+			}
+			out = append(out, [2]int{i - 1, j})
+		}
+	}
+	return out
+}
+
+// clash bars a cell or bans a bridge where rd crosses a bridge or itself as no road may: under a
+// bridge only straight through, square across it and low enough, never on its heads; through a
+// ford only straight; no bridge beginning where one ends. It reports whether it did.
+func (r *roads) clash(rd road, from, to cell.ID) bool {
+	again := false
+	bar := func(c cell.ID) {
+		if c != from && c != to && !r.barred[c] {
+			r.barred[c], again = true, true
+		}
+	}
+	ban := func(b [2]int) {
+		key := [2]cell.ID{rd.cells[b[0]], rd.cells[b[1]]}
+		if !r.banned[key] {
+			r.banned[key], again = true, true
+		}
+	}
+	runs := crossed(rd)
+	spanned := map[cell.ID][2]int{}
+	for i, b := range runs {
+		if i > 0 && runs[i-1][1] == b[0] {
+			ban(b)
+		}
+		in := r.wayOf(rd.cells[b[0]], rd.cells[b[0]+1])
+		out := r.wayOf(rd.cells[b[1]-1], rd.cells[b[1]])
+		for _, s := range rd.cells[b[0]+1 : b[1]] {
+			if in != out {
+				bar(s)
+			}
+			if _, twice := spanned[s]; twice {
+				ban(b)
+			}
+			spanned[s] = b
+		}
+	}
+	for _, b := range runs {
+		if r.forded(rd.cells[b[0]+1 : b[1]]) {
+			continue
+		}
+		for _, h := range [2][2]int{{b[0], b[0] + 1}, {b[1], b[1] - 1}} {
+			for _, f := range r.flanks(rd.cells[h[0]], rd.cells[h[1]]) {
+				if i := slices.Index(rd.cells, f); i >= 0 && !rd.over[i] {
+					bar(f)
+					if f == from || f == to {
+						ban(b)
+					}
+				}
+			}
+		}
+	}
+	for i, c := range rd.cells {
+		if rd.over[i] {
+			continue
+		}
+		if b, ok := spanned[c]; ok && !r.under(rd, i, r.wayOf(rd.cells[b[0]], rd.cells[b[0]+1]),
+			rd.at[b[0]+1]) {
+			bar(c)
+			if c == from || c == to {
+				ban(b)
+			}
+		}
+		if m := r.marks[c]; m.bridged && !m.ford && !r.under(rd, i, m.axis, m.deck) {
+			bar(c)
+		}
+		if r.flanksLaid(c) {
+			bar(c)
+		}
+	}
+	return again
+}
+
+// flanks are the cells beside a bridge's head h that its span s, laid across a corner, touches
+// too: a road on one lies on the head's corners at the deck and the span's on the ground
+func (r *roads) flanks(h, s cell.ID) []cell.ID {
+	g := r.w.grid
+	fa, fb, ok := g.Flanks(r.wayOf(h, s))
+	if !ok {
+		return nil
+	}
+	var out []cell.ID
+	for _, f := range [2]int{fa, fb} {
+		if c, ok := g.Toward(h, f); ok {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// flanksLaid reports whether c flanks the head of a bridge laid across a corner
+func (r *roads) flanksLaid(c cell.ID) bool {
+	g := r.w.grid
+	for i := range g.Directions() {
+		h, ok := g.Toward(c, i)
+		m := r.marks[h]
+		if !ok || !m.head || !g.Corner(m.headWay) {
+			continue
+		}
+		if s, ok := g.Toward(h, m.headWay); ok && r.marks[s].bridged && !r.marks[s].ford &&
+			slices.Contains(r.flanks(h, s), c) {
+			return true
+		}
+	}
+	return false
+}
+
+// under reports whether the road may pass at rd.cells[i] under a bridge running way, its deck at
+// deck: straight through, square across the bridge and low enough, no bridge's head itself
+func (r *roads) under(rd road, i, way int, deck float64) bool {
+	if r.w.flat || i == 0 || i == len(rd.cells)-1 || rd.over[i-1] || rd.over[i+1] {
+		return false
+	}
+	in := r.wayOf(rd.cells[i-1], rd.cells[i])
+	if in != r.wayOf(rd.cells[i], rd.cells[i+1]) || !r.across(in, way) {
+		return false
+	}
+	for _, k := range r.w.cornersOf(rd.cells[i]) {
+		if r.w.corners[k]+r.underpass() > deck {
+			return false
+		}
+	}
+	return true
+}
+
+// away bans rd's bridge err refuses, else makes the cell it refuses and those round it dearer to
+// the planner, so the next way keeps off them where another runs and through them where none
+// does; false where err names no cell
+func (r *roads) away(rd road, err error, from, to cell.ID) bool {
+	at, ok := refusedAt(err)
+	if !ok {
+		return false
+	}
+	for _, b := range crossed(rd) {
+		key := [2]cell.ID{rd.cells[b[0]], rd.cells[b[1]]}
+		if !r.forded(rd.cells[b[0]+1:b[1]]) && !r.banned[key] &&
+			slices.Contains(rd.cells[b[0]:b[1]+1], at) {
+			r.banned[key] = true
+			return true
+		}
+	}
+	// a road standing is no dearer to the planner: the new road's cells round it are
+	reach := 1
+	if r.marks[at].paved {
+		reach = 2
+	}
+	ax, ay := r.w.xy(at)
+	for y := max(ay-reach, 0); y <= min(ay+reach, r.w.rows-1); y++ {
+		for x := max(ax-reach, 0); x <= min(ax+reach, r.w.cols-1); x++ {
+			if c := r.w.cell(x, y); c != from && c != to {
+				r.dear[c] = max(r.dear[c], 1) * dearer
+			}
+		}
+	}
+	return true
+}
+
+func refusedAt(err error) (cell.ID, bool) {
+	if ref, ok := errors.AsType[*roadsite.Refusal](err); ok {
+		return ref.At, true
+	}
+	if ref, ok := errors.AsType[*bridgesite.Refusal](err); ok {
+		return ref.At, true
+	}
+	return 0, false
+}
+
+// trial lays rd beside the roads laid if they can all be levelled with it and every bridge still
+// stands: rd's bridges' heads flat at their decks, the levelling kept for the end
+func (r *roads) trial(rd road) error {
+	l := r.layout(append(r.laid[:len(r.laid):len(r.laid)], rd))
+	flat := r.flatten(rd)
+	est, err := r.levels(&l)
+	if err != nil {
+		r.undo(flat)
+		return err
+	}
+	r.graded = est
+	r.mark(rd)
+	return nil
+}
+
+// levels is how the roads of l are levelled, or why they cannot be, or why a bridge would not
+// stand on the ground they leave; the ground stays as it was
+func (r *roads) levels(l *layout) (roadsite.Estimate, error) {
+	var est roadsite.Estimate
+	if !r.w.flat {
+		var err error
+		est, err = roadsite.Plan(chartGround{r: r, l: l}, r.rules, l.cells, r.w.r.Kinds.Road,
+			float32(r.cfg.Width), true, true, float32(r.cfg.Step/r.w.perUnit), nil)
+		if err != nil {
+			return est, err
+		}
+	}
+	moved := r.grade(est.Corners)
+	err := r.hold(l)
+	r.undo(moved)
+	return est, err
+}
+
+// hold is why a board would not hold the roads and bridges of l on the ground as it lies, as it
+// holds a map's: a bridge's heads off its deck, a road's cell as Transport Tycoon would not lay it
+func (r *roads) hold(l *layout) error {
+	rules := r.bridgeRules()
+	rules.Reshape = 1e-3 * r.w.grid.CellSpan()
+	for i, b := range l.bridges {
+		g := bridgeGround{chartGround{r: r, l: l}, l.bridges[:i]}
+		if _, err := bridgesite.Plan(g, rules, b.From, b.To, g.level(b.From)); err != nil {
+			return err
+		}
+	}
+	if r.w.flat {
+		return nil
+	}
+	for _, c := range l.cells {
+		if !ground.RoadFits(r.w.grid, c, r.w.outline(c), l.net.Links(c)) {
+			return roadsite.Refuse(r.w.grid, c, "lies on ground no road may")
+		}
+	}
+	return nil
+}
+
+// layout is roads as their levelling sees them: their network, their cells each once in the order
+// laid, the bridges they cross, and the cells whose corners stay: the bridges' heads, flat at
+// their decks, and the ground no road runs over under their spans
+type layout struct {
+	net     *network.Network
+	cells   []cell.ID
+	bridges []bridgesite.Bridge
+	fixed   map[cell.ID]bool
+}
+
+func (r *roads) layout(rds []road) layout {
+	w := r.w
+	l := layout{net: network.New(w.grid), fixed: map[cell.ID]bool{}}
+	node := network.Node{Kind: w.r.Kinds.Road, Width: float32(r.cfg.Width)}
+	listed := map[cell.ID]bool{}
+	stood := map[[2]cell.ID]bool{}
+	for _, rd := range rds {
+		for i, c := range rd.cells {
+			if !rd.over[i] {
+				l.net.Set(c, node)
+				if !listed[c] {
+					listed[c] = true
+					l.cells = append(l.cells, c)
+				}
+			}
+			if i > 0 && !(rd.over[i-1] && rd.over[i]) {
+				l.net.Link(rd.cells[i-1], c)
+			}
+		}
+		for _, b := range crossed(rd) {
+			from, to, spans := rd.cells[b[0]], rd.cells[b[1]], rd.cells[b[0]+1:b[1]]
+			if r.forded(spans) || stood[[2]cell.ID{from, to}] || stood[[2]cell.ID{to, from}] {
+				continue
+			}
+			stood[[2]cell.ID{from, to}] = true
+			l.fixed[from], l.fixed[to] = true, true
+			l.bridges = append(l.bridges, bridgesite.Bridge{From: from, To: to,
+				Way: r.wayOf(from, spans[0]), Spans: spans})
+		}
+	}
+	for _, b := range l.bridges {
+		for _, s := range b.Spans {
+			if _, paved := l.net.Node(s); !paved {
+				l.fixed[s] = true
+			}
+		}
+	}
+	return l
+}
+
+// flatten lays the heads of rd's bridges flat at their decks, giving back where their corners
+// stood
+func (r *roads) flatten(rd road) []height {
+	if r.w.flat {
+		return nil
+	}
+	var out []height
+	for _, b := range crossed(rd) {
+		if r.forded(rd.cells[b[0]+1 : b[1]]) {
+			continue
+		}
+		for _, c := range [2]cell.ID{rd.cells[b[0]], rd.cells[b[1]]} {
+			for _, k := range r.w.cornersOf(c) {
+				out = append(out, height{k, r.w.corners[k]})
+				r.w.corners[k] = rd.at[b[0]+1]
+			}
+		}
+	}
+	return out
+}
+
+// grade moves the corners as the levelling moves them, giving back where they stood
+func (r *roads) grade(moves []roadsite.CornerMove) []height {
+	out := make([]height, 0, len(moves))
+	for _, m := range moves {
+		if m.To == m.From {
+			continue
+		}
+		k := r.w.corner(m.At)
+		out = append(out, height{k, r.w.corners[k]})
+		r.w.corners[k] = float64(m.To) * r.w.perUnit
+	}
+	return out
+}
+
+func (r *roads) undo(hs []height) {
+	for _, h := range slices.Backward(hs) {
+		r.w.corners[h.k] = h.h
+	}
+}
+
+// settle lays the levelling of every road on the ground, to the centimetre as the map has it
+func (r *roads) settle() error {
+	w := r.w
+	r.grade(r.graded.Corners)
+	for k, h := range w.corners {
+		w.corners[k] = math.Round(h*100) / 100
+	}
+	for _, s := range r.live() {
+		if !s.ford {
+			s.deck = w.corners[w.cornersOf(s.heads[0])[0]]
+		}
+	}
+	var bad []string
+	for _, c := range r.net.Cells() {
+		if !ground.RoadFits(w.grid, c, w.outline(c), r.net.Links(c)) {
+			x, y := w.xy(c)
+			bad = append(bad, fmt.Sprintf("[%d, %d]", x, y))
+		}
+	}
+	if len(bad) > 0 {
+		return fmt.Errorf("the ground under the road at %s cannot be graded",
+			strings.Join(bad, ", "))
+	}
+	return nil
+}
+
+// mark notes rd laid: its cells paved with their ways, its bridges' and fords' heads and spans
+func (r *roads) mark(rd road) {
+	g := r.w.grid
+	for i, c := range rd.cells {
+		if rd.over[i] {
+			continue
+		}
+		in, out := r.ways(rd, i)
+		m := r.marks[c]
+		m.paved = true
+		if in != none {
+			m.ways |= 1 << g.Opposite(in)
+		}
+		if out != none {
+			m.ways |= 1 << out
+		}
+		switch {
+		case out != none && rd.over[i+1]:
+			m.head, m.headWay = true, out
+		case in != none && rd.over[i-1]:
+			m.head, m.headWay = true, g.Opposite(in)
+		}
+		r.marks[c] = m
+	}
+	for _, b := range crossed(rd) {
+		spans := rd.cells[b[0]+1 : b[1]]
+		ford, way := r.forded(spans), r.wayOf(rd.cells[b[0]], spans[0])
+		for k, s := range spans {
+			if m := r.marks[s]; !m.bridged {
+				m.bridged, m.ford, m.axis, m.deck = true, ford, way, rd.at[b[0]+1+k]
+				r.marks[s] = m
+			}
+		}
+	}
+}
+
+// forded reports whether a road crosses spans through a ford, no bridge: a ford and its banks
+func (r *roads) forded(spans []cell.ID) bool {
+	fords := 0
+	for _, c := range spans {
+		switch {
+		case r.ford(c):
+			fords++
+		case r.w.wet(c) || !r.crossing(c):
+			return false
+		}
+	}
+	return fords > 0
+}
+
+// leaps are the bridges a road may take from c along way, a map maker's: over water, or over a
+// valley deep enough to pass under
+func (r *roads) leaps(c cell.ID, way int, dst []roadsite.Leap) []roadsite.Leap {
+	if r.w.flat && r.w.grid.Corner(way) {
+		return dst // a flat map's bridge runs across a side
+	}
+	for n := 1; n <= r.longest(); n++ {
+		head, ok := r.leap(c, way, n+1)
+		if !ok || r.barred[head] {
+			break
+		}
+		if r.banned[[2]cell.ID{c, head}] || !r.within(head) {
+			continue
+		}
+		if b := r.bridge(c, head, way, n); b.ok {
+			dst = append(dst, roadsite.Leap{To: head, Spans: n, Cost: b.cost})
+		}
+	}
+	return dst
+}
+
+func (r *roads) bridge(a, b cell.ID, way, n int) bridging {
+	key := [2]cell.ID{a, b}
+	if t, ok := r.offered[key]; ok {
+		return t
+	}
+	t := r.weigh(a, b, way, n)
+	r.offered[key] = t
+	return t
+}
+
+// weigh is the bridge from a to b, n cells on along way: one laid already at no price; else its
+// deck as deckFor sets it, at the price of its length Bridge times a metre's and of the earth its
+// heads move
+func (r *roads) weigh(a, b cell.ID, way, n int) bridging {
+	t := bridging{way: way, n: n}
+	if ma, mb := r.marks[a], r.marks[b]; ma.head && mb.head && ma.headWay == way &&
+		mb.headWay == r.w.grid.Opposite(way) {
+		t.deck, t.ok = r.marks[r.must(r.leap(a, way, 1))].deck, true
+		return t
+	}
+	deck, ok := r.deckFor(a, b, way, n)
+	if !ok || !r.crosses(a, way, n, deck) {
+		return t
+	}
+	g := bridgeGround{chartGround: chartGround{r: r}}
+	if _, err := bridgesite.Plan(g, r.bridgeRules(), a, b, float32(deck/r.w.perUnit)); err != nil {
+		return t
+	}
+	step := r.w.grid.Step(way)
+	along := math.Hypot(float64(step.X), float64(step.Y)) * r.w.perUnit
+	earth := 0.0
+	for _, h := range [2]cell.ID{a, b} {
+		for _, k := range r.w.cornersOf(h) {
+			if !r.w.flat {
+				earth += math.Abs(r.w.corners[k] - deck)
+			}
+		}
+	}
+	side := r.w.r.Area.Cell
+	earth *= side * side / 4 // a corner's share of its cell
+	t.deck, t.ok = deck, true
+	t.cost = float32(float64(n+1)*along*r.cfg.Metre*r.cfg.Bridge + earth*r.cfg.Cubic)
+	return t
+}
+
+// deckFor is the deck of a bridge from a to b, n cells on along way, metres: as near the middle of
+// its heads' corners as cutting and filling them lets it, the ground it spans the clearance under
+// it, and the middle of a span's top too, which a square folds along a diagonal from a head's
+// corner; false where no height does
+func (r *roads) deckFor(a, b cell.ID, way, n int) (float64, bool) {
+	w := r.w
+	if w.flat {
+		return 0, true
+	}
+	ka, kb := w.cornersOf(a), w.cornersOf(b)
+	ends := append(ka[:], kb[:]...)
+	heads := make([]float64, len(ends))
+	for i, k := range ends {
+		heads[i] = w.corners[k]
+	}
+	slices.Sort(heads)
+	lo, hi := heads[len(heads)-1]-r.cfg.Cut, heads[0]+r.cfg.Fill
+	bottom := math.Inf(1)
+	c := a
+	for range n {
+		c = r.must(r.leap(c, way, 1))
+		ks := w.cornersOf(c)
+		for i, k := range ks {
+			end, across := slices.Contains(ends, k), slices.Contains(ends, ks[3-i])
+			switch {
+			case end && across:
+				return 0, false
+			case end:
+				continue
+			case across:
+				lo = max(lo, w.corners[k]+2*r.clearance()+margin)
+			default:
+				lo = max(lo, w.corners[k]+r.clearance()+margin)
+			}
+			bottom = min(bottom, w.corners[k])
+		}
+	}
+	if r.cfg.High > 0 {
+		hi = min(hi, bottom+r.cfg.High-margin)
+	}
+	if lo > hi {
+		return 0, false
+	}
+	mid := (heads[len(heads)/2-1] + heads[len(heads)/2]) / 2
+	return min(max(mid, lo), hi), true
+}
+
+// crosses asks cheaply what bridgesite.Plan asks first of all, so most leaps are refused before it
+func (r *roads) crosses(a cell.ID, way, n int, deck float64) bool {
+	ends := r.w.cornersOf(a)
+	far := r.w.cornersOf(r.must(r.leap(a, way, n+1)))
+	c := a
+	for range n {
+		c = r.must(r.leap(c, way, 1))
+		if r.w.wet(c) || r.w.flat && (!r.roadable(c) || r.crossing(c)) {
+			return true
+		}
+		if r.w.flat {
+			continue
+		}
+		for _, k := range r.w.cornersOf(c) {
+			if !slices.Contains(ends[:], k) && !slices.Contains(far[:], k) &&
+				r.w.corners[k] <= deck-r.underpass() {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (r *roads) leap(c cell.ID, way, steps int) (cell.ID, bool) {
@@ -342,103 +884,197 @@ func (r *roads) longest() int {
 	return 3
 }
 
-// world units
-func (r *roads) rules() site.Rules {
+func (r *roads) must(c cell.ID, ok bool) cell.ID {
+	if !ok {
+		panic("gramap: a leap off the board")
+	}
+	return c
+}
+
+// world units; a head's ground cut and filled as a road's corners are
+func (r *roads) bridgeRules() bridgesite.Rules {
 	per := r.w.perUnit
-	return site.Rules{
+	return bridgesite.Rules{
 		Longest:   r.longest(),
 		Under:     float32(r.underpass() / per),
 		Clearance: float32(r.clearance() / per),
-		Reshape:   float32(r.cfg.Deep / per),
+		Reshape:   float32(max(r.cfg.Cut, r.cfg.Fill) / per),
 		High:      float32(r.cfg.High / per),
 		Heights:   !r.w.flat,
 	}
 }
 
-func (r *roads) once(from, to cell.ID, h0 float64, laid map[cell.ID]mark) (road, bool) {
-	barred, banned := map[cell.ID]bool{}, map[[2]cell.ID]bool{}
-	for range 32 {
-		rd, ok := r.find(from, to, h0, laid, barred, banned)
-		if !ok {
-			return rd, false
-		}
-		visits, again := map[cell.ID][]int{}, false
-		for i, c := range rd.cells {
-			visits[c] = append(visits[c], i)
-		}
-		for c, at := range visits {
-			if len(at) > 1 && !r.overpass(rd, at) {
-				barred[c], again = true, true
-			}
-		}
-		aimed := map[int]float64{}
-		r.aims(rd, func(_ int, c cell.ID, target map[int]float64) {
-			for k, t := range target {
-				if v, ok := aimed[k]; ok && math.Abs(v-t) > planSlack && c != from && c != to {
-					barred[c], again = true, true
-				}
-				aimed[k] = t
-			}
-		})
-		for _, b := range leaps(rd) {
-			if r.underRoad(rd, b, aimed) {
-				banned[[2]cell.ID{rd.cells[b[0]], rd.cells[b[1]]}], again = true, true
-			}
-		}
-		if !again {
-			return rd, true
+// summary is what the roads came to: their cells, bridges and fords, the earth levelled
+func (r *roads) summary() string {
+	bridges, fords := 0, 0
+	for _, s := range r.live() {
+		if s.ford {
+			fords++
+		} else {
+			bridges++
 		}
 	}
-	return road{}, false
+	cubed := r.w.perUnit * r.w.perUnit * r.w.perUnit
+	cut, fill := float64(r.graded.Cut)*cubed, float64(r.graded.Fill)*cubed
+	return fmt.Sprintf("roads: %d cells, %d bridges, %d fords; earth: %.0f m³ cut, %.0f filled",
+		len(r.net.Cells()), bridges, fords, cut, fill)
 }
 
-func leaps(rd road) [][2]int {
-	var out [][2]int
-	for i := 1; i < len(rd.cells); i++ {
-		if rd.over[i] && !rd.over[i-1] {
-			j := i
-			for j < len(rd.cells) && rd.over[j] {
-				j++
-			}
-			out = append(out, [2]int{i - 1, j})
-		}
-	}
-	return out
+// the ground in world units, as the roads' site asks: with l, the roads a levelling plans; else
+// the roads laid, a cell barred taking no road nor showing one, a ford or a deck
+type chartGround struct {
+	r *roads
+	l *layout
 }
 
-func (r *roads) underRoad(rd road, b [2]int, aimed map[int]float64) bool {
-	ends := r.w.cornersOf(rd.cells[b[0]])
-	far := r.w.cornersOf(rd.cells[b[1]])
-	deck := rd.at[b[0]]
-	for _, c := range rd.cells[b[0]+1 : b[1]] {
-		for _, k := range r.w.cornersOf(c) {
-			if slices.Contains(ends[:], k) || slices.Contains(far[:], k) {
-				continue
-			}
-			if t, ok := aimed[k]; ok && t > deck-r.clearance()+planSlack {
-				return true
-			}
-		}
+// the ground as the planner of a route sees it: a cell the levelling may lay flat lies flat at the
+// middle of its corners, so a road bends where the levelling may flatten it and climbs as the
+// route's own cut and fill let it between cells' middles; a cell the levelling failed at dearer;
+// none off the corridor round the leg under search taking a road
+type plannerGround struct{ chartGround }
+
+func (g plannerGround) Takes(c cell.ID) bool { return g.chartGround.Takes(c) && g.r.within(c) }
+
+func (g plannerGround) Heights(c cell.ID, dst []float32) []float32 {
+	n := len(dst)
+	dst = g.chartGround.Heights(c, dst)
+	if len(dst) == n {
+		return dst
 	}
-	return false
+	lo, hi, sum := dst[n], dst[n], float32(0)
+	for _, h := range dst[n:] {
+		lo, hi, sum = min(lo, h), max(hi, h), sum+h
+	}
+	if hi-lo > g.r.rules.Cut+g.r.rules.Fill {
+		return dst
+	}
+	mid := sum / float32(len(dst)-n)
+	for i := n; i < len(dst); i++ {
+		dst[i] = mid
+	}
+	return dst
 }
 
-func (r *roads) overpass(rd road, at []int) bool {
-	if len(at) != 2 || rd.over[at[0]] == rd.over[at[1]] {
-		return false
+func (g plannerGround) Price(c cell.ID) float32 {
+	if d, ok := g.r.dear[c]; ok {
+		return g.chartGround.Price(c) * d
 	}
-	over, under := at[0], at[1]
-	if rd.over[under] {
-		over, under = under, over
+	return g.chartGround.Price(c)
+}
+
+// the ground as the bridges' site asks; stood, with l, are the bridges standing
+type bridgeGround struct {
+	chartGround
+	stood []bridgesite.Bridge
+}
+
+var (
+	_ roadsite.Ground   = chartGround{}
+	_ roadsite.Ground   = plannerGround{}
+	_ bridgesite.Ground = bridgeGround{}
+)
+
+func (g chartGround) Grid() grid.Grid { return g.r.w.grid }
+
+func (g chartGround) Heights(c cell.ID, dst []float32) []float32 {
+	w := g.r.w
+	g.r.outline = w.grid.CellOutline(c, g.r.outline[:0])
+	for _, p := range g.r.outline {
+		h := float32(0)
+		if !w.flat {
+			h = float32(w.corners[w.corner(p)] / w.perUnit)
+		}
+		dst = append(dst, h)
 	}
-	if under == 0 || under == len(rd.cells)-1 || rd.over[under-1] || rd.over[under+1] {
-		return false // an end, or a bridge's head
+	return dst
+}
+
+func (g chartGround) level(c cell.ID) float32 {
+	var buf [4]float32
+	hs := g.Heights(c, buf[:0])
+	sum := float32(0)
+	for _, h := range hs {
+		sum += h
 	}
-	in := r.wayOf(rd.cells[under-1], rd.cells[under])
-	out := r.wayOf(rd.cells[under], rd.cells[under+1])
-	axis := r.wayOf(rd.cells[over-1], rd.cells[over])
-	return in == out && r.across(in, axis) &&
-		rd.at[over] >= max(rd.at[under], rd.at[under+1])+r.underpass()
+	return sum / float32(len(hs))
+}
+
+func (g chartGround) barred(c cell.ID) bool { return g.l == nil && g.r.barred[c] }
+
+func (g chartGround) Takes(c cell.ID) bool {
+	return !g.barred(c) && g.r.roadable(c) && !g.r.crossing(c)
+}
+
+func (g chartGround) Wet(c cell.ID) bool { return g.r.w.wet(c) }
+
+func (g chartGround) Road(c cell.ID) cell.Links {
+	if g.l != nil {
+		return g.l.net.Links(c)
+	}
+	if m := g.r.marks[c]; m.paved && !g.barred(c) {
+		return m.ways
+	}
+	return 0
+}
+
+// Decked is a bridge laid over c, no road under it: a map maker's road takes one from its head,
+// as a leap; a levelling's roads run on none
+func (g chartGround) Decked(c cell.ID) (cell.Links, bool) {
+	if m := g.r.marks[c]; g.l == nil && m.bridged && !m.ford && !m.paved {
+		return 1<<m.axis | 1<<g.r.w.grid.Opposite(m.axis), true
+	}
+	return 0, false
+}
+
+func (g chartGround) Ford(c cell.ID) bool {
+	return !g.barred(c) && g.r.w.rivers.Courses[c] == water.Ford
+}
+
+func (g chartGround) Fixed(c cell.ID) bool {
+	if g.r.w.wet(c) {
+		return true
+	}
+	if g.l != nil {
+		return g.l.fixed[c]
+	}
+	m := g.r.marks[c]
+	return m.head || m.bridged && !m.paved
+}
+
+// Held is never: a map has no units yet
+func (g chartGround) Held(cell.ID) bool { return false }
+
+func (g chartGround) Price(c cell.ID) float32 {
+	w := g.r.w
+	x, y := w.xy(c)
+	if w.soils[y*w.cols+x] == w.r.Kinds.Rock {
+		return float32(max(1, g.r.cfg.Rock))
+	}
+	return 1
+}
+
+func (g bridgeGround) Bridged(c cell.ID) (bridgesite.Part, bool) {
+	if g.l != nil {
+		for _, b := range g.stood {
+			switch {
+			case c == b.From:
+				return bridgesite.Part{Way: b.Way, Head: true}, true
+			case c == b.To:
+				return bridgesite.Part{Way: g.r.w.grid.Opposite(b.Way), Head: true}, true
+			case slices.Contains(b.Spans, c):
+				return bridgesite.Part{Way: b.Way}, true
+			}
+		}
+		return bridgesite.Part{}, false
+	}
+	m := g.r.marks[c]
+	switch {
+	case m.bridged:
+		return bridgesite.Part{Way: m.axis}, true
+	case m.head:
+		return bridgesite.Part{Way: m.headWay, Head: true}, true
+	}
+	return bridgesite.Part{}, false
 }
 
 func (r *roads) across(a, b int) bool { return 4*r.turns(a, b) == r.w.grid.Directions() }
@@ -451,288 +1087,6 @@ func (r *roads) turns(a, b int) int {
 	return int(math.Round(angle / (2 * math.Pi / float64(g.Directions()))))
 }
 
-func (r *roads) paveable(a, b cell.ID, way int, h float64, laid map[cell.ID]mark) bool {
-	if !r.roadable(b) || r.crossing(b) {
-		return false
-	}
-	if m := laid[b]; m.bridged {
-		rise := r.w.r.Area.Cell * math.Tan(ground.RoadSlope)
-		if !r.across(way, m.axis) || h+rise+r.underpass() > m.deck {
-			return false
-		}
-	}
-	if fa, fb, corner := r.w.grid.Flanks(way); corner {
-		for _, f := range [2]int{fa, fb} {
-			if s, ok := r.w.grid.Toward(a, f); !ok || !r.roadable(s) || r.crossing(s) {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-func (r *roads) travel(a, b cell.ID, in, out int, h, next float64, laid map[cell.ID]mark) float64 {
-	w := r.w
-	along := w.grid.NeighborCost(a, b)
-	cost := along * (1 + r.cfg.Climb*math.Abs(next-h)/(along*w.r.Area.Cell))
-	if in != none {
-		cost += r.cfg.Turn * float64(r.turns(in, out))
-	}
-	bx, by := w.xy(b)
-	if w.soils[by*w.cols+bx] == w.r.Kinds.Rock {
-		cost *= r.cfg.Rock
-	}
-	if laid[b].paved {
-		cost *= r.cfg.Reuse
-	}
-	return cost
-}
-
-func (r *roads) headable(c cell.ID, way int, laid map[cell.ID]mark) bool {
-	m := laid[c]
-	return !m.bridged && (!m.head || m.headWay == way)
-}
-
-func (r *roads) flatten(c cell.ID, in int, h float64) float64 {
-	if r.w.flat {
-		return 0
-	}
-	target := map[int]float64{}
-	for _, k := range r.w.cornersOf(c) {
-		target[k] = h
-	}
-	return r.price(c, in, target)
-}
-
-func (r *roads) bridge(a, b cell.ID, way, n int, h float64, laid map[cell.ID]mark) (float64,
-	bool) {
-	along := r.w.grid.NeighborCost(a, r.must(r.leap(a, way, 1)))
-	cost := float64(n+1) * along * (1 + r.cfg.Bridge)
-	if ma, mb := laid[a], laid[b]; ma.head && mb.head && ma.headWay == way &&
-		mb.headWay == r.w.grid.Opposite(way) {
-		return cost * r.cfg.Reuse, true
-	}
-	if !r.crosses(a, way, n, h) {
-		return 0, false
-	}
-	deck := float32(h / r.w.perUnit)
-	if _, err := site.Plan(chartGround{r, laid}, r.rules(), a, b, deck); err != nil {
-		return 0, false
-	}
-	return cost, true
-}
-
-// crosses asks cheaply what site.Plan asks first of all, so most leaps are refused before it.
-func (r *roads) crosses(a cell.ID, way, n int, h float64) bool {
-	ends := r.w.cornersOf(a)
-	far := r.w.cornersOf(r.must(r.leap(a, way, n+1)))
-	c := a
-	for range n {
-		c = r.must(r.leap(c, way, 1))
-		if r.w.wet(c) || r.w.flat && (!r.roadable(c) || r.crossing(c)) {
-			return true
-		}
-		if r.w.flat {
-			continue
-		}
-		for _, k := range r.w.cornersOf(c) {
-			if !slices.Contains(ends[:], k) && !slices.Contains(far[:], k) &&
-				r.height(k) <= h-r.underpass() {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func (r *roads) must(c cell.ID, ok bool) cell.ID {
-	if !ok {
-		panic("gramap: a leap off the board")
-	}
-	return c
-}
-
-// world units, as site asks
-type chartGround struct {
-	r    *roads
-	laid map[cell.ID]mark
-}
-
-func (g chartGround) Grid() grid.Grid { return g.r.w.grid }
-
-func (g chartGround) Heights(c cell.ID, dst []float32) []float32 {
-	var buf [4]geom.Vec
-	for _, p := range g.r.w.grid.CellOutline(c, buf[:0]) {
-		dst = append(dst, float32(g.r.height(g.r.w.corner(p))/g.r.w.perUnit))
-	}
-	return dst
-}
-
-func (g chartGround) Takes(c cell.ID) bool { return g.r.roadable(c) && !g.r.crossing(c) }
-
-func (g chartGround) Wet(c cell.ID) bool { return g.r.w.wet(c) }
-
-func (g chartGround) Bridged(c cell.ID) (site.Part, bool) {
-	m := g.laid[c]
-	switch {
-	case m.bridged:
-		return site.Part{Way: m.axis}, true
-	case m.head:
-		return site.Part{Way: m.headWay, Head: true}, true
-	}
-	return site.Part{}, false
-}
-
-func (g chartGround) Road(c cell.ID) cell.Links {
-	if m := g.laid[c]; m.paved {
-		return m.ways
-	}
-	return 0
-}
-
-func (r *roads) earthwork(c cell.ID, in, out int, h float64) (float64, float64) {
-	if r.w.flat {
-		return 0, h
-	}
-	target, next := r.shape(c, in, out, h)
-	return r.price(c, in, target), next
-}
-
-// the corners on the way in are paid already
-func (r *roads) price(c cell.ID, in int, target map[int]float64) float64 {
-	var paid []int
-	if in != none {
-		paid = r.w.rim(c, r.w.grid.Opposite(in))
-	}
-	earth := 0.0
-	for k, t := range target {
-		if slices.Contains(paid, k) {
-			continue
-		}
-		if u, ok := r.under[k]; ok && t > u+planSlack {
-			return math.Inf(1) // over a bridge's deck
-		}
-		if p, ok := r.planned[k]; ok {
-			if math.Abs(p-t) > planSlack {
-				return math.Inf(1)
-			}
-			continue
-		}
-		d := math.Abs(r.w.corners[k] - t)
-		if d > r.cfg.Deep {
-			return math.Inf(1)
-		}
-		earth += d
-	}
-	return r.cfg.Grade * earth / r.w.r.Area.Cell
-}
-
-// a ramp straight along a side, else the whole cell level, a diagonal too
-func (r *roads) shape(c cell.ID, in, out int, h float64) (map[int]float64, float64) {
-	ks := r.w.cornersOf(c)
-	target := map[int]float64{}
-	next := h
-	g := r.w.grid
-	switch {
-	case in != none && out == in && !g.Corner(out):
-		exit := r.w.rim(c, out)
-		m := (r.height(exit[0]) + r.height(exit[1])) / 2
-		rise := r.w.r.Area.Cell * math.Tan(ground.RoadSlope)
-		next = min(max(m, h-rise), h+rise)
-		for _, k := range r.w.rim(c, g.Opposite(in)) {
-			target[k] = h
-		}
-		for _, k := range exit {
-			target[k] = next
-		}
-	default:
-		for _, k := range ks {
-			target[k] = h
-		}
-	}
-	return target, next
-}
-
-func (r *roads) height(k int) float64 {
-	if p, ok := r.planned[k]; ok {
-		return p
-	}
-	return r.w.corners[k]
-}
-
-func (r *roads) plan(rd road, laid map[cell.ID]mark) {
-	for i, c := range rd.cells {
-		in, out := r.ways(rd, i)
-		m := laid[c]
-		if rd.over[i] {
-			if !m.bridged {
-				m.bridged, m.axis, m.deck = true, in, rd.at[i]
-			}
-		} else {
-			if !m.paved {
-				m.paved, m.at = true, rd.at[i]
-			}
-			if in != none {
-				m.ways |= 1 << r.w.grid.Opposite(in)
-			}
-			if out != none {
-				m.ways |= 1 << out
-			}
-			switch {
-			case out != none && rd.over[i+1]:
-				m.head, m.headWay = true, out
-			case in != none && rd.over[i-1]:
-				m.head, m.headWay = true, r.w.grid.Opposite(in)
-			}
-		}
-		laid[c] = m
-	}
-	r.aims(rd, func(_ int, c cell.ID, target map[int]float64) {
-		for k, t := range target {
-			if _, ok := r.planned[k]; !ok {
-				r.planned[k] = t
-			}
-		}
-	})
-	if r.w.flat {
-		return
-	}
-	for _, b := range leaps(rd) {
-		ends := r.w.cornersOf(rd.cells[b[0]])
-		far := r.w.cornersOf(rd.cells[b[1]])
-		ceiling := rd.at[b[0]] - r.clearance()
-		for _, c := range rd.cells[b[0]+1 : b[1]] {
-			for _, k := range r.w.cornersOf(c) {
-				if slices.Contains(ends[:], k) || slices.Contains(far[:], k) {
-					continue
-				}
-				if u, ok := r.under[k]; !ok || ceiling < u {
-					r.under[k] = ceiling
-				}
-			}
-		}
-	}
-}
-
-func (r *roads) aims(rd road, aim func(i int, c cell.ID, target map[int]float64)) {
-	if r.w.flat {
-		return
-	}
-	for i, c := range rd.cells {
-		if rd.over[i] {
-			continue
-		}
-		in, out := r.ways(rd, i)
-		target, _ := r.shape(c, in, out, rd.at[i])
-		if out != none && rd.over[i+1] || in != none && rd.over[i-1] {
-			for _, k := range r.w.cornersOf(c) {
-				target[k] = rd.at[i] // a bridge's head: flat at its deck
-			}
-		}
-		aim(i, c, target)
-	}
-}
-
 func (r *roads) ways(rd road, i int) (in, out int) {
 	in, out = none, none
 	if i > 0 {
@@ -742,35 +1096,6 @@ func (r *roads) ways(rd road, i int) (in, out int) {
 		out = r.wayOf(rd.cells[i], rd.cells[i+1])
 	}
 	return in, out
-}
-
-func (r *roads) crossings(rd road) {
-	node := network.Node{Kind: r.w.r.Kinds.Road, Width: float32(r.cfg.Width)}
-	for i, c := range rd.cells {
-		if !rd.over[i] {
-			r.net.Set(c, node)
-		}
-		if i > 0 && !(rd.over[i-1] && rd.over[i]) {
-			r.net.Link(rd.cells[i-1], c)
-		}
-	}
-	for i := 0; i < len(rd.cells); {
-		if !rd.over[i] {
-			i++
-			continue
-		}
-		j := i
-		for j < len(rd.cells) && rd.over[j] {
-			j++
-		}
-		s := &span{cells: slices.Clone(rd.cells[i:j]), way: r.wayOf(rd.cells[i-1], rd.cells[i])}
-		s.edges = append(s.edges, shared(r.w, rd.cells[i-1], rd.cells[i]),
-			shared(r.w, rd.cells[j-1], rd.cells[j]))
-		s.heads = append(s.heads, head{rd.cells[i-1], s.way},
-			head{rd.cells[j], r.wayOf(rd.cells[j], rd.cells[j-1])})
-		r.add(s)
-		i = j
-	}
 }
 
 func (r *roads) wayOf(a, b cell.ID) int {
@@ -786,9 +1111,8 @@ func (r *roads) add(s *span) {
 					s.cells = append(s.cells, oc)
 				}
 			}
-			s.edges = append(s.edges, o.edges...)
 			for _, h := range o.heads {
-				if !slices.ContainsFunc(s.heads, func(g head) bool { return g.at == h.at }) {
+				if !slices.Contains(s.heads, h) {
 					s.heads = append(s.heads, h)
 				}
 			}
@@ -798,16 +1122,7 @@ func (r *roads) add(s *span) {
 	for _, c := range s.cells {
 		r.spanOf[c] = s
 	}
-	fords, others := 0, 0
-	for _, c := range s.cells {
-		switch {
-		case r.w.rivers.Courses[c] == water.Ford:
-			fords++
-		case r.w.wet(c) || !r.crossing(c):
-			others++
-		}
-	}
-	s.ford = fords > 0 && others == 0
+	s.ford = r.forded(s.cells)
 	r.spans = append(r.spans, s)
 }
 
@@ -819,208 +1134,4 @@ func (r *roads) live() []*span {
 		}
 	}
 	return out
-}
-
-func shared(w *chart, a, b cell.ID) []int {
-	var out []int
-	bk := w.cornersOf(b)
-	for _, k := range w.cornersOf(a) {
-		if slices.Contains(bk[:], k) {
-			out = append(out, k)
-		}
-	}
-	return out
-}
-
-// grade joins the corners each cell's road holds level into classes and lets only ramps apart;
-// nothing off a road moves.
-func (r *roads) grade() error {
-	w := r.w
-	r.ground = slices.Clone(w.corners)
-	u := newUnion(len(w.corners))
-	type job struct {
-		c     cell.ID
-		ks    [4]int
-		links cell.Links
-	}
-	var jobs []job
-	type ramp struct{ a, b int }
-	var ramps []ramp
-	for _, c := range r.net.Cells() {
-		j := job{c, w.cornersOf(c), r.net.Links(c)}
-		jobs = append(jobs, j)
-		i, straight := grid.Straight(w.grid, j.links)
-		switch {
-		case straight && !w.grid.Corner(i):
-			a, b := w.rim(c, i), w.rim(c, w.grid.Opposite(i))
-			u.join(a[0], a[1])
-			u.join(b[0], b[1])
-			ramps = append(ramps, ramp{a[0], b[0]})
-		default:
-			for _, k := range j.ks[1:] {
-				u.join(j.ks[0], k)
-			}
-		}
-	}
-	floor := map[int]float64{} // the least a class may stand at
-	for _, s := range r.live() {
-		if s.ford {
-			for _, e := range s.edges {
-				for _, k := range e[1:] {
-					u.join(e[0], k)
-				}
-			}
-			continue
-		}
-		var ends []int
-		for _, h := range s.heads {
-			ks := w.cornersOf(h.at)
-			ends = append(ends, ks[:]...)
-		}
-		for _, k := range ends[1:] {
-			u.join(ends[0], k)
-		}
-		low, bottom, wet := math.Inf(-1), math.Inf(1), false
-		for _, c := range s.cells {
-			_, paved := r.net.Node(c)
-			wet = wet || w.wet(c)
-			for _, k := range w.cornersOf(c) {
-				if !slices.Contains(ends, k) {
-					bottom = min(bottom, r.height(k))
-				}
-				switch {
-				case paved:
-					low = max(low, r.height(k)+r.underpass())
-				case w.wet(c):
-					low = max(low, w.corners[k]+r.clearance())
-				}
-			}
-		}
-		if !wet && !math.IsInf(bottom, 1) {
-			low = max(low, bottom+r.underpass())
-		}
-		root := u.find(ends[0])
-		floor[root] = max(floor[root], low)
-	}
-	value, size := map[int]float64{}, map[int]float64{}
-	aimed, aims := map[int]float64{}, map[int]float64{}
-	for k := range w.corners {
-		root := u.find(k)
-		value[root] += w.corners[k]
-		size[root]++
-		if p, ok := r.planned[k]; ok {
-			aimed[root] += p
-			aims[root]++
-		}
-	}
-	for root := range value {
-		value[root] /= size[root]
-		if aims[root] > 0 {
-			value[root] = aimed[root] / aims[root]
-		}
-		if f, ok := floor[root]; ok {
-			value[root] = max(value[root], f)
-		}
-	}
-	rise := 0.999 * w.r.Area.Cell * math.Tan(ground.RoadSlope)
-	for range 1000000 {
-		worst := 0.0
-		for _, rp := range ramps {
-			a, b := u.find(rp.a), u.find(rp.b)
-			over := math.Abs(value[b]-value[a]) - rise
-			if over <= 0 {
-				continue
-			}
-			worst = max(worst, over)
-			toward := math.Copysign(1, value[b]-value[a])
-			value[a] += toward * over * size[b] / (size[a] + size[b])
-			value[b] -= toward * over * size[a] / (size[a] + size[b])
-		}
-		for root, f := range floor {
-			if value[root] < f {
-				worst = max(worst, f-value[root])
-				value[root] = f
-			}
-		}
-		if worst < 1e-7 {
-			break
-		}
-	}
-	for _, s := range r.live() {
-		if s.ford {
-			continue
-		}
-		deck := value[u.find(s.edges[0][0])]
-		for _, c := range s.cells {
-			for _, k := range w.cornersOf(c) {
-				if root := u.find(k); size[root] == 1 {
-					value[root] = min(value[root], deck-r.clearance()) // cut under the deck
-				}
-			}
-		}
-	}
-	for k := range w.corners {
-		w.corners[k] = math.Round(value[u.find(k)]*100) / 100
-	}
-	for _, s := range r.live() {
-		if !s.ford {
-			s.deck = w.corners[w.cornersOf(s.heads[0].at)[0]]
-		}
-	}
-	var bad []string
-	for _, j := range jobs {
-		if !ground.RoadFits(w.grid, j.c, w.outline(j.c), j.links) {
-			x, y := w.xy(j.c)
-			bad = append(bad, fmt.Sprintf("[%d, %d]", x, y))
-		}
-	}
-	if len(bad) > 0 {
-		return fmt.Errorf("the ground under the road at %s cannot be graded",
-			strings.Join(bad, ", "))
-	}
-	return nil
-}
-
-type union struct{ parent []int }
-
-func newUnion(n int) *union {
-	u := &union{parent: make([]int, n)}
-	for i := range u.parent {
-		u.parent[i] = i
-	}
-	return u
-}
-
-func (u *union) find(k int) int {
-	for u.parent[k] != k {
-		u.parent[k] = u.parent[u.parent[k]]
-		k = u.parent[k]
-	}
-	return k
-}
-
-func (u *union) join(a, b int) {
-	a, b = u.find(a), u.find(b)
-	if a == b {
-		return
-	}
-	u.parent[b] = a
-}
-
-type entry struct {
-	id int
-	at float64
-}
-
-type queue []entry
-
-func (q queue) Len() int           { return len(q) }
-func (q queue) Less(i, j int) bool { return q[i].at < q[j].at }
-func (q queue) Swap(i, j int)      { q[i], q[j] = q[j], q[i] }
-func (q *queue) Push(x any)        { *q = append(*q, x.(entry)) }
-func (q *queue) Pop() any {
-	old := *q
-	e := old[len(old)-1]
-	*q = old[:len(old)-1]
-	return e
 }

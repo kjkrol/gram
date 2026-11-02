@@ -1,13 +1,13 @@
-# Madeira: 64 x 32 km in 192 x 96 cells of 333 m, the island whole.
+# Madeira: 64 x 32 km in 640 x 320 cells of 100 m, the island whole.
 area:
   centre: [-16.96, 32.745] # longitude, latitude
-  cells: [192, 96]
-  cell: 333 # metres
+  cells: [640, 320]
+  cell: 100 # metres
   units: 32
   sea: 10 # cells of sea round the land at least: the area grows where it has fewer
 ground:
-  rock: {slope: 0.7, above: 1600}
-  sand: {within: 1, below: 20, share: 0.3}
+  rock: {slope: 0.9, above: 1600}
+  sand: {within: 2, below: 20, share: 0.3}
   forest: {from: 300, to: 1400, share: 0.45}
 rivers:
   brook: 6 # km² drained
@@ -15,24 +15,24 @@ rivers:
   river: 40
   depth: [2, 4, 6] # metres
   rain: 1000
-  width: 1.4
+  width: 0.42
   meander: 15
-  ford: {every: 8, slope: 0.1}
+  ford: {every: 24, slope: 0.1}
 roads:
   width: 7
   deck: 12
-  thickness: 10 # metres: a bridge's deck, its beam
+  thickness: 3 # metres: a deck of 0.2 m as the demos draw it, 15 times thicker than life
+  cut: 200 # metres a corner is dug down at most, a bridge's head too
+  fill: 200 # metres a corner is raised at most
+  route: {cut: 40, fill: 40} # metres a route's step is forgiven at most: none tried first
+  metre: 1 # a metre of road's price
+  cubic: 0.001 # a cubic metre of earth's: a bridge's heads levelled against the way round
   climb: 6
-  turn: 1
-  grade: 3000
   rock: 4
-  reuse: 0.3
   bridge: 4
-  bank: 4
-  longest: 3 # cells a bridge spans, at most
+  longest: 4 # cells a bridge spans, at most
   high: 200
-  deep: 200
-  figure: 90 # metres: a man of 1.8 m as the demos draw him, 50 times bigger than life
+  figure: 27 # metres: a man of 1.8 m as the demos draw him, 15 times bigger than life
   places:
     Funchal: [-16.9086, 32.6496]
     Câmara de Lobos: [-16.977, 32.65]

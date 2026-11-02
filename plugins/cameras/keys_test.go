@@ -32,8 +32,9 @@ func TestDefaultBindings_NoKeySetsWhatTheSettingsScreenSets(t *testing.T) {
 	cfg := cameras.Config{Turn: true, Tilt: true, Perspective: true, Cell: 32}
 	for _, b := range cameras.NewPlugin(reliefWorld(), cfg).DefaultBindings() {
 		switch b.Type() {
-		case reflect.TypeFor[cameras.Zones](), reflect.TypeFor[cameras.Adapt](),
-			reflect.TypeFor[cameras.Picture](), reflect.TypeFor[cameras.Resolution]():
+		case reflect.TypeFor[cameras.Zones](), reflect.TypeFor[cameras.CornerTurn](),
+			reflect.TypeFor[cameras.Adapt](), reflect.TypeFor[cameras.Picture](),
+			reflect.TypeFor[cameras.Resolution]():
 			t.Errorf("%v is bound to %v, want the settings screen alone", b.Type(), b.Trigger)
 		}
 	}
@@ -290,5 +291,40 @@ func TestDefaultBindings_TheEdgeTheCornersTheDragAndTheGrabHoldWhereTheHandIsFre
 		if !found {
 			t.Errorf("no binding on %v", trigger)
 		}
+	}
+}
+
+func TestDefaultBindings_TheCornersTurnOrScrollAsTheSettingsSayApartFromTheEdges(t *testing.T) {
+	p := cameras.NewPlugin(reliefWorld(), cameras.Config{Turn: true, Cell: 32,
+		Zones: cameras.ZonesCfg{StillCorners: true}})
+	var edge, corner control.Binding
+	for _, b := range p.DefaultBindings() {
+		switch b.Trigger {
+		case control.CursorAtEdge{}:
+			edge = b
+		case control.CursorInCorner{}:
+			corner = b
+		}
+	}
+	if edge.Trigger == nil || corner.Trigger == nil {
+		t.Fatal("no binding on the edge or in the corner")
+	}
+	ctx := control.Context{Screen: geom.NewVec(1000, 800), Cursor: geom.NewVec(15, 15)}
+	if _, ok := corner.Build(ctx); ok {
+		t.Error("the corners still from the start, the corner turns")
+	}
+	if cmd, ok := edge.Build(ctx); !ok || cmd.(cameras.Pan).Dx == 0 || cmd.(cameras.Pan).Dy == 0 {
+		t.Errorf("the corners still, the corner builds %+v (%v), want a slantwise Pan", cmd, ok)
+	}
+	p.Write().TurnInCorners(true)
+	if _, ok := corner.Build(ctx); !ok || !p.Read(0).CornersTurn() {
+		t.Error("the corners turning again, the corner turns nothing")
+	}
+	if cmd, ok := edge.Build(ctx); ok {
+		t.Errorf("the corners turning, the corner scrolls %+v too", cmd)
+	}
+	p.Write().ScrollFromEdges(false)
+	if _, ok := corner.Build(ctx); !ok {
+		t.Error("the edges still, the corner turns nothing; want the turning apart")
 	}
 }

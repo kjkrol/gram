@@ -6,7 +6,6 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/examples/board/topography/hud"
 	"github.com/kjkrol/gram/plugins/cameras"
-	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -15,7 +14,6 @@ import (
 
 type mainScene struct {
 	arena *arena
-	keys  players.SceneKeys
 }
 
 var (

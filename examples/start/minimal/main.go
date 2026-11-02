@@ -64,10 +64,11 @@ type arena struct {
 	motion    *motion.Plugin
 	collision *collision.Plugin
 	cameras   *cameras.Plugin
-	players   *players.Plugin
 	telemetry *telemetry.Plugin
-	player    *players.Player
-	stats     collision.ContactStats
+	players   *players.Plugin
+
+	player *players.Player
+	stats  collision.ContactStats
 }
 
 func main() {

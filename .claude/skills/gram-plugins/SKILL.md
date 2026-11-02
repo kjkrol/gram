@@ -15,9 +15,9 @@ keeps only what those do not.
 
 - `makePlugins` makes them in the order used: motion first, handed to whatever steers or pushes;
   the light after motion and before the board and the topography, which draw by it; the
-  topography after the world, the light and the board; the minimap after the cameras; the
-  players last, handed every `plugin.CommandHandler`, whose `Tunable`s the settings screen lists
-  in that order.
+  topography after the world, the light and the board; the roads after the board and the
+  topography; the minimap after the cameras; the players last, handed every
+  `plugin.CommandHandler`, whose `Tunable`s the settings screen lists in that order.
 - `Update` as board/topography runs it: bridges, world, light, motion, collision, gravity, board,
   navigation, driving, vision, atmosphere, selection, topography, cameras, minimap, players.
   Fixed: the light and motion after the world; gravity right after collision, the board after it;
@@ -124,7 +124,10 @@ keeps only what those do not.
   are read and panics at its first step.
 - `unit.At.Next` is the cell the leader steps the unit into; the standing pass prices that step's
   slope while the heading lies within a quarter turn of it, else the step toward the heading's
-  nearest neighbour.
+  nearest neighbour. A unit cutting a corner of a slantwise step stands in a cell its route
+  never priced, so navigation leads it through that corner as within it (`Next` the corner
+  cell, the level pace): priced as the straight step out of the corner, a refused step gave
+  pace 0 and no stall, and the unit stood for good (2026-11-02).
 - Every cell is an entity for good, with no `world.Base` (out of the space): `Plot`, `Ground`,
   `Way`, `Built`. `Ground` is kept apart from `Plot` so an effect ending restores the kind alone.
   A state of the ground is an adjective (an effect), the kind the noun; what lies on it a cover.
@@ -177,10 +180,21 @@ keeps only what those do not.
   onto a bridge or a ford); the shaping (`relief.KeepRoads`) takes back what would break one and
   the bridge tool refuses it; every error names the file and the line.
 - `cmd/gramap` (Madeira's maps, from `cmd/gramap/madeira.yaml`): heights from the Terrain Tiles
-  on AWS, rivers by `water.Drain`, roads routed with their height in the search and no tunnels
-  (a leg past `deep` metres of cut or fill is left out and named), bridges planned by
-  `bridges/site` as a player's, fords where a river is shallow; the map is laid on a board and
-  run a step before it is written, the old file's `units:` kept.
+  on AWS, rivers by `water.Drain`, roads routed by `roads/site`'s Planner (gramap's `Leaps`
+  bridge water and valleys, a leap's cost the bridge's length at the recipe's `bridge` plus its
+  heads' earth) and levelled together by `site.Plan` over the whole network after every leg; a
+  leg stays only if the network still levels and every bridge stands (`bridges/site.Plan` on the
+  graded ground), else the refused cell and its ring are made 3× dearer and it is planned anew,
+  48 tries a rung, then left out and named; fords where a river is shallow; the recipe's `roads:`
+  are `site.Rules` in metres (`cut`, `fill`, `earth`, `step`, `spread`, `slope`, `fords`, `metre`,
+  `cubic`, `climb`) with `route: {cut, fill}` the planner's own allowance (Madeira 40 m against
+  200 m of levelling: a planner forgiving the levelling's whole allowance sees no slope between
+  cells and runs up gorges the levelling cannot fix); a leg is routed up a ladder of
+  rungs, forgiving none of the route allowance first, then a quarter, a half and all of it, and
+  the planner sees a cell the levelling could flatten as flat at its corners' mean; a cell
+  flanking a diagonal bridge's head is barred (its corners are fixed at the deck and on the
+  ground); the map is laid on a board and run a step before it is written, the old file's
+  `units:` kept.
 - The board's field (collision's `Field`) and cover (sight's) read the cell entities whenever
   asked; nothing copies them.
 - The flat board is drawn on the GPU from an image of its cells (`look/tiles.go`): the CPU writes
@@ -192,6 +206,14 @@ keeps only what those do not.
 
 - Made after the world, the light and the board; refuses a wrapping world; hands the light its
   relief (`light.Plugin.OverRelief`).
+- The relief reaches its `Heights` entities as the heights system runs and as each Replay ends
+  (`Clock.Replayed`, `HeightsSystem.Fill`, one comparison when nothing moved): a grade made in a
+  later plugin's step of the simulation or a shaping command given in the pause is in a save
+  taken between the ticks.
+- `Write.Grade` (the `ground.Shaper`'s) pins the graded cell's own corners while the MaxStep
+  ripple runs, so a ramp steeper than MaxStep along a cell's edge stands; it is false only where
+  `KeepRoads` took the grade back, true for a cell already as asked, because the roads tool
+  grades every cell of a plan in turn.
 - What it draws reads what it published once a frame: the relief copied as its version moves,
   its settings, the board's grid; the terrain encodes the heights as it composes, so the frame's
   `GroundSpan` is theirs.
@@ -512,7 +534,54 @@ keeps only what those do not.
   registered; the plugin never calls the atlas: the look is the figure's.
 - `Spec.Load` is every deck's `Floor.Load`.
 - A level's bridges are planned at `Populate`, an error with the line; a player's `Build` levels
-  the heads (`WithShaper`) and spawns the parts at the next step.
+  the heads (`WithShaper`) and spawns the parts at the next step; a player's `Build` is a
+  `Res.Orders` entry (its kind by name), saved, so a bridge confirmed in the pause is built after
+  a load. The renderer draws the hands alone: a bridge confirmed in the pause is not seen until
+  its step builds it.
+
+## roads, with site
+
+- Made after the board and the topography (it grades through the topography's `Write`), before
+  the cameras; `RunPlan` after theirs. A road is a `cell.Way` laid cell by cell, no entity: a
+  bridge is a structure, the road (one day a railway) lies on its deck.
+- `Res.Orders` (roads confirmed, waiting for their step) and `Res.Receipts` (built, not read by
+  the game yet) are saved with the settings; the hands are not: a load forgets a road in hand.
+  The renderer draws the orders as waiting.
+- `site.Rules` are what the game allows, zero allowing nothing (the user, 2026-11-02), but for
+  `Longest`, a cap, 0 no limit. The price is the game's (`Config.Tariff`), the decision its
+  rules': `Estimated` and `Built` are `host.StepRules` on the plugin's own entity, run in the
+  hand pass at once (the pause too), a hand at a time, the `Refuse` commands drained right after
+  each hand's run being that hand's; a rule of a role the plugin `Plays` reads the game's states
+  as effects (`cond.On(world)`, an effect on the plugin's entity). Ceremony's doctrine: a price
+  is never a rule's.
+- `site.Route` is plain A* on hpastar (no HPA*: the ground changes between routes, leaps have no
+  backward, the tool wants the cheapest; gramap, whose Madeira is 640×320, keeps each leg's
+  search in a corridor round it instead); a `Planner` re-reads the ground on
+  every route and allocates nothing once warm, one per (Rules, Graded, Levelling). A step is
+  priced by the slope left after the permitted levelling (Cut + Fill), never by the earth; a
+  graded cell that cannot be levelled is searched once per way the road came in and left only
+  straight (A* would otherwise settle it from the side and never try the climb); a diagonal step
+  or a bend lies level, so both cells must level to one height; no corner of water or of a road
+  standing is cut; a deck is entered only along its links, a head from its ground side; a ford
+  is judged by `Ford` alone, whatever `Wet` says; `Price` is clamped to 1 at least (the
+  heuristic), `Metre` 0 counts a step of the grid's Distance as 1.
+- `site.Plan` ports gramap's `grade()` to both grids: corners matched across cells by position
+  (1e-3·span), union-find classes (a level cell all its corners, a ramp its entry and exit
+  edges), ramps relaxed to `min(Slope, RoadSlope)`, `Fixed` corners frozen, a hex ramp's side
+  corners on its plane; the ripple is modelled on `relief.settle` with the road's corners pinned;
+  `Estimate.Corners` are what grading the `Ways` cells in order leaves, so the plugin reads every
+  cell's targets (`Estimate.Levelled`) before it grades and grades the `Ways` cells in order; a
+  standing road's cell whose links the plan extends gets its `SetWay` before its `Grade`
+  (`KeepRoads` keeps a road under its old links). No way is laid on a deck or a ford: the road
+  leads onto them. Two consecutive cells that are no neighbours (gramap's legs, a bridge's heads)
+  get no link and no refusal.
+- The plugin's `boardGround`: `Wet` is water without land, `Ford` water and land with no deck,
+  `Fixed` what stands on the cell (a village, a bridge piece), water and a Graded road's cell,
+  `Held` a unit holding the cell; `Price` 1 everywhere (no hook yet).
+- Traps: a diagonal run or a bend on a slope needs a level platform, so on a hillside the planner
+  prefers straight ramps and the demo's map keeps its natural trips straight; `Earth` is small
+  change (a corner moved a metre on a 32-unit cell is ~256 m³); the hand is forgotten after 30
+  ticks without a command unless it asks, as a bridge's.
 
 ## telemetry
 

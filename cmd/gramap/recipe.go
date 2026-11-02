@@ -3,8 +3,11 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"os"
 
+	"github.com/kjkrol/gram/plugins/board/ground"
+	roadsite "github.com/kjkrol/gram/plugins/roads/site"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -97,23 +100,73 @@ type riversCfg struct {
 	} `yaml:"ford"`
 }
 
+// what the roads are allowed (cut, fill, earth, step, spread, slope, fords) and priced (metre,
+// cubic, climb, rock, bridge), as the roads tool's site has them
 type roadsCfg struct {
 	Width     float64               `yaml:"width"`     // world units
 	Deck      float64               `yaml:"deck"`      // world units
 	Thickness float64               `yaml:"thickness"` // metres
-	Climb     float64               `yaml:"climb"`     // per rise over run
-	Turn      float64               `yaml:"turn"`
-	Grade     float64               `yaml:"grade"` // per metre of earth moved over a cell's metres
-	Rock      float64               `yaml:"rock"`  // times
-	Reuse     float64               `yaml:"reuse"` // times, on a road laid already
-	Bridge    float64               `yaml:"bridge"`
-	Longest   int                   `yaml:"longest"` // cells
-	High      float64               `yaml:"high"`    // metres
-	Deep      float64               `yaml:"deep"`    // metres
-	Figure    float64               `yaml:"figure"`  // metres, the tallest figure as drawn
-	Bank      float64               `yaml:"bank"`
+	Cut       float64               `yaml:"cut"`       // metres a corner is dug down, at most
+	Fill      float64               `yaml:"fill"`      // metres a corner is raised, at most
+	Earth     float64               `yaml:"earth"`     // m³ cut and filled in all, at most
+	Step      float64               `yaml:"step"`      // metres; 0: no ground off a road moves
+	Spread    int                   `yaml:"spread"`    // cells off a road the ground follows
+	Slope     float64               `yaml:"slope"`     // degrees, the steepest ramp
+	Fords     bool                  `yaml:"fords"`     // through a river's fords
+	Metre     float64               `yaml:"metre"`     // a metre of road's price
+	Cubic     float64               `yaml:"cubic"`     // a cubic metre of earth's price
+	Climb     float64               `yaml:"climb"`     // a metre dearer by it per rise over run
+	Rock      float64               `yaml:"rock"`      // times a metre's price, over rock
+	Bridge    float64               `yaml:"bridge"`    // times a metre's price, on a bridge
+	Longest   int                   `yaml:"longest"`   // cells a bridge spans, at most
+	High      float64               `yaml:"high"`      // metres
+	Figure    float64               `yaml:"figure"`    // metres, the tallest figure as drawn
+	Route     allowance             `yaml:"route"`
 	Places    map[string][2]float64 `yaml:"places"` // longitude, latitude
 	Routes    [][]string            `yaml:"routes"` // each a chain of places
+}
+
+// the most cut and fill a route between places is planned with, metres, the levelling's where it
+// gives none: a step steeper than a road may run is forgiven only that much, so the planner keeps
+// to ground the levelling can lay a road on
+type allowance struct {
+	Cut  *float64 `yaml:"cut"`
+	Fill *float64 `yaml:"fill"`
+}
+
+// rules are the site's in world units: a map maker's roads cross and join, end at their places,
+// run any length and take a bridge only from its head
+func (c roadsCfg) rules(perUnit float64, cells int) roadsite.Rules {
+	cubed := perUnit * perUnit * perUnit
+	return roadsite.Rules{
+		Cut:       float32(c.Cut / perUnit),
+		Fill:      float32(c.Fill / perUnit),
+		Earth:     float32(c.Earth / cubed),
+		Spread:    c.Spread,
+		Slope:     c.Slope * math.Pi / 180,
+		Crossings: true,
+		Fords:     c.Fords,
+		Longest:   cells,
+		Ends:      true,
+		Metre:     float32(c.Metre * perUnit),
+		Cubic:     float32(c.Cubic * cubed),
+		Climb:     float32(c.Climb),
+	}
+}
+
+// routing are the rules a route is planned under: the levelling's, with share of Route's cut and
+// fill
+func (c roadsCfg) routing(perUnit float64, cells int, share float64) roadsite.Rules {
+	r := c.rules(perUnit, cells)
+	cut, fill := c.Cut, c.Fill
+	if c.Route.Cut != nil {
+		cut = *c.Route.Cut
+	}
+	if c.Route.Fill != nil {
+		fill = *c.Route.Fill
+	}
+	r.Cut, r.Fill = float32(share*cut/perUnit), float32(share*fill/perUnit)
+	return r
 }
 
 func readRecipe(path string) (recipe, error) {
@@ -160,15 +213,17 @@ func defaultRecipe() recipe {
 	r.Roads.Width = 7
 	r.Roads.Deck = 12
 	r.Roads.Thickness = 2
+	r.Roads.Cut = 60
+	r.Roads.Fill = 60
+	r.Roads.Earth = math.Inf(1)
+	r.Roads.Slope = ground.RoadSlope * 180 / math.Pi
+	r.Roads.Fords = true
+	r.Roads.Metre = 1
+	r.Roads.Cubic = 0.001
 	r.Roads.Climb = 6
-	r.Roads.Turn = 1
-	r.Roads.Grade = 30
 	r.Roads.Rock = 4
-	r.Roads.Reuse = 0.3
 	r.Roads.Bridge = 4
 	r.Roads.Longest = 3
 	r.Roads.High = 60
-	r.Roads.Deep = 60
-	r.Roads.Bank = 4
 	return r
 }

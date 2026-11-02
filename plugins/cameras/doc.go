@@ -98,7 +98,8 @@
 // [Keys] are a player's keys to its camera: four keys held scrolling it, the wheel zooming about
 // the cursor, the middle drag panning, the cursor at an edge scrolling and in a corner scrolling
 // slantwise, or turning as Q and E do (Keys.CornersTurn: as Q in the bottom-left and the
-// top-right, as E in the other two; nothing while the window has no cursor), two with Ctrl
+// top-right, as E in the other two, unless the settings still the corners; nothing while the
+// window has no cursor), two with Ctrl
 // seeing farther and nearer, and, where a game asks (Keys.Grab; Config.Grab for the defaults),
 // the right button grabbing the world and dragging it past a click's slop, yielding to whatever
 // else takes the right drag: a selection's orders. [DefaultKeys] are W, S, A, D, = and -, Ctrl+=
@@ -111,7 +112,7 @@
 // scroll keys, the edge, the corners, the middle drag and the grab hold where the hand is free
 // (camera.Free), not behind or in an entity, where the keys drive it (driving). The scroll
 // zones, their opacity, the arm and the pictures' resolution have no key: the settings screen
-// sets them.
+// sets them, Config.Zones their start.
 //
 // # Vocabulary
 //
@@ -124,12 +125,12 @@
 // resolutions), [ShowLayers] (a look: the layers outlined); about every picture: [Budget] (the
 // frame budget), [Zones] (a look: the scroll zones on the glass over every picture, over
 // whatever a scene lays on it), [EdgeScroll] (the cursor at the edge scrolling, or not),
+// [CornerTurn] (the cursor in a corner turning, or not),
 // [EdgeSpeed] (how fast at the very edge, a quarter of it at the zone's inner bound),
 // [ZonesOpacity] (how opaque at the edge), [Hold] (the [Arm] behind an entity); [Follow]
 // (a player's, or an entity's own fastening the camera over itself).
-// Settings ([Settings], saved with the game, in [Resources]): the zones scrolling, shown, their
-// opacity and their speed, the arm behind an entity, the frame budget, the layers shown and each
-// profile's [Knobs]: the strategy, the
-// resolution, the figures at every pixel, the picture drawn in layers, the layers' shares and
-// resolutions.
+// Settings ([Settings], saved with the game, in [Resources]): the zones scrolling, turning in
+// the corners, shown, their opacity and their speed, the arm behind an entity, the frame budget,
+// the layers shown and each profile's [Knobs]: the strategy, the resolution, the figures at
+// every pixel, the picture drawn in layers, the layers' shares and resolutions.
 package cameras

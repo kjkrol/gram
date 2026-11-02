@@ -268,15 +268,16 @@ const (
 // Queues are where the cameras' commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
 	return append([]command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.centerOns,
-		&p.centerAts, &p.zones, &p.edgeScrolls, &p.edgeSpeeds, &p.zonesOpacities, &p.holds,
-		&p.sights,
+		&p.centerAts, &p.zones, &p.edgeScrolls, &p.cornerTurns, &p.edgeSpeeds, &p.zonesOpacities,
+		&p.holds, &p.sights,
 		&p.resolutions, &p.adapts, &p.pictures, &p.sharps,
 		&p.layers, &p.layerShares, &p.layerRes, &p.budgets, &p.samplings, &p.thresholds, &p.showLayers}, p.orders.queues()...)
 }
 
-// DefaultBindings are DefaultKeys, their corners turning where the Config turns, the world grabbed
-// with the right button where it says so and their edge as the settings say (EdgesScroll,
-// EdgeSpeed), and the views' keys the Config gives: Q and E turning, R and F tilting and Tab
+// DefaultBindings are DefaultKeys, their corners turning where the Config turns and the settings
+// say (CornersTurn), the world grabbed with the right button where it says so and their edge as
+// the settings say (EdgesScroll, EdgeSpeed), and the views' keys the Config gives: Q and E
+// turning, R and F tilting and Tab
 // switching the projection where the hand is free, V riding where the Config reaches the
 // perspective, and the mouse looking round inside an entity and behind it. The scroll zones and
 // the pictures' resolution are the settings screen's.

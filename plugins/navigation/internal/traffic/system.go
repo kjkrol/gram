@@ -617,6 +617,11 @@ func (s *System) tail(w *walker, d time.Duration) {
 		o.Holding, o.WaitedOut, o.Cornered = 0, false, false
 	}
 	w.at.Next = waypoint
+	if leg.Active && leg.Diagonal && (w.actual == leg.C1 || w.actual == leg.C2) {
+		// a corner the step cuts is crossed as within it, on the level: the board would price
+		// the straight step from it into the waypoint, which the planner never priced
+		w.at.Next = w.actual
+	}
 
 	have := w.base.Pos.Center()
 	end := s.goal(target, o.Spot, w.off)

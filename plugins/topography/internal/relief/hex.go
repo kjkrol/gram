@@ -118,6 +118,25 @@ func (r *Relief) Hex(c cell.ID) (corners [6]float32, level float32, ok bool) {
 	return corners, r.hexLevel(hexTop(cols, int(q), int(row))), true
 }
 
+// SetHex puts the six corners of the hex cell c at corners, clockwise from the top, the cells
+// meeting at them going with them; nothing off a hex grid's board.
+func (r *Relief) SetHex(c cell.ID, corners [6]float32) {
+	if r.square {
+		return
+	}
+	vs, n, ok := r.corners(c)
+	if !ok {
+		return
+	}
+	changed := false
+	for k, v := range vs[:n] {
+		changed = r.setValue(v, corners[k]) || changed
+	}
+	if changed {
+		r.changed()
+	}
+}
+
 // a triangle of the lattice, a half of the rhombus from (i, j): the lower (i, j), (i+1, j),
 // (i, j+1) or the upper (i+1, j+1), (i, j+1), (i+1, j), with the heights there in that order
 type facet struct {

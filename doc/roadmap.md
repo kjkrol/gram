@@ -52,8 +52,22 @@ What is left to do. Take an item out when it lands.
   a climb or a swim; a unit under gravity does them only by hand.
 - **Bridges that turn** — a bridge runs straight; a knee (two links not opposite) is refused by
   the board's rules and not made by `cmd/gramap`.
-- **Roads with a tool** — a player lays a road as a bridge (`control.Tool`, a road's rules beside
-  `bridges/site`'s), and takes a bridge down.
+- **Bridges and roads taken down** — a player builds both and takes neither down.
+- **The road planner's reach** — `roads/site.Route` prices a step by the slope left after the
+  permitted levelling and knows no turn cost, so down a slope it lays a staircase of bends,
+  which the levelling must flatten into one chain; a bend or a diagonal step is judged a cell or
+  a pair at a time, so a chain of level cells building up across many is seen only by `Plan`;
+  a road standing costs its length whatever the ground's `Price`, so a dearer ground never
+  steers a route off it. cmd/gramap works round them with its ladder of allowances and its
+  dearer refused ground; a planner carrying the road's height, as gramap's old one did, would
+  see the climb whole.
+- **A save in the tactical pause** — what waits for a step is lost by a save taken while the
+  clock stands: the world's effect, spawn and despawn commands given in the pause, collision's
+  pairs resting since the last tick, traffic's memory of a tick; weathering's dice restart from
+  the seed after a load. Each would be a resource or a component.
+- **The road tool as the game runs** — a road's levelling under standing units waits for the game
+  to move them; taking the tool in hand pauses the game only where `roads.Config.InPause` says,
+  and nothing unpauses it as the tool is put down.
 - **Baked shadows over a hex relief** — the light bakes over a square lattice of heights alone,
   so a hex grid's relief casts no shade of its own, what casts a Baked shadow (a bridge's deck
   and its piers) casts none there, and what stands there receives only the clouds'.

@@ -11,6 +11,17 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
+// ZonesCfg is how the scroll zones start (Config.Zones); the settings screen changes them later.
+type ZonesCfg struct {
+	Still        bool    // the cursor at a picture's edge scrolls nothing
+	StillCorners bool    // the corners turn nothing, scrolling slantwise where the edges scroll
+	Shown        bool    // the strips and the squares drawn
+	Opacity      float32 // how opaque at the edge, 0 to 1; zero, DefaultZonesOpacity
+	// screen pixels a tick at the very edge, a quarter of it at the zone's inner bound; zero, the
+	// keys' own
+	Speed float32
+}
+
 // Zones shows the strips at the picture's edges the cursor scrolls from and the squares at its
 // corners it turns from, a translucent yellow deepening to the edge as the scroll quickens, or
 // hides them (Settings.Zones). The settings screen alone.
@@ -19,6 +30,10 @@ type Zones struct{ Shown bool }
 // EdgeScroll has the cursor at a picture's edge scroll the camera, or not (Settings.StillEdges).
 // The settings screen alone.
 type EdgeScroll struct{ On bool }
+
+// CornerTurn has the cursor in a picture's corner turn the camera as Q and E do, or not
+// (Settings.StillCorners). The settings screen alone.
+type CornerTurn struct{ On bool }
 
 // EdgeSpeed sets how fast the cursor at a picture's edge scrolls, screen pixels a tick at the
 // very edge (Settings.EdgeSpeed); 0, the keys' own. The settings screen alone.
@@ -30,12 +45,14 @@ type ZonesOpacity struct{ Opacity float32 }
 
 func (Zones) Command()        {}
 func (EdgeScroll) Command()   {}
+func (CornerTurn) Command()   {}
 func (EdgeSpeed) Command()    {}
 func (ZonesOpacity) Command() {}
 
 var (
 	_ command.Command = Zones{}
 	_ command.Command = EdgeScroll{}
+	_ command.Command = CornerTurn{}
 	_ command.Command = EdgeSpeed{}
 	_ command.Command = ZonesOpacity{}
 )
@@ -115,6 +132,9 @@ func (v *zonesView) DrawGlass(dst *render.Image, cam camera.Camera) {
 func (p *Plugin) switchZones() {
 	p.zones.Drain(func(i command.Issued[Zones]) { p.write.ShowZones(i.Command.Shown) })
 	p.edgeScrolls.Drain(func(i command.Issued[EdgeScroll]) { p.write.ScrollFromEdges(i.Command.On) })
+	p.cornerTurns.Drain(func(i command.Issued[CornerTurn]) {
+		p.write.TurnInCorners(i.Command.On)
+	})
 	p.edgeSpeeds.Drain(func(i command.Issued[EdgeSpeed]) { p.write.SetEdgeSpeed(i.Command.Speed) })
 	p.zonesOpacities.Drain(func(i command.Issued[ZonesOpacity]) {
 		p.write.SetZonesOpacity(i.Command.Opacity)
