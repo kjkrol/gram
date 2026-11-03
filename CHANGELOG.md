@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.18.0 — unreleased
+## v0.18.0 — 2026-11-03
 
 **One ladder of levels of detail** (2026-11-03, branch `feat/lod`, parts `l/levels`, `l/paces`,
 `l/looks`, `l/ground`, `l/budget`)
