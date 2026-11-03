@@ -101,15 +101,12 @@ func (t *Texture) WritePixels(x, y, w, h int, pix []byte) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	t.realize(d)
-	switch {
-	case w*h <= maxPut:
+	if w*h <= maxPut {
 		d.put(t, x, y, w, h, pix)
-	case x == 0 && y == 0 && w == t.w && h == t.h:
-		d.submit()
-		d.write(t, 0, 0, w, h, pix)
-	default:
-		d.blitIn(t, x, y, w, h, pix)
+		return
 	}
+	d.submit()
+	d.write(t, x, y, w, h, pix)
 }
 
 // the textures whose pixels were written before there was a device, for RealizeAll
@@ -138,8 +135,8 @@ var putProgram = NewProgram("put", "    At: vec4<f32>,\n    Pixels: array<vec4<u
 	strconv.Itoa(putPixels/4)+">,\n", shader("put"))
 
 // put draws the pixels in place among the draws, after every draw made so far, the pixels in the
-// draws' uniforms: gogpu's Queue.WriteTexture discards what the texture held and waits for a
-// submission of its own, and its copy into a texture drawn in the same commands is refused
+// draws' uniforms: gogpu's Queue.WriteTexture waits for a submission of its own, and its copy
+// into a texture drawn in the same commands is refused
 func (d *device) put(t *Texture, x, y, w, h int, pix []byte) {
 	pw := min(w, putPixels)
 	ph := max(putPixels/pw, 1)
@@ -158,21 +155,6 @@ func (d *device) put(t *Texture, x, y, w, h int, pix []byte) {
 				quad(x+px, y+py, cw, ch), []uint16{0, 1, 2, 1, 2, 3})
 		}
 	}
-}
-
-// gogpu's write at an origin but the corner spoils the texture left of it (wgpu v0.34.5 too):
-// the pixels go into a texture of their own, whole, and are drawn into place from there
-func (d *device) blitIn(t *Texture, x, y, w, h int, pix []byte) {
-	part := NewTexture(w, h)
-	part.cpu = pix[:4*w*h]
-	part.realize(d)
-	d.triangles(t.gpuTarget(d), Rect{x, y, w, h}, &Draw{Program: blitProgram,
-		Images: [4]Image{{Texture: part}}, Uniforms: make([]byte, blitLayout.Size), Blend: Copy},
-		quad(x, y, w, h), []uint16{0, 1, 2, 1, 2, 3})
-	d.submit()
-	d.forget(part)
-	// the draw into place may still read it
-	d.retire(func() { part.tgt.view.Release(); part.tex.Release() })
 }
 
 // a quad over w by h pixels at (x, y), its source the piece's own pixels

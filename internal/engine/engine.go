@@ -192,8 +192,15 @@ func (e *Engine) Run() {
 	if _, set := os.LookupEnv("GOGPU_WAYLAND_FRAME_CALLBACK"); !set {
 		os.Setenv("GOGPU_WAYLAND_FRAME_CALLBACK", "0")
 	}
-	cfg := gogpu.DefaultConfig().WithTitle(e.props.Title).WithSize(e.props.ScreenWidth, e.props.ScreenHeight).
-		WithResizable(e.props.Resizable).WithContinuousRender(true).WithVSync(os.Getenv("GRAM_VSYNC") != "off")
+	cfg := gogpu.DefaultConfig().WithTitle(e.props.Title).
+		WithSize(e.props.ScreenWidth, e.props.ScreenHeight).WithResizable(e.props.Resizable).
+		WithContinuousRender(true).WithVSync(os.Getenv("GRAM_VSYNC") != "off")
+	// a stand-in for gogpu/wgpu#379 (gram #48): in Auto mode wgpu's GL instance builds an EGL
+	// context on the app's Wayland connection and frees it after gogpu has closed that, a
+	// segfault at quit; GOGPU_GRAPHICS_API still picks a backend by hand
+	if runtime.GOOS == "linux" && cfg.GraphicsAPI == gogpu.GraphicsAPIAuto {
+		cfg = cfg.WithGraphicsAPI(gogpu.GraphicsAPIVulkan)
+	}
 	if os.Getenv("GRAM_FULLSCREEN") != "" {
 		cfg = cfg.WithFullscreen()
 		e.adapter.start = true
@@ -218,8 +225,7 @@ func (e *Engine) Run() {
 func (e *Engine) frame(dc *gogpu.Context) {
 	start := time.Now()
 	p := e.app.DeviceProvider()
-	view := dc.SurfaceView()
-	if p == nil || view == nil {
+	if p == nil {
 		return
 	}
 	if err := render.UseDevice(p.Device(), backendOf(dc.Backend())); err != nil {
@@ -256,10 +262,13 @@ func (e *Engine) frame(dc *gogpu.Context) {
 	}
 	t.Draw = time.Since(drawing)
 	presenting := time.Now()
+	view := dc.SurfaceView()
 	fw, fh := dc.FramebufferSize()
-	if enc := dc.CommandEncoder(); enc != nil {
-		if err := render.Present(enc, view, p.SurfaceFormat(), fw, fh, e.window); err != nil {
-			log.Printf("gram: a frame not shown: %v", err)
+	if view != nil {
+		if enc := dc.CommandEncoder(); enc != nil {
+			if err := render.Present(enc, view, p.SurfaceFormat(), fw, fh, e.window); err != nil {
+				log.Printf("gram: a frame not shown: %v", err)
+			}
 		}
 	}
 	t.Present = time.Since(presenting)

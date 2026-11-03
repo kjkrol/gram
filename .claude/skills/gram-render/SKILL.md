@@ -101,10 +101,11 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
 
 ## Traps
 
-- gogpu's `Queue.WriteTexture` discards what the texture held and needs a submission (~1 ms
-  mid-frame: a dozen a frame took the topography from 160 to 11 FPS); a buffer copy into a texture
-  drawn in the same commands is refused. `Texture.WritePixels` draws pixels in place instead;
-  only a bigger write goes gogpu's ways. The gathered buffers grow, so a frame is submitted once.
+- gogpu's `Queue.WriteTexture` needs a submission (~1 ms mid-frame: a dozen a frame took the
+  topography from 160 to 11 FPS); a buffer copy into a texture drawn in the same commands is
+  refused. `Texture.WritePixels` draws pixels in place instead; only a bigger write goes gogpu's
+  way, which keeps the rest of the texture since wgpu v0.34.6. The gathered buffers grow, so a
+  frame is submitted once.
 - A texture copy of a depth is wrong on GLES and Vulkan in gogpu: `Image.CopyDepth` is a draw.
 - A depth buffer is read at the size it was drawn at (`DrawMeshOptions.ReadDepth`); refit to each
   reader, it was a new texture a draw, its content lost.
@@ -121,10 +122,11 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   `ptr<function, array<T, N>>`; a load from a var or a pointer is baked before its operator.
   Without a Mac, a shader's Metal verdict is naga's `msl.Compile` of its `Source()` read for the
   pattern, or clang on the output.
-- naga leaves a `var` without an initialiser undefined, garbage (stray shadows in single pixels):
-  write `var c = T(...)`. Before v0.20.3 it read a module-scope vector `const` as zero against a
-  runtime value, miscompiled `+=` on a local array's element and took no `all()`/`any()`
-  (`compile_test.go`); gram's WGSL still tests a vector by its components. Re-check at a bump.
+- Before v0.20.4 naga left a `var` without an initialiser undefined (stray shadows in single
+  pixels; gram's `var c = T(...)` stays harmless); before v0.20.3 it read a module-scope vector
+  `const` as zero against a runtime value, miscompiled `+=` on a local array's element and took no
+  `all()`/`any()` (`compile_test.go`); gram's WGSL still tests a vector by its components.
+  Re-check at a bump.
 
 ## Dropped
 
