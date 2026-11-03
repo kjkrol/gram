@@ -36,8 +36,8 @@
 // # Limits
 //
 // A wrapping world is refused. Shots do not penetrate: the nearest contact ends the flight. A
-// landed shot touches nothing. Shots fly in the first band of the world's sectors alone
-// (sector.Near); farther off one hangs where it is.
+// landed shot touches nothing. A shot flies every step at every level of the world's sectors
+// but L4, keeping its sector and those round it at L2 at most (sector.Keen) till it rests.
 //
 // # Figures
 //

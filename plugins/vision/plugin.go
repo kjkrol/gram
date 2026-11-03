@@ -9,11 +9,11 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/sector"
 )
 
 // Plugin wires vision into a Stage over the world's space. It publishes what entities can see;
@@ -70,7 +70,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	}
 	p.module = newModule(p.worldPlugin.Read(0).Space(), &p.sightings, h, p.coverOn, p.workers)
 	p.module.sys.Pool(ctx.Pool())
-	p.module.sys.Paced(p.worldPlugin.Pace(sector.Near))
+	p.module.sys.Paced(p.worldPlugin.Pace(lod.Contact))
 	p.module.sys.Every(p.frequency)
 	p.module.clock = p.worldPlugin.Write().Clock()
 	p.module.sys.tick, p.module.sys.log = p.worldPlugin.Read(0).Tick, p.log

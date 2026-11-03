@@ -16,10 +16,10 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
 	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
-	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 )
@@ -92,6 +92,7 @@ func NewPlugin(cfg Config) *Plugin {
 		p.read.Look)
 	p.sectors = newSectorsView(p)
 	p.renderer.clock = m.clock.Read().Shown
+	p.renderer.space = cfg.Space
 	return p
 }
 
@@ -127,7 +128,7 @@ func (p *Plugin) newEffects() {
 	m, kinds := p.module, p.kinds
 	m.effects = cgoke.NewEffects(effect.New(func(name string) tag.Tag[effect.States] {
 		return kinds.DefineTag[effect.States](name)
-	}), p.Pace(sector.Paced))
+	}), p.Pace(lod.Slowing(2, 4, 8)))
 	m.effects.Guard(func(name string) {
 		p.must(fmt.Sprintf("effect %q defined", name), section.Effects)
 	})
@@ -140,7 +141,7 @@ func (p *Plugin) newPlans() {
 	m.effectCmds.effects, m.effectCmds.world, m.effectCmds.commands = m.effects, m.clock.Read().Entity,
 		&m.commands
 	m.plans = plan.NewPlans(m.clock.Read().Time, p.Res.Config.Seed, m.effects, &m.commands)
-	m.plansSys = cgoke.NewPlans(m.plans, p.Pace(sector.Paced))
+	m.plansSys = cgoke.NewPlans(m.plans, p.Pace(lod.Slowing(2, 4, 8)))
 	m.plans.Roles(m.effectCmds.RolesOf)
 	p.kinds.plans = m.plans
 }

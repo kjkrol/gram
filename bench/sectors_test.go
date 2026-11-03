@@ -9,10 +9,11 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/lod"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/sector"
 )
 
 // the expanse demo's scene: a torus 16384 a side, its boxes 5 a side, a tick a step
@@ -22,11 +23,13 @@ const (
 	expanseTPS   = 60
 )
 
-type anchor struct{ x, y float32 }
-
-var _ sector.Anchors = anchor{}
-
-func (a anchor) Anchors(at func(x, y float32)) { at(a.x, a.y) }
+// the expanse demo's ladder: L0 from half a pixel a world unit, a sight of 6 km at 6 m a unit, its
+// last 1.8 km in the fog
+var expanseLOD = lod.Ladder{
+	Scales: [lod.Levels - 1]float32{0.5},
+	Sight:  1_000,
+	Fog:    300,
+}
 
 func benchExpanse(b *testing.B, banded bool) *goke.ECS {
 	b.Helper()
@@ -35,12 +38,12 @@ func benchExpanse(b *testing.B, banded bool) *goke.ECS {
 	w := ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: expanseSide, Height: expanseSide, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: expanseBoxes, MinSize: 5, MaxSize: 5},
-		Sectors: world.SectorsCfg{Buckets: 8, Bands: []sector.Band{
-			{Reach: 750},
-			{Reach: 2000, Pace: 4},
-		}},
+		Sectors:  world.SectorsCfg{Buckets: 8},
+		LOD:      expanseLOD,
 	})
-	w.Write().Anchor(anchor{x: expanseSide / 2, y: expanseSide / 2})
+	// the demo's screen over the world's middle, a pixel a world unit
+	cam := ctx.camera(cameras.Config{}, cameras.FromAbove, 1024, 768)
+	cam.CenterOn(expanseSide/2, expanseSide/2, 0)
 	w.Write().SetBanded(banded)
 	m := motion.NewPlugin(w)
 	if err := ctx.Use(m); err != nil {
@@ -77,7 +80,7 @@ func benchExpanse(b *testing.B, banded bool) *goke.ECS {
 }
 
 // Benchmark_Sectors_Expanse is one tick of world, motion and collision at the expanse demo's
-// scale, its bands round the middle and switched off.
+// scale, its levels round a camera over the middle and switched off.
 func Benchmark_Sectors_Expanse(b *testing.B) {
 	for _, sc := range []struct {
 		name   string

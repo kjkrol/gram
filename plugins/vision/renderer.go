@@ -563,8 +563,11 @@ func (r *Renderer) onGround(ox, oy float32, a float32, dist float32) ConePoint {
 		z = r.ground.At(geom.NewVec(x, y))
 	}
 	sx, sy := r.camera.Project(x, y, z)
-	return ConePoint{X: sx, Y: sy,
-		At: r.frame.Lifted(x, y, z, sightLift), Scale: camera.ScaleAt(r.camera, x, y, z)}
+	scale := float32(0)
+	if camera.InFront(r.camera, x, y, z) {
+		scale = camera.ScaleAt(r.camera, x, y, z)
+	}
+	return ConePoint{X: sx, Y: sy, At: r.frame.Lifted(x, y, z, sightLift), Scale: scale}
 }
 
 func (r *Renderer) fan(

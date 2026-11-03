@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -20,7 +21,6 @@ import (
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -67,15 +67,14 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 
 // view is "above", "iso" or "persp"; far shows the whole island on a screen of 576 by 384
 func island(b *testing.B, view string, far bool) (*headless, *board.Plugin, render.Source) {
-	ctx, brd, src, _ := islandWith(b, view, far, true, false, false)
-	return ctx, brd, src
+	return islandWith(b, view, far, true, false, lod.L4)
 }
 
 // islandWith is island with the water's shine or without it (no water layer drawn), under a
 // distant sun with the ground's shade baked or in no light at all, and cut into sectors of 256
-// or whole; the topography is handed back for its care
-func islandWith(b *testing.B, view string, far bool, shine, lit, sectored bool) (
-	*headless, *board.Plugin, render.Source, *topography.Plugin) {
+// every one at level or, at L4, whole
+func islandWith(b *testing.B, view string, far bool, shine, lit bool, level lod.Level) (
+	*headless, *board.Plugin, render.Source) {
 	const w, h, size = 96, 64, 32
 	ctx := newHeadless()
 	cfg := world.Config{
@@ -83,9 +82,12 @@ func islandWith(b *testing.B, view string, far bool, shine, lit, sectored bool) 
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
 		Heights:  true,
 	}
-	if sectored {
-		// sectors of 256, every one in the band
-		cfg.Sectors = world.SectorsCfg{Buckets: 1, Bands: []sector.Band{{Reach: w * size}}}
+	if level < lod.L4 {
+		// sectors of 256, every one at level: the thresholds before it past any scale
+		cfg.Sectors = world.SectorsCfg{Buckets: 1}
+		for k := range level {
+			cfg.LOD.Scales[k] = float32(1e6) / float32(k+1)
+		}
 	}
 	ctx.UseWorld(cfg)
 	grid := grid.DefaultGrids{}.Square(w, h, size)
@@ -206,5 +208,5 @@ func islandWith(b *testing.B, view string, far bool, shine, lit, sectored bool) 
 	if far {
 		ctx.cam.ZoomOut(100, w*size/2, h*size/2)
 	}
-	return ctx, p, drawnAs[*look.Renderer](b, ctx), topo
+	return ctx, p, drawnAs[*look.Renderer](b, ctx)
 }

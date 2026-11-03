@@ -21,10 +21,15 @@ Protokół i pułapki pomiaru: `gram-perf`; jak się rysuje: `gram-render`. Licz
 - Direct rysuje raz na warstwę i trzyma to, co zebrał Compose; sprite'y, trasy i widoki złamały
   to po razie (`gram-render`).
 - Jedna kompozycja na warstwę kamery, z dziurą pod warstwami wewnętrznymi.
-- Grunt w rozdzielczości kamery, z rozdzielczością obrazu i starannością po pierścieniach; figury
-  ostre nad nim, w każdym pikselu.
-- Rozdzielczość idzie za budżetem klatki (adapter kamer): pomiar ją ustawia
-  (`cameras.Picture{Resolution}`) albo wyłącza warstwy, inaczej mierzy adapter.
+- Grunt w rozdzielczości kamery, z wariantem shadera po poziomie sektora z widoku kamery
+  (`lod`, jedna drabina: L0 pełnia, L1 bez brzegu i wody biegnącej, L2 siatka zgrubna bez fal,
+  L3 płachta albedo malarza, L4 nic; żadnych pierścieni staranności); figury ostre nad nim, w
+  każdym pikselu, każdy rodzaj wersją swojego poziomu (L2 plama koloru, L3 nic).
+- Rozdzielczość i poziom obrazu idą za budżetem klatki (adapter kamer: dźwignie, przesunięcie
+  poziomu o 1–2 dla każdej kamery, najwyżej do L3, potem rozdzielczość): pomiar ustawia
+  rozdzielczość (`cameras.Picture{Resolution}`) i uspokaja przesunięcie
+  (`cameras.Detail{Follows: false}`) albo wyłącza warstwy, inaczej mierzy adapter.
+- `Frame_Topography/…,level=k` rysuje każdy widziany sektor na poziomie k: pole wariantów gruntu.
 - Płaska plansza: CPU pisze dane komórek, shadery liczą kształty; wypiek paintera idzie na GPU.
 - Plansza, relief, pogoda, światło i znaki minimapy publikowane raz na klatkę; renderery czytają
   kopię, nigdy żywy stan.

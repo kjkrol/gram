@@ -21,6 +21,7 @@ import (
 	"github.com/kjkrol/gram/plugins/dialog"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 	"github.com/kjkrol/uid"
@@ -94,11 +95,15 @@ type rig struct {
 	sacks                 goke.Comp[sacks]
 }
 
-func define(file string) (*world.Plugin, *dialog.Plugin, error) {
-	w := world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
-		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
-	})
+var plain = world.Config{
+	Space:    world.SpaceCfg{Width: 1000, Height: 1000},
+	Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
+}
+
+func define(file string) (*world.Plugin, *dialog.Plugin, error) { return defineIn(plain, file) }
+
+func defineIn(cfg world.Config, file string) (*world.Plugin, *dialog.Plugin, error) {
+	w := world.NewPlugin(cfg)
 	d := dialog.NewPlugin(w, dialog.Config{})
 	d.DefineEffects()
 	w.Write().Effects().Define("blush", effect.Spec{effect.Lasts(time.Minute)})
@@ -112,9 +117,18 @@ func define(file string) (*world.Plugin, *dialog.Plugin, error) {
 
 func newRig(t *testing.T) *rig {
 	t.Helper()
-	w, d, err := define(hosts)
+	return newRigIn(t, plain, nil)
+}
+
+// newRig in a world of cfg observed by seen; nil, none
+func newRigIn(t *testing.T, cfg world.Config, seen sector.Observers) *rig {
+	t.Helper()
+	w, d, err := defineIn(cfg, hosts)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if seen != nil {
+		w.Write().Observe(seen)
 	}
 	kind.Define[who](w.Kinds(), "body", kind.Spec{
 		comp.Load(func(r who) world.Position {

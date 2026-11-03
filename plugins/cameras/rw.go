@@ -63,6 +63,10 @@ func (r *Read) Sampling() time.Duration { return r.p.Res.Settings.Sampling }
 // Budget is the time a frame may take, which the resolution follows.
 func (r *Read) Budget() time.Duration { return r.p.Res.Settings.FrameBudget }
 
+// DetailFollows reports whether the pictures' level of detail follows the frame budget, as it
+// may in a world cut into sectors alone.
+func (r *Read) DetailFollows() bool { return r.p.detailFollows() }
+
 // LayersShown reports whether profile's layers' edges are shown.
 func (r *Read) LayersShown(profile Profile) bool { return r.p.knobs(profile).ShowLayers }
 
@@ -86,8 +90,9 @@ func (r *Read) Cameras() []camera.Camera { return r.p.cameras }
 
 // Reporter is the cameras' part of the telemetry panel, a line each: the lead camera's profile,
 // the share of its pixels each picture is drawn at, layer by layer, the layers' shares in layers,
-// the figures sharp where a coarser picture draws them at every pixel, and the budget it follows,
-// or still, as the lead camera's profile says.
+// the figures sharp where a coarser picture draws them at every pixel, the levels its detail is
+// drawn coarser, and the budget it follows, or still where neither its profile nor the detail
+// follows one.
 func (r *Read) Reporter() render.Reporter { return reporter{r.p} }
 
 // SetStrategy has the resolution of profile's pictures follow the frame budget as s says, or
@@ -196,6 +201,16 @@ func (w *Write) SetSampling(d time.Duration) {
 	p.adapter.sampling = d
 }
 
+// AdaptDetail has the pictures' level of detail follow the frame budget, or stay as the world
+// sees it (Settings.StillDetail); on from the start, in a world cut into sectors.
+func (w *Write) AdaptDetail(on bool) {
+	p := w.p
+	p.Res.Settings.StillDetail = !on
+	if !on {
+		p.shift(0)
+	}
+}
+
 // ShowLayers shows the layers' edges over every picture drawn in layers by profile, or hides
 // them (Knobs.ShowLayers).
 func (w *Write) ShowLayers(profile Profile, shown bool) { w.p.knobs(profile).ShowLayers = shown }
@@ -242,7 +257,6 @@ func (w *Write) New(start Start, cfg camera.Config) camera.Camera {
 		made := p.views.Maker(p.viewCfg, from, p.ground, p.extent, bend)
 		cam = made(space.Width, space.Height, space.Edges, cfg)
 	}
-	cam.(seeing).SetDetail(p.cfg.Detail)
 	p.worldPlugin.Write().NewView(cam)
 	at := len(p.cameras)
 	p.cameras = append(p.cameras, cam)

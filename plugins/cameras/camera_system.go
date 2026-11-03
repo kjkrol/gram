@@ -94,6 +94,7 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 	s.p.thresholds.Drain(func(i command.Issued[Thresholds]) {
 		s.p.write.SetThresholds(i.Command.Under, i.Command.Met)
 	})
+	s.p.details.Drain(func(i command.Issued[Detail]) { s.p.write.AdaptDetail(i.Command.Follows) })
 	s.p.showLayers.Drain(func(i command.Issued[ShowLayers]) { s.p.write.ShowLayers(i.Command.Profile, i.Command.Shown) })
 	s.p.follows.Drain(func(i command.Issued[Follow]) {
 		cam, ok := i.Command.Camera.(camera.Fastenable)

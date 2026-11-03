@@ -136,7 +136,6 @@ var sharedSections = []string{
 	control.PictureTacticalLayers,
 	control.PictureRiding,
 	control.PictureRidingLayers,
-	control.PictureCare,
 	control.PictureShadows,
 	control.PictureAreas,
 	control.Graphics,

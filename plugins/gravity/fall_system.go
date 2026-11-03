@@ -10,12 +10,12 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/gravity/internal/vertical"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/uid"
 )
 
@@ -62,7 +62,7 @@ func (s *fallSystem) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base, &s.body, &s.drift, &s.marks).Optional(&s.z).Optional(&s.mover)
 	s.cols = cgoke.NewColumns(qb)
 	s.landings.Bind(s.cols)
-	s.bodies = qb.With(s.p.worldPlugin.Pace(sector.Paced)).Build()
+	s.bodies = qb.With(s.p.worldPlugin.Pace(lod.Slowing(2, 4, 8))).Build()
 	s.whence.init(si)
 }
 

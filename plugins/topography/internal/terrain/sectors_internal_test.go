@@ -1,13 +1,16 @@
 package terrain
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world/view"
+	"github.com/kjkrol/gram/render"
 )
 
 func TestCoarse_CoversItsCellsWithoutACrackAgainstWholeNeighbours(t *testing.T) {
@@ -63,54 +66,53 @@ func TestCoarse_CoversItsCellsWithoutACrackAgainstWholeNeighbours(t *testing.T) 
 	}
 }
 
-// two sectors of 512 side by side, as halves of a world 1024 wide
-type pair struct{}
+// two sectors of 512 side by side, as halves of a world 1024 wide, each at the level ladder says
+// a camera sees it at its left edge
+type pair struct{ ladder lod.Ladder }
 
 func (pair) Len() int  { return 2 }
 func (pair) Cols() int { return 2 }
 func (pair) Box(i int) geom.AABB {
 	return geom.NewAABB(geom.NewVec(float32(i)*512, 0), geom.NewVec(float32(i+1)*512, 512))
 }
-func (pair) Of(x, _ float32) int { return min(max(int(x/512), 0), 1) }
-func (pair) Off(int) bool        { return false }
+func (pair) Of(x, _ float32) int  { return min(max(int(x/512), 0), 1) }
+func (p pair) Ladder() lod.Ladder { return p.ladder }
 
-type seeing struct {
-	camera.Camera
-	d camera.Detail
+func (p pair) Level(cam camera.Camera, i int) lod.Level {
+	return p.ladder.At(camera.ScaleShown(cam, float32(i)*512, 0, 0), 0)
 }
 
-func (s seeing) Detail() camera.Detail  { return s.d }
+type seeing struct{ camera.Camera }
+
 func (seeing) Visible(camera.AABB) bool { return true }
 func (seeing) ScaleAt(x, _, _ float32) float32 {
 	return map[bool]float32{true: 1, false: 0.1}[x < 512]
 }
 
 func TestRuns_DrawEachSectorSeenAtItsLevelAndTheSkirt(t *testing.T) {
-	cam := seeing{Camera: cameratest.NewFromSpace(1024, 512, 0), d: camera.Detail{Coarse: 0.5}}
-	v := view.NewSeen(cam, pair{})
+	cam := seeing{Camera: cameratest.NewFromSpace(1024, 512, 0)}
+	sectors := pair{ladder: lod.Ladder{Scales: [lod.Levels - 1]float32{0.5}}}
+	v := view.NewSeen(cam, sectors)
 	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 1024, Height: 512, BucketSize: 128})
 	if err != nil {
 		t.Fatal(err)
 	}
 	views := []*view.View{v}
 	view.NewSystem(space, &views, 1024, 512).Update(nil, 0)
-	r := &Renderer{cfg: Config{Seen: func(camera.Camera) *view.View { return v }}, grid: pair{}}
+	r := &Renderer{cfg: Config{Seen: func(camera.Camera) *view.View { return v }}, grid: sectors}
 	_, _, enc := encode(make([]float32, 33*17), nil)
 	r.lay(33, 17, 32, enc)
 	got := r.runs(cam, nil)
-	// the left sector whole, then the right one coarse and the skirt, which follow one another,
-	// all with full care as no care is set
-	whole := r.spans[0].whole
-	whole.care = FullCare
-	want := []span{whole, {r.spans[1].coarse.first,
-		r.spans[1].coarse.count + r.skirted.count, FullCare}}
-	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
+	// the left sector at L0 and the right at L1, both whole, then the skirt as a sheet
+	want := []span{r.spans[0].whole, r.spans[1].whole, r.skirted}
+	want[0].level, want[1].level, want[2].level = lod.L0, lod.L1, lod.L3
+	if len(got) != 3 || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
 		t.Errorf("runs %v, want %v", got, want)
 	}
 }
 
-// five sectors of 512 by three, the world 2560 by 1536
-type sheet struct{}
+// five sectors of 512 by three, the world 2560 by 1536, each seen at the level levels gives it
+type sheet struct{ levels [15]lod.Level }
 
 func (sheet) Len() int  { return 15 }
 func (sheet) Cols() int { return 5 }
@@ -121,73 +123,68 @@ func (sheet) Box(i int) geom.AABB {
 func (sheet) Of(x, y float32) int {
 	return min(max(int(y/512), 0), 2)*5 + min(max(int(x/512), 0), 4)
 }
-func (sheet) Off(int) bool { return false }
+func (sheet) Ladder() lod.Ladder                       { return lod.Ladder{} }
+func (s sheet) Level(_ camera.Camera, i int) lod.Level { return s.levels[i] }
 
-// seeing everything exactly, the middle of the screen over the second sector of the middle row
-// and, in a perspective, the eye over the sector given
-type centred struct {
-	seeing
-	eye int
-}
-
-func (centred) Focus() (x, y, z float32) { return 768, 768, 0 }
-func (c centred) Eye() (x, y, z float32, ok bool) {
-	return float32(c.eye%5)*512 + 256, float32(c.eye/5)*512 + 256, 100, c.eye >= 0
-}
-
-func TestRuns_ShadeTheSectorsWithOneCareLessEveryRingFromTheScreensMiddle(t *testing.T) {
+func TestRuns_LayEachLevelsSectorsWholeOrCoarseTheSkirtAsASheetAndDrawTheFinestFirst(
+	t *testing.T) {
 	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 2560, Height: 1536, BucketSize: 128})
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, _, enc := encode(make([]float32, 81*49), nil)
-	type ring struct{ sectors, care int }
-	for _, tc := range []struct {
-		name   string
-		eye    int
-		want   []ring
-		counts [cares]int
-	}{
-		// the eye's sector, the screen's middle's, counts as a middle too: the eye over the
-		// row's last sector leaves no sector two or more rings from either
-		{"the middle alone", -1, []ring{{3, FullCare}, {1, FullCare - 1}, {1, FullCare - 2},
-			{3, FullCare}, {1, FullCare - 1}, {1, FullCare - 2},
-			{3, FullCare}, {1, FullCare - 1}, {1, FullCare - 2}}, [cares]int{0, 0, 3, 3, 9}},
-		{"the middle and the eye", 9, []ring{{15, FullCare}}, [cares]int{FullCare: 15}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cam := centred{seeing{Camera: cameratest.NewFromSpace(2560, 1536, 0)}, tc.eye}
-			v := view.NewSeen(cam, sheet{})
-			views := []*view.View{v}
-			view.NewSystem(space, &views, 2560, 1536).Update(nil, 0)
-			r := &Renderer{cfg: Config{Seen: func(camera.Camera) *view.View { return v }},
-				grid: sheet{}, care: 1}
-			r.lay(81, 49, 32, enc)
-			got := r.runs(cam, nil)
-			// a run the sectors following one another with one care, and the skirt with the
-			// least care apart, laid after the coarse runs
-			var want []span
-			from := 0
-			for _, w := range tc.want {
-				count := 0
-				for i := range w.sectors {
-					count += r.spans[from+i].whole.count
-				}
-				want = append(want, span{r.spans[from].whole.first, count, w.care})
-				from += w.sectors
-			}
-			want = append(want, span{r.skirted.first, r.skirted.count, LeastCare})
-			if len(got) != len(want) {
-				t.Fatalf("%d runs %v, want %d %v", len(got), got, len(want), want)
-			}
-			for k := range want {
-				if got[k] != want[k] {
-					t.Errorf("run %d is %v, want %v", k, got[k], want[k])
-				}
-			}
-			if r.counts != tc.counts {
-				t.Errorf("sectors by care %v, want %v", r.counts, tc.counts)
-			}
-		})
+	// the middle row: L1 and L0 side by side, then L2, L3 and one at L4; the rows round it L4
+	var grid sheet
+	for i := range grid.levels {
+		grid.levels[i] = lod.L4
+	}
+	copy(grid.levels[5:], []lod.Level{lod.L1, lod.L0, lod.L2, lod.L3, lod.L4})
+	cam := seeing{Camera: cameratest.NewFromSpace(2560, 1536, 0)}
+	v := view.NewSeen(cam, grid)
+	views := []*view.View{v}
+	view.NewSystem(space, &views, 2560, 1536).Update(nil, 0)
+	r := &Renderer{cfg: Config{Seen: func(camera.Camera) *view.View { return v }}, grid: grid}
+	r.lay(81, 49, 32, enc)
+	got := r.runs(cam, nil)
+	at := func(s span, level lod.Level) span {
+		s.level = level
+		return s
+	}
+	// the whole runs laid before the coarse ones, and the skirt after those of every sector
+	want := []span{at(r.spans[5].whole, lod.L1), at(r.spans[6].whole, lod.L0),
+		at(r.spans[7].coarse, lod.L2), at(r.spans[8].coarse, lod.L3), at(r.skirted, lod.L3)}
+	if len(got) != len(want) {
+		t.Fatalf("%d runs %v, want %d %v", len(got), got, len(want), want)
+	}
+	for k := range want {
+		if got[k] != want[k] {
+			t.Errorf("run %d is %v, want %v", k, got[k], want[k])
+		}
+	}
+	if want := [lod.Levels]int{1, 1, 1, 1, 0}; r.counts != want {
+		t.Errorf("sectors drawn by level %v, want %v", r.counts, want)
+	}
+	var levels []lod.Level
+	var ranges [][]render.IndexRange
+	r.eachLevel(got, func(level lod.Level, rs []render.IndexRange) {
+		levels = append(levels, level)
+		ranges = append(ranges, append([]render.IndexRange(nil), rs...))
+	})
+	if !slices.Equal(levels, []lod.Level{lod.L0, lod.L1, lod.L2, lod.L3}) {
+		t.Fatalf("drawn by level %v, want the finest first", levels)
+	}
+	of := func(s span) render.IndexRange {
+		return render.IndexRange{First: s.first, Count: s.count}
+	}
+	for k, want := range [][]render.IndexRange{{of(want[1])}, {of(want[0])}, {of(want[2])},
+		{of(want[3]), of(want[4])}} {
+		if !slices.Equal(ranges[k], want) {
+			t.Errorf("L%d drawn as %v, want %v", levels[k], ranges[k], want)
+		}
+	}
+	if n := testing.AllocsPerRun(10, func() {
+		r.eachLevel(got, func(lod.Level, []render.IndexRange) {})
+	}); n != 0 {
+		t.Errorf("%v allocations a frame grouping the runs by level, want none", n)
 	}
 }

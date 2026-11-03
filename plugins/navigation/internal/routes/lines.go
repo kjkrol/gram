@@ -73,7 +73,7 @@ func (g *Lines) Add(
 		t := float32(i) / float32(pieces)
 		p := geom.NewVec(a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t)
 		z := groundAt(p)
-		if camera.ScaleAt(cam, p.X, p.Y, z) == 0 {
+		if !camera.InFront(cam, p.X, p.Y, z) {
 			behind = true
 			break
 		}

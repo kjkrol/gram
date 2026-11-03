@@ -2,7 +2,6 @@ package topography
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board"
@@ -55,12 +55,9 @@ func (s stillFrame) Compose(f *render.Frame, _ camera.Camera) {
 	air.Weather{}.Frame(f, light.White, 0, 0)
 }
 
-// Config is the topography: Shaping zero is a quarter of a cell a step and any slope, Care how
-// many sectors out from the middle of the screen the ground is shaded with full care, and one
-// care less every as many farther ([Write.SetCare]), zero every one.
+// Config is the topography: Shaping zero is a quarter of a cell a step and any slope.
 type Config struct {
 	Shaping Shaping
-	Care    int
 }
 
 // Plugin is a map in relief over a board: the ground's heights, lit and shaded. It is the board's
@@ -83,24 +80,20 @@ type Plugin struct {
 	seeded      func(p geom.Vec) float32
 
 	// nil off a square grid, where hexes draws the ground
-	ground   *terrain.Renderer
-	careView *careView
-	hexes    *hexes.Ground
+	ground *terrain.Renderer
+	hexes  *hexes.Ground
 
-	hazing   command.Queue[Haze]
-	caring   command.Queue[Care]
-	adapting command.Queue[AdaptCare]
-	showing  command.Queue[ShowCare]
-	kept     *plugin.Kept[Settings]
-	look     billboards.Look
-	taking   []render.Taking // by cell, as the kinds last stood
-	swaying  []float32
-	takesAt  uint64
+	hazing  command.Queue[Haze]
+	kept    *plugin.Kept[Settings]
+	look    billboards.Look
+	taking  []render.Taking // by cell, as the kinds last stood
+	swaying []float32
+	takesAt uint64
 	// the relief and the settings as the frame drawn holds them
 	drawn   render.Buffered[drawnTopography]
 	swapped bool
-	// the sectors the last frame drawn shaded with each care, handed over as it is swapped
-	cared  [terrain.FullCare + 1]int
+	// the sectors the last frame drawn drew at each level, handed over as it is swapped
+	levels [lod.Levels]int
 	module *module
 	read   Read
 	reads  []*Read
@@ -139,7 +132,9 @@ func (p *Plugin) Swap() {
 	p.drawn.Swap()
 	p.swapped = true
 	if p.ground != nil {
-		p.cared = p.ground.Cared()
+		p.levels = p.ground.Levels()
+	} else {
+		p.levels = p.hexes.Levels()
 	}
 }
 
@@ -242,13 +237,8 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 		p.ground = terrain.New(drawnGround{p}, boardSurface{p}, liveSky{p}, terrain.Config{
 			Scale: worldPlugin.Read(0).Scale(),
 			Seen:  worldPlugin.Read(0).ViewFor,
-			Drawn: func() (int, bool) {
-				s := p.drawnSettings()
-				return s.Care, s.Haze
-			},
+			Hazed: func() bool { return p.drawnSettings().Haze },
 		})
-		p.careView = &careView{p}
-		p.write.SetCare(cfg.Care)
 	} else {
 		p.hexes = hexes.New(worldPlugin, boardPlugin, p.drawnBoard, drawnMap{p}, p.drawnRelief,
 			func() (bool, look.RenderState) { return p.drawnSettings().Haze, p.drawnGrid() },
@@ -348,49 +338,20 @@ func (p *Plugin) WithShading(s painter.Shading) *Plugin {
 	return p
 }
 
-// the rings of full care the frame budget steps through, the last every sector
-var careLadder = []int{1, 2, 3, 0}
-
-// careRung is the ladder's rung care stands on, or the next up
-func careRung(care int) int {
-	if care <= 0 {
-		return len(careLadder) - 1
-	}
-	for k, r := range careLadder[:len(careLadder)-1] {
-		if care <= r {
-			return k
-		}
-	}
-	return len(careLadder) - 1
-}
-
-// careStepped is the care step rungs from the one now, within the ladder
-func (p *Plugin) careStepped(step int) int {
-	return careLadder[min(max(careRung(p.read.Care())+step, 0), len(careLadder)-1)]
-}
-
-// the cares by what they keep, the least first (terrain's ladder)
-var careNames = [terrain.FullCare + 1]string{
-	"least",
-	"no shade",
-	"flat mirror",
-	"no shore",
-	"everything",
-}
-
 type reporter struct{ p *Plugin }
 
 func (r reporter) Report(line func(label, value string)) {
-	if r.p.read.Care() == 0 {
-		line("Ground", "care everywhere")
+	if r.p.worldPlugin.Res.Config.Sectors.Buckets <= 0 {
 		return
 	}
-	cared := r.p.cared
-	lines := []string{fmt.Sprintf("care within %d sectors", r.p.read.Care())}
-	for c := terrain.FullCare; c >= terrain.LeastCare; c-- {
-		lines = append(lines, careNames[c]+" "+strconv.Itoa(cared[c]))
+	var b strings.Builder
+	for k, n := range r.p.levels[:lod.L4] {
+		if k > 0 {
+			b.WriteByte('\n')
+		}
+		fmt.Fprintf(&b, "L%d %d", k, n)
 	}
-	line("Ground", strings.Join(lines, "\n"))
+	line("Ground", b.String())
 }
 
 // Populate raises the seeded heights.
@@ -426,10 +387,11 @@ func (p *Plugin) Name() string { return "gram.topography" }
 // Install registers the plugin's systems, and has the heights on the topography's entities as
 // each tick ends.
 func (p *Plugin) Install(ctx plugin.Installer) error {
+	pace := p.worldPlugin.Pace(lod.Steady)
 	p.module = &module{
 		heights:  p.relief.HeightsSystem(),
 		shaping:  p.shaper.system(),
-		altitude: p.relief.AltitudeSystem(p.boardPlugin.Read(0).Footing()),
+		altitude: p.relief.AltitudeSystem(p.boardPlugin.Read(0).Footing(), pace),
 		clock:    p.worldPlugin.Write().Clock(),
 	}
 	p.module.step = p.module.simulate
@@ -438,7 +400,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	// road graded, a bridge's head levelled), is on the entities before a save between ticks
 	p.worldPlugin.Write().Clock().Replayed(p.module.heights.Fill)
 	if p.ground != nil {
-		ctx.Draws(p.ground, p.careView)
+		ctx.Draws(p.ground)
 	} else {
 		ctx.Draws(p.hexes)
 	}
@@ -454,9 +416,6 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // cameras' RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.hazing.Drain(func(i command.Issued[Haze]) { p.write.SetHaze(i.Command.On) })
-	p.caring.Drain(func(i command.Issued[Care]) { p.write.SetCare(i.Command.Rings) })
-	p.adapting.Drain(func(i command.Issued[AdaptCare]) { p.write.AdaptCare(i.Command.On) })
-	p.showing.Drain(func(i command.Issued[ShowCare]) { p.write.ShowCare(i.Command.Shown) })
 	p.module.RunPlan(ctx, d)
 }
 
@@ -470,5 +429,4 @@ func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
 func (p *Plugin) Restore() {
 	p.kept.Restore()
 	p.write.SetHaze(p.Res.Settings.Haze)
-	p.write.SetCare(p.Res.Settings.Care)
 }

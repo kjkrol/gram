@@ -41,7 +41,7 @@ func (w *Write) Show(on bool) {
 func (w *Write) SetTurning(on bool) { w.p.Res.Settings.Turning = on }
 
 // SetReach has the minimaps show reach round their cameras, from the frame drawn after the next
-// publish; past the world's last band panics.
+// publish; past the world's sight panics.
 func (w *Write) SetReach(reach float32) {
 	checkReach(w.p.w, reach)
 	w.p.cfg.Reach = reach

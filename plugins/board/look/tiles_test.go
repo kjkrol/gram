@@ -1,6 +1,7 @@
 package look_test
 
 import (
+	"embed"
 	"image/color"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -305,9 +307,9 @@ func (s sighted) Rays() (camera.RayField, bool) {
 	return r.Rays()
 }
 
-// the tiles of a 4 by 4 board of cells 32 wide, a way across its first row and a cover on its
-// last, laid on the GPU through a camera seeing its halves as d says
-func laidSeen(t *testing.T, d camera.Detail) func(x, y int) color.RGBA {
+// the tiles of a 4 by 4 board of cells 32 wide, a way across its first row, a cover on its last
+// and the grid in red, laid on the GPU through a camera seeing its halves as ladder says
+func laidSeen(t *testing.T, ladder lod.Ladder) func(x, y int) color.RGBA {
 	t.Helper()
 	g := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd, brdW := board.NewBoard(g)
@@ -327,8 +329,8 @@ func laidSeen(t *testing.T, d camera.Detail) func(x, y int) color.RGBA {
 	atlas.Close()
 	bands := draw.NewBands(m)
 	bands.Cover(mark, 2)
-	cam := sighted{Camera: cameratest.NewFromSpace(128, 128, 0), d: d}
-	v := view.NewSeen(cam, halves{})
+	cam := sighted{Camera: cameratest.NewFromSpace(128, 128, 0)}
+	v := view.NewSeen(cam, halves{ladder: ladder})
 	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 128, Height: 128, BucketSize: 32})
 	if err != nil {
 		t.Fatal(err)
@@ -338,6 +340,7 @@ func laidSeen(t *testing.T, d camera.Detail) func(x, y int) color.RGBA {
 	r := look.NewRenderer(brd, atlas, dressed{look.Flat, bands},
 		world.SpaceCfg{Width: 128, Height: 128}).
 		WithSeen(func(camera.Camera) *view.View { return v })
+	*r.State() = gridOf(red, 2)
 	screen := render.NewImage(128, 128)
 	screen.Fill(color.RGBA{A: 255})
 	render.NewComposer(r).DrawWorld(screen, cam)
@@ -352,35 +355,163 @@ func laidSeen(t *testing.T, d camera.Detail) func(x, y int) color.RGBA {
 	}
 }
 
+var red = color.RGBA{R: 255, A: 255}
+
 func TestTiles_LayTheCellsOfTheSectorsSeenAtTheirLevels(t *testing.T) {
 	gputest.Need(t)
 	grass := color.RGBA{R: 60, G: 160, B: 60, A: 255}
 	road := color.RGBA{R: 150, G: 110, B: 70, A: 255}
 	snow := color.RGBA{R: 240, G: 240, B: 250, A: 255}
-	at := laidSeen(t, camera.Detail{Coarse: 0.5})
-	for _, c := range []struct {
-		x, y int
-		want color.RGBA
-		what string
+	// the left half seen a world unit a pixel, the right a tenth of that
+	for _, tc := range []struct {
+		name        string
+		scales      [lod.Levels - 1]float32
+		way, cover  [2]bool
+		grid        [2]bool
+		left, right lod.Level
 	}{
-		{16, 16, road, "the way in the left half, seen exactly"},
-		{80, 16, grass, "the way in the right half, seen coarsely"},
-		{16, 112, snow, "the cover in the left half"},
-		{112, 112, grass, "the cover in the right half"},
+		{"L0 and L1", [lod.Levels - 1]float32{0.5}, [2]bool{true, true}, [2]bool{true, false},
+			[2]bool{true, false}, lod.L0, lod.L1},
+		{"L0 and L2", [lod.Levels - 1]float32{0.5, 0.2}, [2]bool{true, false},
+			[2]bool{true, false}, [2]bool{true, false}, lod.L0, lod.L2},
+		{"L2 and L3", [lod.Levels - 1]float32{5, 2, 0.5}, [2]bool{}, [2]bool{}, [2]bool{},
+			lod.L2, lod.L3},
 	} {
-		if got := at(c.x, c.y); got != c.want {
-			t.Errorf("%s is %v, want %v", c.what, got, c.want)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			at := laidSeen(t, lod.Ladder{Scales: tc.scales})
+			for half, x := range [2]int{0, 64} {
+				level := [2]lod.Level{tc.left, tc.right}[half]
+				for _, c := range []struct {
+					x, y  int
+					shown bool
+					on    color.RGBA
+					what  string
+				}{
+					{x + 16, 16, tc.way[half], road, "the way"},
+					{x + 16, 112, tc.cover[half], snow, "the cover"},
+					{x + 32, 48, tc.grid[half], red, "the grid's line"},
+				} {
+					want := grass
+					if c.shown {
+						want = c.on
+					}
+					if got := at(c.x, c.y); got != want {
+						t.Errorf("%s at L%d is %v, want %v", c.what, level, got, want)
+					}
+				}
+			}
+		})
 	}
-	at = laidSeen(t, camera.Detail{Sight: 60, Fog: 40})
+	at := laidSeen(t, lod.Ladder{Sight: 60, Fog: 40})
 	if got := at(96, 16); got != (color.RGBA{A: 255}) {
-		t.Errorf("the right half, out of sight, is %v, want nothing drawn", got)
+		t.Errorf("the right half, at L4, is %v, want nothing drawn", got)
 	}
 	// the middles 23 and 51 off the left edge's middle, into the fog from 20 to 60
 	near, far := at(16, 48), at(48, 80)
 	if far.G >= grass.G*3/4 || near.G <= far.G {
 		t.Errorf("the cells 23 and 51 off are %v and %v, want them fading into the fog, the "+
 			"farther more", near, far)
+	}
+}
+
+// a tile left half red and right half blue, at L1 so, from L2 in their mean colour across it
+func TestTiles_LayATileInOneColourFromL2(t *testing.T) {
+	gputest.Need(t)
+	g := grid.DefaultGrids{}.Square(4, 4, 32)
+	brd, brdW := board.NewBoard(g)
+	brdW.SetAll(cell.Kind{SpriteID: 1, Pace: 1, Allows: cell.Land})
+	left := color.RGBA{R: 200, G: 40, B: 20, A: 255}
+	right := color.RGBA{R: 20, G: 60, B: 220, A: 255}
+	atlas := render.NewAtlas()
+	atlas.Add(render.SpriteID(1), 32, render.SpriteDrawer(func(dst *render.Canvas, size int) {
+		dst.Fill(left)
+		dst.FillRect(float32(size)/2, 0, float32(size)/2, float32(size), right)
+	}))
+	atlas.Close()
+	mean := color.RGBA{R: 110, G: 50, B: 120, A: 255}
+	for _, tc := range []struct {
+		scales  [lod.Levels - 1]float32
+		levels  [2]lod.Level
+		striped [2]bool
+	}{
+		{[lod.Levels - 1]float32{0.5}, [2]lod.Level{lod.L0, lod.L1}, [2]bool{true, true}},
+		{[lod.Levels - 1]float32{0.5, 0.2}, [2]lod.Level{lod.L0, lod.L2}, [2]bool{true, false}},
+		{[lod.Levels - 1]float32{5, 2, 0.5}, [2]lod.Level{lod.L2, lod.L3},
+			[2]bool{false, false}},
+	} {
+		cam := sighted{Camera: cameratest.NewFromSpace(128, 128, 0)}
+		v := view.NewSeen(cam, halves{ladder: lod.Ladder{Scales: tc.scales}})
+		space, err := aabbworld.NewSpace(aabbworld.Config{Width: 128, Height: 128,
+			BucketSize: 32})
+		if err != nil {
+			t.Fatal(err)
+		}
+		views := []*view.View{v}
+		view.NewSystem(space, &views, 128, 128).Update(nil, 0)
+		r := look.NewRenderer(brd, atlas, dressed{look.Flat, nil},
+			world.SpaceCfg{Width: 128, Height: 128}).
+			WithSeen(func(camera.Camera) *view.View { return v })
+		at := shot(cam, 128, 128, r)
+		for half, x := range [2]float32{0, 64} {
+			a, b := at(x+40, 48), at(x+56, 48)
+			level := tc.levels[half]
+			switch {
+			case tc.striped[half] && (!near(a, left, 2) || !near(b, right, 2)):
+				t.Errorf("the tile at L%d is %v and %v, want its halves %v and %v", level, a, b,
+					left, right)
+			case !tc.striped[half] && (!near(a, mean, 2) || !near(b, mean, 2)):
+				t.Errorf("the tile at L%d is %v and %v, want their mean %v across it", level, a,
+					b, mean)
+			}
+		}
+	}
+}
+
+//go:embed testdata/stripes.wgsl
+var stripesFS embed.FS
+
+// stripes, a material, lays white and black stripes 8 across over what it covers
+var stripes = render.RegisterMaterials(render.Files(stripesFS, "testdata/stripes.wgsl"), nil,
+	"Stripes")[0]
+
+func TestTiles_LayAMaterialAsOneColourACellFromL2(t *testing.T) {
+	gputest.Need(t)
+	g := grid.DefaultGrids{}.Square(4, 4, 32)
+	brd, brdW := board.NewBoard(g)
+	brdW.SetAll(cell.Kind{Name: cell.Named("stripes"), SpriteID: 1, Pace: 1, Allows: cell.Land})
+	atlas := render.NewAtlas()
+	atlas.Add(render.SpriteID(1), 32, render.Solid(green))
+	atlas.Close()
+	for _, tc := range []struct {
+		scales  [lod.Levels - 1]float32
+		striped [2]bool
+	}{
+		{[lod.Levels - 1]float32{0.5}, [2]bool{true, true}},
+		{[lod.Levels - 1]float32{0.5, 0.2}, [2]bool{true, false}},
+		{[lod.Levels - 1]float32{5, 2, 0.5}, [2]bool{false, false}},
+	} {
+		cam := sighted{Camera: cameratest.NewFromSpace(128, 128, 0)}
+		v := view.NewSeen(cam, halves{ladder: lod.Ladder{Scales: tc.scales}})
+		space, err := aabbworld.NewSpace(aabbworld.Config{Width: 128, Height: 128,
+			BucketSize: 32})
+		if err != nil {
+			t.Fatal(err)
+		}
+		views := []*view.View{v}
+		view.NewSystem(space, &views, 128, 128).Update(nil, 0)
+		r := look.NewRenderer(brd, atlas, dressed{look.Flat, nil},
+			world.SpaceCfg{Width: 128, Height: 128}).
+			WithSeen(func(camera.Camera) *view.View { return v })
+		r.Shade(map[cell.Name]render.MaterialID{cell.Named("stripes"): stripes})
+		at := shot(cam, 128, 128, r)
+		for half, x := range [2]float32{0, 64} {
+			// two pixels of a cell's middle row, a stripe apart
+			a, b := at(x+36, 48), at(x+44, 48)
+			if striped := a != b; striped != tc.striped[half] {
+				t.Errorf("scales %v, the %s half: %v and %v a stripe apart, want striped %v",
+					tc.scales, [2]string{"left", "right"}[half], a, b, tc.striped[half])
+			}
+		}
 	}
 }
 

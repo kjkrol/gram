@@ -1,42 +1,26 @@
 package sector
 
-// Band is a band of pace round the anchors: the sectors within Reach world units of the nearest
-// anchor and not of a nearer band, their systems going a step every Pace of the world's (the
-// first band's every one).
-type Band struct {
-	Reach float32
-	Pace  int
-}
-
-// MaxBands is how many bands a world may have.
-const MaxBands = 5
-
-// Policy is where in the bands a system goes and how often, said by the plugin owning it;
-// beyond the last band none goes.
-type Policy uint8
-
-const (
-	// Everywhere goes every step in every band.
-	Everywhere Policy = iota
-	// Paced goes every step in the first band and a step every Pace of the world's in each
-	// farther one, over as many steps at once.
-	Paced
-	// Near goes in the first band alone.
-	Near
+import (
+	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/lod"
 )
 
-// The marks of what lies in the bands past the first and beyond the last: zero-size components a
-// system's query includes or excludes. What lies in the first band carries none.
+// The marks of the entities in a sector past L0, by the level it is ticked at: zero-size
+// components a system's query includes or excludes. What lies at L0 carries none; L4 is asleep,
+// out of the world's space.
 type (
-	Band2 struct{}
-	Band3 struct{}
-	Band4 struct{}
-	Band5 struct{}
-	Off   struct{}
+	L1 struct{}
+	L2 struct{}
+	L3 struct{}
+	L4 struct{}
 )
 
-// Anchors are the points the world lives round, each handed to at: the nearer a sector, the
-// fuller its band.
-type Anchors interface {
-	Anchors(at func(x, y float32))
+// Keen keeps the sector its entity is in and the eight round it ticked at Level at most while
+// the entity lives.
+type Keen struct{ Level lod.Level }
+
+// Observers are the cameras the world lives round; a camera keeping the whole world in view, a
+// minimap's, is none.
+type Observers interface {
+	Observers(each func(cam camera.Camera))
 }

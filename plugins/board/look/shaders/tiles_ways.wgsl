@@ -2,8 +2,8 @@
 // (its column and row): a band from the cell's middle out towards each neighbour its links name,
 // as wide as the way, then the hub, an octagon of the band's width round the middle, each cut out
 // of the way's sprite laid over the cell's box and as opaque as the way has not faded; laid over
-// the tiles, U.TileShift along, through U.TileViewProj; none across a cell of a sector seen but
-// coarsely.
+// the tiles, U.TileShift along, through U.TileViewProj; none across a cell of a sector seen at L2
+// or past it.
 
 struct Band {
     @builtin(position) clip: vec4<f32>,
@@ -22,7 +22,7 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>) -> Band 
     var out: Band;
     out.clip = away;
     let b = at.xy;
-    if levelOf(b) != 1u {
+    if levelOf(b) > 1u {
         return out;
     }
     let t1 = texelOf(b, 1.0, 0.0);

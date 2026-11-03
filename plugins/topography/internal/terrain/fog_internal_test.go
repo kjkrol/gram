@@ -6,20 +6,20 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gputest"
 )
 
-// straight down seeing 150 from the world's corner, fogged from 100 on
+// straight down from the world's corner
 type fogging struct{ downward }
 
-func (fogging) Detail() camera.Detail    { return camera.Detail{Sight: 150, Fog: 50} }
 func (fogging) Focus() (x, y, z float32) { return 0, 0, 0 }
 func (fogging) Visible(camera.AABB) bool { return true }
 
-// one sector over the whole world
+// one sector over the whole world, seeing 150, fogged from 100 on
 type one struct{}
 
 func (one) Len() int  { return 1 }
@@ -27,8 +27,9 @@ func (one) Cols() int { return 1 }
 func (one) Box(int) geom.AABB {
 	return geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(512, 512))
 }
-func (one) Of(float32, float32) int { return 0 }
-func (one) Off(int) bool            { return false }
+func (one) Of(float32, float32) int            { return 0 }
+func (one) Ladder() lod.Ladder                 { return lod.Ladder{Sight: 150, Fog: 50} }
+func (one) Level(camera.Camera, int) lod.Level { return lod.L0 }
 
 func TestTerrain_TurnsTheGroundPastTheSightIntoTheFog(t *testing.T) {
 	gputest.Need(t)

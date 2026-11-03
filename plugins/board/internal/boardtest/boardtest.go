@@ -98,16 +98,29 @@ func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*boa
 // installed, the rules it gives handed to the hosts of their moments.
 func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(*world.Plugin, *board.Plugin) []act.Rule, units []Mover) *World {
 	t.Helper()
+	return NewWorldIn(t, g, width, height, nil, prepare, units)
+}
+
+// NewWorldIn is NewWorldWith in a world as config changes NewWorld's (nil, none), after set up
+// last.
+func NewWorldIn(t *testing.T, g grid.Grid, width, height uint32, config func(*world.Config),
+	prepare func(*world.Plugin, *board.Plugin) []act.Rule, units []Mover,
+	after ...goke.System) *World {
+	t.Helper()
 	bw := &World{t: t}
 	least, most := uint32(UnitSize), uint32(UnitSize)
 	for _, u := range units {
 		least, most = min(least, u.side()), max(most, u.side())
 	}
-	bw.World = world.NewPlugin(world.Config{
+	cfg := world.Config{
 		Space:    world.SpaceCfg{Width: width, Height: height},
 		Entities: world.EntitiesCfg{MaxCount: 16, MinSize: least, MaxSize: most},
 		Heights:  true,
-	})
+	}
+	if config != nil {
+		config(&cfg)
+	}
+	bw.World = world.NewPlugin(cfg)
 	bw.Motion = motion.NewPlugin(bw.World)
 	c := collision.NewPlugin(bw.World, bw.Motion)
 	bw.Board = board.NewPlugin(g, &cell.MultipleOccupancy{}, bw.World).
@@ -184,6 +197,7 @@ func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(
 	systems := append(ctx.Systems(), goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		bw.q = si.NewQueryBuilder(&bw.base).Optional(&bw.sight, &bw.collider).Build()
 	}})
+	systems = append(systems, after...)
 	ctx.ECS().Setup(systems...)
 	ctx.ECS().SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		settling := bw.World.Write().Clock().Settling(rc)

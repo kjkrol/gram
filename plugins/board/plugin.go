@@ -17,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -157,13 +158,14 @@ func (p *Plugin) newHoldsView() *occupancy.View {
 func (p *Plugin) Name() string { return "gram.board" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
+	pace := p.worldPlugin.Pace(lod.Steady)
 	p.module = &module{
 		cells:     p.board.cells.System(p.worldPlugin.Roster(), CellTemplate, p.mattering),
 		built:     p.board.cells.BuiltSystem(p.worldPlugin.Write().Space),
 		roster:    p.worldPlugin.Roster(),
 		template:  CellTemplate,
-		keep:      occupancy.KeepSystem(p.occupancy, p.board.read.footing, &p.board.read),
-		standing:  p.rules.StandingSystem(),
+		keep:      occupancy.KeepSystem(p.occupancy, p.board.read.footing, &p.board.read, pace),
+		standing:  p.rules.StandingSystem(pace),
 		cellRules: p.rules.CellSystem(),
 		clock:     p.worldPlugin.Write().Clock(),
 	}

@@ -73,7 +73,7 @@ make demo-navigation-square                                     # units sent rou
 make demo-navigation-hex                                        # the same on a hex board
 make demo-navigation-spawn                                      # walkers spawned under the cursor (N) hold their cells, the cells held shown
 make demo-motion-collision                                      # thousands of bouncing boxes of many kinds, a flash on every hit
-make demo-motion-expanse                                        # a hundred thousand boxes on a torus of ~98 km, alive in bands round the camera
+make demo-motion-expanse                                        # a hundred thousand boxes on a torus of ~98 km, alive within the sight round the camera
 make demo-motion-bullet                                         # a soldier on WSAD shoots rounds (Space) and throws grenades (Shift held, the longer the further)
 make demo-motion-platformer                                     # a hero in a side view under gravity: A/D walk, W jumps, G turns gravity over
 make bench                                                      # every benchmark once, with allocations
@@ -202,8 +202,8 @@ Decisions the user has made; they are not up for revisiting in passing.
   boxes, the scroll zones, their corners' turning and their opacity, the arm behind a unit (its
   tilt and zoom allowed, its pitch, distance and aim), the grid, the cells held, the routes, the
   cones, the weather, the clouds' look and the high clouds' shadows, the frozen light and its
-  hour, the picture's resolution and its following the frame budget, the ground's care and
-  haze, the shadows' detail and the lamps' shadows, the sectors and their bands, the minimap
+  hour, the picture's resolution and the detail and its following the frame budget, the ground's
+  haze, the shadows' detail and the lamps' shadows, the sectors and their levels, the minimap
   shown and turning are set on F10 alone; the command stays, for a game to bind a key of its own.
   The tempo and the telemetry panel keep theirs.
   A key held, down or let go leaves the chords with Shift, Ctrl or Alt to these shortcuts unless
@@ -272,6 +272,17 @@ Decisions the user has made; they are not up for revisiting in passing.
   entities, listed one by one, never placed by a legend's character. Kinds stay in Go.
 - **What stands on the board is an entity, not terrain**: a lever, a trapdoor, a gate, a plate.
 - **Terrain is never an entity in the space**; a bridge is an entity a cell.
+- **One ladder of LOD** (the user's word, 2026-11-03): the world gives every sector one level,
+  `lod.L0`..`lod.L4` (full, no detail, shape, colour, nothing), from the shown pixels a world
+  unit spans there through each observer's camera and its distance within the ladder's Sight
+  (`world.Config.LOD`), the same level for everything in the sector; an entity's mark is the
+  level ticked, the finest any observer sees, held awake by a `sector.Keen` entity in it (a shot
+  in flight); each camera's view holds the level it draws at, the frame budget shifting it
+  coarser for every camera alike before the resolution falls, never past L3. Every system says
+  how often it goes at each level (`lod.Paces` through `world.Plugin.Pace`), none without; every
+  drawn kind has a version a level (`Slot.At`, `Nothing`; a blob of its mean colour derived at
+  L2) after the table of words in `lod/doc.go`. Nothing measures a distance or a ring of its
+  own and nothing shifts the level for itself: the topography's care rings went that way.
 - **Never make a unit see the others ahead**: it senses nothing of them and learns of them by
   striking (navigation); its order may be told by the group's plan (a field, a column's place
   and pace). Lanes were tried and dropped.

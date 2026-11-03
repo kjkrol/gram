@@ -92,8 +92,10 @@
 // GPU, a [LyingLook] lays some flat, an [UprightLook] stands some true, a [FoggyLook] fades one
 // into the fog before a camera's sight. Each is marked by the [Lighting], the light plugin's
 // ([Write.SetLighting]), and lit as the frame says (render.Frame.Lit) by the lights the picture
-// is given ([Write.SetLights], [Read.Lights]), in white light without them. In a sector a camera sees coarsely an entity
-// is drawn plainly: no edges, flat where it would stand. [Plugin.WithFog] is the fog's colour in a
+// is given ([Write.SetLights], [Read.Lights]), in white light without them. An entity is drawn in
+// its kind's look at the level its camera sees it at: its own at L0, plainly at L1 (no edges,
+// flat where it would stand), a blob of its own look at L2 (render.Blob), nothing past, or as
+// [Slot.At] and [Slot.Nothing] declare from a level on. [Plugin.WithFog] is the fog's colour in a
 // world without an atmosphere. The entities are published once a frame, after its ticks: the
 // looks' rules settle every one some camera sees, the Lighting marks it, each camera's view is
 // copied, and the frame is drawn of that alone.
@@ -103,15 +105,17 @@
 //
 // # Sectors
 //
-// Config.Sectors cuts the world into sectors in bands of pace round the anchors, the points the
-// players observe ([Write.Anchor]; the cameras plugin gives its cameras'), and marks each entity
-// with its sector's band (package sector); what lies beyond the last band is out of the space.
-// A system adds the pace of its policy ([Plugin.Pace]) to its query and walks it with
-// goke.Query.Paced; the world's plans and effects go Paced. [Read.Sectors] lays them on the
-// telemetry panel. A camera's View in such a world is of the sectors it sees, each at a level
-// (view.NewSeen); [Read.Seen] lays the first camera's on the panel. [SwitchSectors] shows the
-// sectors over the ground by their bands or by how the camera sees them ([Write.ShowSectors]);
-// [SwitchBands] switches the bands off, every sector in the first, to weigh what they spare
+// Config.Sectors cuts the world into sectors, each ticked at the fullest level Config.LOD (a
+// lod.Ladder) says one of the observers sees it at ([Write.Observe]; the cameras plugin gives
+// its cameras) or a sector.Keen entity in it or beside it keeps it at, and marks each entity with
+// its sector's level (package sector); what lies at L4 is out of the space. A system adds the
+// pace of its lod.Paces ([Plugin.Pace]) to its query and walks it with goke.Query.Paced; the
+// world's plans and effects go lod.Slowing(2, 4, 8).
+// [Read.Sectors] lays them on the telemetry panel. A camera's View in such a world is of the
+// sectors it sees, each at the level it sees it at (view.NewSeen), within [Read.Sight];
+// [Read.Seen] lays the first camera's on the panel. [SwitchSectors] shows the sectors over the
+// ground by the level they are ticked at or by how the camera sees them ([Write.ShowSectors]);
+// [SwitchBands] switches the levels off, every sector ticked at L0, to weigh what they spare
 // ([Write.SetBanded]); both are the settings screen's alone.
 //
 // # Views
@@ -141,7 +145,7 @@
 // Knobs, for an effect's Alter: render.Appearance, the look's.
 // Commands: [Spawn] (a player's or an entity's own); [Despawn] (an entity's own); [Pause],
 // [Faster], [Slower], [Tempo], [SwitchSectors], [SwitchBands] (a player's). Settings
-// ([Settings], saved with the game, in [Resources]): the sectors drawn, their bands. The clock's
-// moment and the commands about effects (ceremony.Put, Take, Toggle, Trigger) are carried here
-// too.
+// ([Settings], saved with the game, in [Resources]): the sectors drawn, their levels on. The
+// clock's moment and the commands about effects (ceremony.Put, Take, Toggle, Trigger) are
+// carried here too.
 package world

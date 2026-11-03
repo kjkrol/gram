@@ -369,7 +369,7 @@ func (f *Feed) ToPixels(x, y, z float32) (px, py, depth float32, visible bool) {
 	depth = cam.Depth(x, y, z)
 	w, h := cam.Viewport()
 	visible = px >= 0 && py >= 0 && px < w && py < h
-	if s, is := cam.(camera.Scaler); is && s.ScaleAt(x, y, z) <= 0 {
+	if !camera.InFront(cam, x, y, z) {
 		visible = false
 	}
 	k := camera.ResolutionOf(cam)

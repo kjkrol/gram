@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -59,12 +60,13 @@ func asKinds(nav *Plugin) goke.System {
 
 // an ownerless unit is the virtual player's, an ally of every other ownerless unit
 type navUnit struct {
-	box     plane.AABB
-	at      cell.ID
-	profile *steering.Steering
-	order   *MoveOrder
-	marks   bool
-	owner   command.Issuer
+	box      plane.AABB
+	at       cell.ID
+	profile  *steering.Steering
+	order    *MoveOrder
+	marks    bool
+	owner    command.Issuer
+	selected bool
 }
 
 type navWorld struct {
@@ -97,12 +99,13 @@ func newNavWorld(t *testing.T, cols, rows, cellSize uint32, units []navUnit, aft
 func newNavWorldWith(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 	prepare func(*world.Plugin, *board.Plugin), after ...goke.System) *navWorld {
 	t.Helper()
-	return newNavWorldIn(t, nil, cols, rows, cellSize, units, world.SectorsCfg{}, prepare, after...)
+	return newNavWorldIn(t, nil, cols, rows, cellSize, units, world.SectorsCfg{}, lod.Ladder{},
+		prepare, after...)
 }
 
 // the world cut into sectors as given, the plugins working on pool
 func newNavWorldIn(t testing.TB, pool *parallel.Pool, cols, rows, cellSize uint32, units []navUnit,
-	sectors world.SectorsCfg, prepare func(*world.Plugin, *board.Plugin),
+	sectors world.SectorsCfg, ladder lod.Ladder, prepare func(*world.Plugin, *board.Plugin),
 	after ...goke.System) *navWorld {
 	t.Helper()
 	nw := &navWorld{grid: grid.DefaultGrids{}.Square(cols, rows, cellSize), occupancy: &cell.SingleOccupancy{}}
@@ -111,6 +114,7 @@ func newNavWorldIn(t testing.TB, pool *parallel.Pool, cols, rows, cellSize uint3
 		Entities: world.EntitiesCfg{MaxCount: len(units) + 8, MinSize: 1, MaxSize: cellSize},
 		Heights:  true,
 		Sectors:  sectors,
+		LOD:      ladder,
 	})
 	m := motion.NewPlugin(w)
 	brd := board.NewPlugin(nw.grid, nw.occupancy, w).WithMotion(m, cell.DefaultHiking)
@@ -153,6 +157,9 @@ func newNavWorldIn(t testing.TB, pool *parallel.Pool, cols, rows, cellSize uint3
 		}
 		if u.owner != command.Nobody {
 			s = append(s, comp.Tagged(owner.Of(u.owner)))
+		}
+		if u.selected {
+			s = append(s, comp.Tagged(sel.Tags().Selectable, sel.Tags().Selected))
 		}
 		kind.Define[navUnit](w.Kinds(), fmt.Sprintf("u%d", i), s)
 		k := kind.Named[navUnit](w.Kinds(), fmt.Sprintf("u%d", i))

@@ -1687,3 +1687,346 @@ par). Sprawdzenie kosztu (jeden przebieg na stronę, `-cpu=1`, baza 4273e957): w
 `Routing_Long` przy 5x +184 KB to słowniki A* routerów, które astar robi przy pierwszym szukaniu
 `Search`, nie przy budowie: przy 40x i 400x pętla alokuje tyle samo w sumie, zero na op po
 rozgrzaniu po obu stronach, a cały proces o 2,3 MB mniej.
+
+## LOD: jedna drabina poziomów dla ticku i obrazu (plan 2026-11-03, gałąź `feat/lod`, litera `l`, v0.18.0)
+
+Analiza (2026-11-03, v0.17.2, agent Explore po całym drzewie): poziom szczegółu zapada dziś w
+czterech niezależnych drabinach i w kilkunastu miejscach: (1) pasma sektorów świata po
+odległości euklidesowej od `Focus` kamer, z marginesem pół sektora, znaczniki
+`Band2..Band5`/`Off`, polityki `Near`/`Paced`/`Everywhere` dokładane przez plugin do własnego
+zapytania (`world.Plugin.Pace`), a systemy bez polityki (lampy światła, standing i occupancy
+planszy, altitude, driving, selection, dialog, routing, momenty) widzą wszystko, także `Off`;
+(2) poziomy widoku `Exact/Coarse/Fogged/Hidden` po `camera.Detail{Sight, Fog, Coarse}`,
+odległość od `Viewpoint` do najbliższego punktu bez zawijania, skala `ScaleAt` w pikselach
+kamery (adapter rozdzielczości mnoży `Zoom`, więc spadek FPS przesuwa decyzję ticku), bez
+histerezy, konsumowane osobno przez renderer świata (bez `Lay` i `Upright` przy Coarse), teren
+(siatka co drugi róg), heksy (wierzchy), kafle planszy (shadery), wzrok, boxy; (3) staranność
+gruntu po pierścieniach Czebyszewa od sektora `Focus` i sektora oka, pięć wariantów shadera,
+własne F10 i dźwignia; (4) drabinki za budżetem klatki w kamerach (rozdzielczość), topografii
+(care), świetle (cienie lamp, wypiek), atmosferze (chmury), każda z własnym `AdaptX`. Punkt
+odniesienia, metryka, zawijanie i skala liczone po pięć razy inaczej; żadnego culla małych
+figur; „płachta” planszy istnieje (`Miniature()`: albedo malarza 4×2 px na komórkę, wierzchy
+heksów), ale rysuje nią tylko minimapa.
+
+Decyzje użytkownika (2026-11-03): jedna drabina poziomów dla ticku i obrazu, na sztywno pięć
+(`lod.L0..L4`, numery w kodzie, słowa w dokumentacji: L0 pełnia, L1 bez detalu, L2 kształt, L3
+kolor, L4 nic: ani tykany, ani rysowany; `Off` i `Hidden` to jeden szczebel); poziom sektora z
+odległości od kamery wyrażonej skalą ekranu (`ScaleAt` w pikselach pokazywanych, nie kamery:
+oddalona kamera obniża poziom także pod kotwicą) i obcięty `Sight`; encja nosi jeden znacznik,
+poziom ticku: najlepszy po obserwatorach (serwer bez kamery: L0 wszędzie), a każda kamera trzyma
+w widoku poziom własny i renderer wybiera po nim; każdy system podaje tempo na każdy szczebel
+(tablica, 0 stop), żaden bez; każdy rysowany rodzaj ma wersję na szczebel, domyślnie
+wyprowadzoną przez render (średni kolor, płachta), zadeklarowaną, gdy autor chce; słowo `lod`,
+pakiet korzenia importowany przez `camera`, `world` i `render` (`render` pluginów nie widzi);
+logika w `world` (siatka, obserwatorzy, znaczniki, sen, widoki: biegnie w planie świata między
+zegarem a widokami), obraz w `render`; mgła zostaje ciągłym zanikaniem, nie szczeblem; budżet
+klatki tyka nie dotyka. Skutki przyjęte: kolizja i wzrok biegną do szczebla, który gra wybierze
+(`Paces`), a nie „tylko pierwsze pasmo”; sektor poza kadrem tyka po skali w swoim najbliższym
+punkcie (to, co za plecami, żyje), a w obrazie jest L4.
+
+**Preludium** (integrator, na `feat/lod`, stare zachowanie za nowymi kontraktami):
+`lod` (`Level uint8`, `L0..L4`, `Levels = 5`; `Ladder{Scales [Levels-1]float32, Sight, Fog}`:
+progi skali malejąco w pikselach pokazywanych na jednostkę świata, `At(scale, dist) Level`:
+najmniejsze k ze `scale ≥ Scales[k]`, L4 pod ostatnim albo za `Sight`; `Widened(f)`;
+`Paces [Levels]uint8`: kroków na krok, `Paces[L0] == 1`, `Paces[L4] == 0`, sprawdzane w
+`Check()`; gotowe `lod.Exact` {1,0,0,0,0}, `lod.Steady` {1,1,1,1,0}, `lod.Slowing(n...)`);
+`camera.ScaleShown(cam, x, y, z)`: `ScaleAt / ResolutionOf`, a za okiem (0) skala punktu o tej
+odległości przed okiem (kamera perspektywiczna daje ją z ogniskowej); `sector`: znaczniki
+`L1..L4` w miejsce `Band2..Band5`/`Off` (`Off = L4` jako alias przejściowy znika z częścią 1),
+`Observers interface{ Observers(each func(camera.Camera)) }` w miejsce `Anchors`,
+`Keen{Level lod.Level}` (komponent, zapisywany);
+`world.Config.Sectors` → `SectorsCfg{Buckets}` i `world.Config.LOD lod.Ladder` (drabina
+świata; `Band.Reach`/`Pace` znikają: tempo jest systemu, zasięg skalą); `world.Plugin.Pace(p
+lod.Paces) goke.Opt` (dziś `Policy`; trzy polityki jako gotowe tablice); `view.Level` typu
+`lod.Level` z dzisiejszego liczenia (Exact→L0, Coarse i Fogged→L1, Hidden→L4), `View.Fog` bez
+zmian, `Exact/Coarse/Fogged/Hidden` znikają, obraz poziomów kafli planszy z remapem do
+dzisiejszych liczb shaderów do części 4; `cameras.Config.Detail` znika: kamera ma
+`Sight` jako mnożnik drabiny świata (`camera.Sighted`, `SightOf`; zapisany jako mnożnik, stare
+zapisy się łamią), Ctrl+=/− jak dziś, `world.Read.Sight(cam)` odległością dla aloft i minimapy;
+za okiem `perspCamera.ScaleAt` daje skalę punktu o tej odległości przed okiem; dema expanse i
+topography przepisane na `LOD: lod.Ladder{...}` i `Sectors{Buckets}`; cała sekwencja zielona.
+
+**Część 1 `l/levels`** (world, cameras; po preludium): nadzorca sektorów liczy co tick poziom
+sektora na obserwatora `Ladder.At(ScaleShown(najbliższy punkt, z zawijaniem), odległość od
+Viewpoint)`, poziom ticku = minimum po obserwatorach (bez obserwatorów L0) i po encjach keen:
+`sector.Keen{Level}` na encji (zapisywany) trzyma jej sektor i osiem sąsiednich na jawie
+najwyżej na tym poziomie, póki żyje (pocisk w locie z `Keen{L2}`: kolizja biegnie, cele
+budzą się przed nim, lot także poza Sight); do drobniejszego
+od razu, do grubszego z histerezą (próg skali ×0,9 i pół sektora za `Sight`), znaczniki
+`L1..L3` ruszane jak dziś, `L4` śpi jak dziś `Off` (listy snu, `restart`, budzenie);
+stopniowanie jako niezmiennik (to, co dawały pierścienie care), tylko wśród rysowanych:
+sąsiednie sektory oba pod L4 różnią się najwyżej o jeden poziom, L4 graniczy z czymkolwiek
+(inaczej fala budziłaby trzy pierścienie za Sight); transformata odległości Czebyszewa z
+zawijaniem po poziomach z histerezą co tick, wynik nigdy nie wraca do nich, a reporter liczy
+podniesienia, by gra widziała progi za gęste dla boku sektora; z góry kamera widzi każdy punkt
+kadru w jednej skali, więc w Sight jest jeden poziom i Sight jest jedynym pokrętłem ticku
+(użytkownik 2026-11-03: expanse przepisany z Sight ~1000 j. zamiast pasm 750/2000); widok
+kamery bierze poziom swojego obserwatora, L4 także poza kadrem, zbiera encje sektorów pod L4
+(`view.nearest` z zawijaniem: torus expanse); `Pace(Paces)` buduje `Never[L4]` zawsze i na
+L1..L3 `Never`/`Every(n)`/nic; sprawdzenie, że największe `n` razy krok nie przerzuca
+najszybszej encji przez pół komórki (dziś `checkBands`); nakładka „Sectors drawn” i reporter
+„Sectors” pokazują L0..L4; `Unbanded` zostaje (wszystko L0 w ticku, obraz po drabinie);
+kamery podają `Observers` (bez `Whole` i minimapy); minimapa sprawdza zasięg przeciw `Sight`.
+Testy: poziom z skali i odległości (kamera z góry: zoom; perspektywa: odległość i za okiem),
+minimum po dwu obserwatorach, keen podnosi sektor i sąsiadów i puszcza po despawnie,
+histereza w obie strony, sen i budzenie po L4, zawijanie, widok
+poza kadrem L4 z tickiem żywym, stopniowanie (progi ciasne na małym sektorze dają schody po
+jednym, licznik wyrównań), zapis i odczyt znaczników. Nie dotyka: renderera świata,
+`render`, pluginów poza world i cameras.
+
+**Część 2 `l/paces`** (każdy plugin z systemem po encjach; po preludium, równolegle z 1):
+każde zapytanie o encje świata z `world.Plugin.Pace(paces)`: motion `Slowing` jak dziś
+(krok rośnie o n), efekty i plany świata `Slowing`, gravity fall `Slowing`, plane `Exact`,
+kolizja i wzrok `Paces` z L0..L2 po 1 (bitwa nie staje przy całej mapie w kadrze) i stop od
+L3, pocisk `Steady` pełnym krokiem (nigdy `Slowing`: przeleciałby przez cel; grunt sprawdza
+sam, trafia przez kontakty kolizji) i strzał spawnowany z `sector.Keen{L2}` na czas lotu,
+traffic `Steady`; dziś bez polityki, dostają co najmniej `Steady` (nic na L4):
+lampy światła (uśpiona lampa gaśnie), standing i occupancy planszy, altitude, driving,
+selection, dialog, give, routing, strzelanie, znaki minimapy; komórki nie mają `Base`, więc
+znaczników nie noszą i reguł komórek się nie tyka; momenty świata nie mają zapytania. Dzisiejsze
+`Paced` (tempo pasma 4 z konfiguracji świata) to `Slowing(2, 4, 8)` w preludium. Testy: na L4
+żaden system nie
+czyta encji (test po pluginie przez `Install → Setup → RunPlan`), `Dt` na L1..L3 równe n
+kroków w `Slowing`. Nie dotyka: tego, co system robi, tylko gdzie i jak często.
+
+**Część 3 `l/looks`** (render, world atlas i renderer, topography billboards; po preludium,
+równolegle z 1 i 2): wersja na szczebel w atlasie: `Slot.At(level lod.Level, look L)` deklaruje
+wygląd od tego szczebla w dal aż do następnej deklaracji, L4 zawsze nic; bez deklaracji render
+wyprowadza przy `Close`: L0 i L1 sprite (na L1 renderer gubi krawędzie `Lay` i `Upright`, jak
+dziś Coarse), L2 plama średniego koloru sprite'a (jeden sprite jednolity na rodzaj, pod każdym
+efektem ten sam), L3 nic (figura pod pikselem znika); renderer świata wybiera wersję po
+`view.Level` w środku pudła, `FoggyLook` jak dziś; billboardy topografii to samo w reliefie;
+`Styled` i `Under` działają na każdej wersji. Testy: tablica wersji po `Close` (zadeklarowana,
+wyprowadzona, L4 pusta), renderer rysuje wersję szczebla (sprite ID w instancji), średni kolor
+policzony z alfą. Nie dotyka: terenu, kafli, nieba.
+
+**Część 4 `l/ground`** (topography terrain i hexes, board look i shadery; po 1 i 3): grunt po
+poziomie sektora z widoku zamiast pierścieni: L0 pełnia (dzisiejsza care 4), L1 bez detalu
+(care 3: bez brzegu, piany, wody biegnącej), L2 kształt (care 1 na siatce co drugi róg, bez
+fal i cieni lamp), L3 kolor: wariant „płachta” na siatce zgrubnej z albedo malarza
+(`Miniature`) jako jedynym kolorem (tekstura, nie osobny wachlarz: krawędź L2|L3 bez
+pęknięcia; wachlarz z mniejszą liczbą trójkątów to następny etap, jeśli liczby go uzasadnią),
+heksy jeden kwadrat z `Miniature` na sektor, L4 nic; spódnica do horyzontu zawsze jak L3;
+kafle płaskiej planszy: obraz poziomów niesie `lod.Level`, pokrycia,
+drogi i siatka na L0, kafel jednolitym kolorem od L2, nic na L4; pierścienie care,
+`Config.Care`, `SetCare`, `AdaptCare`, dźwignia topografii (`Following/Coarser/Finer`), F10
+„Full care out to” i nakładka care znikają bez następcy w topografii (zasada: jeden poziom na
+sektor dla wszystkiego, nic nie przesuwa go dla siebie); mosty, drogi i to, co stoi, po
+wersjach z części 3. Testy: wariant po
+poziomie (golden obrazów terenu na każdym szczeblu i kafli), płachta na L3 zgodna z albedo,
+nic na L4, hex i kwadrat tak samo. Nie dotyka: atmosfery (chmury czytają `Ladder.Sight` jak
+dziś `Detail.Sight`), światła.
+
+**Część 5 `l/budget`** (cameras, world view; po 1): jedno przesunięcie poziomu obrazu za
+budżetem klatki w adapterze kamer: `Settings.Detail` (F10 Picture: „Detail follows the frame
+budget”, domyślnie tak) i krok `Shift` 0..2 trzymany przez adapter; pod budżetem najpierw
+poziom obrazu każdej kamery o jeden grubiej (widok liczy `min(L4, poziom + Shift)`, tick nie),
+potem rozdzielczość; drobniej w odwrotnej kolejności, z dzisiejszym oknem i paleniem prób;
+`Config.Levers` i `cameras.Lever` zostają dla światła i atmosfery do czasu, gdy i one czytają
+poziom (następny etap); reporter „Picture” pokazuje `Shift`. Testy: adapter przesuwa poziom
+przed rozdzielczością i cofa po, widok z przesunięciem, znaczniki ticku nietknięte.
+
+Słowa szczebli jako kontrakt (`lod/doc.go`, tabela): co L0..L4 znaczy dla figury (sprite z
+krawędziami i bryłą; sprite płaski; plama koloru; nic; nic), kafla (pokrycia, drogi, siatka;
+kafel i drogi; kolor; kolor; nic), gruntu (pełnia; bez brzegu i wody biegnącej; siatka
+zgrubna bez fal; płachta; nic), tego, co stoi (jak figura), chmur i cieni (następny etap).
+Każdy plugin realizuje swoją kolumnę; żaden nie liczy poziomu ani nie przesuwa go dla siebie.
+
+Kolejność scalania: preludium → 2 → 1 → 3 → 4 → 5; szwy: `view.Level` (1↔3↔4↔5), `Pace`
+(1↔2).
+
+**Pomiar** (integrator, po scaleniu, kopia bazowa v0.17.2 na zmianę, bezczynna maszyna,
+5–10 min): `World_Tick` z sektorami i `World_Draw` (szum: ta sama praca, inne nazwy),
+`Frame_Topography` (±3%: wariant z poziomu zamiast z pierścienia), sonda expanse (klatka i
+GC: płachta na L3 zamiast setek sektorów siatki ma dać mniej instancji) i topography; zrzuty
+klatki 120 w czterech ustawieniach kamery (blisko, średnio, cała wyspa, perspektywa znad
+jednostki) bazowa przeciw drzewu: różnice tylko tam, gdzie poziom się zmienił. Deterministycznie
+w częściach: liczniki poziomów z reportera, zrzuty golden.
+
+**Dokumenty** (integrator): `lod/doc.go` (słowa szczebli), `doc.go` korzenia (grafika pakietów:
+`lod` pod `camera`), `plugins/world/doc.go` i `view/doc.go`, `plugins/cameras/doc.go`,
+`render/doc.go`; skille `gram-plugin` (`Paces` obowiązkowe), `gram-render` (wersje, `Slot.At`),
+`gram-plugins` (wpis world: poziomy zamiast pasm; topography: grunt po poziomie; cameras:
+przesunięcie), `gram-game`
+(`LOD` w konfiguracji świata), `gram-perf-tick` i `gram-perf-picture` (niezmienniki);
+`CLAUDE.md` reguła domu: „jedna drabina LOD: poziom sektora liczy świat, ten sam dla
+wszystkiego w nim, tempo na szczebel podaje każdy system, wersję na szczebel każdy rysowany
+rodzaj po tabeli słów, nikt nie liczy własnej odległości ani nie przesuwa poziomu dla siebie”;
+`CHANGELOG.md` v0.18.0 (`feat!`: `Sectors{Bands}` → `LOD`, `Detail` → `Sight`, `Policy` →
+`Paces`, znaczniki w zapisach); `README` jeśli minimal dotyka. Roadmapa: „fewer rays or
+sampling far off (with the LOD)” zostaje, bo wzrok nie bierze poziomu do skanu.
+
+**Co nie wchodzi** (następny etap, po tym): chmury i cienie po poziomie (bryły do L1, płachty
+od L2; cienie lamp na L0, wypiek zgrubny od L1), a z nimi koniec `AdaptShadows`, `AdaptClouds`,
+`Config.Levers` i `cameras.Lever` (zostaje samo przesunięcie z części 5); wzrok próbkujący
+rzadziej na L1+; wersja L3 figur jako piksel w płachcie (dziś nic); mipmapy atlasu jako wersje
+pośrednie; rozmycie na granicy wariantów gruntu (poziom na wierzchołek, pas przy krawędzi
+sektora mieszający dwa warianty jak pióro warstw; dziś żadnego nie ma, granice care są ostre),
+gdy zrzuty etapu pokażą, że granice poziomów gryzą wzrok.
+
+## LOD: wynik (2026-11-03, gałąź `feat/lod`, baza `43f0f4b2` v0.17.2)
+
+Wykonanie: preludium agentem Opus w klonie (`89ebb2a4`, `8b181c45` Sight expanse w jednostkach
+świata), części agentami Opus w worktree'ach od `8b181c45`: `l/paces` (`2d30aeba`, `df506d46`:
+`lod.Contact` dla kolizji, wzroku i grawitacji bocznej), `l/levels` (`fcc31666`), `l/looks`
+(`d6b00107`, `299a3181`: encja na brzegu kadru czyta poziom środka wciągniętego w kadr),
+`l/budget` od `fcc31666` (`9ed05672`, `46c41e02`: przesunięcie najwyżej do L3), `l/ground` od
+scalenia 1–3 (`aa5c04f0`, `a56946b3`: siatka terenu tylko na L0); scalenia `--no-ff` w
+kolejności 1, 2, 3, 5, 4 (`44405491`, `e1a618b5`, `2a915e36`, `1ab0e323`, `597a6691`), bez
+konfliktów (szwy rozdzielne). Sekwencja zielona z SIMD, 23 dema po 5 s zdrowe.
+
+Odstępstwa od planu, przyjęte: `camera.InFront`/`Fronted` zamiast skali 0 za okiem (pięciu
+konsumentów czytało 0 jako „za okiem”); `Grid.Nearest` eksportowany; `aloft.Renderer.Sight`
+setter; `view.Level` zniknął w całości (`lod.Level`); stopniowanie tylko wśród rysowanych (L4
+graniczy z czymkolwiek: fala budziłaby trzy pierścienie za Sight), transformata Czebyszewa trzema
+przebiegami, wynik nie wraca do poziomów z histerezą; stan obserwatora po kamerze, nie po
+indeksie; komórki bez `Base` nie noszą znaczników (reguły komórek nietknięte), momenty świata bez
+zapytania; lookupy po tożsamości (`Seek`, partner rozmowy, zaznaczony poza Sight) zostają `All()`;
+wersja wyglądu to para (sprite, drawn), bo sprite 0 istnieje; blob dyskiem po pokryciu; L0 i
+wyglądy czasowe odrzucone jako wersje; płachta L3 to wariant CARE 0 z albedo jako jedynym
+kolorem, oświetlony ambientem i rozproszonym słońcem (inaczej świeciłby nocą obok L2); heksy na
+L3 jeden kwadrat na sektor; kafle materiałowe na L2+ w kolorze środka komórki, nadal
+animowanym (kontrakt materiału nie ma koloru bazowego); dźwignie wracają pierwsze także w dół
+(`f7068bcc`, decyzja użytkownika), przesunięcie tylko w świecie z sektorami; selekcja omija
+śpiących (uśpiona jednostka zostaje zaznaczona do przebudzenia: widoczna zmiana, do oceny).
+
+Sprawdzenia deterministyczne (części): expanse na starcie `L0 16, L4 1008`, zoom przez próg
+przemarkowuje ~1400 encji naraz i z powrotem; topografia `L0 736, L4 64`, perspektywa z drabiną
+`{0.5, 0.25, 0.12, 0}` daje schody L0..L3 i podniesienia (6–58); testy L4 „nic nie czyta” w
+dziewięciu pluginach; zrzuty klatki 120 bazy przeciw drzewu: 0 pikseli różnicy przy wszystkich
+sektorach L0 (topografia domyślna, mostek z bliska, board/flat, expanse), różnice tylko tam,
+gdzie poziom się zmienił (blob mostu na L2, brak mostu na L3 z cieniem wypieczonym, 129 622 px
+na widoku wyspy po zdjęciu siatki z L1/L2); adapter: shift 1 → 2 → rozdzielczość pod budżetem
+1 ms, nic przy `Detail{Follows: false}`.
+
+Pomiar (20:30–20:36, 6 min maszyny; baza `43f0f4b2` jako worktree z `GOWORK=off`, drzewo tak
+samo, na zmianę, 2 rundy, `-count=1`, `BENCHTIME=1s`; skrypt i logi w scratchpadzie sesji):
+`Sectors_Expanse/banded` (`-cpu=1`) 1,54 → 1,52 ms (−1,5% min, 0% mediana; 1 → 0 alokacji),
+`unbanded` 12,2 → 16,0 ms (+31%, 0 → 1 alokacji): profil po obu stronach pokazuje w drzewie 31%
+ticku w `spatial.Grid.index`/`Grid.add` aabbworlda, indeksie przestrzeni budowanym pod zapytanie
+widoku prawdziwej kamery, którego bench bazy nie miał (kotwice jako punkty, bez widoku; demo
+zawsze go płaciło); `World_Draw` +2,3…+4,3% (wersja na warstwę i poziom środka w granicach
+widoku), `World_Publish` −0,8…+3,6% (szum, 0 alokacji); `Frame_Topography` iso/persp/layered/
+footed −0,1…−1,0% (bez zmian); nowe `iso,level=0..3` 15,3 / 13,5 / 12,0 / 9,0 ms przy readbacku
+9,25 ms: każdy poziom gruntu oszczędza 1,5–2,7 ms, płachta L3 niemal cały przebieg gruntu; FPS
+dem bez vsync 20 s: expanse 792 → 840 (tick 285 → 210 µs), topografia 155 → 159. Zrzuty i
+liczniki: części (wyżej).
+
+Następny etap: chmury i cienie po poziomie (bryły do L1, płachty od L2; cienie lamp na L0, wypiek
+zgrubny od L1) i z nimi koniec `AdaptShadows`, `AdaptClouds`, `Config.Levers`, `cameras.Lever`
+(zostaje samo przesunięcie); wzrok rzadziej na L1+; przemarkowanie rozłożone na ticki (zoom z
+góry przez próg znakuje wszystkie żywe encje naraz); rozmycie na granicy wariantów gruntu, gdy
+zrzuty pokażą, że gryzie; wachlarz płachty, jeśli liczba trójkątów zacznie się liczyć;
+**generalizacja figur** (użytkownik 2026-11-03, agregacja domyślna): na L2 plama jako punkt
+(pozycja, kolor, rozmiar ≥ 1 px) pisany do instancji przy publikacji z pominięciem `Look`
+(dziś ~85 ns na pudło w `World_Draw`), z akumulacją alfy pod pikselem zamiast pomijania; na L3
+agregacja do obrazu sektora (kolor i pokrycie, teksel na kilka jednostek, splatting punktów do
+małego celu albo suma przy publikacji), jeden quad na sektor jak płachta albedo, domyślna dla
+każdej figury bez własnej wersji L3 w miejsce dzisiejszego „nic”; bez nowych encji i stanu
+(wygląd to rysowanie; typizacja, ikona z licznikiem, zostaje grą przez `At(L3, ikona)`);
+rzedzenie po stałym haszu id (`f` ze skali, Töpfer `f ∝ skala` albo `f ∝ skala²`, ważne encje
+poza losowaniem) jako narzędzie gry z większą liczbą encji niż pikseli; **agregaty**
+(użytkownik 2026-11-03; modelowanie wielorozdzielcze: agregacja i dezagregacja, jak X4, Mount &
+Blade, OneSAF): agregat (las, armia) jest encją zwyczajnego rodzaju z własnymi efektami i
+regułami ceremony, składniki (drzewa, żołnierze) są encjami tylko na L0–L1 i są jedyną prawdą
+tam, agregat jedyną prawdą od L2; silnik daje moment przejścia poziomu na encji („rozwiń” przy
+zejściu do L1, „zwiń” przy wejściu na L2, z mocniejszą histerezą), relację części, kontrakt
+zwiń/rozwiń z testem odwracalności (zachowanie ilości), `Keen` agregatu w interakcji (rozwinięcie
+łańcuchowe); gra pisze oba zestawy reguł i oba kierunki (rozwinięcie deterministyczne z ziarna i
+komórki plus delta zmian); rozjazd wierności przyjęty, kalibracja reguły abstrakcyjnej; dt wynika
+z tego, co na poziomie istnieje (żołnierz co krok, armia co 4–8 z planów), `Paces` zostaje osi
+systemu, nie poziomu; pytanie etapu: tempo na rodzaj, gdy reguła abstrakcyjna potrzebuje częściej
+niż gospodarz planów; szwy w perspektywie (2026-11-03): prawda na agregat, nie na sektor
+(rozwinięci składniki mogą stać w sektorze L2: istnieją, plamy, tempo L2), agregaty punktowe
+(armia, zwijana cała) i polowe (las, zwijany po sektorze: drzewa komórki istnieją przy L1 jej
+sektora), interakcja rozwija grubszą stronę (`Keen` celu agregatu niesie L1, nie L2), wersja L2
+z tego samego materiału co L1 (impostory), granica wariantów to szew obrazu; **świat bez
+obserwatora** na poziomie z drabiny (`Ladder.Unobserved`,
+domyślnie L2, bench i testy ustawiają L0 wprost) zamiast dzisiejszego L0; demo: las z drzewami i
+armia z żołnierzami zwijane przy oddaleniu; selekcja a śpiący
+(uśpiona jednostka zostaje zaznaczona do przebudzenia);
+kafle materiałowe na L2+ nadal animowane (kolor bazowy w kontrakcie materiału).
+
+## Generalizacja figur: plama bez `Look`, kolor w grunt, rzedzenie, świat bez obserwatora (plan 2026-11-03, gałąź `feat/lod-figures`, litera `g`, v0.19.0)
+
+Analiza (2026-11-03, po etapie LOD): daleka encja kosztuje CPU, nie GPU: `World_Draw` ~85 ns na
+pudło, trzy piąte w `Look` (sprite, kopie zawijania, `Frame.At`, atlas), reszta w kompozycji;
+sto tysięcy plam na L2 to ~8,5 ms CPU, podczas gdy GPU rysuje sto tysięcy punktów za nic. Na L3
+figura znika (`Nothing`), choć słowo szczebla to „kolor”; płachta gruntu na L3 i obraz minimapy
+(`Miniature`, znaki rodzajów) już są agregacją w obraz. Pominięcie „co dziewiąta encja” odpada:
+reprezentant migocze na granicach wiader, tłum traci gęstość, ważne encje giną losowo; właściwa
+operacja z kartografii (generalizacja: pominięcie, uproszczenie, agregacja, typizacja; prawo
+Töpfera `n_f = n_a·√(M_a/M_f)`) i z gier (dithering roślinności po haszu, ikony w RTS, klastry
+map) to agregacja, a pominięcie tylko stabilnym haszem. Świat bez obserwatora jest dziś L0
+wszędzie, czyli najdroższy; serwer chce odwrotnie.
+
+Decyzje użytkownika (2026-11-03): agregacja domyślna dla każdej figury bez własnej wersji L3
+(nic nie znika, wszystko staje się kolorem); bez nowych encji i stanu (wygląd to rysowanie;
+typizacja, ikona z licznikiem, zostaje grą przez `At(L3, ikona)`); rzedzenie po haszu
+narzędziem gry; poziom świata bez obserwatora z drabiny, domyślnie L2, bench i testy L0 wprost;
+`Paces` zostaje osią systemu (dt wynika z tego, co na poziomie istnieje). Agregaty-encje (las,
+armia) to etap następny, stojący na tym.
+
+**Preludium** (agent Opus w klonie, od `main` po scaleniu `feat/lod`, inaczej od `feat/lod`):
+`lod.Ladder.Unobserved lod.Fallback` (`type Fallback uint8`, zero = L2: `UnobservedL2`, dalej
+`UnobservedL0`, `UnobservedL1`, `UnobservedL3`, `UnobservedL4`; metoda `Level()`), świat bez
+obserwatora tyka na tym poziomie zamiast L0 (`sectors.ticked`), `Unbanded` bez zmian; bench i
+testy, które liczą na L0 bez kamery (`bench/world_test.go`, `board_test.go`, `sectors_test.go`
+nie: ma kamerę; testy pluginów budujące świat z sektorami bez obserwatora), ustawiają
+`UnobservedL0` wprost; `lod/doc.go` tabela: figura L3 „kolor w płachcie gruntu”;
+`world.Read.Aggregate() (img *render.Image, perUnit float32)` jako kontrakt (w preludium obraz
+pusty o rozmiarze świata w tekselach `Config.LOD.Texel` jednostek, zero = bok sektora/64),
+`lod.Ladder.Keep [Levels]float32` (udział encji publikowanych na poziomie, zero = 1, L4 bez
+znaczenia) z `Check` (0..1); `Slot.Always()` w atlasie (rodzaj poza rzedzeniem); dema bez
+zmian poza `Unobserved` gdzie trzeba; sekwencja zielona.
+
+**Część A `g/points`** (world publisher i renderer, `render/internal/instanced`, `plugins/world/
+internal/look`; po preludium): na L2 figura jest **punktem bez `Look`**: przy kompozycji
+encja na L2 nie przechodzi `Sprite/Lie/Lay/Upright` ani `Cast`/`Lit`, lecz pisze jedną
+instancję wprost (środek pudła przez kamerę raz, z kopiami zawijania policzonymi raz na klatkę
+dla kamery, rozmiar `max(pudło w px, 1 px)`, sprite bloba, kolor i alfa: alfa = pokrycie
+piksela przez pudło pod 1 px, by subpikselowe plamy sumowały się w gęstość zamiast migotać),
+cel: ≤ 20 ns na encję L2 w `World_Draw` (nowe rungi `level=2`); billboardy topografii na L2 to
+ten sam punkt (plama nie stoi); mgła jak dziś; **rzedzenie**: przy publikacji encja sektora na
+poziomie k wchodzi do rekordów, gdy `hash(id)·2⁻⁶⁴ < Keep[k]` (hasz stały po id: ta sama encja
+znika pierwsza, bez migotania), chyba że nosi `sector.Keen`, jest rodzaju `Always()` albo ma
+zadeklarowaną wersję na tym poziomie; pominięta nie kosztuje rekordu. Testy: instancja punktu
+(pozycja, rozmiar ≥ 1 px, alfa pokrycia) z `export_test`; zero alokacji; rzedzenie
+deterministyczne (ten sam zbiór przy tym samym `Keep`, nadzbiór przy większym), wyjątki;
+zrzuty: L0 i L1 piksel w piksel z bazą, L2 różnice tylko w plamach (rozmiar i alfa).
+
+**Część B `g/aggregate`** (world publisher: obraz; topography terrain i hexes; board look;
+po A, bo publisher): na L3 figura jest **kolorem w gruncie**: publisher sumuje do obrazu
+`Aggregate` (RGBA, teksel `Config.LOD.Texel`) kolor bloba i pokrycie każdej encji sektora na L3
+widzianego przez którąkolwiek kamerę (teksele tych sektorów zerowane co klatkę; encje
+z zadeklarowaną wersją L3 rysowane nią zamiast sumy; w świecie bez sektorów nic), obraz
+publikowany raz na klatkę jak znaki minimapy, przesyłany tylko w prostokątach sektorów L3;
+grunt czyta go: wariant płachty terenu (L3) miesza kolor agregatu po pokryciu nad albedo
+(piąty slot obrazu albo pakowanie w slot `Kinds` tam, gdzie płachta go nie czyta: agent
+decyduje po `render.Direct.Images`), kwadrat heksów na L3 tak samo, kafle płaskiej planszy od
+L3 (`tiles_plain` z próbką agregatu), spódnica nie; `lod/doc.go` wiersz figury L3 prawdziwy.
+Testy: obraz po publikacji (encja L3 daje teksel koloru i pokrycia, L2 nic, sektor zerowany po
+odejściu), golden `gputest` płachty z agregatem (plama koloru nad albedo), kafle; zrzuty: L3 w
+expanse (plamy pudeł w kolorze gruntu) i topografia widok wyspy.
+
+Kolejność: preludium → A → B. Szwy: `publisher.go` (A↔B, więc sekwencyjnie), `Read.Aggregate`
+(preludium↔B), shadery gruntu (B sam).
+
+**Pomiar** (integrator, ≤10 min, baza = `main` po v0.18.0 na zmianę z drzewem): `World_Draw`
+rungi istniejące (±3%) i nowe `level=2`/`level=3` (same, cel ≤ 20 ns/encja L2, L3 koszt sumy
+≤ 10 ns/encja); `Sectors_Expanse` (`-cpu=1`, `UnobservedL0` w benchu: bez zmian); `World_Publish`
+(rzedzenie `Keep` 1: ±2%); `Frame_Topography/iso,level=3` (próbka agregatu w płachcie ≤ +0,3 ms);
+FPS expanse oddalony do L2 w całym kadrze (reżim najcięższy: dziś ~100 tys. plam przez `Look`),
+baza przeciw drzewu 20 s; zrzuty jak w częściach.
+
+**Dokumenty** (integrator): `lod/doc.go`, `plugins/world/doc.go` (publikacja: punkty, agregat,
+rzedzenie), `plugins/topography/doc.go`, `plugins/board/doc.go`, skille `gram-render`
+(punkt bez `Look`, agregat), `gram-plugins` (world, topography, board), `gram-game`
+(`Unobserved`, `Keep`, `Always`), `gram-perf-picture`/`gram-perf-tick` (niezmienniki: L2 bez
+`Look`, obraz agregatu raz na klatkę, świat bez obserwatora L2), `CLAUDE.md` (reguła LOD: zdanie
+o agregacji domyślnej i świecie bez obserwatora), `CHANGELOG.md` v0.19.0 (`feat`; `Unobserved`
+zmienia zachowanie świata bez kamery), `BENCHMARKS.md`, wynik tu.
+
+**Co nie wchodzi**: agregaty-encje (las, armia: moment przejścia poziomu na encji, relacja części,
+zwiń/rozwiń, `Keen` L1 celu, demo), chmury i cienie po poziomie z końcem dźwigni, przemarkowanie
+rozłożone, rozmycie granic, wachlarz płachty, selekcja a śpiący, kolor bazowy materiału.

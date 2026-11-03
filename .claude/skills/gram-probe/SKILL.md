@@ -71,7 +71,11 @@ Each script's header says its arguments and variables.
    report. Each view the change touches.
 5. **Frame rate**: `GRAM_FPS_LOG=1 GRAM_VSYNC=off`, 35 s a run, after ~8 s of warm-up or over
    the seconds a passing regime lasts; steady and the moment it works hardest. A slow draw drags
-   the tick with it: look for the first of the two to go.
+   the tick with it: look for the first of the two to go. The probe stills the adapter whole:
+   the resolution (`Adapt{Still}`, `Picture`), the levers and the level shift
+   (`cameras.Detail{Follows: false}`), else the picture moves under the budget as it runs. The
+   "Sectors" and "Sectors seen" lines of the world's reporters say the levels a camera state
+   gives; a zoom across a threshold re-marks every awake entity at once (a spike to look at).
 6. **Where the time goes**: `pprof.StartCPUProfile`/`StopCPUProfile` at two ticks of a probe;
    a plugin's own pass in `bench/`, on the copy and the tree alike. Hours of game time (a
    weather crossing the sky): a scratch program ticking the plugin's goke ECS in a loop.

@@ -286,7 +286,7 @@ func (d *collisionSystem) Init(si *goke.SysInit) {
 	d.walk = qb.Build()
 
 	d.all = si.NewQueryBuilder(&d.allBase).Optional(&d.allSweep).
-		Exclude(goke.Exclude[sector.Off]()).
+		Exclude(goke.Exclude[sector.L4]()).
 		Build()
 
 	seek := si.NewQueryBuilder(&d.lookupBase, &d.lookupCollider).

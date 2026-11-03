@@ -337,7 +337,7 @@ demo opens a window; what it shows is tested in the library's package that does 
 | Demo | Shows | Run |
 |:---|:---|:---|
 | [`motion/collision`](examples/motion/collision) | Thousands of bouncing boxes of many kinds, hit overlays, telemetry, save and load | `make demo-motion-collision` |
-| [`motion/expanse`](examples/motion/expanse) | A hundred thousand boxes on a torus of about 98 km: the world lives in bands round the camera, the settings screen (F10) shows the sectors by their bands or by what the camera sees and switches the bands off to weigh what they spare; a minimap of the boxes round the camera | `make demo-motion-expanse` |
+| [`motion/expanse`](examples/motion/expanse) | A hundred thousand boxes on a torus of about 98 km: the world lives within the sight round the camera, every sector at a level of detail from how big the camera shows it, the settings screen (F10) shows the sectors by the level ticked or by what the camera sees and switches the levels off to weigh what they spare; a minimap of the boxes round the camera | `make demo-motion-expanse` |
 | [`motion/bullet`](examples/motion/bullet) | A soldier on WSAD, the camera following him: Space fires a round the way he faces, Shift held and let go throws a grenade the further the longer held, in an arc that lies with a spark and bursts; the shots are the plugin's, the wounds and the fuse rules, effects and a plan | `make demo-motion-bullet` |
 | [`motion/platformer`](examples/motion/platformer) | A hero in a side view under gravity: A and D walk, W jumps, G turns gravity over, a hard landing dazes | `make demo-motion-platformer` |
 
@@ -568,6 +568,7 @@ has a `doc.go` describing what it brings. What is left to do is in
 
 | Package | Responsibility |
 |:---|:---|
+| [`lod`](lod/doc.go) | The one ladder of levels of detail: `Level` L0..L4, the world's `Ladder` of scales and sight, a system's `Paces` at each level; the table of what each level means |
 | [`camera`](camera/doc.go) | The contract of a view onto a world: screen conversion, culling, move and zoom, projections, fastening over an entity |
 | [`control`](control/doc.go) | The input vocabulary: `Binding`, the triggers, `Context`, `Keys`, a player's `Tool`; the commands a binding builds are `ceremony/command`'s |
 | [`render`](render/doc.go) | Drawing: `Renderer`, the `Composer` over `Source`s and its `Frame`, `Direct` sources, `Feed`, `Atlas`, `Font`, the drawing rules a renderer runs every frame |

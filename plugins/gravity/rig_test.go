@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -27,6 +28,7 @@ import (
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -118,14 +120,11 @@ type scene struct {
 	water  bool
 	bodies []body
 	rules  []act.Rule
-	// cut into sectors round the anchor
-	sectors world.SectorsCfg
-	anchor  geom.Vec
+	// cut into sectors by ladder round the observers
+	sectors   world.SectorsCfg
+	ladder    lod.Ladder
+	observers sector.Observers
 }
-
-type anchor geom.Vec
-
-func (a anchor) Anchors(at func(x, y float32)) { at(float32(a.X), float32(a.Y)) }
 
 type rig struct {
 	t     *testing.T
@@ -158,8 +157,11 @@ func newRig(t *testing.T, sc scene) *rig {
 		Entities: world.EntitiesCfg{MaxCount: len(sc.bodies) + 8, MinSize: 1, MaxSize: 10},
 		Heights:  true,
 		Sectors:  sc.sectors,
+		LOD:      sc.ladder,
 	})
-	w.Write().Anchor(anchor(sc.anchor))
+	if sc.observers != nil {
+		w.Write().Observe(sc.observers)
+	}
 	r := &rig{t: t, w: w}
 	if err := w.Carry(&r.heard); err != nil {
 		t.Fatal(err)

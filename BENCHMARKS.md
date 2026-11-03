@@ -72,7 +72,9 @@ each, or a twentieth and a hundredth of 50,000; the cases are named by the boxes
 | 529 of 50,000 | 82.2 µs | 45.5 µs | 128 µs |
 
 0 allocs/op. The publishing walks the world and writes a record an entity in view: under 2 ns an
-entity walked and some 10 ns a record. The drawing costs the boxes in view, about 85 ns a box,
+entity walked and some 10 ns a record. The drawing costs the boxes in view, about 85 ns a box
+(+2–4% with the version a level picked for every layer and the level read at the middle held in
+the view's bounds, v0.18),
 three fifths of it the look laying the sprite (`Flat.Sprite`, `VisitWrapImages` for a torus's
 copies), the rest the frame's placing (`Frame.At`, `Lifted`) and the atlas's lookups.
 
@@ -107,22 +109,27 @@ size quadruples the contacts and the tick alike. Of the 5×5 tick (the profile):
 sweep 27% (`visit`, `listItems`, `sort`, `add`) and its solver 34% (`Solve`, `penetration`), gram's
 resting pairs (`rest`) 7%, its contacts and resolving 9%.
 
-## Bands — `Benchmark_Sectors_Expanse`
+## Levels — `Benchmark_Sectors_Expanse`
 
 One tick of world, motion and collision at the expanse demo's scale: a 16384×16384 torus, a
-hundred thousand boxes 5 a side spread evenly, the world in sectors with the first band 750 round
-the middle, the second 2000 at a step in four, beyond it nothing; then the same with the bands
-switched off, every box moving and colliding.
+hundred thousand boxes 5 a side spread evenly, the world in sectors of 512 at the demo's ladder
+(`Scales {0.5, 0, 0, 0}`, a sight of 1000 round a real camera of 1024×768 over the middle: the
+16 sectors within the sight at L0, the rest asleep at L4); then the same with the levels switched
+off (`SwitchBands`), every box moving and colliding, the camera's view still refreshed.
 
-| Bands | Entities | Tick |
+| Levels | Entities | Tick |
 |:---|---:|---:|
-| on | 100,000 | 1.86 ms |
-| off | 100,000 | 13.6 ms |
+| on | 100,000 | 1.52 ms |
+| off | 100,000 | 16.0 ms |
 
-With the bands on about 1,600 boxes go every step and 4,400 a step in four; the rest lie out of
-the space at no cost but the supervisor's pass over the bands near. Of the banded tick (the
-profile): the collision's walk over the boxes at rest (`still`) 32%, its marking 41% cumulative,
-the pair sweep 26%, the sectors' update 8%.
+With the levels on about 1,500 boxes go every step; the rest lie out of the space at no cost but
+the supervisor's pass over the sectors (the observer's level a sector, its hysteresis and
+grading, the keen walk). Before the ladder (v0.17, bands 750 full and 2000 at a step in four,
+anchors as points and no camera view in the bench): 1.86 ms on, 13.6 ms off; the tick with the
+levels off carries the camera's view over every awake box now, which the old bench left out:
+of the tree's 16 ms the space's index built for the view's query (aabbworld's `Grid.index` and
+`Grid.add`) is 31%, absent from the base's profile, and the one allocation a tick is its; the
+demo always paid it (its tick fell 285 → 210 µs at the default view, `GRAM_FPS_LOG`).
 
 ## Sight — `Benchmark_Vision_Scan`, `Benchmark_Vision_ScanWithOutlines`
 
@@ -493,8 +500,8 @@ drawn through the composer on a headless GPU into a 2560×1440 screen and read b
 so the GPU is waited for; "readback" alone is the wait's cost, taken off in the last column. In
 isometry and perspective; under a distant sun with the ground's shade baked (lit); without the
 water's shine (no water layer); at 0.7 of the pixels straight into a screen of that size (its
-readback smaller too); cut into sectors of 256 shaded with full care everywhere, within two of
-the screen's middle and within one; in layers (the whole frame at 0.5 of the pixels, the central
+readback smaller too); cut into sectors of 256 every one drawn at one level of detail, L0 to L3
+(`lod`, v0.18); in layers (the whole frame at 0.5 of the pixels, the central
 60% at 0.75, the central 35% at all of them) inset or footed; and through a feed at 0.7 of the
 pixels scaled up to the screen; in layers and through the feed the figures at the ground's
 resolution or at every pixel (sharp).
@@ -507,9 +514,10 @@ resolution or at every pixel (sharp).
 | isometric, lit | 17.7 ms | 8.4 ms |
 | isometric, no water layer | 16.0 ms | 6.7 ms |
 | isometric at 0.7 of the pixels (1792×1008) | 8.4 ms | ~3.8 ms |
-| isometric, full care everywhere | 16.5 ms | 7.2 ms |
-| isometric, full care within 2 sectors | 16.7 ms | 7.4 ms |
-| isometric, full care within 1 sector | 16.4 ms | 7.2 ms |
+| isometric, every sector at L0 (full) | 15.3 ms | 6.1 ms |
+| isometric, every sector at L1 (no shore nor running water) | 13.5 ms | 4.2 ms |
+| isometric, every sector at L2 (coarse lattice, still water) | 12.0 ms | 2.7 ms |
+| isometric, every sector at L3 (the albedo sheet) | 9.0 ms | ~0 |
 | isometric in layers | 13.9 ms | 4.7 ms |
 | perspective in layers, inset | 15.0 ms | 5.7 ms |
 | perspective in layers, footed | 14.5 ms | 5.3 ms |
@@ -522,8 +530,9 @@ resolution or at every pixel (sharp).
 
 What it says: the frame is bound by the pixels — 0.7 of them costs half, the layers (0.52 of the
 pixels drawn) a third less than the whole; the figures at every pixel over a coarse ground cost
-2–2.3 ms, the pass over the ground at the screen's size; the care within a sector or two and the
-baked shade cost nothing measurable here. The CPU is busy a fifth of the frame (the profile), the
+2–2.3 ms, the pass over the ground at the screen's size; each level of the ground saves 1.5–2.7
+ms of the frame, the sheet at L3 nearly the whole ground's pass (v0.18); the baked shade costs
+nothing measurable here. The CPU is busy a fifth of the frame (the profile), the
 readback's copy and the Vulkan calls, and waits the rest.
 
 ## The flat board's frame — `Benchmark_Frame_Flat`

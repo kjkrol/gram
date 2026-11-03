@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/uid"
 )
 
@@ -98,8 +99,8 @@ type Turn struct {
 	Angle  float32
 }
 
-// Sight has Camera see Factor times as far (camera.Detail.Sight); one seeing without end stays
-// so.
+// Sight has Camera see Factor times as far (camera.Sighted); one in a world seeing without end
+// stays so.
 type Sight struct {
 	Camera camera.Camera
 	Factor float32
@@ -177,10 +178,15 @@ type Sampling struct{ Over time.Duration }
 // first, finer over the second (Settings.Under, Settings.Met).
 type Thresholds struct{ Under, Met float32 }
 
-// Lever is what else the frame budget turns, given the cameras in Config.Levers: a step coarser
-// as the rate falls under the budget, before the pictures' resolution, Coarser taking it and
-// saying whether it could; a step finer as the rate stays over, after the pictures', Finer the
-// same; one not Following is left alone.
+// Detail has the pictures' level of detail follow the frame budget where it Follows, every
+// picture but a minimap's drawn up to MostLevelShift levels coarser than the world sees it before
+// its resolution falls, or stay as the world sees it (Settings.StillDetail). The settings screen
+// alone.
+type Detail struct{ Follows bool }
+
+// Lever is what else the frame budget turns, given the cameras in Config.Levers, ahead of the
+// pictures' level and resolution both ways: Coarser a step as the rate falls under the budget,
+// Finer a step as it stays over, each saying whether it could; one not Following is left alone.
 type Lever interface {
 	Following() bool
 	Coarser() bool
@@ -206,6 +212,7 @@ func (LayerResolutions) Command() {}
 func (Budget) Command()           {}
 func (Sampling) Command()         {}
 func (Thresholds) Command()       {}
+func (Detail) Command()           {}
 func (ShowLayers) Command()       {}
 func (Follow) Command()           {}
 func (CenterOn) Command()         {}
@@ -243,6 +250,7 @@ var (
 	_ command.Command = Budget{}
 	_ command.Command = Sampling{}
 	_ command.Command = Thresholds{}
+	_ command.Command = Detail{}
 	_ command.Command = ShowLayers{}
 )
 
@@ -265,13 +273,18 @@ const (
 	LeastResolution = 0.4
 )
 
+// MostLevelShift is the most levels the frame budget draws the pictures coarser than the world
+// sees them (Detail).
+const MostLevelShift lod.Level = 2
+
 // Queues are where the cameras' commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
 	return append([]command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.centerOns,
 		&p.centerAts, &p.zones, &p.edgeScrolls, &p.cornerTurns, &p.edgeSpeeds, &p.zonesOpacities,
 		&p.holds, &p.sights,
 		&p.resolutions, &p.adapts, &p.pictures, &p.sharps,
-		&p.layers, &p.layerShares, &p.layerRes, &p.budgets, &p.samplings, &p.thresholds, &p.showLayers}, p.orders.queues()...)
+		&p.layers, &p.layerShares, &p.layerRes, &p.budgets, &p.samplings, &p.thresholds,
+		&p.details, &p.showLayers}, p.orders.queues()...)
 }
 
 // DefaultBindings are DefaultKeys, their corners turning where the Config turns and the settings

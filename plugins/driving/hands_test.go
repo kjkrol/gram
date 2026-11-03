@@ -28,6 +28,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -82,12 +83,27 @@ func newField(t *testing.T, walkers ...walker) *field {
 // a fence runs north to south through the middle of each cell of fences
 func newFencedField(t *testing.T, fences []cell.ID, walkers ...walker) *field {
 	t.Helper()
+	return newFieldIn(t, fences, nil, walkers...)
+}
+
+// newFencedField in a world as config changes it, observed by what config gives; nil, as made
+func newFieldIn(t *testing.T, fences []cell.ID, config func(*world.Config) sector.Observers,
+	walkers ...walker) *field {
+	t.Helper()
 	f := &field{t: t, grid: grid.DefaultGrids{}.Square(10, 3, 32)}
-	f.w = world.NewPlugin(world.Config{
+	cfg := world.Config{
 		Space:    world.SpaceCfg{Width: 320, Height: 96},
 		Entities: world.EntitiesCfg{MaxCount: len(walkers) + len(fences), MinSize: 10, MaxSize: 22},
 		Heights:  true,
-	})
+	}
+	var seen sector.Observers
+	if config != nil {
+		seen = config(&cfg)
+	}
+	f.w = world.NewPlugin(cfg)
+	if seen != nil {
+		f.w.Write().Observe(seen)
+	}
 	m := motion.NewPlugin(f.w)
 	col := collision.NewPlugin(f.w, m)
 	brd := board.NewPlugin(f.grid, &cell.SingleOccupancy{}, f.w).

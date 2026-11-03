@@ -5,15 +5,18 @@ import (
 	"time"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugin"
 )
 
-// adapter steps the pictures' resolution after the frame rate, sampled once a second and
+// adapter steps what follows the frame budget after the frame rate, sampled once a second and
 // averaged over the sampling window (Settings.Sampling): coarser once a window's rate has fallen
 // under the budget, finer, tentatively, once two windows running have met it. The vsync caps
 // the rate at the screen's, so a budget met says nothing of the room above it: a finer step is
 // tried, and one that costs the budget within ten seconds burns the trying for thirty.
 type adapter struct {
+	// the levels every picture but a minimap's is drawn coarser than the world sees it at
+	shift    lod.Level
 	on       bool
 	budget   time.Duration
 	sampling time.Duration

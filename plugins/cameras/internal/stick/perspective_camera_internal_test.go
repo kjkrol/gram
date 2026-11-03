@@ -345,3 +345,21 @@ func TestPerspCamera_RayIsTheWayAScreenPointLooks(t *testing.T) {
 		t.Errorf("the top of the screen looks %v up and the bottom %v, want higher and lower than the middle's %v", up, down, dz)
 	}
 }
+
+func TestPerspCamera_ABehindPointTakesTheScaleOfOneAsFarBeforeTheEye(t *testing.T) {
+	c := testPersp(nil, nil)
+	eye, ahead := c.eye(), c.proj.forward
+	before := vec.Add(eye, vec.Scale(ahead, 300))
+	behind := vec.Sub(eye, vec.Scale(ahead, 300))
+	front := c.ScaleAt(before[0], before[1], before[2])
+	back := c.ScaleAt(behind[0], behind[1], behind[2])
+	if front <= 0 || !near(back, front) {
+		t.Errorf("300 behind the eye the scale is %v, want %v as 300 before it", back, front)
+	}
+	if !c.InFront(before[0], before[1], before[2]) || c.InFront(behind[0], behind[1], behind[2]) {
+		t.Error("the point before the eye is not in front of it, or the one behind is")
+	}
+	if s := c.ScaleAt(eye[0], eye[1], eye[2]); f32.IsInf(s, 1) || s <= front {
+		t.Errorf("at the eye the scale is %v, want one finite and larger than %v", s, front)
+	}
+}

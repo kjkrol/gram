@@ -1,5 +1,53 @@
 # Changelog
 
+## v0.18.0 — unreleased
+
+**One ladder of levels of detail** (2026-11-03, branch `feat/lod`, parts `l/levels`, `l/paces`,
+`l/looks`, `l/ground`, `l/budget`)
+- Added: the root package `lod`: `Level` L0..L4 (full, no detail, shape, colour, nothing), the
+  world's `Ladder` of scales in shown pixels a world unit with its `Sight` and `Fog`, a system's
+  `Paces` at each level (`Exact`, `Steady`, `Contact`, `Slowing`), and the table of what each
+  level means for a figure, a tile and the ground.
+- Added: the world gives every sector one level from each observer camera (`sector.Observers`):
+  the scale shown at its nearest point (`camera.ScaleShown`, the resolution the budget sets
+  moving no level; behind the eye the scale of a point as far before it) and its distance within
+  the sight, held with hysteresis (`Ladder.Hold`) and graded so neighbours drawn differ by one at
+  most; the level ticked is the finest any observer sees, L0 with none; `sector.Keen{Level}` on
+  an entity keeps its sector and the eight round awake at that level (a shot in flight, at L2).
+  Marks `sector.L1`…`L4`; L4 asleep, out of the space, as `Off` was.
+- Added: every system says how often it goes at each level through `world.Plugin.Pace(paces)`;
+  the systems that paced nothing (the light's sources, standing, occupancy, altitude, driving,
+  selection, dialog, give, routing, shooting) now skip the sleepers; collision, vision and the
+  side view's gravity run through L2 (`lod.Contact`), a shot flies at full step at every level
+  but L4.
+- Added: a version of every kind's look a level: `Slot.At(level, look)` and `Slot.Nothing(level)`
+  on the world's atlas, a blob of the kind's mean colour (`render.Blob`) derived at L2 when none
+  is declared, nothing at L3; the world's renderer draws the version of the level the camera's
+  view gives, flat from L1.
+- Added: the ground by level: the terrain's shader a level (L1 without shore and running water,
+  L2 the coarse lattice with still water and no lamps, L3 the painter's albedo as a sheet on the
+  coarse lattice, the grid at L0 alone), a hex board's tops at L1–L2 and one quad a sector at L3,
+  the flat board's covers, ways and grid at L0, tile and ways at L1, the tile's colour from L2.
+- Added: the frame budget shifts the picture's level coarser for every camera alike, by one and
+  two, after the levers and before the resolution, never hiding a sector drawn; "Detail follows
+  the frame budget" on F10 (`cameras.Detail{Follows}`, `Settings.StillDetail`); the picture probe
+  stills it.
+- Changed: `world.Config.Sectors` is `SectorsCfg{Buckets}` and `world.Config.LOD` the ladder;
+  `Band`, `MaxBands`, `Policy`, `Anchors`, `Grid.Place` and `cameras.Config.Detail` are gone; a
+  camera's `Sight()` is a multiple of the world's sight (`world.Read.Sight(cam)` the distance),
+  saved as the multiple; `view.Level` is `lod.Level` (`Exact`/`Coarse`/`Fogged`/`Hidden` gone),
+  `View.Sectors` yields the sectors under L4; `camera.InFront` says which side of the eye a
+  point lies, where a zero scale used to.
+- Changed: the expanse demo lives within a sight of 1000 units round the camera (6 km at 6 m a
+  unit), one level in the sight from above; the topography demo's ladder `{0.5, 0.25, 0.12, 0}`
+  and its levers the light's and the atmosphere's alone.
+- Removed: the topography's care rings and everything that set them (`Config.Care`, `SetCare`,
+  `Care`, `AdaptCare`, `ShowCare`, the care overlay, the F10 section Picture/Care,
+  `control.PictureCare`, the topography as a `cameras.Lever`): one level a sector for everything,
+  nothing shifts it for itself.
+- Saves: the marks, a camera's sight and the care settings change meaning or go; a save of
+  v0.17 loads wrong (no migration).
+
 ## v0.17.2 — 2026-11-03
 
 **Wayland quits clean on wgpu v0.34.6** (2026-11-03, branch `fix/wayland-quit`)

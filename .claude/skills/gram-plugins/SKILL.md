@@ -47,23 +47,34 @@ keeps only what those do not.
   (world), `Shadow{Patch}` (light), `Course` of a unit (motion), `Lie` and `Shadow{Baked}` of
   what stands (board), `Collider` and `Physics` of a unit (collision). A missing requirement
   panics naming the plugin and its reason.
-- Bands (`sector.Policy`, `gram-plugin`): `Paced` motion, gravity along Z, the plans, the
-  effects; `Everywhere` navigation; `Near` collision, bullet's flight, vision, gravity across.
+- Levels (`lod.Paces` through `world.Plugin.Pace`, `gram-plugin`), every system's: `Slowing(2,
+  4, 8)` motion, gravity along Z, the plans, the effects; `Contact` (through L2) collision,
+  vision, gravity across; `Steady` (every level but L4) navigation, a shot's flight (keen at L2
+  while it flies), the light's sources, standing, occupancy, altitude, driving, selection,
+  dialog, give, routing, shooting. Cells carry no `Base`, so no level; lookups by identity
+  (`Seek`, a conversation's partner, a selected unit beyond sight) stay `All()` on purpose.
 - What draws reads what was published once a frame after the ticks — the entities and views,
   the board's cells, the relief, the weather, the light, the minimap's marks, the telemetry's
   lines, a camera's `Snap` — never the live state; before the first publish, the live one.
 
 ## world, with entity, view and clock
 
-- Sectors (`SectorsCfg{Buckets, Bands}`; board/topography and motion/expanse have them): the
-  supervisor runs once a tick after the clock, before the views, laying each sector in the band
-  of its nearest anchor: nearer at once, farther only half a sector past the reach. Every sector
-  begins beyond every band, so the first tick and a load wake everything near. The anchors are
-  the cameras' `Focus` points (none for a `Whole` camera or a minimap). The first band is
-  unmarked, the rest carry `sector.Band2`…`Band5` or `Off`, zero-size marks saved with the game.
-- **The space holds no `Off` entity** (the index, motion's rebuild and collision skip them), so
+- Sectors (`SectorsCfg{Buckets}` cuts the world; `Config.LOD` is its `lod.Ladder`; board/
+  topography and motion/expanse have them): the supervisor runs once a tick after the clock,
+  before the views. Per observer camera (`sector.Observers`, the cameras' but a `Whole` one's or
+  a minimap's) it holds a level a sector from `lod.Ladder.At(camera.ScaleShown(nearest point),
+  distance from camera.Viewpoint)`, wrap-aware (`Grid.Nearest`), finer at once and coarser only
+  past `Ladder.Hold`'s hysteresis (a threshold by 10%, the Sight by half a sector), then grades
+  it so neighbours both under L4 differ by one at most (a Chebyshev transform; L4 borders
+  anything, else the lift would wake rings beyond the Sight) — the camera's view reads that
+  graded level. The level ticked is the finest graded level of any observer, L0 with none,
+  lowered to a `sector.Keen` entity's level in its sector and the eight round (a shot in flight).
+  Every sector begins at L4, so the first tick and a load wake everything near. Marks
+  `sector.L1`…`L4`, zero-size, saved with the game; L0 unmarked.
+- **The space holds no L4 entity** (the index, motion's rebuild and collision skip them), so
   asking it would never find them again: the sleepers are listed by sector, laid anew at the
-  first tick and after a load (`restart`), and woken by sector.
+  first tick and after a load (`restart`), and woken by sector. A top-down zoom across a
+  threshold re-marks every awake entity at once (~200 ns each): known, not spread yet.
 - The space reads the `Base` columns where goke keeps them, as runs (`world.RunOf`): motion hands
   it the runs it moved, collision those whose Caps changed or sweeps stretched, and the world
   gathers them anew after every Sync (`Clock.OnSync`; the engine hands `Update`
@@ -78,8 +89,10 @@ keeps only what those do not.
   under `Clock.Settling(rc)`, then `Clock.Replay` of the simulated blocks as the tempo says.
   `Clock.Behind` lowers a tempo above 1 after 30 slow frames. `clock.At` and `Every` go by clock
   time: a moment passed never fires again after a load.
-- view: a sector is `Coarse` where `camera.ScaleAt` at its nearest point is under
-  `Detail.Coarse`; a scale of 0, behind the eye, counts as near.
+- view: `View.Level(x, y)` is the picture's level: the observer's graded level shifted coarser
+  by the camera's `LevelShift` (the frame budget's), a drawn sector to L3 at most, L4 off the
+  picture or past the sight; the tick never sees the shift. Behind the eye `ScaleAt` gives the
+  scale of a point as far before it (`camera.InFront` says which side).
 
 ## motion, with steering
 
@@ -233,9 +246,15 @@ keeps only what those do not.
 - The clouds' shadow is worked out at the lattice's corners, not per pixel (the high layer alone
   cost about 1.2 ms a frame so), and not on the skirt, whose huge far triangles showed it as
   angular shadows on the horizon.
-- By sector: each laid whole and coarse (every second corner within, the edge ring whole and
-  stitched by fans, tested crack-free), drawn by the ranges the camera's View sees, the skirt
-  last; a hex board's coarse sector draws its tops alone.
+- By sector and level, from the camera's View (`gram-plugins` world): a shader a level (`const
+  LEVEL`): L0 everything on the whole lattice, L1 without shore, running water or mouth glint,
+  L2 on the coarse lattice (every second corner, the edge ring stitched by fans, crack-free)
+  with still water a mirror and no lamps or baked shade, L3 the sheet: the painter's albedo as
+  the only colour on the coarse lattice (a texture, not a fan: the L2|L3 edge shares vertices),
+  lit by ambient and the sun's diffuse alone so it does not glow at night; L4 nothing; the
+  grid at L0 alone; the skirt always L3 in a world with sectors, L0 without. Finest first, to
+  prime the depth. A hex board draws tops alone at L1 and L2 and one quad a sector from its
+  tops' image at L3. No care rings, no care settings (the user's rule: one level a sector).
 - The billboards stand upright across the screen's level right, as tall on the screen as their
   `Height` and inside their box, shorter the steeper the view.
 - Its parts are packages none of which imports the plugin. selection must not import topography,
@@ -497,11 +516,14 @@ keeps only what those do not.
 - A setting's zero is its default, since an older save decodes to zero: `StillEdges` (a zero
   scrolls), `Knobs.SoftFigures` (a zero draws the figures at every pixel), `Knobs.filled()` (a
   zero float takes its default).
-- The adapter turns the `Config.Levers` before the pictures both ways (the first lever first going
-  coarser, the last first coming back), so the cheapest to the eye takes the rate's wavering and
-  the pictures move under a lasting change alone. It steps coarser once a window falls under the
-  budget, finer only once two windows meet it.
-- A sight of 0 has no end and stays so.
+- The adapter's ladder: going coarser the `Config.Levers` in order (light, atmosphere), then the
+  pictures' level shift +1 (`camera.Shifted`, at most 2, every camera but a minimap's; a world
+  without sectors has no rung) while "Detail follows the frame budget" (`Settings.StillDetail`
+  zero, `cameras.Detail{Follows}`), then the resolution; finer: levers, resolution, shift. It
+  steps coarser once a window falls under the budget, finer only once two windows meet it. A
+  measurement stills the shift too (`Detail{Follows: false}`).
+- A camera's `Sight()` is a multiple of the world's (`world.Config.LOD.Sight`), 1 as made,
+  saved as the multiple; `world.Read.Sight(cam)` the distance; a world sight of 0 has no end.
 - `cameras/cameratest` imports neither render nor the world, so their own tests use it too.
 
 ## driving

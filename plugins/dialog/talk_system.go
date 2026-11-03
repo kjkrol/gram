@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/ui"
 	"github.com/kjkrol/uid"
@@ -39,16 +40,16 @@ func newTalkSystem(p *Plugin) *talkSystem {
 }
 
 func (s *talkSystem) Init(si *goke.SysInit) {
-	s.talks = si.NewQueryBuilder(&s.talk).Build()
+	s.talks = si.NewQueryBuilder(&s.talk).With(s.p.w.Pace(lod.Steady)).Build()
 	s.scripts = si.NewQueryBuilder(&s.script).Build()
 	s.bodies = si.NewQueryBuilder(&s.body).Optional(&s.owners).Build()
 	s.talkID = si.RegComp[Talk]()
 	s.p.bind(si)
 }
 
-func (s *talkSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
+func (s *talkSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	s.cb = cb
-	s.watch()
+	s.watch(d)
 	s.p.told.begins.Drain(s.begin)
 	s.p.told.chooses.Drain(s.choose)
 	s.p.told.feels.Drain(s.feel)
@@ -59,9 +60,9 @@ func (s *talkSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	s.cb = nil
 }
 
-func (s *talkSystem) watch() {
+func (s *talkSystem) watch(d time.Duration) {
 	effects := s.p.w.Write().Effects()
-	for s.talks.All(); s.talks.Next(); {
+	for s.talks.Paced(d); s.talks.Next(); {
 		cur := s.talks.Cursor()
 		talks := s.talk.Slice(cur)
 		for i, id := range cur.IDs {

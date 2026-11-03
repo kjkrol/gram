@@ -10,10 +10,10 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/sector"
 )
 
 // Plugin wires collision into a Stage over the world's space.
@@ -70,7 +70,8 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module.heights = p.worldPlugin.Read(0).HasHeights()
 	p.module.stats, p.module.log = p.stats, p.log
 	p.module.tick = p.worldPlugin.Read(0).Tick
-	p.module.pace = p.worldPlugin.Pace(sector.Near)
+	// never slowed, a longer step carrying boxes through each other; none from L3
+	p.module.pace = p.worldPlugin.Pace(lod.Contact)
 	p.module.leave = p.motion.Write().Leave
 	ctx.UseModule(p.module)
 	ctx.Hosts(&p.pairs, &p.entities)

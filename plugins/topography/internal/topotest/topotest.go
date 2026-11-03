@@ -128,6 +128,19 @@ func NewQuasiWorldOn(
 	define func(qw *QuasiWorld, units *board.Units[Recruit]) []kind.Entry,
 ) *QuasiWorld {
 	t.Helper()
+	return NewQuasiWorldIn(t, g, nil, collide, size, define)
+}
+
+// NewQuasiWorldIn is NewQuasiWorldOn in a world as config changes its own; nil, none.
+func NewQuasiWorldIn(
+	t *testing.T,
+	g grid.Grid,
+	config func(*world.Config),
+	collide bool,
+	size uint32,
+	define func(qw *QuasiWorld, units *board.Units[Recruit]) []kind.Entry,
+) *QuasiWorld {
+	t.Helper()
 	qw := &QuasiWorld{Grid: g}
 	cw, ch := g.CellBounds()
 	var right, bottom float32
@@ -135,14 +148,18 @@ func NewQuasiWorldOn(
 		m := g.CellCenter(c)
 		right, bottom = max(right, m.X+cw/2), max(bottom, m.Y+ch/2)
 	})
-	qw.World = world.NewPlugin(world.Config{
+	cfg := world.Config{
 		Space: world.SpaceCfg{
 			Width:  uint32(math.Ceil(float64(right))),
 			Height: uint32(math.Ceil(float64(bottom))),
 		},
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 20, MaxSize: size},
 		Heights:  true,
-	})
+	}
+	if config != nil {
+		config(&cfg)
+	}
+	qw.World = world.NewPlugin(cfg)
 	qw.Motion = motion.NewPlugin(qw.World)
 	var c *collision.Plugin
 	if collide {

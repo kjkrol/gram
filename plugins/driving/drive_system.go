@@ -44,8 +44,8 @@ func (s *driveSystem) Init(si *goke.SysInit) {
 	s.placesID = si.RegComp[tag.Tags[unit.States]]()
 }
 
-func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
-	for s.query.All(); s.query.Next(); {
+func (s *driveSystem) Update(cb *goke.CmdBuf, d time.Duration) {
+	for s.query.Paced(d); s.query.Next(); {
 		cur := s.query.Cursor()
 		bases, steers, courses, drivens := s.base.Slice(cur), s.steer.Slice(cur), s.course.Slice(cur), s.driven.Slice(cur)
 		if courses == nil || drivens == nil {

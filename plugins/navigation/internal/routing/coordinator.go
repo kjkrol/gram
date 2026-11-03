@@ -28,6 +28,8 @@ import (
 // free cell round it; an Update of d for a unit that has waited d more. The asks are shared
 // among the pool's goroutines, each searching through one of the routers at a time.
 type Coordinator struct {
+	// Pace is the pace of the units whose asks are answered, an option of their query; nil, all.
+	Pace    goke.Opt
 	pool    *parallel.Pool
 	read    func(w int) *board.Read // nil: the routers read what they were made over
 	routers []router
@@ -166,8 +168,12 @@ func (c *Coordinator) Expansions() uint64 {
 }
 
 func (c *Coordinator) Init(si *goke.SysInit) {
-	c.query = si.NewQueryBuilder(&c.cell, &c.order).Optional(&c.mover).Optional(&c.base).
-		Optional(&c.z).Build()
+	qb := si.NewQueryBuilder(&c.cell, &c.order).Optional(&c.mover).Optional(&c.base).
+		Optional(&c.z)
+	if c.Pace != nil {
+		qb.With(c.Pace)
+	}
+	c.query = qb.Build()
 	c.forks = append(c.forks[:0], c.query)
 	for range c.pool.Size() - 1 {
 		c.forks = append(c.forks, c.query.Fork())
@@ -178,7 +184,7 @@ func (c *Coordinator) Init(si *goke.SysInit) {
 func (c *Coordinator) Update(_ *goke.CmdBuf, d time.Duration) {
 	c.asks, c.parties, c.far = c.asks[:0], c.parties[:0], c.far[:0]
 	partied, climbing := false, false
-	for c.query.All(); c.query.Next(); {
+	for c.query.Paced(d); c.query.Next(); {
 		cursor := c.query.Cursor()
 		orders, cells := c.order.Slice(cursor), c.cell.Slice(cursor)
 		for i := range orders {

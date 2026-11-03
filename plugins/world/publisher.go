@@ -46,9 +46,9 @@ type layer struct {
 }
 
 func (s *renderer) Init(si *goke.SysInit) {
-	// what lies beyond every band of the sectors is drawn by no camera
+	// what lies asleep at L4 is drawn by no camera
 	qb := si.NewQueryBuilder(&s.base, &s.appearance).Optional(&s.z).Optional(&s.lies).
-		Optional(&s.active).Exclude(goke.Exclude[sector.Off]())
+		Optional(&s.active).Exclude(goke.Exclude[sector.L4]())
 	if s.lighting != nil {
 		s.lighting.Join(qb)
 	}

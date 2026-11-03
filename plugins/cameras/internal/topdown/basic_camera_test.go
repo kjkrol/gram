@@ -418,7 +418,6 @@ func TestCamera_PersistedRoundTrip_PreservesViewportAndZoom(t *testing.T) {
 	b := c.Bounds()
 	cx, cy := float32(b.TopLeft.X+b.BottomRight.X)/2, float32(b.TopLeft.Y+b.BottomRight.Y)/2
 	c.ZoomIn(2, cx, cy)
-	c.(*basicCamera).SetDetail(contract.Detail{Sight: 500})
 	c.(*basicCamera).See(2)
 	wantBounds := c.Bounds()
 	wantZoom := c.Zoom()
@@ -446,8 +445,8 @@ func TestCamera_PersistedRoundTrip_PreservesViewportAndZoom(t *testing.T) {
 	if fresh.Zoom() != wantZoom {
 		t.Errorf("Zoom() after Restore = %v, want %v", fresh.Zoom(), wantZoom)
 	}
-	if got := fresh.(*basicCamera).Detail().Sight; got != 1000 {
-		t.Errorf("sight after Restore = %v, want the 1000 it was saved with", got)
+	if got := fresh.(*basicCamera).Sight(); got != 2 {
+		t.Errorf("sight after Restore = %v, want twice the world's, as it was saved", got)
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras/internal/stick"
 	"github.com/kjkrol/gram/plugins/world"
@@ -44,9 +45,6 @@ type Config struct {
 	HeightUnit float32
 	// where the cameras may be; nil, anywhere over level ground at sea level
 	Cage Cage
-	// how far every camera sees and how finely as it is made (Sight changes it); zero, as far as
-	// the world goes, every bit
-	Detail camera.Detail
 	// how every picture but a minimap's is drawn from the start (Settings.Tactical, Riding): a
 	// camera's free, over or behind an entity by Tactical, one's inside an entity by Riding, the
 	// resolution following the FrameBudget where the Strategy says, the time a frame may take
@@ -54,8 +52,8 @@ type Config struct {
 	Tactical    Knobs
 	Riding      Knobs
 	FrameBudget time.Duration
-	// Levers is what else the frame budget turns, coarser before the pictures' resolution and
-	// finer after it, in order: the topography's care.
+	// Levers is what else the frame budget turns, in order, ahead of the pictures' level and
+	// resolution both ways.
 	Levers []Lever
 	// how a camera is held behind an entity from the start (Settings.Arm): the arm's pitch,
 	// length and aim, and whether the player leans and draws it; zero, DefaultArm, hands off
@@ -116,6 +114,7 @@ type Plugin struct {
 	budgets        command.Queue[Budget]
 	samplings      command.Queue[Sampling]
 	thresholds     command.Queue[Thresholds]
+	details        command.Queue[Detail]
 	levers         []Lever
 	showLayers     command.Queue[ShowLayers]
 	orders         orders
@@ -165,7 +164,7 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	p.write.SetThresholds(DefaultUnder, DefaultMet)
 	p.write.SetStrategy(Tactical, cfg.Tactical.Strategy)
 	p.write.SetStrategy(Riding, cfg.Riding.Strategy)
-	worldPlugin.Write().Anchor(anchors{p})
+	worldPlugin.Write().Observe(observers{p})
 	if !cfg.plain() {
 		if edges := worldPlugin.Res.Config.Space.Edges; edges.WrapsX() || edges.WrapsY() {
 			panic("cameras: a world that wraps cannot be seen in relief")
@@ -193,9 +192,8 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	return p
 }
 
-// a camera of the plugin's, seeing as far as it is told
+// a camera of the plugin's, seeing farther or nearer as it is told
 type seeing interface {
-	SetDetail(d camera.Detail)
 	See(factor float32)
 }
 
@@ -208,19 +206,15 @@ func fitsWhole(cam camera.Camera) bool {
 	return false
 }
 
-// the world lives round the point each camera observes, a minimap's none
-type anchors struct{ p *Plugin }
+// the world lives round every camera but one keeping the whole world in view, a minimap's
+type observers struct{ p *Plugin }
 
-var _ sector.Anchors = anchors{}
+var _ sector.Observers = observers{}
 
-func (a anchors) Anchors(at func(x, y float32)) {
-	for _, cam := range a.p.cameras {
-		if fitsWhole(cam) {
-			continue
-		}
-		if f, ok := cam.(camera.Focused); ok {
-			x, y, _ := f.Focus()
-			at(x, y)
+func (o observers) Observers(each func(cam camera.Camera)) {
+	for _, cam := range o.p.cameras {
+		if !fitsWhole(cam) {
+			each(cam)
 		}
 	}
 }
@@ -249,7 +243,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 }
 
 // Pace steps what follows the frame budget coarser or finer after the frames' times, on the
-// frame's barrier (plugin.Paced): the levers first, then the pictures.
+// frame's barrier (plugin.Paced): the levers first, then the pictures' level and resolution.
 func (p *Plugin) Pace(t plugin.FrameTimes) {
 	p.adapter.on = p.following()
 	if f := p.adapter.pace(time.Now(), t); f != 1 {
@@ -257,9 +251,10 @@ func (p *Plugin) Pace(t plugin.FrameTimes) {
 	}
 }
 
-// following reports whether anything follows the frame budget: a profile's pictures or a lever
+// following reports whether anything follows the frame budget: a profile's pictures, the
+// pictures' detail or a lever
 func (p *Plugin) following() bool {
-	if p.anyFollowing() {
+	if p.anyFollowing() || p.detailFollows() {
 		return true
 	}
 	for _, l := range p.levers {
@@ -272,14 +267,19 @@ func (p *Plugin) following() bool {
 
 // redraw turns what follows the frame budget a step coarser (factor under 1) or finer: the
 // levers first either way, the first first going coarser and the last first coming back, then
-// the pictures; a step taken ends it. The levers give first and return first: the cheapest
-// to the eye takes the rate's wavering, the pictures move under a lasting change alone.
+// the pictures, their level before their resolution going coarser and after it coming back; a
+// step taken ends it. The levers give first and return first: the cheapest to the eye takes the
+// rate's wavering, the pictures move under a lasting change alone.
 func (p *Plugin) redraw(factor float32) {
 	if factor < 1 {
 		for _, l := range p.levers {
 			if l.Following() && l.Coarser() {
 				return
 			}
+		}
+		if p.detailFollows() && p.adapter.shift < MostLevelShift {
+			p.shift(p.adapter.shift + 1)
+			return
 		}
 		p.step(factor)
 		return
@@ -289,7 +289,28 @@ func (p *Plugin) redraw(factor float32) {
 			return
 		}
 	}
-	p.step(factor)
+	if p.step(factor) {
+		return
+	}
+	if p.detailFollows() && p.adapter.shift > 0 {
+		p.shift(p.adapter.shift - 1)
+	}
+}
+
+// shift has every picture but a minimap's drawn n levels coarser than the world sees it
+func (p *Plugin) shift(n lod.Level) {
+	p.adapter.shift = n
+	for _, cam := range p.cameras {
+		p.shiftOne(cam)
+	}
+}
+
+// shiftOne has cam drawn as many levels coarser as the adapter says, a minimap's as the world
+// sees it
+func (p *Plugin) shiftOne(cam camera.Camera) {
+	if s, ok := cam.(camera.Shifted); ok && !fitsWhole(cam) {
+		s.SetLevelShift(p.adapter.shift)
+	}
 }
 
 // step has every picture but a minimap's whose profile follows the frame budget drawn at
@@ -347,7 +368,13 @@ func (r reporter) Report(line func(label, value string)) {
 	case coarse && !k.SoftFigures:
 		parts = append(parts, "the figures sharp")
 	}
-	if k.Strategy == Still {
+	switch n := camera.LevelShiftOf(lead); {
+	case n == 1:
+		parts = append(parts, "the detail a level coarser")
+	case n > 1:
+		parts = append(parts, fmt.Sprintf("the detail %d levels coarser", n))
+	}
+	if k.Strategy == Still && !r.p.detailFollows() {
 		parts = append(parts, "still")
 	} else {
 		budget := budgetRate(r.p.Res.Settings.FrameBudget)

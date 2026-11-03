@@ -21,7 +21,8 @@ var _ goke.System = (*standingSystem)(nil)
 
 // takes unit.Entered off: whoever moves a unit into another cell puts it on after this pass
 type standingSystem struct {
-	r *Rules
+	r     *Rules
+	paced goke.Opt
 
 	query *goke.Query
 	base  goke.Comp[world.Base]
@@ -73,6 +74,9 @@ func (s *standingSystem) Init(si *goke.SysInit) {
 	s.cols.Own(&s.marks)
 	s.cols.Own(&s.z)
 	s.r.standing.Bind(s.cols)
+	if s.paced != nil {
+		qb.With(s.paced)
+	}
 	s.query = qb.Build()
 }
 
@@ -83,7 +87,7 @@ func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		tick = s.r.tick.Of(d)
 		tick.Places = s.r.places
 	}
-	for s.query.All(); s.query.Next(); {
+	for s.query.Paced(d); s.query.Next(); {
 		cursor := s.query.Cursor()
 		s.ids, s.bases, s.ats, s.movers = cursor.IDs, s.base.Slice(cursor), s.at.Slice(cursor), s.mover.Slice(cursor)
 		s.zs = s.z.Slice(cursor)

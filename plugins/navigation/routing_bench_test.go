@@ -7,6 +7,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
@@ -47,8 +48,8 @@ func newRouteBench(b *testing.B, pool *parallel.Pool, group uint32,
 	}
 	r := &routeBench{starts: map[uid.UID64]cell.ID{}, goals: map[uid.UID64][2]cell.ID{},
 		group: group}
-	r.nw = newNavWorldIn(b, pool, routeSide, routeSide, routeCell, units, world.SectorsCfg{}, nil,
-		goke.SystemFn{OnInit: func(si *goke.SysInit) {
+	r.nw = newNavWorldIn(b, pool, routeSide, routeSide, routeCell, units, world.SectorsCfg{},
+		lod.Ladder{}, nil, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 			r.ordered = si.NewQueryBuilder(&r.orders, &r.at).Build()
 		}})
 	for i, id := range r.nw.ids {

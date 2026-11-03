@@ -96,6 +96,7 @@ func NewPlugin(worldPlugin *world.Plugin, lightPlugin *light.Plugin, cfg Config)
 		climate: clim, sky: sky.New(cal, cfg.Sky, clim.Zone().Latitude)}
 	p.read.p, p.write.p = p, p
 	p.aloft = aloft.New(p.drawnAir, air.Low)
+	p.aloft.Sight(worldPlugin.Read(0).Sight)
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.write.ShowClouds(AllBodies)
 	p.Self = world.NewSelf(worldPlugin, p, comp.Const(p.sky.Moonlight()),

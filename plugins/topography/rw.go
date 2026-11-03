@@ -31,7 +31,6 @@ func (p *Plugin) Read(w int) *Read { return p.reads[w] }
 type Write struct{ p *Plugin }
 
 var _ ground.Shaper = (*Write)(nil)
-var _ cameras.Lever = (*Write)(nil)
 
 // Write changes the topography's state, on the game's goroutine.
 func (p *Plugin) Write() *Write { return &p.write }
@@ -42,23 +41,8 @@ func (r *Read) StyleOf(name string) painter.Style { return r.p.painter.StyleOf(n
 // Hazes reports whether the air hazes the ground.
 func (r *Read) Hazes() bool { return r.p.Res.Settings.Haze }
 
-// Care is how many sectors out from the middle of the screen the ground is shaded with full
-// care, 0 every one.
-func (r *Read) Care() int {
-	if r.p.ground == nil {
-		return 0
-	}
-	return r.p.Res.Settings.Care
-}
-
-// CareAdaptive reports whether the full care's reach follows the frame budget.
-func (r *Read) CareAdaptive() bool { return r.p.Res.Settings.AdaptiveCare }
-
-// CareShown reports whether the care's bands are drawn.
-func (r *Read) CareShown() bool { return r.p.Res.Settings.ShowCare }
-
-// Reporter is the topography's part of the telemetry panel: how far out the ground is shaded
-// with full care and how many sectors took each care in the last frame, a line each.
+// Reporter is the topography's part of the telemetry panel: in a world cut into sectors, how many
+// the last frame drawn drew the ground of at each level, a line each.
 func (r *Read) Reporter() render.Reporter { return reporter{r.p} }
 
 // Relief is the ground's heights, to read and set from a game's code.
@@ -97,47 +81,4 @@ func (w *Write) SetHaze(on bool) {
 	if p.ground != nil {
 		p.ground.Haze(on)
 	}
-}
-
-// SetCare has the ground within rings sectors of the one under the middle of the screen (and of
-// the one under the eye) shaded with full care and one care less every rings sectors farther,
-// down the five cares (the package's doc, "Drawing and commands"); 0, every sector with full
-// care. Nothing on a hex board.
-func (w *Write) SetCare(rings int) {
-	p := w.p
-	if p.ground != nil {
-		p.ground.SetCare(rings)
-		p.Res.Settings.Care = p.ground.Care()
-	}
-}
-
-// AdaptCare has the full care's reach follow the cameras' frame budget, or not
-// (Settings.AdaptiveCare): the topography's Write is a cameras.Lever, stepped down the care's
-// ladder as the rate falls under the budget and back up as it stays over.
-func (w *Write) AdaptCare(on bool) { w.p.Res.Settings.AdaptiveCare = on }
-
-// ShowCare has the care's bands drawn over the ground, or not, as the ShowCare command switches
-// it (Settings.ShowCare): the boundaries between sectors of different care. Nothing on a hex
-// board, nor with every sector shaded with full care.
-func (w *Write) ShowCare(shown bool) { w.p.Res.Settings.ShowCare = shown }
-
-// Following is whether the care follows the frame budget (cameras.Lever).
-func (w *Write) Following() bool { return w.p.Res.Settings.AdaptiveCare }
-
-// Coarser steps the full care's reach a rung down the ladder, true where it could
-// (cameras.Lever).
-func (w *Write) Coarser() bool { return w.stepCare(-1) }
-
-// Finer steps the full care's reach a rung up the ladder, every sector the last, true where it
-// could (cameras.Lever).
-func (w *Write) Finer() bool { return w.stepCare(1) }
-
-func (w *Write) stepCare(step int) bool {
-	p := w.p
-	if p.ground == nil {
-		return false
-	}
-	before := p.read.Care()
-	w.SetCare(p.careStepped(step))
-	return p.read.Care() != before
 }

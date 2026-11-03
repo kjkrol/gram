@@ -88,7 +88,8 @@
 //
 // The packages form a strict acyclic graph; each imports only layers below it:
 //
-//	0  camera               a camera over a world: conversion, culling, move, zoom
+//	0  lod                  the ladder of levels of detail: Level, Ladder, Paces
+//	   camera               a camera over a world: conversion, culling, move, zoom → lod
 //	   ceremony             how entities behave (github.com/kjkrol/ceremony): tag, comp,
 //	                        effect, fact, cond, act, plan, host, command, store, its root
 //	                        and goke, its binding over the ECS

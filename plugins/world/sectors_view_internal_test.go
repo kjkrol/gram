@@ -8,9 +8,8 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
-	"github.com/kjkrol/gram/plugins/world/sector"
-	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -37,8 +36,8 @@ func insides(t *testing.T, p *Plugin, cam camera.Camera) map[int]color.RGBA {
 	return got
 }
 
-func TestSectorsView_LaysTheSectorsInSightInTheColoursOfTheirBandsOrOfHowTheyAreSeen(t *testing.T) {
-	r := sectorWorld(t, twoBands...)
+func TestSectorsView_LaysTheSectorsInSightInTheColoursOfTheirLevelsTickedOrSeen(t *testing.T) {
+	r := sectorWorld(t, twoLevels)
 	cam := cameratest.NewFromSpace(4096, 512, 0)
 	cam.SetViewport(1600, 512)
 	cam.MoveTo(0, 0)
@@ -46,16 +45,14 @@ func TestSectorsView_LaysTheSectorsInSightInTheColoursOfTheirBandsOrOfHowTheyAre
 	r.run()
 	r.run()
 	r.p.write.ShowSectors(SectorBands)
-	// round the anchor at 100: two sectors in the first band, one in the second, the rest beyond
-	beyond := bandColors[sector.MaxBands]
-	want := map[int]color.RGBA{0: bandColors[0], 512: bandColors[0], 1024: bandColors[1],
-		1536: beyond}
+	// round the observers at 100: two sectors at L0, one at L1, the rest asleep
+	l0, l1, l4 := levelColors[lod.L0], levelColors[lod.L1], levelColors[lod.L4]
+	want := map[int]color.RGBA{0: l0, 512: l0, 1024: l1, 1536: l4}
 	if got := insides(t, r.p, cam); len(got) != len(want) || !sameColors(got, want) {
-		t.Errorf("by band %v, want %v", got, want)
+		t.Errorf("by the level ticked %v, want %v", got, want)
 	}
+	// the camera is no observer: it sees the levels ticked, where its picture reaches
 	r.p.write.ShowSectors(SectorsSeen)
-	exact, hidden := levelColors[view.Exact], levelColors[view.Hidden]
-	want = map[int]color.RGBA{0: exact, 512: exact, 1024: exact, 1536: hidden}
 	if got := insides(t, r.p, cam); len(got) != len(want) || !sameColors(got, want) {
 		t.Errorf("as seen %v, want %v", got, want)
 	}
@@ -88,7 +85,8 @@ func TestSectorsView_LaysASectorAcrossTheSeamOnBothSides(t *testing.T) {
 	p := NewPlugin(Config{
 		Space:    SpaceCfg{Width: 4096, Height: 512, Edges: aabbworld.Torus},
 		Entities: EntitiesCfg{MaxCount: 8, MinSize: 5, MaxSize: 20},
-		Sectors:  SectorsCfg{Buckets: 2, Bands: twoBands},
+		Sectors:  SectorsCfg{Buckets: 2},
+		LOD:      twoLevels,
 	})
 	cam := cameratest.NewFromSpace(4096, 512, aabbworld.Torus)
 	cam.SetViewport(600, 512)
@@ -102,13 +100,31 @@ func TestSectorsView_LaysASectorAcrossTheSeamOnBothSides(t *testing.T) {
 	}
 }
 
-func TestSectorsView_SwitchesFromTheBandsToHowTheyAreSeenToNothing(t *testing.T) {
-	r := sectorWorld(t, twoBands...)
+func TestSectorsView_SwitchesFromTheLevelsTickedToHowTheyAreSeenToNothing(t *testing.T) {
+	r := sectorWorld(t, twoLevels)
 	for _, want := range []SectorsShown{SectorBands, SectorsSeen, NoSectors} {
 		r.p.module.commands.Put(command.Nobody, SwitchSectors{Shown: want})
 		r.run()
 		if got := r.p.read.SectorsShown(); got != want {
 			t.Errorf("shown %v, want %v", got, want)
 		}
+	}
+}
+
+func TestSectorsView_ShowsAnObserversSectorsAsItDrawsThemGraded(t *testing.T) {
+	r := sectorWorld(t, fourLevels)
+	cam := &sloped{Camera: cameratest.NewFromSpace(4096, 512, 0), fall: 0.15}
+	cam.SetViewport(1600, 512)
+	cam.MoveTo(0, 0)
+	r.watch.cams = []camera.Camera{cam}
+	r.p.write.NewView(cam)
+	r.run()
+	r.run()
+	r.p.write.ShowSectors(SectorsSeen)
+	// the scale falls from L0's to L3's past the second sector, the next two lifted
+	want := map[int]color.RGBA{0: levelColors[lod.L0], 512: levelColors[lod.L0],
+		1024: levelColors[lod.L1], 1536: levelColors[lod.L2]}
+	if got := insides(t, r.p, cam); len(got) != len(want) || !sameColors(got, want) {
+		t.Errorf("as seen %v, want %v", got, want)
 	}
 }

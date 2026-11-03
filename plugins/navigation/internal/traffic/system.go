@@ -857,7 +857,7 @@ type touching struct {
 // each pair once: collision records a contact on the one that struck, or on both
 func (s *System) feel() {
 	clear(s.felt)
-	for s.query.All(); s.query.Next(); {
+	for s.query.Paced(0); s.query.Next(); {
 		cursor := s.query.Cursor()
 		colls := s.coll.Slice(cursor)
 		if colls == nil {
@@ -970,7 +970,7 @@ func headOn(a, b bodies.Body, way geom.Vec) bool {
 }
 
 func (s *System) tell(cb *goke.CmdBuf, d time.Duration) {
-	for s.query.All(); s.query.Next(); {
+	for s.query.Paced(d); s.query.Next(); {
 		cursor := s.query.Cursor()
 		if s.mind.Slice(cursor) == nil {
 			continue

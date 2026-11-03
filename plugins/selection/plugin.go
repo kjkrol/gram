@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
@@ -68,7 +69,7 @@ func (p *Plugin) Name() string { return "gram.selection" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Write().Space(), p.tags,
-		p.worldPlugin.Read(0).Look)
+		p.worldPlugin.Read(0).Look).Paced(p.worldPlugin.Pace(lod.Steady))
 	sys.marqueeQueue, sys.marquees = &p.marqueeQueue, &p.marquees
 	sys.effectCmds, sys.effects = &p.effectCmds, p.worldPlugin.Write().Effects()
 	sys.hovers = &p.hovers

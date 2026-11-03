@@ -20,7 +20,7 @@ func (s *System) bump() {
 	if s.Bumps == noBumps {
 		return
 	}
-	for s.query.All(); s.query.Next(); {
+	for s.query.Paced(0); s.query.Next(); {
 		cursor := s.query.Cursor()
 		orders, colls := s.order.Slice(cursor), s.coll.Slice(cursor)
 		if orders == nil || colls == nil {

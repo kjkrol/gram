@@ -75,6 +75,8 @@ type perspFrame struct {
 
 var _ contract.Camera = (*perspCamera)(nil)
 var _ contract.Cropping = (*perspCamera)(nil)
+var _ contract.Scaler = (*perspCamera)(nil)
+var _ contract.Fronted = (*perspCamera)(nil)
 
 // 45° top to bottom; narrowest: how many times the eye inside a unit may narrow it
 const (
@@ -408,12 +410,18 @@ func (c *perspCamera) Tilt(angle float32) {
 func (c *perspCamera) Heading() float32 { return c.heading }
 func (c *perspCamera) Pitch() float32   { return c.pitch }
 
+// A point behind the eye, or all but, as one as far before it.
 func (c *perspCamera) ScaleAt(x, y, z float32) float32 {
-	_, _, ahead := c.proj.view(x, y, z)
+	across, up, ahead := c.proj.view(x, y, z)
 	if ahead < c.proj.near {
-		return 0
+		ahead = max(f32.Sqrt(across*across+up*up+ahead*ahead), c.proj.near)
 	}
 	return c.focal() * c.narrow / ahead
+}
+
+func (c *perspCamera) InFront(x, y, z float32) bool {
+	_, _, ahead := c.proj.view(x, y, z)
+	return ahead >= c.proj.near
 }
 
 func (c *perspCamera) Projection() contract.Projection { return c.projection }

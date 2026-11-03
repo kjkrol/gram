@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
@@ -28,7 +29,6 @@ import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/sector"
 )
 
 // Plugin moves entities along a MoveOrder's path across a board, re-pathing when terrain changes,
@@ -168,12 +168,14 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	navSys := traffic.NewSystem(finder, brd, brd, finder.Occupancy).WithKeeping(keep)
 	navSys.BindSpace(p.worldPlugin.Write().Space())
 	navSys.Given, navSys.Touches, navSys.Tick = &p.given, &p.touches, p.worldPlugin.Read(0).Tick
-	navSys.Pace = p.worldPlugin.Pace(sector.Everywhere)
+	pace := p.worldPlugin.Pace(lod.Steady)
+	navSys.Pace, coordinator.Pace = pace, pace
 	navSys.Routing, navSys.Formations = coordinator, coordinator
 
 	moveCommandSystem := routing.NewSystem(routeFinder, &p.moves, &p.looks, p.selected).
 		WithKeeping(routeKeep)
 	moveCommandSystem.Onwards, moveCommandSystem.Marches = &p.onwards, &p.marches
+	moveCommandSystem.Pace = pace
 	p.handKeeping.Keep, p.handKeeping.Nav = keep, navSys
 	if p.collision != nil {
 		navSys.Bumps = traffic.AnyBump
@@ -255,12 +257,10 @@ func (h Hierarchy) resolve(w *world.Plugin, b *board.BoardRead) Hierarchy {
 func sectorSide(w *world.Plugin, b *board.BoardRead) uint16 {
 	sectors := w.Res.Config.Sectors
 	shape, square := b.Shape()
-	if len(sectors.Bands) == 0 || !square || shape.Hex || shape.Cell <= 0 {
+	if sectors.Buckets <= 0 || !square || shape.Hex || shape.Cell <= 0 {
 		return hierarchySide
 	}
-	// a sector spans Buckets of the space's buckets a side, four where none are given
-	side := float32(cmp.Or(sectors.Buckets, 4)) * float32(w.Write().Space().BucketSize) /
-		shape.Cell
+	side := float32(sectors.Buckets) * float32(w.Write().Space().BucketSize) / shape.Cell
 	if side < 1 || side > math.MaxUint16 || side != f32.Floor(side) {
 		return hierarchySide
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -161,7 +162,7 @@ func (p *Plugin) Restore() {
 }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	p.module = &module{p: p}
+	p.module = &module{p: p, pace: p.w.Pace(lod.Steady)}
 	ctx.UseModule(p.module)
 	p.w.Write().Clock().Replayed(p.refresh)
 	return nil
@@ -189,7 +190,7 @@ func (p *Plugin) refresh() {
 	}
 	p.lamps = p.lamps[:0]
 	p.distant, p.distantOf, p.lit = White, 0, false
-	for p.sources.All(); p.sources.Next(); {
+	for p.sources.Paced(0); p.sources.Next(); {
 		cur := p.sources.Cursor()
 		sources, shines := p.source.Slice(cur), p.shining.Slice(cur)
 		bases, zs := p.base.Slice(cur), p.z.Slice(cur)

@@ -35,7 +35,7 @@ func (s *handSystem) Init(si *goke.SysInit) {
 
 func (s *handSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	s.hands.sum()
-	for s.query.All(); s.query.Next(); {
+	for s.query.Paced(d); s.query.Next(); {
 		cur := s.query.Cursor()
 		drivens, states, owners, marks := s.driven.Slice(cur), s.states.Slice(cur), s.owners.Slice(cur), s.marks.Slice(cur)
 		for i, id := range cur.IDs {

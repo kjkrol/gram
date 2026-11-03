@@ -11,10 +11,10 @@
 // the world in relief, a Cell of it drawn isometrically as a TileW x TileH diamond, and refuses a
 // world that wraps. camera.Config.Follow names the entity a camera starts fastened Centred over.
 // Every camera made is saved with the game, in the order made, and one made after a Load takes
-// the state of the camera made in its place. The world's sectors are anchored at the point each
-// camera observes (camera.Focused), a minimap's none. Every camera sees as Config.Detail says
-// (camera.Detailed): how far, the fog before it, the scale below which it draws coarsely; [Sight]
-// changes how far, saved with the camera.
+// the state of the camera made in its place. Every camera but a minimap's observes the world
+// (world.Write.Observe), its sectors ticked at the levels the cameras see them at. A camera sees
+// the world's sight (world.Config.LOD) once as made (camera.Sighted); [Sight] changes how many
+// times, saved with the camera.
 //
 // # Profiles
 //
@@ -85,11 +85,13 @@
 // follow the frame budget as its Strategy says or stay, [Picture] draws them at a resolution,
 // [SharpFigures] their figures at every pixel or at the ground's resolution, [Layers] in layers
 // or whole, [LayerShares] and [LayerResolutions] shape the layers, [ShowLayers] outlines them, a
-// profile each; [Budget] sets the frame budget for both and [Sampling] how long the rate is
-// averaged over before it is followed. What else follows the budget is a [Lever] given in
-// [Config.Levers], the topography's care: turned coarser before the pictures' resolution and
-// finer after it. The budget is followed on the frame's barrier ([Plugin.Pace], told each
-// frame's times): coarser only while the drawing's side holds the frames back, not the
+// profile each; [Budget] sets the frame budget for both, [Sampling] how long the rate is
+// averaged over before it is followed and [Detail] whether, in a world cut into sectors, every
+// picture but a minimap's is drawn up to [MostLevelShift] levels coarser than the world sees it
+// (camera.Shifted) before its resolution falls and back after it, the tick untouched. What else
+// follows the budget is a [Lever] given in [Config.Levers], turned ahead of the pictures' level
+// and resolution both ways. The budget is followed on the frame's barrier ([Plugin.Pace], told
+// each frame's times): coarser only while the drawing's side holds the frames back, not the
 // simulation, which no lever lightens. The plugin writes only the eye's part
 // of a ridden entity's steering.Driven (Look, Flown, Climb).
 //
@@ -123,14 +125,16 @@
 // [Picture] (the resolution), [SharpFigures] (the figures at every pixel), [Layers] (drawn in
 // layers), [LayerShares] and [LayerResolutions] (the layers' shares of the frame and
 // resolutions), [ShowLayers] (a look: the layers outlined); about every picture: [Budget] (the
-// frame budget), [Zones] (a look: the scroll zones on the glass over every picture, over
-// whatever a scene lays on it), [EdgeScroll] (the cursor at the edge scrolling, or not),
+// frame budget), [Detail] (the level of detail following it), [Zones] (a look: the scroll zones
+// on the glass over every picture, over whatever a scene lays on it), [EdgeScroll] (the cursor at
+// the edge scrolling, or not),
 // [CornerTurn] (the cursor in a corner turning, or not),
 // [EdgeSpeed] (how fast at the very edge, a quarter of it at the zone's inner bound),
 // [ZonesOpacity] (how opaque at the edge), [Hold] (the [Arm] behind an entity); [Follow]
 // (a player's, or an entity's own fastening the camera over itself).
 // Settings ([Settings], saved with the game, in [Resources]): the zones scrolling, turning in
 // the corners, shown, their opacity and their speed, the arm behind an entity, the frame budget,
-// the layers shown and each profile's [Knobs]: the strategy, the resolution, the figures at
-// every pixel, the picture drawn in layers, the layers' shares and resolutions.
+// the detail following it, the layers shown and each profile's [Knobs]: the strategy, the
+// resolution, the figures at every pixel, the picture drawn in layers, the layers' shares and
+// resolutions.
 package cameras

@@ -364,14 +364,14 @@ func TestRenderer_Compose_TheFiguresComeOverWhatLiesBeneathTheLowestOfThem(t *te
 
 func ptr[T any](v T) *T { return &v }
 
-func TestRenderer_Compose_DrawsNothingBeyondEveryBandEvenUnculled(t *testing.T) {
+func TestRenderer_Compose_DrawsNothingAsleepEvenUnculled(t *testing.T) {
 	look := &counting{Look: ilook.NewFlat(1000, 1000, false, false)}
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	r := newRenderer(flatAtlas{}, seenBy(cam, &view.View{}), &Rules{}, func() Look { return look })
 	r.shade(nil, nil)
 	var base goke.Comp[Base]
 	var appearance goke.Comp[render.Appearance]
-	var off goke.Comp[sector.Off]
+	var off goke.Comp[sector.L4]
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		for k, f := range []*goke.Factory{
@@ -387,7 +387,7 @@ func TestRenderer_Compose_DrawsNothingBeyondEveryBandEvenUnculled(t *testing.T) 
 	}})
 	composed(r, cam)
 	if len(look.sprites) != 1 {
-		t.Errorf("the zero View drew %d sprites, want the one this side of the bands",
+		t.Errorf("the zero View drew %d sprites, want the one awake",
 			len(look.sprites))
 	}
 }

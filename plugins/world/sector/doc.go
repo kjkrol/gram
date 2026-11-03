@@ -1,31 +1,31 @@
-// Package sector is the world cut into sectors and the bands of pace they lie in round the
-// anchors, the points the players observe.
+// Package sector is the world cut into sectors and the levels they are ticked at round the
+// observers, the cameras the players look through.
 //
-// # Bands
+// # Levels
 //
-// A world's Config.Sectors cuts it into square sectors, whole blocks of the space's buckets, and
-// lists its [Band]s: the first reaches nearest the anchors and goes at the world's pace, each one
-// farther a step every Pace of the world's, and what lies beyond the last does not go at all.
-// Every tick the world lays each sector in the band its nearest anchor reaches ([Grid.Place]),
-// into a nearer band at once and into a farther one only past a margin, and marks the entities
-// in it: those in the first band carry no mark, those in the second [Band2] and so on, those
-// beyond [Off]. What lies beyond is not in the world's space, so no query, sight or collision
-// meets it until its sector comes back into a band. A band's Pace is kept so low that the
-// fastest entity, taking a step Pace times as long, does not leap past half a cell.
+// A world's Config.Sectors cuts it into square sectors, whole blocks of the space's buckets
+// ([Grid]), and its Config.LOD says each one's level (lod.Ladder): every tick the world lays a
+// sector at the fullest level any observer sees it at, and marks the entities in it: those at
+// L0 carry no mark, those at L1 [L1] and so on, those at L4 [L4]. What lies at L4 is asleep, not
+// in the world's space, so no query, sight or collision meets it until its sector comes back.
 //
-// # Policies
+// An observer sees a sector finer at once and coarser only a tenth past a threshold and half a
+// sector past its sight (lod.Ladder.Hold), and draws no two sectors side by side more than a
+// level apart, lifting the coarser, though one at L4 may lie beside anything. A [Keen] entity
+// keeps its sector and the eight round it ticked at its level at most, so those asleep there wake
+// before it comes.
 //
-// A system goes in the bands as the plugin owning it says ([Policy]): [Everywhere] every step in
-// every band, [Paced] a step every Pace in the farther ones over as many steps at once, [Near] in
-// the first alone; beyond the last none goes. world.Plugin.Pace is the pace of a policy, an
-// option of the system's query.
+// # Paces
 //
-// # Anchors
+// A system goes at the levels as the plugin owning it says (lod.Paces); world.Plugin.Pace is the
+// pace of its Paces, an option of the system's query. At L4 none goes.
 //
-// [Anchors] are whoever knows where the players look: the cameras plugin hands the world the
-// point each of its cameras observes (camera.Focused), a minimap's none.
+// # Observers
+//
+// [Observers] are whoever knows where the players look: the cameras plugin hands the world each
+// of its cameras, a minimap's none.
 //
 // # Vocabulary
 //
-// Marks: [Band2], [Band3], [Band4], [Band5], [Off]. Policies: [Everywhere], [Paced], [Near].
+// Marks: [L1], [L2], [L3], [L4]. Components: [Keen].
 package sector

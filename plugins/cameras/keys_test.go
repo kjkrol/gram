@@ -34,7 +34,7 @@ func TestDefaultBindings_NoKeySetsWhatTheSettingsScreenSets(t *testing.T) {
 		switch b.Type() {
 		case reflect.TypeFor[cameras.Zones](), reflect.TypeFor[cameras.CornerTurn](),
 			reflect.TypeFor[cameras.Adapt](), reflect.TypeFor[cameras.Picture](),
-			reflect.TypeFor[cameras.Resolution]():
+			reflect.TypeFor[cameras.Resolution](), reflect.TypeFor[cameras.Detail]():
 			t.Errorf("%v is bound to %v, want the settings screen alone", b.Type(), b.Trigger)
 		}
 	}
