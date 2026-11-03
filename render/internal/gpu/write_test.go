@@ -59,3 +59,31 @@ func TestWritePixels_TwoTexturesWrittenWholeInARowBothLand(t *testing.T) {
 		}
 	}
 }
+
+// the texture's pixels drawn, not written: on Vulkan a queue's write once began from an
+// undefined layout and lost them
+func TestWritePixels_ABigPartOverDrawnPixelsLeavesTheRest(t *testing.T) {
+	needGPU(t)
+	const w, h = 300, 300
+	tex := NewTexture(w, h)
+	Fill(Image{Texture: tex}, 0, 0, 1, 1)
+	const pw, ph, px, py = 260, 260, 30, 10
+	part := make([]byte, 4*pw*ph)
+	for i := range pw * ph {
+		part[4*i+1], part[4*i+3] = byte(i%100), 255
+	}
+	tex.WritePixels(px, py, pw, ph, part)
+	got := make([]byte, 4*w*h)
+	tex.ReadPixels(got)
+	for y := range h {
+		for x := range w {
+			want := [4]byte{0, 0, 255, 255}
+			if x >= px && x < px+pw && y >= py && y < py+ph {
+				want = [4]byte{0, byte(((y-py)*pw + x - px) % 100), 0, 255}
+			}
+			if p := pixel(got, w, x, y); p != want {
+				t.Fatalf("pixel (%d, %d) is %v, want %v", x, y, p, want)
+			}
+		}
+	}
+}

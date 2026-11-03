@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.17.2 — 2026-11-03
+
+**Wayland quits clean on wgpu v0.34.6** (2026-11-03, branch `fix/wayland-quit`)
+- Changed: wgpu v0.34.6 (was v0.34.5) hands back Metal's message for an MSL it cannot compile
+  and its queue writes keep what a texture held; naga v0.20.5 (was v0.20.3) starts a `var`
+  without an initialiser at zero; goffi v0.6.8 comes with them.
+- Fixed: under Wayland a game on wgpu v0.34.6 segfaulted in `eglTerminate` as it quit: in Auto
+  mode wgpu's OpenGL ES instance builds an EGL context on the game's Wayland connection, even
+  with the Vulkan adapter in use, and frees it after gogpu has closed the connection. On Linux gram
+  asks gogpu for Vulkan alone unless `GOGPU_GRAPHICS_API` picks a backend by hand, a stand-in
+  till wgpu mends it (gram #48, gogpu/wgpu#379); a Linux machine without Vulkan no longer falls
+  back on OpenGL ES by itself, `GOGPU_GRAPHICS_API=gles` takes it.
+- Fixed: at every quit, and after a `GRAM_SHOT`, the engine's last frame took a swapchain image
+  and never drew into it, so gogpu logged `PRESENT ERROR … no successful swapchain submission is
+  ready for presentation`; the frame asks for the surface only as it presents, and a frame
+  without a surface (the window minimised) ticks and draws without presenting.
+- Removed: a big part of a texture written at an origin no longer goes into a texture of its
+  own to be drawn into place from there: wgpu's queue write keeps the rest of the texture now,
+  as `render/internal/gpu/write_test.go` checks over pixels written and drawn.
+
 ## v0.17.1 — 2026-11-02
 
 **Shaders on Metal: a parameter indexed at run time** (2026-11-02, branch
