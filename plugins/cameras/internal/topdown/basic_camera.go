@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	contract "github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/lod"
 )
 
 type basicCamera struct {
@@ -24,7 +25,8 @@ type basicCamera struct {
 	effective plane.AABB
 	fastening contract.Fastening
 	form      form
-	detail    contract.Detail
+	sight     float32
+	shift     lod.Level
 	layers    []contract.Layer
 	layout    contract.Layout
 	sharp     bool
@@ -60,8 +62,9 @@ var _ contract.Camera = (*basicCamera)(nil)
 var _ contract.Fastenable = (*basicCamera)(nil)
 var _ contract.Fitting = (*basicCamera)(nil)
 var _ contract.Focused = (*basicCamera)(nil)
-var _ contract.Detailed = (*basicCamera)(nil)
+var _ contract.Sighted = (*basicCamera)(nil)
 var _ contract.Resolved = (*basicCamera)(nil)
+var _ contract.Shifted = (*basicCamera)(nil)
 var _ contract.Layered = (*basicCamera)(nil)
 var _ contract.Cropping = (*basicCamera)(nil)
 var _ contract.Figured = (*basicCamera)(nil)
@@ -93,14 +96,11 @@ func (c *basicCamera) Origin() contract.Camera {
 	return c.origin
 }
 
-// Detail is how far the camera sees and how finely.
-func (c *basicCamera) Detail() contract.Detail { return c.detail }
-
-// SetDetail has the camera see as d says.
-func (c *basicCamera) SetDetail(d contract.Detail) { c.detail = d }
+// Sight is the multiple of the world's sight the camera sees, 1 as made.
+func (c *basicCamera) Sight() float32 { return c.sight }
 
 // See has the camera see factor times as far.
-func (c *basicCamera) See(factor float32) { c.detail = c.detail.Widened(factor) }
+func (c *basicCamera) See(factor float32) { c.sight *= factor }
 
 // Fasten fastens the camera to an entity, or to nothing.
 func (c *basicCamera) Fasten(f contract.Fastening) { c.fastening = f }
@@ -116,6 +116,7 @@ func newBasicCamera(world geom.Vec, viewport contract.AABB, edges aabbworld.Edge
 		edges:        edges,
 		zoom:         1,
 		res:          1,
+		sight:        1,
 		effective:    plane.NewAABB(viewport.TopLeft, w, h),
 	}
 }
@@ -192,6 +193,11 @@ func (c *basicCamera) Projection() contract.Projection { return contract.TopDown
 func (c *basicCamera) SetResolution(s float32) { c.res = s }
 
 func (c *basicCamera) Resolution() float32 { return c.res }
+
+// SetLevelShift has the camera draw its sectors n levels coarser than the world sees them.
+func (c *basicCamera) SetLevelShift(n lod.Level) { c.shift = n }
+
+func (c *basicCamera) LevelShift() lod.Level { return c.shift }
 
 // SetLayers has the picture drawn in layers laid out as layout says, or whole for none or one.
 func (c *basicCamera) SetLayers(layers []contract.Layer, layout contract.Layout) {
@@ -534,7 +540,7 @@ func (c *basicCamera) State() contract.State {
 // Persisted is pointers to the live window, zoom, fastening and sight, for saves and loads, after
 // the camera's form.
 func (c *basicCamera) Persisted() []any {
-	return []any{&c.form, &c.effective.AABB, &c.zoom, &c.fastening, &c.detail.Sight}
+	return []any{&c.form, &c.effective.AABB, &c.zoom, &c.fastening, &c.sight}
 }
 
 // Restore rebuilds derived state after a load has written through Persisted's pointers.

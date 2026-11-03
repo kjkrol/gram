@@ -15,6 +15,7 @@ import (
 	"math"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/plugins/topography/painter"
@@ -28,21 +29,21 @@ var shaders embed.FS
 
 func init() { render.RegisterImage("GroundDetail") }
 
-// the ground's shader for each care, mesh.wgsl's CARE
-var byCare [cares]*render.Shader
+// the ground's shader for each level it draws, mesh.wgsl's LEVEL
+var byLevel [lod.L4]*render.Shader
 
 func init() {
-	for c := range byCare {
-		byCare[c] = caring(c)
+	for l := range byLevel {
+		byLevel[l] = leveled(lod.Level(l))
 	}
 }
 
-func caring(care int) *render.Shader {
+func leveled(level lod.Level) *render.Shader {
 	src := render.Files(shaders, "shaders/lattice.wgsl", "shaders/light.wgsl",
 		"shaders/surface.wgsl", "shaders/detail.wgsl", "shaders/sway.wgsl", "shaders/grid.wgsl",
 		"shaders/mesh.wgsl")
-	src = append([]byte(fmt.Sprintf("const CARE: u32 = %du;\n", care)), src...)
-	return render.NewMeshShaderWith(fmt.Sprintf("terrain-care%d", care), src, []render.Uniform{
+	src = append([]byte(fmt.Sprintf("const LEVEL: u32 = %du;\n", level)), src...)
+	return render.NewMeshShaderWith(fmt.Sprintf("terrain-level%d", level), src, []render.Uniform{
 		{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1},
 		{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1},
 		{Name: "Span", Size: 1}, {Name: "ShoreReach", Size: 1}, {Name: "Px", Size: 1},
@@ -115,8 +116,8 @@ type Config struct {
 	Scale world.Scale
 	// what a camera sees of the world's sectors, the ground drawn of those alone; nil, all of it
 	Seen func(camera.Camera) *view.View
-	// how the frame drawn is set: its care's rings and its haze; nil, as SetCare and Haze set
-	Drawn func() (care int, hazed bool)
+	// whether the frame drawn hazes the ground; nil, as Haze sets
+	Hazed func() bool
 }
 
 // Renderer draws the ground as a mesh: a render.Direct source in the opaque pass.
@@ -138,14 +139,13 @@ type Renderer struct {
 	mesh      *render.Indices
 	tris      []uint32
 	// the sectors the triangles are laid by, nil for none, each one's runs, the skirt's, and the
-	// runs a frame draws, by care, with how many sectors each care took
+	// runs a frame draws, by level, with how many sectors it drew at each
 	grid    view.Sectors
 	spans   []sectorSpans
 	skirted span
 	drawn   []span
-	care    int
-	ranges  [cares][]render.IndexRange
-	counts  [cares]int
+	ranges  [lod.L4][]render.IndexRange
+	counts  [lod.Levels]int
 	plain   *render.Image
 	painted Painted
 
@@ -163,23 +163,11 @@ func New(ground Ground, surface Surface, sky Sky, cfg Config) *Renderer {
 	return r
 }
 
-// Shader is the ground's shader with full care, for a test to compile; Shaders every care's.
-func Shader() *render.Shader { return byCare[FullCare] }
+// Shaders are the ground's shaders by the level they draw at, L0 to L3, for a test to compile.
+func Shaders() []*render.Shader { return byLevel[:] }
 
-// Shaders are the ground's shaders from the least care to the full, for a test to compile.
-func Shaders() []*render.Shader { return byCare[:] }
-
-// SetCare has the ground within rings sectors of the one under the middle of the screen, and of
-// the one under the eye, shaded with full care, and one care less every rings sectors farther
-// (the cares, sectors.go), down to the least. Zero, every sector with full care.
-func (r *Renderer) SetCare(rings int) { r.care = max(rings, 0) }
-
-// Care is how many sectors out from the middle of the screen the ground is shaded with full
-// care, 0 every one.
-func (r *Renderer) Care() int { return r.care }
-
-// Cared is how many sectors the last frame shaded with each care, the least first.
-func (r *Renderer) Cared() [cares]int { return r.counts }
+// Levels is how many sectors the last frame drew at each level.
+func (r *Renderer) Levels() [lod.Levels]int { return r.counts }
 
 // Compose has the ground drawn Direct, in the opaque pass, and hands the frame its heights
 // (render.GroundHeights), as the image holds them from this frame on.
@@ -193,9 +181,8 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		Low: r.low, Span: r.span})
 }
 
-// Draw draws the ground into the target through cam under the frame's uniforms u, ring by ring
-// of sectors with the care each takes. It draws nothing through a camera without Rays, or off
-// a square grid.
+// Draw draws the ground into the target through cam under the frame's uniforms u, each sector
+// seen at its level. It draws nothing through a camera without Rays, or off a square grid.
 func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if t.Screen == nil || t.Depth == nil || !r.prepare(cam, u) {
 		return
@@ -211,21 +198,26 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	r.opts.Images = [4]*render.Image{r.lattice, albedo, r.painted.Water, r.painted.Kinds}
 	r.opts.Depth = t.Depth
 	r.drawn = r.runs(cam, r.drawn[:0])
-	for c := range r.ranges {
-		r.ranges[c] = r.ranges[c][:0]
+	r.eachLevel(r.drawn, func(level lod.Level, ranges []render.IndexRange) {
+		r.opts.Ranges = ranges
+		t.Screen.DrawMesh(r.mesh, byLevel[level], &r.opts)
+	})
+}
+
+// eachLevel calls draw with the runs of each level drawn, the finest first: every call primes its
+// depth against what is drawn, so the far ground the near hills hide is never shaded
+func (r *Renderer) eachLevel(runs []span, draw func(level lod.Level, ranges []render.IndexRange)) {
+	for l := range r.ranges {
+		r.ranges[l] = r.ranges[l][:0]
 	}
-	for _, s := range r.drawn {
-		r.ranges[s.care] = append(r.ranges[s.care],
+	for _, s := range runs {
+		r.ranges[s.level] = append(r.ranges[s.level],
 			render.IndexRange{First: s.first, Count: s.count})
 	}
-	// each care's ground at one go, the full care first: every call primes its depth against
-	// what is drawn, so the far ground the near hills hide is never shaded
-	for c := cares - 1; c >= 0; c-- {
-		if len(r.ranges[c]) == 0 {
-			continue
+	for l, ranges := range r.ranges {
+		if len(ranges) > 0 {
+			draw(lod.Level(l), ranges)
 		}
-		r.opts.Ranges = r.ranges[c]
-		t.Screen.DrawMesh(r.mesh, byCare[c], &r.opts)
 	}
 }
 
@@ -486,12 +478,12 @@ func decode(hi, lo byte, low, span float32) float32 {
 // Haze says whether the air hazes the ground through any camera; off, it is drawn clear.
 func (r *Renderer) Haze(on bool) { r.hazed = on }
 
-// settings are the care's rings and the haze the frame drawn is set to
-func (r *Renderer) settings() (care int, hazed bool) {
-	if r.cfg.Drawn != nil {
-		return r.cfg.Drawn()
+// whether the frame drawn hazes the ground
+func (r *Renderer) hazing() bool {
+	if r.cfg.Hazed != nil {
+		return r.cfg.Hazed()
 	}
-	return r.care, r.hazed
+	return r.hazed
 }
 
 // SetShading styles the light on the ground as s says.
@@ -534,8 +526,7 @@ func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	var seeing, up float32
 	var way [3]float32
 	if r.sky != nil {
-		_, hazed := r.settings()
-		seeing, up, way = r.sky.Air().Seen(cam, hazed)
+		seeing, up, way = r.sky.Air().Seen(cam, r.hazing())
 	}
 	r.set("Visibility", seeing)
 	r.set("HazeUp", up)

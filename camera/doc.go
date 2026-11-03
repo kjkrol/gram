@@ -28,23 +28,26 @@
 // [Picker] finds what is under a screen point and its height; a [Scaler] draws a world unit
 // larger near the eye than far off, and [ScaleAt] is the scale at a point through any camera; a
 // [Rayer] says which way a screen point looks, [Rays] every line of sight at once as a [RayField],
-// an [Eyed] camera where its eye stands and a [Vanisher] where a direction vanishes, a [Focused]
-// camera the world point it observes, a [Headed] one the way along the ground that runs up its
-// screen. A [Transform] is a RayField as the GPU draws it.
+// an [Eyed] camera where its eye stands, a [Fronted] one which points lie [InFront] of it and a
+// [Vanisher] where a direction vanishes, a [Focused] camera the world point it observes, a
+// [Headed] one the way along the ground that runs up its screen. A [Transform] is a RayField as
+// the GPU draws it.
 //
-// # Detail
+// # Sight and resolution
 //
-// A [Detailed] camera says how far it sees and how finely ([Detail]): its Sight from its
-// [Viewpoint], the eye or else the point it observes, the last stretch of it in the fog, and the
-// scale below which it draws coarsely; [DetailOf] is any camera's, none for one without. A
+// A [Sighted] camera sees a multiple of the world's sight, measured from its [Viewpoint], the eye
+// or else the point it observes; [SightOf] is any camera's, 1 for one without. [ScaleShown] is
+// the scale at a point in the pixels shown, which the world's levels of detail go by. A
 // [Resolved] camera is drawn at a resolution of the pixels it is shown at, its Viewport, Zoom and
 // screen conversions in those camera pixels and its window on the world the same; [ResolutionOf]
-// is any camera's, 1 for one without. A [Layered] camera has its picture drawn in layers ([Layer]),
-// the widest first, each a crop of the frame at a resolution of its own laid out as its [Layout]
-// says ([Inset] in the middle, [Footed] on the bottom edge; [Arrange] gives each layer its
-// [Window]), by a camera that is [Cropping]: Crop has its Viewport be a window of its frame,
-// anywhere in it, until Uncrop, and [InFrame] is where a pixel of the frame lies in the window;
-// [LayersOf], [LayoutOf] and [IsCropped] are any camera's.
+// is any camera's, 1 for one without. A [Shifted] camera draws its sectors levels coarser than
+// the world sees them, as the frame budget shifts them; [LevelShiftOf] is any camera's, 0 for one
+// without. A [Layered] camera has its picture drawn in layers ([Layer]), the widest first, each
+// a crop of the frame at a resolution of its own laid out as its [Layout] says ([Inset] in the
+// middle, [Footed] on the bottom edge; [Arrange] gives each layer its [Window]), by a camera that
+// is [Cropping]: Crop has its Viewport be a window of its frame, anywhere in it, until Uncrop,
+// and [InFrame] is where a pixel of the frame lies in the window; [LayersOf], [LayoutOf] and
+// [IsCropped] are any camera's.
 //
 // # FromScreenRect
 //

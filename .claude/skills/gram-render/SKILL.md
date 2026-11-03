@@ -54,6 +54,16 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   panics.
 - A style (`Slot.Styled`, `render.StyleOf[S]`) falls back to the plugin's default; its colour
   goes per instance on the GPU.
+- **A version a level** (`lod`): a kind's table is `{own, own, blob, nothing, nothing}` by
+  default, the blob `render.Blob` of its L0 drawer's mean colour (a disc by its coverage) made
+  at `Close`, one sprite a kind; `Slot.At(level, look)` declares a look from that level out to
+  the next declared, `Slot.Nothing(level)` vanishes from there; L0 and L4 refused (L0 would
+  drop the looks under effects), timed looks refused (the frame rules run at publishing, before
+  the version is picked); every twin, facing and frame resolves to its kind's table. The world's
+  renderer picks the version by `view.Level` at the entity's middle held inside the view's
+  bounds (an entity half on screen stays drawn), the corners where a turned picture cuts it;
+  at L1 no `Lay` edges and no `Upright`. The ground's variants are the topography's
+  (`gram-plugins`).
 - How things lie is a plugin's swappable `Look` (`world.Look`, the board's `look.Look`), flat
   from above by default, the topography setting both for relief; renderers keep their data and
   ask it for geometry alone. What a renderer draws is a look of an entity under a state (a

@@ -24,6 +24,8 @@ import (
 
 // System carries out the MoveTo, March, LookAt and Onward commands: an order for each unit sent.
 type System struct {
+	// Pace is the pace of the units a player's command sends, an option of their query; nil, all.
+	Pace     goke.Opt
 	keep     spacing.Keeping
 	moves    *command.Queue[order.MoveTo]
 	looks    *command.Queue[order.LookAt]
@@ -87,7 +89,12 @@ func (s *System) WithKeeping(k spacing.Keeping) *System {
 }
 
 func (s *System) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.cell, &s.marks).Optional(&s.order).Optional(&s.mover).Optional(&s.base).Optional(&s.z).Optional(&s.steer).Optional(&s.owners).Build()
+	qb := si.NewQueryBuilder(&s.cell, &s.marks).Optional(&s.order).Optional(&s.mover).
+		Optional(&s.base).Optional(&s.z).Optional(&s.steer).Optional(&s.owners)
+	if s.Pace != nil {
+		qb.With(s.Pace)
+	}
+	s.query = qb.Build()
 	s.orderID = si.RegComp[order.MoveOrder]()
 	s.self = si.NewQueryBuilder(&s.selfCell).
 		Optional(&s.selfOrder).Optional(&s.selfMover).Optional(&s.selfBase).Optional(&s.selfZ).
@@ -183,8 +190,7 @@ func (s *System) members(by issuer, fn func(bodies.Member)) {
 }
 
 func (s *System) selectedMembers(by command.Issuer, fn func(bodies.Member)) {
-	s.query.All()
-	for s.query.Next() {
+	for s.query.Paced(0); s.query.Next(); {
 		cursor := s.query.Cursor()
 		cells, marks, orders := s.cell.Slice(cursor), s.marks.Slice(cursor), s.order.Slice(cursor)
 		movers, bases, zs, steers := s.mover.Slice(cursor), s.base.Slice(cursor), s.z.Slice(cursor), s.steer.Slice(cursor)

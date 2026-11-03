@@ -6,14 +6,14 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/world/internal/sectorview"
-	"github.com/kjkrol/gram/plugins/world/sector"
-	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 )
 
-// SwitchSectors has Shown drawn of the sectors (Settings.Sectors): their bands, how finely the
-// camera sees them, nothing. The settings screen alone, in a world cut into sectors.
+// SwitchSectors has Shown drawn of the sectors (Settings.Sectors): the levels they are ticked
+// at, the levels the camera sees them at, nothing. The settings screen alone, in a world cut
+// into sectors.
 type SwitchSectors struct{ Shown SectorsShown }
 
 func (SwitchSectors) Command() {}
@@ -25,28 +25,20 @@ type SectorsShown uint8
 
 const (
 	NoSectors SectorsShown = iota
-	// SectorBands colours each sector by its band, those beyond the last apart.
+	// SectorBands colours each sector by the level it is ticked at.
 	SectorBands
-	// SectorsSeen colours each sector by how finely the camera drawing sees it (view.Level).
+	// SectorsSeen colours each sector by the level the camera drawing sees it at (View.Level).
 	SectorsSeen
 )
 
 var (
-	// the bands nearest first, then beyond the last
-	bandColors = [sector.MaxBands + 1]color.RGBA{
+	// by level, L0 first
+	levelColors = [lod.Levels]color.RGBA{
 		{R: 70, G: 200, B: 90, A: 255},
 		{R: 235, G: 200, B: 60, A: 255},
 		{R: 240, G: 140, B: 50, A: 255},
-		{R: 220, G: 80, B: 170, A: 255},
 		{R: 150, G: 90, B: 220, A: 255},
 		{R: 210, G: 50, B: 50, A: 255},
-	}
-	// by view.Level: Hidden, Exact, Coarse, Fogged; apart from the bands' colours
-	levelColors = [4]color.RGBA{
-		{R: 210, G: 50, B: 50, A: 255},
-		{R: 240, G: 240, B: 240, A: 255},
-		{R: 60, G: 120, B: 240, A: 255},
-		{R: 120, G: 120, B: 130, A: 255},
 	}
 	sectorLine = sectorview.Line{Width: 2, Inside: 0.22, Edge: 0.85}
 )
@@ -61,32 +53,26 @@ type sectorsView struct {
 	gpu     *sectorview.Ground
 	onGPU   bool
 	colors  []color.RGBA
-	levels  []view.Level
+	levels  []lod.Level
 	corners []render.Corners
 	drawn   render.Buffered[shownSectors]
 }
 
-// shownSectors are what is shown of the sectors and, their bands shown, each one's
+// shownSectors are what is shown of the sectors and, their levels ticked shown, each one's
 type shownSectors struct {
-	shown SectorsShown
-	bands []uint8
+	shown  SectorsShown
+	ticked []lod.Level
 }
 
-// Publish takes what is shown of the sectors and their bands as they stand, for the frame drawn
-// next.
+// Publish takes what is shown of the sectors and the levels they are ticked at as they stand,
+// for the frame drawn next.
 func (v *sectorsView) Publish() {
-	b, g := v.drawn.Back(), v.p.module.sectors.grid
-	b.shown, b.bands = v.p.module.sectorsShown, b.bands[:0]
-	if g == nil || b.shown != SectorBands {
+	b, s := v.drawn.Back(), v.p.module.sectors
+	b.shown, b.ticked = v.p.module.sectorsShown, b.ticked[:0]
+	if s.grid == nil || b.shown != SectorBands {
 		return
 	}
-	for i := range g.Len() {
-		band := g.Band(i)
-		if band == g.Beyond() {
-			band = sector.MaxBands
-		}
-		b.bands = append(b.bands, uint8(band))
-	}
+	b.ticked = append(b.ticked, s.level...)
 }
 
 // Swap has what was published last drawn.
@@ -119,16 +105,18 @@ func (v *sectorsView) Compose(f *render.Frame, cam camera.Camera) {
 	}
 	v.colors = v.colors[:0]
 	if d.shown == SectorBands {
-		for _, band := range d.bands {
-			v.colors = append(v.colors, bandColors[band])
+		for _, l := range d.ticked {
+			v.colors = append(v.colors, levelColors[l])
 		}
 	} else {
 		if len(v.levels) != g.Len() {
-			v.levels = make([]view.Level, g.Len())
+			v.levels = make([]lod.Level, g.Len())
 		}
-		clear(v.levels)
+		for i := range v.levels {
+			v.levels[i] = lod.L4
+		}
 		if seen := v.p.read.ViewFor(cam); seen != nil {
-			seen.Sectors(func(i int, _ geom.AABB, l view.Level) { v.levels[i] = l })
+			seen.Sectors(func(i int, _ geom.AABB, l lod.Level) { v.levels[i] = l })
 		}
 		for _, l := range v.levels {
 			v.colors = append(v.colors, levelColors[l])

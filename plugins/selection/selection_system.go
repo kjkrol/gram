@@ -42,6 +42,7 @@ type SelectionSystem struct {
 	marqueeQueue *command.Queue[Marquee]
 	marquees     *marquees
 
+	pace   goke.Opt
 	query  *goke.Query
 	marks  goke.Comp[tag.Tags[Family]]
 	owners goke.OptComp[tag.Tags[owner.Family]]
@@ -60,9 +61,20 @@ func NewSelectionSystem(selects *command.Queue[Select], space *aabbworld.Space, 
 	return &SelectionSystem{selects: selects, space: space, tags: tags, look: look}
 }
 
+// Paced has the system walk the marked entities as pace, an option of its query, says; set it
+// before Init.
+func (s *SelectionSystem) Paced(pace goke.Opt) *SelectionSystem {
+	s.pace = pace
+	return s
+}
+
 func (s *SelectionSystem) Init(si *goke.SysInit) {
 	s.marksID = si.RegComp[tag.Tags[Family]]()
-	s.query = si.NewQueryBuilder(&s.marks).Optional(&s.owners).Optional(&s.roles).Build()
+	qb := si.NewQueryBuilder(&s.marks).Optional(&s.owners).Optional(&s.roles)
+	if s.pace != nil {
+		qb.With(s.pace)
+	}
+	s.query = qb.Build()
 	s.lookup = si.NewQueryBuilder(&s.lookupBase).Optional(&s.lookupZ).Build()
 }
 
@@ -182,7 +194,7 @@ func (s *SelectionSystem) pointed(c effectCommand) (uid.UID64, bool) {
 
 func (s *SelectionSystem) hover() {
 	if s.hovered {
-		for s.query.All(); s.query.Next(); {
+		for s.query.Paced(0); s.query.Next(); {
 			marks := s.marks.Slice(s.query.Cursor())
 			for i := range marks {
 				marks[i] = marks[i].Without(s.tags.Hovered)
@@ -220,8 +232,7 @@ func (s *SelectionSystem) pick(at geom.Vec, screen geom.AABB, cam camera.Camera)
 }
 
 func (s *SelectionSystem) eachSelected(by command.Issuer, only tag.Tags[cond.Roles], fn func(uid.UID64)) {
-	s.query.All()
-	for s.query.Next() {
+	for s.query.Paced(0); s.query.Next(); {
 		cursor := s.query.Cursor()
 		marks, owners, roles := s.marks.Slice(cursor), s.owners.Slice(cursor), s.roles.Slice(cursor)
 		for i, id := range cursor.IDs {
@@ -261,8 +272,7 @@ func grow(box geom.AABB, reach float32) geom.AABB {
 }
 
 func (s *SelectionSystem) applySelection(hit map[uid.UID64]struct{}, additive bool, by command.Issuer) {
-	s.query.All()
-	for s.query.Next() {
+	for s.query.Paced(0); s.query.Next(); {
 		cursor := s.query.Cursor()
 		marks, owners := s.marks.Slice(cursor), s.owners.Slice(cursor)
 		for i, id := range cursor.IDs {

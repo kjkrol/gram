@@ -1,6 +1,6 @@
 // The cells drawn by their material (tiles_screen.wgsl), over all the rest of the tiles, as each
 // cell's material works it out over its box (render.Overlay: World the box, Red 1, Custom its
-// middle and half its width).
+// middle and half its width); at L2 and L3 one colour a cell, the material's at its middle.
 
 @fragment
 fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
@@ -25,10 +25,11 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
 }
 
 // materialAt is the material of the cell c over its box at p, nothing where c is drawn by its
-// sprite, its box does not reach or it lies out of sight.
+// sprite, its box does not reach or it lies at L4.
 fn materialAt(c: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
     let b = folded(c);
-    if b.z < 0.5 || (byteOf(b.xy, 0.0, 0.0, 3) & flagShaded) == 0u || levelOf(b.xy) == 0u {
+    let level = levelOf(b.xy);
+    if b.z < 0.5 || (byteOf(b.xy, 0.0, 0.0, 3) & flagShaded) == 0u || level >= 4u {
         return vec4<f32>(0.0);
     }
     let mid = centreOf(c);
@@ -39,5 +40,9 @@ fn materialAt(c: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
         return vec4<f32>(0.0);
     }
     let k = f32(byteOf(b.xy, 1.0, 1.0, 2));
-    return material(k, p, 1.0, 0.0, vec4<f32>(mid, half.x, 0.0));
+    var at = p;
+    if level >= 2u {
+        at = mid;
+    }
+    return material(k, at, 1.0, 0.0, vec4<f32>(mid, half.x, 0.0));
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -16,7 +17,6 @@ import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
 	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/uid"
 )
 
@@ -58,7 +58,7 @@ func newRig(t testing.TB, pool *parallel.Pool, h Hierarchy, side, cellSize uint3
 		placed[i] = navUnit{box: cellBox(g, u.at, u.side), at: u.at, order: &MoveOrder{}}
 	}
 	r := &groupRig{}
-	r.nw = newNavWorldIn(t, pool, side, side, cellSize, placed, world.SectorsCfg{},
+	r.nw = newNavWorldIn(t, pool, side, side, cellSize, placed, world.SectorsCfg{}, lod.Ladder{},
 		withHierarchy(h), goke.SystemFn{OnInit: func(si *goke.SysInit) {
 			r.ordered = si.NewQueryBuilder(&r.orders, &r.at).Build()
 		}})
@@ -191,7 +191,6 @@ func TestNavigation_UseDecidesTheHierarchy(t *testing.T) {
 
 // the side of the world's sectors in cells where they span whole cells of a square grid, else 16
 func TestNavigation_TheHierarchysSideIsTheSectorsWhereTheySpanWholeCells(t *testing.T) {
-	bands := []sector.Band{{Reach: 1000}}
 	for _, c := range []struct {
 		name    string
 		asked   Hierarchy
@@ -200,21 +199,21 @@ func TestNavigation_TheHierarchysSideIsTheSectorsWhereTheySpanWholeCells(t *test
 		want    Hierarchy
 	}{
 		{"sectors of two buckets", Hierarchy{}, grid.DefaultGrids{}.Square(32, 32, 16),
-			world.SectorsCfg{Buckets: 2, Bands: bands}, Hierarchy{Side: 16, From: 64}},
+			world.SectorsCfg{Buckets: 2}, Hierarchy{Side: 16, From: 64}},
 		{"sectors of four buckets", Hierarchy{}, grid.DefaultGrids{}.Square(32, 32, 16),
-			world.SectorsCfg{Bands: bands}, Hierarchy{Side: 32, From: 64}},
+			world.SectorsCfg{Buckets: 4}, Hierarchy{Side: 32, From: 64}},
 		{"no sectors", Hierarchy{}, grid.DefaultGrids{}.Square(32, 32, 16),
 			world.SectorsCfg{}, Hierarchy{Side: 16, From: 64}},
 		{"sectors of no whole cells", Hierarchy{}, grid.DefaultGrids{}.Square(32, 32, 24),
-			world.SectorsCfg{Buckets: 2, Bands: bands}, Hierarchy{Side: 16, From: 64}},
+			world.SectorsCfg{Buckets: 2}, Hierarchy{Side: 16, From: 64}},
 		{"a hex grid", Hierarchy{}, grid.DefaultGrids{}.Hex(32, 32, 8),
-			world.SectorsCfg{Buckets: 2, Bands: bands}, Hierarchy{Side: 16, From: 64}},
+			world.SectorsCfg{Buckets: 2}, Hierarchy{Side: 16, From: 64}},
 		{"a side asked", Hierarchy{Side: 10}, grid.DefaultGrids{}.Square(32, 32, 16),
-			world.SectorsCfg{Buckets: 2, Bands: bands}, Hierarchy{Side: 10, From: 64}},
+			world.SectorsCfg{Buckets: 2}, Hierarchy{Side: 10, From: 64}},
 		{"a distance asked", Hierarchy{From: 24}, grid.DefaultGrids{}.Square(32, 32, 16),
 			world.SectorsCfg{}, Hierarchy{Side: 16, From: 24}},
 		{"off", Hierarchy{Off: true}, grid.DefaultGrids{}.Square(32, 32, 16),
-			world.SectorsCfg{Buckets: 2, Bands: bands}, Hierarchy{Off: true}},
+			world.SectorsCfg{Buckets: 2}, Hierarchy{Off: true}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			// a bucket of 128 by the world's bounds on entities: eight of the largest a side

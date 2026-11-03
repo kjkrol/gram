@@ -11,9 +11,11 @@ import (
 	"github.com/kjkrol/ceremony/fact"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -100,6 +102,7 @@ func (s *Shots) Define(name string, body Body, extra ...comp.Comp) {
 		}),
 		comp.Load(func(r Shot) world.Velocity { return world.Velocity{Dir: r.Dir} }),
 		comp.Const(body),
+		comp.Const(sector.Keen{Level: lod.L2}),
 		comp.Const(collision.Collider{}),
 		comp.Load(func(r Shot) collision.Sweep { return collision.Sweep{From: r.From, Ignore: r.Shooter, Ignoring: true} }),
 		comp.Load(func(r Shot) Flight {

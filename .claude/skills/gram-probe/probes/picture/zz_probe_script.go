@@ -27,6 +27,7 @@ func (p *probe) play() {
 		}
 		put := func(c command.Command) { p.a.world.Write().Carrier().Put(command.Nobody, c) }
 		put(cameras.Adapt{Profile: cameras.Tactical, Strategy: cameras.Still})
+		put(cameras.Detail{Follows: false})
 		put(cameras.Layers{Profile: cameras.Tactical, On: pic == "layers"})
 		if pic == "whole" {
 			put(cameras.Picture{Profile: cameras.Tactical, Resolution: res})

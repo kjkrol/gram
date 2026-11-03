@@ -81,7 +81,7 @@ func (k Knobs) filled() Knobs {
 }
 
 // Settings is what the cameras let the players adjust, saved with the game: the scroll zones,
-// the frame budget and the Knobs of each Profile.
+// the frame budget, whether the pictures' detail follows it and the Knobs of each Profile.
 type Settings struct {
 	Zones        bool
 	ZonesOpacity float32 // how opaque at the picture's edge, 0 to 1; zero, the default
@@ -92,6 +92,7 @@ type Settings struct {
 	Sampling     time.Duration // the frame rate averaged over this before it is followed
 	Under        float32       // of the budget's rate, under which the picture goes coarser
 	Met          float32       // over which it goes finer
+	StillDetail  bool          // the pictures at the levels the world sees, whatever the rate
 	Tactical     Knobs
 	Riding       Knobs
 	Arm          Arm // how a camera is held behind an entity
@@ -146,6 +147,12 @@ func (p *Plugin) anyFollowing() bool {
 	return s.Tactical.Strategy != Still || s.Riding.Strategy != Still
 }
 
+// detailFollows reports whether the pictures' level of detail follows the frame budget: unless
+// the settings still it, in a world cut into sectors, the one drawn by levels
+func (p *Plugin) detailFollows() bool { return p.sectored() && !p.Res.Settings.StillDetail }
+
+func (p *Plugin) sectored() bool { return p.worldPlugin.Res.Config.Sectors.Buckets > 0 }
+
 func (p *Plugin) redress() {
 	for _, cam := range p.cameras {
 		p.dress(cam)
@@ -168,8 +175,9 @@ func dressFor(cam camera.Camera) dressed {
 
 // dress has cam drawn as its profile's Knobs say, in their layers or whole at their resolution,
 // its figures at every pixel or not, the layers on the frame's bottom edge in a tactical
-// perspective, a minimap's as it is. A Pan, CenterOn or Follow{On: false} given a camera riding
-// (no key of the plugin's) leaves it dressed tactical inside its entity for a tick.
+// perspective, its levels as the adapter shifts them, a minimap's as it is. A Pan, CenterOn or
+// Follow{On: false} given a camera riding (no key of the plugin's) leaves it dressed tactical
+// inside its entity for a tick.
 func (p *Plugin) dress(cam camera.Camera) {
 	if fitsWhole(cam) {
 		return
@@ -198,6 +206,7 @@ func (p *Plugin) dress(cam camera.Camera) {
 	if f, ok := cam.(camera.Figured); ok {
 		f.SetSharpFigures(!k.SoftFigures)
 	}
+	p.shiftOne(cam)
 }
 
 // redressChanged dresses again every camera whose state is no longer what it was dressed for
@@ -241,8 +250,9 @@ func budgetRate(budget time.Duration) float64 {
 }
 
 // Settings are the scroll zones (scrolling, turning in the corners where the camera turns, shown,
-// their speed), the frame budget and each profile's knobs (the strategy following the budget, the
-// resolution, the figures at every pixel, the layers and their edges shown) (plugin.Tunable).
+// their speed), the frame budget, the detail following it in a world cut into sectors and each
+// profile's knobs (the strategy following the budget, the resolution, the figures at every pixel,
+// the layers and their edges shown) (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {
 	out := []control.Setting{
 		control.Switch{
@@ -317,6 +327,15 @@ func (p *Plugin) Settings() []control.Setting {
 			},
 			Shows: percent,
 		},
+	}
+	if p.sectored() {
+		// beside the frame budget
+		out = slices.Insert(out, 4, control.Setting(control.Switch{
+			Label:   "Detail follows the frame budget",
+			Section: control.Picture,
+			Get:     p.read.DetailFollows,
+			Set:     func(on bool) command.Command { return Detail{Follows: on} },
+		}))
 	}
 	if p.cfg.Turn {
 		out = slices.Insert(out, 1, control.Setting(control.Switch{

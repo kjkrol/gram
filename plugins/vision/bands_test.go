@@ -1,6 +1,7 @@
 package vision_test
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -8,32 +9,85 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/lod"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/sector"
 )
 
-type anchor struct{ x, y float32 }
+// two observers looking at (x, y) over a world w by h: the one a pixel a world unit, the other a
+// quarter of a pixel seeing four times as far; under a ladder seeing from half a pixel a world
+// unit, L0 within its sight of the point, within four times that the level its lower thresholds
+// give a quarter of a pixel, L4 beyond
+type observers [2]camera.Camera
 
-func (a *anchor) Anchors(at func(x, y float32)) { at(a.x, a.y) }
+var _ sector.Observers = (*observers)(nil)
 
-var _ sector.Anchors = (*anchor)(nil)
+func newObservers(w, h uint32, x, y float32) *observers {
+	o := &observers{cameratest.NewFromSpace(w, h, 0), cameratest.NewFromSpace(w, h, 0)}
+	for _, cam := range o {
+		cam.SetViewport(2, 2)
+	}
+	o[1].ZoomOut(4, 0, 0)
+	o[1].(interface{ See(factor float32) }).See(4)
+	o.look(x, y)
+	return o
+}
 
-func TestScan_FarOffAnObserverSeesNothing(t *testing.T) {
+// has both observers look at (x, y)
+func (o *observers) look(x, y float32) {
+	for _, cam := range o {
+		cam.CenterOn(x, y, 0)
+	}
+}
+
+func (o *observers) Observers(each func(cam camera.Camera)) {
+	for _, cam := range o {
+		each(cam)
+	}
+}
+
+// far off is four sectors on from where the cameras look away: room for a sector a level coarser
+// each between
+func TestScan_AnObserverSeesEveryStepThroughL2AndNothingFromL3(t *testing.T) {
+	for _, c := range []struct {
+		level  lod.Level
+		scales [lod.Levels - 1]float32
+		sight  float32
+		sees   bool
+	}{
+		{lod.L1, [lod.Levels - 1]float32{0.5, 0.2}, 600, true},
+		{lod.L2, [lod.Levels - 1]float32{0.5, 0.4, 0.2}, 600, true},
+		{lod.L3, [lod.Levels - 1]float32{0.5, 0.4, 0.3}, 600, false},
+		{lod.L4, [lod.Levels - 1]float32{0.5, 0.4, 0.3}, 400, false},
+	} {
+		t.Run(fmt.Sprintf("L%d", c.level), func(t *testing.T) {
+			sees, level := lookedAway(t, c.scales, c.sight)
+			if level != c.level {
+				t.Fatalf("looked away from, the observer is at L%d, want L%d", level, c.level)
+			}
+			if sees != c.sees {
+				t.Errorf("looked away from, the observer sees %v, want %v", sees, c.sees)
+			}
+		})
+	}
+}
+
+// whether an observer seeing a target at (2200, 250) still sees it once the cameras look at
+// (100, 256), under a ladder of scales seeing sight, and the level it is at then
+func lookedAway(t *testing.T, scales [lod.Levels - 1]float32, sight float32) (bool, lod.Level) {
+	t.Helper()
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 4096, Height: 512},
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 1, MaxSize: 20},
-		Sectors: world.SectorsCfg{
-			Buckets: 2,
-			Bands: []sector.Band{
-				{Reach: 600},
-				{Reach: 1200, Pace: 4},
-			},
-		},
+		Sectors:  world.SectorsCfg{Buckets: 2},
+		LOD:      lod.Ladder{Scales: scales, Sight: sight},
 	})
-	eyed := &anchor{x: 1200, y: 256}
-	w.Write().Anchor(eyed)
+	eyed := newObservers(4096, 512, 2200, 256)
+	w.Write().Observe(eyed)
 	v := vision.NewPlugin(w)
 	ctx := &installCtx{ecs: goke.New()}
 	if err := w.Install(ctx); err != nil {
@@ -51,19 +105,23 @@ func TestScan_FarOffAnObserverSeesNothing(t *testing.T) {
 		comp.Const(vision.Watched{}),
 	})
 	kind.Define[spawn](w.Kinds(), "target", kind.Spec{comp.Load(at), comp.Const(world.Velocity{})})
-	w.Write().Seed(kind.Named[spawn](w.Kinds(), "observer").Entry(spawn{x: 1200, y: 250}),
-		kind.Named[spawn](w.Kinds(), "target").Entry(spawn{x: 1300, y: 250}))
+	w.Write().Seed(kind.Named[spawn](w.Kinds(), "observer").Entry(spawn{x: 2200, y: 250}),
+		kind.Named[spawn](w.Kinds(), "target").Entry(spawn{x: 2300, y: 250}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
 	var sighted goke.Comp[vision.Sighted]
+	var l1 goke.OptComp[sector.L1]
+	var l2 goke.OptComp[sector.L2]
+	var l3 goke.OptComp[sector.L3]
+	var l4 goke.OptComp[sector.L4]
 	var query *goke.Query
 	var systems []goke.System
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
 	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		query = si.NewQueryBuilder(&sighted).Build()
+		query = si.NewQueryBuilder(&sighted).Optional(&l1, &l2, &l3, &l4).Build()
 	}})
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
@@ -71,23 +129,29 @@ func TestScan_FarOffAnObserverSeesNothing(t *testing.T) {
 		v.RunPlan(rc, d)
 		w.Write().Clock().Replay(rc, d)
 	})
-	seen := func() uint8 {
+	seen := func() (uint8, lod.Level) {
 		for query.All(); query.Next(); {
-			return sighted.Slice(query.Cursor())[0].Count
+			cur, level := query.Cursor(), lod.L0
+			for k, mark := range []bool{l1.Present(cur), l2.Present(cur), l3.Present(cur),
+				l4.Present(cur)} {
+				if mark {
+					level = lod.Level(k + 1)
+				}
+			}
+			return sighted.Slice(cur)[0].Count, level
 		}
-		return 0
+		return 0, lod.L0
 	}
 	for range 3 {
 		ctx.ecs.Tick(time.Second / 60)
 	}
-	if seen() == 0 {
+	if n, _ := seen(); n == 0 {
 		t.Fatal("near, the observer sees nothing")
 	}
-	eyed.x = 100
+	eyed.look(100, 256)
 	for range 3 {
 		ctx.ecs.Tick(time.Second / 60)
 	}
-	if n := seen(); n != 0 {
-		t.Errorf("in the second band the observer sees %d, want nothing", n)
-	}
+	n, level := seen()
+	return n != 0, level
 }

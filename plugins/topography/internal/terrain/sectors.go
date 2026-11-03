@@ -4,26 +4,17 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/f32"
-	"github.com/kjkrol/gram/plugins/world/view"
+	"github.com/kjkrol/gram/lod"
 )
 
-// span is a run of the ground's triangles' indices, shaded with care
-type span struct{ first, count, care int }
+// span is a run of the ground's triangles' indices, drawn at a level
+type span struct {
+	first, count int
+	level        lod.Level
+}
 
-// The cares the ground is shaded with (mesh.wgsl's CARE), the full down to the least, each
-// dropping one more thing:
-//
-//	4  everything
-//	3  the shore: no swell, surf or foam, no water running down the ways, no glint at a mouth
-//	2  the waves and their glint: the still water a level mirror of the sky
-//	1  the baked shade and the lamps: every cell takes every shade
-//	0  the grid, the clouds' shadow, the wind's sway, the details' grain and the water's
-//	   picture: the albedo's flat colour
-const (
-	LeastCare = 0
-	cares     = 5
-	FullCare  = cares - 1
-)
+// the skirt to the horizon is drawn as a sheet, the coarsest the ground draws
+const skirtLevel = lod.L3
 
 // a sector's triangles whole and coarse
 type sectorSpans struct{ whole, coarse span }
@@ -151,85 +142,42 @@ func (r *Renderer) lay(cols, rows int, cell float32, enc []byte) {
 	r.skirted = span{first: from, count: len(r.tris) - from}
 }
 
-// the runs of the ground drawn through cam: the sectors its View sees at their levels, each
-// with its ring's care, joined where they follow one another with one care, and the skirt; the
-// whole mesh, with full care, in a world of no sectors
+// the runs of the ground drawn through cam: the sectors its View sees, each at its level, its
+// whole triangles at L0 and L1 and its coarse ones beyond, joined where they follow one another
+// at one level, and the skirt at skirtLevel; the whole mesh at L0, its skirt too, in a world of
+// no sectors, which has no levels
 func (r *Renderer) runs(cam camera.Camera, dst []span) []span {
-	r.counts = [cares]int{}
+	r.counts = [lod.Levels]int{}
 	if r.grid == nil {
-		return append(dst, span{0, len(r.tris), FullCare})
+		return append(dst, span{0, len(r.tris), lod.L0})
 	}
-	careOf := r.CareOf(cam)
 	v := r.cfg.Seen(cam)
-	v.Sectors(func(i int, _ geom.AABB, level view.Level) {
+	v.Sectors(func(i int, _ geom.AABB, level lod.Level) {
 		s := r.spans[i].whole
-		if level != view.Exact {
+		if level >= lod.L2 {
 			s = r.spans[i].coarse
 		}
 		if s.count == 0 {
 			return
 		}
-		s.care = careOf(i)
-		r.counts[s.care]++
+		s.level = level
+		r.counts[level]++
 		dst = append(dst, s)
 	})
 	skirt := r.skirted
-	skirt.care = careOf(-1)
+	skirt.level = skirtLevel
 	dst = append(dst, skirt)
 	sortSpans(dst)
 	joined := dst[:0]
 	for _, s := range dst {
 		if n := len(joined); n > 0 && joined[n-1].first+joined[n-1].count == s.first &&
-			joined[n-1].care == s.care {
+			joined[n-1].level == s.level {
 			joined[n-1].count += s.count
 			continue
 		}
 		joined = append(joined, s)
 	}
 	return joined
-}
-
-// CareOf is the care sector i is shaded with through cam, the skirt's for i < 0: full within
-// Care rings of the sector under the middle of the screen or under the eye, one less every Care
-// rings farther, down to the least; full everywhere with no care set, in a world of no sectors
-// or through a camera knowing no middle.
-func (r *Renderer) CareOf(cam camera.Camera) func(i int) int {
-	full := func(int) int { return FullCare }
-	f, ok := cam.(camera.Focused)
-	care, _ := r.settings()
-	if care <= 0 || !ok {
-		return full
-	}
-	g := r.seenGrid(cam)
-	if g == nil {
-		return full
-	}
-	x, y, _ := f.Focus()
-	middle := g.Of(x, y)
-	eye := middle
-	if e, ok := cam.(camera.Eyed); ok {
-		if x, y, _, ok := e.Eye(); ok {
-			eye = g.Of(x, y)
-		}
-	}
-	cols := g.Cols()
-	return func(i int) int {
-		if i < 0 {
-			return LeastCare
-		}
-		d := min(rings(i, middle, cols), rings(i, eye, cols))
-		band := 0
-		if d > 0 {
-			band = (d - 1) / care
-		}
-		return max(FullCare-band, 0)
-	}
-}
-
-// how many rings of sectors out from b sector a lies, on a grid cols wide
-func rings(a, b, cols int) int {
-	dx, dy := a%cols-b%cols, a/cols-b/cols
-	return max(dx, -dx, dy, -dy)
 }
 
 func sortSpans(s []span) {

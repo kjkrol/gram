@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -100,7 +101,7 @@ func (p *Plugin) KindTemplates(r *kind.Roster) {
 func (p *Plugin) Name() string { return "gram.driving" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	shared := &units{}
+	shared := &units{pace: p.worldPlugin.Pace(lod.Steady)}
 	drive := &driveSystem{keeping: p.keeping, tap: p.tap, units: shared}
 	if p.board != nil {
 		drive.board, drive.occupancy = p.board.Read(0).Board(), p.board.Write().Occupancy()

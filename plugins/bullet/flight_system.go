@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
@@ -47,6 +48,7 @@ type flightSystem struct {
 	rbody   goke.Comp[Body]
 
 	sweepID, collID goke.CompID
+	keenID          goke.CompID
 	leave           func(cb *goke.CmdBuf, id uid.UID64)
 
 	walking struct {
@@ -69,16 +71,17 @@ func newFlightSystem(w *world.Plugin, landings *host.Rules[Landing], restings *h
 
 func (s *flightSystem) Init(si *goke.SysInit) {
 	s.sweepID, s.collID = si.RegComp[collision.Sweep](), si.RegComp[collision.Collider]()
+	s.keenID = si.RegComp[sector.Keen]()
 	qb := si.NewQueryBuilder(&s.base, &s.flight, &s.body).Optional(&s.coll).Optional(&s.sweep).Optional(&s.z)
 	s.landCols = cgoke.NewColumns(qb)
 	s.landings.Bind(s.landCols)
-	// far off a shot hangs where it is
-	near := s.w.Pace(sector.Near)
-	s.flights = qb.With(near).Build()
+	// never slowed: a longer step would carry a shot through what it strikes
+	steady := s.w.Pace(lod.Steady)
+	s.flights = qb.With(steady).Build()
 	rb := si.NewQueryBuilder(&s.rbase, &s.rflight, &s.rbody)
 	s.restCols = cgoke.NewColumns(rb)
 	s.restings.Bind(s.restCols)
-	s.resting = rb.With(near).Build()
+	s.resting = rb.With(steady).Build()
 }
 
 func (s *flightSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
@@ -121,6 +124,9 @@ func (s *flightSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 				f.Landed = true
 				cb.RemoveCompOne(id, s.sweepID)
 				cb.RemoveCompOne(id, s.collID)
+				if bodies[i].Lands {
+					cb.RemoveCompOne(id, s.keenID)
+				}
 			case !f.Landed:
 				s.fly(f, bodies[i], &bases[i], sw, z, float32(dt.Seconds()))
 			}

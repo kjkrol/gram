@@ -30,8 +30,8 @@ type Slower struct{}
 // Tempo sets the tempo of the simulation to the clock's nearest X (clock.Config.Tempos).
 type Tempo struct{ X float32 }
 
-// SwitchBands switches the sectors' bands on, or off with every sector in the first
-// (Settings.Unbanded): a way of weighing what the bands spare. The settings screen alone, in a
+// SwitchBands switches the sectors' levels on, or off with every sector ticked at L0
+// (Settings.Unbanded): a way of weighing what the levels spare. The settings screen alone, in a
 // world cut into sectors.
 type SwitchBands struct{ On bool }
 
@@ -54,7 +54,8 @@ var (
 )
 
 // Settings is what the world lets the players adjust, saved with the game: the looks of the
-// sectors and their bands. The tempo and the pause are the clock's (clock.State).
+// sectors and whether their levels are ticked. The tempo and the pause are the clock's
+// (clock.State).
 type Settings struct {
 	Sectors  SectorsShown
 	Unbanded bool
@@ -70,7 +71,7 @@ func (p *Plugin) Queues() []command.CommandQueue {
 }
 
 // Settings are the tempo, with more than one to choose from, and, in a world cut into sectors,
-// what is drawn of them and whether their bands are on (plugin.Tunable).
+// what is drawn of them and whether their levels are ticked (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {
 	var out []control.Setting
 	if tempos := p.module.clock.Read().Tempos(); len(tempos) > 1 {
@@ -93,19 +94,19 @@ func (p *Plugin) Settings() []control.Setting {
 	return append(out,
 		control.Choice{
 			Label:   "Sectors drawn",
-			Options: []string{"none", "by band", "as the camera sees them"},
+			Options: []string{"none", "by the level ticked", "as the camera sees them"},
 			Get:     func() int { return int(p.Res.Settings.Sectors) },
 			Set:     func(i int) command.Command { return SwitchSectors{Shown: SectorsShown(i)} },
 		},
 		control.Switch{
-			Label: "Sectors' bands",
+			Label: "Sectors' levels",
 			Get:   p.read.Banded,
 			Set:   func(on bool) command.Command { return SwitchBands{On: on} },
 		})
 }
 
 // DefaultBindings are the clock's keys: P and Shift+P pause, ] goes faster, [ slower. The
-// sectors drawn and their bands are the settings screen's.
+// sectors drawn and their levels are the settings screen's.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	pause := func(control.Context) (Pause, bool) { return Pause{}, true }
 	return []control.Binding{

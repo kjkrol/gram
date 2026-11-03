@@ -6,9 +6,9 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/uid"
 )
 
@@ -42,7 +42,7 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 	if m.steeringRunnable != nil {
 		return
 	}
-	pace := m.w.Pace(sector.Paced)
+	pace := m.w.Pace(lod.Slowing(2, 4, 8))
 	m.steeringRunnable = ecs.RegSys(m.steer.Paced(pace))
 	velocity := newVelocitySystem(m.movers)
 	velocity.tick, velocity.rhythm = m.w.Read(0).Tick, pace

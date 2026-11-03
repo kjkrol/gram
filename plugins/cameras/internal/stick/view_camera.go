@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	contract "github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/vec"
+	"github.com/kjkrol/gram/lod"
 )
 
 type viewCamera struct {
@@ -27,7 +28,8 @@ type viewCamera struct {
 		ortho         bool
 	}
 	fastening contract.Fastening
-	detail    contract.Detail
+	sight     float32
+	shift     lod.Level
 	layers    []contract.Layer
 	layout    contract.Layout
 	sharp     bool
@@ -54,14 +56,16 @@ var _ contract.Camera = (*viewCamera)(nil)
 var _ contract.Fastenable = (*viewCamera)(nil)
 var _ contract.Vanisher = (*viewCamera)(nil)
 var _ contract.Scaler = (*viewCamera)(nil)
+var _ contract.Fronted = (*viewCamera)(nil)
 var _ contract.Eyed = (*viewCamera)(nil)
 var _ contract.Picker = (*viewCamera)(nil)
 var _ contract.Rayer = (*viewCamera)(nil)
 var _ contract.Rays = (*viewCamera)(nil)
 var _ contract.Focused = (*viewCamera)(nil)
-var _ contract.Detailed = (*viewCamera)(nil)
+var _ contract.Sighted = (*viewCamera)(nil)
 var _ contract.Headed = (*viewCamera)(nil)
 var _ contract.Resolved = (*viewCamera)(nil)
+var _ contract.Shifted = (*viewCamera)(nil)
 var _ contract.Layered = (*viewCamera)(nil)
 var _ contract.Cropping = (*viewCamera)(nil)
 var _ contract.Figured = (*viewCamera)(nil)
@@ -100,14 +104,11 @@ func (c *viewCamera) Origin() contract.Camera {
 	return c.origin
 }
 
-// Detail is how far the camera sees and how finely.
-func (c *viewCamera) Detail() contract.Detail { return c.detail }
-
-// SetDetail has the camera see as d says.
-func (c *viewCamera) SetDetail(d contract.Detail) { c.detail = d }
+// Sight is the multiple of the world's sight the camera sees, 1 as made.
+func (c *viewCamera) Sight() float32 { return c.sight }
 
 // See has the camera see factor times as far.
-func (c *viewCamera) See(factor float32) { c.detail = c.detail.Widened(factor) }
+func (c *viewCamera) See(factor float32) { c.sight *= factor }
 
 // In the parallel view all one way, from Headroom over the highest ground.
 func (c *viewCamera) Rays() (contract.RayField, bool) {
@@ -217,7 +218,7 @@ func newCamera(
 		extent)
 	persp.bend = bend
 	persp.look()
-	c := &viewCamera{ortho: ortho, persp: persp, reaches: reaches}
+	c := &viewCamera{ortho: ortho, persp: persp, reaches: reaches, sight: 1}
 	c.cur = c.ortho
 	if cfg.MinZoom > 0 {
 		c.SetMinZoom(cfg.MinZoom)
@@ -385,6 +386,10 @@ func (c *viewCamera) ScaleAt(x, y, z float32) float32 {
 	return c.ortho.Zoom()
 }
 
+func (c *viewCamera) InFront(x, y, z float32) bool {
+	return !c.inPersp || c.persp.InFront(x, y, z)
+}
+
 func (c *viewCamera) Projection() contract.Projection            { return c.cur.Projection() }
 func (c *viewCamera) Project(x, y, z float32) (float32, float32) { return c.cur.Project(x, y, z) }
 func (c *viewCamera) Unproject(sx, sy, z float32) (float32, float32) {
@@ -438,6 +443,11 @@ func (c *viewCamera) SetResolution(s float32) {
 
 func (c *viewCamera) Resolution() float32 { return c.ortho.res }
 
+// SetLevelShift has the camera draw its sectors n levels coarser than the world sees them.
+func (c *viewCamera) SetLevelShift(n lod.Level) { c.shift = n }
+
+func (c *viewCamera) LevelShift() lod.Level { return c.shift }
+
 func (c *viewCamera) Crop(win contract.Window, s float32) {
 	c.ortho.Crop(win, s)
 	c.persp.Crop(win, s)
@@ -482,7 +492,7 @@ func (c *viewCamera) SetMaxZoom(maxZoom float32) {
 func (c *viewCamera) Persisted() []any {
 	saved := append([]any{&c.form}, c.ortho.Persisted()...)
 	return append(append(saved, c.persp.Persisted()...), &c.inPersp, &c.fastening,
-		&c.detail.Sight, &c.tactical.scale, &c.tactical.length, &c.tactical.ortho)
+		&c.sight, &c.tactical.scale, &c.tactical.length, &c.tactical.ortho)
 }
 
 func (c *viewCamera) Restore() {

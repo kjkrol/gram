@@ -22,7 +22,7 @@ type velocitySystem struct {
 	base   goke.Comp[world.Base]
 	pace   goke.OptComp[steering.Pace]
 	course goke.OptComp[steering.Course]
-	// the bands' pace, not the steering's share of speed
+	// the levels' pace, not the steering's share of speed
 	rhythm goke.Opt
 
 	ids     []uid.UID64

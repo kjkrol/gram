@@ -2,11 +2,13 @@ package world
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/kjkrol/ceremony/effect"
 	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/tag"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -29,6 +31,53 @@ type Atlas struct {
 	// the effects in the order first looked under: the last wins
 	marks  []tag.Tag[effect.States]
 	styles render.Styles
+	owns   []owned
+	// the looks declared at levels, by the kind's own sprite
+	declared map[render.SpriteID][]leveled
+	// after Close: each kind's look at each level, by its own sprite, and every sprite's
+	versions map[render.SpriteID][lod.Levels]version
+	levels   byLevel
+}
+
+// owned is a kind's own look as Add took it, its drawer nil for a material
+type owned struct {
+	id   render.SpriteID
+	size int
+	draw render.SpriteDrawer
+}
+
+// leveled is a look declared from a level on
+type leveled struct {
+	from lod.Level
+	version
+}
+
+// version is the sprite something is drawn as at a level, none where it is not drawn
+type version struct {
+	id    render.SpriteID
+	drawn bool
+}
+
+// byLevel is what each sprite is drawn as at each level, by the sprite; one past its end is drawn
+// as itself
+type byLevel [][lod.Levels]version
+
+// at is what the sprite id is drawn as at level, false for nothing
+func (b byLevel) at(id render.SpriteID, level lod.Level) (render.SpriteID, bool) {
+	if int(id) >= len(b) {
+		return id, true
+	}
+	v := b[id][level]
+	return v.id, v.drawn
+}
+
+// itself is a sprite drawn as itself at every level
+func itself(id render.SpriteID) [lod.Levels]version {
+	var t [lod.Levels]version
+	for l := range t {
+		t[l] = version{id: id, drawn: true}
+	}
+	return t
 }
 
 type animation struct {
@@ -69,6 +118,8 @@ func (p *Plugin) NewAtlas() *Atlas {
 		upright:  map[render.SpriteID]bool{},
 		edges:    map[render.SpriteID]render.SpriteID{},
 		twins:    map[tag.Tag[effect.States]]map[render.SpriteID]render.SpriteID{},
+		declared: map[render.SpriteID][]leveled{},
+		versions: map[render.SpriteID][lod.Levels]version{},
 	}
 }
 
@@ -98,14 +149,18 @@ func (a *Atlas) twin(e effect.Effect, of render.SpriteID) render.SpriteID {
 // the entity's box every frame.
 func (a *Atlas) Add[L render.Look](of render.Sprited, size int, look L) Slot {
 	id := of.SpriteID()
+	own := owned{id: id, size: size}
 	switch l := any(look).(type) {
 	case render.MaterialID:
 		a.shaded[id] = l
 	case render.SpriteDrawer:
 		a.atlas.Add(of, size, l)
+		own.draw = l
 	case func(dst *render.Canvas, size int):
 		a.atlas.Add(of, size, l)
+		own.draw = l
 	}
+	a.owns = append(a.owns, own)
 	return Slot{a: a, id: id, size: size}
 }
 
@@ -209,6 +264,50 @@ func (s Slot) frames(on render.SpriteID, n int,
 		s.a.atlas.Add(frames[i], s.size, draw(i))
 	}
 	return frames
+}
+
+// At has the kind drawn in look from level on to the next level declared, L1 to L3, in place
+// of every look it has under its effects, ways and frames: a SpriteDrawer drawn into the sheet at
+// its size or a MaterialID worked out per pixel.
+func (s Slot) At[L render.Look](level lod.Level, look L) Slot {
+	s.mayDeclare(level)
+	id := s.a.p.Kinds().NewSprite()
+	switch l := any(look).(type) {
+	case render.MaterialID:
+		s.a.shaded[id] = l
+	case render.SpriteDrawer:
+		s.a.atlas.Add(id, s.size, l)
+	case func(dst *render.Canvas, size int):
+		s.a.atlas.Add(id, s.size, l)
+	default:
+		panic(fmt.Sprintf("world: sprite %d at level %d in a %T: a level's look is drawn once "+
+			"or a material, never timed", s.id, level, look))
+	}
+	s.a.declared[s.id] = append(s.a.declared[s.id], leveled{level, version{id: id, drawn: true}})
+	return s
+}
+
+// Nothing has the kind drawn at no level from level on to the next level declared, L1 to L3.
+func (s Slot) Nothing(level lod.Level) Slot {
+	s.mayDeclare(level)
+	s.a.declared[s.id] = append(s.a.declared[s.id], leveled{from: level})
+	return s
+}
+
+func (s Slot) mayDeclare(level lod.Level) {
+	switch {
+	case s.a.p.looked:
+		panic(fmt.Sprintf("world: sprite %d's look at level %d declared after the renderer was "+
+			"made", s.id, level))
+	case level < lod.L1 || level > lod.L3:
+		panic(fmt.Sprintf("world: sprite %d's look declared at level %d: L0 is the look Add "+
+			"took and nothing is drawn at L4", s.id, level))
+	}
+	for _, d := range s.a.declared[s.id] {
+		if d.from == level {
+			panic(fmt.Sprintf("world: sprite %d's look at level %d declared twice", s.id, level))
+		}
+	}
 }
 
 // Turning has the sprite drawn turned the way its entity is headed. Author it facing east, its
@@ -315,10 +414,12 @@ func (s Slot) Facing(n int, draw func(angleDeg float64) render.SpriteDrawer) Slo
 	return s
 }
 
-// Close lays the sheet out and bakes it; call once, after the last Add.
 // Close lays the sheet out, bakes it and hands it to the world (Plugin.SetAtlas); call once,
 // after the last look.
 func (a *Atlas) Close() {
+	if a.levels == nil {
+		a.level()
+	}
 	a.atlas.Close()
 	a.p.write.SetAtlas(a)
 }
@@ -337,7 +438,7 @@ func (a *Atlas) lain() map[render.SpriteID]bool { return a.withKin(a.lying) }
 func (a *Atlas) stood() map[render.SpriteID]bool { return a.withKin(a.upright) }
 
 // kin visits id and every sprite drawn in its place: its twins under effects, its directional
-// twins, its frames, and theirs.
+// twins, its frames, its looks at the levels once closed, and theirs.
 func (a *Atlas) kin(id render.SpriteID, visit func(render.SpriteID)) {
 	seen := map[render.SpriteID]bool{}
 	var walk func(render.SpriteID)
@@ -359,8 +460,61 @@ func (a *Atlas) kin(id render.SpriteID, visit func(render.SpriteID)) {
 		for _, frame := range a.phased[id].frames {
 			walk(frame)
 		}
+		for _, v := range a.versions[id] {
+			if v.drawn {
+				walk(v.id)
+			}
+		}
 	}
 	walk(id)
+}
+
+// level works out what each kind is drawn as at each level, then what every sprite drawn in a
+// kind's place is: the kind's own at L0 and L1, a blob of its own look at L2 (a material itself),
+// nothing past, unless declared otherwise
+func (a *Atlas) level() {
+	for _, own := range a.owns {
+		a.versions[own.id] = a.versionsOf(own)
+	}
+	a.levels = byLevel{}
+	for _, own := range a.owns {
+		of := a.versions[own.id]
+		a.kin(own.id, func(k render.SpriteID) {
+			for int(k) >= len(a.levels) {
+				a.levels = append(a.levels, itself(render.SpriteID(len(a.levels))))
+			}
+			for l, v := range of {
+				if v.drawn && v.id == own.id {
+					v.id = k
+				}
+				a.levels[k][l] = v
+			}
+		})
+	}
+}
+
+// versionsOf is what the kind is drawn as at each level, a declaration lasting to the next; a
+// blob is drawn of its own look where none is declared for L2
+func (a *Atlas) versionsOf(own owned) [lod.Levels]version {
+	self := version{id: own.id, drawn: true}
+	of := [lod.Levels]version{self, self, self}
+	declared := a.declared[own.id]
+	slices.SortFunc(declared, func(x, y leveled) int { return int(x.from) - int(y.from) })
+	if own.draw != nil && (len(declared) == 0 || declared[0].from > lod.L2) {
+		blob := a.p.Kinds().NewSprite()
+		a.atlas.Add(blob, own.size, render.Blob(own.draw))
+		of[lod.L2] = version{id: blob, drawn: true}
+	}
+	for i, d := range declared {
+		to := lod.L4
+		if i+1 < len(declared) {
+			to = declared[i+1].from
+		}
+		for l := d.from; l < to; l++ {
+			of[l] = d.version
+		}
+	}
+	return of
 }
 
 func (a *Atlas) withKin(marked map[render.SpriteID]bool) map[render.SpriteID]bool {

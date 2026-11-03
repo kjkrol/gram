@@ -10,12 +10,12 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/gravity/internal/planar"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/uid"
 )
 
@@ -63,7 +63,7 @@ func (s *planeSystem) Init(si *goke.SysInit) {
 	s.cols = cgoke.NewColumns(qb)
 	s.landings.Bind(s.cols)
 	// a body borne by what it touches goes only where collision runs
-	s.bodies = qb.With(s.p.worldPlugin.Pace(sector.Near)).Build()
+	s.bodies = qb.With(s.p.worldPlugin.Pace(lod.Contact)).Build()
 	s.whence.init(si)
 }
 

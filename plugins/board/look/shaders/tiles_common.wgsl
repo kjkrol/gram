@@ -5,9 +5,11 @@
 // right and bottom, a coordinate in two bytes). A square board's cells are U.TileBox across; a hex
 // board's (U.TileHex) are pointy-top, U.TileSide from centre to corner, their axial q and r its
 // columns and rows. Along an axis U.TileWrap says wraps the cells run on. Where U.TileSeen, the
-// world's sectors are seen at their levels (image 3, a pixel a sector, red its view.Level;
-// U.TileSectors.xy of them across and down, U.TileSectors.zw large). What is drawn is drawn in
-// U.TileTint and, where U.TileLit, in the light on level ground as the cell under it takes it.
+// world's sectors are seen at their levels (image 3, a pixel a sector, red its lod.Level;
+// U.TileSectors.xy of them across and down, U.TileSectors.zw large): at L0 a cell's tile, its
+// covers and its way, at L1 its tile and its way, at L2 and L3 its tile in one colour alone
+// (plainAt), at L4 nothing. What is drawn is drawn in U.TileTint and, where U.TileLit, in the
+// light on level ground as the cell under it takes it.
 
 // a cell's flags (look's tiles.go)
 const flagShaded: u32 = 1u;
@@ -139,6 +141,21 @@ fn spriteAt(id: u32, lo: vec2<f32>, hi: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
     return imageSrc0At(src);
 }
 
+// plainAt is sprite id laid over the box from lo to hi at the point p in one colour: the mean of
+// four texels across its rectangle, as opaque as the sprite is at p.
+fn plainAt(id: u32, lo: vec2<f32>, hi: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
+    let r = rectOf(id);
+    let at = sampled(r, clamp((p - lo) / (hi - lo), vec2<f32>(0.0), vec2<f32>(1.0)));
+    var sum = vec4<f32>(0.0);
+    for (var k = 0u; k < 4u; k++) {
+        sum += sampled(r, vec2<f32>(0.25 + 0.5 * f32(k % 2u), 0.25 + 0.5 * f32(k / 2u)));
+    }
+    if sum.a <= 0.0 {
+        return vec4<f32>(0.0);
+    }
+    return vec4<f32>(sum.rgb / sum.a * at.a, at.a);
+}
+
 // leanOf is how far the tile of the board's cell b, its middle at mid, leans in the wind now.
 fn leanOf(b: vec2<f32>, mid: vec2<f32>) -> vec2<f32> {
     if U.TileSways < 0.5 {
@@ -188,10 +205,10 @@ fn stepOf(i: i32) -> vec2<f32> {
 }
 
 // levelOf is the level the sector the middle of the board's cell b lies in is seen at
-// (view.Level): Exact, 1, without sectors.
+// (lod.Level): L0 without sectors.
 fn levelOf(b: vec2<f32>) -> u32 {
     if U.TileSeen < 0.5 {
-        return 1u;
+        return 0u;
     }
     let s = clamp(floor(centreOf(b) / U.TileSectors.zw), vec2<f32>(0.0), U.TileSectors.xy - 1.0);
     return u32(imageSrc3At(imageSrc3Origin() + s + 0.5).r * 255.0 + 0.5);

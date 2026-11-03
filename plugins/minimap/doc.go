@@ -5,7 +5,7 @@
 // # Plugin
 //
 // [NewPlugin] makes the minimaps over a world and its [Ground], as [Config] says: how far round
-// the camera they reach, never past the world's last band, and whether they turn with the camera
+// the camera they reach, never past the world's sight, and whether they turn with the camera
 // or keep north up. A game makes it after the cameras, hands it to the players with the other
 // handlers and runs it after the cameras ([Plugin.RunPlan]).
 //
@@ -18,8 +18,8 @@
 // the circle's edge ([Plugin.Compass], an element the scene lays over the minimap in a box
 // [Overhang] bigger on every side), pointing north, at the top north up, turned round the circle
 // and with it as the minimap turns; the pointer passes through the compass to the minimap and
-// the picture under, and it hides with the minimap. The minimap is neither an anchor of the
-// world's bands nor saved.
+// the picture under, and it hides with the minimap. The minimap is neither an observer of the
+// world's levels nor saved.
 //
 // # Ground and marks
 //

@@ -167,11 +167,11 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[tag.Tags[clock.Phase]](),
 		goke.LoadComp[ceremony.Label](),
 		goke.LoadComp[tag.Tags[cond.Roles]](),
-		goke.LoadComp[sector.Band2](),
-		goke.LoadComp[sector.Band3](),
-		goke.LoadComp[sector.Band4](),
-		goke.LoadComp[sector.Band5](),
-		goke.LoadComp[sector.Off](),
+		goke.LoadComp[sector.L1](),
+		goke.LoadComp[sector.L2](),
+		goke.LoadComp[sector.L3](),
+		goke.LoadComp[sector.L4](),
+		goke.LoadComp[sector.Keen](),
 	}, w.effects.Module().LoadComps()...)
 	tokens = append(tokens, w.selves.tokens()...)
 	return append(tokens, w.plansSys.LoadComps()...)

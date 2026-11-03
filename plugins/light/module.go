@@ -10,11 +10,12 @@ import (
 var _ goke.Module = (*module)(nil)
 
 type module struct {
-	p   *Plugin
-	own goke.Runnable
+	p    *Plugin
+	pace goke.Opt
+	own  goke.Runnable
 }
 
-func (m *module) RegSystems(ecs *goke.ECS) { m.own = ecs.RegSys(&ownSun{p: m.p}) }
+func (m *module) RegSystems(ecs *goke.ECS) { m.own = ecs.RegSys(&ownSun{p: m.p, pace: m.pace}) }
 
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) { ctx.Run(m.own, d) }
 
@@ -29,6 +30,7 @@ func (m *module) LoadComps() []goke.CompToken {
 // queries
 type ownSun struct {
 	p       *Plugin
+	pace    goke.Opt
 	q       *goke.Query
 	shining goke.Comp[Shining]
 }
@@ -36,11 +38,12 @@ type ownSun struct {
 func (s *ownSun) Init(si *goke.SysInit) {
 	p := s.p
 	s.q = si.NewQueryBuilder(&s.shining).Build()
+	// the sun's own entity has no Base, so no level: it shines whatever the sectors
 	p.sources = si.NewQueryBuilder(&p.source).Optional(&p.shining).Optional(&p.base).
-		Optional(&p.z).Build()
-	// what lies beyond every band of the sectors is baked by no ground
+		Optional(&p.z).With(s.pace).Build()
+	// what lies asleep at L4 is baked by no ground
 	p.blocks = si.NewQueryBuilder(&p.blockBase, &p.blockZ, &p.blockOf).Optional(&p.blockLie).
-		Exclude(goke.Exclude[sector.Off]()).Build()
+		Exclude(goke.Exclude[sector.L4]()).Build()
 }
 
 func (s *ownSun) Update(*goke.CmdBuf, time.Duration) {

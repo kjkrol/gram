@@ -43,8 +43,8 @@ func demoTunables() []plugin.CommandHandler {
 		&stubTunable{"gram.atmosphere", []control.Setting{sw("Clouds", control.Graphics),
 			sw("High clouds' shadows", control.Graphics), sw("Frozen light", ""),
 			rg("Hour", "")}},
-		&stubTunable{"gram.topography", []control.Setting{sw("Haze over the ground", control.Graphics),
-			rg("Full care out to", control.PictureCare), sw("Show the care", control.PictureAreas)}},
+		&stubTunable{"gram.topography", []control.Setting{
+			sw("Haze over the ground", control.Graphics)}},
 		&stubTunable{"gram.vision", []control.Setting{sw("Cones of sight", "")}},
 		&stubTunable{"gram.minimap", []control.Setting{sw("Minimap", ""),
 			sw("Minimap turns with the camera", "")}},
@@ -140,7 +140,6 @@ func TestSettings_FewerColumnsWhereTheWidthIsShortTheRestScrolledIn(t *testing.T
 	left := map[string]bool{
 		"setting:Picture/Tactical/Layers/Show the layers": true,
 		"setting:Picture/Riding/Layers/Show the layers":   true,
-		"setting:Picture/Areas/Show the care":             true,
 		"setting:World/Sectors drawn":                     true,
 		"setting:Minimap/Minimap":                         true,
 		"setting:Clock/Tempo":                             true,

@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -48,10 +49,11 @@ func newShootSystem(w *world.Plugin, shoots *command.Queue[Shoot], selected tag.
 }
 
 func (s *shootSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.base).Optional(&s.marks).Optional(&s.owners).Optional(&s.z).Optional(&s.eye).Build()
+	s.query = si.NewQueryBuilder(&s.base).Optional(&s.marks).Optional(&s.owners).Optional(&s.z).
+		Optional(&s.eye).With(s.w.Pace(lod.Steady)).Build()
 }
 
-func (s *shootSystem) Update(*goke.CmdBuf, time.Duration) {
+func (s *shootSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 	if s.shoots.Empty() {
 		return
 	}
@@ -69,7 +71,7 @@ func (s *shootSystem) Update(*goke.CmdBuf, time.Duration) {
 				}
 			}
 		default:
-			s.selectedOf(i.Issuer)
+			s.selectedOf(i.Issuer, d)
 		}
 		for _, sh := range s.shooters {
 			s.fire(i.Command, sh)
@@ -94,8 +96,8 @@ func (s *shootSystem) at(id uid.UID64, cur *goke.Cursor) shooter {
 	return sh
 }
 
-func (s *shootSystem) selectedOf(by command.Issuer) {
-	for s.query.All(); s.query.Next(); {
+func (s *shootSystem) selectedOf(by command.Issuer, d time.Duration) {
+	for s.query.Paced(d); s.query.Next(); {
 		cur := s.query.Cursor()
 		bases, marks, owners := s.base.Slice(cur), s.marks.Slice(cur), s.owners.Slice(cur)
 		zs, eyes := s.z.Slice(cur), s.eye.Slice(cur)

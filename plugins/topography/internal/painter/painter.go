@@ -104,7 +104,9 @@ func (t *tile) px() float32 {
 			z := t.r.topOf(t.ID).z
 			scale := float32(0)
 			for k, p := range [4][2]float32{{t.X0, t.Y0}, {t.X1, t.Y0}, {t.X0, t.Y1}, {t.X1, t.Y1}} {
-				scale = max(scale, camera.ScaleAt(cam, p[0], p[1], z[k]))
+				if camera.InFront(cam, p[0], p[1], z[k]) {
+					scale = max(scale, camera.ScaleAt(cam, p[0], p[1], z[k]))
+				}
 			}
 			t.pixels = min(t.r.cellW, t.r.cellH) * scale
 		}
@@ -134,7 +136,10 @@ func (l *Painter) Begin(f *render.Frame, cam camera.Camera) {
 	l.cellPx = min(l.cellW, l.cellH) * cam.Zoom()
 	w, h := cam.Viewport()
 	x, y := cam.Unproject(w/2, 0, 0)
-	far := camera.ScaleAt(cam, x, y, 0)
+	far := float32(0)
+	if camera.InFront(cam, x, y, 0) {
+		far = camera.ScaleAt(cam, x, y, 0)
+	}
 	x, y = cam.Unproject(w/2, h, 0)
 	l.varies = far != camera.ScaleAt(cam, x, y, 0) || far != cam.Zoom()
 }

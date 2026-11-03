@@ -307,10 +307,17 @@ func TestNew_ACameraStartsFastenedToTheEntityItsConfigNames(t *testing.T) {
 func emptyWorld(t *testing.T, cfg cameras.Config) (w *world.Plugin, p *cameras.Plugin,
 	start func(), tick func()) {
 	t.Helper()
-	w = world.NewPlugin(world.Config{
+	return worldOf(t, world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 10, MaxSize: 10},
-	})
+	}, cfg)
+}
+
+// emptyWorld of the world wcfg says
+func worldOf(t *testing.T, wcfg world.Config, cfg cameras.Config) (w *world.Plugin,
+	p *cameras.Plugin, start func(), tick func()) {
+	t.Helper()
+	w = world.NewPlugin(wcfg)
 	p = cameras.NewPlugin(w, cfg)
 	if err := w.Carry(p); err != nil {
 		t.Fatal(err)
@@ -338,22 +345,22 @@ func emptyWorld(t *testing.T, cfg cameras.Config) (w *world.Plugin, p *cameras.P
 }
 
 func TestSight_HasACameraSeeFartherAndNearer(t *testing.T) {
-	w, p, start, tick := emptyWorld(t, cameras.Config{Detail: camera.Detail{Sight: 1000, Fog: 100}})
+	w, p, start, tick := emptyWorld(t, cameras.Config{})
 	seeing := p.Write().New(cameras.FromAbove, camera.Config{})
 	start()
+	if got := camera.SightOf(seeing); got != 1 {
+		t.Fatalf("a camera made sees %v times the world's sight, want once", got)
+	}
 	sight := func(factor float32) float32 {
 		w.Write().Carrier().Put(command.Nobody, cameras.Sight{Camera: seeing, Factor: factor})
 		tick()
-		return camera.DetailOf(seeing).Sight
+		return camera.SightOf(seeing)
 	}
-	if got := sight(cameras.SightStep); got != 1250 {
-		t.Errorf("seeing farther, the sight is %v, want 1250", got)
+	if got := sight(cameras.SightStep); got != 1.25 {
+		t.Errorf("seeing farther, the sight is %v times the world's, want 1.25", got)
 	}
-	if got := sight(1 / cameras.SightStep); got != 1000 {
-		t.Errorf("seeing nearer again, the sight is %v, want 1000", got)
-	}
-	if d := camera.DetailOf(seeing); d.Fog != 100 {
-		t.Errorf("the fog is %v, want the Config's 100 kept", d.Fog)
+	if got := sight(1 / cameras.SightStep); got != 1 {
+		t.Errorf("seeing nearer again, the sight is %v times the world's, want once", got)
 	}
 }
 

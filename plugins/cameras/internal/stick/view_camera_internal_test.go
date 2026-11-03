@@ -101,7 +101,6 @@ func TestViewCamera_PersistedRoundTripKeepsTheView(t *testing.T) {
 	c.next()
 	c.Turn(0.7)
 	c.ZoomIn(1.5, 320, 320)
-	c.SetDetail(contract.Detail{Sight: 900})
 	c.See(2)
 	bx, by := c.Project(300, 280, 4)
 	c.tactical.scale, c.tactical.length, c.tactical.ortho = 3, 700, true
@@ -114,9 +113,9 @@ func TestViewCamera_PersistedRoundTripKeepsTheView(t *testing.T) {
 	}
 	carry(t, saved, restored)
 	other.Restore()
-	if other.Detail().Sight != 1800 {
-		t.Errorf("restored camera sees %v far, want the 1800 it was saved seeing",
-			other.Detail().Sight)
+	if other.Sight() != 2 {
+		t.Errorf("restored camera sees %v times the world's sight, want the twice it was saved "+
+			"seeing", other.Sight())
 	}
 	if !other.inPersp || other.cur != contract.Camera(other.persp) {
 		t.Fatal("restored camera is not in the perspective view")

@@ -15,10 +15,11 @@ import (
 )
 
 // KeepSystem keeps o true to the world: every step it lets go of the holds of whoever left the
-// world and has every unit hold the cell it stands on, on the level its feet are on, the one its
-// footprint on g is laid from. As it starts every unit holds the cell it is At.
-func KeepSystem(o cell.Occupancy, footing Footing, g grid.Grid) goke.System {
-	s := &keepSystem{occupancy: o, footing: footing, grid: g, span: g.CellSpan()}
+// world and has every unit pace says, an option of its query (nil, all), hold the cell it stands
+// on, on the level its feet are on, the one its footprint on g is laid from. As it starts every
+// unit holds the cell it is At.
+func KeepSystem(o cell.Occupancy, footing Footing, g grid.Grid, pace goke.Opt) goke.System {
+	s := &keepSystem{occupancy: o, footing: footing, grid: g, span: g.CellSpan(), pace: pace}
 	s.gone, s.holding = s.isGone, s.isHolding
 	return s
 }
@@ -32,6 +33,7 @@ var _ goke.System = (*keepSystem)(nil)
 type keepSystem struct {
 	occupancy cell.Occupancy
 	footing   Footing
+	pace      goke.Opt
 	units     *goke.Query // who is still in the world, and where the units stand
 	base      goke.Comp[world.Base]
 	at        goke.OptComp[unit.At]
@@ -49,29 +51,34 @@ type keepSystem struct {
 }
 
 func (s *keepSystem) Init(si *goke.SysInit) {
-	s.units = si.NewQueryBuilder(&s.base).Optional(&s.at).Optional(&s.mover).Optional(&s.z).
-		Optional(&s.states).Build()
+	qb := si.NewQueryBuilder(&s.base).Optional(&s.at).Optional(&s.mover).Optional(&s.z).
+		Optional(&s.states)
+	if s.pace != nil {
+		qb.With(s.pace)
+	}
+	s.units = qb.Build()
 	s.statesID = si.RegComp[tag.Tags[unit.States]]()
 	if s.occupancy != nil {
-		s.keep(true)
+		s.keep(s.units.All(), true)
 	}
 }
 
-func (s *keepSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
+func (s *keepSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	if s.occupancy == nil {
 		return
 	}
 	s.occupancy.Release(s.gone)
-	s.keep(false)
+	s.keep(s.units.Paced(d), false)
 	for _, id := range s.lacking { // no batch here: a move by id at once
 		cb.AddOne(id, s.statesID, tag.Tags[unit.States](0).With(unit.Entered))
 	}
 	s.lacking = s.lacking[:0]
 }
 
-func (s *keepSystem) keep(starting bool) {
-	for s.units.All(); s.units.Next(); {
-		cur := s.units.Cursor()
+// q is the units' query, its walk begun
+func (s *keepSystem) keep(q *goke.Query, starting bool) {
+	for q.Next() {
+		cur := q.Cursor()
 		ats := s.at.Slice(cur)
 		if ats == nil {
 			continue

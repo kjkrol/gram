@@ -2,12 +2,13 @@ package look
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 )
 
-// seenSectors is a frame's sectors as the shaders read them: a pixel a sector, red its
-// view.Level, and where they lie
+// seenSectors is a frame's sectors as the shaders read them: a pixel a sector, red its level
+// (lod.Level, L4 for one not seen), and where they lie
 type seenSectors struct {
 	img        *render.Image
 	pix, drawn []byte
@@ -35,8 +36,10 @@ func (s *seenSectors) see(v *view.View) {
 		s.pix, s.drawn = make([]byte, n), nil
 		s.img = render.NewImage(s.cols, s.rows)
 	}
-	clear(s.pix)
-	v.Sectors(func(i int, _ geom.AABB, l view.Level) { s.pix[4*i], s.pix[4*i+3] = byte(l), 255 })
+	for i := 0; i < n; i += 4 {
+		s.pix[i], s.pix[i+3] = byte(lod.L4), 255
+	}
+	v.Sectors(func(i int, _ geom.AABB, l lod.Level) { s.pix[4*i] = byte(l) })
 	if string(s.pix) != string(s.drawn) {
 		s.img.WritePixels(s.pix)
 		s.drawn = append(s.drawn[:0], s.pix...)

@@ -24,6 +24,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/bullet"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
@@ -32,6 +33,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -83,6 +85,10 @@ type scene struct {
 	heights, eyes bool
 	field         collision.Field
 	pieces        []piece
+	// cut into sectors by ladder round the observers
+	sectors   world.SectorsCfg
+	ladder    lod.Ladder
+	observers sector.Observers
 }
 
 type rig struct {
@@ -107,6 +113,7 @@ type rig struct {
 	z      goke.OptComp[world.Z]
 	marks  goke.OptComp[tag.Tags[effect.States]]
 	owned  goke.OptComp[tag.Tags[owner.Family]]
+	keen   goke.OptComp[sector.Keen]
 }
 
 const tps = 60
@@ -120,7 +127,12 @@ func newRig(t *testing.T, sc scene) *rig {
 		Space:    world.SpaceCfg{Width: sc.width, Height: sc.height, Edges: sc.edges},
 		Entities: world.EntitiesCfg{MaxCount: len(sc.pieces) + 8, MinSize: 4, MaxSize: 40},
 		Heights:  sc.heights,
+		Sectors:  sc.sectors,
+		LOD:      sc.ladder,
 	})
+	if sc.observers != nil {
+		w.Write().Observe(sc.observers)
+	}
 	m := motion.NewPlugin(w)
 	c := collision.NewPlugin(w, m)
 	if sc.field != nil {
@@ -206,7 +218,8 @@ func (r *rig) start() {
 		t.Fatal(err)
 	}
 	systems := append(ctx.systems(), goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		r.q = si.NewQueryBuilder(&r.base).Optional(&r.coll).Optional(&r.flight).Optional(&r.z).Optional(&r.marks).Optional(&r.owned).Build()
+		r.q = si.NewQueryBuilder(&r.base).Optional(&r.coll).Optional(&r.flight).Optional(&r.z).
+			Optional(&r.marks).Optional(&r.owned).Optional(&r.keen).Build()
 	}})
 	r.ecs = ctx.ecs
 	r.ecs.Setup(systems...)
@@ -246,6 +259,7 @@ type found struct {
 	contacts []collision.Contact
 	marks    tag.Tags[effect.States]
 	owned    tag.Tags[owner.Family]
+	keen     *sector.Keen
 }
 
 func (r *rig) read(keep func(f found) bool) []found {
@@ -253,7 +267,7 @@ func (r *rig) read(keep func(f found) bool) []found {
 	for r.q.All(); r.q.Next(); {
 		cur := r.q.Cursor()
 		bases, colls, flights, zs := r.base.Slice(cur), r.coll.Slice(cur), r.flight.Slice(cur), r.z.Slice(cur)
-		marks, owned := r.marks.Slice(cur), r.owned.Slice(cur)
+		marks, owned, keens := r.marks.Slice(cur), r.owned.Slice(cur), r.keen.Slice(cur)
 		for i, id := range cur.IDs {
 			f := found{id: id, base: bases[i]}
 			if colls != nil {
@@ -272,6 +286,10 @@ func (r *rig) read(keep func(f found) bool) []found {
 			}
 			if owned != nil {
 				f.owned = owned[i]
+			}
+			if keens != nil {
+				k := keens[i]
+				f.keen = &k
 			}
 			if keep(f) {
 				out = append(out, f)

@@ -13,10 +13,10 @@ import (
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/minimap"
@@ -24,7 +24,6 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
@@ -73,11 +72,12 @@ func main() {
 	props := game.Props{
 		Title: "gram expanse",
 		Description: "A world of about 98 km a side, a torus, and a hundred thousand boxes " +
-			"bouncing about it. The world lives in bands round the camera: near it everything " +
-			"moves and collides, farther the boxes move four times as seldom and pass through " +
-			"each other, beyond the bands nothing stirs. The settings screen (F10) shows the " +
-			"sectors by their bands, by what the camera sees, or not at all, and switches the " +
-			"bands off, the whole world alive, and on again. The minimap shows 9 km round the " +
+			"bouncing about it. The boxes are alive within 6 km of the camera, the last 1.8 km " +
+			"in the fog, and frozen beyond it: seen at half a pixel a unit or more everything " +
+			"moves and collides, zoomed out farther the boxes move half as often and pass " +
+			"through each other. The settings screen (F10) shows the sectors by the level they " +
+			"are ticked at, by what the camera sees, or not at all, and switches the levels " +
+			"off, the whole world alive, and on again. The minimap shows 6 km round the " +
 			"camera; a click on it takes the camera there. WSAD scroll, = and - zoom, ~ the " +
 			"telemetry.",
 		ScreenWidth:  ScreenWidth,
@@ -98,12 +98,11 @@ func main() {
 				MinSize:  BoxSize,
 				MaxSize:  BoxSize,
 			},
-			Sectors: world.SectorsCfg{
-				Buckets: 8,
-				Bands: []sector.Band{
-					{Reach: scale.Units(4_500)},
-					{Reach: scale.Units(12_000), Pace: 4},
-				},
+			Sectors: world.SectorsCfg{Buckets: 8},
+			LOD: lod.Ladder{
+				Scales: [lod.Levels - 1]float32{0.5, 0, 0, 0},
+				Sight:  scale.Units(6_000),
+				Fog:    scale.Units(1_800),
 			},
 		}).
 		Plugins(a.makePlugins).
@@ -122,14 +121,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.world = w
 	a.motion = motion.NewPlugin(a.world)
 	a.collision = collision.NewPlugin(a.world, a.motion).WithStats(&a.collisionStats)
-	a.cameras = cameras.NewPlugin(a.world, cameras.Config{
-		Detail: camera.Detail{
-			Sight:  scale.Units(15_000),
-			Fog:    scale.Units(3_000),
-			Coarse: 0.5,
-		},
-	})
-	a.minimap = minimap.NewPlugin(a.world, nil, minimap.Config{Reach: scale.Units(9_000)})
+	a.cameras = cameras.NewPlugin(a.world, cameras.Config{})
+	a.minimap = minimap.NewPlugin(a.world, nil, minimap.Config{Reach: scale.Units(6_000)})
 	a.telemetry = telemetry.NewPlugin(a.world)
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.minimap)
 	a.world.Write().ShowSectors(world.SectorBands)

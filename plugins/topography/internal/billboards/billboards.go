@@ -68,6 +68,9 @@ func ridden(cam camera.Camera, x0, y0, x1, y1 float32) bool {
 func billboard(cam camera.Camera, x, y, z, w, h float32) render.Corners {
 	sx, sy := cam.Project(x, y, z)
 	_, top := cam.Project(x, y, z+h)
-	hw, hh := w*camera.ScaleAt(cam, x, y, z)/2, max(sy-top, 0)
+	hw, hh := float32(0), max(sy-top, 0)
+	if camera.InFront(cam, x, y, z) {
+		hw = w * camera.ScaleAt(cam, x, y, z) / 2
+	}
 	return render.Corners{{sx - hw, sy - hh}, {sx + hw, sy - hh}, {sx - hw, sy}, {sx + hw, sy}}
 }

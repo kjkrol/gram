@@ -14,10 +14,10 @@
 // of a frame reads beside the uniforms an image ([RegisterImage], [Frame.Image]).
 //
 // Pictures are [Image]s on the GPU, drawn into and filled ([Image.FillRect] and kin); sprites
-// are painted on the CPU into an [Atlas] ([SpriteDrawer], [Solid] and kin), text in a [Font]. A
-// [Look] is a drawer, a material or frames ([Phases], [Loops]); an [Appearance] is the sprite an
-// entity is drawn from. A color.RGBA given to render is straight alpha; render
-// premultiplies it for the GPU.
+// are painted on the CPU into an [Atlas] ([SpriteDrawer], [Solid] and kin, [Blob] one seen from
+// afar), text in a [Font]. A [Look] is a drawer, a material or frames ([Phases], [Loops]); an
+// [Appearance] is the sprite an entity is drawn from. A color.RGBA given to render is straight
+// alpha; render premultiplies it for the GPU.
 //
 // The machinery is render/internal's: gpu (the device), wgsl (the shaders' library, the materials
 // and the frame's images), gfx (images, depths, meshes, shaders), atlas, text, feed, compose (the

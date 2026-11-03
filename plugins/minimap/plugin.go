@@ -18,7 +18,7 @@ import (
 // Config is how far round its camera a minimap shows and whether it turns with it.
 type Config struct {
 	// Reach is how far from the camera's middle a minimap shows, to its picture's nearer edge,
-	// in world units; never past a world's last band.
+	// in world units; never past the world's sight (world.Config.LOD).
 	Reach float32
 	// Turning has a minimap turn with its camera, the way the camera looks running up it; else
 	// north is up.
@@ -55,7 +55,7 @@ var _ plugin.Tunable = (*Plugin)(nil)
 var _ plugin.Restorer = (*Plugin)(nil)
 
 // NewPlugin makes the minimaps of the world w over ground, nil for none, as cfg says; a reach past
-// the world's last band panics.
+// the world's sight panics.
 func NewPlugin(w *world.Plugin, ground Ground, cfg Config) *Plugin {
 	checkReach(w, cfg.Reach)
 	p := &Plugin{w: w, ground: ground, cfg: cfg}
@@ -67,10 +67,8 @@ func NewPlugin(w *world.Plugin, ground Ground, cfg Config) *Plugin {
 }
 
 func checkReach(w *world.Plugin, reach float32) {
-	bands := w.Res.Config.Sectors.Bands
-	if len(bands) > 0 && reach > bands[len(bands)-1].Reach {
-		panic(fmt.Sprintf("minimap: a reach of %v past the world's last band, %v", reach,
-			bands[len(bands)-1].Reach))
+	if sight := w.Res.Config.LOD.Sight; sight > 0 && reach > sight {
+		panic(fmt.Sprintf("minimap: a reach of %v past the world's sight, %v", reach, sight))
 	}
 }
 

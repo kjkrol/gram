@@ -53,6 +53,7 @@ type Renderer struct {
 	bodies   bool
 	bodiesTo float32 // of the camera's sight the bodies reach
 	coarse   int     // of the ground's pixels each way a pixel of the clouds spans
+	sight    func(cam camera.Camera) float32
 
 	opts     render.DrawMeshOptions
 	layOpts  render.DrawMeshOptions
@@ -137,6 +138,10 @@ func (r *Renderer) Bodies(bodies bool) { r.bodies = bodies }
 // BodiesTo has the bodies drawn out to share of the camera's sight from where it looks and flat
 // beyond; 1 or more, everywhere; nothing where the camera has no sight.
 func (r *Renderer) BodiesTo(share float32) { r.bodiesTo = share }
+
+// Sight has a camera's sight be what sight says, in world units, 0 without end; nil, every
+// camera's without end.
+func (r *Renderer) Sight(sight func(cam camera.Camera) float32) { r.sight = sight }
 
 // Overlies: drawn over the figures' ground (render.Overlying).
 func (*Renderer) Overlies() {}
@@ -272,10 +277,10 @@ func flag(on bool) float32 {
 
 // reach is how far from where cam looks the bodies are drawn, world units; 0 everywhere
 func (r *Renderer) reach(cam camera.Camera) float32 {
-	if r.bodiesTo <= 0 || r.bodiesTo >= 1 {
+	if r.bodiesTo <= 0 || r.bodiesTo >= 1 || r.sight == nil {
 		return 0
 	}
-	if sight := camera.DetailOf(cam).Sight; sight > 0 {
+	if sight := r.sight(cam); sight > 0 {
 		return sight * r.bodiesTo
 	}
 	return 0

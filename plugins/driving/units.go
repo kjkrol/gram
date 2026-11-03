@@ -12,6 +12,7 @@ import (
 )
 
 type units struct {
+	pace   goke.Opt
 	query  *goke.Query
 	base   goke.Comp[world.Base]
 	steer  goke.Comp[steering.Steering]
@@ -31,9 +32,12 @@ func (u *units) build(si *goke.SysInit) {
 	if u.query != nil {
 		return
 	}
-	u.query = si.NewQueryBuilder(&u.base, &u.steer).
+	qb := si.NewQueryBuilder(&u.base, &u.steer).
 		Optional(&u.course).Optional(&u.driven).Optional(&u.at).Optional(&u.mover).
 		Optional(&u.owners).Optional(&u.marks).Optional(&u.states).Optional(&u.places).
-		Optional(&u.z).Optional(&u.drift).
-		Build()
+		Optional(&u.z).Optional(&u.drift)
+	if u.pace != nil {
+		qb.With(u.pace)
+	}
+	u.query = qb.Build()
 }

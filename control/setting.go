@@ -10,15 +10,14 @@ import "github.com/kjkrol/ceremony/command"
 type Setting interface{ setting() }
 
 // The sections of the settings screen the plugins share: the picture, how it is drawn in a
-// tactical view and riding in first person and the layers of each, the ground's care, the areas
-// shown, the graphics.
+// tactical view and riding in first person and the layers of each, the areas shown, the
+// graphics.
 const (
 	Picture               = "Picture"
 	PictureTactical       = "Picture/Tactical"
 	PictureTacticalLayers = "Picture/Tactical/Layers"
 	PictureRiding         = "Picture/Riding"
 	PictureRidingLayers   = "Picture/Riding/Layers"
-	PictureCare           = "Picture/Care"
 	PictureShadows        = "Picture/Shadows"
 	PictureAreas          = "Picture/Areas"
 	Graphics              = "Picture/Graphics"

@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -39,11 +40,22 @@ var fans = render.NewMeshShaderWith("hexes", render.Files(shaders, "shaders/hexe
 		{Name: "Base", Size: 1}, {Name: "Facing", Size: 2},
 	}).Instanced(3)
 
-// a cell's top in six triangles and a wall of two down each of its six edges; drawn coarsely,
-// its top alone
+// a sector seen as a sheet: a quad over its box at the mean height of its cells' corners,
+// coloured from the board from above
+var sheets = render.NewMeshShaderWith("hexes sheet", render.Files(shaders, "shaders/sheet.wgsl"),
+	[]render.Uniform{
+		{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1},
+		{Name: "TopPx", Size: 1},
+		{Name: "HazeUp", Size: 1}, {Name: "HazeWay", Size: 3},
+		{Name: "Sight", Size: 4},
+	}).Instanced(2)
+
+// a cell's top in six triangles and a wall of two down each of its six edges; drawn at L1 and
+// L2, its top alone; a sheet's two triangles
 const (
 	topVertices   = 18
 	wholeVertices = topVertices + 36
+	sheetVertices = 6
 )
 
 // the floats of a cell's instance: three vec4s
@@ -90,9 +102,13 @@ type Ground struct {
 	facing *render.Image
 	slopes []float64
 	pix    []byte
-	// the sectors the cells are laid by, nil for none, and each one's run of them
+	// the sectors the cells are laid by, nil for none, each one's run of them and the mean height
+	// of its cells' corners; the sheets a frame draws and how many sectors it drew at each level
 	sectors view.Sectors
 	runs    []run
+	heights []float32
+	sheet   []float32
+	counts  [lod.Levels]int
 	opts    render.DrawMeshOptions
 	own     map[string]any
 	uv      map[string]any
@@ -158,7 +174,6 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	h.set("TopPx", h.px)
 	line, width := h.gridOf(cam)
 	h.set("GridLine", line[:]...)
-	h.set("GridWidth", width)
 	hazed, _ := h.drawn()
 	seeing, up, way := h.sky.Air().Seen(cam, hazed)
 	h.set("Visibility", seeing)
@@ -171,17 +186,32 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	h.set("Facing", float32(h.cols), float32(h.facing.Bounds().Dx()))
 	h.opts.Depth, h.opts.Images = t.Depth, [4]*render.Image{h.top, h.facing, nil, nil}
 	h.each(seen, func(cells []float32, vertices int) {
+		// the grid at L0 alone, whose cells are drawn whole
+		grid := width
+		if vertices != wholeVertices {
+			grid = 0
+		}
+		h.set("GridWidth", grid)
 		h.opts.Instances, h.opts.Vertices = cells, vertices
 		t.Screen.DrawMesh(nil, fans, &h.opts)
 	})
+	if len(h.sheet) > 0 {
+		h.opts.Instances, h.opts.Vertices = h.sheet, sheetVertices
+		t.Screen.DrawMesh(nil, sheets, &h.opts)
+	}
 }
+
+// Levels is how many sectors the last frame drew at each level.
+func (h *Ground) Levels() [lod.Levels]int { return h.counts }
 
 // a sector's cells among the instances, from first, n of them
 type run struct{ first, n int }
 
-// calls draw with the cells seen, each sector's whole cells or, coarsely, their tops, sectors
-// following one another at one level at one go; every cell whole in a world of no sectors
+// calls draw with the cells seen, each sector's whole cells at L0 or their tops at L1 and L2,
+// sectors following one another at one level at one go, and lays the sheets of those at L3;
+// every cell whole in a world of no sectors
 func (h *Ground) each(seen *view.View, draw func(cells []float32, vertices int)) {
+	h.counts, h.sheet = [lod.Levels]int{}, h.sheet[:0]
 	if h.sectors == nil {
 		draw(h.cells, wholeVertices)
 		return
@@ -193,13 +223,19 @@ func (h *Ground) each(seen *view.View, draw func(cells []float32, vertices int))
 			draw(h.cells[cellFloats*at.first:cellFloats*(at.first+at.n)], vertices)
 		}
 	}
-	seen.Sectors(func(i int, _ geom.AABB, level view.Level) {
+	seen.Sectors(func(i int, box geom.AABB, level lod.Level) {
 		r := h.runs[i]
 		if r.n == 0 {
 			return
 		}
+		h.counts[level]++
+		if level >= lod.L3 {
+			h.sheet = append(h.sheet, box.TopLeft.X, box.TopLeft.Y, box.BottomRight.X,
+				box.BottomRight.Y, h.heights[i], 0, 0, 0)
+			return
+		}
 		v := wholeVertices
-		if level != view.Exact {
+		if level != lod.L0 {
 			v = topVertices
 		}
 		if v == vertices && at.first+at.n == r.first {
@@ -290,10 +326,13 @@ func (h *Ground) lay() {
 		by[i] = append(by[i], c)
 	})
 	h.runs = append(h.runs[:0], make([]run, len(by))...)
+	h.heights = append(h.heights[:0], make([]float32, len(by))...)
 	for i, cs := range by {
 		h.runs[i] = run{len(h.cells) / cellFloats, len(cs)}
 		for _, c := range cs {
 			add(c)
+			// a cell's level is the mean of its six corners
+			h.heights[i] += h.cells[len(h.cells)-cellFloats+2] / float32(len(cs))
 		}
 	}
 }

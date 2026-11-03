@@ -55,11 +55,21 @@ type spot struct{ x, y float32 }
 func litWorld(t *testing.T, cfg light.Config, define func(w *world.Plugin, p *light.Plugin),
 	after ...goke.System) (w *world.Plugin, p *light.Plugin, tick func()) {
 	t.Helper()
-	w = world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
-		Entities: world.EntitiesCfg{MaxCount: 16, MinSize: 4, MaxSize: 4},
-		Heights:  true,
-	})
+	return litWorldIn(t, levelWorld, cfg, define, after...)
+}
+
+var levelWorld = world.Config{
+	Space:    world.SpaceCfg{Width: 1000, Height: 1000},
+	Entities: world.EntitiesCfg{MaxCount: 16, MinSize: 4, MaxSize: 4},
+	Heights:  true,
+}
+
+// litWorld in a world of wcfg
+func litWorldIn(t *testing.T, wcfg world.Config, cfg light.Config,
+	define func(w *world.Plugin, p *light.Plugin),
+	after ...goke.System) (w *world.Plugin, p *light.Plugin, tick func()) {
+	t.Helper()
+	w = world.NewPlugin(wcfg)
 	p = light.NewPlugin(w, cfg)
 	if err := w.Carry(p); err != nil {
 		t.Fatal(err)

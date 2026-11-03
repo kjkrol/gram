@@ -43,9 +43,13 @@ func New(g grid.Grid, cells *terrain.Cells, tick host.TickSource,
 // Hosts take the rules of a unit.Standing and of a cell.Now.
 func (r *Rules) Hosts() []host.Host { return []host.Host{&r.standing, &r.now} }
 
-// StandingSystem walks every unit on the board every step: its Pace, a fall logged, the rules of
-// a unit.Standing.
-func (r *Rules) StandingSystem() goke.System { return newStandingSystem(r) }
+// StandingSystem walks every unit on the board every step as pace says, an option of its query
+// (nil, every unit): its Pace, a fall logged, the rules of a unit.Standing.
+func (r *Rules) StandingSystem(pace goke.Opt) goke.System {
+	s := newStandingSystem(r)
+	s.paced = pace
+	return s
+}
 
 // CellSystem runs the rules of a cell.Now over every cell.
 func (r *Rules) CellSystem() goke.System { return newCellSystem(r) }

@@ -4,6 +4,7 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/uid"
 )
 
@@ -20,11 +21,13 @@ type View struct {
 	bounds func() geom.AABB
 	add    func(uid.UID64) // In.Add, bound once
 
-	// a camera seeing a world cut into sectors: each sector's level, how far it sees and from where
+	// a camera seeing a world cut into sectors: each sector's level, how far it sees, the fog
+	// before it and from where
 	cam     camera.Camera
 	sectors Sectors
-	levels  []Level
-	detail  camera.Detail
+	levels  []lod.Level
+	sight   float32
+	fog     float32
 	from    geom.Vec
 	sighted bool
 }
@@ -46,7 +49,8 @@ func (v *View) CopyInto(dst *View) {
 	if v.Culled {
 		dst.In.words = append(dst.In.words, v.In.words...)
 	}
-	dst.sectors, dst.detail, dst.from, dst.sighted = v.sectors, v.detail, v.from, v.sighted
+	dst.sectors, dst.from, dst.sighted = v.sectors, v.from, v.sighted
+	dst.sight, dst.fog = v.sight, v.fog
 	dst.levels = append(dst.levels[:0], v.levels...)
 }
 

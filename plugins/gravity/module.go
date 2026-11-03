@@ -17,7 +17,7 @@ type module struct {
 }
 
 func (m *module) RegSystems(ecs *goke.ECS) {
-	m.give = ecs.RegSys(&giveSystem{})
+	m.give = ecs.RegSys(&giveSystem{p: m.p})
 	if m.p.across {
 		m.fall = ecs.RegSys(newPlaneSystem(m.p))
 	} else {

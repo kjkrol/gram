@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -57,7 +58,7 @@ func newGroupRigWith(t testing.TB, pool *parallel.Pool, starts []cell.ID,
 	}
 	r := &groupRig{}
 	r.nw = newNavWorldIn(t, pool, groupSide, groupSide, groupCell, units, world.SectorsCfg{},
-		prepare, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		lod.Ladder{}, prepare, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 			r.ordered = si.NewQueryBuilder(&r.orders, &r.at).Build()
 		}})
 	r.coord = r.nw.nav.module.navigationSystem.Routing.(*routing.Coordinator)

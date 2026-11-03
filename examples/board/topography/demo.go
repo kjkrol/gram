@@ -12,10 +12,10 @@ import (
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/atmosphere"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
@@ -42,7 +42,6 @@ import (
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
@@ -125,12 +124,11 @@ func main() {
 				MinSize:  2,
 				MaxSize:  CellSize,
 			},
-			Sectors: world.SectorsCfg{
-				Buckets: 2,
-				Bands: []sector.Band{
-					{Reach: scale.Units(16_000)},
-					{Reach: scale.Units(32_000), Pace: 4},
-				},
+			Sectors: world.SectorsCfg{Buckets: 2},
+			LOD: lod.Ladder{
+				Scales: [lod.Levels - 1]float32{0.5, 0.25, 0.12, 0},
+				Sight:  scale.Units(30_000),
+				Fog:    scale.Units(6_000),
 			},
 			Heights: true,
 		}).
@@ -211,15 +209,10 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		Cell:        CellSize,
 		HeightUnit:  1,
 		Cage:        a.topography.Read(0),
-		Levers:      []cameras.Lever{a.topography.Write(), a.light.Write(), a.atmosphere.Write()},
-		Detail: camera.Detail{
-			Sight:  scale.Units(30_000),
-			Fog:    scale.Units(6_000),
-			Coarse: 0.25,
-		},
-		Tactical: cameras.Knobs{Strategy: cameras.InLayers, Layers: true},
-		Riding:   cameras.Knobs{Strategy: cameras.InLayers, Layers: true},
-		Arm:      cameras.Arm{Pitch: 20, Distance: 3, Aim: 1, Tilts: true, Zooms: true},
+		Levers:      []cameras.Lever{a.light.Write(), a.atmosphere.Write()},
+		Tactical:    cameras.Knobs{Strategy: cameras.InLayers, Layers: true},
+		Riding:      cameras.Knobs{Strategy: cameras.InLayers, Layers: true},
+		Arm:         cameras.Arm{Pitch: 20, Distance: 3, Aim: 1, Tilts: true, Zooms: true},
 	})
 	a.minimap = minimap.NewPlugin(a.world, a.topography.Write(), minimap.Config{
 		Reach:   scale.Units(12_000),
@@ -232,7 +225,6 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection,
 		a.nav, a.driving,
 		a.atmosphere, a.topography, a.vision, a.bridges, a.minimap, a.light)
-	a.topography.Write().AdaptCare(true)
 	a.light.Write().AdaptShadows(true)
 	a.atmosphere.Write().ShowClouds(atmosphere.AllBodies)
 	a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground: true, Figures: true, High: true})

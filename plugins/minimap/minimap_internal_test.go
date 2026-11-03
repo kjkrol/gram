@@ -16,10 +16,10 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gputest"
 	"github.com/kjkrol/gram/ui"
@@ -152,16 +152,17 @@ func carried(t *testing.T, w *world.Plugin, p *Plugin) *Plugin {
 	return p
 }
 
-func TestMinimap_RefusesAReachPastTheLastBand(t *testing.T) {
+func TestMinimap_RefusesAReachPastTheSight(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 4096, Height: 512},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 5, MaxSize: 20},
-		Sectors:  world.SectorsCfg{Bands: []sector.Band{{Reach: 600}}},
+		Sectors:  world.SectorsCfg{Buckets: 4},
+		LOD:      lod.Ladder{Sight: 600},
 	})
 	NewPlugin(w, nil, Config{Reach: 600})
 	defer func() {
 		if recover() == nil {
-			t.Error("a reach of 700 past the band of 600 was taken")
+			t.Error("a reach of 700 past the sight of 600 was taken")
 		}
 	}()
 	NewPlugin(w, nil, Config{Reach: 700})

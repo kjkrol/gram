@@ -19,9 +19,9 @@ type indexer struct {
 
 func (x *indexer) init(si *goke.SysInit) { x.query = heldQuery(si, &x.base) }
 
-// what the space holds: every entity but those beyond the last band of the sectors
+// what the space holds: every entity but those asleep at L4
 func heldQuery(si *goke.SysInit, base *goke.Comp[Base]) *goke.Query {
-	return si.NewQueryBuilder(base).Exclude(goke.Exclude[sector.Off]()).Build()
+	return si.NewQueryBuilder(base).Exclude(goke.Exclude[sector.L4]()).Build()
 }
 
 func (x *indexer) settle() {

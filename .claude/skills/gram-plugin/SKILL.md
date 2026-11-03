@@ -44,11 +44,13 @@ a plugin's root and commands, settings, float32) are CLAUDE.md's; the game's sid
 - **One walk, many rules**: a plugin runs the rules of its moment (`host.Rules`, `PairRules`,
   `StepRules`) inside a pass it makes anyway, never a system per behaviour. Rules are not
   registered: they ride on roles. A plugin's own rules (navigation's crowd) it adds to its host.
-- **A system goes in the world's bands by its plugin's policy, one query and one system, never
-  one a band**: it holds `w.Pace(policy)` (nil in a test building it bare: `if s.pace != nil {
-  qb.With(s.pace) }`), walks `q.Paced(d)` scaling what is "a tick" by `q.Dt()/d`, and walks
-  `All()` asking `q.Due()` where it must touch blocks out of turn. An exported system offers
-  `Paced(pace goke.Opt)`.
+- **A system goes at the sectors' levels by its `lod.Paces`, one query and one system, never
+  one a level, and none without**: it holds `w.Pace(paces)` (`lod.Steady` for one that only
+  must skip the sleepers at L4, `Contact` through L2, `Slowing(n...)` integrating a longer step;
+  nil in a test building it bare: `if s.pace != nil { qb.With(s.pace) }`), walks `q.Paced(d)`
+  scaling what is "a tick" by `q.Dt()/d`, and walks `All()` only where it must find a sleeper by
+  identity (a `Seek`, a load). An exported system offers `Paced(pace goke.Opt)`. A kind that
+  must keep its sector awake carries `sector.Keen{Level}` (a shot in flight).
 - **The store is behind a contract, at no cost over typed code** (`bench/behaviour_test.go`): rows
   read a block at a time (`cgoke.Columns`), writes staged in goke's command buffer. `host.Tick`
   carries no command buffer; the binding's systems write through their own. The tag families join

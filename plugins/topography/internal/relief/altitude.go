@@ -20,6 +20,7 @@ var _ goke.System = (*altitudeSystem)(nil)
 type altitudeSystem struct {
 	relief   *Relief
 	surfaces ground.Surfaces
+	pace     goke.Opt
 
 	query  *goke.Query
 	base   goke.Comp[world.Base]
@@ -37,20 +38,25 @@ type altitudeSystem struct {
 
 // AltitudeSystem is the goke.System keeping the movers on r at their heights, standing on what
 // surfaces says, or on r's ground where it is nil, one bigger than a cell on the highest ground
-// under its box. Run it in every step of the simulation, after movement and collisions.
-func (r *Relief) AltitudeSystem(surfaces ground.Surfaces) goke.System {
-	return &altitudeSystem{relief: r, surfaces: surfaces, span: r.grid.CellSpan()}
+// under its box, each as pace says (nil, all). Run it in every step of the simulation, after
+// movement and collisions.
+func (r *Relief) AltitudeSystem(surfaces ground.Surfaces, pace goke.Opt) goke.System {
+	return &altitudeSystem{relief: r, surfaces: surfaces, pace: pace, span: r.grid.CellSpan()}
 }
 
 func (s *altitudeSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.base, &s.z, &s.mover).Optional(&s.driven).Optional(&s.course).
-		Exclude(goke.Exclude[motion.Drift]()).Build()
-	s.standing = si.NewQueryBuilder(&s.base, &s.z, &s.on).Optional(&s.floor).Build()
+	movers := si.NewQueryBuilder(&s.base, &s.z, &s.mover).Optional(&s.driven).Optional(&s.course).
+		Exclude(goke.Exclude[motion.Drift]())
+	standing := si.NewQueryBuilder(&s.base, &s.z, &s.on).Optional(&s.floor)
+	if s.pace != nil {
+		movers.With(s.pace)
+		standing.With(s.pace)
+	}
+	s.query, s.standing = movers.Build(), standing.Build()
 }
 
 func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
-	s.query.All()
-	for s.query.Next() {
+	for s.query.Paced(d); s.query.Next(); {
 		cursor := s.query.Cursor()
 		bases, zs, movers := s.base.Slice(cursor), s.z.Slice(cursor), s.mover.Slice(cursor)
 		drivens, courses := s.driven.Slice(cursor), s.course.Slice(cursor)
@@ -83,7 +89,7 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 			zs[i].Altitude = alt
 		}
 	}
-	for s.standing.All(); s.standing.Next(); {
+	for s.standing.Paced(d); s.standing.Next(); {
 		cursor := s.standing.Cursor()
 		bases, zs, ons, floors := s.base.Slice(cursor), s.z.Slice(cursor), s.on.Slice(cursor),
 			s.floor.Slice(cursor)

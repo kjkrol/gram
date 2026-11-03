@@ -198,7 +198,7 @@ func paces(t *testing.T, g grid.Grid, cells *terrain.Cells, rise func(from, to c
 
 func walk(t *testing.T, r *Rules, steps int, walkers ...walker) map[float32]float32 {
 	t.Helper()
-	g, sys := r.grid, r.StandingSystem()
+	g, sys := r.grid, r.StandingSystem(nil)
 	got := map[float32]float32{}
 	var (
 		base  goke.Comp[world.Base]

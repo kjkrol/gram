@@ -43,6 +43,12 @@ no world and a modal panel over the ticking world: `examples/start/scenes`.
 
 ## A demo
 
+- A world cut into sectors (`world.SectorsCfg{Buckets}`) sets its one ladder of detail,
+  `world.Config.LOD` (`lod.Ladder{Scales, Sight, Fog}`): the scales in shown pixels a world
+  unit, descending, where the levels L0..L3 begin (a sector under the last, or past the Sight,
+  is L4: asleep and not drawn); the game's figures are 15× life on Madeira, so its thresholds
+  are its own. A camera's Ctrl+=/− multiplies the Sight for itself. No `Bands`, no `Detail`,
+  no care: what a level means is `lod/doc.go`'s table, what a system does at it the plugin's.
 - The arena holds handles and no state: the plugins in the order made, then, a blank line
   apart, the players, the game's resources (`*treasury`, a struct of exported fields given to
   the chain's `Keeps`, saved whole with the game), a telemetry count (`collision.ContactStats`)

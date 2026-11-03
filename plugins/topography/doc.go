@@ -54,30 +54,18 @@
 // The plugin draws the ground, a render.Direct in the opaque pass of the world's picture, handing
 // the frame its heights (render.GroundHeights), the board's grid on it in the board's line
 // (board.Surface), and under no atmosphere hands the frame its still sky, giving way to a sky
-// some other source hands it. In a world cut into sectors the
-// ground drawn is that of the sectors a camera sees, a coarser mesh (or, on a hex board, the
-// cells' tops alone) where it sees one coarsely, turning into the fog before its sight's end, and
-// shaded with one care less every Care sectors out from the sector under the middle of the
-// screen ([Config.Care], [Write.SetCare], [Care]), down five cares: full within Care sectors;
-// then without the shore's swell, surf and foam, the water running down the ways and the glint
-// at a mouth; then without the waves and their glint, the still water a level mirror of the sky;
-// then without the baked shade and the lamps; last without the grid, the clouds' shadow, the
-// wind's sway, the details' grain and the water's look; the haze and the fog before the sight's
-// end stay at every care. Asked to ([Write.ShowCare], [ShowCare]), it lays the care's bands
-// over the ground, the boundaries between sectors of
-// different care. [Read.Reporter] is the panel's line on it.
-// [Write.Miniature] is the board painted flat as one picture, a minimap's ground. It is a
-// plugin.CommandHandler
-// for the shaping's, the haze's and the care's commands ([Plugin.Queues],
-// [Plugin.DefaultBindings]); call [Plugin.RunPlan] after the world has moved and before the
-// cameras' RunPlan.
+// some other source hands it. In a world cut into sectors the ground drawn is that of the
+// sectors a camera sees, each at the level it sees it at as the lod package's words for the
+// ground say (on a hex board the cells' tops alone from L1, a quad a sector at L3), the skirt to
+// the horizon as at L3, turning into the fog before its sight's end. [Read.Reporter] is the
+// panel's line on how many sectors a frame drew at each level. [Write.Miniature] is the board
+// painted flat as one picture, a minimap's ground. It is a plugin.CommandHandler for the
+// shaping's and the haze's commands ([Plugin.Queues], [Plugin.DefaultBindings]); call
+// [Plugin.RunPlan] after the world has moved and before the cameras' RunPlan.
 //
 // # Vocabulary
 //
-// Commands, a player's: [Raise], [Lower], [Level] (the shaping); [Haze], [Care], [AdaptCare]
-// (the full care's reach following the cameras' frame budget: the plugin's Write is a
-// cameras.Lever, stepped down the care's ladder before the pictures' resolution and up after
-// it), [ShowCare] (a look). Settings ([Settings], saved with the game, in [Resources]): the
-// haze, the care, the care shown. A game's looks: painter.Style and painter.Detail by kind
-// ([Plugin.Style]), painter.Shading ([Plugin.WithShading]).
+// Commands, a player's: [Raise], [Lower], [Level] (the shaping); [Haze]. Settings ([Settings],
+// saved with the game, in [Resources]): the haze. A game's looks: painter.Style and
+// painter.Detail by kind ([Plugin.Style]), painter.Shading ([Plugin.WithShading]).
 package topography

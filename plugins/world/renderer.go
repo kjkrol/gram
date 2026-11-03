@@ -8,6 +8,8 @@ import (
 	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 )
@@ -44,6 +46,8 @@ type renderer struct {
 	standing map[render.SpriteID]bool
 	edges    map[render.SpriteID]render.SpriteID
 	quads    []camera.Quad
+	// the world's size and edges, for the sector an entity at a picture's edge is drawn by
+	space SpaceCfg
 }
 
 func newRenderer(atlas render.AtlasSource, views func() map[camera.Camera]*view.View,
@@ -69,8 +73,9 @@ func (s *renderer) Clock() (time.Duration, bool) {
 
 func (*renderer) Overlies() {}
 
-// Compose hands f every entity published in sight of cam as the world's Look lays it, lit as
-// the Lighting says, in white light without one: the Look knows the wind, the world its entities.
+// Compose hands f every entity published in sight of cam in its kind's look at the level cam sees
+// it at, as the world's Look lays it, lit as the Lighting says, in white light without one: the
+// Look knows the wind, the world its entities.
 func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	if s.atlas == nil {
 		return
@@ -87,6 +92,10 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	foggy, _ := look.(FoggyLook)
 	figs := s.figures.Front()
 	v := figs.views[camera.OriginOf(cam)]
+	var levels byLevel
+	if wa, ok := s.atlas.(*Atlas); ok {
+		levels = wa.levels
+	}
 	lowest, any := render.Nearest, false
 	for k := range figs.all {
 		e := &figs.all[k]
@@ -95,40 +104,51 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 		}
 		box, z := e.box, e.z
 		mid := Position{AABB: box}.Center()
+		level := s.level(v, box.AABB, mid)
+		layers := figs.layers[e.from : e.from+int32(e.n)]
+		if !levels.anyAt(layers, level) {
+			continue
+		}
 		at := f.Lifted(mid.X, mid.Y, z.Altitude, FigureLift)
 		if !any || at.Before(lowest) {
 			lowest, any = at, true
 		}
 		// coarsely: no edges, flat where it would stand
-		level := v.Level(mid.X, mid.Y)
-		coarse := level == view.Coarse || level == view.Fogged
+		coarse := level >= lod.L1
 		if foggy != nil {
 			foggy.Fog(v.Fog(mid.X, mid.Y))
 		}
-		layers := figs.layers[e.from : e.from+int32(e.n)]
 		lit := f.Lit(mid.X, mid.Y, z.Altitude, e.shadow.Take)
-		f.Cast(box.AABB, z.Altitude, z.Height, e.shadow, s.atlas, layers[0].SpriteID)
+		if id, ok := levels.at(layers[0].SpriteID, level); ok {
+			f.Cast(box.AABB, z.Altitude, z.Height, e.shadow, s.atlas, id)
+		}
 		for _, l := range layers {
-			if m, ok := s.shaded[l.SpriteID]; ok {
+			id, ok := levels.at(l.SpriteID, level)
+			if !ok {
+				continue
+			}
+			a := l.Appearance
+			a.SpriteID = id
+			if m, ok := s.shaded[id]; ok {
 				s.material(f, cam, e, at, m, l.progress)
 				continue
 			}
-			if lies != nil && s.lying[l.SpriteID] && e.lie > 0 {
+			if lies != nil && s.lying[id] && e.lie > 0 {
 				lain := figs.lies[e.lie-1]
-				edge, ok := s.edges[l.SpriteID]
+				edge, ok := s.edges[id]
 				lain.Edged = lain.Edged && ok && !coarse
-				lies.Lay(f, cam, box, e.dir, lain, z, s.atlas, l.Appearance, edge, lit)
+				lies.Lay(f, cam, box, e.dir, lain, z, s.atlas, a, edge, lit)
 				continue
 			}
-			if lies != nil && s.lying[l.SpriteID] {
-				lies.Lie(f, cam, box, z, s.atlas, l.Appearance, lit)
+			if lies != nil && s.lying[id] {
+				lies.Lie(f, cam, box, z, s.atlas, a, lit)
 				continue
 			}
-			if uprights != nil && s.standing[l.SpriteID] && !coarse {
-				uprights.Upright(f, cam, box, z, s.atlas, l.Appearance, lit)
+			if uprights != nil && s.standing[id] && !coarse {
+				uprights.Upright(f, cam, box, z, s.atlas, a, lit)
 				continue
 			}
-			look.Sprite(f, cam, box, z, s.atlas, l.Appearance, lit)
+			look.Sprite(f, cam, box, z, s.atlas, a, lit)
 		}
 	}
 	if foggy != nil {
@@ -137,6 +157,75 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	if _, ok := look.(DirectLook); ok && any {
 		f.DrawAt(lowest) // the figures come after what lies beneath the lowest of them
 	}
+}
+
+// level is how fully v draws what stands over box: as its middle's sector, the middle held within
+// the view's bounds so what the view found at the picture's edge is drawn by a sector on it, or,
+// that sector off a picture turned on the world and the middle within the sight, as the finest
+// sector under the box's corners held so
+func (s *renderer) level(v *view.View, box geom.AABB, mid geom.Vec) lod.Level {
+	if v.Grid() == nil || !v.Culled {
+		return v.Level(mid.X, mid.Y)
+	}
+	b := v.Bounds
+	w, h := float32(s.space.Width), float32(s.space.Height)
+	wx, wy := s.space.Edges.WrapsX(), s.space.Edges.WrapsY()
+	level := v.Level(held(mid.X, b.TopLeft.X, b.BottomRight.X, w, wx),
+		held(mid.Y, b.TopLeft.Y, b.BottomRight.Y, h, wy))
+	if level != lod.L4 {
+		return level
+	}
+	if f := v.Fogging(); f[3] > 0 && f32.Hypot(apart(mid.X, f[0], w, wx),
+		apart(mid.Y, f[1], h, wy)) > f[3] {
+		return level
+	}
+	for _, x := range [2]float32{box.TopLeft.X, box.BottomRight.X} {
+		for _, y := range [2]float32{box.TopLeft.Y, box.BottomRight.Y} {
+			level = min(level, v.Level(held(x, b.TopLeft.X, b.BottomRight.X, w, wx),
+				held(y, b.TopLeft.Y, b.BottomRight.Y, h, wy)))
+		}
+	}
+	return level
+}
+
+// held is the world coordinate x held within [lo, hi]: x where it lies there, on an axis wrapping
+// round size where a copy of it does, else the end nearest to the nearest copy
+func held(x, lo, hi, size float32, wraps bool) float32 {
+	at := min(max(x, lo), hi)
+	if !wraps || size <= 0 || at == x {
+		return at
+	}
+	gap := f32.Abs(x - at)
+	for _, c := range [2]float32{x - size, x + size} {
+		if n := min(max(c, lo), hi); f32.Abs(c-n) < gap {
+			gap, at = f32.Abs(c-n), n
+		}
+	}
+	// the bounds may run past the world's edge, the grid's sectors not
+	if at = f32.Mod(at, size); at < 0 {
+		at += size
+	}
+	return at
+}
+
+// apart is how far a lies from b, the shorter way round an axis wrapping round size
+func apart(a, b, size float32, wraps bool) float32 {
+	d := f32.Abs(a - b)
+	if wraps && size > 0 {
+		d = f32.Mod(d, size)
+		d = min(d, size-d)
+	}
+	return d
+}
+
+// anyAt says whether any of layers is drawn at level
+func (b byLevel) anyAt(layers []layer, level lod.Level) bool {
+	for _, l := range layers {
+		if _, ok := b.at(l.SpriteID, level); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // Draw has a DirectLook draw the sprites Compose handed it.

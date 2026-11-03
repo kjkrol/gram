@@ -112,15 +112,21 @@ func (r *Read) Atlas() render.AtlasSource { return r.p.renderer.atlas }
 // plugins drawing about a kind; none before the atlas is closed.
 func (r *Read) Styles() *render.Styles { return r.p.styles }
 
-// Banded reports whether the sectors' bands are on; true in a world of no sectors.
+// Banded reports whether the sectors' levels are ticked; true in a world of no sectors.
 func (r *Read) Banded() bool { return !r.p.Res.Settings.Unbanded }
 
 // SectorsShown is what is drawn of the sectors.
 func (r *Read) SectorsShown() SectorsShown { return r.p.Res.Settings.Sectors }
 
-// Sectors is the world's part of the telemetry panel: how many sectors and entities lie in each
-// band.
+// Sectors is the world's part of the telemetry panel: how many sectors and entities lie at each
+// level.
 func (r *Read) Sectors() render.Reporter { return sectorsReport{r.p.module} }
+
+// Sight is how far from its viewpoint cam sees the world, ticked and drawn: the ladder's Sight
+// times the camera's (camera.SightOf); 0 without end.
+func (r *Read) Sight(cam camera.Camera) float32 {
+	return r.p.Res.Config.LOD.Sight * camera.SightOf(cam)
+}
 
 // Seen is the world's part of the telemetry panel about the first camera made: how many sectors
 // it sees at each level.
@@ -213,14 +219,14 @@ func (w *Write) SetAtlas(atlas render.AtlasSource) {
 	}
 }
 
-// Anchor has the world live round the points a gives: the sectors' bands (Config.Sectors) are
-// taken from the nearest of them.
-func (w *Write) Anchor(a sector.Anchors) {
-	w.p.module.sectors.anchors = append(w.p.module.sectors.anchors, a)
+// Observe has the world live round the cameras o gives: each sector is ticked at the fullest
+// level one of them sees it at (Config.LOD).
+func (w *Write) Observe(o sector.Observers) {
+	w.p.module.sectors.observers = append(w.p.module.sectors.observers, o)
 }
 
-// SetBanded switches the sectors' bands on, or off with every sector in the first (SwitchBands,
-// Settings.Unbanded).
+// SetBanded switches the sectors' levels on, or off with every sector ticked at L0 (SwitchBands,
+// Settings.Unbanded); the cameras draw by their levels either way.
 func (w *Write) SetBanded(on bool) {
 	w.p.Res.Settings.Unbanded = !on
 	w.p.module.sectors.unbanded = !on

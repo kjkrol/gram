@@ -142,8 +142,8 @@ func (l *Renderer) drawn() *RenderState {
 // takes no part in blending.
 func (l *Renderer) Shade(shaded map[cell.Name]render.MaterialID) { l.shaded = shaded }
 
-// WithSeen has the cells drawn of the sectors a camera sees alone, as seen says, coarsely where it
-// sees one coarsely, fading into the fog before its sight's end.
+// WithSeen has the cells drawn of the sectors a camera sees alone, as seen says, each at its
+// level, fading into the fog before its sight's end.
 func (l *Renderer) WithSeen(seen func(camera.Camera) *view.View) *Renderer {
 	l.sees = seen
 	return l
