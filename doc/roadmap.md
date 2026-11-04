@@ -116,6 +116,11 @@ What is left to do. Take an item out when it lands.
   sampled ground is made of (2–6% on `Vision_Relief/step=*` in parallel); on the profile's path
   (`relief.Along`) clamping with comparisons and folding a cell's corners once, measured −3–4%
   of the scan with the same points, not landed.
+- **A far figure's cost** — a point at L2 costs ~40 ns drawn (the target 20) and keeping a share
+  (`Ladder.Keep`) ~7 ns an entity published: both the level read for every entity, at the
+  publishing and again at the drawing; the sum into the ground at L3 ~90 ns a box (the loop over
+  the texels a box covers spills registers); a tile of the sum changed allocates ~4 KiB in
+  `gpu.put`. Planned after the aggregates: `doc/plans-perf.md`, "Daleka figura taniej".
 
 ## Landscape and Madeira
 

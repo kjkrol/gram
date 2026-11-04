@@ -18,11 +18,49 @@ const (
 // Ladder is the world's levels: Scales[k] the fewest shown pixels a world unit must span for
 // level k (L0 to L3), strictly decreasing where set, a zero met by any scale; Sight how far from
 // an observer the world is ticked and drawn at all (zero, without end), its last Fog fading.
-// The zero Ladder is L0 everywhere without end.
+// The zero Ladder is L0 everywhere without end round an observer, L2 with none.
 type Ladder struct {
 	Scales [Levels - 1]float32
 	Sight  float32
 	Fog    float32
+	// Unobserved is the level a world no camera observes is ticked at.
+	Unobserved Fallback
+	// Keep is the share of a level's entities a camera's publisher keeps, in [0, 1], zero for
+	// all; the rest are thinned by their identity, and L4's means nothing, none being published.
+	Keep [Levels]float32
+	// Texel is how many world units a texel of the figures' colour summed into the ground spans,
+	// zero a sector's side over 64. The world raises it to span 2048 texels a side at most.
+	Texel float32
+}
+
+// Fallback is the level a world no camera observes is ticked at, its zero L2.
+type Fallback uint8
+
+// The Fallbacks, each the level its name says: UnobservedL2 the default, UnobservedL4 a world no
+// camera observes asleep.
+const (
+	UnobservedL2 Fallback = iota
+	UnobservedL0
+	UnobservedL1
+	UnobservedL3
+	UnobservedL4
+)
+
+// Level is the level f stands for; it panics on a Fallback none of the constants is.
+func (f Fallback) Level() Level {
+	switch f {
+	case UnobservedL0:
+		return L0
+	case UnobservedL1:
+		return L1
+	case UnobservedL2:
+		return L2
+	case UnobservedL3:
+		return L3
+	case UnobservedL4:
+		return L4
+	}
+	panic(fmt.Sprintf("lod: an unobserved world at Fallback %d, want one of the five", f))
 }
 
 // At is the level of what a world unit spans scale shown pixels of, dist from the observer: the
@@ -60,8 +98,17 @@ func (l Ladder) Widened(factor float32) Ladder {
 }
 
 // Check panics on a ladder that cannot be: a negative number, a threshold not under the one
-// before where set, a Fog past the Sight.
+// before where set, a Fog past the Sight, a Keep past 1, an unknown Unobserved.
 func (l Ladder) Check() {
+	l.Unobserved.Level()
+	for k, keep := range l.Keep {
+		if !(keep >= 0 && keep <= 1) {
+			panic(fmt.Sprintf("lod: level %d keeps a share of %v, want one in [0, 1]", k, keep))
+		}
+	}
+	if !(l.Texel >= 0) {
+		panic(fmt.Sprintf("lod: a texel of %v, want none negative", l.Texel))
+	}
 	for k, s := range l.Scales {
 		switch {
 		case s < 0:

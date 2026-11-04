@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.19.0 — unreleased
+
+**Figures generalised: a point at L2, colour in the ground at L3, thinning, the unobserved
+world** (2026-11-04, branch `feat/lod-figures`, parts `g/points`, `g/aggregate`)
+- Added: `lod.Ladder.Unobserved` (`lod.Fallback`, zero L2): the level a world no camera observes
+  ticks at, L2 by default (a server's middle; a bench says `UnobservedL0`), where it was L0; a
+  keen entity keeps its sectors finer there too.
+- Added: `lod.Ladder.Keep`: the share of a level's figures a camera's publisher keeps, by a
+  stable hash of the entity's id (the same set every frame, a superset for a larger share); a
+  kind `Slot.Always()`, a keen entity or a kind with a look declared at that level is never
+  thinned; a thinned entity costs no record.
+- Added: a figure at L2 is a point without a look: one instance of its blob (or declared L2
+  look) at the box's middle, projected on the GPU, at least a pixel wide, its alpha the pixel
+  coverage of a box under a pixel so that sub-pixel figures add up to a density; no cast, no
+  per-entity lighting; about half the cost of the look's sprite.
+- Added: a figure at L3 is colour in the ground. Where a ground's renderer asks the world to sum
+  (`world.Plugin.Aggregates`; the topography's and the board's do), the publisher sums a figure
+  some camera sees at L3 as its blob's mean colour (`render.MeanColour`), by how much of each
+  texel of `Ladder.Texel` its box covers, into `Read.Aggregate`, an image over the whole world
+  (`world.AggregateImage`) uploaded once a frame by its changed tiles; the terrain's L3 sheet, a
+  hex board's sheets and the flat board's tiles at L3 lay it over their colour, sampling it only
+  while it holds any (`Read.Aggregate` gives a scale of 0 while empty). A kind with a
+  material, a look declared at L3 or `Nothing(L3)` is drawn as it says; a world no ground reads
+  (motion/expanse) spends nothing on it and draws nothing of its figures at L3, as before.
+- Added: `World_Draw`/`World_Publish` rungs `level=2`, `keep=0.25`, `level=3` and
+  `level=3, unread`.
+- Changed: `sector.Grid.Of` truncates without float64.
+
 ## v0.18.0 — 2026-11-03
 
 **One ladder of levels of detail** (2026-11-03, branch `feat/lod`, parts `l/levels`, `l/paces`,

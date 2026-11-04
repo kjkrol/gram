@@ -1,6 +1,7 @@
 package lod_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/kjkrol/gram/lod"
@@ -62,13 +63,18 @@ func TestLadder_WidenedSeesFartherKeepingTheFogAndWithoutEndStaysSo(t *testing.T
 
 func TestLadder_CheckRefusesALadderThatCannotBe(t *testing.T) {
 	for name, l := range map[string]lod.Ladder{
-		"rising":            {Scales: [4]float32{1, 2}},
-		"equal":             {Scales: [4]float32{1, 1}},
-		"set after a zero":  {Scales: [4]float32{1, 0, 0.5}},
-		"negative scale":    {Scales: [4]float32{-1}},
-		"negative sight":    {Sight: -1},
-		"fog past sight":    {Sight: 100, Fog: 200},
-		"fog without sight": {Fog: 10},
+		"rising":             {Scales: [4]float32{1, 2}},
+		"equal":              {Scales: [4]float32{1, 1}},
+		"set after a zero":   {Scales: [4]float32{1, 0, 0.5}},
+		"negative scale":     {Scales: [4]float32{-1}},
+		"negative sight":     {Sight: -1},
+		"fog past sight":     {Sight: 100, Fog: 200},
+		"fog without sight":  {Fog: 10},
+		"keeping past all":   {Keep: [lod.Levels]float32{1, 1, 1.5}},
+		"keeping under none": {Keep: [lod.Levels]float32{0, -0.1}},
+		"keeping no number":  {Keep: [lod.Levels]float32{float32(math.NaN())}},
+		"negative texel":     {Texel: -1},
+		"unknown fallback":   {Unobserved: lod.UnobservedL4 + 1},
 	} {
 		t.Run(name, func(t *testing.T) {
 			defer func() {
@@ -83,9 +89,34 @@ func TestLadder_CheckRefusesALadderThatCannotBe(t *testing.T) {
 		{},
 		{Scales: [4]float32{2, 1, 0.5, 0.25}, Sight: 100, Fog: 100},
 		{Scales: [4]float32{0.5}, Sight: 1000},
+		{Keep: [lod.Levels]float32{1, 0.5, 0.25, 0, 1}, Texel: 8},
+		{Unobserved: lod.UnobservedL4},
 	} {
 		l.Check()
 	}
+}
+
+func TestFallback_LevelIsTheOneItsNameSaysItsZeroL2(t *testing.T) {
+	for f, want := range map[lod.Fallback]lod.Level{
+		lod.UnobservedL0: lod.L0,
+		lod.UnobservedL1: lod.L1,
+		lod.UnobservedL2: lod.L2,
+		lod.UnobservedL3: lod.L3,
+		lod.UnobservedL4: lod.L4,
+	} {
+		if got := f.Level(); got != want {
+			t.Errorf("Fallback %d at %v, want %v", f, got, want)
+		}
+	}
+	if got := (lod.Ladder{}).Unobserved.Level(); got != lod.L2 {
+		t.Errorf("the zero ladder unobserved at %v, want L2", got)
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("an unknown Fallback had a level")
+		}
+	}()
+	(lod.UnobservedL4 + 1).Level()
 }
 
 func TestPaces_CheckRefusesPacesThatCannotBe(t *testing.T) {

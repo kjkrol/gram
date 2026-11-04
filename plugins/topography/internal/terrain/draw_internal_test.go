@@ -146,27 +146,7 @@ func (overSea) Rays() (camera.RayField, bool) {
 func leveledDraw(t *testing.T, surface Surface, cam camera.Camera, u render.Uniforms) (
 	draw func(level lod.Level) (runs []span, pix []byte)) {
 	t.Helper()
-	grid := &atLevel{}
-	v := view.NewSeen(cam, grid)
-	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 512, Height: 512, BucketSize: 128})
-	if err != nil {
-		t.Fatal(err)
-	}
-	views := []*view.View{v}
-	system := view.NewSystem(space, &views, 512, 512)
-	seen := func(camera.Camera) *view.View { return v }
-	r := New(flatland{}, surface, noAir{}, Config{Seen: seen})
-	return func(level lod.Level) ([]span, []byte) {
-		grid.level = level
-		system.Update(nil, 0)
-		screen := render.NewImage(64, 64)
-		depth := render.NewDepth()
-		screen.ClearDepth(depth)
-		r.Draw(render.Target{Screen: screen, Depth: depth}, cam, u)
-		pix := make([]byte, 4*64*64)
-		screen.ReadPixels(pix)
-		return r.drawn, pix
-	}
+	return leveledDrawWith(t, surface, cam, u, nil)
 }
 
 func TestTerrain_DrawsEachLevelWithoutWhatItsWordDrops(t *testing.T) {
@@ -302,4 +282,78 @@ func TestTerrain_DrawsASheetOfTheAlbedoAtL3(t *testing.T) {
 func near(a, b color.RGBA, by int) bool {
 	d := func(x, y byte) int { return max(int(x)-int(y), int(y)-int(x)) }
 	return d(a.R, b.R) <= by && d(a.G, b.G) <= by && d(a.B, b.B) <= by && d(a.A, b.A) <= by
+}
+
+// an aggregate 64 texels a side over the flat land, a texel a screen pixel looking downward: red
+// at (20, 30), half blue at (40, 10)
+func aggregated() (*render.Image, float32) {
+	img := render.NewImage(64, 64)
+	pix := make([]byte, 4*64*64)
+	copy(pix[4*(30*64+20):], []byte{255, 0, 0, 255})
+	copy(pix[4*(10*64+40):], []byte{0, 0, 128, 128})
+	img.WritePixels(pix)
+	return img, 1.0 / 8
+}
+
+func TestTerrain_LaysTheFiguresColourOverTheSheetAtL3Alone(t *testing.T) {
+	gputest.Need(t)
+	u := render.UniformsOf(map[string]any{"LightWay": []float32{0, 0, 1},
+		"LightStrength": []float32{0}, "LightColor": []float32{1, 1, 1},
+		"Ambience": []float32{1, 1, 1}})
+	cam := downward{cameratest.NewFromSpace(64, 64, 0)}
+	img, perUnit := aggregated()
+	plain := leveledDraw(t, &mottled{}, cam, u)
+	summed := leveledDrawWith(t, &mottled{}, cam, u,
+		func() (*render.Image, float32) { return img, perUnit })
+	at := func(pix []byte, x, y int) color.RGBA {
+		i := 4 * (y*64 + x)
+		return color.RGBA{pix[i], pix[i+1], pix[i+2], pix[i+3]}
+	}
+	for _, level := range []lod.Level{lod.L2, lod.L3} {
+		_, without := plain(level)
+		_, with := summed(level)
+		for y := range 64 {
+			for x := range 64 {
+				want := at(without, x, y)
+				if level == lod.L3 && x == 20 && y == 30 {
+					want = color.RGBA{255, 0, 0, 255}
+				}
+				if level == lod.L3 && x == 40 && y == 10 {
+					m := mottle(x, y)
+					want = color.RGBA{m.R / 2, m.G / 2, m.B/2 + 128, 255}
+				}
+				if got := at(with, x, y); !near(got, want, 2) {
+					t.Errorf("L%d: the pixel (%d, %d) is %v, want %v", level, x, y, got, want)
+				}
+			}
+		}
+	}
+}
+
+// leveledDrawWith is leveledDraw with the figures' colour summed over the sheet as aggregate
+// gives it, none for nil
+func leveledDrawWith(t *testing.T, surface Surface, cam camera.Camera, u render.Uniforms,
+	aggregate func() (*render.Image, float32)) (draw func(level lod.Level) ([]span, []byte)) {
+	t.Helper()
+	grid := &atLevel{}
+	v := view.NewSeen(cam, grid)
+	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 512, Height: 512, BucketSize: 128})
+	if err != nil {
+		t.Fatal(err)
+	}
+	views := []*view.View{v}
+	system := view.NewSystem(space, &views, 512, 512)
+	seen := func(camera.Camera) *view.View { return v }
+	r := New(flatland{}, surface, noAir{}, Config{Seen: seen, Aggregate: aggregate})
+	return func(level lod.Level) ([]span, []byte) {
+		grid.level = level
+		system.Update(nil, 0)
+		screen := render.NewImage(64, 64)
+		depth := render.NewDepth()
+		screen.ClearDepth(depth)
+		r.Draw(render.Target{Screen: screen, Depth: depth}, cam, u)
+		pix := make([]byte, 4*64*64)
+		screen.ReadPixels(pix)
+		return r.drawn, pix
+	}
 }

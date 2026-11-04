@@ -57,11 +57,13 @@
 // some other source hands it. In a world cut into sectors the ground drawn is that of the
 // sectors a camera sees, each at the level it sees it at as the lod package's words for the
 // ground say (on a hex board the cells' tops alone from L1, a quad a sector at L3), the skirt to
-// the horizon as at L3, turning into the fog before its sight's end. [Read.Reporter] is the
-// panel's line on how many sectors a frame drew at each level. [Write.Miniature] is the board
-// painted flat as one picture, a minimap's ground. It is a plugin.CommandHandler for the
-// shaping's and the haze's commands ([Plugin.Queues], [Plugin.DefaultBindings]); call
-// [Plugin.RunPlan] after the world has moved and before the cameras' RunPlan.
+// the horizon as at L3, turning into the fog before its sight's end; at L3 the figures' colour
+// the world sums into the ground (world.Read.Aggregate) lies over the sheet, the skirt bare.
+// [Read.Reporter] is the panel's line on how many sectors a frame drew at each level.
+// [Write.Miniature] is the board painted flat as one picture, a minimap's ground. It is a
+// plugin.CommandHandler for the shaping's and the haze's commands ([Plugin.Queues],
+// [Plugin.DefaultBindings]); call [Plugin.RunPlan] after the world has moved and before the
+// cameras' RunPlan.
 //
 // # Vocabulary
 //

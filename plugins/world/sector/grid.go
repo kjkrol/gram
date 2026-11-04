@@ -37,8 +37,9 @@ func (g *Grid) Rows() int { return g.rows }
 
 // Of is the sector of the world point (x, y), held to the world's edges.
 func (g *Grid) Of(x, y float32) int {
-	c := min(max(int(f32.Floor(x/g.side)), 0), g.cols-1)
-	r := min(max(int(f32.Floor(y/g.side)), 0), g.rows-1)
+	// truncated, not floored: a point short of zero is held to the first sector either way
+	c := min(max(int(x/g.side), 0), g.cols-1)
+	r := min(max(int(y/g.side), 0), g.rows-1)
 	return r*g.cols + c
 }
 

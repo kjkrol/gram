@@ -183,29 +183,45 @@ func Solid(c color.RGBA) SpriteDrawer {
 // covers: a kind seen from afar.
 func Blob(draw SpriteDrawer) SpriteDrawer {
 	return func(dst *Canvas, size int) {
-		seen := &Canvas{RGBA: image.NewRGBA(image.Rect(0, 0, size, size))}
-		draw(seen, size)
-		// premultiplied: the sums of r, g and b over the sum of a are the mean straight colour
-		var r, g, b, a uint64
-		for i := 0; i+3 < len(seen.Pix); i += 4 {
-			r += uint64(seen.Pix[i])
-			g += uint64(seen.Pix[i+1])
-			b += uint64(seen.Pix[i+2])
-			a += uint64(seen.Pix[i+3])
-		}
-		if a == 0 {
+		mean, covers := meanOf(draw, size)
+		if covers == 0 {
 			return
 		}
-		mean := color.RGBA{
-			R: uint8((r*255 + a/2) / a),
-			G: uint8((g*255 + a/2) / a),
-			B: uint8((b*255 + a/2) / a),
-			A: 255,
-		}
-		covers := float64(a) / (255 * float64(size*size))
 		half := float32(size) / 2
 		dst.FillCircle(half, half, half*float32(math.Sqrt(covers)), mean)
 	}
+}
+
+// MeanColour is the colour a Blob of draw drawn size x size fills its disc with, opaque: draw's
+// mean weighted by its alpha; clear for a clear sprite.
+func MeanColour(draw SpriteDrawer, size int) color.RGBA {
+	mean, _ := meanOf(draw, size)
+	return mean
+}
+
+// meanOf is draw's mean colour weighted by its alpha, opaque, drawn size x size, and the share of
+// the sprite it covers; clear and 0 for a clear sprite
+func meanOf(draw SpriteDrawer, size int) (color.RGBA, float64) {
+	seen := &Canvas{RGBA: image.NewRGBA(image.Rect(0, 0, size, size))}
+	draw(seen, size)
+	// premultiplied: the sums of r, g and b over the sum of a are the mean straight colour
+	var r, g, b, a uint64
+	for i := 0; i+3 < len(seen.Pix); i += 4 {
+		r += uint64(seen.Pix[i])
+		g += uint64(seen.Pix[i+1])
+		b += uint64(seen.Pix[i+2])
+		a += uint64(seen.Pix[i+3])
+	}
+	if a == 0 {
+		return color.RGBA{}, 0
+	}
+	mean := color.RGBA{
+		R: uint8((r*255 + a/2) / a),
+		G: uint8((g*255 + a/2) / a),
+		B: uint8((b*255 + a/2) / a),
+		A: 255,
+	}
+	return mean, float64(a) / (255 * float64(size*size))
 }
 
 // Border is a SpriteDrawer outlining the sprite with c, transparent inside.

@@ -67,7 +67,8 @@ keeps only what those do not.
   past `Ladder.Hold`'s hysteresis (a threshold by 10%, the Sight by half a sector), then grades
   it so neighbours both under L4 differ by one at most (a Chebyshev transform; L4 borders
   anything, else the lift would wake rings beyond the Sight) — the camera's view reads that
-  graded level. The level ticked is the finest graded level of any observer, L0 with none,
+  graded level. The level ticked is the finest graded level of any observer, with none the
+  ladder's `Unobserved` (zero: L2, a server's middle; a bench says `UnobservedL0`),
   lowered to a `sector.Keen` entity's level in its sector and the eight round (a shot in flight).
   Every sector begins at L4, so the first tick and a load wake everything near. Marks
   `sector.L1`…`L4`, zero-size, saved with the game; L0 unmarked.
@@ -93,6 +94,18 @@ keeps only what those do not.
   by the camera's `LevelShift` (the frame budget's), a drawn sector to L3 at most, L4 off the
   picture or past the sight; the tick never sees the shift. Behind the eye `ScaleAt` gives the
   scale of a point as far before it (`camera.InFront` says which side).
+- The figures' colour at L3 (`Plugin.Aggregates`, asked once by a ground's renderer in its
+  constructor: the topography's and the board's; a world none asks records L3 figures as before
+  and spends nothing): the publisher sums a figure some camera sees at L3 — one with a look of
+  its own, no material, nothing declared at any level — as its blob's mean colour
+  (`render.MeanColour`, kept at `Close` for every sprite in the kind's place) premultiplied, by
+  how much of each texel (`Ladder.Texel`) its box covers, into tiles of 64×64 texels in a
+  `render.Buffered` pair: only the tiles a frame wrote exist (a sector left is clear the next
+  frame, a still world writes nothing), the world's `Compose` uploads once a frame the tiles whose
+  signature changed, and a tile emptied is written as zeros. A figure seen at L3 by one camera and
+  finer by another is both summed and recorded; `Keep[L3]` thins the sum as the records. The frame
+  image is `world.AggregateImage`, bound per draw through `opts.Uniforms` (seven of the eight named
+  images are in use now). `sector.Grid.Of` truncates, no float64.
 
 ## motion, with steering
 
@@ -213,7 +226,9 @@ keeps only what those do not.
 - The flat board is drawn on the GPU from an image of its cells (`look/tiles.go`): the CPU writes
   the cells' data, the shaders work out the shapes; a changed cell is rewritten with its
   neighbours, all of them past an eighth. Nothing is composed on the CPU: a camera without
-  `Rays`, or a board of no world, draws nothing.
+  `Rays`, or a board of no world, draws nothing. The tiles' shaders decode the sector's level;
+  at L3 they lay the figures' colour the world sums (`world.Read.Aggregate`) under the tile's own
+  alpha, in the plain pass and the full one alike, bound only while a sector seen is at L3.
 
 ## topography
 
@@ -251,10 +266,12 @@ keeps only what those do not.
   L2 on the coarse lattice (every second corner, the edge ring stitched by fans, crack-free)
   with still water a mirror and no lamps or baked shade, L3 the sheet: the painter's albedo as
   the only colour on the coarse lattice (a texture, not a fan: the L2|L3 edge shares vertices),
-  lit by ambient and the sun's diffuse alone so it does not glow at night; L4 nothing; the
-  grid at L0 alone; the skirt always L3 in a world with sectors, L0 without. Finest first, to
-  prime the depth. A hex board draws tops alone at L1 and L2 and one quad a sector from its
-  tops' image at L3. No care rings, no care settings (the user's rule: one level a sector).
+  under the figures' colour the world sums (`world.Read.Aggregate`, laid over the albedo before
+  the light and the fog, the skirt bare), lit by ambient and the sun's diffuse alone so it does
+  not glow at night; L4 nothing; the grid at L0 alone; the skirt always L3 in a world with
+  sectors, L0 without. Finest first, to prime the depth. A hex board draws tops alone at L1 and
+  L2 and one quad a sector from its tops' image at L3, the summed colour over it. No care rings,
+  no care settings (the user's rule: one level a sector).
 - The billboards stand upright across the screen's level right, as tall on the screen as their
   `Height` and inside their box, shorter the steeper the view.
 - Its parts are packages none of which imports the plugin. selection must not import topography,

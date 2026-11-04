@@ -132,7 +132,9 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	p.renderer = look.NewRenderer(brd.drawnBoard(), nil, drawnMap{brd.drawnBoard()},
 		worldPlugin.Res.Config.Space).
 		WithSeen(worldPlugin.Read(0).ViewFor).
-		WithLights(worldPlugin.Read(0).Lights)
+		WithLights(worldPlugin.Read(0).Lights).
+		WithAggregate(worldPlugin.Read(0).Aggregate)
+	worldPlugin.Aggregates()
 	p.holdsView = p.newHoldsView()
 	return p
 }

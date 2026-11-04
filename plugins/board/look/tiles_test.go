@@ -467,6 +467,63 @@ func TestTiles_LayATileInOneColourFromL2(t *testing.T) {
 	}
 }
 
+// the figures' colour summed into the ground lies over the tiles of a sector at L3, a square
+// board's and a hex board's, the plain pass's and the full one's, and over none at L2
+func TestTiles_LayTheFiguresColourOverTheTilesAtL3(t *testing.T) {
+	gputest.Need(t)
+	// a texel a world unit, a world unit a pixel: red under the left half, at L2, and the right
+	aggregate := render.NewImage(128, 128)
+	pix := make([]byte, 4*128*128)
+	for _, p := range [][2]int{{18, 40}, {98, 40}} {
+		copy(pix[4*(p[1]*128+p[0]):], []byte{255, 0, 0, 255})
+	}
+	aggregate.WritePixels(pix)
+	summed := func() (*render.Image, float32) { return aggregate, 1 }
+	for _, g := range []grid.Grid{grid.DefaultGrids{}.Square(4, 4, 32),
+		grid.DefaultGrids{}.Hex(4, 4, 16)} {
+		brd, brdW := board.NewBoard(g)
+		brdW.SetAll(cell.Kind{SpriteID: 1, Pace: 1, Allows: cell.Land})
+		atlas := render.NewAtlas()
+		atlas.Add(render.SpriteID(1), 32, render.Solid(green))
+		atlas.Close()
+		laid := func(aggregate func() (*render.Image, float32)) func(x, y float32) color.RGBA {
+			cam := sighted{Camera: cameratest.NewFromSpace(128, 128, 0)}
+			v := view.NewSeen(cam,
+				halves{ladder: lod.Ladder{Scales: [lod.Levels - 1]float32{5, 2, 0.5}}})
+			space, err := aabbworld.NewSpace(aabbworld.Config{Width: 128, Height: 128,
+				BucketSize: 32})
+			if err != nil {
+				t.Fatal(err)
+			}
+			views := []*view.View{v}
+			view.NewSystem(space, &views, 128, 128).Update(nil, 0)
+			r := look.NewRenderer(brd, atlas, dressed{look.Flat, nil},
+				world.SpaceCfg{Width: 128, Height: 128}).
+				WithSeen(func(camera.Camera) *view.View { return v })
+			if aggregate != nil {
+				r.WithAggregate(aggregate)
+			}
+			return shot(cam, 128, 128, r)
+		}
+		without, with := laid(nil), laid(summed)
+		if got := with(98, 40); got != red || without(98, 40) != green {
+			t.Errorf("hex %v: the tile under the figures at L3 is %v, %v without; want red, "+
+				"green", g.Directions() == 6, got, without(98, 40))
+		}
+		for y := range 128 {
+			for x := range 128 {
+				if x == 98 && y == 40 {
+					continue
+				}
+				if a, b := without(float32(x), float32(y)), with(float32(x), float32(y)); a != b {
+					t.Fatalf("hex %v: the pixel (%v, %v) is %v, %v without the figures; want "+
+						"them alike off the texel at L3", g.Directions() == 6, x, y, b, a)
+				}
+			}
+		}
+	}
+}
+
 //go:embed testdata/stripes.wgsl
 var stripesFS embed.FS
 

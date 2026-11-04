@@ -9,13 +9,17 @@
 // ([Exact], [Steady], [Slowing]). The words of the levels are a contract every kind of thing
 // keeps:
 //
-//	level  word       a figure                 a tile               the ground
-//	L0     full       sprite, edged, upright   covers, ways, grid   full
-//	L1     no detail  flat sprite              tile and ways        no shore nor running water
-//	L2     shape      blob of its mean colour  colour               coarse lattice, no waves
-//	L3     colour     nothing                  colour               sheet
-//	L4     nothing    nothing                  nothing              nothing
+//	level  word       a figure                      a tile              the ground
+//	L0     full       sprite, edged, upright        covers, ways, grid  full
+//	L1     no detail  flat sprite                   tile and ways       no shore nor running water
+//	L2     shape      blob of its mean colour       colour              coarse lattice, no waves
+//	L3     colour     colour in the ground's sheet  colour              sheet
+//	L4     nothing    nothing                       nothing             nothing
 //
 // What stands on the board goes as a figure; clouds and shadows keep to no level yet, a later
 // stage. L4 is neither ticked nor drawn.
+//
+// A world no camera observes is ticked at the ladder's Unobserved level ([Fallback]), L2 unless
+// set. A camera keeps the ladder's Keep share of a level's entities, the same ones every frame,
+// and the figures' colour goes into the ground in texels of its Texel.
 package lod

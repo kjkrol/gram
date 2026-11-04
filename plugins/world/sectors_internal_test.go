@@ -235,13 +235,41 @@ func TestSectors_FollowTheObservers(t *testing.T) {
 	}
 }
 
-func TestSectors_LiveEverywhereWithoutObservers(t *testing.T) {
-	r := sectorWorld(t, twoLevels)
+func TestSectors_TickAWorldWithoutObserversAtTheLaddersUnobservedLevel(t *testing.T) {
+	for _, c := range []struct {
+		unobserved lod.Fallback
+		want       lod.Level
+	}{
+		{lod.UnobservedL2, lod.L2},
+		{lod.UnobservedL0, lod.L0},
+		{lod.UnobservedL1, lod.L1},
+		{lod.UnobservedL3, lod.L3},
+		{lod.UnobservedL4, lod.L4},
+	} {
+		ladder := twoLevels
+		ladder.Unobserved = c.unobserved
+		r := sectorWorld(t, ladder)
+		r.watch.cams = nil
+		r.spawn(100, 2000, 3500)
+		r.run()
+		if got := r.at(c.want); !same(got, 100, 2000, 3500) {
+			t.Errorf("unobserved at %v: %v there, want every entity", c.want, got)
+		}
+	}
+}
+
+func TestSectors_AKeenEntityKeepsItsSectorsFinerThanAWorldWithoutObservers(t *testing.T) {
+	ladder := twoLevels
+	ladder.Unobserved = lod.UnobservedL3
+	r := sectorWorld(t, ladder)
 	r.watch.cams = nil
-	r.spawn(100, 2000, 3500)
+	r.spawn(100, 1200, 2300, 3500)
+	r.p.write.Spawn(r.keens.Entry(keenThing{x: 2000}))
 	r.run()
-	if near, second, off := r.levels(); len(near) != 3 || len(second) != 0 || len(off) != 0 {
-		t.Errorf("L0 %v, L1 %v, L4 %v; want every entity at L0", near, second, off)
+	r.run()
+	want := map[lod.Level][]float32{lod.L2: {1200, 2000, 2300}, lod.L3: {100, 3500}}
+	if got := r.byLevel(); !sameLevels(got, want) {
+		t.Errorf("entities %v, want %v: the keen one's sector and those round it at L2", got, want)
 	}
 }
 

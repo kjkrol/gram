@@ -45,7 +45,9 @@ func leveled(level lod.Level) *render.Shader {
 	src = append([]byte(fmt.Sprintf("const LEVEL: u32 = %du;\n", level)), src...)
 	return render.NewMeshShaderWith(fmt.Sprintf("terrain-level%d", level), src, []render.Uniform{
 		{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1},
-		{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1},
+		// in the float Corners' alignment leaves free
+		{Name: "Cell", Size: 1}, {Name: "AggregatePx", Size: 1},
+		{Name: "Corners", Size: 2}, {Name: "Low", Size: 1},
 		{Name: "Span", Size: 1}, {Name: "ShoreReach", Size: 1}, {Name: "Px", Size: 1},
 		{Name: "AlbedoSize", Size: 2}, {Name: "WaterPx", Size: 1}, {Name: "FlowSpan", Size: 1},
 		{Name: "Shadows", Size: 1}, {Name: "GridFrom", Size: 1},
@@ -118,6 +120,9 @@ type Config struct {
 	Seen func(camera.Camera) *view.View
 	// whether the frame drawn hazes the ground; nil, as Haze sets
 	Hazed func() bool
+	// the figures' colour summed into the ground, laid over the sheet at L3 (world's
+	// Read.Aggregate); nil, none
+	Aggregate func() (img *render.Image, perUnit float32)
 }
 
 // Renderer draws the ground as a mesh: a render.Direct source in the opaque pass.
@@ -198,10 +203,27 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	r.opts.Images = [4]*render.Image{r.lattice, albedo, r.painted.Water, r.painted.Kinds}
 	r.opts.Depth = t.Depth
 	r.drawn = r.runs(cam, r.drawn[:0])
+	aggregate, perUnit := r.aggregate()
 	r.eachLevel(r.drawn, func(level lod.Level, ranges []render.IndexRange) {
 		r.opts.Ranges = ranges
+		px := float32(0)
+		if level == lod.L3 && aggregate != nil && perUnit > 0 {
+			px = perUnit
+			r.opts.Uniforms[world.AggregateImage] = aggregate
+		} else {
+			delete(r.opts.Uniforms, world.AggregateImage)
+		}
+		r.set("AggregatePx", px)
 		t.Screen.DrawMesh(r.mesh, byLevel[level], &r.opts)
 	})
+}
+
+// the figures' colour summed into the ground and its texels a world unit, nil for none
+func (r *Renderer) aggregate() (*render.Image, float32) {
+	if r.cfg.Aggregate == nil {
+		return nil, 0
+	}
+	return r.cfg.Aggregate()
 }
 
 // eachLevel calls draw with the runs of each level drawn, the finest first: every call primes its

@@ -70,6 +70,12 @@ each, or a twentieth and a hundredth of 50,000; the cases are named by the boxes
 | 1,296 and 1,190 of 5,000, two cameras | 39.2 µs | 220 µs | 262 µs |
 | 2,809 of 50,000 | 110 µs | 242 µs | 353 µs |
 | 529 of 50,000 | 82.2 µs | 45.5 µs | 128 µs |
+| 5,000 of 5,000 at L2 (points, v0.19) | 65.3 µs | 199 µs | |
+| 49 of 5,000 at L2 | 9.0 µs | 2.3 µs | |
+| 5,000 of 5,000 at L2, a quarter kept (`Keep`) | 99 µs | | |
+| 5,000 of 5,000 at L3, summed into the ground | 460 µs | 0.3 µs | |
+| 49 of 5,000 at L3, summed | 13.5 µs | 0.3 µs | |
+| 5,000 of 5,000 at L3, no ground reading the sum | 65.0 µs | 78 µs | |
 
 0 allocs/op. The publishing walks the world and writes a record an entity in view: under 2 ns an
 entity walked and some 10 ns a record. The drawing costs the boxes in view, about 85 ns a box
@@ -77,6 +83,17 @@ entity walked and some 10 ns a record. The drawing costs the boxes in view, abou
 the view's bounds, v0.18),
 three fifths of it the look laying the sprite (`Flat.Sprite`, `VisitWrapImages` for a torus's
 copies), the rest the frame's placing (`Frame.At`, `Lifted`) and the atlas's lookups.
+
+The levels' rungs (v0.19; the first world cut into sectors of 1024, the camera's pixel a unit set
+so every sector is at L2 or L3): at L2 a figure is a point without a look, ~40 ns a box drawn, the
+record the same; keeping a quarter (`Ladder.Keep`) costs the hash of every entity in view at the
+publishing (~7 ns each) and spares three quarters of the points drawn (~150 µs here), a gain where
+the drawing outweighs it. At L3 with a ground reading the sum (`world.Plugin.Aggregates`) the
+publishing sums a box's colour into the texels it covers instead of a record, ~90 ns a box for
+20-unit boxes over 16-unit texels (about five texels each; ~25 ns at one, Go spilling registers
+in the loop), and the drawing has nothing left; without a reader the record is written as before
+and skipped at the drawing (~15 ns). Against v0.18 the plain rungs publish +4–6% (the level and
+the hash read for every entity) and draw −5%.
 
 ## Collision tick — `Benchmark_Collision_Tick`, `Benchmark_Collision_Swept`
 
@@ -124,7 +141,8 @@ off (`SwitchBands`), every box moving and colliding, the camera's view still ref
 
 With the levels on about 1,500 boxes go every step; the rest lie out of the space at no cost but
 the supervisor's pass over the sectors (the observer's level a sector, its hysteresis and
-grading, the keen walk). Before the ladder (v0.17, bands 750 full and 2000 at a step in four,
+grading, the keen walk); unchanged by v0.19 (−1 to −3%).
+Before the ladder (v0.17, bands 750 full and 2000 at a step in four,
 anchors as points and no camera view in the bench): 1.86 ms on, 13.6 ms off; the tick with the
 levels off carries the camera's view over every awake box now, which the old bench left out:
 of the tree's 16 ms the space's index built for the view's query (aabbworld's `Grid.index` and
@@ -518,6 +536,7 @@ resolution or at every pixel (sharp).
 | isometric, every sector at L1 (no shore nor running water) | 13.5 ms | 4.2 ms |
 | isometric, every sector at L2 (coarse lattice, still water) | 12.0 ms | 2.7 ms |
 | isometric, every sector at L3 (the albedo sheet) | 9.0 ms | ~0 |
+| isometric, every sector at L3, the figures' sum laid over the sheet (v0.19) | 9.3 ms | ~0.3 ms |
 | isometric in layers | 13.9 ms | 4.7 ms |
 | perspective in layers, inset | 15.0 ms | 5.7 ms |
 | perspective in layers, footed | 14.5 ms | 5.3 ms |
@@ -531,7 +550,9 @@ resolution or at every pixel (sharp).
 What it says: the frame is bound by the pixels — 0.7 of them costs half, the layers (0.52 of the
 pixels drawn) a third less than the whole; the figures at every pixel over a coarse ground cost
 2–2.3 ms, the pass over the ground at the screen's size; each level of the ground saves 1.5–2.7
-ms of the frame, the sheet at L3 nearly the whole ground's pass (v0.18); the baked shade costs
+ms of the frame, the sheet at L3 nearly the whole ground's pass (v0.18); the figures' colour
+summed into the ground (v0.19) costs the sheet ~0.3 ms with no figure at L3 (its scale uniform
+read, the sample skipped; +0.6 ms when it sampled an empty image); the baked shade costs
 nothing measurable here. The CPU is busy a fifth of the frame (the profile), the
 readback's copy and the Vulkan calls, and waits the rest.
 

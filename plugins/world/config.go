@@ -24,7 +24,7 @@ type Config struct {
 	// world at the world's pace.
 	Sectors SectorsCfg
 	// LOD is the world's ladder of levels, its sectors' by the scale they are seen at and how far
-	// they lie; zero, L0 everywhere without end. It needs Sectors.
+	// they lie; zero, L0 everywhere without end round an observer, L2 with none. It needs Sectors.
 	LOD lod.Ladder
 }
 

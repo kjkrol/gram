@@ -44,6 +44,8 @@ type sectors struct {
 	level []lod.Level
 	// the levels switched off: every sector ticked at L0
 	unbanded bool
+	// the level every sector is ticked at with no observer, the ladder's Unobserved
+	unobserved lod.Level
 	// by level: L0's none
 	marks [lod.Levels]goke.CompID
 	// by level but L4, each its own column
@@ -75,6 +77,7 @@ func newSectors(w *module) *sectors {
 	}
 	cfg.LOD.Check()
 	s.ladder = cfg.LOD
+	s.unobserved = cfg.LOD.Unobserved.Level()
 	side := float32(cfg.Sectors.Buckets) * float32(w.space.BucketSize)
 	space := cfg.Space
 	s.grid = sector.NewGrid(space.Width, space.Height, space.Edges.WrapsX(), space.Edges.WrapsY(),
@@ -128,7 +131,7 @@ func (s *sectors) Update(cb *goke.CmdBuf, _ time.Duration) {
 		s.lull()
 	}
 	s.observe()
-	if !s.unbanded && len(s.cams) > 0 {
+	if !s.unbanded {
 		s.keep()
 	}
 	s.woke = s.woke[:0]
@@ -272,13 +275,13 @@ func (s *sectors) keep() {
 	}
 }
 
-// the level sector i is ticked at: the fullest an observer draws it at or a Keen entity keeps it
-// at, L0 with no observer
+// the level sector i is ticked at: the fullest an observer draws it at, or the ladder's
+// Unobserved with no observer, or a Keen entity keeps it at
 func (s *sectors) ticked(i int) lod.Level {
-	if len(s.cams) == 0 {
-		return lod.L0
-	}
 	level := s.keen[i]
+	if len(s.cams) == 0 {
+		return min(level, s.unobserved)
+	}
 	for j := range s.cams {
 		level = min(level, s.graded[j][i])
 	}

@@ -34,9 +34,18 @@ type Atlas struct {
 	owns   []owned
 	// the looks declared at levels, by the kind's own sprite
 	declared map[render.SpriteID][]leveled
+	// the kinds never thinned (Slot.Always), by their own sprite
+	always map[render.SpriteID]bool
 	// after Close: each kind's look at each level, by its own sprite, and every sprite's
 	versions map[render.SpriteID][lod.Levels]version
 	levels   byLevel
+	// after Close: by sprite, whether it is drawn in the place of a kind never thinned
+	unthinned []bool
+	// after Close: by sprite, the levels it is drawn at in a look its kind declared, a bit each
+	declaring []uint8
+	// after Close: by sprite, the straight colour its kind is summed into the ground in at L3,
+	// clear for none
+	colours [][4]uint8
 }
 
 // owned is a kind's own look as Add took it, its drawer nil for a material
@@ -119,6 +128,7 @@ func (p *Plugin) NewAtlas() *Atlas {
 		edges:    map[render.SpriteID]render.SpriteID{},
 		twins:    map[tag.Tag[effect.States]]map[render.SpriteID]render.SpriteID{},
 		declared: map[render.SpriteID][]leveled{},
+		always:   map[render.SpriteID]bool{},
 		versions: map[render.SpriteID][lod.Levels]version{},
 	}
 }
@@ -310,6 +320,39 @@ func (s Slot) mayDeclare(level lod.Level) {
 	}
 }
 
+// Always has the kind never thinned by the world's lod.Ladder.Keep: a camera publishes every one
+// of its entities at every level it draws them at.
+func (s Slot) Always() Slot {
+	if s.a.p.looked {
+		panic(fmt.Sprintf("world: sprite %d kept from thinning after the renderer was made", s.id))
+	}
+	s.a.always[s.id] = true
+	return s
+}
+
+// isAlways reports whether the sprite id is drawn in the place of a kind never thinned, once the
+// atlas is closed
+func (a *Atlas) isAlways(id render.SpriteID) bool {
+	return int(id) < len(a.unthinned) && a.unthinned[id]
+}
+
+// declares reports whether the sprite id is drawn at level in a look its kind declared for it
+// (Slot.At), once the atlas is closed
+func (a *Atlas) declares(id render.SpriteID, level lod.Level) bool {
+	return int(id) < len(a.declaring) && a.declaring[id]&(1<<level) != 0
+}
+
+// blobColour is the straight colour the sprite id's kind is summed into the ground in at L3, its
+// blob's, once the atlas is closed; false for a kind declaring a look of its own at a level or of
+// no blob
+func (a *Atlas) blobColour(id render.SpriteID) ([4]uint8, bool) {
+	if int(id) >= len(a.colours) {
+		return [4]uint8{}, false
+	}
+	c := a.colours[id]
+	return c, c[3] != 0
+}
+
 // Turning has the sprite drawn turned the way its entity is headed. Author it facing east, its
 // content within the circle inscribed in its square box.
 func (s Slot) Turning() Slot {
@@ -471,14 +514,21 @@ func (a *Atlas) kin(id render.SpriteID, visit func(render.SpriteID)) {
 
 // level works out what each kind is drawn as at each level, then what every sprite drawn in a
 // kind's place is: the kind's own at L0 and L1, a blob of its own look at L2 (a material itself),
-// nothing past, unless declared otherwise
+// its blob's colour summed into the ground at L3, nothing past, unless declared otherwise
 func (a *Atlas) level() {
 	for _, own := range a.owns {
 		a.versions[own.id] = a.versionsOf(own)
 	}
 	a.levels = byLevel{}
 	for _, own := range a.owns {
-		of := a.versions[own.id]
+		of, always := a.versions[own.id], a.always[own.id]
+		declaring := a.declaredLevels(own.id)
+		// a declaration lasts to L4, so any at all is the kind's at L3
+		var colour [4]uint8
+		if own.draw != nil && len(a.declared[own.id]) == 0 {
+			c := render.MeanColour(own.draw, own.size)
+			colour = [4]uint8{c.R, c.G, c.B, c.A}
+		}
 		a.kin(own.id, func(k render.SpriteID) {
 			for int(k) >= len(a.levels) {
 				a.levels = append(a.levels, itself(render.SpriteID(len(a.levels))))
@@ -489,8 +539,39 @@ func (a *Atlas) level() {
 				}
 				a.levels[k][l] = v
 			}
+			if always {
+				for int(k) >= len(a.unthinned) {
+					a.unthinned = append(a.unthinned, false)
+				}
+				a.unthinned[k] = true
+			}
+			if declaring != 0 {
+				for int(k) >= len(a.declaring) {
+					a.declaring = append(a.declaring, 0)
+				}
+				a.declaring[k] = declaring
+			}
+			if colour[3] != 0 {
+				for int(k) >= len(a.colours) {
+					a.colours = append(a.colours, [4]uint8{})
+				}
+				a.colours[k] = colour
+			}
 		})
 	}
+}
+
+// declaredLevels is the levels the kind own is drawn at in a look declared for it, a bit each
+func (a *Atlas) declaredLevels(own render.SpriteID) uint8 {
+	var bits uint8
+	for l, v := range a.versions[own] {
+		for _, d := range a.declared[own] {
+			if v.drawn && d.drawn && v.id == d.id {
+				bits |= 1 << l
+			}
+		}
+	}
+	return bits
 }
 
 // versionsOf is what the kind is drawn as at each level, a declaration lasting to the next; a
