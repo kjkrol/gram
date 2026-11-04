@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.19.0 — unreleased
+## v0.19.0 — 2026-11-04
 
 **Figures generalised: a point at L2, colour in the ground at L3, thinning, the unobserved
 world** (2026-11-04, branch `feat/lod-figures`, parts `g/points`, `g/aggregate`)
