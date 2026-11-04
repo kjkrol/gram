@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
@@ -26,11 +27,16 @@ func benchWorld(b *testing.B, ctx *headless, n int) *goke.ECS {
 
 // view 0: the whole world
 func benchWorldViewed(b *testing.B, ctx *headless, n int, spacing int, view uint32, arrange func(*world.Plugin, kind.Of[mover])) *goke.ECS {
+	return benchWorldIn(b, ctx, world.Config{}, n, spacing, view, arrange)
+}
+
+// benchWorldIn is benchWorldViewed in a world of cfg's sectors and ladder
+func benchWorldIn(b *testing.B, ctx *headless, cfg world.Config, n int, spacing int, view uint32,
+	arrange func(*world.Plugin, kind.Of[mover])) *goke.ECS {
 	b.Helper()
-	w := ctx.UseWorld(world.Config{
-		Space:    world.SpaceCfg{Width: 4000, Height: 4000, Edges: aabbworld.Torus},
-		Entities: world.EntitiesCfg{MaxCount: n, MinSize: 1, MaxSize: 100},
-	})
+	cfg.Space = world.SpaceCfg{Width: 4000, Height: 4000, Edges: aabbworld.Torus}
+	cfg.Entities = world.EntitiesCfg{MaxCount: n, MinSize: 1, MaxSize: 100}
+	w := ctx.UseWorld(cfg)
 	kind.Define[mover](w.Kinds(), "mover", kind.Spec{
 		comp.Load(func(m mover) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(m.x, m.y), 20, 20)}
@@ -103,8 +109,53 @@ func worldDrawn(b *testing.B, n, spacing int, view uint32, two bool) (*headless,
 	return ctx, r, cams
 }
 
+// the worlds of worldViews cut into sectors of 1024, the camera's pixel a unit under the ladder's
+// L1 at 4 and over its L2 at 0.5, or under its L2 at 2, keeping keep of what it draws at L2, the
+// figures' colour summed into the ground where a renderer reads it
+var leveledViews = []struct {
+	name       string
+	n, spacing int
+	view       uint32
+	keep       float32
+	level      lod.Level
+	read       bool
+}{{"5000 of 5000 in view, level=2", 5000, 56, 4000, 0, lod.L2, true},
+	{"49 of 5000 in view, level=2", 5000, 56, 400, 0, lod.L2, true},
+	{"5000 of 5000 in view, level=3", 5000, 56, 4000, 0, lod.L3, true},
+	{"49 of 5000 in view, level=3", 5000, 56, 400, 0, lod.L3, true},
+	{"5000 of 5000 in view, level=3, unread", 5000, 56, 4000, 0, lod.L3, false}}
+
+// worldLeveled is the world of n boxes spacing apart cut into sectors and ticked once, its kind
+// in the world's own atlas, its picture and the camera drawing it at level, L2 or L3, keeping
+// keep at L2, the figures summed into the ground where read
+func worldLeveled(b *testing.B, n, spacing int, view uint32, keep float32, level lod.Level,
+	read bool) (*headless, *render.Composer, camera.Camera) {
+	ctx := newHeadless()
+	var r *render.Composer
+	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{8, 4, 0.5}}
+	if level == lod.L3 {
+		ladder.Scales[lod.L2] = 2
+	}
+	ladder.Keep[lod.L2] = keep
+	cfg := world.Config{Sectors: world.SectorsCfg{Buckets: 4}, LOD: ladder}
+	ecs := benchWorldIn(b, ctx, cfg, n, spacing, view, func(w *world.Plugin,
+		movers kind.Of[mover]) {
+		if read {
+			w.Aggregates()
+		}
+		atlas := w.NewAtlas()
+		atlas.Add(movers, 20, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
+		atlas.Close()
+		ctx.look()
+		r = w.Read(0).Picture().(*render.Composer)
+		ctx.pending = append(ctx.pending, ctx.bound)
+	})
+	ecs.Tick(step)
+	return ctx, r, ctx.cam
+}
+
 // Benchmark_World_Draw composes one frame of the entity renderer over the boxes published, as
-// worldViews says.
+// worldViews and leveledViews say.
 func Benchmark_World_Draw(b *testing.B) {
 	for _, v := range worldViews {
 		b.Run(v.name, func(b *testing.B) {
@@ -118,13 +169,35 @@ func Benchmark_World_Draw(b *testing.B) {
 			}
 		})
 	}
+	for _, v := range leveledViews {
+		b.Run(v.name, func(b *testing.B) {
+			ctx, r, cam := worldLeveled(b, v.n, v.spacing, v.view, v.keep, v.level, v.read)
+			ctx.publish()
+			b.ReportAllocs()
+			for b.Loop() {
+				r.DrawWorld(nil, cam)
+			}
+		})
+	}
 }
 
-// Benchmark_World_Publish is the entity renderer's publishing of what Benchmark_World_Draw draws.
+// Benchmark_World_Publish is the entity renderer's publishing of what Benchmark_World_Draw draws,
+// and of its first world at L2 keeping a quarter.
 func Benchmark_World_Publish(b *testing.B) {
 	for _, v := range worldViews {
 		b.Run(v.name, func(b *testing.B) {
 			ctx, _, _ := worldDrawn(b, v.n, v.spacing, v.view, v.two)
+			b.ReportAllocs()
+			for b.Loop() {
+				ctx.publish()
+			}
+		})
+	}
+	thinned := leveledViews[0]
+	thinned.name, thinned.keep = thinned.name+", keep=0.25", 0.25
+	for _, v := range append(leveledViews, thinned) {
+		b.Run(v.name, func(b *testing.B) {
+			ctx, _, _ := worldLeveled(b, v.n, v.spacing, v.view, v.keep, v.level, v.read)
 			b.ReportAllocs()
 			for b.Loop() {
 				ctx.publish()

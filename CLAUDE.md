@@ -276,12 +276,14 @@ Decisions the user has made; they are not up for revisiting in passing.
   `lod.L0`..`lod.L4` (full, no detail, shape, colour, nothing), from the shown pixels a world
   unit spans there through each observer's camera and its distance within the ladder's Sight
   (`world.Config.LOD`), the same level for everything in the sector; an entity's mark is the
-  level ticked, the finest any observer sees, held awake by a `sector.Keen` entity in it (a shot
-  in flight); each camera's view holds the level it draws at, the frame budget shifting it
-  coarser for every camera alike before the resolution falls, never past L3. Every system says
+  level ticked, the finest any observer sees (the ladder's `Unobserved` with none, L2 by
+  default), held awake by a `sector.Keen` entity in it (a shot in flight); each camera's view
+  holds the level it draws at, the frame budget shifting it coarser for every camera alike
+  before the resolution falls, never past L3. Every system says
   how often it goes at each level (`lod.Paces` through `world.Plugin.Pace`), none without; every
   drawn kind has a version a level (`Slot.At`, `Nothing`; a blob of its mean colour derived at
-  L2) after the table of words in `lod/doc.go`. Nothing measures a distance or a ring of its
+  L2, that colour summed into the ground at L3 where a ground reads it,
+  `world.Plugin.Aggregates`) after the table of words in `lod/doc.go`. Nothing measures a distance or a ring of its
   own and nothing shifts the level for itself: the topography's care rings went that way.
 - **Never make a unit see the others ahead**: it senses nothing of them and learns of them by
   striking (navigation); its order may be told by the group's plan (a field, a column's place

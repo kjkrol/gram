@@ -105,6 +105,18 @@ func (r *Read) Picture() render.Picture {
 	return r.p.picture
 }
 
+// Aggregate is the figures' colour summed into the ground from L3: an image over the whole world,
+// perUnit texels a world unit from its top-left corner, for the ground's renderers to sample. It
+// is nil until a renderer asks for it (Plugin.Aggregates) and in a world without sectors, perUnit
+// 0 while it holds no colour.
+func (r *Read) Aggregate() (img *render.Image, perUnit float32) {
+	a := &r.p.renderer.aggregate
+	if !a.live() {
+		return a.img, 0
+	}
+	return a.img, a.perUnit
+}
+
 // Atlas is the world's looks as Write.SetAtlas took them, nil before.
 func (r *Read) Atlas() render.AtlasSource { return r.p.renderer.atlas }
 

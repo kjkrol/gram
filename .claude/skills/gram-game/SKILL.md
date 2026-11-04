@@ -44,7 +44,10 @@ no world and a modal panel over the ticking world: `examples/start/scenes`.
 ## A demo
 
 - A world cut into sectors (`world.SectorsCfg{Buckets}`) sets its one ladder of detail,
-  `world.Config.LOD` (`lod.Ladder{Scales, Sight, Fog}`): the scales in shown pixels a world
+  `world.Config.LOD` (`lod.Ladder{Scales, Sight, Fog, Unobserved, Keep, Texel}`; `Unobserved`
+  the level a world no camera observes ticks at, zero L2; `Keep` the share of a level's figures
+  published, zero all, a kind `Always()` or keen or with a declared version never thinned;
+  `Texel` the aggregate image's grain): the scales in shown pixels a world
   unit, descending, where the levels L0..L3 begin (a sector under the last, or past the Sight,
   is L4: asleep and not drawn); the game's figures are 15× life on Madeira, so its thresholds
   are its own. A camera's Ctrl+=/− multiplies the Sight for itself. No `Bands`, no `Detail`,

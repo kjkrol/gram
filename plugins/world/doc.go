@@ -94,11 +94,18 @@
 // ([Write.SetLighting]), and lit as the frame says (render.Frame.Lit) by the lights the picture
 // is given ([Write.SetLights], [Read.Lights]), in white light without them. An entity is drawn in
 // its kind's look at the level its camera sees it at: its own at L0, plainly at L1 (no edges,
-// flat where it would stand), a blob of its own look at L2 (render.Blob), nothing past, or as
-// [Slot.At] and [Slot.Nothing] declare from a level on. [Plugin.WithFog] is the fog's colour in a
-// world without an atmosphere. The entities are published once a frame, after its ticks: the
+// flat where it would stand), a blob of its own look at L2 (render.Blob), its blob's colour in
+// the ground at L3, or as [Slot.At] and [Slot.Nothing] declare from a level on. At L2 the
+// renderer draws it itself as a point, its box as large as it shows and a pixel at least, as
+// opaque as it covers, with no Look, lamp or shadow, and a camera publishes the ladder's Keep
+// share of a level's entities by their identity, the same each frame, sparing the sector.Keen, a
+// kind [Slot.Always] and one drawn in a look declared there. [Plugin.WithFog] is the fog's colour
+// in a world without an atmosphere. The entities are published once a frame, after its ticks: the
 // looks' rules settle every one some camera sees, the Lighting marks it, each camera's view is
-// copied, and the frame is drawn of that alone.
+// copied, and the frame is drawn of that alone. In a world cut into sectors whose ground a
+// renderer draws ([Plugin.Aggregates]) a figure some camera sees at L3 is no record but its
+// blob's colour summed by how much of each texel its box covers into [Read.Aggregate], an image
+// over the whole world the renderer lays over the ground it draws there ([AggregateImage]).
 //
 // [Read.Picture] is everything the Stage's plugins draw (plugin.Installer.Draws), one picture
 // for every scene; a scene shows it through a camera, ui.Image(render.NewFeed(camera, it)).
@@ -108,7 +115,8 @@
 // Config.Sectors cuts the world into sectors, each ticked at the fullest level Config.LOD (a
 // lod.Ladder) says one of the observers sees it at ([Write.Observe]; the cameras plugin gives
 // its cameras) or a sector.Keen entity in it or beside it keeps it at, and marks each entity with
-// its sector's level (package sector); what lies at L4 is out of the space. A system adds the
+// its sector's level (package sector); what lies at L4 is out of the space. With no observer
+// every sector is ticked at the ladder's Unobserved level, L2 unless set. A system adds the
 // pace of its lod.Paces ([Plugin.Pace]) to its query and walks it with goke.Query.Paced; the
 // world's plans and effects go lod.Slowing(2, 4, 8).
 // [Read.Sectors] lays them on the telemetry panel. A camera's View in such a world is of the

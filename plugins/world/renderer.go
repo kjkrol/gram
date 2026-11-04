@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/lod"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 )
@@ -25,6 +26,7 @@ type renderer struct {
 	z           goke.OptComp[Z]
 	lies        goke.OptComp[Lie]
 	active      goke.OptComp[cgoke.Active]
+	keen        goke.OptComp[sector.Keen]
 	rules       *Rules
 	layers      [][]render.Appearance
 	shown       []bool
@@ -32,6 +34,9 @@ type renderer struct {
 	phased      map[render.SpriteID]phase // a material's effect, for how far it has run
 	views       func() map[camera.Camera]*view.View
 	seeing      []*view.View // the views published
+	// by view published, what it keeps of each level's entities; thinned, whether any thins
+	keeps   []keeping
+	thinned bool
 	// nil, the composer's own
 	clock func() time.Duration
 
@@ -46,8 +51,15 @@ type renderer struct {
 	standing map[render.SpriteID]bool
 	edges    map[render.SpriteID]render.SpriteID
 	quads    []camera.Quad
+	// by sprite, whether it is a material: shaded's keys
+	materials []bool
+	// what stands at L2, a point a figure, and the light they are drawn in
+	points render.Sprites
+	litFor pointLight
 	// the world's size and edges, for the sector an entity at a picture's edge is drawn by
 	space SpaceCfg
+	// the figures' colour summed into the ground, Read.Aggregate's; none without sectors
+	aggregate aggregate
 }
 
 func newRenderer(atlas render.AtlasSource, views func() map[camera.Camera]*view.View,
@@ -58,6 +70,13 @@ func newRenderer(atlas render.AtlasSource, views func() map[camera.Camera]*view.
 func (s *renderer) shade(shaded map[render.SpriteID]render.MaterialID,
 	phased map[render.SpriteID]phase) {
 	s.shaded, s.phased = shaded, phased
+	s.materials = s.materials[:0]
+	for id := range shaded {
+		for int(id) >= len(s.materials) {
+			s.materials = append(s.materials, false)
+		}
+		s.materials[id] = true
+	}
 }
 
 func (s *renderer) lie(lying map[render.SpriteID]bool, edges map[render.SpriteID]render.SpriteID,
@@ -75,8 +94,10 @@ func (*renderer) Overlies() {}
 
 // Compose hands f every entity published in sight of cam in its kind's look at the level cam sees
 // it at, as the world's Look lays it, lit as the Lighting says, in white light without one: the
-// Look knows the wind, the world its entities.
+// Look knows the wind, the world its entities. What it sees at L2 it draws itself, a point each.
 func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
+	s.aggregate.upload()
+	s.points.Reset()
 	if s.atlas == nil {
 		return
 	}
@@ -84,9 +105,13 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 		f.Uniform("Fog", s.fog[:]...)
 	}
 	look := s.look()
-	if d, ok := look.(DirectLook); ok {
+	d, direct := look.(DirectLook)
+	if direct {
 		d.Begin(f, cam)
 	}
+	sp := s.space
+	s.points.Wrap(float32(sp.Width), float32(sp.Height), sp.Edges.WrapsX(), sp.Edges.WrapsY())
+	s.litFor.ok = false
 	lies, _ := look.(LyingLook)
 	uprights, _ := look.(UprightLook)
 	foggy, _ := look.(FoggyLook)
@@ -96,7 +121,9 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	if wa, ok := s.atlas.(*Atlas); ok {
 		levels = wa.levels
 	}
-	lowest, any := render.Nearest, false
+	// a view sorting by height alone has the frame asked where a figure lies only when it is lower
+	sorts := cam.Projection().Sorts()
+	lowest, low, any, pointed := render.Nearest, float32(0), false, false
 	for k := range figs.all {
 		e := &figs.all[k]
 		if v == nil || !v.Contains(e.id) {
@@ -109,9 +136,14 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 		if !levels.anyAt(layers, level) {
 			continue
 		}
-		at := f.Lifted(mid.X, mid.Y, z.Altitude, FigureLift)
-		if !any || at.Before(lowest) {
-			lowest, any = at, true
+		if !any || sorts || z.Altitude < low {
+			if at := f.Lifted(mid.X, mid.Y, z.Altitude, FigureLift); !any || at.Before(lowest) {
+				lowest, low, any = at, z.Altitude, true
+			}
+		}
+		if level == lod.L2 {
+			pointed = s.point(f, cam, e, mid, layers, levels, v.Fog(mid.X, mid.Y)) || pointed
+			continue
 		}
 		// coarsely: no edges, flat where it would stand
 		coarse := level >= lod.L1
@@ -130,7 +162,7 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			a := l.Appearance
 			a.SpriteID = id
 			if m, ok := s.shaded[id]; ok {
-				s.material(f, cam, e, at, m, l.progress)
+				s.material(f, cam, e, m, l.progress)
 				continue
 			}
 			if lies != nil && s.lying[id] && e.lie > 0 {
@@ -154,9 +186,71 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	if foggy != nil {
 		foggy.Fog(0)
 	}
-	if _, ok := look.(DirectLook); ok && any {
+	if any && (direct || pointed) {
 		f.DrawAt(lowest) // the figures come after what lies beneath the lowest of them
 	}
+}
+
+// point draws e at L2 as one point of the first of its layers drawn there, fogged by fog, a
+// material among them as it is; no Look, no light of its own and no shadow. It reports whether
+// it drew a point.
+func (s *renderer) point(f *render.Frame, cam camera.Camera, e *figure, mid geom.Vec,
+	layers []layer, levels byLevel, fog float32) bool {
+	pointed := false
+	for _, l := range layers {
+		id, ok := levels.at(l.SpriteID, lod.L2)
+		switch {
+		case !ok:
+		case int(id) < len(s.materials) && s.materials[id]:
+			s.material(f, cam, e, s.shaded[id], l.progress)
+		case !pointed:
+			pointed = true
+			lit := s.pointLit(f, e.shadow.Take)
+			s.points.Fog(fog)
+			s.points.Take(lit.Takes)
+			s.points.Direct(lit.Direct)
+			z := e.z
+			// seen at its middle, lying for the depth where a figure's sprite would
+			s.points.Point(s.atlas, id, mid.X, mid.Y, e.box.Size.X, e.box.Size.Y,
+				z.Altitude+z.Height/2, z.Top()+FigureLift, lit.Light)
+		}
+	}
+	return pointed
+}
+
+// pointLight is the light the points taking take are drawn in this frame, while ok
+type pointLight struct {
+	lit  render.Illumination
+	take render.Taking
+	ok   bool
+}
+
+// pointLit is the light a point taking take is drawn in: the distant light's alone, the lamps
+// left to the finer levels, so the frame is asked once for a run of points taking alike
+func (s *renderer) pointLit(f *render.Frame, take render.Taking) *render.Illumination {
+	if !s.litFor.ok || s.litFor.take != take {
+		s.relight(f, take)
+	}
+	return &s.litFor.lit
+}
+
+func (s *renderer) relight(f *render.Frame, take render.Taking) {
+	s.litFor = pointLight{lit: f.Lit(0, 0, 0, lampless(take)), take: take, ok: true}
+}
+
+// lampless is take without the lamps' light, which hangs on where a thing stands; the lamps' alone
+// becomes the clouds' shade, which no point takes, so the distant light still lights it
+func lampless(take render.Taking) render.Taking {
+	switch {
+	case take&render.Shines != 0:
+		return take
+	case take == 0:
+		take = render.TakesAll
+	}
+	if take &^= render.TakesLamps; take == 0 {
+		return render.TakesClouds
+	}
+	return take
 }
 
 // level is how fully v draws what stands over box: as its middle's sector, the middle held within
@@ -168,6 +262,12 @@ func (s *renderer) level(v *view.View, box geom.AABB, mid geom.Vec) lod.Level {
 		return v.Level(mid.X, mid.Y)
 	}
 	b := v.Bounds
+	if b.TopLeft.X <= mid.X && mid.X <= b.BottomRight.X && b.TopLeft.Y <= mid.Y &&
+		mid.Y <= b.BottomRight.Y {
+		if level := v.Level(mid.X, mid.Y); level != lod.L4 {
+			return level
+		}
+	}
 	w, h := float32(s.space.Width), float32(s.space.Height)
 	wx, wy := s.space.Edges.WrapsX(), s.space.Edges.WrapsY()
 	level := v.Level(held(mid.X, b.TopLeft.X, b.BottomRight.X, w, wx),
@@ -228,22 +328,24 @@ func (b byLevel) anyAt(layers []layer, level lod.Level) bool {
 	return false
 }
 
-// Draw has a DirectLook draw the sprites Compose handed it.
+// Draw has a DirectLook draw the sprites Compose handed it, and draws the points after them.
 func (s *renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if d, ok := s.look().(DirectLook); ok {
 		d.DrawSprites(t, cam, u)
 	}
+	s.points.Draw(t, cam, u)
 }
 
 // the material's inputs: Custom the box's middle, half its side and its heading in radians,
 // Red how fast it moves in its own lengths a second up to 1, the fraction how far the effect it
 // is under has run
 func (s *renderer) material(
-	f *render.Frame, cam camera.Camera, e *figure, at render.At, m render.MaterialID,
-	progress float32,
+	f *render.Frame, cam camera.Camera, e *figure, m render.MaterialID, progress float32,
 ) {
 	x0, y0 := e.box.TopLeft.X, e.box.TopLeft.Y
 	x1, y1 := e.box.BottomRight.X, e.box.BottomRight.Y
+	mid := Position{AABB: e.box}.Center()
+	at := f.Lifted(mid.X, mid.Y, e.z.Altitude, FigureLift)
 	angle := float32(0)
 	if e.dir != (geom.Vec{}) {
 		angle = angleOf(e.dir) * math.Pi / 180

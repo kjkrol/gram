@@ -76,7 +76,7 @@ fn fs_prime() -> @location(0) vec4<f32> {
 //   2  the waves and their glint, the still water a level mirror of the sky; the baked shade and
 //      the lamps, every cell taking every shade
 //   3  the clouds' shadow and the wind's sway (vs_main), the details' grain and the water's
-//      picture: a sheet of the albedo's flat colour
+//      picture: a sheet of the albedo's flat colour, the figures' colour summed over it
 @fragment
 fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     let p = g.world;
@@ -127,6 +127,9 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
         light += lampLightAt(p);
     }
     var ground = albedo(p.xy);
+    if LEVEL == 3u && inside {
+        ground = over(aggregateAt(p.xy), ground);
+    }
     if LEVEL <= 2u && U.DetailPx > 0.0 && inside {
         let show = detailShow(span);
         if show > 0.0 {

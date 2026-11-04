@@ -46,7 +46,7 @@ var sheets = render.NewMeshShaderWith("hexes sheet", render.Files(shaders, "shad
 	[]render.Uniform{
 		{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1},
 		{Name: "TopPx", Size: 1},
-		{Name: "HazeUp", Size: 1}, {Name: "HazeWay", Size: 3},
+		{Name: "HazeUp", Size: 1}, {Name: "AggregatePx", Size: 1}, {Name: "HazeWay", Size: 3},
 		{Name: "Sight", Size: 4},
 	}).Instanced(2)
 
@@ -196,9 +196,22 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		t.Screen.DrawMesh(nil, fans, &h.opts)
 	})
 	if len(h.sheet) > 0 {
-		h.opts.Instances, h.opts.Vertices = h.sheet, sheetVertices
-		t.Screen.DrawMesh(nil, sheets, &h.opts)
+		img, perUnit := h.world.Read(0).Aggregate()
+		h.drawSheets(t, img, perUnit)
 	}
+}
+
+// drawSheets draws the sheets each laid, the figures' colour summed over them from img, perUnit
+// texels a world unit
+func (h *Ground) drawSheets(t render.Target, img *render.Image, perUnit float32) {
+	if img == nil || perUnit <= 0 {
+		img, perUnit = nil, 0
+	}
+	h.set("AggregatePx", perUnit)
+	h.opts.Uniforms[world.AggregateImage] = img
+	h.opts.Instances, h.opts.Vertices = h.sheet, sheetVertices
+	t.Screen.DrawMesh(nil, sheets, &h.opts)
+	delete(h.opts.Uniforms, world.AggregateImage)
 }
 
 // Levels is how many sectors the last frame drew at each level.

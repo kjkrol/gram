@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/gram/internal/f32"
 	_ "github.com/kjkrol/gram/plugins/atmosphere/air" // the Wind the shaders lean the tiles in
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -50,6 +51,8 @@ var tilesUniforms = []render.Uniform{
 	{Name: "TileTint", Size: 3},
 	{Name: "TileSways", Size: 1},
 	{Name: "TileFull", Size: 1},
+	// in the floats TileCovers' alignment leaves free
+	{Name: "TileAggregatePx", Size: 1},
 	{Name: "TileCovers", Size: 4},
 	{Name: "TileCoversOn", Size: 4},
 	{Name: "TileSeen", Size: 1},
@@ -486,6 +489,7 @@ func (g *tiles) draw(t render.Target, v seeing, u render.Uniforms, l *Renderer, 
 	g.set("TileCovers", covers[:4]...)
 	g.set("TileCoversOn", covers[4:]...)
 	g.set("TileShift", 0, 0)
+	g.aggregate(l, seen)
 	g.laid = true
 	g.opts.Images = [4]*render.Image{g.sheet.Atlas(), g.rects, g.cells,
 		seen.uniforms(g.set, "Tile")}
@@ -516,6 +520,22 @@ func (g *tiles) draw(t render.Target, v seeing, u render.Uniforms, l *Renderer, 
 		}
 		g.set("TileShift", 0, 0)
 	}
+}
+
+// aggregate binds the figures' colour summed into the ground where a sector is seen at L3
+func (g *tiles) aggregate(l *Renderer, seen *seenSectors) {
+	var img *render.Image
+	px := float32(0)
+	if seen.l3 && l.aggregate != nil {
+		img, px = l.aggregate()
+	}
+	if img == nil || px <= 0 {
+		px = 0
+		delete(g.opts.Uniforms, world.AggregateImage)
+	} else {
+		g.opts.Uniforms[world.AggregateImage] = img
+	}
+	g.set("TileAggregatePx", px)
 }
 
 // materials lays the cells drawn by their material over what draw laid, with its uniforms

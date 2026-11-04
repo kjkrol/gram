@@ -10,8 +10,9 @@
 // The world's picture is a [Composer] of [Source]s, each handing its pieces to a [Frame] where
 // they lie ([At]), drawn back to front against the depth; a [Direct] source draws its part
 // itself with a shader of its own ([NewMeshShaderWith], [Image.DrawMesh]), [Sprites] as
-// instances. What is worked out per pixel is a material ([RegisterMaterials]), what every shader
-// of a frame reads beside the uniforms an image ([RegisterImage], [Frame.Image]).
+// instances; [Sprites] lay what is seen from afar as points too, a pixel at least, as opaque as
+// they cover of it. What is worked out per pixel is a material ([RegisterMaterials]), what every
+// shader of a frame reads beside the uniforms an image ([RegisterImage], [Frame.Image]).
 //
 // Pictures are [Image]s on the GPU, drawn into and filled ([Image.FillRect] and kin); sprites
 // are painted on the CPU into an [Atlas] ([SpriteDrawer], [Solid] and kin, [Blob] one seen from

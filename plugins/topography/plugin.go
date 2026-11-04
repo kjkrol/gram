@@ -233,11 +233,13 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 	p.painter = ipainter.New(p.drawnBoard, p.drawnRelief, true, map[cell.Name]painter.Style{}).
 		WithKinds(boardPlugin.Read(0).CellKinds())
 	boardPlugin.WithMap(p)
+	worldPlugin.Aggregates()
 	if _, _, _, _, square := p.relief.Lattice(); square {
 		p.ground = terrain.New(drawnGround{p}, boardSurface{p}, liveSky{p}, terrain.Config{
-			Scale: worldPlugin.Read(0).Scale(),
-			Seen:  worldPlugin.Read(0).ViewFor,
-			Hazed: func() bool { return p.drawnSettings().Haze },
+			Scale:     worldPlugin.Read(0).Scale(),
+			Seen:      worldPlugin.Read(0).ViewFor,
+			Hazed:     func() bool { return p.drawnSettings().Haze },
+			Aggregate: worldPlugin.Read(0).Aggregate,
 		})
 	} else {
 		p.hexes = hexes.New(worldPlugin, boardPlugin, p.drawnBoard, drawnMap{p}, p.drawnRelief,

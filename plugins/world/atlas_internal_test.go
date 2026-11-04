@@ -323,6 +323,42 @@ func TestAtlas_Close_DrawsEverySpriteInAKindsPlaceAsTheKindAtALevel(t *testing.T
 	}
 }
 
+func TestAtlas_Close_KeepsAKindAlwaysInEverySpriteDrawnInItsPlace(t *testing.T) {
+	p := NewPlugin(Config{
+		Space:    SpaceCfg{Width: 100, Height: 100},
+		Entities: EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+	p.write.Effects().Define("wet", effect.Spec{})
+	wet := p.write.Effects().Named("wet")
+	red := render.Solid(color.RGBA{R: 255, A: 255})
+	hero, deck := p.Kinds().NewSprite(), p.Kinds().NewSprite()
+	a := p.NewAtlas()
+	slot := a.Add(hero, 8, red).Facing(4, func(float64) render.SpriteDrawer { return red }).
+		Under(wet, red).At(lod.L1, red).Always()
+	a.Add(deck, 8, red).Under(wet, red)
+	a.Close()
+	kept := append([]render.SpriteID{hero, a.twins[wet.Mark()][hero], a.versions[hero][lod.L1].id},
+		a.faced[hero]...)
+	for _, id := range kept {
+		if !a.isAlways(id) {
+			t.Errorf("sprite %d in the hero's place is thinned, want it always kept", id)
+		}
+	}
+	thinned := []render.SpriteID{deck, a.twins[wet.Mark()][deck], a.versions[deck][lod.L2].id,
+		p.Kinds().NewSprite()}
+	for _, id := range thinned {
+		if a.isAlways(id) {
+			t.Errorf("sprite %d is always kept, want it thinned as the deck is", id)
+		}
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("a kind kept from thinning after the renderer was made was taken")
+		}
+	}()
+	slot.Always()
+}
+
 func TestAtlas_RefusesALookAtALevelThatCannotBe(t *testing.T) {
 	red := render.Solid(color.RGBA{R: 255, A: 255})
 	for name, declare := range map[string]func(s Slot, a *Atlas){

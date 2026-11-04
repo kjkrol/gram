@@ -71,7 +71,7 @@ func drawStanding(t *testing.T, ladder lod.Ladder, stands bool, rules ...Rule) *
 // drawSeen draws entities of sprite at x 100 and 700, and one at 900 of another kind, from atlas
 // through a camera seeing as ladder says, and hands back the composing of them again
 func drawSeen(t *testing.T, ladder lod.Ladder, atlas render.AtlasSource, sprite render.SpriteID,
-	look Look, ready func(*renderer), rules ...Rule) (again func()) {
+	look Look, ready func(*renderer), rules ...Rule) (again func() *render.Frame) {
 	t.Helper()
 	cam := farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}
 	return drawSeenAt(t, cam, ladder, []float32{100, 700, 900}, atlas, sprite, look, ready,
@@ -82,7 +82,7 @@ func drawSeen(t *testing.T, ladder lod.Ladder, atlas render.AtlasSource, sprite 
 // another kind
 func drawSeenAt(t *testing.T, cam camera.Camera, ladder lod.Ladder, xs []float32,
 	atlas render.AtlasSource, sprite render.SpriteID, look Look, ready func(*renderer),
-	rules ...Rule) (again func()) {
+	rules ...Rule) (again func() *render.Frame) {
 	t.Helper()
 	v := view.NewSeen(cam, halves{ladder: ladder})
 	var drawing Rules
@@ -120,9 +120,10 @@ func drawSeenAt(t *testing.T, cam camera.Camera, ladder lod.Ladder, xs []float32
 	view.NewSystem(space, &views, 1024, 1000).Update(nil, 0)
 	composed(r, cam)
 	var f render.Frame
-	return func() {
+	return func() *render.Frame {
 		f.Reset(cam)
 		r.Compose(&f, cam)
+		return &f
 	}
 }
 
@@ -182,24 +183,70 @@ func readied(a *Atlas) func(*renderer) {
 	}
 }
 
+// places counts the places the Directs composing f asked to draw at: with a look drawing nothing
+// itself, one where the renderer draws its points
+func places(f *render.Frame) int {
+	n := 0
+	f.Places(func(render.Pass, render.At) { n++ })
+	return n
+}
+
 func TestRenderer_Compose_DrawsEachKindAsTheLevelSays(t *testing.T) {
 	a, own := leveledRed()
-	blob := a.versions[own][lod.L2].id
 	// the right sector, a tenth of a pixel a unit, at the level the ladder says; the left at L0
 	for _, tc := range []struct {
 		scales [lod.Levels - 1]float32
 		want   []render.SpriteID
+		points bool
 	}{
-		{[...]float32{0.5, 0, 0, 0}, []render.SpriteID{own, own, own}},
-		{[...]float32{0.5, 0.2, 0, 0}, []render.SpriteID{own, blob, blob}},
-		{[...]float32{0.5, 0.3, 0.2, 0}, []render.SpriteID{own}},
+		{[...]float32{0.5, 0, 0, 0}, []render.SpriteID{own, own, own}, false},
+		{[...]float32{0.5, 0.2, 0, 0}, []render.SpriteID{own}, true},
+		{[...]float32{0.5, 0.3, 0.2, 0}, []render.SpriteID{own}, false},
 	} {
 		look := &counting{Look: ilook.NewFlat(1024, 1000, false, false)}
-		drawSeen(t, lod.Ladder{Scales: tc.scales}, a, own, look, readied(a))
+		again := drawSeen(t, lod.Ladder{Scales: tc.scales}, a, own, look, readied(a))
 		slices.Sort(look.sprites)
 		if !slices.Equal(look.sprites, tc.want) {
-			t.Errorf("with thresholds %v drew %v, want %v", tc.scales, look.sprites, tc.want)
+			t.Errorf("with thresholds %v the look drew %v, want %v", tc.scales, look.sprites,
+				tc.want)
 		}
+		if got := places(again()) == 1; got != tc.points {
+			t.Errorf("with thresholds %v points drawn: %v, want %v", tc.scales, got, tc.points)
+		}
+	}
+}
+
+func TestRenderer_Compose_DrawsAtL2NothingThroughTheLook(t *testing.T) {
+	look := drawStanding(t, lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2}}, true)
+	if look.uprights != 1 || len(look.sprites) != 0 || len(look.fogs) != 2 {
+		t.Errorf("uprights %d, sprites %d, fogs %v; want the near one standing, the far two "+
+			"neither drawn nor fogged by the look", look.uprights, len(look.sprites), look.fogs)
+	}
+}
+
+func TestRenderer_Compose_LaysAMaterialDeclaredAtL2(t *testing.T) {
+	p := NewPlugin(Config{
+		Space:    SpaceCfg{Width: 1024, Height: 1000},
+		Entities: EntitiesCfg{MaxCount: 3, MinSize: 1, MaxSize: 10},
+	})
+	own := p.Kinds().NewSprite()
+	a := p.NewAtlas()
+	a.Add(own, 8, render.Solid(color.RGBA{R: 255, A: 255})).At(lod.L2, render.MaterialID(7))
+	a.Close()
+	look := &counting{Look: ilook.NewFlat(1024, 1000, false, false)}
+	again := drawSeen(t, lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2}}, a, own, look,
+		readied(a))
+	look.sprites = nil
+	f := again()
+	materials := 0
+	f.Each(func(_ render.At, verts []render.Vertex) {
+		if verts[0].ColorA > 1.5 {
+			materials++
+		}
+	})
+	if materials != 2 || places(f) != 0 || len(look.sprites) != 1 {
+		t.Errorf("materials %d, points drawn %v, the look's sprites %v; want the far two "+
+			"materials, no point, the near one's sprite", materials, places(f) == 1, look.sprites)
 	}
 }
 
@@ -209,7 +256,7 @@ func TestRenderer_Compose_AllocatesNothingForTheLevels(t *testing.T) {
 	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2, 0, 0}}
 	again := drawSeen(t, ladder, a, own, look, readied(a))
 	again()
-	if n := testing.AllocsPerRun(10, again); n != 0 {
+	if n := testing.AllocsPerRun(10, func() { again() }); n != 0 {
 		t.Errorf("a frame of an entity at L0 and two at L2 allocates %v times, want none", n)
 	}
 }
@@ -233,8 +280,7 @@ func (turned) Visible(b camera.AABB) bool { return b.TopLeft.X < 512 }
 
 func TestRenderer_Compose_DrawsWhatThePictureCutsByASectorOnIt(t *testing.T) {
 	a, own := leveledRed()
-	blob := a.versions[own][lod.L2].id
-	shown := lod.Ladder{Scales: [lod.Levels - 1]float32{8, 4, 0.5, 0}}
+	shown := lod.Ladder{Scales: [lod.Levels - 1]float32{8, 0.5, 0, 0}}
 	cut := framed{farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}}
 	// the second's middle at 514 lies in the right sector, off the picture, its box from 509 over
 	// the picture's edge or the left sector's
@@ -244,10 +290,10 @@ func TestRenderer_Compose_DrawsWhatThePictureCutsByASectorOnIt(t *testing.T) {
 		ladder lod.Ladder
 		want   []render.SpriteID
 	}{
-		{"cut by the picture's edge", cut, shown, []render.SpriteID{blob, blob}},
-		{"off a turned picture", turned{cut}, shown, []render.SpriteID{blob, blob}},
+		{"cut by the picture's edge", cut, shown, []render.SpriteID{own, own}},
+		{"off a turned picture", turned{cut}, shown, []render.SpriteID{own, own}},
 		{"its middle past the sight", turned{cut}, lod.Ladder{Scales: shown.Scales, Sight: 510},
-			[]render.SpriteID{blob}},
+			[]render.SpriteID{own}},
 	} {
 		look := &counting{Look: ilook.NewFlat(1024, 1000, false, false)}
 		drawSeenAt(t, tc.cam, tc.ladder, []float32{100, 509}, a, own, look, readied(a))

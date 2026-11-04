@@ -10,3 +10,6 @@ import (
 func (p *Plugin) Hook(rules ...act.Rule) error {
 	return ceremony.Deliver([]host.Host{&p.module.moments.host}, rules...)
 }
+
+// AggregateTexels is how many texels a world unit the aggregate spans, held or not.
+func (p *Plugin) AggregateTexels() float32 { return p.renderer.aggregate.perUnit }

@@ -2030,3 +2030,195 @@ zmienia zachowanie świata bez kamery), `BENCHMARKS.md`, wynik tu.
 **Co nie wchodzi**: agregaty-encje (las, armia: moment przejścia poziomu na encji, relacja części,
 zwiń/rozwiń, `Keen` L1 celu, demo), chmury i cienie po poziomie z końcem dźwigni, przemarkowanie
 rozłożone, rozmycie granic, wachlarz płachty, selekcja a śpiący, kolor bazowy materiału.
+
+## Generalizacja figur: wynik (2026-11-04, gałąź `feat/lod-figures`, baza `2fe2cbed` v0.18.0)
+
+Wykonanie: preludium agentem Opus w klonie (`85d2c9c9`: `Unobserved`, `Keep`, `Texel`, kontrakt
+`Read.Aggregate`, `Slot.Always`), części agentami Opus w worktree'ach: `g/points` od preludium
+(`a3dcf1ee`, scalone `b3ea71ee`), `g/aggregate` od tego scalenia (`52a13136` suma;
+`d70b6713` `world.Plugin.Aggregates()`: świat sumuje tylko dla gruntu, który o to poprosił;
+`23f719f1` grunt nie próbkuje pustego obrazu; scalone `327e9692`, `0f933e29`). Sekwencja
+zielona z SIMD, 24 dema po 5 s zdrowe.
+
+Odstępstwa od planu, przyjęte: punkt L2 kosztuje ~40 ns na encję zamiast ≤ 20 (odczyt poziomu i
+rekordów; rekord zwarty dla L2 to następny krok); suma L3 ~90 ns na encję zamiast ≤ 10 (pudło
+20 na tekselu 16 to ~5 tekseli, sam dodatek ~25 ns na teksel, Go rozlewa rejestry w pętli
+pokrycia; stały punkt i szybszy floor nie pomogły; do spróbowania: jeden teksel pod środkiem);
+**sumowanie tylko dla czytelnika** (decyzja integratora: przesunięcie budżetu do L3 ma klatkę
+tanić, nie drożyć): renderer gruntu woła raz `Aggregates()` w konstruktorze (topografia,
+plansza), świat bez czytelnika (ekspansja) nie ma obrazu, nie sumuje i rysuje na L3 nic, jak
+baza; obraz w kaflach 64×64 tekseli (nie po sektorach: przy `Texel` innym niż bok/64 sektory
+nie leżą na siatce tekseli), podwójnie buforowany, istnieją tylko kafle zapisane, przesyłane raz
+na klatkę w `Compose` świata te, których sygnatura się zmieniła; obraz klatki `"Aggregate"`
+(siódmy z ośmiu) zamiast piątego slotu; `Read.Aggregate` daje skalę 0, gdy obraz pusty, a trzy
+shadery gałęzią omijają próbkę; materiały i rodzaje z własną wersją L3 albo `Nothing(L3)`
+rysowane po swojemu; encja widziana na L3 przez jedną kamerę, a drobniej przez drugą, jest
+sumowana i zapisana; `Grid.Of` obcina bez float64; `Read.Aggregate` czyta przez wskaźnik
+(kopia struktury ścigała się z publikacją).
+
+Sprawdzenia deterministyczne (części): zrzuty klatki 120 bazy przeciw drzewu: L0 i L1 piksel w
+piksel; ekspansja 0 px różnicy na każdym zoomie (bez gruntu); topografia zoom 0,3 (63 sektory
+L3) 14 px do 6, zoom 0,08 (247 sektorów L3) 2015 px do 130 w 22 skupiskach, każde na figurze
+(jednostki przy wsi, odcinki mostów jako brązowe kropki nad rzekami, gdzie baza nie rysowała
+nic); kafle planszy i płachty heksów tylko testami GPU (żadne demo z sektorami ich nie ćwiczy);
+publikacja bez alokacji w stanie ustalonym, ruchome figury alokują w `gpu.put` (~4 KiB na kafel).
+
+Pomiar (integrator, baza `main` 2fe2cbed na zmianę z drzewem, 2 rundy × `-count=1`, ~2 min,
+plus płachta L3 osobno i FPS, razem ~7 min):
+
+| Bench | Baza | Drzewo | Zmiana |
+|:---|---:|---:|---:|
+| `World_Draw` rungi dotychczasowe | | | −4…−6% |
+| `World_Publish` rungi dotychczasowe | | | +2…+6% (część A: hasz i poziom na encję; B ≤ 1%) |
+| `World_Draw/5000, level=2` | — | 199 µs | ~40 ns na punkt (przez `Look` ~85) |
+| `World_Publish/5000, level=2, keep=0.25` | — | 99 µs | 65 µs bez rzedzenia: hasz ~7 ns na encję, rysowanie −150 µs |
+| `World_Publish/5000, level=3` | — | 460 µs | ~90 ns na pudło; `unread` 65 µs |
+| `World_Draw/5000, level=3` | — | 0,3 µs | nic do rysowania; `unread` 78 µs |
+| `Sectors_Expanse` banded / unbanded | 1,52 / 15,8 ms | 1,52 / 15,4 ms | −1 / −3% |
+| `Frame_Topography/iso,level=3` | 9,02 ms | 9,30 ms | +3,1% (przed `23f719f1` +6,3%) |
+| FPS ekspansji na L2 (drabina `{0.5, 0.4, 0.3, 0}`, zoom 0,35, 16 sektorów L2, 2 biegi) | 836 / 849 | 919 / 886 | rysowanie 580 → 480–490 µs, tick 200 µs bez zmian |
+
+Co zostało: rekord zwarty dla L2 (cel 20 ns), tańszy hasz rzedzenia (dziś droższy niż rekord,
+opłaca się tylko przez rysowanie), jeden teksel pod środkiem albo pętla pokrycia bez rozlewu,
+alokacja `gpu.put` przy ruchomych kaflach, demo z sektorami na płaskiej planszy i heksach
+(ćwiczące kafle i płachty heksów), kolor bazowy materiału, selekcja a śpiący; etap `b` niżej.
+
+## Agregaty: nawigacja po poziomie, kontrakt zwiń/rozwiń, las i armia (plan 2026-11-03, gałąź `feat/aggregates`, litera `b`, v0.20.0, po etapie `g`; hpastar v1.5.0)
+
+Analiza (2026-11-03, agent Plan przeciw kodowi): poziom ticku sektora leży w `sectors.level`
+i w znacznikach encji (`sector.L1..L4`), `world.Read` nie daje go w punkcie; regiony poziomu 1
+hierarchii HPA* to na kwadratowej planszy te same kwadraty co sektory (`Hierarchy.Side` zero →
+`sectorSide`), gdzie indziej bok 16; `From` (64 komórki) decyduje o wspinaczce po długości;
+hpastar doprecyzowuje leniwie po liczbie stanów, nie po predykacie regionów, a trasa
+abstrakcyjna (`q.path`) i koszty skoków są wewnętrzne; `tail` traffic rezerwuje `Leg` co krok z
+czytaniem terenu i zajętości, `head` łamie trasę, gdy komórka nie dopuszcza; udział tempa
+planszy daje 0 na litej komórce, kolizja odpycha od gruntu (`solidField`) na `lod.Contact`;
+`MoveOrder` zapisywany cały, hierarchia odbudowywana z budżetem (nie zapisywana).
+
+Decyzje użytkownika (2026-11-03): świat ma poziomy abstrakcji zależne od zoomu także w
+zachowaniu (drzewo / płachta drzew / las; żołnierze / armia); poziom LOD związany z hierarchią
+HPA*: L0–L1 komórki, L2 graf regionów poziomu 1 (sektory), L3 wyższy poziom hierarchii (w tej
+części L2); nawigacja po poziomie jest **częścią pierwszą** etapu agregatów; agregat zwyczajną
+encją z regułami ceremony, składniki tylko na L0–L1 i tam jedyna prawda, agregat jedyna prawda
+od L2, prawda na agregat nie na sektor, agregaty punktowe i polowe, interakcja rozwija grubszą
+stronę (`Keen` celu L1), `Paces` osią systemu, nic z gry w ceremony. Założenia planu przyjęte z
+zatwierdzeniem: od L2 grunt jest kształtem (kolizja nie odpycha od gruntu w chunkach `L2`/`L3`,
+udział planszy nigdy nie odmawia), hpastar dostaje `Search.Abstract`. Pierwsze założenie jest w
+rewizji (2026-11-04, uwaga użytkownika: w widoku z boku podłoga to komórki lite trzymane polem
+kolizji, a grawitacja w poprzek biegnie na L2, więc bez pola bohater spadłby pod planszę;
+propozycja: pole działa na każdym poziomie, omija je ciało ze znakiem drogi abstrakcyjnej w
+`unit.States`, kładzionym przez traffic na czas odcinka; do rozstrzygnięcia przed startem `b`).
+
+**Preludium** (`feat/aggregates` od `main` po `g`): hpastar `feat/abstract`: `(*Search[T])
+Abstract(from, to T, dst []T, costs []float64) (int, bool)` (po `q.path` stany poziomu 1 na
+granicach klastrów bez `intra1`, koszty skoków z `startCost`/`intra`/`edgesOut`/`goalCost`;
+test: podciąg `Path`, Σ kosztów równa), tag użytkownika, `go.mod`; gram: `world.Read.LevelAt(x,
+y) lod.Level` (L0 bez sektorów i przy `Unbanded`), `bodies.Member.Level` z własnych znaczników
+(`Optional` `L2`/`L3`, `Present` raz na chunk), `order.Abstract{Cells [16]cell.ID, Costs
+[16]float32, From, Length, Index}` w `MoveOrder` (zapis za darmo), `Counts` `Abstracts`,
+`Snaps`, `Dropped`.
+
+**Część 1 `b/navigation`**: routing: ask abstrakcyjny gdy `Member.Level >= L2` i hierarchia
+włączona, bez pola i bez `FindPath` (hierarchia nie `Ready` → ask czeka, nie liczy się do
+`TargetWaitTimeout`), `asked.abstract` rozdziela odpowiedzi pamiętane, `Finder.Abstract` z
+preambułą `Climb`, `From` podłogą L0–L1, para za bliska jednym odcinkiem z udziałem 1; traffic:
+`headAbstract` (zwolnienie `Leg`, `Path.Length = 0`, `At.Cell` bez zajętości, ask gdy trzeba),
+`tailAbstract` (prosto na środek `Cells[Index]`, `MaxSpeed · min(1, |odcinek| / (Costs · span))`,
+`passed` → `Index++`, bez `Trail`, kolejki, pola, szyku, `keep.Steer`); zejście pod L2 eager:
+`Finder.Snap` (`breadthFirst` 64, bez trasy) na dopuszczoną komórkę, `space.Move`, `Enter`,
+świeży ask (odtwarza prefiks: ta sama hierarchia, te same remisy), bez wolnej → `Lost`; wejście
+na L2 leniwe (kawałek `Path` do końca); grupy na L2+ jako jednostki (`party` false, `Place 0`,
+bez `Trail`); heksy/bok 16: poziom z własnego znacznika, L2 → poziom 1; grunt kształtem od L2 w
+kolizji (`solidField` pomijany po znaczniku chunka) i planszy (`share` 1 gdzie `PaceOf`
+odmawia). Testy przez rig `newNavWorldIn` z sektorami i `observers`: ruch po wejściach bez
+`Searches`, `Leg`, `Enter`; czas skoku; snap przy zejściu; zwolnienie `Leg` przy wejściu; ask
+czeka na hierarchię; odpowiedzi rozdzielone; grupa jako jednostki; kolizja i plansza po
+znaczniku; `routes.golden` nietknięte. Benche: `Navigation_Tick/abstract,1000`,
+`Routing_Abstract`. Sonda topografii: `Counts`, poziomy, `Abstract Length/Index`, `Builds`.
+
+**Część 2 `b/contract`** (świat, `lod`): `world.Aggregate{}` na szablonie rodzaju-agregatu,
+`world.PartOf{Whole}` na składnikach (zapisywane); momenty świata `Unfold{ID, At}` (sektor
+agregatu schodzi do L1) i `Fold{ID}` (wchodzi na L2 i trwa `Ladder.Fold` sekund, zero 3 s),
+słowo `Parts(n)`, reguły gry do nich (rozwinięcie `Spawn` składników ze stanu, zwinięcie suma w
+efekty i `Despawn`); `lod.Seed(whole, cell)` dla rozwinięcia deterministycznego, różnice w
+efektach agregatu; test odwracalności zwiń ∘ rozwiń przez `Install → Setup → RunPlan`; `Keen{L1}`
+celu-agregatu (bullet, `MoveTo`); `order.Abstract` lidera ↔ agregat przy zwijaniu i rozwijaniu.
+
+**Część 3 `b/field`**: `world.Field` jako kształt agregatu nad komórkami (gęstość na komórkę),
+zwijany po sektorze (`Unfold{ID, Sector}`/`Fold{ID, Sector}`), drzewa komórek sektora na L1,
+wersja L2 lasu płachtą z tego samego materiału (`Slot.At(L2, …)`), L3 kolor z `g`.
+
+**Część 4 `b/demo`**: `examples/board/forest-army`: las polowy i armia punktowa na płaskiej
+planszy z sektorami i pełną drabiną; armia po grafie abstrakcyjnym na L2, rozwinięta w żołnierzy
+na L1 z `Abstract` lidera; bitwa abstrakcyjna (ubytki regułą agregatu) i szczegółowa.
+
+Kolejność: preludium → 1 → 2 → 3 → 4. Pomiar ≤10 min: `Navigation_Tick` (± i `abstract,1000`),
+`Routing_Long` i `Routing_Abstract`, `Collision_Tick`, `Board_Altitude`, sonda topografii z
+kamerą na L2 (jednostki abstrakcyjne, `Snaps` przy zbliżeniu), demo przy zoomie przez próg
+zwijania. Dokumenty: `navigation/doc.go` „# Levels”, `world/doc.go`, `lod/doc.go` (wiersz
+zachowania), skille navigation/world/collision/board/`gram-perf-navigation`/`gram-game`/
+`gram-plugin`, hpastar skill, `CLAUDE.md` reguła LOD, `CHANGELOG.md` v0.20.0, `BENCHMARKS.md`.
+
+**Co nie wchodzi**: L3 na wyższym poziomie hierarchii (parametr `level` w hpastar), rysowanie
+tras abstrakcyjnych, ponowne sprawdzanie tras abstrakcyjnych po zmianie przejezdności, pola i
+szyki na L2+, chmury i cienie po poziomie, przemarkowanie rozłożone, rozmycie granic, selekcja a
+śpiący.
+
+## Daleka figura taniej: poziom w rekordzie, suma bez rozlewu, kafle bez alokacji (plan 2026-11-04, gałąź `perf/far-figures`, litera `f`, po etapie `b`)
+
+Z wyniku etapu `g` (decyzja użytkownika 2026-11-04: po agregatach, bo las i armia zmienią
+populację L2–L3 najbardziej, a to, co zostanie, to światy wielu niezależnych pudeł jak
+ekspansja). Trzy chybienia celów `g` i ich przyczyny (`publisher.go`, `renderer.go`,
+`aggregate.go`, `render/internal/gpu`):
+
+- **Odczyt poziomu na encję, dwa razy.** Punkt L2 kosztuje ~40 ns w `World_Draw/…,level=2`
+  (cel 20): `Compose` szuka sektora pod środkiem pudła w widoku kamery (`s.level`) dla każdego
+  rekordu. Rzedzenie `Keep` kosztuje ~7 ns na encję w kadrze (`World_Publish/5000, keep=0.25`:
+  65 → 99 µs): `kept` po haszu (~1 ns) robi ten sam odczyt dla trzech czwartych encji, do tego
+  `v.Contains(id)` na widok. Hasz nie jest winny.
+- **Suma L3 ~90 ns na pudło** (`World_Publish/5000, level=3`; cel 10 był nierealny dla sumy
+  ważonej pokryciem): pudło 20 na tekselu 16 trafia w ~5 tekseli, sam dodatek ~25 ns na teksel,
+  Go rozlewa rejestry w pętli pokrycia; stały punkt i szybszy floor nic nie dały.
+- **Kafel zmieniony alokuje** ~4 KiB w `gpu.put` na rysowanie (figury w ruchu na L3); scena
+  nieruchoma nie alokuje.
+
+Jeden agent Opus, jeden worktree `/home/karol/worktrees/gram/far-figures` na `f/far-figures`
+od `main` po `b`; części sekwencyjnie w jednym briefie (pliki wspólne), każda z własnym
+commitem; profil przed każdą decyzją, nie domysł.
+
+**Część 1 `poziom`**: profil `World_Draw/5000, level=2` i `World_Publish/5000, keep=0.25`
+(gdzie leży odczyt: `Grid.Of`, tablica poziomów widoku, `Contains`), potem jedno z dwojga, po
+profilu: (a) poziom w rekordzie: publisher pisze poziom, który wyznaczył rzedząc lub sumując,
+dla widoku, który encję widzi, z wartością „kilka” gdy widzi ją więcej widoków (rekord jest
+jeden na publikację, poziom jest kamery; przy jednej kamerze zawsze trafiony), `Compose` czyta
+rekord i szuka tylko przy „kilka” lub bez poziomu; (b) odczyt tańszy: sektor liczony raz na
+przebieg encji jednego chunka, gdy kolejne pudła leżą w tym samym sektorze (sprawdzenie granic
+tańsze niż `Of`), `Contains` raz na chunk, gdzie widok obejmuje cały chunk. Cel: punkt L2 ≤ 25
+ns w `World_Draw`, `keep=0.25` ≤ 75 µs; rungi zwykłe `World_Publish` ±2%. Testy: te same
+rekordy co dziś (zrzuty L2 piksel w piksel z bazą; `sees` bajt w bajt), dwie kamery na różnych
+poziomach nad jedną encją.
+
+**Część 2 `suma`**: pętla pokrycia bez rozlewu (udziały wiersza policzone raz, cztery kanały
+jednym słowem `uint32` z nasyceniem, indeks kafla raz na wiersz) albo, jeśli profil każe, pudło do
+dwóch tekseli boku w jeden teksel pod środkiem z wagą pola (pokrycie zostaje dla większych: ślad
+dużej figury ma zostać śladem). Cel: ≤ 50 ns na pudło w `World_Publish/5000, level=3`; obraz
+agregatu w testach ten sam co dziś dla pudeł ponad dwa teksele, dla mniejszych suma kanałów na
+sektor równa w 1/255.
+
+**Część 3 `kafle`**: bufor pośredni `gpu.put` wielokrotnego użytku (jeden na rozmiar kafla,
+`render/internal/gpu`, skill `gram-render`: pułapki wgpu przy zapisie w punkcie), zero alokacji
+na klatkę przy figurach w ruchu na L3; test GPU liczący alokacje (`testing.AllocsPerRun` wokół
+`upload`).
+
+**Pomiar** (integrator, ≤5 min, baza `main` po `b` na zmianę z drzewem, 2 rundy × `-count=1`):
+`World_Draw` i `World_Publish` wszystkie rungi (cele wyżej, zwykłe ±2%), `Frame_Topography/
+iso,level=3` ±2%, sonda topografii z figurami w ruchu przy zoomie L3: `gctrace` 20 s, bajty na
+klatkę baza przeciw drzewu.
+
+**Dokumenty**: `BENCHMARKS.md` (tabela poziomów `World_*`, zdanie o alokacji), skill
+`gram-perf-picture` (niezmienniki: poziom czytany raz na encję, suma bez rozlewu), `CHANGELOG.md`
+(`perf`, v0.21.0 albo łatka po `b`, jak zdecyduje użytkownik), pozycja „A far figure's cost”
+zdjęta z `doc/roadmap.md`, wynik tu.
+
+**Co nie wchodzi**: tablice zwarte publishera (rekord SoA, SIMD sumy), demo z sektorami na
+płaskiej planszy i heksach, kolor bazowy materiału, selekcja a śpiący.

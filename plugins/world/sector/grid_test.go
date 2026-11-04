@@ -1,6 +1,7 @@
 package sector_test
 
 import (
+	"math"
 	"slices"
 	"testing"
 
@@ -25,6 +26,29 @@ func TestGrid_OfHoldsAPointToTheWorld(t *testing.T) {
 	} {
 		if got := g.Of(c.x, c.y); got != c.want {
 			t.Errorf("Of(%v, %v) = %d, want %d", c.x, c.y, got, c.want)
+		}
+	}
+}
+
+func TestGrid_OfIsTheSectorFlooredAndHeld(t *testing.T) {
+	floored := func(v, side float32, n int) int {
+		return min(max(int(math.Floor(float64(v/side))), 0), n-1)
+	}
+	values := []float32{-1e9, -513, -512, -511.5, -256, -1, -0.5, -1e-6, 0, 1e-6, 0.5, 255.99,
+		256, 256.01, 511.999, 512, 767, 999, 999.99, 1000, 1000.01, 1023, 1024, 4096, 1e9}
+	for _, wraps := range []bool{false, true} {
+		for _, side := range []float32{256, 100.5, 333} {
+			g := sector.NewGrid(1000, 400, wraps, wraps, side)
+			cols, rows := g.Cols(), g.Rows()
+			for _, x := range values {
+				for _, y := range values {
+					want := floored(y, side, rows)*cols + floored(x, side, cols)
+					if got := g.Of(x, y); got != want {
+						t.Errorf("wrapping %v, a side %v: Of(%v, %v) = %d, want %d", wraps,
+							side, x, y, got, want)
+					}
+				}
+			}
 		}
 	}
 }

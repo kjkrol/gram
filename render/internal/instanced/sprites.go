@@ -11,6 +11,9 @@ import (
 //go:embed sprites.wgsl
 var spritesWGSL string
 
+//go:embed points.wgsl
+var pointsWGSL string
+
 var spritesShader = gfx.NewMeshShaderWith("sprites", []byte(spritesWGSL+"\n"),
 	[]gfx.Uniform{
 		{Name: "ViewSize", Size: 2},
@@ -18,6 +21,17 @@ var spritesShader = gfx.NewMeshShaderWith("sprites", []byte(spritesWGSL+"\n"),
 		{Name: "Wrap", Size: 4},
 		{Name: "Window", Size: 4},
 		{Name: "Deep", Size: 1},
+	}).Instanced(4)
+
+var pointsShader = gfx.NewMeshShaderWith("points", []byte(pointsWGSL+"\n"),
+	[]gfx.Uniform{
+		{Name: "ViewSize", Size: 2},
+		{Name: "ViewProj", Size: 16},
+		{Name: "Wrap", Size: 4},
+		{Name: "Window", Size: 4},
+		{Name: "Deep", Size: 1},
+		{Name: "Eye", Size: 3},
+		{Name: "Bend", Size: 1},
 	}).Instanced(4)
 
 // Sprites is sprites a Direct source draws on the GPU as instances, by Layer or else in the order
@@ -44,6 +58,13 @@ type Sprites struct {
 	order     []int32
 	drawn     []float32
 	drawnRuns []spriteRun
+	// four vec4s a point: its box's middle and size, its part of the atlas, its light and the
+	// height it is seen at, its fog, the shade it takes, the sun's share and its depth's height
+	points    []float32
+	pointRuns []spriteRun
+	// the last point's sprite and its part of the atlas
+	pointID SpriteID
+	pointUV [4]float32
 }
 
 type spriteRun struct {
@@ -114,12 +135,33 @@ func (s *Sprites) Turned(
 		light[0], light[1], light[2], angle, s.layer.at.Z(), s.fog, float32(s.takes), s.sun)
 }
 
+// Point adds sprite id of atlas as a point at the middle (x, y) of a box w by h, seen at height z
+// and lying at height deep, in light: the box as large as it shows, a pixel at least each way, as
+// much less opaque as it shows less. Drawn after the pieces, by no Layer.
+func (s *Sprites) Point(atlas AtlasSource, id SpriteID, x, y, w, h, z, deep float32, light Light) {
+	n := len(s.pointRuns)
+	if fresh := n == 0 || s.pointRuns[n-1].atlas != atlas; fresh || id != s.pointID {
+		if fresh {
+			s.pointRuns = append(s.pointRuns, spriteRun{atlas: atlas,
+				first: len(s.points) / spriteFloats})
+			n++
+		}
+		s.pointID = id
+		s.pointUV[0], s.pointUV[1], s.pointUV[2], s.pointUV[3] = inset(atlas.UV(id))
+	}
+	s.pointRuns[n-1].count++
+	uv := &s.pointUV
+	s.points = append(s.points, x, y, w, h, uv[0], uv[1], uv[2], uv[3],
+		light[0], light[1], light[2], z, s.fog, float32(s.takes), s.sun, deep)
+}
+
 const spriteFloats = 16
 
 // Reset drops what was gathered.
 func (s *Sprites) Reset() {
 	s.runs, s.instances = s.runs[:0], s.instances[:0]
 	s.layers, s.atlases = s.layers[:0], s.atlases[:0]
+	s.points, s.pointRuns = s.points[:0], s.pointRuns[:0]
 	s.layer, s.layered, s.fog, s.takes, s.sun = layer{}, false, 0, TakesAll, 0
 }
 
@@ -128,7 +170,7 @@ func (s *Sprites) Reset() {
 // depth, where it has one, each at its height, what shows of it written. A camera that cannot
 // say its lines of sight draws none.
 func (s *Sprites) Draw(t Target, cam camera.Camera, u Uniforms) {
-	if t.Screen == nil || len(s.runs) == 0 {
+	if t.Screen == nil || len(s.runs) == 0 && len(s.pointRuns) == 0 {
 		return
 	}
 	rays, ok := cam.(camera.Rays)
@@ -165,6 +207,16 @@ func (s *Sprites) Draw(t Target, cam camera.Camera, u Uniforms) {
 		s.opts.Images[0] = r.atlas.Atlas()
 		s.opts.Instances = instances[spriteFloats*r.first : spriteFloats*(r.first+r.count)]
 		t.Screen.DrawMesh(nil, spritesShader, &s.opts)
+	}
+	if len(s.pointRuns) == 0 {
+		return
+	}
+	s.set("Eye", tr.Eye[:]...)
+	s.set("Bend", tr.Bend)
+	for _, r := range s.pointRuns {
+		s.opts.Images[0] = r.atlas.Atlas()
+		s.opts.Instances = s.points[spriteFloats*r.first : spriteFloats*(r.first+r.count)]
+		t.Screen.DrawMesh(nil, pointsShader, &s.opts)
 	}
 }
 

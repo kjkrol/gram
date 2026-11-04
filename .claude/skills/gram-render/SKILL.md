@@ -41,7 +41,9 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   `Target.Ground` and writes `frag_depth` = the ground's own); one asking nothing is not drawn.
 - Frame images (`render.RegisterImage`, `f.Image` in Compose) are read in WGSL by name through
   `linear` or `wrapped`; the light never binds `GroundShade` while it bakes into it. A new shader
-  honours a drawn thing's `render.Taking` bits.
+  honours a drawn thing's `render.Taking` bits. Eight names at most, seven in use (the world's
+  `Aggregate` the last); a draw's own image slots are four, so a renderer short of them binds a
+  frame image per draw through `opts.Uniforms` (the terrain's `GroundDetail`, the aggregate).
 - A stage is readied before its first frame (`render.Prepare`, then a frame drawn and thrown
   away): nothing is compiled or baked in a frame shown.
 
@@ -62,7 +64,11 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   the version is picked); every twin, facing and frame resolves to its kind's table. The world's
   renderer picks the version by `view.Level` at the entity's middle held inside the view's
   bounds (an entity half on screen stays drawn), the corners where a turned picture cuts it;
-  at L1 no `Lay` edges and no `Upright`. The ground's variants are the topography's
+  at L1 no `Lay` edges and no `Upright`; at L2 the figure is a point without the look
+  (`Sprites.Point`: one instance, projected on the GPU so every layer gets its own pixel, the
+  box's extent clamped to a pixel, alpha the coverage under a pixel, the sprite's middle read
+  under 2 px, the distant light without lamps, no cast; overlay layers dropped; the haze and the
+  clouds' shade on figures do not reach it). The ground's variants are the topography's
   (`gram-plugins`).
 - How things lie is a plugin's swappable `Look` (`world.Look`, the board's `look.Look`), flat
   from above by default, the topography setting both for relief; renderers keep their data and

@@ -7,9 +7,10 @@
 // columns and rows. Along an axis U.TileWrap says wraps the cells run on. Where U.TileSeen, the
 // world's sectors are seen at their levels (image 3, a pixel a sector, red its lod.Level;
 // U.TileSectors.xy of them across and down, U.TileSectors.zw large): at L0 a cell's tile, its
-// covers and its way, at L1 its tile and its way, at L2 and L3 its tile in one colour alone
-// (plainAt), at L4 nothing. What is drawn is drawn in U.TileTint and, where U.TileLit, in the
-// light on level ground as the cell under it takes it.
+// covers and its way, at L1 its tile and its way, at L2 its tile in one colour alone (plainAt),
+// at L3 that colour under the figures' colour summed into the ground (summedOver), at L4
+// nothing. What is drawn is drawn in U.TileTint and, where U.TileLit, in the light on level
+// ground as the cell under it takes it.
 
 // a cell's flags (look's tiles.go)
 const flagShaded: u32 = 1u;
@@ -154,6 +155,29 @@ fn plainAt(id: u32, lo: vec2<f32>, hi: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
         return vec4<f32>(0.0);
     }
     return vec4<f32>(sum.rgb / sum.a * at.a, at.a);
+}
+
+// summedOver is laid, premultiplied, under the figures' colour summed into the ground at p
+// (world.AggregateImage, U.TileAggregatePx texels a world unit), blended between the four texels
+// round p, as far as laid itself covers; laid where U.TileAggregatePx is 0.
+fn summedOver(laid: vec4<f32>, p: vec2<f32>) -> vec4<f32> {
+    if U.TileAggregatePx <= 0.0 {
+        return laid;
+    }
+    let size = vec2<f32>(textureDimensions(Aggregate));
+    var t = p * U.TileAggregatePx;
+    if U.TileWrap.x > 0.5 {
+        t.x = modulo(t.x, size.x);
+    } else {
+        t.x = clamp(t.x, 0.5, size.x - 0.5);
+    }
+    if U.TileWrap.y > 0.5 {
+        t.y = modulo(t.y, size.y);
+    } else {
+        t.y = clamp(t.y, 0.5, size.y - 0.5);
+    }
+    let a = textureSampleLevel(Aggregate, wrapped, t / size, 0.0);
+    return vec4<f32>(laid.rgb * (1.0 - a.a) + a.rgb * laid.a, laid.a);
 }
 
 // leanOf is how far the tile of the board's cell b, its middle at mid, leans in the wind now.
