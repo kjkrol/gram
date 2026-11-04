@@ -23,6 +23,7 @@ type counting struct {
 	Look
 	sprites []render.SpriteID
 	angles  []float32
+	boxes   []plane.AABB
 	frame   *render.Frame
 }
 
@@ -30,6 +31,7 @@ func (c *counting) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z 
 	atlas render.AtlasSource, a render.Appearance, lit render.Illumination) {
 	c.sprites = append(c.sprites, a.SpriteID)
 	c.angles = append(c.angles, a.Angle)
+	c.boxes = append(c.boxes, box)
 	c.Look.Sprite(f, cam, box, z, atlas, a, lit)
 }
 
@@ -75,8 +77,15 @@ func drawShaded(t *testing.T, shaded map[render.SpriteID]render.MaterialID, pick
 func drawAs(t *testing.T, look Look, ready func(*renderer), pick func(ids []uid.UID64,
 	v *view.View), rules []Rule, dir geom.Vec, at ...geom.Vec) *render.Frame {
 	t.Helper()
-	v := &view.View{}
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
+	return drawAsThrough(t, cam, look, ready, pick, rules, dir, at...)
+}
+
+func drawAsThrough(t *testing.T, cam camera.Camera, look Look, ready func(*renderer),
+	pick func(ids []uid.UID64, v *view.View), rules []Rule, dir geom.Vec,
+	at ...geom.Vec) *render.Frame {
+	t.Helper()
+	v := &view.View{}
 	var drawing Rules
 	if err := drawing.Add(rules...); err != nil {
 		t.Fatal(err)
@@ -302,6 +311,27 @@ func TestRenderer_Compose_AnUprightSpriteStandsTrue(t *testing.T) {
 		quarters[0])
 	if len(flat.sprites) != 1 {
 		t.Errorf("a look standing nothing true drew %v, want it as a sprite", flat.sprites)
+	}
+}
+
+func TestRenderer_Compose_ACameraInsideAnEntityDrawsAllButIt(t *testing.T) {
+	for _, how := range []camera.How{camera.Inside, camera.Behind} {
+		cam := cameratest.NewFromSpace(1000, 1000, 0)
+		ride := func(ids []uid.UID64, _ *view.View) {
+			cam.(camera.Fastenable).Fasten(camera.Fastening{Entity: ids[1], How: how})
+		}
+		look := &counting{Look: ilook.NewFlat(1000, 1000, false, false)}
+		drawAsThrough(t, cam, look, func(*renderer) {}, ride, nil, geom.Vec{}, quarters...)
+		drew := slices.ContainsFunc(look.boxes, func(b plane.AABB) bool {
+			return b.TopLeft == quarters[1]
+		})
+		inside, want := how == camera.Inside, len(quarters)
+		if inside {
+			want--
+		}
+		if drew == inside || len(look.boxes) != want {
+			t.Errorf("fastened %v to the entity at %v, drew %v", how, quarters[1], look.boxes)
+		}
 	}
 }
 

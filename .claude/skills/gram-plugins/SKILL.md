@@ -84,6 +84,10 @@ keeps only what those do not.
 - Each plugin refuses the other mode's facts (a `Z` in a flat world) where it first meets them.
 - `Scale.Figures` draws the figures bigger than life (boxes, heights, eyes); speeds and sight
   stay real.
+- A camera riding `Inside` an entity skips that entity's figure in `Compose` by identity
+  (`Fastening().Entity`), never by the eye's place in its box (the eye and the published box
+  come a step apart while the unit runs); the shadow is cast before the skip. A solid
+  (`Slot.Upright()`) or a card is the kind's choice in its `Look`; topography's units are solids.
 - `world.Read.Tick(d)` makes every `host.Tick`: the Stage's one carrier (players and entities
   alike), the time, the seed, the roles, the clock's entity.
 - clock: a plan written by hand (a test, a bench) does what the engine's wrapper does: `Update`
@@ -91,7 +95,8 @@ keeps only what those do not.
   `Clock.Behind` lowers a tempo above 1 after 30 slow frames. `clock.At` and `Every` go by clock
   time: a moment passed never fires again after a load.
 - view: `View.Level(x, y)` is the picture's level: the observer's graded level shifted coarser
-  by the camera's `LevelShift` (the frame budget's), a drawn sector to L3 at most, L4 off the
+  by the camera's `LevelShift` (the frame budget's; a sector seen at L0 is never shifted: what
+  the player looks at stays full, 2026-11-04), a drawn sector to L3 at most, L4 off the
   picture or past the sight; the tick never sees the shift. Behind the eye `ScaleAt` gives the
   scale of a point as far before it (`camera.InFront` says which side).
 - The figures' colour at L3 (`Plugin.Aggregates`, asked once by a ground's renderer in its
@@ -534,8 +539,8 @@ keeps only what those do not.
   scrolls), `Knobs.SoftFigures` (a zero draws the figures at every pixel), `Knobs.filled()` (a
   zero float takes its default).
 - The adapter's ladder: going coarser the `Config.Levers` in order (light, atmosphere), then the
-  pictures' level shift +1 (`camera.Shifted`, at most 2, every camera but a minimap's; a world
-  without sectors has no rung) while "Detail follows the frame budget" (`Settings.StillDetail`
+  pictures' level shift +1 (`camera.Shifted`, at most 2, every camera but a minimap's, a sector
+  seen at L0 spared; a world without sectors has no rung) while "Detail follows the frame budget" (`Settings.StillDetail`
   zero, `cameras.Detail{Follows}`), then the resolution; finer: levers, resolution, shift. It
   steps coarser once a window falls under the budget, finer only once two windows meet it. A
   measurement stills the shift too (`Detail{Follows: false}`).

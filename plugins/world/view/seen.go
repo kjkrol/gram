@@ -30,8 +30,8 @@ func NewSeen(cam camera.Camera, sectors Sectors) *View {
 }
 
 // Level is how fully what stands at the world point (x, y) is drawn: the level the camera sees
-// its sector at shifted coarser by its LevelShift (camera.Shifted), a sector drawn to lod.L3 at
-// most, lod.L4 off the picture or past the sight; lod.L0 in a View of no sectors.
+// its sector at, shifted coarser by its LevelShift (camera.Shifted) to lod.L3 at most but never
+// from lod.L0, lod.L4 off the picture or past the sight; lod.L0 in a View of no sectors.
 func (v *View) Level(x, y float32) lod.Level {
 	if v.sectors == nil {
 		return lod.L0
@@ -86,13 +86,13 @@ func (v *View) see(space *aabbworld.Space) {
 	// sectors across the seam
 	cfg := space.Config
 	wx, wy := float32(cfg.Width), float32(cfg.Height)
-	// the frame budget's shift is the picture's alone, the tick's marks unshifted, and hides
-	// nothing: hiding is the ladder's; a uniform shift clamped keeps the grading's steps of one
+	// the frame budget's shift is the picture's alone, the tick's marks unshifted; it hides
+	// nothing, hiding being the ladder's, and leaves what is seen at L0 full
 	shift := camera.LevelShiftOf(v.cam)
 	for i := range v.levels {
 		v.levels[i] = lod.L4
 		level := v.sectors.Level(v.cam, i)
-		if level < lod.L4 {
+		if level > lod.L0 && level < lod.L4 {
 			level += min(shift, lod.L3-level)
 		}
 		box := v.sectors.Box(i)

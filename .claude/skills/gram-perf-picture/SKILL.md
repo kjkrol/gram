@@ -27,7 +27,8 @@ Protokół i pułapki pomiaru: `gram-perf`; jak się rysuje: `gram-render`. Licz
   każdym pikselu, każdy rodzaj wersją swojego poziomu (L2 plama koloru, L3 kolor zsumowany w
   grunt).
 - Rozdzielczość i poziom obrazu idą za budżetem klatki (adapter kamer: dźwignie, przesunięcie
-  poziomu o 1–2 dla każdej kamery, najwyżej do L3, potem rozdzielczość): pomiar ustawia
+  poziomu o 1–2 dla każdej kamery, najwyżej do L3 i nigdy sektora widzianego na L0, potem
+  rozdzielczość): pomiar ustawia
   rozdzielczość (`cameras.Picture{Resolution}`) i uspokaja przesunięcie
   (`cameras.Detail{Follows: false}`) albo wyłącza warstwy, inaczej mierzy adapter.
 - `Frame_Topography/…,level=k` rysuje każdy widziany sektor na poziomie k: pole wariantów gruntu.

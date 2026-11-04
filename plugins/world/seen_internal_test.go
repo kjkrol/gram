@@ -137,11 +137,11 @@ func TestSeen_AShiftedCameraDrawsItsSectorsCoarserWhileTheirTickStays(t *testing
 	cam := r.watch.cams[0]
 	cam.(camera.Shifted).SetLevelShift(2)
 	r.run()
-	if got, want := levels(v), [8]lod.Level{2, 2, 2, 2, 4, 4, 4, 4}; got != want {
-		t.Errorf("shifted by two, levels %v, want %v: past the sight L4 still", got, want)
+	if got, want := levels(v), [8]lod.Level{0, 0, 0, 0, 4, 4, 4, 4}; got != want {
+		t.Errorf("shifted by two, levels %v, want %v: L0 left full, past the sight L4", got, want)
 	}
-	if l := v.Level(105, 255); l != lod.L2 {
-		t.Errorf("the one at 105 is drawn at %v, want L2", l)
+	if l := v.Level(105, 255); l != lod.L0 {
+		t.Errorf("the one at 105 is drawn at %v, want L0", l)
 	}
 	seen := seenSectors{r.p.module.sectors}
 	if !same(r.at(lod.L0), 100, 900) || seen.Level(cam, 0) != lod.L0 {
@@ -155,6 +155,7 @@ func TestSeen_AShiftedCameraDrawsItsSectorsCoarserWhileTheirTickStays(t *testing
 		from   lod.Level
 		shift  lod.Level
 	}{
+		{[lod.Levels - 1]float32{2}, lod.L1, 2},
 		{[lod.Levels - 1]float32{8, 4, 2}, lod.L3, 1},
 		{[lod.Levels - 1]float32{8, 4}, lod.L2, 2},
 	} {
