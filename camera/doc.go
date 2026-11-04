@@ -41,8 +41,8 @@
 // [Resolved] camera is drawn at a resolution of the pixels it is shown at, its Viewport, Zoom and
 // screen conversions in those camera pixels and its window on the world the same; [ResolutionOf]
 // is any camera's, 1 for one without. A [Shifted] camera draws its sectors levels coarser than
-// the world sees them, as the frame budget shifts them; [LevelShiftOf] is any camera's, 0 for one
-// without. A [Layered] camera has its picture drawn in layers ([Layer]), the widest first, each
+// the world sees them, as the frame budget shifts them, one seen at lod.L0 full; [LevelShiftOf]
+// is any camera's, 0 for one without. A [Layered] camera has its picture drawn in layers ([Layer]), the widest first, each
 // a crop of the frame at a resolution of its own laid out as its [Layout] says ([Inset] in the
 // middle, [Footed] on the bottom edge; [Arrange] gives each layer its [Window]), by a camera that
 // is [Cropping]: Crop has its Viewport be a window of its frame, anywhere in it, until Uncrop,

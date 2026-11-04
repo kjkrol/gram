@@ -99,7 +99,8 @@
 // renderer draws it itself as a point, its box as large as it shows and a pixel at least, as
 // opaque as it covers, with no Look, lamp or shadow, and a camera publishes the ladder's Keep
 // share of a level's entities by their identity, the same each frame, sparing the sector.Keen, a
-// kind [Slot.Always] and one drawn in a look declared there. [Plugin.WithFog] is the fog's colour
+// kind [Slot.Always] and one drawn in a look declared there. A camera riding inside an entity
+// (camera.Inside) draws none of its figure, its shadow still. [Plugin.WithFog] is the fog's colour
 // in a world without an atmosphere. The entities are published once a frame, after its ticks: the
 // looks' rules settle every one some camera sees, the Lighting marks it, each camera's view is
 // copied, and the frame is drawn of that alone. In a world cut into sectors whose ground a

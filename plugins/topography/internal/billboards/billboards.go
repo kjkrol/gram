@@ -51,18 +51,6 @@ func directShare(sun light.Distant, nx, ny, nz float32) float32 {
 	return 1 - (sky[0]+sky[1]+sky[2])/total
 }
 
-func ridden(cam camera.Camera, x0, y0, x1, y1 float32) bool {
-	if camera.HowOf(cam) != camera.Inside {
-		return false
-	}
-	e, ok := cam.(camera.Eyed)
-	if !ok {
-		return false
-	}
-	x, y, _, ok := e.Eye()
-	return ok && x >= x0 && x <= x1 && y >= y0 && y <= y1
-}
-
 // the bottom edge centred on the projected point, as wide as the camera draws w across there and
 // as tall as it draws h standing upright
 func billboard(cam camera.Camera, x, y, z, w, h float32) render.Corners {

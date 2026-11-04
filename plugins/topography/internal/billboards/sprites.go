@@ -81,9 +81,6 @@ func (s *sprites) add(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 	id render.SpriteID, lit render.Illumination, sway, t float32) {
 	x0, y0 := box.TopLeft.X, box.TopLeft.Y
 	x1, y1 := box.BottomRight.X, box.BottomRight.Y
-	if ridden(cam, x0, y0, x1, y1) {
-		return // an eye does not see what it rides in
-	}
 	alt, h := z.Altitude, tall(z, y0, y1)
 	cx, cy := (x0+x1)/2, (y0+y1)/2
 	sun, weather := s.sky.Distant(), s.sky.Air()

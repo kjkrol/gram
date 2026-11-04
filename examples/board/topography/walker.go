@@ -67,6 +67,7 @@ func (wk walker) Define(b *board.Plugin) {
 
 func (wk walker) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[unitRow](w.Kinds(), wk.kind), walkerPx, render.Solid(wk.color)).
+		Upright().
 		Styled(selection.Highlight{Line: wk.color, Width: 2}).
 		Styled(minimap.Mark{Color: wk.color, Size: 5})
 }

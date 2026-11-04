@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.19.1 — unreleased
+
+**A camera inside an entity sees none of it; the topography's units solid** (2026-11-04, branch
+`fix/ridden-figure`)
+- Fixed: a camera riding inside an entity (`camera.Inside`) skips that entity's figure by its
+  identity in the world's `Compose`, for every look (billboard, solid, flat, the L2 point), its
+  shadow still cast; the billboards' guard by the eye's place in the entity's box went, since
+  while the unit ran the eye and the published box came a step apart and the unit's own card
+  filled the view.
+- Fixed: the frame budget's level shift leaves a sector the camera sees at L0 at L0: it coarsens
+  only what is seen coarsely already (L1 → L2 or L3, L2 → L3), the resolution taking the rest
+  of the saving; before, a frame under the budget turned every nearby figure, the driven one
+  too, into a point.
+- Changed: board/topography's units are solids (`Slot.Upright()`: the sprite on the four sides
+  and the top of the box in a view in relief), the hawk a billboard still; a solid or a flat
+  sprite is each kind's choice in its `Look`.
+
 ## v0.19.0 — 2026-11-04
 
 **Figures generalised: a point at L2, colour in the ground at L3, thinning, the unobserved

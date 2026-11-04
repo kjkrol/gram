@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/uid"
 )
 
 var _ render.Direct = (*renderer)(nil)
@@ -94,7 +95,8 @@ func (*renderer) Overlies() {}
 
 // Compose hands f every entity published in sight of cam in its kind's look at the level cam sees
 // it at, as the world's Look lays it, lit as the Lighting says, in white light without one: the
-// Look knows the wind, the world its entities. What it sees at L2 it draws itself, a point each.
+// Look knows the wind, the world its entities. What it sees at L2 it draws itself, a point each;
+// what cam rides in, fastened Inside, it leaves out but for its shadow.
 func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	s.aggregate.upload()
 	s.points.Reset()
@@ -123,6 +125,7 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	}
 	// a view sorting by height alone has the frame asked where a figure lies only when it is lower
 	sorts := cam.Projection().Sorts()
+	rider, inside := ridden(cam)
 	lowest, low, any, pointed := render.Nearest, float32(0), false, false
 	for k := range figs.all {
 		e := &figs.all[k]
@@ -134,6 +137,12 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 		level := s.level(v, box.AABB, mid)
 		layers := figs.layers[e.from : e.from+int32(e.n)]
 		if !levels.anyAt(layers, level) {
+			continue
+		}
+		if id, ok := levels.at(layers[0].SpriteID, level); ok && level != lod.L2 {
+			f.Cast(box.AABB, z.Altitude, z.Height, e.shadow, s.atlas, id)
+		}
+		if inside && e.id == rider {
 			continue
 		}
 		if !any || sorts || z.Altitude < low {
@@ -151,9 +160,6 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			foggy.Fog(v.Fog(mid.X, mid.Y))
 		}
 		lit := f.Lit(mid.X, mid.Y, z.Altitude, e.shadow.Take)
-		if id, ok := levels.at(layers[0].SpriteID, level); ok {
-			f.Cast(box.AABB, z.Altitude, z.Height, e.shadow, s.atlas, id)
-		}
 		for _, l := range layers {
 			id, ok := levels.at(l.SpriteID, level)
 			if !ok {
@@ -189,6 +195,16 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	if any && (direct || pointed) {
 		f.DrawAt(lowest) // the figures come after what lies beneath the lowest of them
 	}
+}
+
+// ridden is the entity cam is fastened Inside, whose figure an eye in it does not see
+func ridden(cam camera.Camera) (uid.UID64, bool) {
+	if c, ok := cam.(camera.Fastenable); ok {
+		if at := c.Fastening(); at.How == camera.Inside {
+			return at.Entity, true
+		}
+	}
+	return 0, false
 }
 
 // point draws e at L2 as one point of the first of its layers drawn there, fogged by fog, a
