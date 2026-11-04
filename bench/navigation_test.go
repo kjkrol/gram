@@ -39,7 +39,8 @@ type navRow struct{ At cell.ID }
 // navScene is a world of walkers under orders: in the open, each to the cell mirroring its own
 // on the right half; crowded, all through the wall's gap to one cell behind it, where they
 // press, step aside and plan again; grouped, selected and sent there as one MoveTo, or as one
-// March in the formation in.
+// March in the formation in; abstract, in the open in a world of sectors no camera observes,
+// ticked at L2, where they walk their routes far off.
 type navScene struct {
 	ecs     *goke.ECS
 	w       *world.Plugin
@@ -52,18 +53,24 @@ type navScene struct {
 	moves   *command.Queue[navigation.MoveTo] // grouped: the players' MoveTo; nil, each its own
 	marches *command.Queue[navigation.March]  // grouped in a formation: the players' March
 	in      navigation.Formation
+	nav     *navigation.Plugin
 }
 
-func benchNavigation(b *testing.B, n int, crowded, grouped bool,
+func benchNavigation(b *testing.B, n int, crowded, grouped, abstract bool,
 	in navigation.Formation) *navScene {
 	b.Helper()
 	ctx := newHeadless()
 	s := &navScene{crowded: crowded, in: in}
-	s.w = ctx.UseWorld(world.Config{
+	cfg := world.Config{
 		Space:    world.SpaceCfg{Width: navSide * navCell, Height: navSide * navCell},
 		Entities: world.EntitiesCfg{MaxCount: n, MinSize: 1, MaxSize: navCell},
 		Heights:  true,
-	})
+	}
+	if abstract {
+		// sectors of 16 cells over the space's buckets of 32, the hierarchy's regions
+		cfg.Sectors = world.SectorsCfg{Buckets: 8}
+	}
+	s.w = ctx.UseWorld(cfg)
 	s.g = grid.DefaultGrids{}.Square(navSide, navSide, navCell)
 	m := motion.NewPlugin(s.w)
 	if err := ctx.Use(m); err != nil {
@@ -73,6 +80,7 @@ func benchNavigation(b *testing.B, n int, crowded, grouped bool,
 	sel := selection.NewPlugin(s.w)
 	drv := driving.NewPlugin(s.w, m, sel).WithGround(p)
 	nav := navigation.NewPlugin(p, s.w, m, sel, drv)
+	s.nav = nav
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
 	}
@@ -187,24 +195,26 @@ func (s *navScene) order(back bool) {
 // Benchmark_Navigation_Tick is one tick of the world, motion, board and navigation with N
 // walkers under orders: in the open, nothing in their way; crowded, all through a wall's
 // one-cell gap to one cell behind it; grouped, the crowd sent as one MoveTo to the cells round
-// that one; column, as one March in a closed column. The orders turn them round every
-// navOrderGap ticks.
+// that one; column, as one March in a closed column; abstract, in the open at L2, walking their
+// routes far off. The orders turn them round every navOrderGap ticks.
 func Benchmark_Navigation_Tick(b *testing.B) {
 	for _, sc := range []struct {
-		name             string
-		crowded, grouped bool
-		in               navigation.Formation
-		counts           []int
+		name                       string
+		crowded, grouped, abstract bool
+		in                         navigation.Formation
+		counts                     []int
 	}{
-		{"open", false, false, navigation.Formation{}, []int{100, 1000}},
-		{"crowded", true, false, navigation.Formation{}, []int{100, 1000}},
-		{"grouped", true, true, navigation.Formation{}, []int{1000}},
-		{"column", true, true, navigation.ColumnOf(1, true, 1), []int{1000}},
+		{"open", false, false, false, navigation.Formation{}, []int{100, 1000}},
+		{"crowded", true, false, false, navigation.Formation{}, []int{100, 1000}},
+		{"grouped", true, true, false, navigation.Formation{}, []int{1000}},
+		{"column", true, true, false, navigation.ColumnOf(1, true, 1), []int{1000}},
+		{"abstract", false, false, true, navigation.Formation{}, []int{1000}},
 	} {
 		for _, n := range sc.counts {
 			b.Run(sc.name+","+entities(n), func(b *testing.B) {
-				s := benchNavigation(b, n, sc.crowded, sc.grouped, sc.in)
+				s := benchNavigation(b, n, sc.crowded, sc.grouped, sc.abstract, sc.in)
 				tick, back := 0, false
+				before := s.nav.Read(0).Counts()
 				b.ReportAllocs()
 				for b.Loop() {
 					if tick++; tick%navOrderGap == 0 {
@@ -212,6 +222,14 @@ func Benchmark_Navigation_Tick(b *testing.B) {
 						s.order(back)
 					}
 					s.ecs.Tick(step)
+				}
+				if sc.abstract {
+					after := s.nav.Read(0).Counts()
+					if after.Abstracts == 0 {
+						b.Fatal("no walker far off")
+					}
+					b.ReportMetric(float64(after.Abstracts-before.Abstracts)/float64(b.N),
+						"abstracts/op")
 				}
 			})
 		}

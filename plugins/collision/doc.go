@@ -8,8 +8,11 @@
 // [Plugin] is built over a world plugin and motion ([NewPlugin]) and installed with Use; it runs
 // one collision system a tick over the world's space. A Collider counts from the tick it is
 // carried; one that loses its Collider meets nobody from the next. Whoever is pushed out through
-// an open edge is motion's leaver (motion.Write.Leave). Only what is at L0 to L2 of the world's
-// sectors collides, every step (lod.Contact): farther off a box meets none, keeping no contacts.
+// an open edge is motion's leaver (motion.Write.Leave). Only what is within two levels of the
+// finest level any observer sees collides, every step (lod.Contact): farther off a box meets
+// none, keeping no contacts.
+// Nor does one travelling the abstract graph (sector.Abstract): it pushes, is pushed by and rests
+// against nothing.
 //
 // # Solid ground
 //

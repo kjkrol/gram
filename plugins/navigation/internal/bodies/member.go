@@ -3,11 +3,14 @@ package bodies
 import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/tag"
+	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/navigation/internal/pathfind"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/uid"
 )
 
@@ -38,6 +41,8 @@ type Member struct {
 	PressedBy uid.UID64
 	Pressed   bool
 	Owners    tag.Tags[owner.Family]
+	// Level is the level its sector is ticked at, read off its marks.
+	Level lod.Level
 }
 
 // Centre is the middle of m's box.
@@ -52,3 +57,31 @@ func BodyOf(z world.Z, size geom.Vec, weight float32) pathfind.Body {
 
 // Body is m as a search for its route takes it.
 func (m Member) Body() pathfind.Body { return BodyOf(m.Z, m.Pos.Size, m.Weight) }
+
+// Levels reads the level a unit's sector is ticked at off its marks, optional columns of a query.
+type Levels struct {
+	l1 goke.OptComp[sector.L1]
+	l2 goke.OptComp[sector.L2]
+	l3 goke.OptComp[sector.L3]
+	l4 goke.OptComp[sector.L4]
+}
+
+// Bind adds the marks to qb.
+func (l *Levels) Bind(qb *goke.QueryBuilder) *goke.QueryBuilder {
+	return qb.Optional(&l.l1, &l.l2, &l.l3, &l.l4)
+}
+
+// Of is the level of the chunk or the entity cur stands at, L0 unmarked.
+func (l *Levels) Of(cur *goke.Cursor) lod.Level {
+	switch {
+	case l.l1.Present(cur):
+		return lod.L1
+	case l.l2.Present(cur):
+		return lod.L2
+	case l.l3.Present(cur):
+		return lod.L3
+	case l.l4.Present(cur):
+		return lod.L4
+	}
+	return lod.L0
+}

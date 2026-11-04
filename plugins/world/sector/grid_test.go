@@ -122,3 +122,59 @@ func TestGrid_NeighboursOfANarrowTorusComeOnceAndNeverTheSectorItself(t *testing
 		t.Errorf("a torus of one sector: %v, want none", got)
 	}
 }
+
+func TestGrid_CoverCutsARectangleBySectorOnceEach(t *testing.T) {
+	box := func(x0, y0, x1, y1 float32) geom.AABB {
+		return geom.NewAABB(geom.NewVec(x0, y0), geom.NewVec(x1, y1))
+	}
+	part := func(i int, x0, y0, x1, y1 float32) sector.Part {
+		return sector.Part{Sector: i, Box: box(x0, y0, x1, y1)}
+	}
+	flat := sector.NewGrid(1000, 400, false, false, 256)
+	torus := sector.NewGrid(1024, 512, true, true, 256)
+	uneven := sector.NewGrid(1000, 400, true, false, 512)
+	for name, c := range map[string]struct {
+		g    *sector.Grid
+		box  geom.AABB
+		want []sector.Part
+	}{
+		"within one": {flat, box(10, 20, 30, 40), []sector.Part{part(0, 10, 20, 30, 40)}},
+		"across six": {flat, box(200, 100, 600, 300), []sector.Part{
+			part(0, 200, 100, 256, 256),
+			part(1, 256, 100, 512, 256),
+			part(2, 512, 100, 600, 256),
+			part(4, 200, 256, 256, 300),
+			part(5, 256, 256, 512, 300),
+			part(6, 512, 256, 600, 300),
+		}},
+		"past the edges of a world not wrapping": {flat, box(900, -50, 1100, 100), []sector.Part{
+			part(3, 900, 0, 1000, 100),
+		}},
+		"wholly past an edge": {flat, box(1100, 10, 1200, 20), nil},
+		"across the seam": {torus, box(900, 10, 1100, 20), []sector.Part{
+			part(0, 0, 10, 76, 20),
+			part(3, 900, 10, 1024, 20),
+		}},
+		"a period over": {torus, box(-100, 600, 50, 610), []sector.Part{
+			part(0, 0, 88, 50, 98),
+			part(3, 924, 88, 1024, 98),
+		}},
+		"wider than the world": {torus, box(-10, 0, 2000, 10), []sector.Part{
+			part(0, 0, 0, 256, 10),
+			part(1, 256, 0, 512, 10),
+			part(2, 512, 0, 768, 10),
+			part(3, 768, 0, 1024, 10),
+		}},
+		"both ends in one sector across the seam": {uneven, box(400, 0, 1300, 10), []sector.Part{
+			part(0, 0, 0, 512, 10),
+			part(1, 512, 0, 1000, 10),
+		}},
+	} {
+		kept := []sector.Part{part(9, 1, 2, 3, 4)}
+		got := c.g.Cover(c.box, kept)
+		if !slices.Equal(got[1:], c.want) || got[0] != kept[0] {
+			t.Errorf("%s: Cover(%v) = %v, want %v after what dst held", name, c.box, got[1:],
+				c.want)
+		}
+	}
+}

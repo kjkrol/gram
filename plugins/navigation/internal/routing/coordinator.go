@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -50,18 +51,22 @@ type Coordinator struct {
 	// by ask, whether it is for a far route or the nearest free cell, its unit given the
 	// hierarchy serving its class
 	far []bool
+	// by ask, whether its unit walks far off (from L2) as a class a hierarchy serves: its route
+	// climbed, the ask waiting while the hierarchy is not ready
+	waits []bool
 
 	ranks     []ranked // the formations' members an Update lays out, in their order once sorted
 	forms     []formed
 	unordered bool // a formation marching unordered was said in the log
 
-	query *goke.Query
-	forks []*goke.Query // by goroutine, query the first
-	cell  goke.Comp[unit.At]
-	order goke.Comp[order.MoveOrder]
-	mover goke.OptComp[unit.Mover]
-	base  goke.OptComp[world.Base]
-	z     goke.OptComp[world.Z]
+	query  *goke.Query
+	forks  []*goke.Query // by goroutine, query the first
+	cell   goke.Comp[unit.At]
+	order  goke.Comp[order.MoveOrder]
+	mover  goke.OptComp[unit.Mover]
+	base   goke.OptComp[world.Base]
+	z      goke.OptComp[world.Z]
+	levels bodies.Levels
 }
 
 // fieldParty is how many orders the MoveTo that gave one sent for its asks to read their routes
@@ -149,6 +154,9 @@ func (c *Coordinator) Climbs() uint64 {
 // Building says a hierarchy kept has clusters left to stale or build.
 func (c *Coordinator) Building() bool { return c.hierarchies.Due() }
 
+// Hierarchies are those the far routes are climbed through, read between Updates.
+func (c *Coordinator) Hierarchies() *spacing.Hierarchies { return &c.hierarchies }
+
 // Builds counts the hierarchies' clusters the routers built since they were made.
 func (c *Coordinator) Builds() uint64 {
 	var n uint64
@@ -170,6 +178,7 @@ func (c *Coordinator) Expansions() uint64 {
 func (c *Coordinator) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&c.cell, &c.order).Optional(&c.mover).Optional(&c.base).
 		Optional(&c.z)
+	c.levels.Bind(qb)
 	if c.Pace != nil {
 		qb.With(c.Pace)
 	}
@@ -183,21 +192,27 @@ func (c *Coordinator) Init(si *goke.SysInit) {
 
 func (c *Coordinator) Update(_ *goke.CmdBuf, d time.Duration) {
 	c.asks, c.parties, c.far = c.asks[:0], c.parties[:0], c.far[:0]
+	c.waits = c.waits[:0]
 	partied, climbing := false, false
 	for c.query.Paced(d); c.query.Next(); {
 		cursor := c.query.Cursor()
 		orders, cells := c.order.Slice(cursor), c.cell.Slice(cursor)
+		level := c.levels.Of(cursor)
 		for i := range orders {
 			a := orders[i].Ask
 			if a != order.AskRoute && a != order.AskNearest {
 				continue
 			}
-			party := a == order.AskRoute && byField(&orders[i])
+			// far off a unit walks alone, its route climbed where a hierarchy serves its class
+			farOff := level >= lod.L2
+			waits := farOff && c.served(c.asking(cursor, i, level))
+			party := !farOff && a == order.AskRoute && byField(&orders[i])
 			// a party goes by its field, a walk that fails searched
-			far := !byField(&orders[i]) && (a == order.AskNearest && c.hierarchies.On() ||
-				c.hierarchies.Far(cells[i].Cell, orders[i].Target))
+			far := waits || (farOff || !byField(&orders[i])) &&
+				(a == order.AskNearest && c.hierarchies.On() ||
+					c.hierarchies.Far(cells[i].Cell, orders[i].Target))
 			c.asks, c.parties = append(c.asks, cursor.IDs[i]), append(c.parties, party)
-			c.far = append(c.far, far)
+			c.far, c.waits = append(c.far, far), append(c.waits, waits)
 			partied, climbing = partied || party, climbing || far
 		}
 	}
@@ -217,6 +232,29 @@ func (c *Coordinator) Update(_ *goke.CmdBuf, d time.Duration) {
 		b.Wait()
 	}
 	c.start = (c.start + 1) % len(c.routers)
+}
+
+// asking is the unit at i of the chunk cursor stands at, at level, as its class is told: its
+// domain and its body
+func (c *Coordinator) asking(cursor *goke.Cursor, i int, level lod.Level) bodies.Member {
+	movers, bases, zs := c.mover.Slice(cursor), c.base.Slice(cursor), c.z.Slice(cursor)
+	m := bodies.Member{Domain: unit.DomainAt(movers, i), Level: level}
+	if bases != nil {
+		m.Pos = bases[i].Pos
+	}
+	if zs != nil {
+		m.Z = zs[i]
+	}
+	if movers != nil {
+		m.Weight = movers[i].Weight
+	}
+	return m
+}
+
+// served says whether a hierarchy kept serves m's class
+func (c *Coordinator) served(m bodies.Member) bool {
+	_, ok := c.hierarchies.Key(m)
+	return ok
 }
 
 // expect has the field of every party asking for routes expected, from the cells its asks stand
@@ -291,6 +329,10 @@ func (c *Coordinator) route(w, i int) {
 		if key, ok := c.hierarchies.Key(m); ok && c.far[k] {
 			m.Hierarchy = c.hierarchies.Take(key)
 		}
+		if c.waits[k] && m.Hierarchy == nil && o.Ask == order.AskRoute {
+			o.Ask = order.NoRoute // the hierarchy not ready: the ask waits, its wait uncounted
+			continue
+		}
 		answer(r.keep, m, o, c.d)
 	}
 }
@@ -301,7 +343,7 @@ func (c *Coordinator) member(q *goke.Query, id uid.UID64) (bodies.Member, *order
 	o := c.order.At(cur)
 	at := c.cell.At(cur).Cell
 	m := bodies.Member{ID: id, Cell: at, From: at, Leg: o.Leg, Domain: unit.DomainAt(nil, 0),
-		Order: o}
+		Order: o, Level: c.levels.Of(cur)}
 	if b := c.base.At(cur); b != nil {
 		m.Pos, m.Vel, m.Facing = b.Pos, b.Vel.Delta(), b.Vel.Dir
 	}
@@ -402,7 +444,8 @@ func (c *Coordinator) Form(ids []uid.UID64) {
 		was := headWas{id: id, met: o.Place == 1, waited: o.Kept, narrowest: o.Narrowest,
 			patience: o.Patience}
 		o.Place, o.AheadOf, o.Lag, o.Gap, o.HeadWaits = 0, 0, 0, 0, false
-		if o.Party < 2 {
+		// far off a member marches alone
+		if o.Party < 2 || m.Level >= lod.L2 {
 			continue
 		}
 		q, ok := c.fields.Key(m, o)

@@ -116,6 +116,10 @@ a plugin's root and commands, settings, float32) are CLAUDE.md's; the game's sid
 
 ## Patterns
 
+- An aggregate (a forest, an army) is an ordinary kind with `world.Aggregate` (and `Field{Size}`
+  spanning sectors): the world tells it `Unfold`, `Fold`, `Folding` (to a part) and `Met`, each
+  once per crossing, the wait a world-made entity saved with the game; the plugin gives moments
+  and `SpawnPart`, never what a forest or an army becomes (`gram-game`).
 - A thing used by touch (the mechanisms' lever): a post (`Collider`, `Physics{Mass: +Inf}`) the
   hero rests against; the hero's rules of a `collision.Meeting` under `collision.Facing(angle)`
   hold `InReachEf` (a prompt pinned `Under` it) and, under the player's `ReachingEf` (the intent,

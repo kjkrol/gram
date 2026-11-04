@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/plugins/world/view"
@@ -126,6 +127,10 @@ func (r *Read) Styles() *render.Styles { return r.p.styles }
 
 // Banded reports whether the sectors' levels are ticked; true in a world of no sectors.
 func (r *Read) Banded() bool { return !r.p.Res.Settings.Unbanded }
+
+// LevelAt is the level the sector holding the world point (x, y) is ticked at, as the last tick
+// left it; L0 in a world of no sectors and with the levels switched off.
+func (r *Read) LevelAt(x, y float32) lod.Level { return r.p.module.sectors.levelAt(x, y) }
 
 // SectorsShown is what is drawn of the sectors.
 func (r *Read) SectorsShown() SectorsShown { return r.p.Res.Settings.Sectors }

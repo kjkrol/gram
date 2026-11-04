@@ -31,7 +31,7 @@ func (r *Read) Counts() Counts {
 	if p.coordinator == nil {
 		return Counts{}
 	}
-	c, f := p.coordinator, p.finder
+	c, f, t := p.coordinator, p.finder, p.module.navigationSystem
 	return Counts{
 		Searches:   c.Searches() + f.Searches(),
 		Walks:      c.Walks() + f.Walks(),
@@ -39,6 +39,8 @@ func (r *Read) Counts() Counts {
 		Climbs:     c.Climbs() + f.Climbs(),
 		Builds:     c.Builds() + f.Builds(),
 		Expansions: c.Expansions() + f.Expansions(),
+		Abstracts:  t.Abstracts(),
+		Snaps:      t.Snaps(),
 	}
 }
 

@@ -73,3 +73,7 @@ of the checkout; read it instead of grepping.
 - `go doc -short Type | grep -v '^type'` hides the methods: use `scripts/api.sh Type`.
 - In zsh `echo ==` fails (`=cmd` expansion): write `echo '--'`.
 - A chunk's `Cursor.Offsets` belong to that chunk; never keep a `Cursor` across `Next`.
+
+- `Query.Seek` ignores the query's Exclude and tag filters (seen in gram 2026-11-04: an
+  `Exclude[world.Unfolded]` on a query only sought did nothing): what a Seek must leave out is
+  read as an optional column and skipped.

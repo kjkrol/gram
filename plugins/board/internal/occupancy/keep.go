@@ -11,13 +11,15 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/uid"
 )
 
 // KeepSystem keeps o true to the world: every step it lets go of the holds of whoever left the
 // world and has every unit pace says, an option of its query (nil, all), hold the cell it stands
-// on, on the level its feet are on, the one its footprint on g is laid from. As it starts every
-// unit holds the cell it is At.
+// on, on the level its feet are on, the one its footprint on g is laid from; a unit travelling the
+// abstract graph (sector.Abstract) or an aggregate its parts stand for (world.Unfolded) holds
+// none. As it starts every unit holds the cell it is At.
 func KeepSystem(o cell.Occupancy, footing Footing, g grid.Grid, pace goke.Opt) goke.System {
 	s := &keepSystem{occupancy: o, footing: footing, grid: g, span: g.CellSpan(), pace: pace}
 	s.gone, s.holding = s.isGone, s.isHolding
@@ -52,7 +54,8 @@ type keepSystem struct {
 
 func (s *keepSystem) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base).Optional(&s.at).Optional(&s.mover).Optional(&s.z).
-		Optional(&s.states)
+		Optional(&s.states).
+		Exclude(goke.Exclude[sector.Abstract](), goke.Exclude[world.Unfolded]())
 	if s.pace != nil {
 		qb.With(s.pace)
 	}

@@ -155,6 +155,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	}
 	p.finder, p.coordinator = finder, coordinator
 	p.pathRenderer.Finder = finder
+	p.pathRenderer.Hierarchies, p.pathRenderer.Classes = coordinator.Hierarchies(), &p.classes
 	rules := p.crowd
 	if !p.crowdSet {
 		rules = crowd()

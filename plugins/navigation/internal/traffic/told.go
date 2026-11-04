@@ -8,19 +8,20 @@ import (
 
 // GivenQueues are the commands the units give themselves among others.
 type GivenQueues struct {
-	asides  command.Queue[order.StepAside]
-	detours command.Queue[order.Detour]
-	passes  command.Queue[order.Pass]
-	holds   command.Queue[order.Hold]
-	settles command.Queue[order.Settle]
-	stops   command.Queue[order.Stop]
-	trails  command.Queue[order.Trail]
+	asides   command.Queue[order.StepAside]
+	detours  command.Queue[order.Detour]
+	passes   command.Queue[order.Pass]
+	holds    command.Queue[order.Hold]
+	settles  command.Queue[order.Settle]
+	stops    command.Queue[order.Stop]
+	trails   command.Queue[order.Trail]
+	inherits command.Queue[order.Inherit]
 }
 
 // All are the queues, for the carrier.
 func (q *GivenQueues) All() []command.CommandQueue {
 	return []command.CommandQueue{&q.asides, &q.detours, &q.passes, &q.holds, &q.settles, &q.stops,
-		&q.trails}
+		&q.trails, &q.inherits}
 }
 
 type told struct {

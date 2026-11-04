@@ -57,6 +57,8 @@ type module struct {
 	effects         *cgoke.Effects
 	clockRunnable   goke.Runnable
 	momentsRunnable goke.Runnable
+	wholes          *wholes
+	wholesRunnable  goke.Runnable
 
 	selves selves
 
@@ -78,7 +80,10 @@ type module struct {
 	sectorsShown   SectorsShown
 	sectorSwitches command.Queue[SwitchSectors]
 	spawns         command.Queue[Spawn]
+	spawnParts     command.Queue[SpawnPart]
 	despawns       command.Queue[Despawn]
+	keens          command.Queue[Keen]
+	calms          command.Queue[Calm]
 
 	spawnRunnable   goke.Runnable
 	despawnRunnable goke.Runnable
@@ -94,6 +99,7 @@ func newModule(cfg Config) *module {
 	w.rolesOf = w.effectCmds.RolesOf
 	w.moments = moments{clock: clk, tick: w.tick}
 	w.sectors = newSectors(w)
+	w.wholes = newWholes(w)
 	return w
 }
 
@@ -121,6 +127,7 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	w.clockRunnable = ecs.RegSys(w.clock.System())
 	w.plansRunnable = ecs.RegSys(w.plansSys)
 	w.momentsRunnable = ecs.RegSys(w.moments.system())
+	w.wholesRunnable = ecs.RegSys(w.wholes)
 	w.effects.Module().RegSystems(ecs)
 }
 
@@ -149,6 +156,7 @@ func (w *module) simulate(ctx goke.RunCtx, step time.Duration) {
 	ctx.Run(w.despawnRunnable, step)
 	ctx.Run(w.effectCmdsRunnable, step)
 	ctx.Run(w.momentsRunnable, step)
+	ctx.Run(w.wholesRunnable, step)
 	// lands the spawns and despawns, the clock settling the space after it
 	ctx.Sync()
 	w.effects.Module().RunPlan(ctx, step)
@@ -171,7 +179,17 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[sector.L2](),
 		goke.LoadComp[sector.L3](),
 		goke.LoadComp[sector.L4](),
+		goke.LoadComp[sector.Far1](),
+		goke.LoadComp[sector.Far2](),
+		goke.LoadComp[sector.Far3](),
 		goke.LoadComp[sector.Keen](),
+		goke.LoadComp[sector.Abstract](),
+		goke.LoadComp[Aggregate](),
+		goke.LoadComp[Field](),
+		goke.LoadComp[PartOf](),
+		goke.LoadComp[Unfolded](),
+		goke.LoadComp[stretch](),
+		goke.LoadComp[meeting](),
 	}, w.effects.Module().LoadComps()...)
 	tokens = append(tokens, w.selves.tokens()...)
 	return append(tokens, w.plansSys.LoadComps()...)
@@ -232,7 +250,8 @@ func (w *module) populateEntries(k ikinds.Kind, rows []any, entries []kind.Entry
 		var baseComp goke.Comp[Base]
 		var labelComp goke.Comp[ceremony.Label]
 		comps := append([]goke.Addable{&baseComp, &labelComp}, sp.Columns()...)
-		w.spawnRows(si.NewFactory(comps...), &baseComp, &labelComp, sp, k, rows, entries)
+		w.spawnRows(si.NewFactory(comps...), &baseComp, &labelComp, sp, k, rows, entries, nil,
+			nil, 0)
 		w.reindex(si)
 	}})
 }

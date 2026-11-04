@@ -53,7 +53,8 @@ func TestNavigation_TheReporterLinesTheCounts(t *testing.T) {
 	var lines []string
 	read.Reporter().Report(func(label, value string) { lines = append(lines, label+": "+value) })
 	want := fmt.Sprintf("Routes: searches %d, climbs %d, walks %d, fills %d, builds %d, "+
-		"expansions %d", c.Searches, c.Climbs, c.Walks, c.Fills, c.Builds, c.Expansions)
+		"expansions %d, abstracts %d, snaps %d", c.Searches, c.Climbs, c.Walks, c.Fills,
+		c.Builds, c.Expansions, c.Abstracts, c.Snaps)
 	if len(lines) != 1 || lines[0] != want {
 		t.Errorf("the reporter says %q, want %q", lines, want)
 	}

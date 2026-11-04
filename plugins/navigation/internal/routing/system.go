@@ -22,7 +22,8 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// System carries out the MoveTo, March, LookAt and Onward commands: an order for each unit sent.
+// System carries out the MoveTo, March, LookAt and Onward commands: an order for each unit sent;
+// it keeps an aggregate its orders are aimed at ticked at L1 while one is.
 type System struct {
 	// Pace is the pace of the units a player's command sends, an option of their query; nil, all.
 	Pace     goke.Opt
@@ -47,6 +48,7 @@ type System struct {
 	base    goke.OptComp[world.Base]
 	z       goke.OptComp[world.Z]
 	steer   goke.OptComp[steering.Steering]
+	levels  bodies.Levels
 	orderID goke.CompID
 
 	self      *goke.Query
@@ -58,11 +60,15 @@ type System struct {
 	selfSteer goke.OptComp[steering.Steering]
 	selfLast  goke.OptComp[order.LastOrder]
 	selfRound goke.OptComp[order.Round]
+	selfLevel bodies.Levels
 
 	named *goke.Query
 	label goke.Comp[ceremony.Label]
 	plot  goke.OptComp[cell.Plot]
 	at    goke.OptComp[unit.At]
+	whole goke.OptComp[world.Aggregate]
+
+	aims aims
 }
 
 type issuer struct {
@@ -91,15 +97,19 @@ func (s *System) WithKeeping(k spacing.Keeping) *System {
 func (s *System) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.cell, &s.marks).Optional(&s.order).Optional(&s.mover).
 		Optional(&s.base).Optional(&s.z).Optional(&s.steer).Optional(&s.owners)
+	s.levels.Bind(qb)
 	if s.Pace != nil {
 		qb.With(s.Pace)
 	}
 	s.query = qb.Build()
 	s.orderID = si.RegComp[order.MoveOrder]()
-	s.self = si.NewQueryBuilder(&s.selfCell).
+	self := si.NewQueryBuilder(&s.selfCell).
 		Optional(&s.selfOrder).Optional(&s.selfMover).Optional(&s.selfBase).Optional(&s.selfZ).
-		Optional(&s.selfSteer).Optional(&s.selfLast).Optional(&s.selfRound).Build()
-	s.named = si.NewQueryBuilder(&s.label).Optional(&s.plot).Optional(&s.at).Build()
+		Optional(&s.selfSteer).Optional(&s.selfLast).Optional(&s.selfRound)
+	s.self = s.selfLevel.Bind(self).Build()
+	s.named = si.NewQueryBuilder(&s.label).Optional(&s.plot).Optional(&s.at).Optional(&s.whole).
+		Build()
+	s.aims.init(si)
 }
 
 func (s *System) Update(cb *goke.CmdBuf, _ time.Duration) {
@@ -117,6 +127,7 @@ func (s *System) Update(cb *goke.CmdBuf, _ time.Duration) {
 			}
 		})
 	}
+	s.aims.keep(cb)
 }
 
 func (s *System) onward(cb *goke.CmdBuf, id uid.UID64) {
@@ -132,14 +143,17 @@ func (s *System) onward(cb *goke.CmdBuf, id uid.UID64) {
 	s.carryOut(cb, order.MoveTo{Cell: next}, order.Formation{}, issuer{entity: id, self: true})
 }
 
-// the cell of the one entity bearing a name To gives: a cell's own, or the one a unit is at
-func (s *System) find(to ceremony.Whom) (cell.ID, bool) {
+// the one entity bearing a name To gives, the cell it names, a cell's own or the one a unit is
+// at, and whether it is an aggregate
+func (s *System) find(to ceremony.Whom) (uid.UID64, cell.ID, bool, bool) {
+	var id uid.UID64
 	var found cell.ID
+	var whole bool
 	n := 0
 	for s.named.All(); s.named.Next(); {
 		cur := s.named.Cursor()
 		labels, plots, ats := s.label.Slice(cur), s.plot.Slice(cur), s.at.Slice(cur)
-		for i := range cur.IDs {
+		for i, e := range cur.IDs {
 			if !to.Holds(labels[i]) {
 				continue
 			}
@@ -151,10 +165,11 @@ func (s *System) find(to ceremony.Whom) (cell.ID, bool) {
 			default:
 				continue
 			}
+			id, whole = e, s.whole.Present(cur)
 			n++
 		}
 	}
-	return found, n == 1
+	return id, found, whole, n == 1
 }
 
 func (s *System) members(by issuer, fn func(bodies.Member)) {
@@ -167,7 +182,8 @@ func (s *System) members(by issuer, fn func(bodies.Member)) {
 	}
 	cur := s.self.Cursor()
 	c := s.selfCell.At(cur)
-	m := bodies.Member{ID: by.entity, Cell: c.Cell, From: c.Cell, Domain: unit.DomainAt(nil, 0)}
+	m := bodies.Member{ID: by.entity, Cell: c.Cell, From: c.Cell, Domain: unit.DomainAt(nil, 0),
+		Level: s.selfLevel.Of(cur)}
 	if o := s.selfOrder.At(cur); o != nil {
 		m.Order = o
 		if o.Leg.Active {
@@ -194,7 +210,7 @@ func (s *System) selectedMembers(by command.Issuer, fn func(bodies.Member)) {
 		cursor := s.query.Cursor()
 		cells, marks, orders := s.cell.Slice(cursor), s.marks.Slice(cursor), s.order.Slice(cursor)
 		movers, bases, zs, steers := s.mover.Slice(cursor), s.base.Slice(cursor), s.z.Slice(cursor), s.steer.Slice(cursor)
-		owners := s.owners.Slice(cursor)
+		owners, level := s.owners.Slice(cursor), s.levels.Of(cursor)
 		for i, id := range cursor.IDs {
 			var owned tag.Tags[owner.Family]
 			if owners != nil {
@@ -204,7 +220,7 @@ func (s *System) selectedMembers(by command.Issuer, fn func(bodies.Member)) {
 				continue
 			}
 			m := bodies.Member{ID: id, Cell: cells[i].Cell, From: cells[i].Cell,
-				Domain: unit.DomainAt(movers, i)}
+				Domain: unit.DomainAt(movers, i), Level: level}
 			if orders != nil {
 				m.Order = &orders[i]
 				if leg := orders[i].Leg; leg.Active {
@@ -245,12 +261,15 @@ func (s *System) march(cb *goke.CmdBuf, cmd order.March, by issuer) {
 }
 
 func (s *System) carryOut(cb *goke.CmdBuf, cmd order.MoveTo, in order.Formation, by issuer) {
+	var aim uid.UID64
+	var aimed bool
 	if !cmd.To.Nobody() {
-		c, ok := s.find(cmd.To)
+		id, c, whole, ok := s.find(cmd.To)
 		if !ok {
 			return
 		}
 		cmd.Cell, cmd.To = c, ceremony.Whom{}
+		aim, aimed = id, whole
 	}
 	at := s.kind(cmd.Cell)
 	var members []bodies.Member
@@ -259,11 +278,34 @@ func (s *System) carryOut(cb *goke.CmdBuf, cmd order.MoveTo, in order.Formation,
 			members = append(members, m)
 		}
 	})
+	var queued []uint8
+	if aimed && cmd.Append {
+		queued = make([]uint8, len(members))
+		for k, m := range members {
+			if m.Order != nil {
+				queued[k] = m.Order.Queued
+			}
+		}
+	}
 	group, party := s.nextGroup(), uint16(min(len(members), math.MaxUint16))
 	s.keep.Orders(members, cmd, func(m bodies.Member, o order.MoveOrder) {
 		o.Group, o.Party, o.Formation = group, party, in
+		if aimed {
+			o.Aim, o.Aimed = aim, true
+			s.aims.mark(cb, m.ID)
+		}
 		cb.AddOne(m.ID, s.orderID, o)
 	})
+	if queued == nil {
+		return
+	}
+	// a goal queued behind an order is aimed with it
+	for k, m := range members {
+		if m.Order != nil && m.Order.Queued > queued[k] {
+			m.Order.Aim, m.Order.Aimed = aim, true
+			s.aims.mark(cb, m.ID)
+		}
+	}
 }
 
 // one past the highest group in the orders and LastOrders at the first: a loaded game's too

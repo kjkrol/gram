@@ -1,6 +1,9 @@
 package lod
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // Level is how fully a thing is ticked and drawn, L0 the fullest, L4 neither.
 type Level uint8
@@ -31,6 +34,18 @@ type Ladder struct {
 	// Texel is how many world units a texel of the figures' colour summed into the ground spans,
 	// zero a sector's side over 64. The world raises it to span 2048 texels a side at most.
 	Texel float32
+	// Fold is how many seconds an aggregate's sector lies at L2 or coarser before it folds, zero
+	// for 3: a hold past the levels' own, so one on the edge of L1 and L2 does not flicker.
+	Fold float32
+}
+
+// FoldAfter is how long an aggregate's sector lies at L2 or coarser before it folds: Fold
+// seconds, 3 for none.
+func (l Ladder) FoldAfter() time.Duration {
+	if l.Fold == 0 {
+		return 3 * time.Second
+	}
+	return time.Duration(float64(l.Fold) * float64(time.Second))
 }
 
 // Fallback is the level a world no camera observes is ticked at, its zero L2.
@@ -101,6 +116,9 @@ func (l Ladder) Widened(factor float32) Ladder {
 // before where set, a Fog past the Sight, a Keep past 1, an unknown Unobserved.
 func (l Ladder) Check() {
 	l.Unobserved.Level()
+	if !(l.Fold >= 0) {
+		panic(fmt.Sprintf("lod: aggregates folding after %v seconds, want none negative", l.Fold))
+	}
 	for k, keep := range l.Keep {
 		if !(keep >= 0 && keep <= 1) {
 			panic(fmt.Sprintf("lod: level %d keeps a share of %v, want one in [0, 1]", k, keep))
@@ -127,20 +145,22 @@ func (l Ladder) Check() {
 	}
 }
 
-// Paces are the steps of the world a system takes one step over at each level, 0 none.
+// Paces are the steps of the world a system takes one step over in a sector k levels coarser
+// than the finest any observer sees, at Paces[k], 0 none; at L4 none ever.
 type Paces [Levels]uint8
 
 var (
-	// Exact goes every step at L0 alone.
+	// Exact goes every step on the finest level seen alone.
 	Exact = Paces{1, 0, 0, 0, 0}
 	// Steady goes every step at every level but L4.
 	Steady = Paces{1, 1, 1, 1, 0}
-	// Contact goes every step through L2, where contacts are worked out, none beyond.
+	// Contact goes every step up to two levels coarser than the finest seen, none beyond.
 	Contact = Paces{1, 1, 1, 0, 0}
 )
 
-// Slowing goes every step at L0 and a step every n at L1, L2 and L3 in turn, the last n
-// repeated where fewer are given; it panics on no n, more than three, a 0 or a falling one.
+// Slowing goes every step on the finest level seen and a step every n one, two and three levels
+// coarser in turn, the last n repeated where fewer are given; it panics on no n, more than
+// three, a 0 or a falling one.
 func Slowing(n ...uint8) Paces {
 	if len(n) == 0 || len(n) > int(L3) {
 		panic(fmt.Sprintf("lod: slowing by %v, want one to three steps", n))

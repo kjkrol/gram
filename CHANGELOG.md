@@ -1,5 +1,78 @@
 # Changelog
 
+## v0.20.0 — unreleased
+
+**Aggregates: navigation by level, the fold and unfold contract, forests and armies**
+(2026-11-04, branch `feat/aggregates`, parts `b/navigation`, `b/contract`, `b/field`,
+`b/seams`, `b/fieldlook`, `b/demo`; hpastar v1.5.0)
+- Added: navigation by level. A unit whose sector is ticked at L2 or coarser travels the abstract
+  graph of its class's HPA* hierarchy: the refined route of cells the climb gives, walked outside
+  the occupancy, the queue, the formation and the collision at the pace the planner's prices give
+  each step; coming down to L1 it enters the route's cell under it, or the nearest free admitted
+  one (`Counts.Snaps`); going up is lazy, the route's current piece walked out first. Groups at
+  L2 march as units. `Counts.Abstracts`, `Snaps` and the panel's line;
+  `Navigation_Tick/abstract,1000`.
+- Added: `sector.Abstract{}`, the mark of a body in abstract travel: the collision gives it no
+  contacts and no push from the solid ground (it stays in the space and in sight), the occupancy
+  holds no cell of it, the board's pace share is 1 for it.
+- Added: `world.Read.LevelAt(x, y)`, the level a sector is ticked at; `bodies.Member.Level`.
+- Added: aggregates. `world.Aggregate{}` on a kind-aggregate (an army), `world.Field{Size}` on
+  one spanning sectors (a forest), `world.PartOf{Whole}` on a part. The world tells `Unfold{ID,
+  At, Sector, Box}` once as a sector of it comes down to L1, `Fold{ID, Parts, Sector, Box}` once
+  it has lain at L2 or coarser for `lod.Ladder.Fold` seconds (zero 3), `Folding{ID, Whole,
+  Sector, Box}` to each part of that sector, and `Met{A, B}` once as two aggregates travelling
+  the abstract graph come to overlap; a field goes by sector, found asleep too; a point aggregate
+  folds at its parts' centroid. `world.SpawnPart{Entry, At}` spawns a part carrying `PartOf` at
+  an offset from the unfolding sector's middle; `lod.Seed(whole, cell)` is the number a place
+  draws from, the same at every unfold. The waits are the world's entities, saved. The game's
+  rules say what unfolds and folds into what.
+- Added: a field is drawn over its `Size` from L2 (its look stretched over it, at L3 its colour
+  summed over the texels it covers, a wide box's sum weighing its rim alone), wherever a camera
+  sees that box; short of L2 over its own box, its parts drawn. A field's piece lies on the
+  ground under every figure (`PieceLift` under `FigureLift`), so an army's banner shows over a
+  forest's canopy.
+- Added: `navigation.Inherit{From}`: an entity takes over another's order whole, the abstract
+  route and its place on it included; a zero `From` is its whole (`PartOf`), or for an
+  aggregate the part leading. A `MoveTo`/`March` naming an aggregate by `To` keeps it ticked at
+  L1 (`sector.Keen`) while an order aimed at it lasts, the target's own Keen restored after;
+  a shot aimed at an aggregate keeps its sectors at L1 too.
+- Added: `sector.Grid.Cover`, the sectors a rectangle covers with its part in each.
+- Added: `world.Unfolded{}`, on an aggregate from its first Unfold to the step after its last
+  Fold: an unfolded point aggregate publishes no record at any level (its parts stand for it), a
+  field publishes one record per sector it covers, each at its sector's level and none for a
+  sector unfolded or still shedding its parts; the minimap draws no mark of it. An aggregate
+  whose sector comes under L2 lands on its leg's route of cells as a unit does, drops the mark
+  and stands, holding no cell, till it folds, whatever its level meanwhile; the board tells no
+  fall of a body on the abstract graph or unfolded, and a part or aggregate laid where it cannot
+  stand is moved to the nearest cell taking it (`occupancy.PlaceSystem`, within three rings).
+- Added: `world.Keen{Level}` and `world.Calm{}`, commands an entity gives itself to keep its
+  sector keen and to let it go; navigation keeps a target's own Keen through an aimed order.
+- Added: the demo `examples/board/forest-army`: a forest folded by sector and two armies marching
+  the abstract graph, meeting far off in a battle of attrition and, charged (H) or watched from
+  near, fighting as soldiers; a save in either state.
+- Changed: a system's `lod.Paces` count from the finest level any observer sees, not from L0:
+  the sectors the viewer sees most finely tick at full pace whatever their level, those one level
+  coarser at the paces' second rung, and so on (`sector.Far1..Far3` beside the level marks;
+  `Never[L4]` as before); a world no camera observes ticks at full pace everywhere, its saving the
+  aggregates'. A camera seeing the whole world at L2 runs time normally.
+- Changed: a unit at L2 walks its refined route of cells (the hierarchy's, as any long route),
+  out of the occupancy, the queue, the formation and the collision, at the pace the planner's
+  prices give each step; the descent enters the route's cell or snaps off a taken one; the
+  straight legs from entrance to entrance, `navigation.Abstract` and `Counts.Dropped` went;
+  hpastar's `Search.Abstract` stays a tool gram does not call.
+- Changed: a unit's route and its goal are marks drawn on top (`render.OnTop`), as the
+  selection's outline is, never hidden by a canopy, a wall or a bridge; a field's piece lies at
+  `PieceLift` 0.5, over the grid and under everything that stands.
+- Added: a selected unit's route is drawn whole, along the roads it will take: the renderer
+  works the rest of the route out once past the order's window of 64 steps (the same
+  hierarchy, so the walk follows what is drawn), keeps it while the window and the board's
+  passage stand, one unit a frame (a rest on Madeira ~4 ms), sixteen units at most; drawing
+  only, nothing of the walk.
+- Fixed: a minimap of a bounded world holds its circle within the world (the centre held `Reach`
+  from an edge, the world's middle on an axis narrower than the circle), a torus as before.
+- Changed: saves with a `MoveOrder` from before v0.20.0 do not load (the order gained its
+  abstract route and aim).
+
 ## v0.19.1 — 2026-11-04
 
 **A camera inside an entity sees none of it; the topography's units solid** (2026-11-04, branch

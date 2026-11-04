@@ -106,35 +106,61 @@ func (g *aggregate) begin() {
 func (g *aggregate) add(box plane.AABB, c [4]uint8) {
 	u0, v0 := box.TopLeft.X*g.perUnit, box.TopLeft.Y*g.perUnit
 	u1, v1 := u0+box.Size.X*g.perUnit, v0+box.Size.Y*g.perUnit
-	x0, nx := span(u0, u1)
-	y0, ny := span(v0, v1)
+	cv := cover{u0: u0, v0: v0, u1: u1, v1: v1}
+	cv.x0, cv.nx = span(u0, u1)
+	cv.y0, cv.ny = span(v0, v1)
 	s := g.sums.Back()
 	// a tile's sums are the same where what was added to them is: the box and the colour
 	sign := mixed(uint64(math.Float32bits(u0))<<32|uint64(math.Float32bits(v0))) +
 		mixed(uint64(math.Float32bits(box.Size.X))<<32|uint64(math.Float32bits(box.Size.Y))^
 			uint64(c[0])<<56^uint64(c[1])<<48^uint64(c[2])<<40)
+	nx, ny := cv.nx, cv.ny
+	if nx <= wideTexels || ny <= wideTexels {
+		g.weighed(s, &cv, 0, nx, 0, ny, c, sign)
+		return
+	}
+	// the rim weighed, the first and last rows and the first and last columns between them, the
+	// texels within wholly covered; a texel off the image's edge left out
+	i0, i1 := inside(cv.x0, nx, g.cols, g.wrapX)
+	j0, j1 := inside(cv.y0, ny, g.rows, g.wrapY)
+	g.weighed(s, &cv, i0, i1, j0, min(j1, 1), c, sign)
+	g.weighed(s, &cv, i0, i1, max(j0, ny-1), j1, c, sign)
+	j0, j1 = max(j0, 1), min(j1, ny-1)
+	g.weighed(s, &cv, i0, min(i1, 1), j0, j1, c, sign)
+	g.weighed(s, &cv, max(i0, nx-1), i1, j0, j1, c, sign)
+	g.whole(s, &cv, max(i0, 1), min(i1, nx-1), j0, j1, c, sign)
+}
+
+// past so many texels each way a box's sum weighs its rim alone
+const wideTexels = 8
+
+// cover is a box in texels, from (u0, v0) to (u1, v1), and the texels it covers: nx from x0 by
+// ny from y0
+type cover struct {
+	u0, v0, u1, v1 float32
+	x0, nx, y0, ny int
+}
+
+// weighed sums c into the texels [i0, i1) by [j0, j1) of those cv covers, each by the share of it
+// covered, adding sign to each tile's signature as it comes to it
+func (g *aggregate) weighed(s *sums, cv *cover, i0, i1, j0, j1 int, c [4]uint8, sign uint64) {
 	r, gr, b := uint32(c[0]), uint32(c[1]), uint32(c[2])
 	last := -1
 	var block []byte
-	for j := range ny {
+	for j := j0; j < j1; j++ {
 		// the shares in 256ths, their products in 65536ths
-		wy := uint32(along(v0, v1, y0+j, ny)*256 + 0.5)
-		y := texelOf(y0+j, g.rows, g.wrapY)
+		wy := uint32(along(cv.v0, cv.v1, cv.y0+j, cv.ny)*256 + 0.5)
+		y := texelOf(cv.y0+j, g.rows, g.wrapY)
 		row := y >> tileShift * g.across
-		for i := range nx {
-			w := uint32(along(u0, u1, x0+i, nx)*256+0.5) * wy
+		for i := i0; i < i1; i++ {
+			w := uint32(along(cv.u0, cv.u1, cv.x0+i, cv.nx)*256+0.5) * wy
 			if w < 128 {
 				continue // under half a 255th
 			}
-			x := texelOf(x0+i, g.cols, g.wrapX)
+			x := texelOf(cv.x0+i, g.cols, g.wrapX)
 			if tile := row + x>>tileShift; tile != last {
 				last = tile
-				k := s.at[tile]
-				if k == 0 {
-					k = s.open(tile)
-				}
-				block = s.blocks[k-1]
-				s.signs[k-1] += sign
+				block = s.block(tile, sign)
 			}
 			at := 4 * ((y&(aggregateTile-1))<<tileShift | x&(aggregateTile-1))
 			px := block[at : at+4 : at+4]
@@ -144,6 +170,39 @@ func (g *aggregate) add(box plane.AABB, c [4]uint8) {
 			px[3] = sat(px[3], (255*w+1<<15)>>16)
 		}
 	}
+}
+
+// whole sums c into the texels [i0, i1) by [j0, j1) of those cv covers, each wholly covered, a
+// run within a tile at a time
+func (g *aggregate) whole(s *sums, cv *cover, i0, i1, j0, j1 int, c [4]uint8, sign uint64) {
+	r, gr, b := uint32(c[0]), uint32(c[1]), uint32(c[2])
+	for j := j0; j < j1; j++ {
+		y := texelOf(cv.y0+j, g.rows, g.wrapY)
+		row, from := y>>tileShift*g.across, 4*(y&(aggregateTile-1))<<tileShift
+		for i := i0; i < i1; {
+			x := texelOf(cv.x0+i, g.cols, g.wrapX)
+			n := min(i1-i, aggregateTile-x&(aggregateTile-1), g.cols-x)
+			at := from + 4*(x&(aggregateTile-1))
+			px := s.block(row+x>>tileShift, sign)[at : at+4*n]
+			for k := 0; k < len(px); k += 4 {
+				q := px[k : k+4 : k+4]
+				q[0] = sat(q[0], r)
+				q[1] = sat(q[1], gr)
+				q[2] = sat(q[2], b)
+				q[3] = 255
+			}
+			i += n
+		}
+	}
+}
+
+// inside is the run [lo, hi) of the n texels from first along an axis of size texels that lie on
+// the image: every one where it wraps
+func inside(first, n, size int, wraps bool) (lo, hi int) {
+	if wraps {
+		return 0, n
+	}
+	return min(max(-first, 0), n), max(min(size-first, n), 0)
 }
 
 // span is the first texel [lo, hi) covers along an axis and how many: one, that under its middle,
@@ -189,6 +248,17 @@ func texelOf(at, n int, wraps bool) int {
 }
 
 func sat(a uint8, b uint32) uint8 { return uint8(min(uint32(a)+b, 255)) }
+
+// block is tile's texels as s holds them, opened clear where none is written yet, sign added to
+// its signature
+func (s *sums) block(tile int, sign uint64) []byte {
+	k := s.at[tile]
+	if k == 0 {
+		k = s.open(tile)
+	}
+	s.signs[k-1] += sign
+	return s.blocks[k-1]
+}
 
 // open has tile written by s, its texels clear, and is its place among those written, one up
 func (s *sums) open(tile int) int32 {

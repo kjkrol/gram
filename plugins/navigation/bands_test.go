@@ -4,17 +4,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/motion/steering"
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/sector"
+	"github.com/kjkrol/uid"
 )
 
 // two observers looking at (x, y) over a world w by h: the one a pixel a world unit, the other a
@@ -128,4 +135,108 @@ func TestMoveTo_SendsNoSelectedUnitAsleep(t *testing.T) {
 	if !ordered(0) || ordered(1) {
 		t.Errorf("ordered at L0 %v, asleep %v; want only the first", ordered(0), ordered(1))
 	}
+}
+
+// a keeping noting the level of every unit it is asked about
+type levelKeeping struct {
+	spacing.Keeping
+	seen map[uid.UID64]lod.Level
+}
+
+func (k *levelKeeping) Watch(m bodies.Member, o *MoveOrder, toward cell.ID, want geom.Vec,
+	d time.Duration) {
+	k.seen[m.ID] = m.Level
+	k.Keeping.Watch(m, o, toward, want, d)
+}
+
+func (k *levelKeeping) Route(m bodies.Member, from cell.ID, o *MoveOrder) (Path, bool) {
+	k.seen[m.ID] = m.Level
+	return k.Keeping.Route(m, from, o)
+}
+
+func (k *levelKeeping) Orders(members []bodies.Member, cmd MoveTo,
+	issue func(bodies.Member, MoveOrder)) {
+	for _, m := range members {
+		k.seen[m.ID] = m.Level
+	}
+	k.Keeping.Orders(members, cmd, issue)
+}
+
+func (k *levelKeeping) MayStep(m bodies.Member, ahead cell.ID, deck bool, heading geom.Vec,
+	near *bodies.Nearby) bool {
+	k.seen[m.ID] = m.Level
+	return k.Keeping.MayStep(m, ahead, deck, heading, near)
+}
+
+func TestMember_KnowsTheLevelItsSectorIsTickedAt(t *testing.T) {
+	const cols, rows = 128, 4
+	g := grid.DefaultGrids{}.Square(cols, rows, legCellSize)
+	profile := steering.Steering{MaxSpeed: float32(legCellSize * 2)}
+	walker := func(from, to uint32) navUnit {
+		start := g.At(from, 1)
+		return navUnit{box: cellBox(g, start, legEntitySize), at: start, profile: &profile,
+			order: &MoveOrder{Target: g.At(to, 1)}, selected: true}
+	}
+	// at L0, at L2
+	units := []navUnit{walker(2, 8), walker(40, 46)}
+	// the near observer sees L0 within 600 of the point, the far one L2 within 1200
+	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.4, 0.2}, Sight: 600}
+	var orders goke.Comp[MoveOrder]
+	var q *goke.Query
+	coord := routing.NewCoordinator(nil, nil)
+	nw := newNavWorldIn(t, nil, cols, rows, legCellSize, units, world.SectorsCfg{Buckets: 2},
+		ladder, func(w *world.Plugin, _ *board.Plugin) {
+			w.Write().Observe(newObservers(cols*legCellSize, rows*legCellSize, 80, 48))
+		},
+		coord,
+		goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&orders).Build() }})
+	for range 2 {
+		nw.ecs.Tick(time.Second / 60)
+	}
+	keep := &levelKeeping{Keeping: nw.nav.handKeeping.Keep, seen: map[uid.UID64]lod.Level{}}
+	near, far := nw.ids[0], nw.ids[1]
+	check := func(by string) {
+		t.Helper()
+		l0, ok0 := keep.seen[near]
+		l2, ok2 := keep.seen[far]
+		if !ok0 || !ok2 || l0 != lod.L0 || l2 != lod.L2 {
+			t.Errorf("%s: the near unit at %v (%v), the far one at %v (%v); want L0 and L2",
+				by, l0, ok0, l2, ok2)
+		}
+		clear(keep.seen)
+	}
+
+	nw.nav.module.navigationSystem.WithKeeping(keep)
+	for range 10 {
+		nw.ecs.Tick(time.Second / 60)
+	}
+	check("the traffic")
+	for _, id := range []uid.UID64{near, far} {
+		if b, ok := keep.Other(id); ok {
+			keep.seen[id] = b.Member().Level
+		}
+	}
+	check("the bodies the others meet")
+
+	coord.Router(nw.nav.finder, keep)
+	for q.All(); q.Next(); {
+		asked := orders.Slice(q.Cursor())
+		for i := range asked {
+			asked[i].Ask = order.AskRoute
+		}
+	}
+	coord.Update(nil, 0)
+	check("the routing")
+
+	nw.nav.module.moveCommandSystem.WithKeeping(keep)
+	nw.nav.moves.Add(command.Nobody, MoveTo{Cell: g.At(20, 1)})
+	nw.ecs.Tick(time.Second / 60)
+	check("a MoveTo")
+
+	nw.nav.handKeeping.Keep = keep
+	for _, id := range []uid.UID64{near, far} {
+		nw.nav.handKeeping.MayStep(id, world.Position{}, g.At(2, 1), g.At(3, 1), false, cell.Land,
+			geom.NewVec(1, 0))
+	}
+	check("the hand")
 }

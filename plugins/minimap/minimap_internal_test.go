@@ -68,6 +68,44 @@ func TestLens_TakesTheShorterWayRoundATorus(t *testing.T) {
 	}
 }
 
+func TestLens_HoldsItsCircleOnABoundedWorldButNotOnATorus(t *testing.T) {
+	for _, c := range []struct {
+		name     string
+		world    geom.Vec
+		wraps    bool
+		at, want geom.Vec
+		ahead    [2]float32
+	}{
+		{name: "a corner", world: geom.NewVec(1000, 600), at: geom.NewVec(20, 580),
+			want: geom.NewVec(100, 500), ahead: [2]float32{0, -1}},
+		{name: "a corner turned", world: geom.NewVec(1000, 600), at: geom.NewVec(990, 10),
+			want: geom.NewVec(900, 100), ahead: [2]float32{1, 1}},
+		{name: "an axis narrower than the circle", world: geom.NewVec(1000, 150),
+			at: geom.NewVec(500, 10), want: geom.NewVec(500, 75), ahead: [2]float32{0, -1}},
+		{name: "a torus", world: geom.NewVec(1000, 600), wraps: true, at: geom.NewVec(20, 580),
+			want: geom.NewVec(20, 580), ahead: [2]float32{0, -1}},
+	} {
+		l := newLens(c.world, c.wraps, c.wraps, 100)
+		l.SetViewport(200, 200)
+		l.aim(c.at.X, c.at.Y, c.ahead[0], c.ahead[1])
+		if x, y, _ := l.Focus(); !near(x, c.want.X) || !near(y, c.want.Y) {
+			t.Errorf("%s: looking at %v the picture's middle is (%v, %v), want %v", c.name, c.at,
+				x, y, c.want)
+		}
+		if c.wraps || c.world.Y < 200 {
+			continue
+		}
+		// the circle's edge, round the picture's middle, lies on the world
+		for _, p := range [][2]float32{{0, 100}, {200, 100}, {100, 0}, {100, 200}, {170, 170}} {
+			x, y := l.Unproject(p[0], p[1], 0)
+			if x < -0.01 || y < -0.01 || x > c.world.X+0.01 || y > c.world.Y+0.01 {
+				t.Errorf("%s: the circle's edge at (%v, %v) shows (%v, %v), past the world %v",
+					c.name, p[0], p[1], x, y, c.world)
+			}
+		}
+	}
+}
+
 // a camera turned to look ahead
 type turned struct {
 	camera.Camera
@@ -317,6 +355,63 @@ func TestMarks_ADotForEveryEntityRoundWhoseKindHasAMark(t *testing.T) {
 	if len(dots) != 2 || !(near(dots[0][0], 50) && near(dots[1][0], 150) ||
 		near(dots[0][0], 150) && near(dots[1][0], 50)) || !near(dots[0][1], 100) {
 		t.Errorf("dots at %v, want two, at (50, 100) and (150, 100)", dots)
+	}
+}
+
+func TestMarks_NoDotForAnAggregateUnfoldedItsPartsDotted(t *testing.T) {
+	w := flatWorld(nil)
+	box := func(s spot) world.Position {
+		return world.Position{AABB: plane.NewAABB(geom.NewVec(s.x-2, s.y-2), 4, 4)}
+	}
+	kind.Define[spot](w.Kinds(), "army", kind.Spec{
+		comp.Load(box),
+		comp.Const(world.Velocity{}),
+		comp.Const(world.Aggregate{}),
+	})
+	kind.Define[spot](w.Kinds(), "soldier", kind.Spec{
+		comp.Load(box),
+		comp.Const(world.Velocity{}),
+	})
+	army := kind.Named[spot](w.Kinds(), "army")
+	soldier := kind.Named[spot](w.Kinds(), "soldier")
+	// a world of no sectors lies at L0: the army unfolds at the first step
+	w.Write().Seed(army.Entry(spot{450, 500}), soldier.Entry(spot{550, 500}))
+	a := w.NewAtlas()
+	a.Add(army, 4, render.Solid(markRed)).Styled(Mark{Color: markRed, Size: 6})
+	a.Add(soldier, 4, render.Solid(markRed)).Styled(Mark{Color: markRed, Size: 6})
+	a.Close()
+	if err := w.Populate(); err != nil {
+		t.Fatal(err)
+	}
+	p := NewPlugin(w, nil, Config{Reach: 100})
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
+	cam.SetViewport(200, 200)
+	cam.CenterOn(500, 500, 0)
+	p.For(cam, command.Nobody)
+	m := p.maps[0]
+	m.lens.SetViewport(200, 200)
+	marks := &marksView{m: m}
+	ecs := start(t, w, goke.SystemFn{OnInit: marks.Init})
+	for range 3 {
+		ecs.Tick(time.Second / 60)
+	}
+	p.RunPlan(nil, 0)
+	marks.publish(time.Now(), true)
+	marks.swap()
+	var f render.Frame
+	f.Reset(m.lens)
+	marks.Compose(&f, m.lens)
+	var xs []float32
+	f.Each(func(_ render.At, v []render.Vertex) {
+		var x float32
+		for _, p := range v {
+			x += p.DstX / float32(len(v))
+		}
+		xs = append(xs, x)
+	})
+	// a unit a pixel round (500, 500): the soldier at 550 alone
+	if len(xs) != 1 || !near(xs[0], 150) {
+		t.Errorf("dots at x %v, want the soldier's alone, at 150", xs)
 	}
 }
 

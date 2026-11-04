@@ -161,12 +161,15 @@ func (p *Plugin) Name() string { return "gram.board" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	pace := p.worldPlugin.Pace(lod.Steady)
+	place := occupancy.PlaceSystem(p.occupancy, p.board.read.footing, &p.board.read, pace,
+		&p.board.read, p.worldPlugin.Write().Space)
 	p.module = &module{
 		cells:     p.board.cells.System(p.worldPlugin.Roster(), CellTemplate, p.mattering),
 		built:     p.board.cells.BuiltSystem(p.worldPlugin.Write().Space),
 		roster:    p.worldPlugin.Roster(),
 		template:  CellTemplate,
 		keep:      occupancy.KeepSystem(p.occupancy, p.board.read.footing, &p.board.read, pace),
+		place:     place,
 		standing:  p.rules.StandingSystem(pace),
 		cellRules: p.rules.CellSystem(),
 		clock:     p.worldPlugin.Write().Clock(),

@@ -13,8 +13,8 @@
 // cleared once, as it stops being read; a log ([Plugin.WithLog]) reads nobody and shows what is
 // scanned. An observer read is scanned
 // every step, or [Plugin.WithFrequency] times a second of game time, the scan shared among
-// goroutines ([Plugin.WithWorkers]). Only an observer at L0 to L2 of the world's sectors looks,
-// every step (lod.Contact): farther off it sees nothing.
+// goroutines ([Plugin.WithWorkers]). Only an observer within two levels of the finest level any
+// observer camera sees looks, every step (lod.Contact): farther off it sees nothing.
 //
 // # Transparency
 //

@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/uid"
 )
 
@@ -24,13 +25,15 @@ type standingSystem struct {
 	r     *Rules
 	paced goke.Opt
 
-	query *goke.Query
-	base  goke.Comp[world.Base]
-	at    goke.Comp[unit.At]
-	mover goke.OptComp[unit.Mover]
-	pace  goke.OptComp[steering.Pace]
-	marks goke.OptComp[tag.Tags[unit.States]]
-	z     goke.OptComp[world.Z]
+	query    *goke.Query
+	base     goke.Comp[world.Base]
+	at       goke.Comp[unit.At]
+	mover    goke.OptComp[unit.Mover]
+	pace     goke.OptComp[steering.Pace]
+	marks    goke.OptComp[tag.Tags[unit.States]]
+	z        goke.OptComp[world.Z]
+	abstract goke.OptComp[sector.Abstract]
+	unfolded goke.OptComp[world.Unfolded]
 
 	ids    []uid.UID64
 	bases  []world.Base
@@ -73,6 +76,8 @@ func (s *standingSystem) Init(si *goke.SysInit) {
 	s.cols.Own(&s.pace)
 	s.cols.Own(&s.marks)
 	s.cols.Own(&s.z)
+	s.cols.Own(&s.abstract)
+	s.cols.Own(&s.unfolded)
 	s.r.standing.Bind(s.cols)
 	if s.paced != nil {
 		qb.With(s.paced)
@@ -95,10 +100,21 @@ func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		for i := range s.states {
 			s.states[i] = s.states[i].Without(unit.Entered)
 		}
-		if paces := s.pace.Slice(cursor); paces != nil && s.movers != nil {
+		abstract := s.abstract.Present(cursor)
+		switch paces := s.pace.Slice(cursor); {
+		case paces == nil || s.movers == nil:
+		case abstract: // travelling the abstract graph, slowed by nothing
+			for i := range paces {
+				paces[i].Share = 1
+			}
+		default:
 			for i := range paces {
 				paces[i].Share = s.share(i)
 			}
+		}
+		// on no cell: off the cells on the abstract graph, or an aggregate its parts stand for
+		if abstract || s.unfolded.Present(cursor) {
+			continue
 		}
 		if s.r.Log != nil {
 			for i := range s.ids {

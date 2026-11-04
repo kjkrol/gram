@@ -93,6 +93,9 @@ func NewPlugin(cfg Config) *Plugin {
 	p.sectors = newSectorsView(p)
 	p.renderer.clock = m.clock.Read().Shown
 	p.renderer.space = cfg.Space
+	if m.sectors.grid != nil {
+		p.renderer.covers = m.sectors.cover
+	}
 	return p
 }
 
@@ -196,7 +199,8 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	ctx.UseModule(p.module)
 	ctx.UseModule(p.module.effects.Module())
 	ctx.Setup(p.kinds)
-	ctx.Hosts(&p.module.moments.host)
+	wh := p.module.wholes
+	ctx.Hosts(&p.module.moments.host, &wh.unfolds, &wh.folds, &wh.foldings, &wh.meets)
 	ctx.Draws(p.renderer, p.sectors)
 	ctx.Looks(p.dress)
 	p.reads = parallel.NewReads(&p.read, ctx.Pool())

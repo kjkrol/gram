@@ -864,3 +864,22 @@ func (p *Finder) NearestFreeThrough(
 	dest, ok := p.rings.breadthFirst(target, p.grid, passable, reachableFree, maxVisitedCells)
 	return dest, n, ok
 }
+
+// Snap is the cell nearest from, ring by ring and maxVisitedCells at most, that body moving in
+// domain stands on, on its level, where taken says that level is free: where a unit walking far
+// off comes down onto the cells. False where none is.
+func (p *Finder) Snap(domain cell.Domain, body Body, from cell.ID,
+	taken func(c cell.ID, deck bool) bool) (cell.ID, bool) {
+	p.begin(domain)
+	p.as(body)
+	fp := p.print
+	return p.rings.breadthFirst(from, p.grid, anyCell, func(c cell.ID) bool {
+		r := p.at(c)
+		l := p.levelOf(r, body)
+		return p.stepAt(r, l).admits && p.bears(r, l) && (fp == nil || p.standsOn(fp, c, l)) &&
+			(taken == nil || !taken(c, l == deck))
+	}, maxVisitedCells)
+}
+
+// a walk off the cells crosses any of them
+func anyCell(cell.ID) bool { return true }

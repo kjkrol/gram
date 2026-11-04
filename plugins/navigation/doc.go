@@ -90,6 +90,23 @@
 // [Plugin.WithHierarchy] sets the regions' side and the distance, or has every route searched;
 // [Read.Hierarchy] says what was decided.
 //
+// # Levels
+//
+// Below L2 a unit walks its route cell by cell. One whose sector is ticked at L2 or coarser walks
+// it far off once the route of cells it walks is spent: the same refined route, asked as any and
+// climbed through its class's hierarchy (waiting for it while it is first built; hpastar's
+// abstract graph is not walked), from the middle of one cell to the next, each step at the share
+// of its top speed the planner prices it at, out of the occupancy, the queue, the formation and
+// the collision (sector.Abstract). Its sector ticked finer, it comes down at once onto the cell
+// under it and walks its route on from there, or onto the nearest free cell taking it where that
+// one is taken, its route asked anew. An aggregate (world.Aggregate) ticked finer than L2 comes
+// down so and stands there, holding no cell, as long as it is unfolded (world.Unfolded) whatever
+// its level, its order kept for its parts to take over with [Inherit] as they are made
+// (kind.Entry.Told), each walking the route on from where it stands, and takes one of theirs
+// back the same way as it folds; one a [MoveTo] or a [March] names by To is kept ticked at L1
+// (sector.Keen) while an order aimed at it lasts, so those sent find its parts, and keeps after
+// it the Keen it carried or gave itself meanwhile (world.Keen, world.Calm).
+//
 // # Commands
 //
 // A [MoveTo] sends every Selected entity of the player who gave it, those it owns alone, to a cell
@@ -113,13 +130,17 @@
 // where it will stand, always, and its routes as thin lines over the ground while [Routes] shows
 // them ([Write.ShowRoutes], [Read.RoutesShown]); [RouteStyle]
 // ([Plugin.WithRouteStyle], [DefaultRouteStyle]) is the lines' colour and width and the goals'
-// colour.
+// colour. Both are marks over the world (render.OnTop), under the selection's outline: no figure
+// or canopy hides them, a route drawn on the GPU hidden by the ground before it alone. A route is
+// drawn whole, along the cells the entity will walk to its goal, for up to 16 entities at a time;
+// past them, straight beyond the stretch its order holds.
 //
 // # Counts
 //
 // [Read.Counts] are what the routing did since the plugin was made: the routes searched, those
 // climbed, those read off a group's field, the fields filled, the hierarchies' regions built, the
-// nodes the searches expanded; [Read.Reporter] is their line on the telemetry panel. A route
+// nodes the searches expanded, the units come into the far mode and those come down off a taken
+// cell; [Read.Reporter] is their line on the telemetry panel. A route
 // asked again is answered as before, unsearched, while the board's passage stands
 // (board.BoardRead.Passage), as it does while a forest sways.
 //
@@ -135,7 +156,8 @@
 //
 // Commands: [MoveTo], [March] (in a [Formation], [ColumnOf]), [LookAt] (a player's or an entity's
 // own); [StepAside], [Detour], [Pass], [Settle], [Trail] (an entity's own, aimed at the Touch's
-// subject, host.Aimed), [Hold], [Stop], [Onward] (an entity's own); [Routes] (a player's, a look).
+// subject, host.Aimed), [Hold], [Stop], [Onward], [Inherit] (an entity's own); [Routes] (a
+// player's, a look).
 //
 // Styles, for a figure's Look on the world's atlas (Slot.Styled): [RouteStyle], how a kind's
 // routes and goals are drawn, [DefaultRouteStyle] or [Plugin.WithRouteStyle]'s without.

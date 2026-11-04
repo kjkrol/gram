@@ -26,7 +26,8 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   cells at its nearest end's place); what is `At.OverFigures()`; the **marks** by level,
   untested, at one level in the order added.
 - Lifts over a surface, low to high: a ground dressing 0.02, board materials 0.05, grid 0.1,
-  holds 0.15, sight 0.25, routes 0.75, route goals 0.8, a bridge in hand 0.9, figures
+  holds 0.15, sight 0.25, a field's piece 0.5, a bridge in hand 0.9 (routes and goals are
+  marks `OnTop` 0.5/0.75 since 2026-11-04), figures
   `world.FigureLift` 2 (topography's `spriteLift` the same), a box `FigureLift`+0.5. Mark levels:
   the selection's outline 1 and marquee 2, the cameras' layers 4. Goals, holds and boxes lie in
   the world, never as marks.
@@ -44,6 +45,13 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   honours a drawn thing's `render.Taking` bits. Eight names at most, seven in use (the world's
   `Aggregate` the last); a draw's own image slots are four, so a renderer short of them binds a
   frame image per draw through `opts.Uniforms` (the terrain's `GroundDetail`, the aggregate).
+- Navigation's route line and goal are marks `OnTop` (route < goal < the selection's outline),
+  never lifts in the world (2026-11-04); the GPU route lines `Untested` with `ReadGround` kept,
+  so the ground still hides a route behind a hill while figures and a canopy do not.
+- A field aggregate's piece (a canopy sheet at L2) lies on the ground at `look.PieceLift` (0.5),
+  under every figure (`FigureLift` 2): the point and material paths place it so; through a Look it
+  goes `Lie`, never `Upright`/`Lay`, still at the Look's own lift (an interface change to pass a
+  lift is open, 2026-11-04).
 - A stage is readied before its first frame (`render.Prepare`, then a frame drawn and thrown
   away): nothing is compiled or baked in a frame shown.
 

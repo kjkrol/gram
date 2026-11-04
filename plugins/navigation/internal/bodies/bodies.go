@@ -5,6 +5,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/players/owner"
@@ -42,14 +43,15 @@ type Body struct {
 	TrailPace float32 // while Trailing, the ground speed whom it follows lawfully makes
 	Place     uint16  // its place in its formation, 1 the head; 0 in none
 	// Way is the way its route leads it next, a unit vector; zero without one.
-	Way geom.Vec
+	Way   geom.Vec
+	Level lod.Level // its sector's, as ticked
 }
 
 // Member is b as a member of the tick, standing where it is.
 func (b Body) Member() Member {
 	return Member{ID: b.ID, Cell: b.Cell, From: b.Cell, Domain: b.Domain, Pos: world.Position{AABB: plane.NewAABB(geom.NewVec(b.At.X-b.Half.X, b.At.Y-b.Half.Y), 2*b.Half.X, 2*b.Half.Y)},
 		Vel: b.Vel, Facing: b.Facing, Z: b.Z, Lift: b.Lift, Weight: b.Weight, Owners: b.Owners,
-		Share: b.Share, MaxSpeed: b.MaxSpeed}
+		Share: b.Share, MaxSpeed: b.MaxSpeed, Level: b.Level}
 }
 
 // Alive says b is under way: it moves, or trails someone itself.

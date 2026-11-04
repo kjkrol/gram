@@ -31,11 +31,11 @@
 //
 // Every step the board runs the rules of its moments, which the roles obey: a unit.Standing for
 // every entity on the board (the cell under it, its kind on the unit's level, whether it has
-// Fallen where its domain may not be) and a cell.Now for every cell. The board names its places
-// for cond.At and act.At: [Around](n) are the cells within n rings of those under the entity
-// and the entities standing on them (0: those under it alone), [Ahead](n) the cells one to n
-// steps in front of a unit, the way it faces (a cell faces nowhere). The same pass writes every
-// unit's steering.Pace from the ground under it.
+// Fallen where its domain may not be), none for one on no cell (below), and a cell.Now for every
+// cell. The board names its places for cond.At and act.At: [Around](n) are the cells within n
+// rings of those under the entity and the entities standing on them (0: those under it alone),
+// [Ahead](n) the cells one to n steps in front of a unit, the way it faces (a cell faces
+// nowhere). The same pass writes every unit's steering.Pace from the ground under it.
 //
 // # Entities standing on the board
 //
@@ -130,7 +130,11 @@
 // meet: [Read.Heights], [Read.Footing], [Read.Cover] for sight, and its Solid cells the
 // solid ground collision pushes colliders out of ([Plugin.WithCollision]). Its cell.Occupancy
 // tracks who holds each cell; the board has every unit hold the cell it stands on and lets go of
-// the holds of whoever left the world.
+// the holds of whoever left the world. A unit travelling the abstract graph (sector.Abstract)
+// holds none and keeps its whole pace, and an aggregate its parts stand for (world.Unfolded)
+// holds none: each is on no cell. A part laid off its aggregate, or an aggregate folded, holding
+// no cell yet where its domain may not stand or another holds, is moved onto the nearest cell
+// that takes it, a few rings round at most, before it is told where it stands.
 //
 // # Drawing
 //

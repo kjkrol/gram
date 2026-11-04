@@ -21,6 +21,11 @@ type Counts struct {
 	Builds uint64
 	// Expansions are the nodes the searches expanded: the work they did.
 	Expansions uint64
+	// Abstracts are the units come into the far mode (from L2), once an entry.
+	Abstracts uint64
+	// Snaps are the units come down from the far mode onto a free cell other than the one under
+	// them.
+	Snaps uint64
 }
 
 type reporter struct{ r *Read }
@@ -30,5 +35,6 @@ var _ render.Reporter = reporter{}
 func (rp reporter) Report(line func(label, value string)) {
 	c := rp.r.Counts()
 	line("Routes", fmt.Sprintf("searches %d, climbs %d, walks %d, fills %d, builds %d, "+
-		"expansions %d", c.Searches, c.Climbs, c.Walks, c.Fills, c.Builds, c.Expansions))
+		"expansions %d, abstracts %d, snaps %d", c.Searches, c.Climbs, c.Walks, c.Fills,
+		c.Builds, c.Expansions, c.Abstracts, c.Snaps))
 }

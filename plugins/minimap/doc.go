@@ -6,8 +6,10 @@
 //
 // [NewPlugin] makes the minimaps over a world and its [Ground], as [Config] says: how far round
 // the camera they reach, never past the world's sight, and whether they turn with the camera
-// or keep north up. A game makes it after the cameras, hands it to the players with the other
-// handlers and runs it after the cameras ([Plugin.RunPlan]).
+// or keep north up. On a world that does not wrap the circle stays within its edges, the camera's
+// outline moving in it there, and lies round the world's middle on an axis shorter than it. A
+// game makes it after the cameras, hands it to the players with the other handlers and runs it
+// after the cameras ([Plugin.RunPlan]).
 //
 // # A minimap in a scene
 //

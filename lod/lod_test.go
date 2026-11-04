@@ -3,6 +3,7 @@ package lod_test
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/kjkrol/gram/lod"
 )
@@ -74,6 +75,7 @@ func TestLadder_CheckRefusesALadderThatCannotBe(t *testing.T) {
 		"keeping under none": {Keep: [lod.Levels]float32{0, -0.1}},
 		"keeping no number":  {Keep: [lod.Levels]float32{float32(math.NaN())}},
 		"negative texel":     {Texel: -1},
+		"negative fold":      {Fold: -1},
 		"unknown fallback":   {Unobserved: lod.UnobservedL4 + 1},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -90,6 +92,7 @@ func TestLadder_CheckRefusesALadderThatCannotBe(t *testing.T) {
 		{Scales: [4]float32{2, 1, 0.5, 0.25}, Sight: 100, Fog: 100},
 		{Scales: [4]float32{0.5}, Sight: 1000},
 		{Keep: [lod.Levels]float32{1, 0.5, 0.25, 0, 1}, Texel: 8},
+		{Fold: 0.5},
 		{Unobserved: lod.UnobservedL4},
 	} {
 		l.Check()
@@ -211,5 +214,14 @@ func TestLadder_HoldGoesPastTheSightOnlyByTheMargin(t *testing.T) {
 		if got := l.Hold(c.from, 4, c.dist, 200); got != c.want {
 			t.Errorf("from %v %v off, a margin of 200: %v, want %v", c.from, c.dist, got, c.want)
 		}
+	}
+}
+
+func TestLadder_FoldAfterIsItsSecondsThreeForNone(t *testing.T) {
+	if got := (lod.Ladder{}).FoldAfter(); got != 3*time.Second {
+		t.Errorf("no Fold folds after %v, want 3s", got)
+	}
+	if got := (lod.Ladder{Fold: 0.5}).FoldAfter(); got != 500*time.Millisecond {
+		t.Errorf("a Fold of 0.5 folds after %v, want 500ms", got)
 	}
 }

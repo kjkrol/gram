@@ -29,3 +29,22 @@ func TestLog_WritesALineOnceForEachWhoFell(t *testing.T) {
 		t.Errorf("wrote %q, want one line of a unit falling into the hole", out.String())
 	}
 }
+
+func TestLog_WritesNoLineForOneOnNoCell(t *testing.T) {
+	grid := grid.DefaultGrids{}.Square(1, 1, 10)
+	cells := terrain.New(grid)
+	cells.Set(grid.At(0, 0), cell.Kind{Name: cell.Named("wall")})
+	var out bytes.Buffer
+	r := New(grid, cells, nil, nil, nil)
+	r.Log = log.New(&out, "", 0)
+
+	box := cellBox(grid, grid.At(0, 0), 4)
+	walk(t, r, 3,
+		walker{box: box, domain: cell.Land, abstract: true},
+		walker{box: box, domain: cell.Land, unfolded: true},
+	)
+	if out.Len() > 0 {
+		t.Errorf("wrote %q of one on the abstract graph and an aggregate unfolded, want nothing",
+			out.String())
+	}
+}

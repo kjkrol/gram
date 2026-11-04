@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 )
 
 func flat(cell.ID, cell.ID) float64  { return 0 }
@@ -181,11 +182,32 @@ func TestPace_AZeroShareStopsTheUnit(t *testing.T) {
 	}
 }
 
+func TestPace_IsWholeOnTheAbstractGraph(t *testing.T) {
+	grid := grid.DefaultGrids{}.Square(2, 1, 10)
+	cells := terrain.New(grid)
+	cells.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
+	at := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
+	r := New(grid, cells, nil, flat, nil)
+	r.Mobility = refusing{at(0): true, at(1): true}
+	got := walk(t, r, 1,
+		walker{box: cellBox(grid, at(0), 4), vel: world.Velocity{Value: 1}, domain: cell.Land},
+		walker{box: cellBox(grid, at(1), 4), vel: world.Velocity{Value: 1}, domain: cell.Land,
+			abstract: true})
+	refused := got[cellBox(grid, at(0), 4).TopLeft.X]
+	abstract := got[cellBox(grid, at(1), 4).TopLeft.X]
+	if refused != 0 || abstract != 1 {
+		t.Errorf("paces %v and %v on refusing cells, want 0 on the cells and 1 on the abstract "+
+			"graph", refused, abstract)
+	}
+}
+
 type walker struct {
-	box    plane.AABB
-	vel    world.Velocity
-	domain cell.Domain
-	next   cell.ID
+	box      plane.AABB
+	vel      world.Velocity
+	domain   cell.Domain
+	next     cell.ID
+	abstract bool // marked travelling the abstract graph
+	unfolded bool // an aggregate its parts stand for
 }
 
 func paces(t *testing.T, g grid.Grid, cells *terrain.Cells, rise func(from, to cell.ID) float64,
@@ -205,12 +227,19 @@ func walk(t *testing.T, r *Rules, steps int, walkers ...walker) map[float32]floa
 		at    goke.Comp[unit.At]
 		mover goke.Comp[unit.Mover]
 		pace  goke.Comp[steering.Pace]
+		mark  goke.Comp[sector.Abstract]
+		open  goke.Comp[world.Unfolded]
 	)
 	goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		for _, w := range walkers {
 			c, _ := g.CellAt(world.Position{AABB: w.box}.Center())
 			f := si.NewFactory(&base, &at, &pace)
-			if w.domain != 0 {
+			switch {
+			case w.abstract:
+				f = si.NewFactory(&base, &at, &pace, &mover, &mark)
+			case w.unfolded:
+				f = si.NewFactory(&base, &at, &pace, &mover, &open)
+			case w.domain != 0:
 				f = si.NewFactory(&base, &at, &pace, &mover)
 			}
 			f.Create(1)
