@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.19.1 — unreleased
+## v0.19.1 — 2026-11-04
 
 **A camera inside an entity sees none of it; the topography's units solid** (2026-11-04, branch
 `fix/ridden-figure`)
