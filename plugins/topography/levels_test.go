@@ -75,7 +75,7 @@ func (s stepped) Observers(each func(camera.Camera)) { each(s) }
 
 var _ sector.Observers = stepped{}
 
-// a world of 4 by 4 sectors of 128, L0 down to L3 by column as the camera sees them, the ground
+// a world of 4 by 4 sectors of 128, L2 down to L5 by column as the camera sees them, the ground
 // over a board on g of kinds of colours in turn, gridded in line where it has a width, drawn,
 // read back and swapped
 func drawnAtLevels(t *testing.T, g grid.Grid, line board.Line) (*topography.Plugin, []byte) {
@@ -86,7 +86,7 @@ func drawnAtLevels(t *testing.T, g grid.Grid, line board.Line) (*topography.Plug
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 4, MaxSize: 4},
 		Heights:  true,
 		Sectors:  world.SectorsCfg{Buckets: 4},
-		LOD:      lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2, 0.05, 0}},
+		LOD:      lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2, 0.05, 0}},
 	})
 	b := board.NewPlugin(g, &cell.MultipleOccupancy{}, w)
 	b.Write().ShowGrid(line.Width > 0)
@@ -134,7 +134,7 @@ func drawnAtLevels(t *testing.T, g grid.Grid, line board.Line) (*topography.Plug
 	render.NewComposer(ctx.Sources()...).DrawWorld(screen, cam)
 	pix := make([]byte, 4*size*size)
 	screen.ReadPixels(pix)
-	if got := groundReport(p); got != "L0 0\nL1 0\nL2 0\nL3 0" {
+	if got := groundReport(p); got != "L0 0\nL1 0\nL2 0\nL3 0\nL4 0\nL5 0" {
 		t.Errorf("drawn, not yet swapped, the panel says %q, want the levels of no frame", got)
 	}
 	p.Swap()
@@ -170,17 +170,18 @@ func TestReporter_SaysHowManySectorsTheFrameDrawnDrewAtEachLevel(t *testing.T) {
 		grid grid.Grid
 		want string
 	}{
-		{"square", grid.DefaultGrids{}.Square(16, 16, 32), "L0 4\nL1 4\nL2 4\nL3 4"},
+		{"square", grid.DefaultGrids{}.Square(16, 16, 32), "L0 0\nL1 0\nL2 4\nL3 4\nL4 4\nL5 4"},
 		{"hex", grid.DefaultGrids{}.Hex(12, 14, 16), ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			want := tc.want
 			if want == "" {
-				var n [lod.L4]int
+				var n [4]int
 				for at := range sectorsIn(tc.grid) {
 					n[at[0]]++
 				}
-				want = fmt.Sprintf("L0 %d\nL1 %d\nL2 %d\nL3 %d", n[0], n[1], n[2], n[3])
+				want = fmt.Sprintf("L0 0\nL1 0\nL2 %d\nL3 %d\nL4 %d\nL5 %d", n[0], n[1], n[2],
+					n[3])
 			}
 			p, _ := drawnAtLevels(t, tc.grid, board.Line{})
 			if got := groundReport(p); got != want {
@@ -191,7 +192,7 @@ func TestReporter_SaysHowManySectorsTheFrameDrawnDrewAtEachLevel(t *testing.T) {
 	}
 }
 
-func TestHexes_DrawTheSectorsAtL3AsASheetOfTheTopsFromAbove(t *testing.T) {
+func TestHexes_DrawTheSectorsAtL5AsASheetOfTheTopsFromAbove(t *testing.T) {
 	gputest.Need(t)
 	g := grid.DefaultGrids{}.Hex(12, 14, 16)
 	p, pix := drawnAtLevels(t, g, board.Line{})
@@ -238,7 +239,7 @@ func nearColour(a, b color.RGBA, by int) bool {
 	return d(a.R, b.R) <= by && d(a.G, b.G) <= by && d(a.B, b.B) <= by && d(a.A, b.A) <= by
 }
 
-func TestHexes_DrawTheGridAtL0Alone(t *testing.T) {
+func TestHexes_DrawTheGridAtL2Alone(t *testing.T) {
 	gputest.Need(t)
 	magenta := color.RGBA{R: 255, B: 255, A: 255}
 	_, pix := drawnAtLevels(t, grid.DefaultGrids{}.Hex(12, 14, 16),
@@ -257,7 +258,7 @@ func TestHexes_DrawTheGridAtL0Alone(t *testing.T) {
 		}
 	}
 	if lined[0] == 0 || lined[1] != 0 || lined[2] != 0 || lined[3] != 0 {
-		t.Errorf("pixels of the grid's line by column of sectors, L0 to L3: %v; want some at L0 "+
+		t.Errorf("pixels of the grid's line by column of sectors, L2 to L5: %v; want some at L2 "+
 			"alone", lined)
 	}
 }

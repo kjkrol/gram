@@ -34,6 +34,8 @@ const (
 var (
 	// by level, L0 first
 	levelColors = [lod.Levels]color.RGBA{
+		{R: 50, G: 120, B: 230, A: 255},
+		{R: 60, G: 200, B: 210, A: 255},
 		{R: 70, G: 200, B: 90, A: 255},
 		{R: 235, G: 200, B: 60, A: 255},
 		{R: 240, G: 140, B: 50, A: 255},
@@ -113,7 +115,7 @@ func (v *sectorsView) Compose(f *render.Frame, cam camera.Camera) {
 			v.levels = make([]lod.Level, g.Len())
 		}
 		for i := range v.levels {
-			v.levels[i] = lod.L4
+			v.levels[i] = lod.Omitted
 		}
 		if seen := v.p.read.ViewFor(cam); seen != nil {
 			seen.Sectors(func(i int, _ geom.AABB, l lod.Level) { v.levels[i] = l })

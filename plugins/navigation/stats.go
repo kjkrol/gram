@@ -21,7 +21,7 @@ type Counts struct {
 	Builds uint64
 	// Expansions are the nodes the searches expanded: the work they did.
 	Expansions uint64
-	// Abstracts are the units come into the far mode (from L2), once an entry.
+	// Abstracts are the units come into the far mode (from L4), once an entry.
 	Abstracts uint64
 	// Snaps are the units come down from the far mode onto a free cell other than the one under
 	// them.

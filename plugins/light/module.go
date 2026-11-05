@@ -41,9 +41,9 @@ func (s *ownSun) Init(si *goke.SysInit) {
 	// the sun's own entity has no Base, so no level: it shines whatever the sectors
 	p.sources = si.NewQueryBuilder(&p.source).Optional(&p.shining).Optional(&p.base).
 		Optional(&p.z).With(s.pace).Build()
-	// what lies asleep at L4 is baked by no ground
+	// what lies asleep at L6 is baked by no ground
 	p.blocks = si.NewQueryBuilder(&p.blockBase, &p.blockZ, &p.blockOf).Optional(&p.blockLie).
-		Exclude(goke.Exclude[sector.L4]()).Build()
+		Exclude(goke.Exclude[sector.L6]()).Build()
 }
 
 func (s *ownSun) Update(*goke.CmdBuf, time.Duration) {

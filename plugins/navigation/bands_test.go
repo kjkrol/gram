@@ -26,7 +26,7 @@ import (
 
 // two observers looking at (x, y) over a world w by h: the one a pixel a world unit, the other a
 // quarter of a pixel seeing twice as far; under a ladder seeing from half a pixel a world unit,
-// L0 within its sight of the point, L1 within twice that, L4 beyond
+// L2 within its sight of the point, L3 within twice that, L6 beyond
 type observers [2]camera.Camera
 
 var _ sector.Observers = (*observers)(nil)
@@ -55,7 +55,7 @@ func (o *observers) Observers(each func(cam camera.Camera)) {
 	}
 }
 
-func TestNavigation_GoesOnAtL1AndStandsAsleep(t *testing.T) {
+func TestNavigation_GoesOnAtL3AndStandsAsleep(t *testing.T) {
 	const cols, rows = 128, 4
 	g := grid.DefaultGrids{}.Square(cols, rows, legCellSize)
 	profile := steering.Steering{MaxSpeed: float32(legCellSize * 2)}
@@ -64,11 +64,11 @@ func TestNavigation_GoesOnAtL1AndStandsAsleep(t *testing.T) {
 		return navUnit{box: cellBox(g, start, legEntitySize), at: start, profile: &profile,
 			order: &MoveOrder{Target: g.At(to, 1)}}
 	}
-	// at L0, at L1, asleep
+	// at L2, at L3, asleep
 	units := []navUnit{walker(2, 8), walker(40, 46), walker(70, 76)}
 	var base goke.Comp[world.Base]
 	var q *goke.Query
-	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{0.5}, Sight: 600}
+	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5}, Sight: 600}
 	nw := newNavWorldIn(t, nil, cols, rows, legCellSize, units, world.SectorsCfg{Buckets: 2},
 		ladder, func(w *world.Plugin, _ *board.Plugin) {
 			w.Write().Observe(newObservers(cols*legCellSize, rows*legCellSize, 80, 48))
@@ -94,7 +94,7 @@ func TestNavigation_GoesOnAtL1AndStandsAsleep(t *testing.T) {
 	}
 	after := xs()
 	if cell := float32(legCellSize); after[0] <= before[0]+cell || after[1] <= before[1]+cell {
-		t.Errorf("at L0 from %v to %v, at L1 from %v to %v; want both on their way",
+		t.Errorf("at L2 from %v to %v, at L3 from %v to %v; want both on their way",
 			before[0], after[0], before[1], after[1])
 	}
 	if after[2] != before[2] {
@@ -111,11 +111,11 @@ func TestMoveTo_SendsNoSelectedUnitAsleep(t *testing.T) {
 		return navUnit{box: cellBox(g, at, legEntitySize), at: at, profile: &profile,
 			selected: true}
 	}
-	// at L0, asleep
+	// at L2, asleep
 	units := []navUnit{selected(2), selected(70)}
 	var order goke.OptComp[MoveOrder]
 	var q *goke.Query
-	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{0.5}, Sight: 600}
+	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5}, Sight: 600}
 	nw := newNavWorldIn(t, nil, cols, rows, legCellSize, units, world.SectorsCfg{Buckets: 2},
 		ladder, func(w *world.Plugin, _ *board.Plugin) {
 			w.Write().Observe(newObservers(cols*legCellSize, rows*legCellSize, 80, 48))
@@ -133,7 +133,7 @@ func TestMoveTo_SendsNoSelectedUnitAsleep(t *testing.T) {
 		return order.At(q.Cursor()) != nil
 	}
 	if !ordered(0) || ordered(1) {
-		t.Errorf("ordered at L0 %v, asleep %v; want only the first", ordered(0), ordered(1))
+		t.Errorf("ordered at L2 %v, asleep %v; want only the first", ordered(0), ordered(1))
 	}
 }
 
@@ -177,10 +177,10 @@ func TestMember_KnowsTheLevelItsSectorIsTickedAt(t *testing.T) {
 		return navUnit{box: cellBox(g, start, legEntitySize), at: start, profile: &profile,
 			order: &MoveOrder{Target: g.At(to, 1)}, selected: true}
 	}
-	// at L0, at L2
+	// at L2, at L4
 	units := []navUnit{walker(2, 8), walker(40, 46)}
-	// the near observer sees L0 within 600 of the point, the far one L2 within 1200
-	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.4, 0.2}, Sight: 600}
+	// the near observer sees L2 within 600 of the point, the far one L4 within 1200
+	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.4, 0.2}, Sight: 600}
 	var orders goke.Comp[MoveOrder]
 	var q *goke.Query
 	coord := routing.NewCoordinator(nil, nil)
@@ -199,8 +199,8 @@ func TestMember_KnowsTheLevelItsSectorIsTickedAt(t *testing.T) {
 		t.Helper()
 		l0, ok0 := keep.seen[near]
 		l2, ok2 := keep.seen[far]
-		if !ok0 || !ok2 || l0 != lod.L0 || l2 != lod.L2 {
-			t.Errorf("%s: the near unit at %v (%v), the far one at %v (%v); want L0 and L2",
+		if !ok0 || !ok2 || l0 != lod.L2 || l2 != lod.L4 {
+			t.Errorf("%s: the near unit at %v (%v), the far one at %v (%v); want L2 and L4",
 				by, l0, ok0, l2, ok2)
 		}
 		clear(keep.seen)

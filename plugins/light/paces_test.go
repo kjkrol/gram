@@ -26,7 +26,7 @@ func lookingAt(w, h uint32, x, y float32) eye {
 
 func (e eye) Observers(each func(cam camera.Camera)) { each(e.cam) }
 
-func TestPlugin_ALampAsleepAtL4LightsNothingAndTheSunShinesWhateverTheSectors(t *testing.T) {
+func TestPlugin_ALampAsleepAtL6LightsNothingAndTheSunShinesWhateverTheSectors(t *testing.T) {
 	cfg := levelWorld
 	cfg.Sectors = world.SectorsCfg{Buckets: 1}
 	cfg.LOD = lod.Ladder{Sight: 300}
@@ -43,7 +43,7 @@ func TestPlugin_ALampAsleepAtL4LightsNothingAndTheSunShinesWhateverTheSectors(t 
 		tick()
 	}
 	if lamps := p.Read(0).Lamps(); len(lamps) != 1 || lamps[0].X != 150 {
-		t.Errorf("lamps %+v, want the torch at L0 alone", lamps)
+		t.Errorf("lamps %+v, want the torch at L2 alone", lamps)
 	}
 	if got := p.Read(0).Distant(); got != sun {
 		t.Errorf("the distant light is %+v, want the scene's sun %+v", got, sun)

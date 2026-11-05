@@ -106,7 +106,7 @@ func (r *Read) Picture() render.Picture {
 	return r.p.picture
 }
 
-// Aggregate is the figures' colour summed into the ground from L3: an image over the whole world,
+// Aggregate is the figures' colour summed into the ground from L5: an image over the whole world,
 // perUnit texels a world unit from its top-left corner, for the ground's renderers to sample. It
 // is nil until a renderer asks for it (Plugin.Aggregates) and in a world without sectors, perUnit
 // 0 while it holds no colour.
@@ -129,7 +129,7 @@ func (r *Read) Styles() *render.Styles { return r.p.styles }
 func (r *Read) Banded() bool { return !r.p.Res.Settings.Unbanded }
 
 // LevelAt is the level the sector holding the world point (x, y) is ticked at, as the last tick
-// left it; L0 in a world of no sectors and with the levels switched off.
+// left it; Standard in a world of no sectors and with the levels switched off.
 func (r *Read) LevelAt(x, y float32) lod.Level { return r.p.module.sectors.levelAt(x, y) }
 
 // SectorsShown is what is drawn of the sectors.
@@ -242,8 +242,8 @@ func (w *Write) Observe(o sector.Observers) {
 	w.p.module.sectors.observers = append(w.p.module.sectors.observers, o)
 }
 
-// SetBanded switches the sectors' levels on, or off with every sector ticked at L0 (SwitchBands,
-// Settings.Unbanded); the cameras draw by their levels either way.
+// SetBanded switches the sectors' levels on, or off with every sector ticked at Standard
+// (SwitchBands, Settings.Unbanded); the cameras draw by their levels either way.
 func (w *Write) SetBanded(on bool) {
 	w.p.Res.Settings.Unbanded = !on
 	w.p.module.sectors.unbanded = !on

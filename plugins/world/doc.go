@@ -93,20 +93,21 @@
 // into the fog before a camera's sight. Each is marked by the [Lighting], the light plugin's
 // ([Write.SetLighting]), and lit as the frame says (render.Frame.Lit) by the lights the picture
 // is given ([Write.SetLights], [Read.Lights]), in white light without them. An entity is drawn in
-// its kind's look at the level its camera sees it at: its own at L0, plainly at L1 (no edges,
-// flat where it would stand), a blob of its own look at L2 (render.Blob), its blob's colour in
-// the ground at L3, or as [Slot.At] and [Slot.Nothing] declare from a level on. At L2 the
-// renderer draws it itself as a point, its box as large as it shows and a pixel at least, as
-// opaque as it covers, with no Look, lamp or shadow, and a camera publishes the ladder's Keep
-// share of a level's entities by their identity, the same each frame, sparing the sector.Keen, a
-// kind [Slot.Always] and one drawn in a look declared there. A camera riding inside an entity
-// (camera.Inside) draws none of its figure, its shadow still. [Plugin.WithFog] is the fog's colour
-// in a world without an atmosphere. The entities are published once a frame, after its ticks: the
-// looks' rules settle every one some camera sees, the Lighting marks it, each camera's view is
-// copied, and the frame is drawn of that alone. In a world cut into sectors whose ground a
-// renderer draws ([Plugin.Aggregates]) a figure some camera sees at L3 is no record but its
-// blob's colour summed by how much of each texel its box covers into [Read.Aggregate], an image
-// over the whole world the renderer lays over the ground it draws there ([AggregateImage]).
+// its kind's look at the level its camera sees it at: its own at L2 (lod.Standard) and the close
+// levels, plainly at L3 (no edges, flat where it would stand), a blob of its own look at L4
+// (render.Blob), its blob's colour in the ground at L5, or as [Slot.At] and [Slot.Nothing] declare
+// from a level on, a close one to Standard at most. At L4 the renderer draws it itself as a point,
+// its box as large as it shows and a pixel at least, as opaque as it covers, with no Look, lamp or
+// shadow, and a camera publishes the ladder's Keep share of a level's entities by their identity,
+// the same each frame, sparing the sector.Keen, a kind [Slot.Always] and one drawn in a look
+// declared there. A camera riding inside an entity (camera.Inside) draws none of its figure, its
+// shadow still. [Plugin.WithFog] is the fog's colour in a world without an atmosphere. The entities
+// are published once a frame, after its ticks: the looks' rules settle every one some camera sees,
+// the Lighting marks it, each camera's view is copied, and the frame is drawn of that alone. In a
+// world cut into sectors whose ground a renderer draws ([Plugin.Aggregates]) a figure some camera
+// sees at L5 is no record but its blob's colour summed by how much of each texel its box covers
+// into [Read.Aggregate], an image over the whole world the renderer lays over the ground it draws
+// there ([AggregateImage]).
 //
 // [Read.Picture] is everything the Stage's plugins draw (plugin.Installer.Draws), one picture
 // for every scene; a scene shows it through a camera, ui.Image(render.NewFeed(camera, it)).
@@ -114,31 +115,32 @@
 // # Sectors
 //
 // Config.Sectors cuts the world into sectors, each ticked at the fullest level Config.LOD (a
-// lod.Ladder) says one of the observers sees it at ([Write.Observe]; the cameras plugin gives
-// its cameras) or a sector.Keen entity in it or beside it keeps it at, and marks each entity with
-// its sector's level and how many levels coarser that is than the finest any observer sees
-// (package sector); what lies at L4 is out of the space. An entity gives itself [Keen] to keep
+// lod.Ladder) says one of the observers sees it at ([Write.Observe]; the cameras plugin gives its
+// cameras) or a sector.Keen entity in it or beside it keeps it at, and marks each entity with its
+// sector's level and how many levels coarser that is than the finest any observer sees (package
+// sector); what lies at L6 (lod.Omitted) is out of the space. An entity gives itself [Keen] to keep
 // its sector so, [Calm] to keep it so no more. With no observer every sector is ticked at the
-// ladder's Unobserved level, L2 unless set. An entity travelling the abstract graph far from
-// every camera carries sector.Abstract, saved with the game. A system adds the pace of its
-// lod.Paces ([Plugin.Pace]) to its query and walks it with goke.Query.Paced, in full on the
-// finest level seen, so a world with no observer goes in full everywhere; the world's plans and
-// effects go lod.Slowing(2, 4, 8).
+// ladder's Unobserved level, L4 unless set. An entity travelling the abstract graph far from every
+// camera carries sector.Abstract, saved with the game. A system adds the pace of its lod.Paces
+// ([Plugin.Pace]) to its query and walks it with goke.Query.Paced, in full on the finest level
+// seen, so a world with no observer goes in full everywhere; the world's plans and effects go
+// lod.Slowing(2, 4, 8). [Plugin.Within] keeps a query to the sectors of one scale: a system of the
+// close scale's detail goes Within(lod.Close) at lod.Exact, nowhere while nobody looks so close.
 // [Read.Sectors] lays them on the telemetry panel. A camera's View in such a world is of the
 // sectors it sees, each at the level it sees it at (view.NewSeen), within [Read.Sight];
 // [Read.Seen] lays the first camera's on the panel. [SwitchSectors] shows the sectors over the
 // ground by the level they are ticked at or by how the camera sees them ([Write.ShowSectors]);
-// [SwitchBands] switches the levels off, every sector ticked at L0, to weigh what they spare
+// [SwitchBands] switches the levels off, every sector ticked at Standard, to weigh what they spare
 // ([Write.SetBanded]); both are the settings screen's alone.
 //
 // # Aggregates
 //
 // An [Aggregate] is a kind of entity standing for parts, a forest's trees or an army's soldiers:
-// they are the truth while its sector is ticked at L0 or L1, it alone from L2 on. It is told
-// [Unfold] once as its sector comes down to L1, when its rules spawn the parts ([SpawnPart]),
-// each carrying [PartOf] it, and [Fold] once its sector has lain at L2 or coarser for the
-// ladder's Fold seconds, with the [Parts] it has, each part told a [Folding] to sum itself into
-// it and go; the wait is the stretch's, an entity the world keeps while it is unfolded, saved
+// they are the truth while its sector is ticked finer than L4 (lod.Strategic), it alone from L4 on.
+// It is told [Unfold] once as its sector comes down finer than L4, when its rules spawn the parts
+// ([SpawnPart]), each carrying [PartOf] it, and [Fold] once its sector has lain at L4 or coarser
+// for the ladder's Fold seconds, with the [Parts] it has, each part told a [Folding] to sum itself
+// into it and go; the wait is the stretch's, an entity the world keeps while it is unfolded, saved
 // with the game. From its first Unfold till the step after its last Fold, its parts gone, it
 // carries [Unfolded], saved too: its parts are drawn for it and what moves it stands it, at any
 // level.
@@ -154,12 +156,12 @@
 // A [Field] aggregate, a forest, stands over a box round its centre wider than an entity may be
 // and goes by sector: each sector of it unfolds and folds apart, told with the Sector and the
 // Box of the field within it, its parts there those whose centre lies in it, and it is found
-// asleep too, its own sector at L4 stopping none of the others. A point aggregate's moments tell
+// asleep too, its own sector at L6 stopping none of the others. A point aggregate's moments tell
 // the sector of its centre and its own box. A SpawnPart given under an Unfold is laid At off the
 // middle of that Box, so the plots a rule plants, picked by words over lod.Seed and the
 // aggregate's effects, lie in the sector. A field is drawn by sector, asleep too, wherever a
 // camera sees its part there: its look at the level of that sector stretched over the part, at
-// L3 its colour summed over every texel the part covers; a sector it is unfolded in has its
+// L5 its colour summed over every texel the part covers; a sector it is unfolded in has its
 // parts drawn alone, till they have gone the step after its Fold. Drawn so, it lies on the ground,
 // under the figures standing over it.
 //
@@ -187,11 +189,11 @@
 //
 // # Vocabulary
 //
-// Moments, for a role's rules: [Unfold] (a stretch of an aggregate come down to L1, its subject
-// the stretch), [Fold] (one folding; its word [Parts]), [Folding] (each part of it, its subject
-// the aggregate), [Met] (a pair of aggregates on the abstract graph, host.Met). Marks:
-// [Aggregate] and [Field] (on a kind), [PartOf] (on a part), [Unfolded] (on an aggregate, for
-// the plugins: a rule reads no component). Knobs, for an effect's Alter:
+// Moments, for a role's rules: [Unfold] (a stretch of an aggregate come down finer than L4, its
+// subject the stretch), [Fold] (one folding; its word [Parts]), [Folding] (each part of it, its
+// subject the aggregate), [Met] (a pair of aggregates on the abstract graph, host.Met). Marks:
+// [Aggregate] and [Field] (on a kind), [PartOf] (on a part), [Unfolded] (on an aggregate, for the
+// plugins: a rule reads no component). Knobs, for an effect's Alter:
 // render.Appearance, the look's.
 // Commands: [Spawn] (a player's or an entity's own); [SpawnPart] (an aggregate's own, aimed at
 // the stretch of an Unfold);

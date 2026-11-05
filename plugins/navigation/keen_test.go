@@ -29,10 +29,10 @@ type keenSeen struct {
 	sought bool
 }
 
-func TestKeen_AnAggregateOrderedAgainstStaysAtL1TillTheLastOrderEnds(t *testing.T) {
-	l0 := sector.Keen{Level: lod.L0}
-	l1 := sector.Keen{Level: lod.L1}
-	l3 := sector.Keen{Level: lod.L3}
+func TestKeen_AnAggregateOrderedAgainstStaysAtL3TillTheLastOrderEnds(t *testing.T) {
+	l0 := sector.Keen{Level: lod.L2}
+	l1 := sector.Keen{Level: lod.L3}
+	l3 := sector.Keen{Level: lod.L5}
 	for _, c := range []struct {
 		name string
 		own  *sector.Keen
@@ -40,9 +40,9 @@ func TestKeen_AnAggregateOrderedAgainstStaysAtL1TillTheLastOrderEnds(t *testing.
 		alone, aimed *sector.Keen
 		calm, kept   lod.Level
 	}{
-		{name: "none of its own", alone: nil, aimed: &l1, calm: lod.L2, kept: lod.L1},
-		{name: "its own at L0", own: &l0, alone: &l0, aimed: &l0, calm: lod.L0, kept: lod.L0},
-		{name: "its own at L3", own: &l3, alone: &l3, aimed: &l1, calm: lod.L2, kept: lod.L1},
+		{name: "none of its own", alone: nil, aimed: &l1, calm: lod.L4, kept: lod.L3},
+		{name: "its own at L2", own: &l0, alone: &l0, aimed: &l0, calm: lod.L2, kept: lod.L2},
+		{name: "its own at L5", own: &l3, alone: &l3, aimed: &l1, calm: lod.L4, kept: lod.L3},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			const cols, rows = 96, 16
@@ -68,15 +68,16 @@ func TestKeen_AnAggregateOrderedAgainstStaysAtL1TillTheLastOrderEnds(t *testing.
 			var orders goke.OptComp[MoveOrder]
 			var keens goke.OptComp[sector.Keen]
 			var sought goke.OptComp[order.Sought]
-			var m1 goke.OptComp[sector.L1]
 			var m2 goke.OptComp[sector.L2]
 			var m3 goke.OptComp[sector.L3]
+			var m4 goke.OptComp[sector.L4]
+			var m5 goke.OptComp[sector.L5]
 			nw := newNavWorldIn(t, nil, cols, rows, legCellSize, units,
 				world.SectorsCfg{Buckets: 2}, abstractLadder,
 				func(w *world.Plugin, _ *board.Plugin) { w.Write().Observe(&observed{}) },
 				goke.SystemFn{OnInit: func(si *goke.SysInit) {
 					q = si.NewQueryBuilder(&base).Optional(&orders, &keens, &sought).
-						Optional(&m1, &m2, &m3).Build()
+						Optional(&m2, &m3, &m4, &m5).Build()
 				}})
 			w := nw.nav.worldPlugin
 			seen := func() keenSeen {
@@ -91,12 +92,14 @@ func TestKeen_AnAggregateOrderedAgainstStaysAtL1TillTheLastOrderEnds(t *testing.
 					s.keen = k
 				}
 				switch {
-				case m1.Present(cur):
-					s.marked = lod.L1
 				case m2.Present(cur):
 					s.marked = lod.L2
 				case m3.Present(cur):
 					s.marked = lod.L3
+				case m4.Present(cur):
+					s.marked = lod.L4
+				case m5.Present(cur):
+					s.marked = lod.L5
 				}
 				return s
 			}
@@ -161,7 +164,7 @@ func TestKeen_AnAggregateOrderedAgainstStaysAtL1TillTheLastOrderEnds(t *testing.
 
 func TestKeen_ItsRecordsOutlastASave(t *testing.T) {
 	path := t.TempDir() + "/save.bin"
-	sought := order.Sought{Keen: sector.Keen{Level: lod.L3}, Had: true}
+	sought := order.Sought{Keen: sector.Keen{Level: lod.L5}, Had: true}
 	aimed := MoveOrder{Target: 7, Aim: 3, Aimed: true}
 	ecs := goke.New()
 	var record goke.Comp[order.Sought]
@@ -204,8 +207,8 @@ func TestKeen_ItsRecordsOutlastASave(t *testing.T) {
 }
 
 func TestKeen_AKeenAnAggregateGivesItselfOutlastsTheOrdersAimedAtIt(t *testing.T) {
-	l0 := sector.Keen{Level: lod.L0}
-	l1 := sector.Keen{Level: lod.L1}
+	l0 := sector.Keen{Level: lod.L2}
+	l1 := sector.Keen{Level: lod.L3}
 	for _, c := range []struct {
 		name string
 		// the Keen it gives itself before an order is aimed at it and while one is, nil for none

@@ -46,7 +46,7 @@ a plugin's root and commands, settings, float32) are CLAUDE.md's; the game's sid
   registered: they ride on roles. A plugin's own rules (navigation's crowd) it adds to its host.
 - **A system goes at the sectors' levels by its `lod.Paces`, one query and one system, never
   one a level, and none without**: it holds `w.Pace(paces)` (`lod.Steady` for one that only
-  must skip the sleepers at L4, `Contact` through L2, `Slowing(n...)` integrating a longer step;
+  must skip the sleepers at L6, `Contact` through L4, `Slowing(n...)` integrating a longer step;
   nil in a test building it bare: `if s.pace != nil { qb.With(s.pace) }`), walks `q.Paced(d)`
   scaling what is "a tick" by `q.Dt()/d`, and walks `All()` only where it must find a sleeper by
   identity (a `Seek`, a load). An exported system offers `Paced(pace goke.Opt)`. A kind that

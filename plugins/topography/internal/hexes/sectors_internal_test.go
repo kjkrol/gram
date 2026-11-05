@@ -22,11 +22,11 @@ func (row) Box(i int) geom.AABB {
 	return geom.NewAABB(geom.NewVec(float32(i)*512, 0), geom.NewVec(float32(i+1)*512, 512))
 }
 func (row) Of(x, _ float32) int { return min(max(int(x/512), 0), 3) }
-func (row) Ladder() lod.Ladder  { return lod.Ladder{Scales: [lod.Levels - 1]float32{0.5}} }
+func (row) Ladder() lod.Ladder  { return lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5}} }
 
 func (r row) Level(cam camera.Camera, i int) lod.Level {
 	if i == 3 {
-		return lod.L4
+		return lod.L6
 	}
 	return r.Ladder().At(camera.ScaleShown(cam, float32(i)*512, 0, 0), 0)
 }
@@ -63,29 +63,29 @@ func TestEach_DrawsTheSectorsSeenWholeOrTheirTopsAloneNeighboursAtOneGo(t *testi
 	}
 }
 
-// five sectors of 512 in a row, each at its own level, L0 first
-type ladder struct{}
+// five sectors of 512 in a row, each at its own level from first on
+type ladder struct{ first lod.Level }
 
 func (ladder) Len() int  { return 5 }
 func (ladder) Cols() int { return 5 }
 func (ladder) Box(i int) geom.AABB {
 	return geom.NewAABB(geom.NewVec(float32(i)*512, 0), geom.NewVec(float32(i+1)*512, 512))
 }
-func (ladder) Of(x, _ float32) int                    { return min(max(int(x/512), 0), 4) }
-func (ladder) Ladder() lod.Ladder                     { return lod.Ladder{} }
-func (ladder) Level(_ camera.Camera, i int) lod.Level { return lod.Level(i) }
+func (ladder) Of(x, _ float32) int                      { return min(max(int(x/512), 0), 4) }
+func (ladder) Ladder() lod.Ladder                       { return lod.Ladder{} }
+func (l ladder) Level(_ camera.Camera, i int) lod.Level { return l.first + lod.Level(i) }
 
-func TestEach_DrawsTheTopsAtL1AndL2AndASheetAtL3(t *testing.T) {
+func TestEach_DrawsTheTopsAtL3AndL4AndASheetAtL5(t *testing.T) {
 	cam := seeing{cameratest.NewFromSpace(2560, 512, 0)}
-	v := view.NewSeen(cam, ladder{})
+	v := view.NewSeen(cam, ladder{lod.Standard})
 	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 2560, Height: 512, BucketSize: 128})
 	if err != nil {
 		t.Fatal(err)
 	}
 	views := []*view.View{v}
 	view.NewSystem(space, &views, 2560, 512).Update(nil, 0)
-	// a cell in each sector, two in the one at L3, the mean of whose corners stands 6 high
-	h := &Ground{sectors: ladder{}, runs: []run{{0, 1}, {1, 1}, {2, 1}, {3, 2}, {5, 1}},
+	// a cell in each sector, two in the one at L5, the mean of whose corners stands 6 high
+	h := &Ground{sectors: ladder{lod.Standard}, runs: []run{{0, 1}, {1, 1}, {2, 1}, {3, 2}, {5, 1}},
 		heights: []float32{0, 0, 0, 6, 0}, cells: make([]float32, 6*cellFloats)}
 	type drawn struct{ cells, vertices int }
 	var got []drawn
@@ -94,18 +94,41 @@ func TestEach_DrawsTheTopsAtL1AndL2AndASheetAtL3(t *testing.T) {
 	})
 	want := []drawn{{1, wholeVertices}, {2, topVertices}}
 	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
-		t.Errorf("drawn %v, want the sector at L0 whole and those at L1 and L2 their tops at "+
+		t.Errorf("drawn %v, want the sector at L2 whole and those at L3 and L4 their tops at "+
 			"one go", got)
 	}
 	sheet := []float32{1536, 0, 2048, 512, 6, 0, 0, 0}
 	if !slices.Equal(h.sheet, sheet) {
-		t.Errorf("sheets %v, want the sector at L3's box at its cells' mean height %v", h.sheet,
+		t.Errorf("sheets %v, want the sector at L5's box at its cells' mean height %v", h.sheet,
 			sheet)
 	}
-	if want := [lod.Levels]int{1, 1, 1, 1, 0}; h.Levels() != want {
+	if want := [lod.Levels]int{0, 0, 1, 1, 1, 1, 0}; h.Levels() != want {
 		t.Errorf("sectors drawn by level %v, want %v", h.Levels(), want)
 	}
 	if n := testing.AllocsPerRun(10, func() { h.each(v, func([]float32, int) {}) }); n != 0 {
 		t.Errorf("%v allocations a frame, want none", n)
+	}
+}
+
+func TestEach_DrawsTheCloseLevelsWholeAsStandard(t *testing.T) {
+	cam := seeing{cameratest.NewFromSpace(2560, 512, 0)}
+	v := view.NewSeen(cam, ladder{lod.Close})
+	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 2560, Height: 512, BucketSize: 128})
+	if err != nil {
+		t.Fatal(err)
+	}
+	views := []*view.View{v}
+	view.NewSystem(space, &views, 2560, 512).Update(nil, 0)
+	h := &Ground{sectors: ladder{lod.Close}, runs: []run{{0, 1}, {1, 1}, {2, 1}, {3, 1}, {4, 1}},
+		heights: make([]float32, 5), cells: make([]float32, 5*cellFloats)}
+	type drawn struct{ cells, vertices int }
+	var got []drawn
+	h.each(v, func(cells []float32, vertices int) {
+		got = append(got, drawn{len(cells) / cellFloats, vertices})
+	})
+	want := []drawn{{3, wholeVertices}, {2, topVertices}}
+	if !slices.Equal(got, want) || len(h.sheet) != 0 {
+		t.Errorf("drawn %v and sheets %v, want the sectors at L0 to L2 whole at one go, those at "+
+			"L3 and L4 their tops, no sheet", got, h.sheet)
 	}
 }

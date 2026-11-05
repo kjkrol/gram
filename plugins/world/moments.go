@@ -33,8 +33,9 @@ func (m *moments) system() goke.System {
 	}}
 }
 
-// Unfold is the moment a stretch of an aggregate comes down to L1 or finer, once as it comes: the
-// time its rules spawn the parts lying there (SpawnPart), a point aggregate's round At, its centre.
+// Unfold is the moment a stretch of an aggregate comes down finer than Strategic, once as it comes:
+// the time its rules spawn the parts lying there (SpawnPart), a point aggregate's round At, its
+// centre.
 type Unfold struct {
 	ID uid.UID64
 	At geom.Vec
@@ -51,8 +52,9 @@ func (u Unfold) Who() uid.UID64 { return u.ID }
 // Subject is the stretch unfolding, which a SpawnPart given under it is aimed at to lie there.
 func (u Unfold) Subject() (uid.UID64, bool) { return u.stretch, true }
 
-// Fold is the moment a stretch of an aggregate has lain at L2 or coarser for the ladder's Fold
-// seconds, once after its Unfold: the time its rules sum its Parts into it, each told a Folding.
+// Fold is the moment a stretch of an aggregate has lain at Strategic or coarser for the ladder's
+// Fold seconds, once after its Unfold: the time its rules sum its Parts into it, each told a
+// Folding.
 type Fold struct {
 	ID    uid.UID64
 	Parts int

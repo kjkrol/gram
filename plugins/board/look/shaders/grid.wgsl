@@ -5,7 +5,7 @@
 // centre to corner, are drawn U.GridWidth pixels wide in U.GridLine, premultiplied, fading over a
 // pixel either side. U.GridWrap says which axes wrap: there the cells run on; elsewhere only the
 // edges of the board's own cells are drawn. Where U.GridSeen, only the edges of the cells whose
-// middles lie in sectors seen at L0 (image 0, a pixel a sector, red its lod.Level;
+// middles lie in sectors seen at L2 or finer (image 0, a pixel a sector, red its lod.Level;
 // U.GridSectors.xy of them across and down, U.GridSectors.zw large).
 
 @vertex
@@ -101,7 +101,7 @@ fn axialRound(c: vec2<f32>) -> vec2<f32> {
 }
 
 // drawn reports whether the cell at column or axial cell c is the board's and its middle lies in
-// a sector seen at L0, if the sectors are seen.
+// a sector seen at L2 or finer, if the sectors are seen.
 fn drawn(c: vec2<f32>) -> bool {
     if !onBoard(c) {
         return false;
@@ -122,7 +122,7 @@ fn drawn(c: vec2<f32>) -> bool {
         mid = vec2<f32>(s * (sqrt(3.0) * f.x + sqrt(3.0) / 2.0 * f.y) + s, s * 1.5 * f.y + s);
     }
     let s = clamp(floor(mid / U.GridSectors.zw), vec2<f32>(0.0), U.GridSectors.xy - 1.0);
-    return u32(imageSrc0At(imageSrc0Origin() + s + 0.5).r * 255.0 + 0.5) == 0u;
+    return u32(imageSrc0At(imageSrc0Origin() + s + 0.5).r * 255.0 + 0.5) <= 2u;
 }
 
 // onBoard reports whether the cell at column or axial cell c is the board's: any along an axis

@@ -41,7 +41,7 @@ const (
 	// a band's members stand this far from its centre either way
 	apart = 15
 	frame = time.Second / 60
-	// how long a band's sector lies at L2 before it folds
+	// how long a band's sector lies at L4 before it folds
 	foldAfter = 500 * time.Millisecond
 )
 
@@ -50,8 +50,8 @@ type bandRow struct{ x, y float32 }
 type memberRow struct{ dx, dy float32 }
 
 // a band of four members, two once it has lost some, its centre at (256, 256) in a world of
-// sectors 512 a side seen by one camera from above: a pixel a world unit is L0, a half L1, a
-// quarter L2; with troops, aggregates on the abstract graph, and camps, aggregates off it
+// sectors 512 a side seen by one camera from above: a pixel a world unit is L2, a half L3, a
+// quarter L4; with troops, aggregates on the abstract graph, and camps, aggregates off it
 type folds struct {
 	eng    *engine.Engine
 	w      *world.Plugin
@@ -109,7 +109,7 @@ func newFolds(t *testing.T, zoom float32, troops, camps []float32) *folds {
 			Entities: world.EntitiesCfg{MaxCount: 16, MinSize: 5, MaxSize: 20},
 			Sectors:  world.SectorsCfg{Buckets: 2},
 			LOD: lod.Ladder{
-				Scales: [lod.Levels - 1]float32{0.8, 0.4},
+				Scales: [lod.Levels - 1]float32{0, 0, 0.8, 0.4},
 				Fold:   float32(foldAfter.Seconds()),
 			},
 		}).
@@ -314,7 +314,7 @@ func (f *folds) zoom(zoom float32) {
 	f.cam.CenterOn(256, 256, 0)
 }
 
-// folds the band after its sector has lain at L2 for foldAfter, not before, and has its members
+// folds the band after its sector has lain at L4 for foldAfter, not before, and has its members
 // gone the step after
 func (f *folds) foldsAfterTheWait(t *testing.T) {
 	t.Helper()
@@ -322,7 +322,7 @@ func (f *folds) foldsAfterTheWait(t *testing.T) {
 	from := f.w.Read(0).Clock().Time()
 	at := f.until(t, "fold", 2*int(foldAfter/frame))
 	if at < from+foldAfter || at > from+foldAfter+frame {
-		t.Errorf("the band folded %v after its sector came to L2, want %v", at-from, foldAfter)
+		t.Errorf("the band folded %v after its sector came to L4, want %v", at-from, foldAfter)
 	}
 	f.run(1)
 	id, _ := f.band()
@@ -343,7 +343,7 @@ func TestWholes_FoldUndoesAnUnfoldTheAggregatesStateAndCentroidKept(t *testing.T
 	f.unfoldedInto(t, 4)
 	f.run(60)
 	if got := f.times("unfold", 0); len(got) != 1 {
-		t.Fatalf("unfolded at %v at L0, want once", got)
+		t.Fatalf("unfolded at %v at L2, want once", got)
 	}
 	f.foldsAfterTheWait(t)
 	if id, _ := f.band(); f.w.Write().Effects().Has(id, f.w.Write().Effects().Named(fewEf)) {
@@ -356,7 +356,7 @@ func TestWholes_FoldUndoesAnUnfoldTheAggregatesStateAndCentroidKept(t *testing.T
 	f.zoom(1)
 	f.run(30)
 	if got := f.times("unfold", k); len(got) != 1 {
-		t.Errorf("came down through L1 to L0, unfolded at %v, want once", got)
+		t.Errorf("came down through L3 to L2, unfolded at %v, want once", got)
 	}
 	f.unfoldedInto(t, 4)
 
@@ -474,25 +474,25 @@ func TestKeen_AnEntityKeepsItsSectorKeenTillItCalms(t *testing.T) {
 	f.run(2)
 	band, _ := f.band()
 	camp := slices.DeleteFunc(f.camps(), func(id uid.UID64) bool { return id == band })[0]
-	if level := f.w.Read(0).LevelAt(3000, 256); level != lod.L2 {
-		t.Fatalf("the camp lies at %v, want L2", level)
+	if level := f.w.Read(0).LevelAt(3000, 256); level != lod.L4 {
+		t.Fatalf("the camp lies at %v, want L4", level)
 	}
-	f.w.Write().Carrier().PutFrom(camp, world.Keen{Level: lod.L1})
+	f.w.Write().Carrier().PutFrom(camp, world.Keen{Level: lod.L3})
 	f.run(2)
-	if _, keen := f.marks(camp); keen == nil || keen.Level != lod.L1 ||
-		f.w.Read(0).LevelAt(3000, 256) != lod.L1 {
-		t.Fatalf("keen at L1, the camp carries %v, its sector lies at %v; want L1 both", keen,
+	if _, keen := f.marks(camp); keen == nil || keen.Level != lod.L3 ||
+		f.w.Read(0).LevelAt(3000, 256) != lod.L3 {
+		t.Fatalf("keen at L3, the camp carries %v, its sector lies at %v; want L3 both", keen,
 			f.w.Read(0).LevelAt(3000, 256))
 	}
 	f.w.Write().Carrier().PutFrom(camp, world.Calm{})
 	f.run(2)
-	if _, keen := f.marks(camp); keen != nil || f.w.Read(0).LevelAt(3000, 256) != lod.L2 {
-		t.Errorf("calm, the camp carries %v, its sector lies at %v; want no Keen, L2", keen,
+	if _, keen := f.marks(camp); keen != nil || f.w.Read(0).LevelAt(3000, 256) != lod.L4 {
+		t.Errorf("calm, the camp carries %v, its sector lies at %v; want no Keen, L4", keen,
 			f.w.Read(0).LevelAt(3000, 256))
 	}
 }
 
-func TestWholes_NeverFoldWhileTheSectorComesBackToL1InTime(t *testing.T) {
+func TestWholes_NeverFoldWhileTheSectorComesBackToL3InTime(t *testing.T) {
 	f := newFolds(t, 1, nil, nil)
 	f.start(t, false)
 	f.run(2)
@@ -503,7 +503,7 @@ func TestWholes_NeverFoldWhileTheSectorComesBackToL1InTime(t *testing.T) {
 		f.run(2)
 	}
 	if got := f.times("fold", 0); len(got) != 0 {
-		t.Errorf("folded at %v, each stay at L2 short of %v, want never", got, foldAfter)
+		t.Errorf("folded at %v, each stay at L4 short of %v, want never", got, foldAfter)
 	}
 	if got := f.times("unfold", 0); len(got) != 1 {
 		t.Errorf("unfolded at %v, want once", got)
@@ -525,7 +525,7 @@ func TestWholes_ASaveWhileTheAggregateWaitsToFoldKeepsTheWait(t *testing.T) {
 	now.start(t, true)
 	at := now.until(t, "fold", 2*int(foldAfter/frame))
 	if at < from+foldAfter || at > from+foldAfter+frame {
-		t.Errorf("loaded mid-wait, the band folded %v after its sector came to L2, want %v",
+		t.Errorf("loaded mid-wait, the band folded %v after its sector came to L4, want %v",
 			at-from, foldAfter)
 	}
 	if got := now.times("unfold", 0); len(got) != 0 {

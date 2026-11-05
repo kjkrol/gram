@@ -40,7 +40,7 @@ type navRow struct{ At cell.ID }
 // on the right half; crowded, all through the wall's gap to one cell behind it, where they
 // press, step aside and plan again; grouped, selected and sent there as one MoveTo, or as one
 // March in the formation in; abstract, in the open in a world of sectors no camera observes,
-// ticked at L2, where they walk their routes far off.
+// ticked at L4, where they walk their routes far off.
 type navScene struct {
 	ecs     *goke.ECS
 	w       *world.Plugin
@@ -195,7 +195,7 @@ func (s *navScene) order(back bool) {
 // Benchmark_Navigation_Tick is one tick of the world, motion, board and navigation with N
 // walkers under orders: in the open, nothing in their way; crowded, all through a wall's
 // one-cell gap to one cell behind it; grouped, the crowd sent as one MoveTo to the cells round
-// that one; column, as one March in a closed column; abstract, in the open at L2, walking their
+// that one; column, as one March in a closed column; abstract, in the open at L4, walking their
 // routes far off. The orders turn them round every navOrderGap ticks.
 func Benchmark_Navigation_Tick(b *testing.B) {
 	for _, sc := range []struct {

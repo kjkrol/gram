@@ -21,7 +21,7 @@ import (
 )
 
 // summable is a world's atlas of a red kind, a blue one, one never thinned, one with a look
-// declared at L3, one drawn as nothing from L3 and a material, closed
+// declared at L5, one drawn as nothing from L5 and a material, closed
 type summable struct {
 	a                                     *Atlas
 	red, blue, always, declared, nothing  render.SpriteID
@@ -43,8 +43,8 @@ func newSummable() summable {
 	k.a.Add(k.red, 8, render.Solid(k.redColour))
 	k.a.Add(k.blue, 8, render.Solid(k.blueColour))
 	k.a.Add(k.always, 8, render.Solid(k.redColour)).Always()
-	k.a.Add(k.declared, 8, render.Solid(k.redColour)).At(lod.L3, render.Solid(k.declaredColour))
-	k.a.Add(k.nothing, 8, render.Solid(k.redColour)).Nothing(lod.L3)
+	k.a.Add(k.declared, 8, render.Solid(k.redColour)).At(lod.L5, render.Solid(k.declaredColour))
+	k.a.Add(k.nothing, 8, render.Solid(k.redColour)).Nothing(lod.L5)
 	k.a.Add(k.material, 8, render.MaterialID(0))
 	k.a.Close()
 	return k
@@ -61,7 +61,7 @@ func at(x, y, side float32, sprite render.SpriteID) placed {
 	return placed{box: plane.NewAABB(geom.NewVec(x, y), side, side), sprite: sprite}
 }
 
-// summing is a renderer of entities over a world 1024 by 1000 seen as halves, the left at L0,
+// summing is a renderer of entities over a world 1024 by 1000 seen as halves, the left at L2,
 // the right as ladder says, its aggregate, where a renderer reads one, 8 world units a texel
 type summing struct {
 	t     *testing.T
@@ -184,13 +184,13 @@ func written(g *aggregate) int {
 	return n
 }
 
-// the right half at L3, the left at L0
-var atL3 = lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2, 0.15}}
+// the right half at L5, the left at L2
+var atL5 = lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2, 0.15}}
 
-func TestAggregate_SumsAFigureAtL3IntoTheTexelUnderItsMiddleRecordingItNot(t *testing.T) {
+func TestAggregate_SumsAFigureAtL5IntoTheTexelUnderItsMiddleRecordingItNot(t *testing.T) {
 	k := newSummable()
 	// a quarter of a texel each, the second across the texels 75 and 76, its middle in 76
-	s := newSumming(t, k, atL3, at(600, 100, 4, k.red), at(606, 100, 4, k.blue),
+	s := newSumming(t, k, atL5, at(600, 100, 4, k.red), at(606, 100, 4, k.blue),
 		at(100, 100, 4, k.red))
 	g := &s.r.aggregate
 	if got, want := texel(g, 75, 12), ([4]uint8{64, 0, 0, 64}); got != want {
@@ -201,34 +201,34 @@ func TestAggregate_SumsAFigureAtL3IntoTheTexelUnderItsMiddleRecordingItNot(t *te
 			want)
 	}
 	if n := written(g); n != 2 {
-		t.Errorf("%d texels summed, want the two under the figures at L3", n)
+		t.Errorf("%d texels summed, want the two under the figures at L5", n)
 	}
 	if s.recorded(0) || s.recorded(1) || !s.recorded(2) {
-		t.Errorf("recorded at L3 %v and %v, at L0 %v; want those at L3 summed alone",
+		t.Errorf("recorded at L5 %v and %v, at L2 %v; want those at L5 summed alone",
 			s.recorded(0), s.recorded(1), s.recorded(2))
 	}
 }
 
 func TestAggregate_SumsNothingInAWorldNoRendererAskedItOf(t *testing.T) {
 	k := newSummable()
-	s := newSummingFor(t, k, atL3, false, at(600, 100, 4, k.red), at(100, 100, 4, k.red))
+	s := newSummingFor(t, k, atL5, false, at(600, 100, 4, k.red), at(100, 100, 4, k.red))
 	if g := s.r.aggregate; g.img != nil || g.summing || len(g.sums.Front().tiles) != 0 {
 		t.Errorf("an aggregate %v, summing %v, %d tiles summed; want none", g.img, g.summing,
 			len(g.sums.Front().tiles))
 	}
-	// published as before the aggregate: the figure at L3 drawn by nothing
+	// published as before the aggregate: the figure at L5 drawn by nothing
 	if !s.recorded(0) || !s.recorded(1) {
-		t.Errorf("recorded at L3 %v, at L0 %v; want both, as without an aggregate",
+		t.Errorf("recorded at L5 %v, at L2 %v; want both, as without an aggregate",
 			s.recorded(0), s.recorded(1))
 	}
 }
 
 func TestAggregate_ReadsNoTexelsAUnitWhileItHoldsNoColour(t *testing.T) {
 	k := newSummable()
-	s := newSumming(t, k, atL3, at(100, 100, 4, k.red))
+	s := newSumming(t, k, atL5, at(100, 100, 4, k.red))
 	read := &Read{p: &Plugin{renderer: s.r}}
 	if img, perUnit := read.Aggregate(); img == nil || perUnit != 0 {
-		t.Errorf("no figure at L3: an aggregate %v, %v texels a unit; want one, 0", img, perUnit)
+		t.Errorf("no figure at L5: an aggregate %v, %v texels a unit; want one, 0", img, perUnit)
 	}
 	s.move(0, plane.NewAABB(geom.NewVec(600, 100), 4, 4))
 	if _, perUnit := read.Aggregate(); perUnit != 1.0/8 {
@@ -236,16 +236,16 @@ func TestAggregate_ReadsNoTexelsAUnitWhileItHoldsNoColour(t *testing.T) {
 	}
 	s.move(0, plane.NewAABB(geom.NewVec(100, 100), 4, 4))
 	if _, perUnit := read.Aggregate(); perUnit != 0 {
-		t.Errorf("the figure gone back to L0: %v texels a unit, want 0", perUnit)
+		t.Errorf("the figure gone back to L2: %v texels a unit, want 0", perUnit)
 	}
 }
 
-func TestAggregate_RecordsAKindDeclaringALookAtL3SummingNoneOfItsOwn(t *testing.T) {
+func TestAggregate_RecordsAKindDeclaringALookAtL5SummingNoneOfItsOwn(t *testing.T) {
 	k := newSummable()
-	s := newSumming(t, k, atL3, at(600, 100, 4, k.declared), at(700, 100, 4, k.nothing),
+	s := newSumming(t, k, atL5, at(600, 100, 4, k.declared), at(700, 100, 4, k.nothing),
 		at(800, 100, 4, k.material))
 	if n := written(&s.r.aggregate); n != 0 {
-		t.Errorf("%d texels summed of a kind declared at L3, one drawn as nothing and a "+
+		t.Errorf("%d texels summed of a kind declared at L5, one drawn as nothing and a "+
 			"material, want none", n)
 	}
 	if !s.recorded(0) || !s.recorded(1) || !s.recorded(2) {
@@ -254,30 +254,30 @@ func TestAggregate_RecordsAKindDeclaringALookAtL3SummingNoneOfItsOwn(t *testing.
 	}
 }
 
-func TestAggregate_SumsNothingShortOfL3(t *testing.T) {
+func TestAggregate_SumsNothingShortOfL5(t *testing.T) {
 	k := newSummable()
-	s := newSumming(t, k, lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2}},
+	s := newSumming(t, k, lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2}},
 		at(600, 100, 4, k.red))
 	if n := written(&s.r.aggregate); n != 0 || !s.recorded(0) {
-		t.Errorf("at L2 %d texels summed, recorded %v; want none, recorded", n, s.recorded(0))
+		t.Errorf("at L4 %d texels summed, recorded %v; want none, recorded", n, s.recorded(0))
 	}
 	if s.r.aggregate.summing {
-		t.Error("summing where no sector is seen at L3")
+		t.Error("summing where no sector is seen at L5")
 	}
 }
 
 func TestAggregate_ClearsWhatAFigureLeftTheFrameAfter(t *testing.T) {
 	k := newSummable()
-	s := newSumming(t, k, atL3, at(600, 100, 4, k.red))
+	s := newSumming(t, k, atL5, at(600, 100, 4, k.red))
 	g := &s.r.aggregate
 	s.move(0, plane.NewAABB(geom.NewVec(900, 500), 4, 4))
 	if texel(g, 75, 12) != ([4]uint8{}) || texel(g, 112, 62) == ([4]uint8{}) {
-		t.Errorf("moved within L3: the texel left %v, the one reached %v; want it clear, the "+
+		t.Errorf("moved within L5: the texel left %v, the one reached %v; want it clear, the "+
 			"other summed", texel(g, 75, 12), texel(g, 112, 62))
 	}
 	s.move(0, plane.NewAABB(geom.NewVec(100, 500), 4, 4))
 	if n := written(g); n != 0 || len(g.sums.Front().tiles) != 0 || !s.recorded(0) {
-		t.Errorf("moved to L0: %d texels summed in %d tiles, recorded %v; want none, recorded",
+		t.Errorf("moved to L2: %d texels summed in %d tiles, recorded %v; want none, recorded",
 			n, len(g.sums.Front().tiles), s.recorded(0))
 	}
 }
@@ -285,7 +285,7 @@ func TestAggregate_ClearsWhatAFigureLeftTheFrameAfter(t *testing.T) {
 func TestAggregate_SumsFiguresInATexelHoldingItAtAWhole(t *testing.T) {
 	k := newSummable()
 	// a quarter each, then over a half each
-	s := newSumming(t, k, atL3, at(600, 100, 4, k.red), at(601, 101, 4, k.blue),
+	s := newSumming(t, k, atL5, at(600, 100, 4, k.red), at(601, 101, 4, k.blue),
 		at(616, 200, 6, k.red), at(617, 201, 6, k.blue))
 	g := &s.r.aggregate
 	if got, want := texel(g, 75, 12), ([4]uint8{64, 0, 64, 128}); got != want {
@@ -397,10 +397,10 @@ func TestAggregate_AddsAWideBoxAsWeighingEachTexelOnTheImage(t *testing.T) {
 	}
 }
 
-func TestAggregate_ThinsAtL3AsTheKeepSays(t *testing.T) {
+func TestAggregate_ThinsAtL5AsTheKeepSays(t *testing.T) {
 	k := newSummable()
-	ladder := atL3
-	ladder.Keep[lod.L3] = 0.01
+	ladder := atL5
+	ladder.Keep[lod.L5] = 0.01
 	var ps []placed
 	for i := range 300 {
 		sprite := []render.SpriteID{k.red, k.red, k.always}[i/100]
@@ -417,7 +417,7 @@ func TestAggregate_ThinsAtL3AsTheKeepSays(t *testing.T) {
 			summed[i/100]++
 		}
 		if s.recorded(i) {
-			t.Fatalf("the entity %d at L3 recorded, want it summed or thinned", i)
+			t.Fatalf("the entity %d at L5 recorded, want it summed or thinned", i)
 		}
 	}
 	if summed[0] > 10 || summed[1] != 100 || summed[2] != 100 {
@@ -426,13 +426,13 @@ func TestAggregate_ThinsAtL3AsTheKeepSays(t *testing.T) {
 	}
 }
 
-func TestAggregate_PublishesFiguresAtL3WithoutAllocating(t *testing.T) {
+func TestAggregate_PublishesFiguresAtL5WithoutAllocating(t *testing.T) {
 	k := newSummable()
 	var ps []placed
 	for i := range 200 {
 		ps = append(ps, at(520+float32(i%40)*12, float32(i/40)*12, 4, k.red))
 	}
-	s := newSumming(t, k, atL3, ps...)
+	s := newSumming(t, k, atL5, ps...)
 	frame := func() {
 		s.r.Publish()
 		s.r.Swap()
@@ -441,7 +441,7 @@ func TestAggregate_PublishesFiguresAtL3WithoutAllocating(t *testing.T) {
 	frame()
 	frame()
 	if n := testing.AllocsPerRun(10, frame); n != 0 {
-		t.Errorf("a frame of 200 figures at L3 allocates %v times, want none", n)
+		t.Errorf("a frame of 200 figures at L5 allocates %v times, want none", n)
 	}
 	if n := written(&s.r.aggregate); n != 200 {
 		t.Errorf("%d texels summed, want one a figure", n)
@@ -451,7 +451,7 @@ func TestAggregate_PublishesFiguresAtL3WithoutAllocating(t *testing.T) {
 func TestAggregate_PutsTheSumsOnTheGPUAndClearsThemAfter(t *testing.T) {
 	gputest.Need(t)
 	k := newSummable()
-	s := newSumming(t, k, atL3, at(600, 100, 4, k.red))
+	s := newSumming(t, k, atL5, at(600, 100, 4, k.red))
 	g := &s.r.aggregate
 	read := func() func(x, y int) [4]uint8 {
 		g.upload()
@@ -501,7 +501,7 @@ func TestAtlas_SumsAKindInItsBlobsColourWhateverSpriteItIsDrawnIn(t *testing.T) 
 	})
 	a.Close()
 	want := [4]uint8{128, 0, 128, 255}
-	sprites := append([]render.SpriteID{walker, a.versions[walker][lod.L2].id}, a.faced[walker]...)
+	sprites := append([]render.SpriteID{walker, a.versions[walker][lod.L4].id}, a.faced[walker]...)
 	for _, id := range sprites {
 		if c, ok := a.blobColour(id); !ok || c != want {
 			t.Errorf("the sprite %d is summed in %v, %v; want its kind's blob's %v", id, c, ok,

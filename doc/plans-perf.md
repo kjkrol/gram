@@ -2317,3 +2317,140 @@ zdjęta z `doc/roadmap.md`, wynik tu.
 
 **Co nie wchodzi**: tablice zwarte publishera (rekord SoA, SIMD sumy), demo z sektorami na
 płaskiej planszy i heksach, kolor bazowy materiału, selekcja a śpiący.
+
+## Trzy skale drabiny: przenumerowanie poziomów (plan 2026-11-05, gałąź `refactor/levels`, litera `e`, po etapie `b`, przed etapem `p`)
+
+Decyzja użytkownika (2026-11-05): drabina ma trzy skale po dwa szczeble, dokładny i zgrubny, i
+pominięcie na końcu; skala bliska (igły świerku, pory skóry) wchodzi już teraz jako systematyka,
+choć żadne demo jej nie używa; stare L0 staje się L2. Skala bliska tyka i rysuje się tylko wtedy,
+gdy ktoś tam wejrzy (kamera w perspektywie, FPP/TPP), i tylko w grze, która jawnie ją włącza
+progami; w grze strategicznej nie istnieje. Osobny PR przed `p`, bez zmiany zachowania ani obrazu
+dzisiejszych dem: te same dema wyglądają i tykają tak samo, zmieniają się numery i słowa. Jeden
+agent w worktree `/home/karol/worktrees/gram/levels` na `e/levels`; dokumenty integratora.
+
+| nowy | stary | skala | słowo | tick | obraz |
+|---|---|---|---|---|---|
+| L0 | — | bliska, dokładna (`lod.Close`) | close | systemy detalu (`Within(Close)`), pełny krok | wersja `At(L0, …)`, inaczej sprite L2 |
+| L1 | — | bliska, zgrubna | close, no detail | systemy detalu, rung 1 od L0 | wersja `At(L1, …)`, inaczej sprite L2 |
+| L2 | L0 | zwykła, dokładna (`lod.Standard`) | full | pełny, rung 0 gdy najdrobniejsze widziane | dzisiejsze L0 |
+| L3 | L1 | zwykła, zgrubna | no detail | rung +1 | dzisiejsze L1 |
+| L4 | L2 | strategiczna, dokładna (`lod.Strategic`) | shape | rung +2, agregaty | dzisiejsze L2 |
+| L5 | L3 | strategiczna, zgrubna | colour | rung +3 | dzisiejsze L3 |
+| L6 | L4 | pominięcie (`lod.Omitted`) | nothing | nic | nic |
+
+Rungi liczą się od faktycznie najdrobniejszego poziomu, jaki widzi jakiś obserwator (zasada z
+2026-11-04 bez wyjątku): gdy kamera FPP patrzy na igły (L0), sektor zwykły obok jest o dwa rungi
+grubszy i motion z `Slowing(2, 4, 8)` idzie tam co 4 kroki. To konsekwencja zasady, nie błąd:
+gra, która tego nie chce, nie włącza skali bliskiej albo daje systemom `Steady`. Systemy należące
+do skali bliskiej (mimika, igły) filtrują encje `Within(lod.Close)` i idą `Exact`: tykają tylko
+tam, gdzie ktoś patrzy z bliska, i wcale, gdy nikt.
+
+**Kontrakt** (`lod/lod.go`, `lod/doc.go`):
+- `Level` L0..L6, `Levels = 7`; nazwane pierwsze szczeble skal: `Close = L0`, `Standard = L2`,
+  `Strategic = L4`, `Omitted = L6` (nie `Nothing`: zajęte przez `Slot.Nothing`; nie `Far`: zajęte
+  przez `sector.Far*` i `Config.Far`). Słowo szczebla nieparzystego: „zgrubny" swojej skali.
+- `Ladder.Scales [Levels-1]float32` (6 progów). Zero w progach skali bliskiej (`Scales[L0]`,
+  `Scales[L1]`) znaczy „skala nieużywana" i `At` je pomija; zero od `Standard` wzwyż znaczy jak
+  dziś „spełnia go każda skala". Zerowa drabina to więc `Standard` wszędzie bez końca (dziś L0
+  wszędzie): zachowanie dem bez zmian. `Check`: progi malejące wśród ustawionych, z pominięciem
+  zer bliskich. `Hold`/`Hysteresis` bez zmian.
+- Tempo: `rung = level − finest` jak dziś, `finest` najdrobniejszy widziany przez kogokolwiek (L0
+  przy kamerze z bliska). `type Paces [Levels]uint8` (7): `p[k]` co ile kroków system idzie o k
+  rungów grubiej, rung 6 tylko na `Omitted`, więc `p[6] == 0`; `Exact {1,0,…}`, `Steady
+  {1,1,1,1,1,1,0}`, `Contact {1,1,1,0,0,0,0}`, `Slowing(1..5 n)` (ostatnie n powtarzane:
+  `Slowing(2, 4, 8)` daje rungi 1..5 = 2, 4, 8, 8, 8), `Check` jak dziś z nowymi granicami. W grze
+  bez skali bliskiej `finest ≥ L2`, więc rungi i tempa są co do kroku dzisiejsze. Znaczniki tempa
+  `sector.Far1..Far5` (rung 1..5), `sectors.far`, `Pace(paces)` → `Every[Far_k](p[k])`,
+  `Never[L6]`.
+- Filtr skali: `world.Plugin.Within(first lod.Level) goke.Opt`: encje w sektorach na poziomach
+  `first` i `first+1` (jedna skala: `Within(Close)` = L0–L1), jako `Exclude` znaczników
+  pozostałych poziomów (goke nie ma OR); system detalu łączy `Within(Close)` z `Pace(Exact)`.
+  Godoc i akapit w `lod/doc.go`; test w `plugins/world`: system z `Within(Close)` nie dotyka encji
+  sektora L2, dotyka L0 i L1.
+- `Keep [Levels]float32` (7). `Unobserved`: `Fallback` zero = `UnobservedL4` (dziś L2), stałe
+  `UnobservedL0..L6`, `Level()` panikuje na nieznane. `Fold` godoc: „na `Strategic` lub grubiej".
+  `Texel` i `Seed` bez zmian.
+- Znaczniki poziomu: `sector.L0..L6`, każdy poziom ze znacznikiem (dziś L0 bez: `Within`
+  potrzebuje wykluczać każdy poziom, w tym `Standard`), rejestrowane i zapisywane jak dziś;
+  `markOf(level)`; `sectors.move` kładzie i zdejmuje jak dziś. Koszt: archetyp na (rodzaj ×
+  poziom) już istnieje dla L1+; `Sectors_Expanse` ±3 % to sprawdza. Stare zapisy przestają się
+  wczytywać (typy komponentów zmieniają nazwy; precedens: `MoveOrder` w etapie `b`; wpis w
+  CHANGELOG).
+- Atlas: `versionsOf`: L0..L3 własny sprite (bliskie spadają na zwykły), L4 plama, L5 nic (do
+  preludium `p`), L6 nic; `mayDeclare`: każdy poziom poza `Standard` (własny wygląd) i `Omitted`,
+  więc `At(L0, close)` i `At(L1, …)` działają od razu; `Nothing(level)` tak samo.
+- Widok kamery i budżet klatki: „nigdy poza L3" → „nigdy poza L5"; „nigdy sektor widziany na L0"
+  → „nigdy sektor widziany na `Standard` lub bliżej" (grep `L3`/`L0` w `plugins/cameras` i
+  `plugins/world/view`, godoc).
+- Teren: `skirtLevel = L5`, `byLevel` indeksowane poziomem, ale shadery kompilowane dla
+  `max(level, Standard)` (4 shadery jak dziś: bliskie rysują się shaderem `Standard`); w
+  `mesh.wgsl` progi `LEVEL <= 1u` → `<= 3u`, `<= 2u` → `<= 4u`, `== 3u` → `== 5u`, `== 0u` →
+  `<= 2u`. Heksy i płaska plansza analogicznie (grep `lod.L` w `plugins/board/look`,
+  `topography/internal/hexes`; shadery kafli dekodują poziom sektora: sprawdzić kodowanie).
+- Reszta mechanicznie: `lod.L0..L4` → `L2..L6` w 50 plikach (`git grep -nE 'lod\.L[0-4]\b'`;
+  tam, gdzie kod mówi o roli, użyć nazwy roli, nie numeru: `lod.L4` jako „pominięcie" →
+  `Omitted`, `lod.L2` jako „agregaty, graf abstrakcyjny" → `Strategic`, `lod.L0` jako „pełny" →
+  `Standard`), `sector.Keen{Level: L1}` → `L3`, `bodies.Member.Level >= L2` → `>= Strategic`,
+  `Exclude[sector.L4]` → `L6`, telemetria (wiersze „Sectors L0 …"), benche: rungi `level=2|3` →
+  `level=4|5`, drabiny dem: forest-army `{0, 0, 2, 1, 0.5, 0}`, topography `{0, 0, 0.5, 0.25,
+  0.12, 0}`, expanse `{0, 0, 0.5, 0, 0, 0}`.
+
+**Testy**: istniejące z przesuniętymi oczekiwaniami; nowe w `lod`: zerowa drabina daje `Standard`
+dla każdej skali i odległości; drabina z progami bliskimi daje L0/L1 przy dużej skali; `Check`
+przyjmuje zera bliskie i odrzuca próg bliski niemalejący; `Paces.Check` i `Slowing` z nowymi
+granicami; w `plugins/world`: kamera widząca sektor na L0 (bliska) tyka go rungiem 0 i bez `Far`,
+sektor L2 obok ma `Far2`, L5 `Far5`; bez skali bliskiej (zerowe progi) kamera najbliżej na L2:
+sektor L4 ma `Far2` jak dziś L2 przy L0; `Unobserved` zero to L4; `Within(Close)`; atlas: `At(L0,
+look)` wybierane na L0, bez deklaracji na L0 własny sprite; zapis i odczyt znaczników L0..L6.
+Sprawdzenie deterministyczne: `GRAM_SHOT` dem topography (start i zoom do dawnego L2/L3),
+forest-army, flat, expanse piksel w piksel z bazą (`gram-probe`), `routes.golden` nietknięte.
+
+**Pomiar** (integrator, ≤5 min): `World_Publish|Draw`, `Frame_Topography`, `Sectors_Expanse`,
+`Navigation_Tick` ±2 %: zmiana ma kosztować zero.
+
+**Dokumenty** (integrator, w stage): `lod/doc.go` (tabela siedmiu wierszy, akapit o skalach i
+rungach), `CLAUDE.md` (reguła LOD: numery i nazwy skal), skille (`gram-plugins`, `gram-plugin`,
+`gram-render`, `gram-perf-*`, `gram-game`), README (słowa poziomów, jeśli są), `CHANGELOG.md` pod
+v0.20.0 (Changed: poziomy przenumerowane, trzy skale, `Paces` o siedmiu rungach, znacznik na
+każdym poziomie; Added: skala bliska deklarowana `At(L0|L1, …)` i włączana progami,
+`Plugin.Within`; stare zapisy nie wczytują się), `BENCHMARKS.md` (nazwy rungów), `doc/roadmap.md`
+(punkt: skala bliska w którymś demie), wynik tu. Po scaleniu plan `p` (płachty) jest przepisywany
+na nowe numery, zanim briefy pójdą do agentów.
+
+### Wynik etapu `e` (2026-11-05, `refactor/levels` `937c2ac7`)
+
+**Wykonanie**: jeden agent, cztery commity na `e/levels` (drabina siedmiu poziomów w trzech
+skalach ze znacznikiem na każdym poziomie; `Plugin.Within`; `doc.go` pakietów; nazwy rungów
+benchów), scalone `--no-ff`; worktree usunięty. Sekwencja zielona (90 pakietów testowanych, GPU
+Intel UHD 620), `make build`, 25 dem po 5 s.
+
+**Odstępstwa od planu, przyjęte**: tabela `lod/doc.go` ma poziom i słowo w jednej kolumnie (pięć
+kolumn nie mieści się w 100 znakach); panel telemetrii pokazuje dwa dodatkowe wiersze L0 i L1
+(zerowe w grach bez skali bliskiej); świeżo zespawnowana encja przed pierwszym przebiegiem
+znakowania przechodzi przez każdy filtr `Within` najwyżej jeden tick (filtr z wykluczeń nie
+widzi encji bez znaku); `islandWith` w benchach planszy ustawia progi od `Standard`; słownik
+`sector` wymienia `Far1..Far5`. **Stare zapisy wczytują się** (goke dopasowuje komponenty po
+nazwie, a `L1..L4` i `Far1..Far3` nadal istnieją), ale zapisany poziom `sector.Keen` (i
+`order.Sought.Keen`) czyta się o dwa poziomy drobniej; dotyczy wyłącznie zapisów zrobionych
+między PR #53 a tą zmianą (zapisy z v0.19 nie wczytują się od etapu `b`, `MoveOrder`), więc nic
+nie robimy.
+
+**Sprawdzenia deterministyczne**: zrzuty ośmiu widoków (expanse start; flat start; forest-army
+start L4, oddalona L5, zbliżona L2 z 639 rozwiniętymi encjami; topography start L2, oddalona
+×16 z 247 sektorami L4, perspektywa L3/L4/L5) piksel w piksel równe bazie `main` `7d6095f5`
+(0 różnych pikseli, minimapa i panel ukryte, światło zamrożone, ziarno 12345); `routes.golden`
+nietknięte.
+
+**Pomiar** (baza `7d6095f5` przeciw drzewu, oba z `GOEXPERIMENT=simd` i tym samym go.work
+rodzeństwa, 2 rundy, bezczynna maszyna, potem runda w odwrotnej kolejności): `Frame_Topography`
+19 rungów −1.1…+0.5 % (`readback` +3.0 %, rundy się pokrywają), `Sectors_Expanse` ±0.4 %,
+`Navigation_Tick` +0.4…+2.8 % (`grouped` +6.0 % i `abstract` +5.2 % z pokrywającymi się rundami,
+nie sprawdzone w odwrotnej kolejności), `World_Publish` i `World_Draw`: ruchy do +12 % w
+kolejności baza→drzewo zmieniają znak w kolejności odwrotnej (pułapka boostu), więc to szum;
+jedno trwa w obu kolejnościach: `World_Draw/…,level=5` +20…25 ns na rungu ~330 ns (49 i 5000
+encji; na L5 nic nie jest rysowane, więc to stały koszt przebiegu, najpewniej pętla po siedmiu
+poziomach zamiast pięciu). Alokacje bez zmian. Pliki pomiaru w scratchpadzie sesji
+(`levels/measure/`).
+
+**Co zostało**: skala bliska w którymś demie (roadmapa); etap `p` (płachty) od `main` po
+scaleniu tego PR, plan przepisany na nowe numery.

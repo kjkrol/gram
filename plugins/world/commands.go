@@ -56,7 +56,7 @@ type Slower struct{}
 // Tempo sets the tempo of the simulation to the clock's nearest X (clock.Config.Tempos).
 type Tempo struct{ X float32 }
 
-// SwitchBands switches the sectors' levels on, or off with every sector ticked at L0
+// SwitchBands switches the sectors' levels on, or off with every sector ticked at Standard
 // (Settings.Unbanded): a way of weighing what the levels spare. The settings screen alone, in a
 // world cut into sectors.
 type SwitchBands struct{ On bool }

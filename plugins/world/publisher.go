@@ -92,7 +92,7 @@ func (s *renderer) Publish() {
 		return
 	}
 	s.found = false
-	// what lies asleep at L4 is drawn by no camera, nor a point aggregate unfolded, its parts
+	// what lies asleep at L6 is drawn by no camera, nor a point aggregate unfolded, its parts
 	// alone; a field is, wherever its box is. A chunk is asked whether a camera sees it here, where
 	// little is live: within publish the walk over its ids spills.
 	for s.renderQuery.All(); s.renderQuery.Next(); {
@@ -248,8 +248,8 @@ func (s *renderer) seesField(own plane.AABB, size geom.Vec) bool {
 }
 
 // spread has s.pieces the parts of the field id, standing over own and of size, one a sector it
-// covers, that a view draws short of L3 or where its kind is not summed (wa's), and sums the
-// others a view draws at L3 into the aggregate; it reports whether it has any. A part in a
+// covers, that a view draws short of L5 or where its kind is not summed (wa's), and sums the
+// others a view draws at L5 into the aggregate; it reports whether it has any. A part in a
 // sector the field is unfolded in is neither, its parts drawn there; a field is never thinned
 func (s *renderer) spread(id uid.UID64, own plane.AABB, size geom.Vec, wa *Atlas,
 	sprite render.SpriteID) bool {
@@ -273,7 +273,7 @@ func (s *renderer) spread(id uid.UID64, own plane.AABB, size geom.Vec, wa *Atlas
 		for _, v := range s.seeing {
 			switch level, ok := s.pieceAt(v, box); {
 			case !ok:
-			case level == lod.L3 && summed:
+			case level == lod.L5 && summed:
 				sum = true
 			default:
 				record = true
@@ -302,11 +302,11 @@ func (s *renderer) coverOf(box geom.AABB, dst []sector.Part) []sector.Part {
 // not
 func (s *renderer) pieceAt(v *view.View, box plane.AABB) (lod.Level, bool) {
 	if !s.meets(v, box.AABB) {
-		return lod.L4, false
+		return lod.Omitted, false
 	}
 	mid := Position{AABB: box}.Center()
 	level := v.Level(mid.X, mid.Y)
-	return level, level != lod.L4
+	return level, level != lod.Omitted
 }
 
 func byPlace(a, b place) int {
@@ -315,16 +315,16 @@ func byPlace(a, b place) int {
 
 // keeping is the share of each level's entities a view keeps, as a bound on their identities
 // stirred, zero for all; thins, whether it keeps less than all at some level, least the least
-// bound but zero; l3, whether it sees a sector at L3, whose figures are summed into the ground
+// bound but zero; l5, whether it sees a sector at L5, whose figures are summed into the ground
 type keeping struct {
 	under [lod.Levels]uint64
 	least uint64
 	thins bool
-	l3    bool
+	l5    bool
 }
 
 // keepAll works out what each view published keeps of each level, by its ladder's Keep, and
-// whether the figures some view sees at L3 are summed into the aggregate
+// whether the figures some view sees at L5 are summed into the aggregate
 func (s *renderer) keepAll() {
 	s.keeps, s.thinned, s.aggregate.summing = s.keeps[:0], false, false
 	wa, _ := s.atlas.(*Atlas)
@@ -342,17 +342,17 @@ func (s *renderer) keepAll() {
 				}
 			}
 			if sums {
-				v.Sectors(func(_ int, _ geom.AABB, l lod.Level) { k.l3 = k.l3 || l == lod.L3 })
+				v.Sectors(func(_ int, _ geom.AABB, l lod.Level) { k.l5 = k.l5 || l == lod.L5 })
 			}
 		}
 		s.thinned = s.thinned || k.thins
-		s.aggregate.summing = s.aggregate.summing || k.l3
+		s.aggregate.summing = s.aggregate.summing || k.l5
 		s.keeps = append(s.keeps, k)
 	}
 }
 
 // recorded reports whether id, its box box and sprite sprite, is published as a record, and
-// sums it into the aggregate where a view keeps it at L3 and its kind is summed there (wa's)
+// sums it into the aggregate where a view keeps it at L5 and its kind is summed there (wa's)
 func (s *renderer) recorded(id uid.UID64, box plane.AABB, keen bool, wa *Atlas,
 	sprite render.SpriteID) bool {
 	c, ok := wa.blobColour(sprite)
@@ -370,8 +370,8 @@ func (s *renderer) recorded(id uid.UID64, box plane.AABB, keen bool, wa *Atlas,
 	return record
 }
 
-// fate is whether a view keeping id at a level short of L3 records it, and whether one keeping
-// it at L3 sums it, its kind summed there
+// fate is whether a view keeping id at a level short of L5 records it, and whether one keeping
+// it at L5 sums it, its kind summed there
 func (s *renderer) fate(id uid.UID64, box plane.AABB, keen bool, wa *Atlas,
 	sprite render.SpriteID) (record, sum bool) {
 	for k, v := range s.seeing {
@@ -384,16 +384,16 @@ func (s *renderer) fate(id uid.UID64, box plane.AABB, keen bool, wa *Atlas,
 			h = stirred(id)
 			thins = h >= keep.least && !keen && !wa.isAlways(sprite)
 		}
-		// a view seeing nothing at L3 draws id short of it, at whatever level
-		level := lod.L0
-		if keep.l3 || thins {
+		// a view seeing nothing at L5 draws id short of it, at whatever level
+		level := lod.Standard
+		if keep.l5 || thins {
 			level = s.level(v, box.AABB, Position{AABB: box}.Center())
 		}
 		if under := keep.under[level]; thins && under != 0 && h >= under &&
 			!wa.declares(sprite, level) {
 			continue
 		}
-		if level == lod.L3 {
+		if level == lod.L5 {
 			sum = true
 		} else {
 			record = true

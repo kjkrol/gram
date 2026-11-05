@@ -6,11 +6,11 @@
 // board's (U.TileHex) are pointy-top, U.TileSide from centre to corner, their axial q and r its
 // columns and rows. Along an axis U.TileWrap says wraps the cells run on. Where U.TileSeen, the
 // world's sectors are seen at their levels (image 3, a pixel a sector, red its lod.Level;
-// U.TileSectors.xy of them across and down, U.TileSectors.zw large): at L0 a cell's tile, its
-// covers and its way, at L1 its tile and its way, at L2 its tile in one colour alone (plainAt),
-// at L3 that colour under the figures' colour summed into the ground (summedOver), at L4
-// nothing. What is drawn is drawn in U.TileTint and, where U.TileLit, in the light on level
-// ground as the cell under it takes it.
+// U.TileSectors.xy of them across and down, U.TileSectors.zw large): at L2 and finer a cell's tile,
+// its covers and its way, at L3 its tile and its way, at L4 its tile in one colour alone (plainAt),
+// at L5 that colour under the figures' colour summed into the ground (summedOver), at L6 nothing.
+// What is drawn is drawn in U.TileTint and, where U.TileLit, in the light on level ground as the
+// cell under it takes it.
 
 // a cell's flags (look's tiles.go)
 const flagShaded: u32 = 1u;
@@ -229,10 +229,10 @@ fn stepOf(i: i32) -> vec2<f32> {
 }
 
 // levelOf is the level the sector the middle of the board's cell b lies in is seen at
-// (lod.Level): L0 without sectors.
+// (lod.Level): L2, lod.Standard, without sectors.
 fn levelOf(b: vec2<f32>) -> u32 {
     if U.TileSeen < 0.5 {
-        return 0u;
+        return 2u;
     }
     let s = clamp(floor(centreOf(b) / U.TileSectors.zw), vec2<f32>(0.0), U.TileSectors.xy - 1.0);
     return u32(imageSrc3At(imageSrc3Origin() + s + 0.5).r * 255.0 + 0.5);

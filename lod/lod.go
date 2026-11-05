@@ -5,7 +5,8 @@ import (
 	"time"
 )
 
-// Level is how fully a thing is ticked and drawn, L0 the fullest, L4 neither.
+// Level is how fully a thing is ticked and drawn: three scales of two rungs each, exact and
+// coarse, the close scale's L0 the fullest, and L6 neither ticked nor drawn.
 type Level uint8
 
 const (
@@ -14,14 +15,29 @@ const (
 	L2
 	L3
 	L4
+	L5
+	L6
 	// Levels is how many levels there are.
-	Levels = 5
+	Levels = 7
+)
+
+// The exact rungs the scales begin at, and the omission.
+const (
+	// Close is the close scale's first rung, used only where a ladder sets its thresholds.
+	Close = L0
+	// Standard is the standard scale's first rung, a thing in full.
+	Standard = L2
+	// Strategic is the strategic scale's first rung, a thing's shape and aggregates folded.
+	Strategic = L4
+	// Omitted is the level neither ticked nor drawn.
+	Omitted = L6
 )
 
 // Ladder is the world's levels: Scales[k] the fewest shown pixels a world unit must span for
-// level k (L0 to L3), strictly decreasing where set, a zero met by any scale; Sight how far from
-// an observer the world is ticked and drawn at all (zero, without end), its last Fog fading.
-// The zero Ladder is L0 everywhere without end round an observer, L2 with none.
+// level k (L0 to L5), strictly decreasing where set, a zero leaving a close level out and met by
+// any scale from Standard on; Sight how far from an observer the world is ticked and drawn at
+// all (zero, without end), its last Fog fading.
+// The zero Ladder is Standard everywhere without end round an observer, Strategic with none.
 type Ladder struct {
 	Scales [Levels - 1]float32
 	Sight  float32
@@ -29,17 +45,19 @@ type Ladder struct {
 	// Unobserved is the level a world no camera observes is ticked at.
 	Unobserved Fallback
 	// Keep is the share of a level's entities a camera's publisher keeps, in [0, 1], zero for
-	// all; the rest are thinned by their identity, and L4's means nothing, none being published.
+	// all; the rest are thinned by their identity, and Omitted's means nothing, none being
+	// published.
 	Keep [Levels]float32
 	// Texel is how many world units a texel of the figures' colour summed into the ground spans,
 	// zero a sector's side over 64. The world raises it to span 2048 texels a side at most.
 	Texel float32
-	// Fold is how many seconds an aggregate's sector lies at L2 or coarser before it folds, zero
-	// for 3: a hold past the levels' own, so one on the edge of L1 and L2 does not flicker.
+	// Fold is how many seconds an aggregate's sector lies at Strategic or coarser before it
+	// folds, zero for 3: a hold past the levels' own, so one on the edge of L3 and L4 does not
+	// flicker.
 	Fold float32
 }
 
-// FoldAfter is how long an aggregate's sector lies at L2 or coarser before it folds: Fold
+// FoldAfter is how long an aggregate's sector lies at Strategic or coarser before it folds: Fold
 // seconds, 3 for none.
 func (l Ladder) FoldAfter() time.Duration {
 	if l.Fold == 0 {
@@ -48,17 +66,19 @@ func (l Ladder) FoldAfter() time.Duration {
 	return time.Duration(float64(l.Fold) * float64(time.Second))
 }
 
-// Fallback is the level a world no camera observes is ticked at, its zero L2.
+// Fallback is the level a world no camera observes is ticked at, its zero L4.
 type Fallback uint8
 
-// The Fallbacks, each the level its name says: UnobservedL2 the default, UnobservedL4 a world no
+// The Fallbacks, each the level its name says: UnobservedL4 the default, UnobservedL6 a world no
 // camera observes asleep.
 const (
-	UnobservedL2 Fallback = iota
+	UnobservedL4 Fallback = iota
 	UnobservedL0
 	UnobservedL1
+	UnobservedL2
 	UnobservedL3
-	UnobservedL4
+	UnobservedL5
+	UnobservedL6
 )
 
 // Level is the level f stands for; it panics on a Fallback none of the constants is.
@@ -74,22 +94,27 @@ func (f Fallback) Level() Level {
 		return L3
 	case UnobservedL4:
 		return L4
+	case UnobservedL5:
+		return L5
+	case UnobservedL6:
+		return L6
 	}
-	panic(fmt.Sprintf("lod: an unobserved world at Fallback %d, want one of the five", f))
+	panic(fmt.Sprintf("lod: an unobserved world at Fallback %d, want one of the seven", f))
 }
 
 // At is the level of what a world unit spans scale shown pixels of, dist from the observer: the
-// first whose threshold the scale meets, L4 under the last or past the Sight.
+// first whose threshold the scale meets, a close one only where set, Omitted under the last or
+// past the Sight.
 func (l Ladder) At(scale, dist float32) Level {
 	if l.Sight > 0 && dist > l.Sight {
-		return L4
+		return Omitted
 	}
 	for k, s := range l.Scales {
-		if scale >= s {
+		if scale >= s && (s > 0 || Level(k) >= Standard) {
 			return Level(k)
 		}
 	}
-	return L4
+	return Omitted
 }
 
 // Hysteresis is the share of a threshold a scale must fall under before its level goes coarser,
@@ -127,14 +152,19 @@ func (l Ladder) Check() {
 	if !(l.Texel >= 0) {
 		panic(fmt.Sprintf("lod: a texel of %v, want none negative", l.Texel))
 	}
+	// the level whose threshold the next one set must be under, -1 for none yet
+	before := -1
 	for k, s := range l.Scales {
 		switch {
 		case s < 0:
 			panic(fmt.Sprintf("lod: level %d's threshold %v is negative", k, s))
-		case k > 0 && s > 0 && s >= l.Scales[k-1]:
+		case s == 0 && Level(k) < Standard:
+			continue
+		case before >= 0 && s > 0 && s >= l.Scales[before]:
 			panic(fmt.Sprintf("lod: level %d's threshold %v is not under level %d's %v", k, s,
-				k-1, l.Scales[k-1]))
+				before, l.Scales[before]))
 		}
+		before = k
 	}
 	switch {
 	case l.Sight < 0 || l.Fog < 0:
@@ -146,28 +176,28 @@ func (l Ladder) Check() {
 }
 
 // Paces are the steps of the world a system takes one step over in a sector k levels coarser
-// than the finest any observer sees, at Paces[k], 0 none; at L4 none ever.
+// than the finest any observer sees, at Paces[k], 0 none; at Omitted none ever.
 type Paces [Levels]uint8
 
 var (
 	// Exact goes every step on the finest level seen alone.
-	Exact = Paces{1, 0, 0, 0, 0}
-	// Steady goes every step at every level but L4.
-	Steady = Paces{1, 1, 1, 1, 0}
+	Exact = Paces{1, 0, 0, 0, 0, 0, 0}
+	// Steady goes every step at every level but Omitted.
+	Steady = Paces{1, 1, 1, 1, 1, 1, 0}
 	// Contact goes every step up to two levels coarser than the finest seen, none beyond.
-	Contact = Paces{1, 1, 1, 0, 0}
+	Contact = Paces{1, 1, 1, 0, 0, 0, 0}
 )
 
-// Slowing goes every step on the finest level seen and a step every n one, two and three levels
-// coarser in turn, the last n repeated where fewer are given; it panics on no n, more than
-// three, a 0 or a falling one.
+// Slowing goes every step on the finest level seen and a step every n one to five levels coarser
+// in turn, the last n repeated where fewer are given; it panics on no n, more than five, a 0 or
+// a falling one.
 func Slowing(n ...uint8) Paces {
-	if len(n) == 0 || len(n) > int(L3) {
-		panic(fmt.Sprintf("lod: slowing by %v, want one to three steps", n))
+	if len(n) == 0 || len(n) > Levels-2 {
+		panic(fmt.Sprintf("lod: slowing by %v, want one to five steps", n))
 	}
-	p := Paces{L0: 1}
-	for k := L1; k < L4; k++ {
-		p[k] = n[min(int(k)-1, len(n)-1)]
+	p := Paces{1}
+	for k := 1; k < Levels-1; k++ {
+		p[k] = n[min(k-1, len(n)-1)]
 		if p[k] == 0 {
 			panic(fmt.Sprintf("lod: slowing by %v, want no 0: Exact is the pace of none", n))
 		}
@@ -176,22 +206,23 @@ func Slowing(n ...uint8) Paces {
 	return p
 }
 
-// Check panics on paces that cannot be: L0 not every step, L4 any, a level slower than the one
-// after it or going after one that does not.
+// Check panics on paces that cannot be: the finest level seen not every step, any six levels
+// coarser, a level slower than the one after it or going after one that does not.
 func (p Paces) Check() {
 	switch {
-	case p[L0] != 1:
-		panic(fmt.Sprintf("lod: paces %v, want L0 every step", p))
-	case p[L4] != 0:
-		panic(fmt.Sprintf("lod: paces %v, want none at L4", p))
+	case p[0] != 1:
+		panic(fmt.Sprintf("lod: paces %v, want the finest level seen every step", p))
+	case p[Levels-1] != 0:
+		panic(fmt.Sprintf("lod: paces %v, want none %d levels coarser", p, Levels-1))
 	}
-	for k := L1; k < L4; k++ {
+	for k := 1; k < Levels-1; k++ {
 		switch {
 		case p[k] == 0:
 		case p[k-1] == 0:
-			panic(fmt.Sprintf("lod: paces %v, want none at level %d after none before", p, k))
+			panic(fmt.Sprintf("lod: paces %v, want none %d levels coarser after none before", p,
+				k))
 		case p[k] < p[k-1]:
-			panic(fmt.Sprintf("lod: paces %v, want level %d no faster than level %d", p, k,
+			panic(fmt.Sprintf("lod: paces %v, want %d levels coarser no faster than %d", p, k,
 				k-1))
 		}
 	}

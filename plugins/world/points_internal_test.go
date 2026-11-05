@@ -100,7 +100,7 @@ func pixelsOf(t *testing.T, cam camera.Camera, w, h uint32, edges aabbworld.Edge
 	return func(x, y int) [4]byte { i := 4 * (y*int(vw) + x); return [4]byte(pix[i : i+4]) }
 }
 
-// blobSource draws sprite over box through the world's own look, as the renderer did at L2
+// blobSource draws sprite over box through the world's own look, as the renderer did at L4
 type blobSource struct {
 	look   *ilook.Flat
 	atlas  render.AtlasSource
@@ -119,15 +119,15 @@ func (s *blobSource) Draw(t render.Target, cam camera.Camera, u render.Uniforms)
 	s.look.DrawSprites(t, cam, u)
 }
 
-func TestRenderer_Compose_AFigureAtL2IsItsBlobAsTheLookDrewIt(t *testing.T) {
+func TestRenderer_Compose_AFigureAtL4IsItsBlobAsTheLookDrewIt(t *testing.T) {
 	a, own := leveledRed()
 	box := plane.NewAABB(geom.NewVec(20, 12), 10, 6)
 	cam := cameratest.NewFromSpace(64, 32, 0)
 	cam.SetViewport(64, 32)
-	point := pixelsAt(t, cam, 64, 32, 0, lod.L2, a, own, box)
+	point := pixelsAt(t, cam, 64, 32, 0, lod.L4, a, own, box)
 	screen := render.NewImage(64, 32)
 	render.NewComposer(&blobSource{look: ilook.NewFlat(64, 32, false, false), atlas: a,
-		sprite: a.versions[own][lod.L2].id, box: box}).DrawWorld(screen, cam)
+		sprite: a.versions[own][lod.L4].id, box: box}).DrawWorld(screen, cam)
 	pix := make([]byte, 4*64*32)
 	screen.ReadPixels(pix)
 	drawn := 0
@@ -147,11 +147,11 @@ func TestRenderer_Compose_AFigureAtL2IsItsBlobAsTheLookDrewIt(t *testing.T) {
 	}
 }
 
-func TestRenderer_Compose_AFigureAtL2UnderAPixelIsAsOpaqueAsItCovers(t *testing.T) {
+func TestRenderer_Compose_AFigureAtL4UnderAPixelIsAsOpaqueAsItCovers(t *testing.T) {
 	a, own := leveledRed()
 	cam := cameratest.NewFromSpace(32, 32, 0)
 	cam.SetViewport(32, 32)
-	pix := pixelsAt(t, cam, 32, 32, 0, lod.L2, a, own, plane.NewAABB(geom.NewVec(10.1, 20.1),
+	pix := pixelsAt(t, cam, 32, 32, 0, lod.L4, a, own, plane.NewAABB(geom.NewVec(10.1, 20.1),
 		0.5, 0.5))
 	for y := range 32 {
 		for x := range 32 {
@@ -167,7 +167,7 @@ func TestRenderer_Compose_AFigureAtL2UnderAPixelIsAsOpaqueAsItCovers(t *testing.
 	}
 }
 
-func TestRenderer_Compose_AFigureAtL2IsDrawnInTheLookDeclaredThere(t *testing.T) {
+func TestRenderer_Compose_AFigureAtL4IsDrawnInTheLookDeclaredThere(t *testing.T) {
 	p := NewPlugin(Config{
 		Space:    SpaceCfg{Width: 32, Height: 32},
 		Entities: EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
@@ -175,23 +175,23 @@ func TestRenderer_Compose_AFigureAtL2IsDrawnInTheLookDeclaredThere(t *testing.T)
 	own := p.Kinds().NewSprite()
 	a := p.NewAtlas()
 	a.Add(own, 8, render.Solid(color.RGBA{R: 255, A: 255})).
-		At(lod.L2, render.Solid(color.RGBA{G: 255, A: 255}))
+		At(lod.L4, render.Solid(color.RGBA{G: 255, A: 255}))
 	a.Close()
 	cam := cameratest.NewFromSpace(32, 32, 0)
 	cam.SetViewport(32, 32)
-	pix := pixelsAt(t, cam, 32, 32, 0, lod.L2, a, own, plane.NewAABB(geom.NewVec(8, 8), 4, 4))
+	pix := pixelsAt(t, cam, 32, 32, 0, lod.L4, a, own, plane.NewAABB(geom.NewVec(8, 8), 4, 4))
 	if got := pix(10, 10); got != [4]byte{0, 255, 0, 255} {
-		t.Errorf("the point is %v, want the green declared at L2", got)
+		t.Errorf("the point is %v, want the green declared at L4", got)
 	}
 }
 
-func TestRenderer_Compose_AFigureAtL2AcrossTheSeamShowsOnce(t *testing.T) {
+func TestRenderer_Compose_AFigureAtL4AcrossTheSeamShowsOnce(t *testing.T) {
 	a, own := leveledRed()
 	cam := cameratest.NewFromSpace(64, 64, aabbworld.Torus)
 	cam.SetViewport(32, 32)
 	cam.MoveTo(48, 16) // the seam at 16 across the picture
 	drawn := func(boxes ...plane.AABB) int {
-		pix := pixelsAt(t, cam, 64, 64, aabbworld.Torus, lod.L2, a, own, boxes...)
+		pix := pixelsAt(t, cam, 64, 64, aabbworld.Torus, lod.L4, a, own, boxes...)
 		n := 0
 		for y := range 32 {
 			for x := range 32 {

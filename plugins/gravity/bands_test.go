@@ -13,7 +13,7 @@ import (
 
 // two observers looking at (x, y) over a world w by h: the one a pixel a world unit, the other a
 // quarter of a pixel seeing twice as far; under a ladder seeing from half a pixel a world unit,
-// L0 within its sight of the point, L1 within twice that, L4 beyond
+// L2 within its sight of the point, L3 within twice that, L6 beyond
 type observers [2]camera.Camera
 
 var _ sector.Observers = (*observers)(nil)
@@ -42,12 +42,12 @@ func (o *observers) Observers(each func(cam camera.Camera)) {
 	}
 }
 
-// sectors 32 a side: the observers' own at L0, the two beside it at L1, the corner asleep
-func TestFall_AtL1ComesDownAsFarInAsLong(t *testing.T) {
+// sectors 32 a side: the observers' own at L2, the two beside it at L3, the corner asleep
+func TestFall_AtL3ComesDownAsFarInAsLong(t *testing.T) {
 	r := newRig(t, scene{
 		bodies:    []body{{x: 15, y: 15, alt: 10}, {x: 36, y: 15, alt: 10}},
 		sectors:   world.SectorsCfg{Buckets: 1},
-		ladder:    lod.Ladder{Scales: [lod.Levels - 1]float32{0.5}, Sight: 15},
+		ladder:    lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5}, Sight: 15},
 		observers: newObservers(40, 40, 5, 5),
 	})
 	for range 8 {
@@ -55,16 +55,16 @@ func TestFall_AtL1ComesDownAsFarInAsLong(t *testing.T) {
 	}
 	near, far := r.of(0).z.Altitude, r.of(1).z.Altitude
 	if near >= 10 || f32.Abs(near-far) > f32.Eps(near) {
-		t.Errorf("fallen to %v at L0 and %v at L1, want the same below 10", near, far)
+		t.Errorf("fallen to %v at L2 and %v at L3, want the same below 10", near, far)
 	}
 }
 
-// sectors 32 a side: the observers' own at L0, the corner asleep
-func TestGive_ABodyAsleepAtL4IsGivenNoDrift(t *testing.T) {
+// sectors 32 a side: the observers' own at L2, the corner asleep
+func TestGive_ABodyAsleepAtL6IsGivenNoDrift(t *testing.T) {
 	r := newRig(t, scene{
 		bodies:    []body{{x: 15, y: 15}, {x: 36, y: 36}},
 		sectors:   world.SectorsCfg{Buckets: 1},
-		ladder:    lod.Ladder{Scales: [lod.Levels - 1]float32{0.5}, Sight: 15},
+		ladder:    lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5}, Sight: 15},
 		observers: newObservers(40, 40, 5, 5),
 	})
 	for range 2 {
@@ -77,26 +77,26 @@ func TestGive_ABodyAsleepAtL4IsGivenNoDrift(t *testing.T) {
 		return r.drift.At(r.q.Cursor()) != nil
 	}
 	if !drifts(0) || drifts(1) {
-		t.Errorf("a drift at L0 %v, asleep %v; want only the first", drifts(0), drifts(1))
+		t.Errorf("a drift at L2 %v, asleep %v; want only the first", drifts(0), drifts(1))
 	}
 }
 
-// sectors 32 a side: the observers' own at L0, the one beside it at L1
-func TestPlane_AtL1ABodyComesDownAsAtL0(t *testing.T) {
+// sectors 32 a side: the observers' own at L2, the one beside it at L3
+func TestPlane_AtL3ABodyComesDownAsAtL2(t *testing.T) {
 	r := newRig(t, scene{
 		level:     room,
 		bodies:    []body{{x: 15, y: 13}, {x: 36, y: 13}},
 		sectors:   world.SectorsCfg{Buckets: 1},
-		ladder:    lod.Ladder{Scales: [lod.Levels - 1]float32{0.5}, Sight: 15},
+		ladder:    lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5}, Sight: 15},
 		observers: newObservers(40, 40, 5, 5),
 	})
 	for range tps {
 		r.tick()
 	}
 	near, far := r.of(0).at.Y, r.of(1).at.Y
-	// motion moves a body at L1 two steps in one, by the drift of the first: a second's pull
+	// motion moves a body at L3 two steps in one, by the drift of the first: a second's pull
 	// of 10 leaves them less than a step's run apart
 	if near <= 13 || f32.Abs(near-far) > 10.0/tps {
-		t.Errorf("come down to %v at L0 and %v at L1, want the same below 13", near, far)
+		t.Errorf("come down to %v at L2 and %v at L3, want the same below 13", near, far)
 	}
 }

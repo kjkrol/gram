@@ -65,7 +65,7 @@ type Renderer struct {
 	// those of the sectors seen alone, at their levels
 	sees  func(camera.Camera) *view.View
 	sight *view.View
-	// the figures' colour summed into the ground, laid over the tiles at L3; nil, none
+	// the figures' colour summed into the ground, laid over the tiles at L5; nil, none
 	aggregate func() (*render.Image, float32)
 	// what lights the tiles, nil for white light
 	lights func() *render.Lights
@@ -270,7 +270,7 @@ func (l *Renderer) lit() *render.Lights {
 }
 
 // WithAggregate has the figures' colour summed into the ground, as aggregate gives it (the
-// world's Read.Aggregate), laid over the tiles of the sectors seen at L3.
+// world's Read.Aggregate), laid over the tiles of the sectors seen at L5.
 func (l *Renderer) WithAggregate(aggregate func() (*render.Image, float32)) *Renderer {
 	l.aggregate = aggregate
 	return l

@@ -70,7 +70,8 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module.heights = p.worldPlugin.Read(0).HasHeights()
 	p.module.stats, p.module.log = p.stats, p.log
 	p.module.tick = p.worldPlugin.Read(0).Tick
-	// never slowed, a longer step carrying boxes through each other; none from L3
+	// never slowed, a longer step carrying boxes through each other; none three levels coarser
+	// than the finest seen or more
 	p.module.pace = p.worldPlugin.Pace(lod.Contact)
 	p.module.leave = p.motion.Write().Leave
 	ctx.UseModule(p.module)

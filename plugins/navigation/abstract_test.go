@@ -27,7 +27,7 @@ import (
 )
 
 // the cameras the world lives round, none at first: unobserved, every sector is ticked at the
-// ladder's Unobserved, L2
+// ladder's Unobserved, L4
 type observed struct {
 	w, h uint32
 	cams []camera.Camera
@@ -42,7 +42,7 @@ func (o *observed) Observers(each func(cam camera.Camera)) {
 }
 
 // look has a camera look at (x, y) a pixel a world unit, zoomed out by out: under abstractLadder
-// every sector L0 at 1, L1 at 2.2
+// every sector L2 at 1, L3 at 2.2
 func (o *observed) look(x, y, out float32) {
 	cam := cameratest.NewFromSpace(o.w, o.h, 0)
 	cam.SetViewport(2, 2)
@@ -53,8 +53,8 @@ func (o *observed) look(x, y, out float32) {
 	o.cams = append(o.cams, cam)
 }
 
-// L0 from half a pixel a world unit, L1 from 0.4, L2 from 0.2, seeing without end
-var abstractLadder = lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.4, 0.2}}
+// L2 from half a pixel a world unit, L3 from 0.4, L4 from 0.2, seeing without end
+var abstractLadder = lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.4, 0.2}}
 
 // abstractRig is a board of cols by rows cells of legCellSize cut into sectors of 16 cells a side
 // (two of the space's buckets of 256), observed as seen says, its units as given
@@ -144,7 +144,7 @@ func (r *abstractRig) priced(t *testing.T, p Path) (steps []cell.ID, total float
 	return steps, total
 }
 
-func TestFar_WalksItsRouteOfCellsAtL2(t *testing.T) {
+func TestFar_WalksItsRouteOfCellsAtL4(t *testing.T) {
 	const speed = 8 // cells a second
 	r := &abstractRig{g: grid.DefaultGrids{}.Square(96, 16, legCellSize)}
 	goal := r.g.At(60, 8)
@@ -326,7 +326,7 @@ func TestFar_FinishesItsCellPathBeforeItGoesUp(t *testing.T) {
 	}
 	o, _, _, _, _ := r.unit(t, 0)
 	if o.Path.Length == 0 {
-		t.Fatalf("at L0 no path of cells: %+v", o)
+		t.Fatalf("at L2 no path of cells: %+v", o)
 	}
 	first := o.Path
 	r.seen.cams = nil
@@ -360,7 +360,7 @@ func TestFar_FinishesItsCellPathBeforeItGoesUp(t *testing.T) {
 		t.Errorf("up in the far mode it holds %v, want nothing", held)
 	}
 	if !leg.Active {
-		t.Fatal("no leg taken on its path at L2")
+		t.Fatal("no leg taken on its path at L4")
 	}
 	held, n := order.Held(leg)
 	for _, h := range held[:n] {

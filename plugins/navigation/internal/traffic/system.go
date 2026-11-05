@@ -234,7 +234,7 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 		hands, colls, paces := s.hand.Slice(cursor), s.coll.Slice(cursor), s.pace.Slice(cursor)
 		level, marked := s.levels.Of(cursor), s.abstract.Present(cursor)
 		aggregate := s.whole.Present(cursor)
-		whole := aggregate && (level < lod.L2 || s.unfolded.Present(cursor))
+		whole := aggregate && (level < lod.Strategic || s.unfolded.Present(cursor))
 		arrivedIDs := s.finished[:0]
 
 		for i, id := range cursor.IDs {
@@ -315,7 +315,7 @@ type walker struct {
 	level           lod.Level
 	far             bool // marked in the far mode, as the Update left it so far
 	aggregate       bool
-	whole           bool // an aggregate its parts stand for: unfolded, or ticked finer than L2
+	whole           bool // an aggregate its parts stand for: unfolded, or ticked finer than L4
 }
 
 func ref[T any](s []T, i int) *T {
@@ -400,15 +400,15 @@ func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 		return s.standFor(w)
 	}
 	if w.far {
-		if w.level >= lod.L2 {
+		if w.level >= lod.Strategic {
 			return s.headFar(w, changed, d)
 		}
 		if s.descend(w) == asking {
 			return asking
 		}
-	} else if w.level >= lod.L2 && w.at.Cell != o.Target && (w.aggregate ||
+	} else if w.level >= lod.Strategic && w.at.Cell != o.Target && (w.aggregate ||
 		!leg.Active && (p.Index >= p.Length || w.actual != order.At(p))) {
-		// going up is lazy, a route of cells walked out first, so the L1|L2 border never flaps;
+		// going up is lazy, a route of cells walked out first, so the L3|L4 border never flaps;
 		// an aggregate, folded, goes at once
 		s.goFar(w)
 		return s.headFar(w, changed, d)
@@ -1163,7 +1163,7 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 		zs, minded := s.z.Slice(cursor), s.mind.Slice(cursor) != nil
 		steers, paces := s.steer.Slice(cursor), s.pace.Slice(cursor)
 		level := s.levels.Of(cursor)
-		if s.whole.Present(cursor) && (level < lod.L2 || s.unfolded.Present(cursor)) {
+		if s.whole.Present(cursor) && (level < lod.Strategic || s.unfolded.Present(cursor)) {
 			continue // its parts are the bodies there
 		}
 		for i, id := range cursor.IDs {
@@ -1416,10 +1416,10 @@ func (s *System) releaseLeg(leg order.Leg, id uid.UID64) {
 	}
 }
 
-// the level id's sector is ticked at, L0 for a unit the system does not move
+// the level id's sector is ticked at, Standard for a unit the system does not move
 func (s *System) levelOf(id uid.UID64) lod.Level {
 	if !s.outside.Seek(id) {
-		return lod.L0
+		return lod.Standard
 	}
 	return s.levels.Of(s.outside.Cursor())
 }

@@ -569,7 +569,7 @@ has a `doc.go` describing what it brings. What is left to do is in
 
 | Package | Responsibility |
 |:---|:---|
-| [`lod`](lod/doc.go) | The one ladder of levels of detail: `Level` L0..L4, the world's `Ladder` of scales and sight, a system's `Paces` at each level; the table of what each level means |
+| [`lod`](lod/doc.go) | The one ladder of levels of detail: `Level` L0..L6 in three scales and the omission, the world's `Ladder` of scales and sight, a system's `Paces` at each level; the table of what each level means |
 | [`camera`](camera/doc.go) | The contract of a view onto a world: screen conversion, culling, move and zoom, projections, fastening over an entity |
 | [`control`](control/doc.go) | The input vocabulary: `Binding`, the triggers, `Context`, `Keys`, a player's `Tool`; the commands a binding builds are `ceremony/command`'s |
 | [`render`](render/doc.go) | Drawing: `Renderer`, the `Composer` over `Source`s and its `Frame`, `Direct` sources, `Feed`, `Atlas`, `Font`, the drawing rules a renderer runs every frame |

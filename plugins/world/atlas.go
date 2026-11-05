@@ -43,7 +43,7 @@ type Atlas struct {
 	unthinned []bool
 	// after Close: by sprite, the levels it is drawn at in a look its kind declared, a bit each
 	declaring []uint8
-	// after Close: by sprite, the straight colour its kind is summed into the ground in at L3,
+	// after Close: by sprite, the straight colour its kind is summed into the ground in at L5,
 	// clear for none
 	colours [][4]uint8
 }
@@ -276,9 +276,9 @@ func (s Slot) frames(on render.SpriteID, n int,
 	return frames
 }
 
-// At has the kind drawn in look from level on to the next level declared, L1 to L3, in place
-// of every look it has under its effects, ways and frames: a SpriteDrawer drawn into the sheet at
-// its size or a MaterialID worked out per pixel.
+// At has the kind drawn in look from level on to the next level declared, a close one to
+// Standard at most, in place of every look it has under its effects, ways and frames: a
+// SpriteDrawer drawn into the sheet at its size or a MaterialID worked out per pixel.
 func (s Slot) At[L render.Look](level lod.Level, look L) Slot {
 	s.mayDeclare(level)
 	id := s.a.p.Kinds().NewSprite()
@@ -297,7 +297,8 @@ func (s Slot) At[L render.Look](level lod.Level, look L) Slot {
 	return s
 }
 
-// Nothing has the kind drawn at no level from level on to the next level declared, L1 to L3.
+// Nothing has the kind drawn at no level from level on to the next level declared, a close one
+// to Standard at most.
 func (s Slot) Nothing(level lod.Level) Slot {
 	s.mayDeclare(level)
 	s.a.declared[s.id] = append(s.a.declared[s.id], leveled{from: level})
@@ -309,9 +310,9 @@ func (s Slot) mayDeclare(level lod.Level) {
 	case s.a.p.looked:
 		panic(fmt.Sprintf("world: sprite %d's look at level %d declared after the renderer was "+
 			"made", s.id, level))
-	case level < lod.L1 || level > lod.L3:
-		panic(fmt.Sprintf("world: sprite %d's look declared at level %d: L0 is the look Add "+
-			"took and nothing is drawn at L4", s.id, level))
+	case level == lod.Standard || level >= lod.Omitted:
+		panic(fmt.Sprintf("world: sprite %d's look declared at level %d: Standard is the look "+
+			"Add took and nothing is drawn at Omitted", s.id, level))
 	}
 	for _, d := range s.a.declared[s.id] {
 		if d.from == level {
@@ -342,9 +343,9 @@ func (a *Atlas) declares(id render.SpriteID, level lod.Level) bool {
 	return int(id) < len(a.declaring) && a.declaring[id]&(1<<level) != 0
 }
 
-// blobColour is the straight colour the sprite id's kind is summed into the ground in at L3, its
-// blob's, once the atlas is closed; false for a kind declaring a look of its own at a level or of
-// no blob
+// blobColour is the straight colour the sprite id's kind is summed into the ground in at L5, its
+// blob's, once the atlas is closed; false for a kind declaring a look of its own past Standard or
+// of no blob
 func (a *Atlas) blobColour(id render.SpriteID) ([4]uint8, bool) {
 	if int(id) >= len(a.colours) {
 		return [4]uint8{}, false
@@ -513,8 +514,9 @@ func (a *Atlas) kin(id render.SpriteID, visit func(render.SpriteID)) {
 }
 
 // level works out what each kind is drawn as at each level, then what every sprite drawn in a
-// kind's place is: the kind's own at L0 and L1, a blob of its own look at L2 (a material itself),
-// its blob's colour summed into the ground at L3, nothing past, unless declared otherwise
+// kind's place is: the kind's own from L0 to L3, a blob of its own look at L4 (a material
+// itself), its blob's colour summed into the ground at L5, nothing past, unless declared
+// otherwise
 func (a *Atlas) level() {
 	for _, own := range a.owns {
 		a.versions[own.id] = a.versionsOf(own)
@@ -523,9 +525,9 @@ func (a *Atlas) level() {
 	for _, own := range a.owns {
 		of, always := a.versions[own.id], a.always[own.id]
 		declaring := a.declaredLevels(own.id)
-		// a declaration lasts to L4, so any at all is the kind's at L3
+		// a declaration past Standard lasts to Omitted, so any is the kind's at L5
 		var colour [4]uint8
-		if own.draw != nil && len(a.declared[own.id]) == 0 {
+		if own.draw != nil && len(beyond(a.declared[own.id])) == 0 {
 			c := render.MeanColour(own.draw, own.size)
 			colour = [4]uint8{c.R, c.G, c.B, c.A}
 		}
@@ -574,28 +576,42 @@ func (a *Atlas) declaredLevels(own render.SpriteID) uint8 {
 	return bits
 }
 
-// versionsOf is what the kind is drawn as at each level, a declaration lasting to the next; a
-// blob is drawn of its own look where none is declared for L2
+// versionsOf is what the kind is drawn as at each level, a declaration lasting to the next and a
+// close one to Standard at most; a blob is drawn of its own look where none is declared for
+// Strategic, past Standard, and it sorts the kind's declarations
 func (a *Atlas) versionsOf(own owned) [lod.Levels]version {
 	self := version{id: own.id, drawn: true}
-	of := [lod.Levels]version{self, self, self}
+	of := [lod.Levels]version{self, self, self, self, self}
 	declared := a.declared[own.id]
 	slices.SortFunc(declared, func(x, y leveled) int { return int(x.from) - int(y.from) })
-	if own.draw != nil && (len(declared) == 0 || declared[0].from > lod.L2) {
+	if far := beyond(declared); own.draw != nil && (len(far) == 0 || far[0].from > lod.Strategic) {
 		blob := a.p.Kinds().NewSprite()
 		a.atlas.Add(blob, own.size, render.Blob(own.draw))
-		of[lod.L2] = version{id: blob, drawn: true}
+		of[lod.Strategic] = version{id: blob, drawn: true}
 	}
 	for i, d := range declared {
-		to := lod.L4
+		to := lod.Omitted
 		if i+1 < len(declared) {
 			to = declared[i+1].from
+		}
+		if d.from < lod.Standard {
+			to = min(to, lod.Standard)
 		}
 		for l := d.from; l < to; l++ {
 			of[l] = d.version
 		}
 	}
 	return of
+}
+
+// beyond is those of declared, sorted, past Standard
+func beyond(declared []leveled) []leveled {
+	for i, d := range declared {
+		if d.from > lod.Standard {
+			return declared[i:]
+		}
+	}
+	return nil
 }
 
 func (a *Atlas) withKin(marked map[render.SpriteID]bool) map[render.SpriteID]bool {

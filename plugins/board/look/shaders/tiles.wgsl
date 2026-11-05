@@ -3,8 +3,8 @@
 // rest. Every cell whose box covers the point is laid there in the order the cells are, its sprite
 // stretched over its box leant with the wind (U.Wind) as air.Weather.Sway leans what stands on it,
 // faded into the fog as the plain pass fades it, the material laid over it and the covers on it
-// over that, the tile and the covers lit by the light on the ground at the point; at L2 and L3
-// the tile alone in one colour (plainAt), unleant, at L3 under the figures' colour (summedOver).
+// over that, the tile and the covers lit by the light on the ground at the point; at L4 and L5
+// the tile alone in one colour (plainAt), unleant, at L5 under the figures' colour (summedOver).
 
 @fragment
 fn fs_main(@builtin(position) frag: vec4<f32>) -> Laid {
@@ -37,8 +37,8 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> Laid {
 
 // tileAt is what the tile of the cell c lays at p, the material over it and the covers on it over
 // that, the tile and the covers in light: the tile nothing where its box, leant with the wind,
-// does not reach, where its material draws it or where it lies at L4; leant and under its
-// material through L1, the covers at L0 alone.
+// does not reach, where its material draws it or where it lies at L6; leant and under its
+// material through L3, the covers at L2 and finer alone.
 fn tileAt(c: vec2<f32>, p: vec2<f32>, light: vec3<f32>) -> vec4<f32> {
     let b = folded(c);
     if b.z < 0.5 {
@@ -47,12 +47,12 @@ fn tileAt(c: vec2<f32>, p: vec2<f32>, light: vec3<f32>) -> vec4<f32> {
     let t0 = texelOf(b.xy, 0.0, 0.0);
     let flags = byteIn(t0, 3);
     let level = levelOf(b.xy);
-    if level >= 4u {
+    if level >= 6u {
         return vec4<f32>(0.0);
     }
     let base = centreOf(c);
     var mid = base;
-    if (flags & flagSways) != 0u && level <= 1u {
+    if (flags & flagSways) != 0u && level <= 3u {
         mid += leanOf(b.xy, base);
     }
     let lo = mid - U.TileBox * 0.5;
@@ -60,23 +60,23 @@ fn tileAt(c: vec2<f32>, p: vec2<f32>, light: vec3<f32>) -> vec4<f32> {
     var laid = vec4<f32>(0.0);
     if (flags & flagShaded) == 0u && p.x >= lo.x && p.y >= lo.y && p.x < hi.x && p.y < hi.y {
         let id = byteIn(t0, 0) | (byteIn(t0, 1) << 8u);
-        if level >= 2u {
+        if level >= 4u {
             laid = plainAt(id, lo, hi, p);
         } else {
             laid = spriteAt(id, lo, hi, p);
         }
-        if level >= 3u {
+        if level >= 5u {
             laid = summedOver(laid, p);
         }
         if U.TileSeen > 0.5 {
             laid = vec4<f32>(mix(laid.rgb, U.Fog * laid.a, fogOf(b.xy)), laid.a);
         }
         laid = vec4<f32>(laid.rgb * light, laid.a);
-        if level <= 1u {
+        if level <= 3u {
             laid = over(overlayOf(b.xy, flags, lo, hi, p), laid);
         }
     }
-    if level == 0u {
+    if level <= 2u {
         let covers = coversAt(b.xy, flags, lo, p);
         laid = over(vec4<f32>(covers.rgb * light, covers.a), laid);
     }

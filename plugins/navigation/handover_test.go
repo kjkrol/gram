@@ -37,7 +37,7 @@ const (
 	soldierKind = "soldier"
 	armyRole    = "army"
 	soldierRole = "soldier"
-	// how long the army's sector lies at L2 before it folds
+	// how long the army's sector lies at L4 before it folds
 	foldAfter = 3 * time.Second
 	frame     = time.Second / 60
 )
@@ -419,7 +419,7 @@ func TestHandover_AnAggregateComesDownAndStandsTillItHasFolded(t *testing.T) {
 	h.seen.cams = nil
 	h.run(int((foldAfter - foldAfter/4) / frame))
 	if stood, _ := h.cast(); stood.at != down.at || stood.marked || !stood.unfolded {
-		t.Errorf("at L2, its soldiers yet to fold, the army went from %v to %v, marked %v, "+
+		t.Errorf("at L4, its soldiers yet to fold, the army went from %v to %v, marked %v, "+
 			"Unfolded %v; want it standing, unmarked, Unfolded", down.at, stood.at, stood.marked,
 			stood.unfolded)
 	}

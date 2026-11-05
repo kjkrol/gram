@@ -37,8 +37,8 @@ func TestFlight_AShotKeepsItsSectorsKeenTillItComesToRest(t *testing.T) {
 	r.start()
 	r.w.Write().Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
 	r.tick(1)
-	if k := r.theShot().keen; k == nil || *k != (sector.Keen{Level: lod.L2}) {
-		t.Fatalf("the shot flying is keen %v, want at L2", k)
+	if k := r.theShot().keen; k == nil || *k != (sector.Keen{Level: lod.L4}) {
+		t.Fatalf("the shot flying is keen %v, want at L4", k)
 	}
 	r.tick(11)
 	if shot := r.theShot(); !shot.flight.Landed || shot.keen != nil {
@@ -47,7 +47,7 @@ func TestFlight_AShotKeepsItsSectorsKeenTillItComesToRest(t *testing.T) {
 	}
 }
 
-func TestShoot_APlayerFiresFromNoSelectedUnitAsleepAtL4(t *testing.T) {
+func TestShoot_APlayerFiresFromNoSelectedUnitAsleepAtL6(t *testing.T) {
 	r := newRig(t, scene{
 		width:  2000,
 		height: 400,
@@ -65,11 +65,11 @@ func TestShoot_APlayerFiresFromNoSelectedUnitAsleepAtL4(t *testing.T) {
 	r.w.Write().Carrier().Put(1, bullet.Shoot{Ammo: ammo})
 	r.tick(1)
 	if shot := r.theShot(); shot.flight.Shooter != r.ids[0] {
-		t.Errorf("the shot is %v's, want the unit at L0's, %v", shot.flight.Shooter, r.ids[0])
+		t.Errorf("the shot is %v's, want the unit at L2's, %v", shot.flight.Shooter, r.ids[0])
 	}
 }
 
-func TestShoot_AShotAimedAtAnAggregateKeepsItsSectorsKeenAtL1(t *testing.T) {
+func TestShoot_AShotAimedAtAnAggregateKeepsItsSectorsKeenAtL3(t *testing.T) {
 	r := newRig(t, scene{pieces: []piece{
 		{x: 100, y: 100, size: 20, facing: east},
 		{x: 100, y: 300, size: 20, facing: east},
@@ -90,8 +90,8 @@ func TestShoot_AShotAimedAtAnAggregateKeepsItsSectorsKeenAtL1(t *testing.T) {
 		at   uid.UID64
 		want lod.Level
 	}{
-		{whole, lod.L1},
-		{r.ids[1], lod.L2},
+		{whole, lod.L3},
+		{r.ids[1], lod.L4},
 	} {
 		shoot := bullet.Shoot{Ammo: ammo}
 		shoot.Aim(c.at)

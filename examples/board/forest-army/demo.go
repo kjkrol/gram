@@ -47,9 +47,9 @@ const (
 	// how far round the camera the minimap shows: half the board's shorter side, the circle full
 	// of board wherever the camera is
 	MinimapReach = 2048
-	// the zoom the game starts at, L2: the forest a sheet, the armies points
+	// the zoom the game starts at, L4: the forest a sheet, the armies points
 	StartZoom = 0.7
-	// seconds a sector lies at L2 before what stands for its parts folds
+	// seconds a sector lies at L4 before what stands for its parts folds
 	FoldAfter = 2
 
 	marchSpeed = CellSize * 1.5
@@ -114,7 +114,7 @@ func main() {
 			},
 			Sectors: world.SectorsCfg{Buckets: 2},
 			LOD: lod.Ladder{
-				Scales: [lod.Levels - 1]float32{2, 1, 0.5, 0},
+				Scales: [lod.Levels - 1]float32{0, 0, 2, 1, 0.5, 0},
 				Sight:  Sight,
 				Fold:   FoldAfter,
 			},

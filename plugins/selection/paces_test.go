@@ -34,7 +34,7 @@ func lookingAt(w, h uint32, x, y float32) eye {
 
 func (e eye) Observers(each func(cam camera.Camera)) { each(e.cam) }
 
-func TestSelect_SelectsNoUnitAsleepAtL4(t *testing.T) {
+func TestSelect_SelectsNoUnitAsleepAtL6(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
@@ -101,6 +101,6 @@ func TestSelect_SelectsNoUnitAsleepAtL4(t *testing.T) {
 	ctx.ecs.Tick(time.Second / 10)
 	read()
 	if !selected[100] || selected[900] {
-		t.Errorf("selected at L0 %v, asleep %v; want only the first", selected[100], selected[900])
+		t.Errorf("selected at L2 %v, asleep %v; want only the first", selected[100], selected[900])
 	}
 }

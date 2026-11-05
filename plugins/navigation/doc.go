@@ -15,7 +15,7 @@
 // step by step, planned again when the entity stands off it; its [Leg] is the single step in
 // flight. A navigated entity carries a steering.Steering profile, which navigation asks for a
 // heading and a top speed; a MoveOrder is put on by the MoveTo command, or by the game at spawn.
-// Navigation goes every step at every level of the world's sectors but L4 (lod.Steady).
+// Navigation goes every step at every level of the world's sectors but L6 (lod.Steady).
 //
 // # Spacing
 //
@@ -92,18 +92,18 @@
 //
 // # Levels
 //
-// Below L2 a unit walks its route cell by cell. One whose sector is ticked at L2 or coarser walks
+// Below L4 a unit walks its route cell by cell. One whose sector is ticked at L4 or coarser walks
 // it far off once the route of cells it walks is spent: the same refined route, asked as any and
 // climbed through its class's hierarchy (waiting for it while it is first built; hpastar's
 // abstract graph is not walked), from the middle of one cell to the next, each step at the share
 // of its top speed the planner prices it at, out of the occupancy, the queue, the formation and
 // the collision (sector.Abstract). Its sector ticked finer, it comes down at once onto the cell
 // under it and walks its route on from there, or onto the nearest free cell taking it where that
-// one is taken, its route asked anew. An aggregate (world.Aggregate) ticked finer than L2 comes
+// one is taken, its route asked anew. An aggregate (world.Aggregate) ticked finer than L4 comes
 // down so and stands there, holding no cell, as long as it is unfolded (world.Unfolded) whatever
 // its level, its order kept for its parts to take over with [Inherit] as they are made
 // (kind.Entry.Told), each walking the route on from where it stands, and takes one of theirs
-// back the same way as it folds; one a [MoveTo] or a [March] names by To is kept ticked at L1
+// back the same way as it folds; one a [MoveTo] or a [March] names by To is kept ticked at L3
 // (sector.Keen) while an order aimed at it lasts, so those sent find its parts, and keeps after
 // it the Keen it carried or gave itself meanwhile (world.Keen, world.Calm).
 //

@@ -19,14 +19,14 @@ wynik etapów: `doc/plans-perf.md` (Etap 2, Fale 3–5, „Udziały tempa", „K
   marsz po polu grupy, na końcu szukanie; `March` układa partię w formacje nad polem. Trasa
   dalsza niż `Hierarchy.From` wspina się po hierarchii hpastara, a kawałek schodzi po drzewach
   od wejść bez szukania (użytkownik, 2026-10-29: A* tylko na poziomie abstrakcyjnym).
-- Od L2 (2026-11-04, drugie podejście na słowo użytkownika) jednostka idzie tą samą trasą
-  doprecyzowaną z hierarchii co na L0 (`Finder.Climb`, 64 kroki, dalszy ciąg przez ponowny ask),
+- Od L4 (2026-11-04, drugie podejście na słowo użytkownika) jednostka idzie tą samą trasą
+  doprecyzowaną z hierarchii co na L2 (`Finder.Climb`, 64 kroki, dalszy ciąg przez ponowny ask),
   ale w trybie dalekim (`traffic/far.go`, znak `sector.Abstract`): czyste podążanie po `Path`
   bez rezerwacji `Leg`, zajętości, `keep.Steer`, kolejki i szyku, prędkość z wyceny plannera na
   krok (`MoveOrder.Pace`/`Paced`: pamięć udziału ostatniego kroku). Zejście wchodzi w komórkę
   trasy pod środkiem (zakotwiczenie: bieżąca, jeden z 8 następnych kroków albo sąsiad następnego),
   snap tylko poza trasę. Cięciwy od bramki do bramki (`Search.Abstract`) odrzucone: hpastar nadal
-  je ma, gram ich nie woła. Bench `Navigation_Tick/abstract,1000` (świat bez kamery: L2, pełny
+  je ma, gram ich nie woła. Bench `Navigation_Tick/abstract,1000` (świat bez kamery: L4, pełny
   krok) obok `open,1000`: ~0,54 ms vs 2,8 ms (routing liczy 3× mniej węzłów: odpowiedzi
   pamiętane). Pierwsza trasa czeka na pierwszą budowę hierarchii (Madera ~20 s gry): jednostki
   stoją; przyspieszenie budowy to otwarty punkt.

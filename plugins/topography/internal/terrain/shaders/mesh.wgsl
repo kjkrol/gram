@@ -35,10 +35,10 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> Ground {
     // at the corners alone: a cloud spans many cells, and every pixel cost a frame dearly; none on
     // the skirt, whose cells grow so big out to the horizon that the shadows showed as their
     // triangles
-    if LEVEL <= 2u && U.Cover > 0.0 && U.CloudsShadeGround > 0.5 && vid < lattice {
+    if LEVEL <= 4u && U.Cover > 0.0 && U.CloudsShadeGround > 0.5 && vid < lattice {
         g.cloud = cloudsShadeAt(p, U.Cell);
     }
-    if LEVEL <= 2u && U.DetailPx > 0.0 && vid < lattice {
+    if LEVEL <= 4u && U.DetailPx > 0.0 && vid < lattice {
         g.sway = vec2<f32>(swayAmountAt(i), swayWave(p.xy));
     }
     return g;
@@ -69,13 +69,13 @@ fn fs_prime() -> @location(0) vec4<f32> {
 
 // fs_main is the ground's colour at its point in the sun's light, turned to the Fog as far off
 // as it lies and before the sight's end at every level, drawn at the level LEVEL (lod.Level),
-// each dropping more:
-//   0  everything
-//   1  the grid; the shore: the waves come in with no swell, surf or foam, no water runs down
+// each dropping more, the close levels drawn as Standard:
+//   2  everything
+//   3  the grid; the shore: the waves come in with no swell, surf or foam, no water runs down
 //      the ways and no mouth glints
-//   2  the waves and their glint, the still water a level mirror of the sky; the baked shade and
+//   4  the waves and their glint, the still water a level mirror of the sky; the baked shade and
 //      the lamps, every cell taking every shade
-//   3  the clouds' shadow and the wind's sway (vs_main), the details' grain and the water's
+//   5  the clouds' shadow and the wind's sway (vs_main), the details' grain and the water's
 //      picture: a sheet of the albedo's flat colour, the figures' colour summed over it
 @fragment
 fn fs_main(g: Ground) -> @location(0) vec4<f32> {
@@ -98,17 +98,17 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     }
     let sun = lightWay();
     var flags = vec4<f32>(1.0, 1.0, 0.0, 1.0);
-    if LEVEL <= 2u && inside {
+    if LEVEL <= 4u && inside {
         flags = flagsAt(p.xy);
     }
     var taken = f32(takesRelief | takesBlocks | takesClouds | takesLamps);
-    if LEVEL <= 1u && inside {
+    if LEVEL <= 3u && inside {
         taken = takesOf(flags);
     }
     var lit = 0.0;
     if sun.z > 0.0 {
         lit = 1.0;
-        if LEVEL <= 1u && inside && (takes(taken, takesRelief) || takes(taken, takesBlocks)) {
+        if LEVEL <= 3u && inside && (takes(taken, takesRelief) || takes(taken, takesBlocks)) {
             lit = groundShadeOf(p.xy).r;
         }
     }
@@ -123,14 +123,14 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     let shade = 1.0 - diffuse * lit;
     var light = U.Ambience * mix(vec3<f32>(1.0), U.ShadowTint, shade);
     light += sunColor * diffuse * lit * U.LightStrength;
-    if LEVEL <= 1u && takes(taken, takesLamps) {
+    if LEVEL <= 3u && takes(taken, takesLamps) {
         light += lampLightAt(p);
     }
     var ground = albedo(p.xy);
-    if LEVEL == 3u && inside {
+    if LEVEL == 5u && inside {
         ground = over(aggregateAt(p.xy), ground);
     }
-    if LEVEL <= 2u && U.DetailPx > 0.0 && inside {
+    if LEVEL <= 4u && U.DetailPx > 0.0 && inside {
         let show = detailShow(span);
         if show > 0.0 {
             ground *= mix(vec3<f32>(1.0), grain(p.xy, g.sway, cellDetailAt(flags)), show);
@@ -146,9 +146,9 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     var run = vec3<f32>(0.0);
     var still = vec3<f32>(0.0);
     var mouth = vec3<f32>(0.0);
-    if LEVEL <= 2u && U.WaterPx > 0.0 && wetAt(p.xy) {
+    if LEVEL <= 4u && U.WaterPx > 0.0 && wetAt(p.xy) {
         still = waterAt(p.xy, vec2<f32>(1.0, 0.0));
-        if LEVEL == 0u {
+        if LEVEL <= 2u {
             run = waterAt(p.xy, vec2<f32>(0.0, 0.0));
             mouth = waterAt(p.xy, vec2<f32>(0.0, 1.0));
         }
@@ -156,9 +156,9 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     // the sea's glint, the waves turning to the shore and breaking on it near enough; a level
     // coarser the open sea everywhere, coarser still a level mirror
     if still.b > 0.004 {
-        if LEVEL <= 1u {
+        if LEVEL <= 3u {
             var shore = vec4<f32>(0.0);
-            if LEVEL == 0u && span >= 16.0 {
+            if LEVEL <= 2u && span >= 16.0 {
                 shore = shoreAt(p.xy);
             }
             let sea = SeaGlintAt(p.xy, still.g / still.b, wet, shore, pixel, toward);
@@ -170,16 +170,16 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     if cover > 0.0 {
         rgb *= 1.0 - cloudShade(cover);
     }
-    if LEVEL == 0u && U.GridFrom > 0.0 && span >= U.GridFrom && inside {
+    if LEVEL <= 2u && U.GridFrom > 0.0 && span >= U.GridFrom && inside {
         let e = edge(p.xy, moveX, moveY);
         rgb = rgb * (1.0 - U.GridLine.a * e) + U.GridLine.rgb * e;
     }
     // the water running down the ways and the cells it runs over, and where a way turns into water
-    if LEVEL == 0u && run.b > 0.004 && span > 16.0 {
+    if LEVEL <= 2u && run.b > 0.004 && span > 16.0 {
         let v = (run.rg / run.b * 2.0 - 1.0) * U.FlowSpan;
         rgb = over(RunningWater(p.xy, still.r / run.b * clamp((span - 16.0) / 8.0, 0.0, 1.0), wet, vec4<f32>(v, 0.0, 0.0)) * run.b, rgb);
     }
-    if LEVEL == 0u && mouth.g > 0.004 && detail > 0.0 {
+    if LEVEL <= 2u && mouth.g > 0.004 && detail > 0.0 {
         rgb = over(SeaGlintAt(p.xy, mouth.r / mouth.g * detail, wet, vec4<f32>(0.0), pixel, toward) * mouth.g, rgb);
     }
     if U.Visibility > 0.0 {

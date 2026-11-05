@@ -32,7 +32,7 @@ func lookingAt(w, h uint32, x, y float32) eye {
 
 func (e eye) Observers(each func(cam camera.Camera)) { each(e.cam) }
 
-func TestAltitude_AUnitAsleepAtL4IsNotStoodOnTheGround(t *testing.T) {
+func TestAltitude_AUnitAsleepAtL6IsNotStoodOnTheGround(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(16, 2, 32)
 	near, far := g.At(2, 1), g.At(14, 1)
 	var walker kind.Of[topotest.Recruit]
@@ -57,7 +57,7 @@ func TestAltitude_AUnitAsleepAtL4IsNotStoodOnTheGround(t *testing.T) {
 		alts[z.Altitude] = true
 	}
 	if hill <= 0 || len(alts) != 2 || !alts[hill] || !alts[0] {
-		t.Errorf("the walkers on the hills stand at %v, want one at L0 on its ground %v and one "+
+		t.Errorf("the walkers on the hills stand at %v, want one at L2 on its ground %v and one "+
 			"asleep at 0, as spawned", alts, hill)
 	}
 }

@@ -2,6 +2,23 @@
 
 ## v0.20.0 — unreleased
 
+**Three scales of the ladder: the levels renumbered** (2026-11-05, branch `refactor/levels`,
+part `e/levels`)
+- Changed: the ladder has seven levels in three scales of two rungs each, exact and coarse, and
+  the omission: L0–L1 the close scale (`lod.Close`, new), L2–L3 the standard scale
+  (`lod.Standard`, the old L0–L1), L4–L5 the strategic scale (`lod.Strategic`, the old L2–L3),
+  L6 omitted (`lod.Omitted`, the old L4). Every number in a game's ladder, `Slot.At`, `Nothing`,
+  `sector.Keen` and the benchmarks' rungs moves up by two; the zero ladder is `Standard`
+  everywhere without end, as it was L0.
+- Added: the close scale, entered by a ladder whose first two thresholds are set (a zero there
+  means the scale is not used) and drawn by a kind's `At(L0, …)` and `At(L1, …)`, its own sprite
+  without them; no demo uses it yet.
+- Added: `world.Plugin.Within(first)`, a query option for the entities of one scale, so a system
+  of the close scale ticks only where someone looks that closely.
+- Changed: `lod.Paces` has seven rungs (`Slowing` takes up to five steps), the pace marks run
+  `sector.Far1`..`Far5`, and every level has its mark, `sector.L0`..`L6`; `Unobserved` is L4
+  unless set.
+
 **Aggregates: navigation by level, the fold and unfold contract, forests and armies**
 (2026-11-04, branch `feat/aggregates`, parts `b/navigation`, `b/contract`, `b/field`,
 `b/seams`, `b/fieldlook`, `b/demo`; hpastar v1.5.0)

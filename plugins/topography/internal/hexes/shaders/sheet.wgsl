@@ -1,4 +1,4 @@
-// A sector of a hex board seen as a sheet (topography's hexes at lod.L3): an instance a sector,
+// A sector of a hex board seen as a sheet (topography's hexes at lod.L5): an instance a sector,
 // its box (x0, y0, x1, y1) and its height (the mean of its cells' corners), a quad over the box
 // at that height, drawn through U.ViewProj (camera.Transform) sunk U.Bend·d² under U.Eye's level;
 // coloured from the board from above, the first image, U.TopPx pixels a world unit, the figures'

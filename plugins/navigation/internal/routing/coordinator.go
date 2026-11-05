@@ -51,7 +51,7 @@ type Coordinator struct {
 	// by ask, whether it is for a far route or the nearest free cell, its unit given the
 	// hierarchy serving its class
 	far []bool
-	// by ask, whether its unit walks far off (from L2) as a class a hierarchy serves: its route
+	// by ask, whether its unit walks far off (from L4) as a class a hierarchy serves: its route
 	// climbed, the ask waiting while the hierarchy is not ready
 	waits []bool
 
@@ -204,7 +204,7 @@ func (c *Coordinator) Update(_ *goke.CmdBuf, d time.Duration) {
 				continue
 			}
 			// far off a unit walks alone, its route climbed where a hierarchy serves its class
-			farOff := level >= lod.L2
+			farOff := level >= lod.Strategic
 			waits := farOff && c.served(c.asking(cursor, i, level))
 			party := !farOff && a == order.AskRoute && byField(&orders[i])
 			// a party goes by its field, a walk that fails searched
@@ -445,7 +445,7 @@ func (c *Coordinator) Form(ids []uid.UID64) {
 			patience: o.Patience}
 		o.Place, o.AheadOf, o.Lag, o.Gap, o.HeadWaits = 0, 0, 0, 0, false
 		// far off a member marches alone
-		if o.Party < 2 || m.Level >= lod.L2 {
+		if o.Party < 2 || m.Level >= lod.Strategic {
 			continue
 		}
 		q, ok := c.fields.Key(m, o)

@@ -5,14 +5,16 @@ import (
 	"github.com/kjkrol/gram/lod"
 )
 
-// The marks of the entities in a sector past L0, by the level it is ticked at: zero-size
-// components a system's query includes or excludes. What lies at L0 carries none; L4 is asleep,
-// out of the world's space.
+// The marks of the entities in a sector by the level it is ticked at: zero-size components a
+// system's query includes or excludes. L6 is asleep, out of the world's space.
 type (
+	L0 struct{}
 	L1 struct{}
 	L2 struct{}
 	L3 struct{}
 	L4 struct{}
+	L5 struct{}
+	L6 struct{}
 )
 
 // The marks of the pace: how many levels coarser than the finest level any observer sees the
@@ -21,6 +23,8 @@ type (
 	Far1 struct{}
 	Far2 struct{}
 	Far3 struct{}
+	Far4 struct{}
+	Far5 struct{}
 )
 
 // Keen keeps the sector its entity is in and the eight round it ticked at Level at most while

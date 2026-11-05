@@ -177,7 +177,7 @@ func (s *System) arriveFar(w *walker, want, off geom.Vec) {
 	s.arrive(w)
 }
 
-// standFor has w, an aggregate unfolded or ticked finer than L2, stand while its parts walk for
+// standFor has w, an aggregate unfolded or ticked finer than L4, stand while its parts walk for
 // it, whatever its level till it has folded: come down from the far mode first as a unit comes
 // down, its order kept as it is for them to inherit (Inherit), its step in flight let go; it
 // holds no cell, being its parts (the board keeps none for it, world.Unfolded)
@@ -222,7 +222,7 @@ func (s *System) goFar(w *walker) {
 	s.abstracts++
 }
 
-// descend brings w down from the far mode, its sector ticked finer than L2, for the head to go on
+// descend brings w down from the far mode, its sector ticked finer than L4, for the head to go on
 // on the cells: onto the cell under it, its route walked on from there where that is one of its
 // cells round its next step, else asked anew; onto the nearest free cell taking it where that one
 // is taken or does not, a route asked from there; with none near, asking the nearest free cell

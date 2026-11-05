@@ -110,7 +110,7 @@ func worldDrawn(b *testing.B, n, spacing int, view uint32, two bool) (*headless,
 }
 
 // the worlds of worldViews cut into sectors of 1024, the camera's pixel a unit under the ladder's
-// L1 at 4 and over its L2 at 0.5, or under its L2 at 2, keeping keep of what it draws at L2, the
+// L3 at 4 and over its L4 at 0.5, or under its L4 at 2, keeping keep of what it draws at L4, the
 // figures' colour summed into the ground where a renderer reads it
 var leveledViews = []struct {
 	name       string
@@ -119,24 +119,24 @@ var leveledViews = []struct {
 	keep       float32
 	level      lod.Level
 	read       bool
-}{{"5000 of 5000 in view, level=2", 5000, 56, 4000, 0, lod.L2, true},
-	{"49 of 5000 in view, level=2", 5000, 56, 400, 0, lod.L2, true},
-	{"5000 of 5000 in view, level=3", 5000, 56, 4000, 0, lod.L3, true},
-	{"49 of 5000 in view, level=3", 5000, 56, 400, 0, lod.L3, true},
-	{"5000 of 5000 in view, level=3, unread", 5000, 56, 4000, 0, lod.L3, false}}
+}{{"5000 of 5000 in view, level=4", 5000, 56, 4000, 0, lod.L4, true},
+	{"49 of 5000 in view, level=4", 5000, 56, 400, 0, lod.L4, true},
+	{"5000 of 5000 in view, level=5", 5000, 56, 4000, 0, lod.L5, true},
+	{"49 of 5000 in view, level=5", 5000, 56, 400, 0, lod.L5, true},
+	{"5000 of 5000 in view, level=5, unread", 5000, 56, 4000, 0, lod.L5, false}}
 
 // worldLeveled is the world of n boxes spacing apart cut into sectors and ticked once, its kind
-// in the world's own atlas, its picture and the camera drawing it at level, L2 or L3, keeping
-// keep at L2, the figures summed into the ground where read
+// in the world's own atlas, its picture and the camera drawing it at level, L4 or L5, keeping
+// keep at L4, the figures summed into the ground where read
 func worldLeveled(b *testing.B, n, spacing int, view uint32, keep float32, level lod.Level,
 	read bool) (*headless, *render.Composer, camera.Camera) {
 	ctx := newHeadless()
 	var r *render.Composer
-	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{8, 4, 0.5}}
-	if level == lod.L3 {
-		ladder.Scales[lod.L2] = 2
+	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 8, 4, 0.5}}
+	if level == lod.L5 {
+		ladder.Scales[lod.L4] = 2
 	}
-	ladder.Keep[lod.L2] = keep
+	ladder.Keep[lod.L4] = keep
 	cfg := world.Config{Sectors: world.SectorsCfg{Buckets: 4}, LOD: ladder}
 	ecs := benchWorldIn(b, ctx, cfg, n, spacing, view, func(w *world.Plugin,
 		movers kind.Of[mover]) {
@@ -182,7 +182,7 @@ func Benchmark_World_Draw(b *testing.B) {
 }
 
 // Benchmark_World_Publish is the entity renderer's publishing of what Benchmark_World_Draw draws,
-// and of its first world at L2 keeping a quarter.
+// and of its first world at L4 keeping a quarter.
 func Benchmark_World_Publish(b *testing.B) {
 	for _, v := range worldViews {
 		b.Run(v.name, func(b *testing.B) {

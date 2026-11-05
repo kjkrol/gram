@@ -26,7 +26,7 @@ type moveSystem struct {
 	steps     []geom.Vec
 	left      []uid.UID64
 	pace      goke.Opt
-	// what the space holds: all but those asleep at L4
+	// what the space holds: all but those asleep at L6
 	held     *goke.Query
 	heldBase goke.Comp[world.Base]
 }
@@ -42,7 +42,7 @@ func (s *moveSystem) Init(si *goke.SysInit) {
 		qb.With(s.pace)
 	}
 	s.moveQuery = qb.Build()
-	s.held = si.NewQueryBuilder(&s.heldBase).Exclude(goke.Exclude[sector.L4]()).Build()
+	s.held = si.NewQueryBuilder(&s.heldBase).Exclude(goke.Exclude[sector.L6]()).Build()
 }
 
 func (s *moveSystem) Update(cb *goke.CmdBuf, d time.Duration) {

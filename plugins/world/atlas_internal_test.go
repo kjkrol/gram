@@ -213,21 +213,29 @@ func leveledAtlas(declare func(Slot)) (a *Atlas, own, shaded render.SpriteID) {
 func TestAtlas_Close_GivesEveryKindItsLookAtEachLevel(t *testing.T) {
 	flat := render.Solid(color.RGBA{G: 255, A: 255})
 	dot := render.Solid(color.RGBA{B: 255, A: 255})
-	// L0 to L4: own the kind's look, blob the one derived of it, x and y the looks declared in
+	// L0 to L6: own the kind's look, blob the one derived of it, x and y the looks declared in
 	// turn, - none
 	for _, tc := range []struct {
 		name    string
 		declare func(Slot)
 		want    string
 	}{
-		{"nothing declared", func(Slot) {}, "own own blob - -"},
-		{"at L1", func(s Slot) { s.At(lod.L1, flat) }, "own x x x -"},
-		{"at L2", func(s Slot) { s.At(lod.L2, flat) }, "own own x x -"},
-		{"at L3", func(s Slot) { s.At(lod.L3, flat) }, "own own blob x -"},
-		{"nothing from L1", func(s Slot) { s.Nothing(lod.L1) }, "own - - - -"},
-		{"at L1, nothing from L3", func(s Slot) { s.At(lod.L1, flat).Nothing(lod.L3) },
-			"own x x - -"},
-		{"at L2, then L1", func(s Slot) { s.At(lod.L2, dot).At(lod.L1, flat) }, "own y x x -"},
+		{"nothing declared", func(Slot) {}, "own own own own blob - -"},
+		{"at L3", func(s Slot) { s.At(lod.L3, flat) }, "own own own x x x -"},
+		{"at L4", func(s Slot) { s.At(lod.L4, flat) }, "own own own own x x -"},
+		{"at L5", func(s Slot) { s.At(lod.L5, flat) }, "own own own own blob x -"},
+		{"nothing from L3", func(s Slot) { s.Nothing(lod.L3) }, "own own own - - - -"},
+		{"at L3, nothing from L5", func(s Slot) { s.At(lod.L3, flat).Nothing(lod.L5) },
+			"own own own x x - -"},
+		{"at L4, then L3", func(s Slot) { s.At(lod.L4, dot).At(lod.L3, flat) },
+			"own own own y x x -"},
+		{"at L0", func(s Slot) { s.At(lod.L0, flat) }, "x x own own blob - -"},
+		{"at L1", func(s Slot) { s.At(lod.L1, flat) }, "own x own own blob - -"},
+		{"at L0, then L1", func(s Slot) { s.At(lod.L0, flat).At(lod.L1, dot) },
+			"x y own own blob - -"},
+		{"nothing at L0", func(s Slot) { s.Nothing(lod.L0) }, "- - own own blob - -"},
+		{"at L0 and L4", func(s Slot) { s.At(lod.L0, flat).At(lod.L4, dot) },
+			"x x own own y y -"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a, own, _ := leveledAtlas(tc.declare)
@@ -257,11 +265,12 @@ func TestAtlas_Close_GivesEveryKindItsLookAtEachLevel(t *testing.T) {
 	}
 }
 
-func TestAtlas_Close_DrawsAMaterialItselfAtL2(t *testing.T) {
+func TestAtlas_Close_DrawsAMaterialItselfAtL4(t *testing.T) {
 	a, _, shaded := leveledAtlas(func(Slot) {})
 	self := version{id: shaded, drawn: true}
-	if got, want := a.versions[shaded], [lod.Levels]version{self, self, self}; got != want {
-		t.Errorf("the material's versions %+v, want itself to L2 and nothing past", got)
+	want := [lod.Levels]version{self, self, self, self, self}
+	if got := a.versions[shaded]; got != want {
+		t.Errorf("the material's versions %+v, want itself to L4 and nothing past", got)
 	}
 }
 
@@ -276,11 +285,11 @@ func TestAtlas_Close_TakesOneSpriteABlob(t *testing.T) {
 	a := p.NewAtlas()
 	a.Add(p.Kinds().NewSprite(), 8, red).Under(wet, red).
 		Facing(4, func(float64) render.SpriteDrawer { return red })
-	a.Add(p.Kinds().NewSprite(), 8, red).At(lod.L2, red)
+	a.Add(p.Kinds().NewSprite(), 8, red).At(lod.L4, red)
 	a.Add(p.Kinds().NewSprite(), 8, render.MaterialID(3))
 	before := p.Kinds().NewSprite()
 	a.Close()
-	// the first kind's blob alone: the second has its L2 declared, the third is a material
+	// the first kind's blob alone: the second has its L4 declared, the third is a material
 	if took := p.Kinds().NewSprite() - before - 1; took != 1 {
 		t.Errorf("closing took %d sprites, want 1", took)
 	}
@@ -297,26 +306,26 @@ func TestAtlas_Close_DrawsEverySpriteInAKindsPlaceAsTheKindAtALevel(t *testing.T
 	hero, deck := p.Kinds().NewSprite(), p.Kinds().NewSprite()
 	a := p.NewAtlas()
 	a.Add(hero, 8, red).Facing(4, func(float64) render.SpriteDrawer { return red }).
-		Under(wet, red).At(lod.L1, red).Nothing(lod.L3)
+		Under(wet, red).At(lod.L3, red).Nothing(lod.L5)
 	a.Add(deck, 8, red).Under(wet, red).Lying()
 	a.Close()
-	flat := a.versions[hero][lod.L1].id
+	flat := a.versions[hero][lod.L3].id
 	ways, soaked := a.faced[hero], a.twins[wet.Mark()][hero]
 	for _, id := range append([]render.SpriteID{hero, soaked}, ways...) {
-		for l, want := range []render.SpriteID{id, flat, flat} {
+		for l, want := range []render.SpriteID{id, id, id, flat, flat} {
 			if got, ok := a.levels.at(id, lod.Level(l)); !ok || got != want {
 				t.Errorf("sprite %d at L%d drawn as %d, %v; want %d", id, l, got, ok, want)
 			}
 		}
-		for _, l := range []lod.Level{lod.L3, lod.L4} {
+		for _, l := range []lod.Level{lod.L5, lod.L6} {
 			if got, ok := a.levels.at(id, l); ok {
 				t.Errorf("sprite %d at L%d drawn as %d, want nothing", id, l, got)
 			}
 		}
 	}
-	blob := a.versions[deck][lod.L2].id
-	if got, ok := a.levels.at(a.twins[wet.Mark()][deck], lod.L2); !ok || got != blob {
-		t.Errorf("the wet deck at L2 drawn as %d, %v; want the deck's blob %d", got, ok, blob)
+	blob := a.versions[deck][lod.L4].id
+	if got, ok := a.levels.at(a.twins[wet.Mark()][deck], lod.L4); !ok || got != blob {
+		t.Errorf("the wet deck at L4 drawn as %d, %v; want the deck's blob %d", got, ok, blob)
 	}
 	if !a.lain()[blob] {
 		t.Error("the blob of a lying kind stands, want it lying")
@@ -334,17 +343,17 @@ func TestAtlas_Close_KeepsAKindAlwaysInEverySpriteDrawnInItsPlace(t *testing.T) 
 	hero, deck := p.Kinds().NewSprite(), p.Kinds().NewSprite()
 	a := p.NewAtlas()
 	slot := a.Add(hero, 8, red).Facing(4, func(float64) render.SpriteDrawer { return red }).
-		Under(wet, red).At(lod.L1, red).Always()
+		Under(wet, red).At(lod.L3, red).Always()
 	a.Add(deck, 8, red).Under(wet, red)
 	a.Close()
-	kept := append([]render.SpriteID{hero, a.twins[wet.Mark()][hero], a.versions[hero][lod.L1].id},
+	kept := append([]render.SpriteID{hero, a.twins[wet.Mark()][hero], a.versions[hero][lod.L3].id},
 		a.faced[hero]...)
 	for _, id := range kept {
 		if !a.isAlways(id) {
 			t.Errorf("sprite %d in the hero's place is thinned, want it always kept", id)
 		}
 	}
-	thinned := []render.SpriteID{deck, a.twins[wet.Mark()][deck], a.versions[deck][lod.L2].id,
+	thinned := []render.SpriteID{deck, a.twins[wet.Mark()][deck], a.versions[deck][lod.L4].id,
 		p.Kinds().NewSprite()}
 	for _, id := range thinned {
 		if a.isAlways(id) {
@@ -362,14 +371,14 @@ func TestAtlas_Close_KeepsAKindAlwaysInEverySpriteDrawnInItsPlace(t *testing.T) 
 func TestAtlas_RefusesALookAtALevelThatCannotBe(t *testing.T) {
 	red := render.Solid(color.RGBA{R: 255, A: 255})
 	for name, declare := range map[string]func(s Slot, a *Atlas){
-		"at L0":         func(s Slot, _ *Atlas) { s.At(lod.L0, red) },
-		"at L4":         func(s Slot, _ *Atlas) { s.At(lod.L4, red) },
-		"nothing at L4": func(s Slot, _ *Atlas) { s.Nothing(lod.L4) },
-		"twice":         func(s Slot, _ *Atlas) { s.At(lod.L1, red).Nothing(lod.L1) },
+		"at L2":         func(s Slot, _ *Atlas) { s.At(lod.L2, red) },
+		"at L6":         func(s Slot, _ *Atlas) { s.At(lod.L6, red) },
+		"nothing at L6": func(s Slot, _ *Atlas) { s.Nothing(lod.L6) },
+		"twice":         func(s Slot, _ *Atlas) { s.At(lod.L3, red).Nothing(lod.L3) },
 		"timed": func(s Slot, _ *Atlas) {
-			s.At(lod.L1, render.Phased(2, func(int) render.SpriteDrawer { return red }))
+			s.At(lod.L3, render.Phased(2, func(int) render.SpriteDrawer { return red }))
 		},
-		"after Close": func(s Slot, a *Atlas) { a.Close(); s.Nothing(lod.L2) },
+		"after Close": func(s Slot, a *Atlas) { a.Close(); s.Nothing(lod.L4) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			p := NewPlugin(Config{

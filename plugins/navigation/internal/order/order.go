@@ -71,7 +71,7 @@ type MoveOrder struct {
 	// Way is the way its route led it as the traffic last drove it, a unit vector; zero before it
 	// drove.
 	Way geom.Vec
-	// Pace is the share of its top speed the entity keeps walking far off (from L2) on the step of
+	// Pace is the share of its top speed the entity keeps walking far off (from L4) on the step of
 	// its Path from Paced[0] to Paced[1], as the planner prices it; zero, none read.
 	Pace  float32
 	Paced [2]cell.ID
@@ -82,7 +82,7 @@ type MoveOrder struct {
 	// Party is how many orders the MoveTo that gave this one sent; 1 for one alone.
 	Party uint16
 	// Aim is the aggregate (world.Aggregate) a goal of the order was named by (MoveTo.To), while
-	// Aimed: kept ticked at L1 as long as the order lasts.
+	// Aimed: kept ticked at L3 as long as the order lasts.
 	Aim   uid.UID64
 	Aimed bool
 	// Formation is how the March that gave the order lays its group out, zero for none; Place is
