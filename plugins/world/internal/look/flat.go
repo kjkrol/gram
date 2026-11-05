@@ -26,6 +26,10 @@ type Flat struct {
 // whatever a plugin lays on the ground beneath it.
 const FigureLift = 2
 
+// PieceLift is how far over its ground a field's piece lies: over the board's grid, the cells
+// held and the sight, under everything that stands.
+const PieceLift = 0.5
+
 // NewFlat is the flat look over a world width x height, wrapping across where wrapX says and
 // down where wrapY does.
 func NewFlat(width, height float32, wrapX, wrapY bool) *Flat {

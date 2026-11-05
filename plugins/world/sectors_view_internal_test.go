@@ -113,7 +113,7 @@ func TestSectorsView_SwitchesFromTheLevelsTickedToHowTheyAreSeenToNothing(t *tes
 
 func TestSectorsView_ShowsAnObserversSectorsAsItDrawsThemGraded(t *testing.T) {
 	r := sectorWorld(t, fourLevels)
-	cam := &sloped{Camera: cameratest.NewFromSpace(4096, 512, 0), fall: 0.15}
+	cam := &sloped{Camera: cameratest.NewFromSpace(4096, 512, 0), near: 1, fall: 0.15}
 	cam.SetViewport(1600, 512)
 	cam.MoveTo(0, 0)
 	r.watch.cams = []camera.Camera{cam}

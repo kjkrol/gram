@@ -41,13 +41,17 @@ type sectorRig struct {
 	watch  *watchers
 	all    *goke.Query
 	base   *goke.Comp[Base]
-	// by the level the entities carry
+	// by the level the entities carry, and by how many levels coarser than the finest seen
 	marked [lod.Levels]*goke.Query
+	far    [lod.L4]*goke.Query
 	keen   *goke.Query
 	keenOf goke.Comp[sector.Keen]
 	keenID goke.CompID
+	// those travelling the abstract graph
+	abstract   *goke.Query
+	abstractID goke.CompID
 	// by the paces of paced
-	paced [3]pacedQuery
+	paced [4]pacedQuery
 }
 
 type pacedQuery struct {
@@ -58,7 +62,7 @@ type pacedQuery struct {
 // a thing keeping its sector and those round it ticked at L2 at most
 type keenThing struct{ x float32 }
 
-var paced = [3]lod.Paces{lod.Steady, lod.Slowing(4), lod.Exact}
+var paced = [4]lod.Paces{lod.Steady, lod.Slowing(4), lod.Exact, lod.Slowing(2, 4, 8)}
 
 // a ladder seeing 600 at L0 from half a pixel a world unit; as the rig's two observers see it,
 // L0 within 600 of them, L1 within 1200, L4 beyond
@@ -138,8 +142,17 @@ func (r *sectorRig) setup(t *testing.T, load string) {
 			si.NewQueryBuilder(&b).Include(goke.Include[sector.L3]()).Build(),
 			si.NewQueryBuilder(&b).Include(goke.Include[sector.L4]()).Build(),
 		}
+		r.far = [lod.L4]*goke.Query{
+			si.NewQueryBuilder(&b).Exclude(goke.Exclude[sector.Far1](),
+				goke.Exclude[sector.Far2](), goke.Exclude[sector.Far3]()).Build(),
+			si.NewQueryBuilder(&b).Include(goke.Include[sector.Far1]()).Build(),
+			si.NewQueryBuilder(&b).Include(goke.Include[sector.Far2]()).Build(),
+			si.NewQueryBuilder(&b).Include(goke.Include[sector.Far3]()).Build(),
+		}
 		r.keen = si.NewQueryBuilder(&r.keenOf).Build()
 		r.keenID = si.RegComp[sector.Keen]()
+		r.abstract = si.NewQueryBuilder(&b).Include(goke.Include[sector.Abstract]()).Build()
+		r.abstractID = si.RegComp[sector.Abstract]()
 		for k := range r.paced {
 			pq := &r.paced[k]
 			pq.q = si.NewQueryBuilder(&pq.base).With(r.p.Pace(paced[k])).Build()
@@ -165,7 +178,10 @@ func (r *sectorRig) spawn(xs ...float32) {
 func (r *sectorRig) run() { run(r.ecs, r.p.module, func(*goke.CmdBuf) {}) }
 
 // the entities carrying the level's mark, each by its x
-func (r *sectorRig) at(level lod.Level) []float32 {
+func (r *sectorRig) at(level lod.Level) []float32 { return r.found(r.marked[level]) }
+
+// the entities q finds, each by its x
+func (r *sectorRig) found(q *goke.Query) []float32 {
 	xs := map[uid.UID64]float32{}
 	for r.all.All(); r.all.Next(); {
 		cur := r.all.Cursor()
@@ -174,7 +190,7 @@ func (r *sectorRig) at(level lod.Level) []float32 {
 		}
 	}
 	var found []float32
-	for id := range living(r.marked[level]) {
+	for id := range living(q) {
 		found = append(found, xs[id])
 	}
 	return found
@@ -549,6 +565,17 @@ func (r *sectorRig) byLevel() map[lod.Level][]float32 {
 	return out
 }
 
+// the entities by how many levels coarser than the finest seen they are marked, each by its x
+func (r *sectorRig) byFar() map[lod.Level][]float32 {
+	out := map[lod.Level][]float32{}
+	for k, q := range r.far {
+		if xs := r.found(q); len(xs) > 0 {
+			out[lod.Level(k)] = xs
+		}
+	}
+	return out
+}
+
 func sameLevels(got, want map[lod.Level][]float32) bool {
 	if len(got) != len(want) {
 		return false
@@ -561,11 +588,11 @@ func sameLevels(got, want map[lod.Level][]float32) bool {
 	return true
 }
 
-// a camera from above looking from (100, 256) whose scale falls to fall past x 1000, as a
-// perspective's falls with the distance
+// a camera from above looking from (100, 256) whose scale falls from near to fall past x 1000, as
+// a perspective's falls with the distance
 type sloped struct {
 	camera.Camera
-	fall float32
+	near, fall float32
 }
 
 var (
@@ -575,7 +602,7 @@ var (
 
 func (s *sloped) ScaleAt(x, _, _ float32) float32 {
 	if x < 1000 {
-		return 1
+		return s.near
 	}
 	return s.fall
 }
@@ -586,7 +613,7 @@ var fourLevels = lod.Ladder{Scales: [lod.Levels - 1]float32{1, 0.5, 0.25, 0.1}}
 
 func TestSectors_DrawNoTwoSectorsSideBySideMoreThanALevelApart(t *testing.T) {
 	r := sectorWorld(t, fourLevels)
-	cam := &sloped{Camera: cameratest.NewFromSpace(4096, 512, 0), fall: 0.15}
+	cam := &sloped{Camera: cameratest.NewFromSpace(4096, 512, 0), near: 1, fall: 0.15}
 	r.watch.cams = []camera.Camera{cam}
 	r.run()
 	s := r.p.module.sectors
@@ -623,15 +650,16 @@ func TestSectors_GradeByRingsAcrossTheSeamsAndNeverPastL4(t *testing.T) {
 	}
 	raw[0] = lod.L0
 	graded := make([]lod.Level, 49)
-	lifts := s.grade(raw, graded)
+	lifts, finest := s.grade(raw, graded)
 	ring := func(k int) int { return min(k, 7-k) }
 	for i, l := range graded {
 		if want := lod.Level(min(max(ring(i%7), ring(i/7)), 3)); l != want {
 			t.Errorf("sector %d graded %v, want %v", i, l, want)
 		}
 	}
-	if lifts != 8+16 {
-		t.Errorf("%d lifted, want the 24 of the two rings round the corner", lifts)
+	if lifts != 8+16 || finest != lod.L0 {
+		t.Errorf("%d lifted, the finest %v; want the 24 of the two rings round the corner, L0",
+			lifts, finest)
 	}
 	if raw[1] != lod.L3 {
 		t.Errorf("raw changed to %v by the grading, want it kept", raw[1])
@@ -642,6 +670,9 @@ func TestSectors_GradeByRingsAcrossTheSeamsAndNeverPastL4(t *testing.T) {
 	open.grade(raw, graded)
 	if want := []lod.Level{0, 1, 2, 4, 3, 3}; !slices.Equal(graded, want) {
 		t.Errorf("graded %v, want %v: nothing lifted past L4", graded, want)
+	}
+	if _, finest = open.grade([]lod.Level{4, 3, 2, 4, 3, 3}, graded); finest != lod.L2 {
+		t.Errorf("the finest of L4, L3 and L2 graded %v, want L2", finest)
 	}
 }
 
@@ -762,7 +793,7 @@ func TestSectors_AKeenEntityWakesTheSleepersRoundItBeforeItComes(t *testing.T) {
 
 func TestSectors_SwitchedOffTickEverySectorAtL0AndStillGradeTheObservers(t *testing.T) {
 	r := sectorWorld(t, fourLevels)
-	cam := &sloped{Camera: cameratest.NewFromSpace(4096, 512, 0), fall: 0.15}
+	cam := &sloped{Camera: cameratest.NewFromSpace(4096, 512, 0), near: 1, fall: 0.15}
 	r.watch.cams = []camera.Camera{cam}
 	r.p.write.SetBanded(false)
 	r.spawn(100, 2000)
@@ -792,6 +823,10 @@ func TestSectors_KeepTheMarksAndKeenThroughASaveAndGoOnFromThem(t *testing.T) {
 	if got := r.byLevel(); !sameLevels(got, want) {
 		t.Fatalf("entities %v before the save, want %v", got, want)
 	}
+	far := map[lod.Level][]float32{0: {100, 3900}, 1: {1200}, 2: {2000}}
+	if got := r.byFar(); !sameLevels(got, far) {
+		t.Fatalf("entities %v by their pace before the save, want %v", got, far)
+	}
 	path := t.TempDir() + "/save.bin"
 	r.ecs.Pause()
 	if err := r.ecs.Save(path); err != nil {
@@ -802,6 +837,9 @@ func TestSectors_KeepTheMarksAndKeenThroughASaveAndGoOnFromThem(t *testing.T) {
 	if got := loaded.byLevel(); !sameLevels(got, want) {
 		t.Errorf("entities %v loaded, want %v", got, want)
 	}
+	if got := loaded.byFar(); !sameLevels(got, far) {
+		t.Errorf("entities %v by their pace loaded, want %v", got, far)
+	}
 	if _, level, ok := loaded.keenOne(); !ok || level != lod.L2 {
 		t.Errorf("the keen one loaded %v keeping %v, want it keeping L2", ok, level)
 	}
@@ -809,9 +847,109 @@ func TestSectors_KeepTheMarksAndKeenThroughASaveAndGoOnFromThem(t *testing.T) {
 	if got := loaded.byLevel(); !sameLevels(got, want) {
 		t.Errorf("entities %v a tick after the load, want %v", got, want)
 	}
+	if got := loaded.byFar(); !sameLevels(got, far) {
+		t.Errorf("entities %v by their pace a tick after the load, want %v", got, far)
+	}
 	if !loaded.held(2000) || loaded.held(3900) {
 		t.Errorf("the space holds the keen one %v and the sleeper %v, want only the keen one",
 			loaded.held(2000), loaded.held(3900))
+	}
+}
+
+func TestSectors_KeepAnAbstractTravellerThroughASave(t *testing.T) {
+	r := sectorWorld(t, twoLevels)
+	r.spawn(100, 3900)
+	far := r.idAt(3900)
+	run(r.ecs, r.p.module, func(cb *goke.CmdBuf) {
+		cb.AddOne(far, r.abstractID, sector.Abstract{})
+	})
+	if got := r.travelling(); !same(got, 3900) {
+		t.Fatalf("%v travelling before the save, want 3900", got)
+	}
+	path := t.TempDir() + "/save.bin"
+	r.ecs.Pause()
+	if err := r.ecs.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	loaded := newSectorRig(0, 2, twoLevels)
+	loaded.setup(t, path)
+	if got := loaded.travelling(); !same(got, 3900) {
+		t.Errorf("%v travelling loaded, want 3900", got)
+	}
+	loaded.run()
+	if got := loaded.travelling(); !same(got, 3900) {
+		t.Errorf("%v travelling a tick after the load, want 3900", got)
+	}
+}
+
+// the entity whose box sets off at x
+func (r *sectorRig) idAt(x float32) uid.UID64 {
+	for r.all.All(); r.all.Next(); {
+		cur := r.all.Cursor()
+		for j, id := range cur.IDs {
+			if r.base.Slice(cur)[j].Pos.TopLeft.X == x {
+				return id
+			}
+		}
+	}
+	panic("no entity there")
+}
+
+// the entities travelling the abstract graph, each by its x
+func (r *sectorRig) travelling() []float32 {
+	var found []float32
+	for id := range living(r.abstract) {
+		for r.all.All(); r.all.Next(); {
+			cur := r.all.Cursor()
+			for j, of := range cur.IDs {
+				if of == id {
+					found = append(found, r.base.Slice(cur)[j].Pos.TopLeft.X)
+				}
+			}
+		}
+	}
+	return found
+}
+
+func TestRead_LevelAtIsTheLevelTicked(t *testing.T) {
+	r := sectorWorld(t, twoLevels)
+	r.p.write.Spawn(r.keens.Entry(keenThing{x: 3500}))
+	r.run()
+	r.run()
+	read := &r.p.read
+	for _, c := range []struct {
+		x    float32
+		want lod.Level
+	}{
+		// the near observer's L0 over the far one's L1
+		{100, lod.L0},
+		{1200, lod.L1},
+		{2000, lod.L4},
+		// the keen one's sector and the one beside it
+		{3500, lod.L2},
+		{2600, lod.L2},
+	} {
+		if got := read.LevelAt(c.x, 256); got != c.want {
+			t.Errorf("at x %v: %v, want %v", c.x, got, c.want)
+		}
+	}
+	r.watch.cams = r.watch.cams[1:]
+	r.run()
+	if got := read.LevelAt(100, 256); got != lod.L1 {
+		t.Errorf("at x 100 the far observer alone: %v, want L1", got)
+	}
+	r.p.write.SetBanded(false)
+	for _, x := range []float32{100, 2000, 3500} {
+		if got := read.LevelAt(x, 256); got != lod.L0 {
+			t.Errorf("at x %v the levels switched off: %v, want L0", x, got)
+		}
+	}
+	flat := NewPlugin(Config{
+		Space:    SpaceCfg{Width: 4096, Height: 512},
+		Entities: EntitiesCfg{MaxCount: 8, MinSize: 5, MaxSize: 20},
+	})
+	if got := flat.read.LevelAt(100, 256); got != lod.L0 {
+		t.Errorf("in a world of no sectors: %v, want L0", got)
 	}
 }
 
@@ -842,5 +980,108 @@ func TestSectors_HoldEachObserversLevelsThoughTheObserversComeInAnotherOrder(t *
 	r.run()
 	if got := r.at(lod.L1); !same(got, 100) {
 		t.Errorf("%v at L1, want the one the far observer holds", got)
+	}
+}
+
+func TestSectors_MarkHowManyLevelsCoarserThanTheFinestSeenEachEntityIs(t *testing.T) {
+	for name, c := range map[string]struct {
+		near, fall float32
+		want       map[lod.Level][]float32
+	}{
+		"every sector at L2": {0.3, 0.3, map[lod.Level][]float32{0: {100, 1200, 2000}}},
+		"L2, L3 past it":     {0.3, 0.15, map[lod.Level][]float32{0: {100}, 1: {1200, 2000}}},
+		// L1 graded between
+		"L0, L2 past it": {1, 0.3, map[lod.Level][]float32{0: {100}, 1: {1200}, 2: {2000}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := sectorWorld(t, fourLevels)
+			cam := &sloped{Camera: cameratest.NewFromSpace(4096, 512, 0), near: c.near,
+				fall: c.fall}
+			r.watch.cams = []camera.Camera{cam}
+			r.spawn(100, 1200, 2000)
+			r.run()
+			if got := r.byFar(); !sameLevels(got, c.want) {
+				t.Errorf("by their pace %v (by level %v), want %v", got, r.byLevel(), c.want)
+			}
+		})
+	}
+}
+
+func TestSectors_PaceByTheFinestLevelAnyObserverSees(t *testing.T) {
+	r := sectorWorld(t, twoLevels)
+	near, far := r.watch.cams[0], r.watch.cams[1]
+	r.spawn(100, 1200)
+	for _, c := range []struct {
+		cams []camera.Camera
+		want map[lod.Level][]float32
+	}{
+		{[]camera.Camera{near, far}, map[lod.Level][]float32{0: {100}, 1: {1200}}},
+		{[]camera.Camera{far, near}, map[lod.Level][]float32{0: {100}, 1: {1200}}},
+		// the far observer alone sees L1 at the finest
+		{[]camera.Camera{far}, map[lod.Level][]float32{0: {100, 1200}}},
+	} {
+		r.watch.cams = c.cams
+		r.run()
+		if got := r.byFar(); !sameLevels(got, c.want) {
+			t.Errorf("seen by %d observers: by their pace %v, want %v", len(c.cams), got, c.want)
+		}
+	}
+}
+
+func TestSectors_PaceAWorldWithoutObserversInFullEverywhere(t *testing.T) {
+	for _, unobserved := range []lod.Fallback{lod.UnobservedL2, lod.UnobservedL3} {
+		ladder := twoLevels
+		ladder.Unobserved = unobserved
+		r := sectorWorld(t, ladder)
+		r.watch.cams = nil
+		r.spawn(100, 1200, 2300, 3500)
+		r.p.write.Spawn(r.keens.Entry(keenThing{x: 2000}))
+		r.run()
+		r.run()
+		want := map[lod.Level][]float32{0: {100, 1200, 2000, 2300, 3500}}
+		if got := r.byFar(); !sameLevels(got, want) {
+			t.Errorf("unobserved at %v: by their pace %v (by level %v), want %v",
+				unobserved.Level(), got, r.byLevel(), want)
+		}
+	}
+}
+
+// a shot keeping its sector at L2 does not hasten the world the observers see at L3
+func TestSectors_AKeenEntityLeavesThePaceAsTheObserversSeeIt(t *testing.T) {
+	r := sectorWorld(t, fourLevels)
+	cam := &sloped{Camera: cameratest.NewFromSpace(4096, 512, 0), near: 0.15, fall: 0.15}
+	r.watch.cams = []camera.Camera{cam}
+	r.spawn(100, 3500)
+	r.p.write.Spawn(r.keens.Entry(keenThing{x: 2000}))
+	r.run()
+	r.run()
+	levels := map[lod.Level][]float32{lod.L2: {2000}, lod.L3: {100, 3500}}
+	if got := r.byLevel(); !sameLevels(got, levels) {
+		t.Fatalf("by level %v, want %v", got, levels)
+	}
+	want := map[lod.Level][]float32{0: {100, 2000, 3500}}
+	if got := r.byFar(); !sameLevels(got, want) {
+		t.Errorf("by their pace %v, want %v", got, want)
+	}
+}
+
+func TestPace_GoesEveryStepOnTheFinestSectorsSeenAndSlowerOnTheCoarser(t *testing.T) {
+	r := sectorWorld(t, fourLevels)
+	cam := &sloped{Camera: cameratest.NewFromSpace(4096, 512, 0), near: 0.3, fall: 0.15}
+	r.watch.cams = []camera.Camera{cam}
+	r.spawn(100, 2000)
+	r.run()
+	const d = 10 * time.Millisecond
+	for range 4 {
+		r.run()
+		// L2 the finest seen, L3 a level coarser
+		want := map[float32]time.Duration{100: d}
+		if r.p.read.Clock().Steps()%2 == 1 {
+			want[2000] = 2 * d
+		}
+		if got := r.going(3); !maps.Equal(got, want) {
+			t.Errorf("step %d, paces %v: going %v, want %v", r.p.read.Clock().Steps(), paced[3],
+				got, want)
+		}
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
@@ -21,6 +22,7 @@ import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/uid"
 )
 
@@ -51,6 +53,7 @@ type System struct {
 	coll    goke.OptComp[collision.Collider]
 	hand    goke.OptComp[steering.Driven]
 	pace    goke.OptComp[steering.Pace]
+	levels  bodies.Levels
 	route   []geom.Vec
 
 	owners      goke.OptComp[tag.Tags[owner.Family]]
@@ -95,6 +98,27 @@ type System struct {
 
 	terrainSeen uint64
 	span        float32 // a cell's, past which a unit's footprint may be laid off its middle
+
+	abstract    goke.OptComp[sector.Abstract]
+	whole       goke.OptComp[world.Aggregate]
+	unfolded    goke.OptComp[world.Unfolded]
+	abstractID  goke.CompID
+	abstracting []toggled          // the marks put on and taken off this Update, in order
+	marked      map[uid.UID64]bool // by entity, whether it was left marked
+	abstracts   uint64
+	snaps       uint64
+	// whom taken answers for, through the method value bound once
+	taker   uid.UID64
+	takerIn cell.Domain
+	taken   func(c cell.ID, deck bool) bool
+
+	heirs heirs
+}
+
+// the mark of the far mode put on an entity, or taken off
+type toggled struct {
+	id uid.UID64
+	on bool
 }
 
 var _ goke.System = (*System)(nil)
@@ -111,7 +135,7 @@ func NewSystem(pathFinder *spacing.Finder, grid grid.Grid, terrain cell.Terrain,
 		pathFinder: pathFinder,
 		keep:       spacing.NewCellKeeping(pathFinder, occupancy),
 	}
-	s.gathering = s.gather
+	s.gathering, s.taken = s.gather, s.isTaken
 	return s
 }
 
@@ -134,7 +158,9 @@ func (s *System) Init(si *goke.SysInit) {
 		Optional(&s.pace).
 		Optional(&s.owners, &s.lastOrder).
 		Optional(&s.mind, &s.blocked, &s.arrived).
-		Optional(&s.states)
+		Optional(&s.states).
+		Optional(&s.abstract, &s.whole, &s.unfolded)
+	s.levels.Bind(qb)
 	if s.Pace != nil {
 		qb.With(s.Pace)
 	}
@@ -144,6 +170,8 @@ func (s *System) Init(si *goke.SysInit) {
 	s.blockedID, s.arrivedID, s.lastOrderID = si.RegComp[order.Blocked](), si.RegComp[order.Arrived](), si.RegComp[order.LastOrder]()
 	s.arrivedEditor = s.query.NewEditorBuilder().Remove(goke.Remove[order.MoveOrder]()).Build()
 	s.statesID = si.RegComp[tag.Tags[unit.States]]()
+	s.abstractID = si.RegComp[sector.Abstract]()
+	s.heirs.init(si)
 	if s.Routing != nil {
 		s.Routing.Init(si)
 	}
@@ -157,6 +185,7 @@ func (s *System) Init(si *goke.SysInit) {
 }
 
 func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
+	s.inherit(cb)
 	changed := false
 	if v, ok := s.terrain.(interface{ Passage() uint64 }); ok && v.Passage() != s.terrainSeen {
 		s.terrainSeen, changed = v.Passage(), true
@@ -188,6 +217,11 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 		cursor := s.query.Cursor()
 		orders := s.order.Slice(cursor)
 		if orders == nil {
+			if s.abstract.Present(cursor) { // its order taken away by another
+				for _, id := range cursor.IDs {
+					s.toggled(id, false)
+				}
+			}
 			s.standing(cb, cursor)
 			continue
 		}
@@ -198,17 +232,26 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 		minds, owned := s.mind.Slice(cursor), s.owners.Slice(cursor)
 		arrived, lasts := s.arrived.Slice(cursor), s.lastOrder.Slice(cursor)
 		hands, colls, paces := s.hand.Slice(cursor), s.coll.Slice(cursor), s.pace.Slice(cursor)
+		level, marked := s.levels.Of(cursor), s.abstract.Present(cursor)
+		aggregate := s.whole.Present(cursor)
+		whole := aggregate && (level < lod.L2 || s.unfolded.Present(cursor))
 		arrivedIDs := s.finished[:0]
 
 		for i, id := range cursor.IDs {
 			w := walker{id: id, o: &orders[i], at: &cells[i], base: &bases[i],
 				st:    steering.Helm{Steering: &steers[i], Course: &courses[i]},
-				state: ref(states, i), last: ref(lasts, i), minded: minds != nil}
+				state: ref(states, i), last: ref(lasts, i), minded: minds != nil, level: level,
+				far: marked, aggregate: aggregate, whole: whole}
 			s.begin(&w, ref(zs, i), ref(movers, i), ref(owned, i), ref(colls, i), ref(paces, i))
 			if hands != nil && hands[i].Steers() {
 				if w.o.Leg.Active {
 					s.releaseLeg(w.o.Leg, id)
 					s.occupancy.Enter(cells[i].Cell, w.onDeck, id, w.domain)
+				}
+				if w.far {
+					s.occupancy.Enter(w.actual, w.onDeck, id, w.domain)
+					s.moveTo(&w, w.actual)
+					s.unmark(&w)
 				}
 				cells[i].Next = 0
 				cb.RemoveCompOne(id, s.orderID)
@@ -239,6 +282,7 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 		s.supply(cb)
 	}
 	s.walkOn(cb, d)
+	s.toggle(cb)
 	s.touch(cb, d)
 	s.tell(cb, d)
 	for _, a := range s.arrivals {
@@ -268,6 +312,10 @@ type walker struct {
 	entered         bool
 	arrived         bool
 	off             geom.Vec // how far off its cells' middles it stands
+	level           lod.Level
+	far             bool // marked in the far mode, as the Update left it so far
+	aggregate       bool
+	whole           bool // an aggregate its parts stand for: unfolded, or ticked finer than L2
 }
 
 func ref[T any](s []T, i int) *T {
@@ -292,7 +340,7 @@ func (s *System) begin(w *walker, z *world.Z, mover *unit.Mover, owners *tag.Tag
 	}
 	w.m = bodies.Member{ID: w.id, Cell: w.current, From: w.current, Leg: w.o.Leg, Domain: w.domain,
 		Pos: w.base.Pos, Vel: w.base.Vel.Delta(), Facing: w.base.Vel.Dir, Order: w.o,
-		Brake: w.st.Braking(), Share: 1, MaxSpeed: w.st.MaxSpeed}
+		Brake: w.st.Braking(), Share: 1, MaxSpeed: w.st.MaxSpeed, Level: w.level}
 	if pace != nil {
 		w.m.Share = pace.Share
 	}
@@ -348,6 +396,23 @@ const (
 func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 	o, st := w.o, w.st
 	p, leg := &o.Path, &o.Leg
+	if w.whole {
+		return s.standFor(w)
+	}
+	if w.far {
+		if w.level >= lod.L2 {
+			return s.headFar(w, changed, d)
+		}
+		if s.descend(w) == asking {
+			return asking
+		}
+	} else if w.level >= lod.L2 && w.at.Cell != o.Target && (w.aggregate ||
+		!leg.Active && (p.Index >= p.Length || w.actual != order.At(p))) {
+		// going up is lazy, a route of cells walked out first, so the L1|L2 border never flaps;
+		// an aggregate, folded, goes at once
+		s.goFar(w)
+		return s.headFar(w, changed, d)
+	}
 	w.at.Next = 0 // led nowhere unless its route leads it below
 	o.Kept = false
 	if changed && p.Index < p.Length && !s.admitsAll(p.Steps[p.Index:p.Length], w.domain) {
@@ -546,7 +611,8 @@ func (s *System) walkOn(cb *goke.CmdBuf, d time.Duration) {
 		w := walker{id: id, o: s.order.At(cur), at: s.cell.At(cur), base: s.base.At(cur),
 			st:    steering.Helm{Steering: s.steer.At(cur), Course: s.course.At(cur)},
 			state: s.states.At(cur), last: s.lastOrder.At(cur), minded: s.mind.Present(cur),
-			entered: s.askedIn[k]}
+			entered: s.askedIn[k], level: s.levels.Of(cur),
+			far: s.markedNow(id, s.abstract.Present(cur))}
 		s.begin(&w, s.z.At(cur), s.mover.At(cur), s.owners.At(cur), s.coll.At(cur),
 			s.pace.At(cur))
 		ask := w.o.Ask
@@ -569,6 +635,10 @@ func (s *System) walkOn(cb *goke.CmdBuf, d time.Duration) {
 
 // tail drives w along its route
 func (s *System) tail(w *walker, d time.Duration) {
+	if w.far {
+		s.tailFar(w, d)
+		return
+	}
 	o, st := w.o, w.st
 	p, leg := &o.Path, &o.Leg
 	target := o.Target
@@ -759,6 +829,7 @@ func (s *System) tail(w *walker, d time.Duration) {
 }
 
 func (s *System) arrive(w *walker) {
+	s.unmark(w)
 	w.arrived = true
 	w.at.Next, w.o.Way = 0, geom.Vec{}
 	switch {
@@ -824,6 +895,7 @@ func (s *System) standing(cb *goke.CmdBuf, cursor *goke.Cursor) {
 		return
 	}
 	cells, bases, movers, zs := s.cell.Slice(cursor), s.base.Slice(cursor), s.mover.Slice(cursor), s.z.Slice(cursor)
+	level := s.levels.Of(cursor)
 	for i, id := range cursor.IDs {
 		t, ok := s.told[id]
 		if !ok || !t.aside {
@@ -833,7 +905,9 @@ func (s *System) standing(cb *goke.CmdBuf, cursor *goke.Cursor) {
 		if !ok {
 			continue
 		}
-		m := bodies.Member{ID: id, Cell: cells[i].Cell, From: cells[i].Cell, Domain: unit.DomainAt(movers, i), Pos: bases[i].Pos, Vel: bases[i].Vel.Delta(), Facing: bases[i].Vel.Dir}
+		m := bodies.Member{ID: id, Cell: cells[i].Cell, From: cells[i].Cell,
+			Domain: unit.DomainAt(movers, i), Pos: bases[i].Pos, Vel: bases[i].Vel.Delta(),
+			Facing: bases[i].Vel.Dir, Level: level}
 		if zs != nil {
 			m.Z = zs[i]
 		}
@@ -1088,11 +1162,15 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 		cells, owned, lasts := s.cell.Slice(cursor), s.owners.Slice(cursor), s.lastOrder.Slice(cursor)
 		zs, minded := s.z.Slice(cursor), s.mind.Slice(cursor) != nil
 		steers, paces := s.steer.Slice(cursor), s.pace.Slice(cursor)
+		level := s.levels.Of(cursor)
+		if s.whole.Present(cursor) && (level < lod.L2 || s.unfolded.Present(cursor)) {
+			continue // its parts are the bodies there
+		}
 		for i, id := range cursor.IDs {
 			pos := bases[i].Pos
 			b := bodies.Body{ID: id, At: pos.Center(), Half: geom.NewVec(pos.Size.X/2, pos.Size.Y/2), Vel: bases[i].Vel.Delta(), Domain: unit.DomainAt(movers, i),
 				Moving: orders != nil, Cell: cells[i].Cell, Minded: minded, Facing: bases[i].Vel.Dir}
-			b.Share, b.MaxSpeed = 1, steers[i].MaxSpeed
+			b.Share, b.MaxSpeed, b.Level = 1, steers[i].MaxSpeed, level
 			if paces != nil {
 				b.Share = paces[i].Share
 			}
@@ -1336,6 +1414,14 @@ func (s *System) releaseLeg(leg order.Leg, id uid.UID64) {
 	for _, h := range held[:n] {
 		s.occupancy.Leave(h.C, id)
 	}
+}
+
+// the level id's sector is ticked at, L0 for a unit the system does not move
+func (s *System) levelOf(id uid.UID64) lod.Level {
+	if !s.outside.Seek(id) {
+		return lod.L0
+	}
+	return s.levels.Of(s.outside.Cursor())
 }
 
 func (s *System) ordered(id uid.UID64) bool {

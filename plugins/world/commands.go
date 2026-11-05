@@ -4,9 +4,13 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/lod"
+	"github.com/kjkrol/uid"
 )
 
 // Despawn is the command an entity gives itself to leave the world.
@@ -16,6 +20,28 @@ type Despawn struct{}
 // step of the simulation. One refused (an unknown kind, a wrong row, a full world, a bad size, a
 // box wholly past an open edge) is logged, never a panic.
 type Spawn struct{ Entry kind.Entry }
+
+// SpawnPart is the command an aggregate gives itself to spawn, at the next step, a part of it
+// carrying PartOf it, the Entry's entity laid At off the centre of the stretch its Unfold tells of,
+// or of the aggregate given under none. One refused, given by no aggregate or as a Spawn is, is
+// logged.
+type SpawnPart struct {
+	Entry kind.Entry
+	// At is where the part's row's box is laid from, off that centre: zero at it.
+	At    geom.Vec
+	in    uid.UID64
+	aimed bool
+}
+
+// Aim tells the command the stretch of the aggregate it lies in.
+func (s *SpawnPart) Aim(who uid.UID64) { s.in, s.aimed = who, true }
+
+// Keen is the command an entity gives itself to keep its sector and the eight round it ticked at
+// Level at most (sector.Keen) till it gives Calm: a battle its rules would see fought out unseen.
+type Keen struct{ Level lod.Level }
+
+// Calm is the command an entity gives itself to take off the sector.Keen it carries.
+type Calm struct{}
 
 // Pause switches the tactical pause: game time stands, the cameras and the picture go on. P and
 // Shift+P by default.
@@ -37,6 +63,9 @@ type SwitchBands struct{ On bool }
 
 func (Despawn) Command()     {}
 func (Spawn) Command()       {}
+func (SpawnPart) Command()   {}
+func (Keen) Command()        {}
+func (Calm) Command()        {}
 func (Pause) Command()       {}
 func (Faster) Command()      {}
 func (Slower) Command()      {}
@@ -46,6 +75,10 @@ func (SwitchBands) Command() {}
 var (
 	_ command.Command = Despawn{}
 	_ command.Command = Spawn{}
+	_ command.Command = SpawnPart{}
+	_ host.Aimed      = (*SpawnPart)(nil)
+	_ command.Command = Keen{}
+	_ command.Command = Calm{}
 	_ command.Command = Pause{}
 	_ command.Command = Faster{}
 	_ command.Command = Slower{}
@@ -66,7 +99,8 @@ func (p *Plugin) Queues() []command.CommandQueue {
 	m := p.module
 	return []command.CommandQueue{
 		&m.pauses, &m.fasters, &m.slowers, &m.tempos, &m.bandSwitches, &m.sectorSwitches,
-		&m.spawns, &m.despawns, &m.effectCmds.queue, &m.effectCmds.triggers,
+		&m.spawns, &m.spawnParts, &m.despawns, &m.keens, &m.calms, &m.effectCmds.queue,
+		&m.effectCmds.triggers,
 	}
 }
 

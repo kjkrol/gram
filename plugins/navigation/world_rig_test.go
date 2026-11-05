@@ -67,6 +67,8 @@ type navUnit struct {
 	marks    bool
 	owner    command.Issuer
 	selected bool
+	name     string    // the name it bears, ceremony.Named's
+	spec     kind.Spec // more of its kind
 }
 
 type navWorld struct {
@@ -161,10 +163,11 @@ func newNavWorldIn(t testing.TB, pool *parallel.Pool, cols, rows, cellSize uint3
 		if u.selected {
 			s = append(s, comp.Tagged(sel.Tags().Selectable, sel.Tags().Selected))
 		}
+		s = append(s, u.spec...)
 		kind.Define[navUnit](w.Kinds(), fmt.Sprintf("u%d", i), s)
 		k := kind.Named[navUnit](w.Kinds(), fmt.Sprintf("u%d", i))
 		kinds[i] = k.ID()
-		w.Write().Seed(k.Entry(u))
+		w.Write().Seed(k.Entry(u).Named(u.name))
 	}
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)

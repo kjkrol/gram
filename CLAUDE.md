@@ -68,6 +68,7 @@ make demo-board-roads                                           # two villages e
 make demo-board-topography                                      # Madeira in relief: light, water, roads, bridges, the camera on a stick (Q/E, R/F, Tab), the weather; the ground textured from photographs
 make demo-board-topography-ghibli                               # the same ground painted, the light in bands (-look ghibli)
 make demo-board-topography-widgets                              # the hour, the date and the weather apart by the corners, not in a bar (-hud widgets)
+make demo-board-forest-army                                     # a forest and two armies folded far off and unfolded near: trees, soldiers, a battle either way
 go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS
 make demo-navigation-square                                     # units sent round a wall, over a river by a bridge a wagon is too wide for; walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-hex                                        # the same on a hex board
@@ -281,11 +282,25 @@ Decisions the user has made; they are not up for revisiting in passing.
   holds the level it draws at, the frame budget shifting it coarser for every camera alike
   before the resolution falls, never past L3 and never a sector seen at L0 (what the player
   looks at stays full; the user's word, 2026-11-04). Every system says
-  how often it goes at each level (`lod.Paces` through `world.Plugin.Pace`), none without; every
+  how often it goes at each level (`lod.Paces` through `world.Plugin.Pace`), none without, the
+  rungs counted from the finest level any observer sees (the user's word, 2026-11-04: time runs
+  at full pace where the viewer looks most closely, whatever that level is; the coarser sectors
+  tick slower; a world no camera observes ticks at full pace, the aggregates its saving); every
   drawn kind has a version a level (`Slot.At`, `Nothing`; a blob of its mean colour derived at
   L2, that colour summed into the ground at L3 where a ground reads it,
-  `world.Plugin.Aggregates`) after the table of words in `lod/doc.go`. Nothing measures a distance or a ring of its
-  own and nothing shifts the level for itself: the topography's care rings went that way.
+  `world.Plugin.Aggregates`) after the table of words in `lod/doc.go`. Nothing measures a
+  distance or a ring of its own and nothing shifts the level for itself: the topography's care
+  rings went that way.
+  **Behaviour keeps to the ladder too** (the user's word, 2026-11-04): below L2 a unit walks
+  cells with the occupancy; from L2 it walks the same refined route the HPA* hierarchy gives, out
+  of the occupancy, the queue and the collision (`sector.Abstract`), never a straight line from
+  gate to gate, and an aggregate (`world.Aggregate`, a `Field` by sector)
+  is its parts at L0–L1 and itself alone from L2, the game's rules to `Unfold`, `Fold`,
+  `Folding` and `Met` saying what each becomes. L2 is the thermodynamics, L0 the dynamics: a
+  descent realises the coarse state in fine terms as the fine processes would have run it (the
+  cell at the elapsed share of the leg's refined route; the parts from `lod.Seed` and the
+  aggregate's state), an ascent sums the fine into the coarse, both deterministic from the same
+  state and seed; what the coarse level does not model, the descent does not invent.
 - **Never make a unit see the others ahead**: it senses nothing of them and learns of them by
   striking (navigation); its order may be told by the group's plan (a field, a column's place
   and pace). Lanes were tried and dropped.
@@ -303,11 +318,13 @@ Decisions the user has made; they are not up for revisiting in passing.
   never working light out of its own.
 - **What is drawn over what is Z's alone**, never a layer, the order of adding or the order a
   plugin registers in: every piece of the world lies at a height (`render.At`; what lies on a
-  surface at a small lift over it — a route's goal, a cell held, a bridge in hand — a figure at
-  `world.FigureLift`, an entity's box at its base), the depth buffer deciding; the opaque ground
-  first; the marks over the world at fixed levels (`render.OnTop(level)`: the selection's
-  outline, then its box, the cameras' layers over them), the scroll zones on the glass over
-  every picture; a Direct asks where it draws (`Frame.DrawOpaque`, `DrawAt`, `ReadGround`).
+  surface at a small lift over it — a cell held, a bridge in hand, a field's piece at
+  `look.PieceLift` under every figure — a figure at `world.FigureLift`, an entity's box at its
+  base), the depth buffer deciding; the opaque ground first; the marks over the world at fixed
+  levels (`render.OnTop(level)`: a unit's route and its goal, the selection's outline, then its
+  box, the cameras' layers over them; the user's word, 2026-11-04: a mark for the player is never
+  hidden by a canopy or a wall), the scroll zones on the glass over every picture; a Direct asks
+  where it draws (`Frame.DrawOpaque`, `DrawAt`, `ReadGround`).
 - **A board stands in a world with heights** (`world.Config.Heights`), and so do the topography
   and the atmosphere: each panics in a flat one. A flat map is a board without relief; a side
   view (motion/platformer) is a world with heights, gravity pulling along Y, Z its depth. A

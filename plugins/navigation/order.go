@@ -24,6 +24,7 @@ type (
 	Settle    = order.Settle
 	Stop      = order.Stop
 	Trail     = order.Trail
+	Inherit   = order.Inherit
 	Touch     = order.Touch
 	Blocked   = order.Blocked
 	Arrived   = order.Arrived

@@ -5,11 +5,13 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/aabbworld/plane"
 	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/lod"
+	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
 	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
@@ -28,6 +30,9 @@ type renderer struct {
 	lies        goke.OptComp[Lie]
 	active      goke.OptComp[cgoke.Active]
 	keen        goke.OptComp[sector.Keen]
+	asleep      goke.OptComp[sector.L4]
+	field       goke.OptComp[Field]
+	unfolded    goke.OptComp[Unfolded]
 	rules       *Rules
 	layers      [][]render.Appearance
 	shown       []bool
@@ -35,6 +40,15 @@ type renderer struct {
 	phased      map[render.SpriteID]phase // a material's effect, for how far it has run
 	views       func() map[camera.Camera]*view.View
 	seeing      []*view.View // the views published
+	// the stretches unfolded, by whole and sector those Publish found, and whether it has yet
+	stretches  *goke.Query
+	stretch    goke.Comp[stretch]
+	unfoldedIn []place
+	found      bool
+	// the sectors a box covers, nil in a world of none; a field's parts, and those recorded
+	covers func(box geom.AABB, dst []sector.Part) []sector.Part
+	parts  []sector.Part
+	pieces []plane.AABB
 	// by view published, what it keeps of each level's entities; thinned, whether any thins
 	keeps   []keeping
 	thinned bool
@@ -96,7 +110,8 @@ func (*renderer) Overlies() {}
 // Compose hands f every entity published in sight of cam in its kind's look at the level cam sees
 // it at, as the world's Look lays it, lit as the Lighting says, in white light without one: the
 // Look knows the wind, the world its entities. What it sees at L2 it draws itself, a point each;
-// what cam rides in, fastened Inside, it leaves out but for its shadow.
+// a field over each sector of it, at that sector's level, casting nothing; what cam rides in,
+// fastened Inside, it leaves out but for its shadow.
 func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	s.aggregate.upload()
 	s.points.Reset()
@@ -129,29 +144,40 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	lowest, low, any, pointed := render.Nearest, float32(0), false, false
 	for k := range figs.all {
 		e := &figs.all[k]
-		if v == nil || !v.Contains(e.id) {
+		if v == nil {
 			continue
 		}
-		box, z := e.box, e.z
+		box, z, wide := e.box, e.z, e.piece
+		var level lod.Level
+		if !wide {
+			if !v.Contains(e.id) {
+				continue
+			}
+			level = s.level(v, box.AABB, Position{AABB: box}.Center())
+		} else {
+			var seen bool
+			if level, seen = s.pieceAt(v, box); !seen {
+				continue
+			}
+		}
 		mid := Position{AABB: box}.Center()
-		level := s.level(v, box.AABB, mid)
 		layers := figs.layers[e.from : e.from+int32(e.n)]
 		if !levels.anyAt(layers, level) {
 			continue
 		}
-		if id, ok := levels.at(layers[0].SpriteID, level); ok && level != lod.L2 {
+		if id, ok := levels.at(layers[0].SpriteID, level); ok && level != lod.L2 && !wide {
 			f.Cast(box.AABB, z.Altitude, z.Height, e.shadow, s.atlas, id)
 		}
 		if inside && e.id == rider {
 			continue
 		}
 		if !any || sorts || z.Altitude < low {
-			if at := f.Lifted(mid.X, mid.Y, z.Altitude, FigureLift); !any || at.Before(lowest) {
+			if at := f.Lifted(mid.X, mid.Y, z.Altitude, lifted(e)); !any || at.Before(lowest) {
 				lowest, low, any = at, z.Altitude, true
 			}
 		}
 		if level == lod.L2 {
-			pointed = s.point(f, cam, e, mid, layers, levels, v.Fog(mid.X, mid.Y)) || pointed
+			pointed = s.point(f, cam, e, box, layers, levels, v.Fog(mid.X, mid.Y)) || pointed
 			continue
 		}
 		// coarsely: no edges, flat where it would stand
@@ -168,21 +194,22 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			a := l.Appearance
 			a.SpriteID = id
 			if m, ok := s.shaded[id]; ok {
-				s.material(f, cam, e, m, l.progress)
+				s.material(f, cam, e, box, m, l.progress)
 				continue
 			}
-			if lies != nil && s.lying[id] && e.lie > 0 {
+			if lies != nil && s.lying[id] && e.lie > 0 && !wide {
 				lain := figs.lies[e.lie-1]
 				edge, ok := s.edges[id]
 				lain.Edged = lain.Edged && ok && !coarse
 				lies.Lay(f, cam, box, e.dir, lain, z, s.atlas, a, edge, lit)
 				continue
 			}
-			if lies != nil && s.lying[id] {
+			// a field's piece lies on its ground, under what stands there
+			if lies != nil && (s.lying[id] || wide) {
 				lies.Lie(f, cam, box, z, s.atlas, a, lit)
 				continue
 			}
-			if uprights != nil && s.standing[id] && !coarse {
+			if uprights != nil && s.standing[id] && !coarse && !wide {
 				uprights.Upright(f, cam, box, z, s.atlas, a, lit)
 				continue
 			}
@@ -197,6 +224,15 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	}
 }
 
+// lifted is how far over its Altitude e lies among what is drawn back to front: a field's piece
+// under the figures
+func lifted(e *figure) float32 {
+	if e.piece {
+		return ilook.PieceLift
+	}
+	return FigureLift
+}
+
 // ridden is the entity cam is fastened Inside, whose figure an eye in it does not see
 func ridden(cam camera.Camera) (uid.UID64, bool) {
 	if c, ok := cam.(camera.Fastenable); ok {
@@ -207,18 +243,19 @@ func ridden(cam camera.Camera) (uid.UID64, bool) {
 	return 0, false
 }
 
-// point draws e at L2 as one point of the first of its layers drawn there, fogged by fog, a
-// material among them as it is; no Look, no light of its own and no shadow. It reports whether
-// it drew a point.
-func (s *renderer) point(f *render.Frame, cam camera.Camera, e *figure, mid geom.Vec,
+// point draws e at L2 over box as one point of the first of its layers drawn there, fogged by
+// fog, a material among them as it is; no Look, no light of its own and no shadow. It reports
+// whether it drew a point.
+func (s *renderer) point(f *render.Frame, cam camera.Camera, e *figure, box plane.AABB,
 	layers []layer, levels byLevel, fog float32) bool {
 	pointed := false
+	mid := Position{AABB: box}.Center()
 	for _, l := range layers {
 		id, ok := levels.at(l.SpriteID, lod.L2)
 		switch {
 		case !ok:
 		case int(id) < len(s.materials) && s.materials[id]:
-			s.material(f, cam, e, s.shaded[id], l.progress)
+			s.material(f, cam, e, box, s.shaded[id], l.progress)
 		case !pointed:
 			pointed = true
 			lit := s.pointLit(f, e.shadow.Take)
@@ -226,9 +263,14 @@ func (s *renderer) point(f *render.Frame, cam camera.Camera, e *figure, mid geom
 			s.points.Take(lit.Takes)
 			s.points.Direct(lit.Direct)
 			z := e.z
-			// seen at its middle, lying for the depth where a figure's sprite would
-			s.points.Point(s.atlas, id, mid.X, mid.Y, e.box.Size.X, e.box.Size.Y,
-				z.Altitude+z.Height/2, z.Top()+FigureLift, lit.Light)
+			// seen at its middle, lying for the depth where a figure's sprite would; a field's
+			// piece on its ground, under every figure
+			seen, deep := z.Altitude+z.Height/2, z.Top()+FigureLift
+			if e.piece {
+				seen, deep = z.Altitude, z.Altitude+ilook.PieceLift
+			}
+			s.points.Point(s.atlas, id, mid.X, mid.Y, box.Size.X, box.Size.Y, seen, deep,
+				lit.Light)
 		}
 	}
 	return pointed
@@ -291,9 +333,11 @@ func (s *renderer) level(v *view.View, box geom.AABB, mid geom.Vec) lod.Level {
 	if level != lod.L4 {
 		return level
 	}
-	if f := v.Fogging(); f[3] > 0 && f32.Hypot(apart(mid.X, f[0], w, wx),
-		apart(mid.Y, f[1], h, wy)) > f[3] {
-		return level
+	if f := v.Fogging(); f[3] > 0 {
+		dx, dy := apart(mid.X, f[0], w, wx), apart(mid.Y, f[1], h, wy)
+		if f32.Hypot(dx, dy) > f[3] {
+			return level
+		}
 	}
 	for _, x := range [2]float32{box.TopLeft.X, box.BottomRight.X} {
 		for _, y := range [2]float32{box.TopLeft.Y, box.BottomRight.Y} {
@@ -322,6 +366,41 @@ func held(x, lo, hi, size float32, wraps bool) float32 {
 		at += size
 	}
 	return at
+}
+
+// fieldBox is the box of size round own's middle
+func fieldBox(own plane.AABB, size geom.Vec) plane.AABB {
+	c := Position{AABB: own}.Center()
+	return plane.NewAABB(geom.NewVec(c.X-size.X/2, c.Y-size.Y/2), size.X, size.Y)
+}
+
+// meets reports whether box meets v's bounds, round an axis of the world that wraps
+func (s *renderer) meets(v *view.View, box geom.AABB) bool {
+	if !v.Culled {
+		return true
+	}
+	b, sp := v.Bounds, s.space
+	return across(b.TopLeft.X, b.BottomRight.X, box.TopLeft.X, box.BottomRight.X,
+		float32(sp.Width), sp.Edges.WrapsX()) &&
+		across(b.TopLeft.Y, b.BottomRight.Y, box.TopLeft.Y, box.BottomRight.Y,
+			float32(sp.Height), sp.Edges.WrapsY())
+}
+
+// across reports whether [a0, a1] and [b0, b1] overlap along an axis, round size where it wraps
+func across(a0, a1, b0, b1, size float32, wraps bool) bool {
+	switch {
+	case !wraps || size <= 0:
+		return a0 < b1 && b0 < a1
+	case a1-a0 >= size || b1-b0 >= size:
+		return true
+	}
+	// the copy of b beginning within a world past a0
+	from := f32.Mod(b0-a0, size)
+	if from < 0 {
+		from += size
+	}
+	from += a0
+	return from < a1 || from+(b1-b0)-size > a0
 }
 
 // apart is how far a lies from b, the shorter way round an axis wrapping round size
@@ -355,13 +434,12 @@ func (s *renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 // the material's inputs: Custom the box's middle, half its side and its heading in radians,
 // Red how fast it moves in its own lengths a second up to 1, the fraction how far the effect it
 // is under has run
-func (s *renderer) material(
-	f *render.Frame, cam camera.Camera, e *figure, m render.MaterialID, progress float32,
-) {
-	x0, y0 := e.box.TopLeft.X, e.box.TopLeft.Y
-	x1, y1 := e.box.BottomRight.X, e.box.BottomRight.Y
-	mid := Position{AABB: e.box}.Center()
-	at := f.Lifted(mid.X, mid.Y, e.z.Altitude, FigureLift)
+func (s *renderer) material(f *render.Frame, cam camera.Camera, e *figure, box plane.AABB,
+	m render.MaterialID, progress float32) {
+	x0, y0 := box.TopLeft.X, box.TopLeft.Y
+	x1, y1 := box.BottomRight.X, box.BottomRight.Y
+	mid := Position{AABB: box}.Center()
+	at := f.Lifted(mid.X, mid.Y, e.z.Altitude, lifted(e))
 	angle := float32(0)
 	if e.dir != (geom.Vec{}) {
 		angle = angleOf(e.dir) * math.Pi / 180

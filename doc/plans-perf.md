@@ -2103,11 +2103,17 @@ encją z regułami ceremony, składniki tylko na L0–L1 i tam jedyna prawda, ag
 od L2, prawda na agregat nie na sektor, agregaty punktowe i polowe, interakcja rozwija grubszą
 stronę (`Keen` celu L1), `Paces` osią systemu, nic z gry w ceremony. Założenia planu przyjęte z
 zatwierdzeniem: od L2 grunt jest kształtem (kolizja nie odpycha od gruntu w chunkach `L2`/`L3`,
-udział planszy nigdy nie odmawia), hpastar dostaje `Search.Abstract`. Pierwsze założenie jest w
-rewizji (2026-11-04, uwaga użytkownika: w widoku z boku podłoga to komórki lite trzymane polem
-kolizji, a grawitacja w poprzek biegnie na L2, więc bez pola bohater spadłby pod planszę;
-propozycja: pole działa na każdym poziomie, omija je ciało ze znakiem drogi abstrakcyjnej w
-`unit.States`, kładzionym przez traffic na czas odcinka; do rozstrzygnięcia przed startem `b`).
+udział planszy nigdy nie odmawia), hpastar dostaje `Search.Abstract`. **Pierwsze założenie
+odwrócone 2026-11-04** (uwaga użytkownika: w widoku z boku podłoga to komórki lite trzymane
+polem kolizji, a grawitacja w poprzek biegnie na L2, więc bez pola bohater spadłby pod planszę):
+nie po poziomie chunka, lecz po ciele. Kolizja działa jak dziś dla wszystkiego; z kolizji wypada
+tylko ciało ze znakiem drogi abstrakcyjnej `sector.Abstract{}` (zerowy komponent świata obok
+`sector.Keen`, zapisywany; nie `unit.States`, bo plansza importuje kolizję), kładziony przez
+traffic na czas odcinka abstrakcyjnego i zdejmowany przy zejściu do L1 albo u celu: kolizja
+wyklucza je z zapytania jak śpiących na L4 (ani ściany, ani ciała go nie pchają, ono nic nie
+pcha), plansza daje mu udział tempa 1. Spotkanie dwu ciał abstrakcyjnych to moment świata
+`world.Met{A, B}` w części 2 (odbiorca: reguły gry, `Keen{L1}`). Cały etap jednym PR, v0.20.0
+(decyzja użytkownika 2026-11-04).
 
 **Preludium** (`feat/aggregates` od `main` po `g`): hpastar `feat/abstract`: `(*Search[T])
 Abstract(from, to T, dst []T, costs []float64) (int, bool)` (po `q.path` stany poziomu 1 na
@@ -2128,9 +2134,10 @@ preambułą `Climb`, `From` podłogą L0–L1, para za bliska jednym odcinkiem z
 `Finder.Snap` (`breadthFirst` 64, bez trasy) na dopuszczoną komórkę, `space.Move`, `Enter`,
 świeży ask (odtwarza prefiks: ta sama hierarchia, te same remisy), bez wolnej → `Lost`; wejście
 na L2 leniwe (kawałek `Path` do końca); grupy na L2+ jako jednostki (`party` false, `Place 0`,
-bez `Trail`); heksy/bok 16: poziom z własnego znacznika, L2 → poziom 1; grunt kształtem od L2 w
-kolizji (`solidField` pomijany po znaczniku chunka) i planszy (`share` 1 gdzie `PaceOf`
-odmawia). Testy przez rig `newNavWorldIn` z sektorami i `observers`: ruch po wejściach bez
+bez `Trail`); heksy/bok 16: poziom z własnego znacznika, L2 → poziom 1; znak drogi
+abstrakcyjnej `sector.Abstract` kładziony w `headAbstract`, zdejmowany przy snapie, u celu i gdy
+rozkaz ginie; kolizja `Exclude[sector.Abstract]` w zapytaniu ciał (jak `Exclude[sector.L4]`),
+plansza `share` 1 dla ciała ze znakiem. Testy przez rig `newNavWorldIn` z sektorami i `observers`: ruch po wejściach bez
 `Searches`, `Leg`, `Enter`; czas skoku; snap przy zejściu; zwolnienie `Leg` przy wejściu; ask
 czeka na hierarchię; odpowiedzi rozdzielone; grupa jako jednostki; kolizja i plansza po
 znaczniku; `routes.golden` nietknięte. Benche: `Navigation_Tick/abstract,1000`,
@@ -2163,6 +2170,94 @@ zachowania), skille navigation/world/collision/board/`gram-perf-navigation`/`gra
 tras abstrakcyjnych, ponowne sprawdzanie tras abstrakcyjnych po zmianie przejezdności, pola i
 szyki na L2+, chmury i cienie po poziomie, przemarkowanie rozłożone, rozmycie granic, selekcja a
 śpiący.
+
+## Agregaty: wynik (2026-11-04, gałąź `feat/aggregates`, baza `aa9c5ce0` v0.19.1, hpastar v1.5.0)
+
+Wykonanie: hpastar `Search.Abstract` agentem na `feat/abstract` (PR #8, scalone, tag v1.5.0 na
+słowo użytkownika); preludium agentem w klonie (`ac1af1de`: `sector.Abstract`, `Read.LevelAt`,
+`Member.Level`, `order.Abstract`, `Counts`); części agentami w worktree'ach, scalane `--no-ff`
+w kolejności: `b/navigation` (`5dbcae9e`, `d3c1bb5d`, `bb03f035`; poprawka zejścia `9c2fc266`
+na słowo użytkownika: komórka w udziale kosztu doprecyzowanej trasy odcinka, nie rzut prostej),
+`b/contract` (`27eb34a4`, `da5bdf23`, `0a4acb16`), `b/field` (`5a6bd41c`, `e476d12a`),
+`b/seams` (`d2864e5f`: `Keen{L1}` na agregacie wskazanym przez `To`, `Inherit`), `b/fieldlook`
+(`5fe010a8`, `11490237`, `88e77a73`), `b/demo` (`d9708a14`, `e11beeff`, `5b9c0401`), runda
+poprawek `b/fixes` po odrzuceniu dema przez użytkownika (`2f0e74a6`, `c1d94ec3`, `b0b54cf4`,
+`f7a2fe60`, `8dfd7ab0`, `9ac30fe4`, `d8c9d555`, `ecf75820`, `df2143ae`), `b/publish` (koszt pól
+zdjęty ze zwykłej ścieżki publikacji). Sekwencja zielona z SIMD, 25 dem po 5 s zdrowe.
+
+Decyzje w trakcie (użytkownik): nie po poziomie chunka, lecz po ciele (`sector.Abstract`);
+jeden PR; zejście na trasę doprecyzowaną („L2 to termodynamika, L0 dynamika”: zejście realizuje
+stan gruby w drobnym, wejście sumuje drobny w gruby; reguła LOD w `CLAUDE.md`); rozwinięty
+agregat niewidoczny i stojący, niezależnie od poziomu obrazu; spotkanie na L2 bez `Keen` (bitwa
+ścierania), atak rozkazem rozwija przez `Keen` celu; minimapa w świecie ograniczonym trzymana w
+jego brzegach.
+
+Odstępstwa od planu, przyjęte: `Search.Abstract` pisze do buforów wołającego i daje `(0, true)`
+dla końców zbyt bliskich (jeden prosty odcinek); `Member.Level` z własnych znaczników przez
+`bodies.Levels`; pierwsza trasa abstrakcyjna przez zwykły ask po poziomie i klasie (jednostki
+bez klasy zostają na komórkach); ciało ze znakiem nie wypada z przestrzeni (zniknęłoby z wzroku i
+selekcji), lecz dostaje puste kontakty (`still()`); `Inherit{From ceremony.Whom}` (encja 0 jest
+prawdziwa), zero = własna całość; `world.SpawnPart{Entry, At}` i moment `Folding` (bez nich
+reguły zwijania nie istnieją); `world.Field{Size}` konieczny (pudło encji nie przekracza
+`Entities.MaxSize`, sektor jest większy; armia na granicy sektorów nie jest polem); odcinki pola
+jako encje świata `stretch` per (agregat, sektor), zapisywane, temat momentu `Unfold`; pole
+rysowane po kawałkach sektorów (każdy na poziomie swojego sektora; nic nad sektorem rozwiniętym
+ani zrzucającym składniki); `world.Unfolded`; `occupancy.PlaceSystem` stawia składniki na
+dopuszczalnych komórkach; `world.Keen`/`Calm` dla reguł; `Query.Seek` goke ignoruje `Exclude`
+(dwa miejsca czytają kolumnę opcjonalną). Szarża żołnierzy w demie planem co 1,5 s, klawisz H;
+szarża gaśnie 20 s po ostatnim ciosie, bo rozwinięty agregat nie może się zwinąć, dopóki rozkazy
+w niego celują (otwarte: `Fold` z chwilą utraty ostatniego składnika albo `MoveTo` w najbliższego
+z grupy).
+
+Sprawdzenia deterministyczne (części i runda poprawek, sondy): topografia oddalona do L2
+(212 sektorów): 7 jednostek po bramkach, `Snaps 0`, zejście po zbliżeniu na komórki trasy 1–8
+pól od rzutu prostej, po reliefie, `Searches` 7 → 15 (doprecyzowania); forest-army: marsz
+`abs 2/16`, rozwinięcie w 12 żołnierzy bez snapu i bez „fell into” (przed rundą 4–5 na scenę),
+zwinięcie w centroidzie, ścieranie na L2 12/8 → 4/0 w 9 s, szarża przy kamerze daleko 12 → 4 u
+obrońcy, zapis i odczyt w obu stanach; zrzut przy przesunięciu poziomu 1: baneru nie ma między
+żołnierzami; róg planszy: okrąg minimapy pełny.
+
+Pomiar (integrator, baza `main` v0.19.1 na zmianę z drzewem, 2 rundy × `-count=1`, ~2,5 min):
+
+| Bench | Baza | Drzewo | Zmiana |
+|:---|---:|---:|---:|
+| `Navigation_Tick/open,1000` | 2,35 ms | 2,39 ms | +1,9% |
+| `Navigation_Tick/abstract,1000` | — | 0,63 ms | nowy (tryb daleki po trasie doprecyzowanej; pomiar końcowy) |
+| `Navigation_Tick/crowded,1000` / `grouped` / `column` | 7,62 / 4,60 / 2,38 ms | 7,69 / 4,64 / 2,37 ms | +1,0 / +0,8 / −0,3% |
+| `Routing_Long` / `Routing_Abstract` (sanity części, 200 ms) | 3,8 ms | 1,9 ms | bez szukania |
+| `Collision_Tick` (6 rungów) | | | −0,2…+1,7% |
+| `Board_Altitude` (6 rungów) | | | −0,1…+1,6% |
+| `World_Tick` 1000 / 5000 | 8,70 / 35,5 µs | 8,87 / 36,4 µs | +1,9 / +2,5% |
+| `World_Publish/49 of 5000` | 9,2 µs | 12,4 µs, po `b/publish` 8,8 µs | −3,8% (`seenAny` znów inline, bez rozlewu) |
+| `World_Publish/5000 of 5000` | 61,5 µs | 62,0 µs | +0,9% |
+
+Drugie podejście po przeglądzie dema przez użytkownika (2026-11-04, wieczór): (a) baner armii
+na L2 klatkował, bo motion szedł co 4 ticki; użytkownik: czas ma biec normalnie tam, gdzie widz
+patrzy najbliżej, choćby to był L2, a rzadsze ticki należą się sektorom dalszym; wobec stałych
+okresów goke (wypiekanych na archetyp) tempo dostało własne znaczniki `sector.Far1..Far3`
+(poziom minus najdrobniejszy widziany przez obserwatorów, `Keen` nie liczy się, bez obserwatora
+podstawą jest `Unobserved`, więc serwer tyka pełnym krokiem, a oszczędność dają agregaty);
+`b/far` (`eb5ffdaa`, `8b637af5`; sonda: baner co klatkę o 0,70, wcześniej co 4 klatki o 2,78;
+`Sectors_Expanse/banded` bez zmian). (b) Cel i trasa armii wysłanej w las niewidoczne, a cięciwy
+od bramki do bramki odrzucone: na L2 jednostka idzie tą samą trasą doprecyzowaną co na L0 w
+trybie dalekim bez zajętości, kolejki, szyku i kolizji, z prędkością z wyceny plannera na krok;
+zejście zakotwicza trasę w komórce pod jednostką, snap tylko poza nią; `order.Abstract`,
+`Finder.Abstract`, `Along`, `Dropped`, `Routing_Abstract` odeszły, `Inherit` kopiuje `Path`;
+trasy i cele to znaki `OnTop` (reguła Z w `CLAUDE.md`); kawałek pola na `PieceLift 0,5`;
+`b/road` (`5c052212`, `02733c0d`; sonda topografii na L2: 1670 z 1680 ticków jednostek na
+komórkach trasy, zejście bez snapu; `abstract,1000` 0,93 → 0,54 ms w sanity, routing rozwija
+3× mniej węzłów). hpastar `Search.Abstract` zostaje w bibliotece nieużywane przez grama. Pomiar
+końcowy drzewa przeciw `main` (2 rundy × `-count=1`): `Navigation_Tick` rungi dotychczasowe
+−1…+1,7% mediany (crowded 100 +8,6% mediany przy +1,8% minimum: szum rungu 0,47 ms),
+`abstract,1000` 0,63 ms, `Sectors_Expanse/banded` −6,4% (znaczniki `Far`: encje przy kamerze bez
+znacznika tempa), `World_Publish` 49 −4,7%, 5000 +0,4%, `World_Tick` +0,1…+1,1%,
+`Collision_Tick` +1,0…+1,6%.
+
+Co zostało: pozycje roadmapy „Aggregates, what is left” (parametr poziomu hierarchii, czekanie
+na pierwszą budowę, prawy klik w encję jako `MoveTo{To}`, składnik stojący na planszy, `Fold` z
+utratą ostatniego składnika, `Stop` w trybie dalekim, przemarkowanie `Far` jednym ruchem
+archetypu), etap minimapy po drabinie (decyzja użytkownika: poziom kamery +1, figury najwyżej
+L2, grunt L3, rzadkie odświeżanie), etap `f` (koszt dalekiej figury).
 
 ## Daleka figura taniej: poziom w rekordzie, suma bez rozlewu, kafle bez alokacji (plan 2026-11-04, gałąź `perf/far-figures`, litera `f`, po etapie `b`)
 

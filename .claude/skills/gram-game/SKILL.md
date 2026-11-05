@@ -52,6 +52,16 @@ no world and a modal panel over the ticking world: `examples/start/scenes`.
   is L4: asleep and not drawn); the game's figures are 15× life on Madeira, so its thresholds
   are its own. A camera's Ctrl+=/− multiplies the Sight for itself. No `Bands`, no `Detail`,
   no care: what a level means is `lod/doc.go`'s table, what a system does at it the plugin's.
+- A kind-aggregate (2026-11-04; the model `plugins/world/wholes_test.go`, `field_test.go`,
+  `plugins/navigation/handover_test.go`, the demo board/forest-army): `Define` gives
+  `comp.Const(world.Aggregate{})`, a forest `world.Field{Size}` too; the parts' kind
+  `comp.Const(world.PartOf{})`. Its rules are to the world's moments: `Unfold` →
+  `SpawnPart{Entry: kind.EntryOf(part, row).Told(navigation.Inherit{}), At: offset}` per plot,
+  a plot gated by a word over `lod.Seed(ID, Sector*K+k)` and the aggregate's effects (a rule
+  computes nothing: K fixed offsets, one branch each); `Fold{Parts}` → `act.Self.Do(Inherit{})`
+  and the strength written back (effects hold sums, 8 an entity); `Folding` on a part → sum into
+  the whole (`act.Other`) and despawn; `Met` → the abstract fight. Its own look is blank at
+  L0–L1 (a clear sprite), `Slot.At(L2, …)` the sheet stretched over the field.
 - The arena holds handles and no state: the plugins in the order made, then, a blank line
   apart, the players, the game's resources (`*treasury`, a struct of exported fields given to
   the chain's `Keeps`, saved whole with the game), a telemetry count (`collision.ContactStats`)

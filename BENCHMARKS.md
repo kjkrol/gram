@@ -93,7 +93,9 @@ publishing sums a box's colour into the texels it covers instead of a record, ~9
 20-unit boxes over 16-unit texels (about five texels each; ~25 ns at one, Go spilling registers
 in the loop), and the drawing has nothing left; without a reader the record is written as before
 and skipped at the drawing (~15 ns). Against v0.18 the plain rungs publish +4–6% (the level and
-the hash read for every entity) and draw −5%.
+the hash read for every entity) and draw −5%. At v0.20.0 (the field aggregates' records, a
+piece a sector) the plain rungs stand: 49 in view −3.8%, 5,000 +0.9% against v0.19.1, once the
+fields' checks left the plain path (a `seenAny` that stopped inlining had cost the 49 rung 40%).
 
 ## Collision tick — `Benchmark_Collision_Tick`, `Benchmark_Collision_Swept`
 
@@ -342,6 +344,19 @@ crowd replans every tick it is blocked.
 | crowded | 1,000 | 7.66 ms | 2 / 28 KB |
 | grouped | 1,000 | 9.7 ms (`-cpu=1`) | 2 |
 | column | 1,000 | 2.8 ms (`-cpu=1`) | 0 |
+| abstract | 1,000 | 0.63 ms | 12 |
+
+`abstract` (v0.20.0) is the open scene in a world cut into sectors and observed by no camera, so
+it ticks at L2 (`Unobserved`, at full pace: the paces count from the finest level seen): every
+walker walks its refined route of cells in the far mode, out of the occupancy, the queue, the
+field and the collision, at the pace the planner's prices give each step. Against v0.19.1
+alternately (2 rounds × `-count=1`, `BENCHTIME=1s`): the older rungs within +2% (open 1,000
++1.9%, crowded 100 +2.1% of the median: the level read a chunk, the aim and the inherit checks a
+unit), `Collision_Tick` within +1.7%, `Board_Altitude` within +1.6%, `World_Tick` +2.5%,
+`Effects_Tick` within noise. The straight legs from entrance to entrance (hpastar's
+`Search.Abstract`) measured 0.93 ms on this rung before the user had the unit walk the road
+instead; the far mode along the refined route is cheaper still, the routing expanding a third of
+the nodes (the answers kept).
 
 `column` (v0.10.0) is the grouped scene sent by one `March` in a closed column (`ColumnOf(1,
 true, 1)`): the formation laid out every tick off the party's field, every walker paced behind

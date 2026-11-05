@@ -22,6 +22,24 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
 fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(0.0, 0.0, 0.0, 1.0); }
 `), []render.Uniform{{Name: "ViewProj", Size: 16}})
 
+// a canopy 20 over the middle of the level ground, its depth written, nothing drawn
+var canopy = render.NewMeshShaderWith("test canopy", []byte(`
+@vertex
+fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
+    var corners = array<vec2<f32>, 6>(
+        vec2<f32>(100.0, 80.0),
+        vec2<f32>(140.0, 80.0),
+        vec2<f32>(100.0, 120.0),
+        vec2<f32>(140.0, 80.0),
+        vec2<f32>(140.0, 120.0),
+        vec2<f32>(100.0, 120.0),
+    );
+    return U.ViewProj * vec4<f32>(corners[vid], 20.0, 1.0);
+}
+@fragment
+fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(0.0, 0.0, 0.0, 0.0); }
+`), []render.Uniform{{Name: "ViewProj", Size: 16}})
+
 func TestRoutes_LayAStretchOverTheGround(t *testing.T) {
 	gputest.Need(t)
 	cam := cameratest.NewFromSpace(256, 256, 0)
@@ -37,6 +55,12 @@ func TestRoutes_LayAStretchOverTheGround(t *testing.T) {
 		Uniforms:   map[string]any{"ViewProj": tr.M[:]},
 	})
 	screen.CopyDepth(ground, depth)
+	screen.DrawMesh(nil, canopy, &render.DrawMeshOptions{
+		Depth:      depth,
+		WriteDepth: true,
+		Vertices:   6,
+		Uniforms:   map[string]any{"ViewProj": tr.M[:]},
+	})
 	g := New()
 	flat := func(geom.Vec) float32 { return 0 }
 	g.Add(cam, geom.NewVec(40, 100), geom.NewVec(200, 100), flat, 32, 3, color.RGBA{R: 255, A: 255})
@@ -49,7 +73,8 @@ func TestRoutes_LayAStretchOverTheGround(t *testing.T) {
 	red := func(x, y int) byte { return pix[4*(y*256+x)] }
 	for _, x := range []int{60, 120, 190} {
 		if v := red(x, 100); v < 200 {
-			t.Errorf("on the stretch at (%d, 100) red is %d, want the line", x, v)
+			t.Errorf("on the stretch at (%d, 100) red is %d, want the line, over the canopy at "+
+				"120 too", x, v)
 		}
 	}
 	for _, p := range [][2]int{{120, 104}, {120, 96}, {20, 100}, {220, 100}} {

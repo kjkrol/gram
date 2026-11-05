@@ -1,6 +1,8 @@
 package board_test
 
 import (
+	"bytes"
+	"log"
 	"testing"
 	"time"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -23,8 +26,11 @@ import (
 type keptBoard struct {
 	g         grid.Grid
 	w         *world.Plugin
+	p         *board.Plugin
 	occupancy *cell.SingleOccupancy
 	walker    kind.Of[cell.ID]
+	part      kind.Of[cell.ID]
+	logged    bytes.Buffer
 	ecs       *goke.ECS
 	units     *goke.Query
 	base      goke.Comp[world.Base]
@@ -42,7 +48,9 @@ func newKeptBoard(t *testing.T, seeded ...[2]uint32) *keptBoard {
 		Heights:  true,
 	})
 	m := motion.NewPlugin(k.w)
-	p := board.NewPlugin(k.g, k.occupancy, k.w).WithMotion(m, cell.DefaultHiking)
+	p := board.NewPlugin(k.g, k.occupancy, k.w).WithMotion(m, cell.DefaultHiking).
+		WithLog(log.New(&k.logged, "", 0))
+	k.p = p
 	p.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	west, _ := grid.Direction(k.g, -1, 0)
 	east, _ := grid.Direction(k.g, 1, 0)
@@ -58,6 +66,9 @@ func newKeptBoard(t *testing.T, seeded ...[2]uint32) *keptBoard {
 		func(c cell.ID) geom.Vec { return k.g.CellCenter(c) })
 	units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
 	k.walker = units.Named("walker")
+	units.Define("part", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10},
+		comp.Const(world.PartOf{Whole: 1}))
+	k.part = units.Named("part")
 	for x := range uint32(3) {
 		k.w.Write().Seed(decks.Named("deck").Entry(k.g.At(x+1, 1)))
 	}
@@ -147,6 +158,38 @@ func TestOccupancy_HoldsTheCellOfAUnitSpawnedInTheGame(t *testing.T) {
 			t.Errorf("unit %d is At %v, the cell held by %v", id, at.Cell, k.holders(c))
 		}
 	})
+}
+
+func TestPlace_APartLaidWhereItCannotStandIsMovedOntoTheNearestCellTakingIt(t *testing.T) {
+	k := newKeptBoard(t)
+	wall := k.g.At(2, 0)
+	k.p.Write().Board().Set(wall, cell.Kind{Name: cell.Named("wall"), Pace: 1})
+	k.tick()
+	held := k.g.At(0, 2)
+	k.w.Write().Spawn(k.part.Entry(wall))
+	k.w.Write().Spawn(k.part.Entry(held))
+	k.w.Write().Spawn(k.part.Entry(held))
+	k.tick()
+	k.tick()
+	on := map[cell.ID]uid.UID64{}
+	k.each(func(id uid.UID64, b *world.Base, _ *world.Z, at *unit.At, _ *tag.Tags[unit.States]) {
+		c := k.g.CellCenter(at.Cell)
+		mid := b.Pos.Center()
+		if at.Cell == wall || on[at.Cell] != 0 || len(k.holders(at.Cell)) != 1 ||
+			k.g.Distance(at.Cell, wall) > 1.5 && k.g.Distance(at.Cell, held) > 1.5 ||
+			f32.Abs(c.X-mid.X) > 1 || f32.Abs(c.Y-mid.Y) > 1 {
+			t.Errorf("part %d at %v stands on cell %v held by %v, another part there %v; want "+
+				"it on the middle of a cell of its own by where it was laid, none the wall", id,
+				mid, at.Cell, k.holders(at.Cell), on[at.Cell])
+		}
+		on[at.Cell] = id
+	})
+	if len(on) != 3 {
+		t.Errorf("the parts stand on %v, want three cells", on)
+	}
+	if k.logged.Len() > 0 {
+		t.Errorf("logged %q, want none fallen", k.logged.String())
+	}
 }
 
 func TestOccupancy_FollowsAUnitMovedByNoneWhoKeepsItsCell(t *testing.T) {

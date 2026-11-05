@@ -44,6 +44,14 @@ func (everywhere) Ladder() lod.Ladder                   { return lod.Ladder{} }
 func pixelsAt(t *testing.T, cam camera.Camera, w, h uint32, edges aabbworld.Edges,
 	level lod.Level, a *Atlas, sprite render.SpriteID, boxes ...plane.AABB) func(x, y int) [4]byte {
 	t.Helper()
+	return pixelsOf(t, cam, w, h, edges, level, a, sprite, geom.Vec{}, boxes...)
+}
+
+// pixelsOf is pixelsAt of fields of size, where it is not zero
+func pixelsOf(t *testing.T, cam camera.Camera, w, h uint32, edges aabbworld.Edges,
+	level lod.Level, a *Atlas, sprite render.SpriteID, size geom.Vec,
+	boxes ...plane.AABB) func(x, y int) [4]byte {
+	t.Helper()
 	gputest.Need(t)
 	v := view.NewSeen(cam, everywhere{w: float32(w), h: float32(h), level: level})
 	look := ilook.NewFlat(float32(w), float32(h), edges.WrapsX(), edges.WrapsY())
@@ -57,15 +65,22 @@ func pixelsAt(t *testing.T, cam camera.Camera, w, h uint32, edges aabbworld.Edge
 	}
 	var base goke.Comp[Base]
 	var appearance goke.Comp[render.Appearance]
+	var field goke.Comp[Field]
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		var items []aabbworld.Item
 		f := si.NewFactory(&base, &appearance)
+		if size != (geom.Vec{}) {
+			f = si.NewFactory(&base, &appearance, &field)
+		}
 		f.Create(len(boxes))
 		for i := 0; f.Next(); {
 			for j, id := range f.Cursor.IDs {
 				base.Slice(&f.Cursor)[j] = Base{Pos: Position{AABB: boxes[i]}}
 				appearance.Slice(&f.Cursor)[j] = render.Appearance{SpriteID: sprite}
+				if size != (geom.Vec{}) {
+					field.Slice(&f.Cursor)[j] = Field{Size: size}
+				}
 				items = append(items, aabbworld.Item{ID: id, Box: boxes[i]})
 				i++
 			}

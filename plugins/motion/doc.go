@@ -8,7 +8,8 @@
 // takes it as it is made (collision, bullet, driving, navigation, gravity; a board's units,
 // board.Plugin.WithMotion); its [Plugin.RunPlan] is called right after the world's. Its
 // sub-package steering is how an entity is steered: a heading and a speed reached gradually.
-// Steering and movement go slowing at the world's levels (lod.Slowing).
+// Steering and movement go slowing with a sector's distance in levels from the finest any
+// observer sees (lod.Slowing): full pace where the viewer looks most closely.
 //
 // # Units and Drift
 //

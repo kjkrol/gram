@@ -35,14 +35,15 @@ type collisionSystem struct {
 	tickOf host.TickSource
 	pace   goke.Opt
 
-	walk      *goke.Query
-	base      goke.Comp[world.Base]
-	collider  goke.Comp[Collider]
-	physics   goke.OptComp[Physics]
-	walkSweep goke.OptComp[Sweep]
-	each      *host.Rules[Struck]
-	cols      *cgoke.Columns
-	walking   struct {
+	walk         *goke.Query
+	base         goke.Comp[world.Base]
+	collider     goke.Comp[Collider]
+	physics      goke.OptComp[Physics]
+	walkSweep    goke.OptComp[Sweep]
+	walkAbstract goke.OptComp[sector.Abstract]
+	each         *host.Rules[Struck]
+	cols         *cgoke.Columns
+	walking      struct {
 		ids       []uid.UID64
 		colliders []Collider
 	}
@@ -64,6 +65,7 @@ type collisionSystem struct {
 	lookupSweep    goke.OptComp[Sweep]
 	lookupDriven   goke.OptComp[steering.Driven]
 	lookupCourse   goke.OptComp[steering.Course]
+	lookupAbstract goke.OptComp[sector.Abstract]
 	lookupHot      bool
 
 	pair     pairSides
@@ -279,6 +281,7 @@ func (d *collisionSystem) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&d.base, &d.collider).Optional(&d.physics)
 	d.cols = cgoke.NewColumns(qb)
 	d.cols.Own(&d.walkSweep)
+	d.cols.Own(&d.walkAbstract)
 	d.each.Bind(d.cols)
 	if d.pace != nil {
 		qb.With(d.pace)
@@ -293,6 +296,7 @@ func (d *collisionSystem) Init(si *goke.SysInit) {
 		Optional(&d.lookupPhysics, &d.lookupLayers, &d.lookupZ, &d.lookupSweep, &d.lookupDriven).
 		Optional(&d.lookupCourse)
 	d.seekCols = cgoke.NewColumns(seek)
+	d.seekCols.Own(&d.lookupAbstract)
 	d.between.Bind(d.seekCols)
 	d.lookup = seek.Build()
 }
@@ -345,7 +349,8 @@ func (d *collisionSystem) mark() bool {
 	for d.walk.Next() {
 		cursor := d.walk.Cursor()
 		bases, colliders, physics := d.base.Slice(cursor), d.collider.Slice(cursor), d.physics.Slice(cursor)
-		if !d.walk.Due() {
+		// far off, or travelling the abstract graph, a box collides with nothing
+		if !d.walk.Due() || d.walkAbstract.Present(cursor) {
 			changed = d.still(bases, colliders) || changed
 			continue
 		}
@@ -476,8 +481,8 @@ func (d *collisionSystem) rest() {
 		}
 		a, tagsA, okA := d.side(p.a)
 		b, tagsB, okB := d.side(p.b)
-		if !okA || !okB || a.Sweep != nil || b.Sweep != nil || !a.Layers.Meets(b.Layers) ||
-			!touching(a.Base.Pos.AABB.AABB, b.Base.Pos.AABB.AABB) {
+		if !okA || !okB || a.Sweep != nil || b.Sweep != nil || a.Abstract || b.Abstract ||
+			!a.Layers.Meets(b.Layers) || !touching(a.Base.Pos.AABB.AABB, b.Base.Pos.AABB.AABB) {
 			continue
 		}
 		if d.heights && !a.Band.Meets(b.Band) {
@@ -542,6 +547,7 @@ type contactSide struct {
 	Sweep    *Sweep
 	Steered  bool
 	Course   *steering.Course
+	Abstract bool // travelling the abstract graph, it rests against no one
 }
 
 func (s contactSide) side() response.Side {
@@ -631,8 +637,9 @@ func (d *collisionSystem) side(id uid.UID64) (contactSide, host.Marks, bool) {
 		Layers: world.LayersOf(d.lookupLayers.At(cur)), Band: d.bandAt(cur),
 		// a hand's unit keeps its heading, the keys held or not; one under orders glances
 		// along a wall, as navigation needs to come round its end
-		Steered: d.lookupDriven.At(cur) != nil,
-		Course:  d.lookupCourse.At(cur),
+		Steered:  d.lookupDriven.At(cur) != nil,
+		Course:   d.lookupCourse.At(cur),
+		Abstract: d.lookupAbstract.Present(cur),
 	}
 	if s.Sweep = d.lookupSweep.At(cur); s.Sweep != nil {
 		s.Physics = nil

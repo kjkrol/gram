@@ -94,6 +94,9 @@ a window behind is not paced, and a fullscreen one is bound by the GPU.
   the template does, and guard a nil `*cgoke.Active`.
 - A panic in the probe surfaces as a gogpu render-thread nil dereference: the cause is the
   probe's line.
+- A probe that saves and loads (F5/F9, `eng.Save`/`Load`) must not register its system with
+  `ctx.RegSys` in Install (goke: "Load called after other components were already registered"):
+  register it in `ctx.Setup`, as board/forest-army's probe does (2026-11-04).
 - **A crowd's outcome is not reproducible by a seed**: the steps an Update replays follow real
   time, so a loaded machine changes what a crowd does. Judge a crowd change by several runs on a
   quiet machine, base and tree alike.

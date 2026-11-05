@@ -41,6 +41,17 @@ type Shot struct {
 	Range     float32
 	Shooter   uid.UID64
 	Owners    tag.Tags[owner.Family]
+	// aimed at a world.Aggregate
+	atWhole bool
+}
+
+// the sectors a shot keeps ticked while it flies: at L1 round one aimed at an aggregate, so a
+// fight unfolds it as the shot comes, else at L2
+func keenOf(r Shot) sector.Keen {
+	if r.atWhole {
+		return sector.Keen{Level: lod.L1}
+	}
+	return sector.Keen{Level: lod.L2}
 }
 
 // Flight is a shot in the air: where it is, which way and how far it goes, who shot it, how its
@@ -102,7 +113,7 @@ func (s *Shots) Define(name string, body Body, extra ...comp.Comp) {
 		}),
 		comp.Load(func(r Shot) world.Velocity { return world.Velocity{Dir: r.Dir} }),
 		comp.Const(body),
-		comp.Const(sector.Keen{Level: lod.L2}),
+		comp.Load(keenOf),
 		comp.Const(collision.Collider{}),
 		comp.Load(func(r Shot) collision.Sweep { return collision.Sweep{From: r.From, Ignore: r.Shooter, Ignoring: true} }),
 		comp.Load(func(r Shot) Flight {

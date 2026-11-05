@@ -39,7 +39,7 @@ type sampled struct {
 func (s sampled) At(p geom.Vec) float32 { return s.at(p) }
 func (s sampled) Step() float32         { return s.step }
 
-func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) {
+func TestPathRenderer_LaysTheRouteOverTheGroundInPiecesAsAMark(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd, brdW := board.NewBoard(grid)
 	brdW.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
@@ -51,21 +51,21 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 	})}
 	cam := isoCamera(128, 128, camera.Config{})
 	a, b := geom.NewVec(48, 48), geom.NewVec(112, 48)
-	drawn := func(r *Renderer) (pieces [][]render.Vertex, lies []render.At) {
+	drawn := func(r *Renderer) (pieces [][]render.Vertex) {
 		var f render.Frame
 		f.Reset(cam)
 		r.Compose(&f, cam) // reads the ground; nothing to draw without a space
 		r.line(a, b)
 		f.Each(func(at render.At, v []render.Vertex) {
-			if at.Top() {
-				t.Error("a route piece is a mark, want it lying on the ground")
+			if at != render.OnTop(routeLevel) {
+				t.Errorf("a route piece lies at %v, want a mark over the world", at)
 			}
-			pieces, lies = append(pieces, append([]render.Vertex(nil), v...)), append(lies, at)
+			pieces = append(pieces, append([]render.Vertex(nil), v...))
 		})
 		return
 	}
 	r := NewRenderer(brd, RouteStyle{}, 0).WithHeights(func() ground.Heights { return land })
-	pieces, lies := drawn(r)
+	pieces := drawn(r)
 	want := int(f32.Ceil(64 / land.Step()))
 	if len(pieces) != want {
 		t.Fatalf("%d pieces over 64 units with a step of %v, want %d", len(pieces), land.Step(), want)
@@ -79,13 +79,8 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 	if bx, by := cam.Project(112, 48, float32(land.At(b))); !near32(ex, bx) || !near32(ey, by) {
 		t.Errorf("the route ends at (%v, %v), want (%v, %v): on the ridge at its end", ex, ey, bx, by)
 	}
-	mid := geom.NewVec(112-32.0/2, 48)
-	if at, want := lies[len(lies)-1], float32(land.At(mid))+routeLift; at.Z() != want {
-		t.Errorf("the last piece lies at %v, want just over the ground under its middle, %v",
-			at.Z(), want)
-	}
 	flat := NewRenderer(brd, RouteStyle{}, 0)
-	pieces, _ = drawn(flat)
+	pieces = drawn(flat)
 	_, _, ex, ey = ends(pieces[0])
 	if bx, by := cam.Project(112, 48, 0); len(pieces) != 1 || !near32(ex, bx) || !near32(ey, by) {
 		t.Errorf("without heights %d pieces ending at (%v, %v), want one on the ground at 0, (%v, %v)", len(pieces), ex, ey, bx, by)
@@ -107,8 +102,8 @@ func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 		r.goal(geom.NewVec(10, 10), r.point(c, tc.spot, geom.Vec{}), 0)
 		var starts [][2]float32
 		f.Each(func(at render.At, v []render.Vertex) {
-			if at.Top() || at.Z() != goalLift {
-				t.Errorf("a goal's line lies at %v, want over the ground it stands on", at)
+			if at != render.OnTop(goalLevel) {
+				t.Errorf("a goal's line lies at %v, want a mark over the world", at)
 			}
 			x, y, _, _ := ends(v)
 			starts = append(starts, [2]float32{x, y})
@@ -156,6 +151,68 @@ func TestPathRenderer_OutlinesNoStepAside(t *testing.T) {
 		if n != tc.lines {
 			t.Errorf("giving way %v: %d lines, want %d: 4 an outline", tc.givingWay, n, tc.lines)
 		}
+	}
+}
+
+func TestPathRenderer_DrawsTheRoutesOnTheGPUAsAMarkUnderTheGoals(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(4, 4, 32)
+	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 128, Height: 128, BucketSize: 32})
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := tag.Tag[selection.Family](1)
+	land := sampled{step: 32, at: func(geom.Vec) float32 { return 0 }}
+	r := NewRenderer(g, RouteStyle{}, selected).WithHeights(func() ground.Heights { return land })
+	r.BindSpace(space)
+	r.ShowRoutes(true)
+	var base goke.Comp[world.Base]
+	var at goke.Comp[unit.At]
+	var orderComp goke.Comp[order.MoveOrder]
+	var marks goke.Comp[tag.Tags[selection.Family]]
+	ecs := goke.New()
+	ecs.Setup(
+		goke.SystemFn{OnInit: func(si *goke.SysInit) {
+			f := si.NewFactory(&base, &at, &orderComp, &marks)
+			f.Create(1)
+			for f.Next() {
+				c := g.At(0, 1)
+				box := plane.NewAABB(g.CellCenter(c), 10, 10)
+				base.Slice(&f.Cursor)[0].Pos = world.Position{AABB: box}
+				at.Slice(&f.Cursor)[0] = unit.At{Cell: c}
+				orderComp.Slice(&f.Cursor)[0] = order.MoveOrder{Target: g.At(3, 1)}
+				marks.Slice(&f.Cursor)[0] = tag.Tags[selection.Family](0).With(selected)
+			}
+		}},
+		goke.SystemFn{OnInit: r.Init},
+	)
+	cam := isoCamera(128, 128, camera.Config{})
+	r.Publish()
+	r.Swap()
+	var f render.Frame
+	f.Reset(cam)
+	r.Compose(&f, cam)
+	if r.gpu.Len() == 0 || !r.gpu.opts.Untested {
+		t.Fatalf("%d stretches on the GPU, untested %v; want the route there, drawn over "+
+			"whatever stands", r.gpu.Len(), r.gpu.opts.Untested)
+	}
+	var places []render.At
+	f.Places(func(p render.Pass, at render.At) {
+		if p == render.SeeThrough {
+			places = append(places, at)
+		}
+	})
+	route := render.OnTop(routeLevel)
+	if len(places) != 1 || places[0] != route {
+		t.Errorf("the routes drawn at %v, want once, a mark at %v", places, route)
+	}
+	goals := 0
+	f.Each(func(at render.At, _ []render.Vertex) {
+		if goals++; at != render.OnTop(goalLevel) || !route.Before(at) {
+			t.Errorf("a goal's line at %v, want a mark over the route's", at)
+		}
+	})
+	if goals != 4 {
+		t.Errorf("%d lines of the goal, want its outline's 4", goals)
 	}
 }
 

@@ -15,8 +15,8 @@
 // ground.Surfaces), follows the ground down a slope within its reach, flies off a deck's edge, by
 // a leap or a throw, and lands. Across X and Y (a platformer's side view, its Z the depth) a body
 // is borne by whatever collision found it touching against the pull, a wall bearing nothing.
-// Along Z a body falls slowing at the world's levels (lod.Slowing), across every step through L2
-// (lod.Contact), where collision runs.
+// Along Z a body falls slowing with its distance in levels from the finest any observer sees
+// (lod.Slowing), across every step within two levels of it (lod.Contact), where collision runs.
 //
 // # Commands and Landing
 //

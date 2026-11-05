@@ -210,7 +210,8 @@ func (g *groundView) Draw(t render.Target, _ camera.Camera, _ render.Uniforms) {
 	}
 }
 
-// marksView draws a dot for every entity round the minimap whose kind has a Mark, as published
+// marksView draws a dot for every entity round the minimap whose kind has a Mark, as published,
+// but an aggregate its parts stand for (world.Unfolded), whose parts are dotted for it
 type marksView struct {
 	m     *minimap
 	q     *goke.Query
@@ -222,6 +223,8 @@ type marksView struct {
 	drawn render.Buffered[dots]
 	due   time.Time
 	fresh bool // published since the last swap
+	// read off whoever q seeks: a Seek heeds no filter of a query's
+	unfolded goke.OptComp[world.Unfolded]
 }
 
 // dots are the marks round a minimap where they stand, where it looks and how far, and the ground
@@ -241,7 +244,7 @@ type dot struct {
 }
 
 func (v *marksView) Init(si *goke.SysInit) {
-	v.q = si.NewQueryBuilder(&v.base, &v.app).Build()
+	v.q = si.NewQueryBuilder(&v.base, &v.app).Optional(&v.unfolded).Build()
 }
 
 // publish takes the marks round the minimap once their time comes
@@ -272,7 +275,7 @@ func (v *marksView) publish(now time.Time, marked bool) {
 		}
 	})
 	for _, id := range v.ids {
-		if !v.q.Seek(id) {
+		if !v.q.Seek(id) || v.unfolded.Present(v.q.Cursor()) {
 			continue
 		}
 		cur := v.q.Cursor()

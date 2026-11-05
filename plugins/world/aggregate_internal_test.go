@@ -350,6 +350,53 @@ func TestAggregate_AddsABoxByTheShareOfEachTexelItCovers(t *testing.T) {
 	}
 }
 
+func TestAggregate_AddsAWideBoxAsWeighingEachTexelOnTheImage(t *testing.T) {
+	green := [4]uint8{40, 160, 60, 255}
+	for _, c := range []struct {
+		name  string
+		edges aabbworld.Edges
+		box   plane.AABB
+	}{
+		{"on texels", aabbworld.Edges(0), plane.NewAABB(geom.NewVec(96, 104), 200, 160)},
+		{"across tiles", aabbworld.Edges(0),
+			plane.NewAABB(geom.NewVec(430.3, 470.7), 333.3, 120.9)},
+		{"past a bounded world's corner", aabbworld.Edges(0),
+			plane.NewAABB(geom.NewVec(-50.5, -30.2), 200, 150)},
+		{"past its far corner", aabbworld.Edges(0),
+			plane.NewAABB(geom.NewVec(900.1, 900.6), 300, 300)},
+		{"across a torus's seams", aabbworld.Torus,
+			plane.NewAABB(geom.NewVec(900.1, 900.6), 300, 300)},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			cfg := Config{Space: SpaceCfg{Width: 1024, Height: 1000, Edges: c.edges},
+				LOD: lod.Ladder{Texel: 8}}
+			wide, weighed := newAggregate(cfg, 512), newAggregate(cfg, 512)
+			wide.begin()
+			wide.add(c.box, green)
+			wide.swap()
+			u0, v0 := c.box.TopLeft.X/8, c.box.TopLeft.Y/8
+			cv := cover{u0: u0, v0: v0, u1: u0 + c.box.Size.X/8, v1: v0 + c.box.Size.Y/8}
+			cv.x0, cv.nx = span(cv.u0, cv.u1)
+			cv.y0, cv.ny = span(cv.v0, cv.v1)
+			i0, i1 := inside(cv.x0, cv.nx, weighed.cols, weighed.wrapX)
+			j0, j1 := inside(cv.y0, cv.ny, weighed.rows, weighed.wrapY)
+			weighed.begin()
+			weighed.weighed(weighed.sums.Back(), &cv, i0, i1, j0, j1, green, 0)
+			weighed.swap()
+			if n := written(&wide); n == 0 || n != written(&weighed) {
+				t.Fatalf("%d texels written, want %d, some", n, written(&weighed))
+			}
+			for y := range wide.rows {
+				for x := range wide.cols {
+					if got, want := texel(&wide, x, y), texel(&weighed, x, y); got != want {
+						t.Fatalf("texel (%d, %d) is %v, want %v", x, y, got, want)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestAggregate_ThinsAtL3AsTheKeepSays(t *testing.T) {
 	k := newSummable()
 	ladder := atL3

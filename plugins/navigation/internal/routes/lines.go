@@ -18,8 +18,8 @@ var lining = render.NewMeshShaderWith("navigation routes", render.Files(shaders,
 	{Name: "Unproject", Size: 16}, {Name: "ViewSize", Size: 2}, {Name: "ViewAt", Size: 2},
 }).Instanced(4)
 
-// Lines are stretches of route gathered as the frame is composed and drawn on the GPU over the
-// ground the frame drew.
+// Lines are stretches of route gathered as the frame is composed and drawn on the GPU as a mark,
+// over the ground the frame drew and whatever stands on it.
 type Lines struct {
 	// four vec4s a stretch: its ends, its rectangle of the viewport, its colour, its width
 	stretches []float32
@@ -51,7 +51,7 @@ func (g *Lines) Reset() { g.stretches = g.stretches[:0] }
 // New is a Lines with no stretches yet.
 func New() *Lines {
 	g := &Lines{own: map[string][]float32{}}
-	g.opts = render.DrawMeshOptions{Vertices: 6, Uniforms: map[string]any{}}
+	g.opts = render.DrawMeshOptions{Vertices: 6, Uniforms: map[string]any{}, Untested: true}
 	return g
 }
 

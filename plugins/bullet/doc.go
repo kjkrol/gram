@@ -37,7 +37,8 @@
 //
 // A wrapping world is refused. Shots do not penetrate: the nearest contact ends the flight. A
 // landed shot touches nothing. A shot flies every step at every level of the world's sectors
-// but L4, keeping its sector and those round it at L2 at most (sector.Keen) till it rests.
+// but L4, keeping its sector and those round it at L2 at most (sector.Keen) till it rests, at L1
+// when aimed at an aggregate (world.Aggregate), so a fight unfolds it as the shot comes.
 //
 // # Figures
 //

@@ -71,12 +71,20 @@ type MoveOrder struct {
 	// Way is the way its route led it as the traffic last drove it, a unit vector; zero before it
 	// drove.
 	Way geom.Vec
+	// Pace is the share of its top speed the entity keeps walking far off (from L2) on the step of
+	// its Path from Paced[0] to Paced[1], as the planner prices it; zero, none read.
+	Pace  float32
+	Paced [2]cell.ID
 	// Face is the world point the entity turns towards once it has arrived; zero turns it nowhere.
 	Face geom.Vec
 	// Group is the MoveTo that gave the order, one number to every unit it sent; zero, none.
 	Group uint32
 	// Party is how many orders the MoveTo that gave this one sent; 1 for one alone.
 	Party uint16
+	// Aim is the aggregate (world.Aggregate) a goal of the order was named by (MoveTo.To), while
+	// Aimed: kept ticked at L1 as long as the order lasts.
+	Aim   uid.UID64
+	Aimed bool
 	// Formation is how the March that gave the order lays its group out, zero for none; Place is
 	// the unit's place in it, 1 the head and 0 none, AheadOf the member just ahead of it and Lag
 	// how far behind them it walks the way to the goal, in world units.
@@ -140,6 +148,29 @@ func Advance(m *MoveOrder) bool {
 	m.Path = Path{}
 	Found(m)
 	return true
+}
+
+// Inherited is the order a unit takes over from another's from: its goals, its route as far as
+// it came, its group and its aim; leg is the unit's own step in flight.
+func Inherited(from *MoveOrder, leg Leg) MoveOrder {
+	return MoveOrder{
+		Target:    from.Target,
+		Level:     from.Level,
+		Spot:      from.Spot,
+		At:        from.At,
+		Waypoints: from.Waypoints,
+		Queued:    from.Queued,
+		Path:      from.Path,
+		Leg:       leg,
+		Linger:    from.Linger,
+		GivingWay: from.GivingWay,
+		Face:      from.Face,
+		Group:     from.Group,
+		Party:     from.Party,
+		Aim:       from.Aim,
+		Aimed:     from.Aimed,
+		Formation: from.Formation,
+	}
 }
 
 // the wait after the first search in a row that found nothing, the second, the third and on

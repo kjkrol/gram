@@ -29,9 +29,12 @@ reguły, efekty, znaczniki) i planszę (grunt, wysokość, stanie).
 - Każda liczba świata to float32 (reguła w `CLAUDE.md`): `Base` o połowę mniejsze, kolizja i
   publikacja szybsze; wzrok płaci konwersje na swoich brzegach.
 - Supervisor sektorów biegnie raz na tick po zegarze: poziom na obserwatora ze skali
-  pokazywanej (`lod.Ladder`, histereza, stopniowanie), tick = minimum; systemy po `lod.Paces`,
-  encje L4 poza przestrzenią (`gram-plugins`, wpis `world`). Zoom z góry przez próg znakuje
-  wszystkie żywe encje naraz (~200 ns każda): koszt znany, nierozłożony.
+  pokazywanej (`lod.Ladder`, histereza, stopniowanie), tick = minimum; systemy po `lod.Paces`
+  liczonych od najdrobniejszego poziomu widzianego przez którykolwiek obserwator (znaczniki
+  `Far1..Far3` obok `L1..L4`, 2026-11-04: tam, gdzie widz patrzy najbliżej, czas biegnie pełnym
+  krokiem; świat bez obserwatora tyka pełnym krokiem, oszczędność dają agregaty), encje L4 poza
+  przestrzenią (`gram-plugins`, wpis `world`). Zoom z góry przez próg znakuje wszystkie żywe
+  encje naraz (~200 ns każda, teraz dwa ruchy archetypu na encję): koszt znany, nierozłożony.
 - Przebieg `standing` planszy pisze `Pace.Share` z `cell.PaceOf` ze stokiem do sąsiada w kierunku
   marszu; jego cena nad reliefem (`Map.Rise` i `exp` na jednostkę na krok) przyjęta jako cena
   strategii (`gram-perf-navigation`).

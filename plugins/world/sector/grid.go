@@ -50,6 +50,70 @@ func (g *Grid) Box(i int) geom.AABB {
 		geom.NewVec(min((c+1)*g.side, g.width), min((r+1)*g.side, g.height)))
 }
 
+// Part is a sector a rectangle covers and the part of the rectangle within it.
+type Part struct {
+	Sector int
+	Box    geom.AABB
+}
+
+// Cover appends to dst each sector box covers, once, with the part of box within it; where the
+// world wraps, box may run past its edges, its part across the seam given where that sector lies.
+func (g *Grid) Cover(box geom.AABB, dst []Part) []Part {
+	from := len(dst)
+	dst = g.axis(dst, box.TopLeft.X, box.BottomRight.X, g.cols, g.width, g.wrapX)
+	xs := len(dst)
+	dst = g.axis(dst, box.TopLeft.Y, box.BottomRight.Y, g.rows, g.height, g.wrapY)
+	ys := len(dst)
+	for j := xs; j < ys; j++ {
+		for i := from; i < xs; i++ {
+			x, y := dst[i].Box, dst[j].Box
+			dst = append(dst, Part{
+				Sector: dst[j].Sector*g.cols + dst[i].Sector,
+				Box: geom.NewAABB(geom.NewVec(x.TopLeft.X, y.TopLeft.X),
+					geom.NewVec(x.BottomRight.X, y.BottomRight.X)),
+			})
+		}
+	}
+	return dst[:from+copy(dst[from:], dst[ys:])]
+}
+
+// appends to dst the slots of an axis of n, size long, that [lo, hi) covers, each once, as a Part
+// of the slot whose box spans the stretch of the axis along X alone
+func (g *Grid) axis(dst []Part, lo, hi float32, n int, size float32, wraps bool) []Part {
+	switch {
+	case !wraps:
+		return g.slots(dst, max(lo, 0), min(hi, size), n, size)
+	case hi-lo >= size:
+		return g.slots(dst, 0, size, n, size)
+	}
+	shift := f32.Floor(lo/size) * size
+	lo, hi = lo-shift, hi-shift
+	if hi <= size {
+		return g.slots(dst, lo, hi, n, size)
+	}
+	// what runs past the seam ends short of lo: a slot holding both ends is one, whole
+	first := len(dst)
+	dst = g.slots(dst, 0, hi-size, n, size)
+	at := len(dst)
+	dst = g.slots(dst, lo, size, n, size)
+	if at > first && at < len(dst) && dst[at-1].Sector == dst[at].Sector {
+		dst[at-1].Box.BottomRight.X = dst[at].Box.BottomRight.X
+		dst = append(dst[:at], dst[at+1:]...)
+	}
+	return dst
+}
+
+func (g *Grid) slots(dst []Part, lo, hi float32, n int, size float32) []Part {
+	for k := int(lo / g.side); k < n && float32(k)*g.side < hi; k++ {
+		from, to := max(lo, float32(k)*g.side), min(hi, float32(k+1)*g.side, size)
+		if from < to {
+			dst = append(dst, Part{Sector: k,
+				Box: geom.NewAABB(geom.NewVec(from, 0), geom.NewVec(to, 0))})
+		}
+	}
+	return dst
+}
+
 // Neighbours calls each with every sector touching sector i by a side or a corner, once, across a
 // seam where the world wraps; one on the edge of a world that does not has fewer.
 func (g *Grid) Neighbours(i int, each func(j int)) {

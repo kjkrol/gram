@@ -46,14 +46,19 @@ type sectors struct {
 	unbanded bool
 	// the level every sector is ticked at with no observer, the ladder's Unobserved
 	unobserved lod.Level
+	// the finest level any observer sees a sector at, a Keen entity's none, and by the level
+	// ticked how many levels coarser than it that is, L4's none
+	finest lod.Level
+	far    [lod.Levels]uint8
 	// by level: L0's none
 	marks [lod.Levels]goke.CompID
-	// by level but L4, each its own column
-	queries [lod.L4]*goke.Query
-	bases   [lod.L4]goke.Comp[Base]
-	lookup  *goke.Query
-	base    goke.Comp[Base]
-	off     goke.OptComp[sector.L4]
+	// by how many levels coarser than the finest seen: none's none
+	fars [lod.L4]goke.CompID
+	// by level but L4
+	walks  [lod.L4]levelWalk
+	lookup *goke.Query
+	base   goke.Comp[Base]
+	off    goke.OptComp[sector.L4]
 	// those at L4 by the sector they sleep in, the space not holding them
 	sleep     [][]uid.UID64
 	sleepers  *goke.Query
@@ -95,15 +100,19 @@ func (s *sectors) Init(si *goke.SysInit) {
 	}
 	s.marks = [lod.Levels]goke.CompID{0, si.RegComp[sector.L1](), si.RegComp[sector.L2](),
 		si.RegComp[sector.L3](), si.RegComp[sector.L4]()}
+	s.fars = [lod.L4]goke.CompID{0, si.RegComp[sector.Far1](), si.RegComp[sector.Far2](),
+		si.RegComp[sector.Far3]()}
+	si.RegComp[sector.Abstract]()
 	for k := range lod.L4 {
-		qb := si.NewQueryBuilder(&s.bases[k])
+		w := &s.walks[k]
+		qb := si.NewQueryBuilder(&w.base).Optional(&w.far1, &w.far2, &w.far3)
 		if k == lod.L0 {
 			qb.Exclude(goke.Exclude[sector.L1](), goke.Exclude[sector.L2](),
 				goke.Exclude[sector.L3](), goke.Exclude[sector.L4]())
 		} else {
 			qb.Include(markOf(k))
 		}
-		s.queries[k] = qb.Build()
+		w.q = qb.Build()
 	}
 	s.lookup = si.NewQueryBuilder(&s.base).Optional(&s.off).Build()
 	s.sleepers = si.NewQueryBuilder(&s.sleepBase).Include(goke.Include[sector.L4]()).Build()
@@ -120,9 +129,38 @@ func markOf(level lod.Level) goke.Opt {
 	return goke.Include[sector.L3]()
 }
 
+// the entities carrying a level's mark, with the pace's mark of each chunk
+type levelWalk struct {
+	q    *goke.Query
+	base goke.Comp[Base]
+	far1 goke.OptComp[sector.Far1]
+	far2 goke.OptComp[sector.Far2]
+	far3 goke.OptComp[sector.Far3]
+}
+
+// how many levels coarser than the finest seen the chunk under cur is marked
+func (w *levelWalk) far(cur *goke.Cursor) uint8 {
+	switch {
+	case w.far1.Present(cur):
+		return 1
+	case w.far2.Present(cur):
+		return 2
+	case w.far3.Present(cur):
+		return 3
+	}
+	return 0
+}
+
+// what an entity carries of its sector: the level ticked there and how many levels coarser than
+// the finest seen that is
+type mark struct {
+	level lod.Level
+	far   uint8
+}
+
 // Update lays each sector at the fullest level an observer sees it at or a Keen entity keeps it
 // at and moves the marks: of the entities asleep in the sectors that came back from L4, then of
-// every entity awake whose sector's level is not the one it carries.
+// every entity awake whose sector's marks are not the ones it carries.
 func (s *sectors) Update(cb *goke.CmdBuf, _ time.Duration) {
 	if s.grid == nil {
 		return
@@ -147,6 +185,9 @@ func (s *sectors) Update(cb *goke.CmdBuf, _ time.Duration) {
 			}
 		}
 	}
+	for k := range lod.L4 {
+		s.far[k] = uint8(max(k, s.finest) - s.finest)
+	}
 	s.ids = s.ids[:0]
 	for _, i := range s.woke {
 		s.wake(i)
@@ -156,25 +197,32 @@ func (s *sectors) Update(cb *goke.CmdBuf, _ time.Duration) {
 		s.lookup.Seek(id)
 		c := s.base.At(s.lookup.Cursor()).Pos.Center()
 		at := s.grid.Of(c.X, c.Y)
-		s.move(cb, id, lod.L4, s.level[at], at)
+		s.move(cb, id, mark{level: lod.L4}, s.markOf(at), at)
 	}
 	clear(s.counts[:])
-	for k, q := range s.queries {
-		from := lod.Level(k)
-		for q.All(); q.Next(); {
-			cur := q.Cursor()
-			bases := s.bases[k].Slice(cur)
+	for k := range s.walks {
+		w := &s.walks[k]
+		for w.q.All(); w.q.Next(); {
+			cur := w.q.Cursor()
+			from := mark{lod.Level(k), w.far(cur)}
+			bases := w.base.Slice(cur)
 			for j, id := range cur.IDs {
 				c := bases[j].Pos.Center()
 				at := s.grid.Of(c.X, c.Y)
-				to := s.level[at]
+				to := s.markOf(at)
 				if to != from {
 					s.move(cb, id, from, to, at)
 				}
-				s.counts[to]++
+				s.counts[to.level]++
 			}
 		}
 	}
+}
+
+// the marks of the entities in sector i
+func (s *sectors) markOf(i int) mark {
+	level := s.level[i]
+	return mark{level, s.far[level]}
 }
 
 // the level each observer sees every sector at, held and graded
@@ -189,10 +237,16 @@ func (s *sectors) observe() {
 		s.graded = append(s.graded, make([]lod.Level, s.grid.Len()))
 	}
 	s.lifts = 0
+	s.finest = s.unobserved
+	if len(s.cams) > 0 {
+		s.finest = lod.L4
+	}
 	for j, cam := range s.cams {
 		s.take(j, cam)
 		s.hold(cam, s.raw[j])
-		s.lifts += s.grade(s.raw[j], s.graded[j])
+		lifts, finest := s.grade(s.raw[j], s.graded[j])
+		s.lifts += lifts
+		s.finest = min(s.finest, finest)
 	}
 }
 
@@ -234,8 +288,8 @@ func (s *sectors) hold(cam camera.Camera, row []lod.Level) {
 
 // has graded raw with no sector drawn more than a level coarser than one drawn beside it, each
 // level lifting the sectors round it in turn from the finest; one at L4 stays so and lifts none.
-// It is how many were lifted.
-func (s *sectors) grade(raw, graded []lod.Level) (lifts int) {
+// It is how many were lifted and the finest level graded.
+func (s *sectors) grade(raw, graded []lod.Level) (lifts int, finest lod.Level) {
 	copy(graded, raw)
 	for k := lod.L0; k+1 < lod.L4; k++ {
 		for i, l := range graded {
@@ -249,12 +303,14 @@ func (s *sectors) grade(raw, graded []lod.Level) (lifts int) {
 			})
 		}
 	}
+	finest = lod.L4
 	for i, l := range graded {
 		if l < raw[i] {
 			lifts++
 		}
+		finest = min(finest, l)
 	}
-	return lifts
+	return lifts, finest
 }
 
 // the fullest level each sector is kept at by the Keen entities in it and round it, those asleep
@@ -286,6 +342,34 @@ func (s *sectors) ticked(i int) lod.Level {
 		level = min(level, s.graded[j][i])
 	}
 	return level
+}
+
+// the level the sector holding (x, y) is ticked at; L0 without sectors or with the levels off
+func (s *sectors) levelAt(x, y float32) lod.Level { return s.levelOf(s.of(x, y)) }
+
+// the level sector i is ticked at; L0 without sectors or with the levels off
+func (s *sectors) levelOf(i int) lod.Level {
+	if s.grid == nil || s.unbanded {
+		return lod.L0
+	}
+	return s.level[i]
+}
+
+// the sector holding (x, y); a world of no sectors is one, 0
+func (s *sectors) of(x, y float32) int {
+	if s.grid == nil {
+		return 0
+	}
+	return s.grid.Of(x, y)
+}
+
+// appends to dst the sectors box covers with the part of it in each; a world of no sectors is
+// one, 0, holding the whole of it
+func (s *sectors) cover(box geom.AABB, dst []sector.Part) []sector.Part {
+	if s.grid == nil {
+		return append(dst, sector.Part{Box: box})
+	}
+	return s.grid.Cover(box, dst)
 }
 
 // the level cam draws sector i at as an observer; the level ticked for a camera that is none
@@ -345,22 +429,38 @@ func (s *sectors) restart() {
 	}
 }
 
-// to the level of sector at, sleeping in it at L4
-func (s *sectors) move(cb *goke.CmdBuf, id uid.UID64, from, to lod.Level, at int) {
-	if from != lod.L0 {
-		cb.RemoveCompOne(id, s.marks[from])
+// to the marks of sector at, sleeping in it at L4
+func (s *sectors) move(cb *goke.CmdBuf, id uid.UID64, from, to mark, at int) {
+	if from.far != to.far {
+		if from.far != 0 {
+			cb.RemoveCompOne(id, s.fars[from.far])
+		}
+		switch to.far {
+		case 1:
+			cb.AddOne(id, s.fars[to.far], sector.Far1{})
+		case 2:
+			cb.AddOne(id, s.fars[to.far], sector.Far2{})
+		case 3:
+			cb.AddOne(id, s.fars[to.far], sector.Far3{})
+		}
 	}
-	switch to {
+	if from.level == to.level {
+		return
+	}
+	if from.level != lod.L0 {
+		cb.RemoveCompOne(id, s.marks[from.level])
+	}
+	switch to.level {
 	case lod.L0:
 	case lod.L1:
-		cb.AddOne(id, s.marks[to], sector.L1{})
+		cb.AddOne(id, s.marks[to.level], sector.L1{})
 	case lod.L2:
-		cb.AddOne(id, s.marks[to], sector.L2{})
+		cb.AddOne(id, s.marks[to.level], sector.L2{})
 	case lod.L3:
-		cb.AddOne(id, s.marks[to], sector.L3{})
+		cb.AddOne(id, s.marks[to.level], sector.L3{})
 	default:
 		s.sleep[at] = append(s.sleep[at], id)
-		cb.AddOne(id, s.marks[to], sector.L4{})
+		cb.AddOne(id, s.marks[to.level], sector.L4{})
 	}
 }
 

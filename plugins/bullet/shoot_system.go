@@ -31,6 +31,7 @@ type shootSystem struct {
 	owners goke.OptComp[tag.Tags[owner.Family]]
 	z      goke.OptComp[world.Z]
 	eye    goke.OptComp[world.Eye]
+	whole  goke.OptComp[world.Aggregate]
 
 	shooters []shooter
 }
@@ -50,7 +51,7 @@ func newShootSystem(w *world.Plugin, shoots *command.Queue[Shoot], selected tag.
 
 func (s *shootSystem) Init(si *goke.SysInit) {
 	s.query = si.NewQueryBuilder(&s.base).Optional(&s.marks).Optional(&s.owners).Optional(&s.z).
-		Optional(&s.eye).With(s.w.Pace(lod.Steady)).Build()
+		Optional(&s.eye).Optional(&s.whole).With(s.w.Pace(lod.Steady)).Build()
 }
 
 func (s *shootSystem) Update(_ *goke.CmdBuf, d time.Duration) {
@@ -126,9 +127,10 @@ func (s *shootSystem) selectedOf(by command.Issuer, d time.Duration) {
 
 func (s *shootSystem) fire(cmd Shoot, sh shooter) {
 	centre := sh.pos.Center()
-	at, targeted := cmd.At, cmd.Targeted
+	at, targeted, whole := cmd.At, cmd.Targeted, false
 	if !targeted && cmd.aimed && s.query.Seek(cmd.target) {
-		at, targeted = s.base.At(s.query.Cursor()).Pos.Center(), true
+		cur := s.query.Cursor()
+		at, targeted, whole = s.base.At(cur).Pos.Center(), true, s.whole.Present(cur)
 	}
 	dir := sh.facing
 	if targeted {
@@ -143,7 +145,8 @@ func (s *shootSystem) fire(cmd Shoot, sh shooter) {
 	off := (max(sh.pos.Size.X, sh.pos.Size.Y)+body.Size)/2/max(f32.Abs(dir.X), f32.Abs(dir.Y)) + 1
 	from := geom.NewVec(centre.X+dir.X*off, centre.Y+dir.Y*off)
 
-	shot := Shot{From: from, Dir: dir, Range: body.Range, Shooter: sh.id, Owners: sh.owners}
+	shot := Shot{From: from, Dir: dir, Range: body.Range, Shooter: sh.id, Owners: sh.owners,
+		atWhole: whole}
 	if sh.z != nil {
 		shot.Altitude = sh.z.Altitude + sh.z.Height/2
 		if sh.eye != nil {

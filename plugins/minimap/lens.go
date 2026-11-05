@@ -26,14 +26,27 @@ func newLens(world geom.Vec, wrapX, wrapY bool, reach float32) *lens {
 	return &lens{world: world, wrapX: wrapX, wrapY: wrapY, reach: reach, ay: -1}
 }
 
-// aim puts the picture's middle at (x, y), ahead (ax, ay) running up it
+// aim puts the picture's middle at (x, y), held so its circle stays on the world, ahead (ax, ay)
+// running up it
 func (l *lens) aim(x, y, ax, ay float32) {
-	l.cx, l.cy = x, y
+	l.cx, l.cy = l.within(x, l.world.X, l.wrapX), l.within(y, l.world.Y, l.wrapY)
 	n := f32.Hypot(ax, ay)
 	if n == 0 {
 		ax, ay, n = 0, -1, 1
 	}
 	l.ax, l.ay = ax/n, ay/n
+}
+
+// within is c on an axis of length size held reach from its ends, so the circle shows none of what
+// lies past them; the middle where the circle is wider than the axis, c where the axis wraps
+func (l *lens) within(c, size float32, wraps bool) float32 {
+	switch {
+	case wraps || l.reach <= 0:
+		return c
+	case size <= 2*l.reach:
+		return size / 2
+	}
+	return min(max(c, l.reach), size-l.reach)
 }
 
 func (l *lens) fit() {

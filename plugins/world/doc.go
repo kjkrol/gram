@@ -75,8 +75,8 @@
 // The world keeps the tactical clock ([Write.Clock]) and the commands [Pause] (P, Shift+P),
 // [Faster] and [Slower] on it. [Plugin.RunPlan] runs the tick: the clock's commands, the sectors and the views
 // at once; in every step of the simulation the plans, the spawns and the despawns, the commands
-// about effects, the clock's moments and the effects, the space told of every entity after a
-// spawn or a despawn. [Write.Carrier] is the Stage's one carrier of commands.
+// about effects, the clock's moments, the aggregates' and the effects, the space told of every
+// entity after a spawn or a despawn. [Write.Carrier] is the Stage's one carrier of commands.
 //
 // # Drawing and Look
 //
@@ -116,16 +116,52 @@
 // Config.Sectors cuts the world into sectors, each ticked at the fullest level Config.LOD (a
 // lod.Ladder) says one of the observers sees it at ([Write.Observe]; the cameras plugin gives
 // its cameras) or a sector.Keen entity in it or beside it keeps it at, and marks each entity with
-// its sector's level (package sector); what lies at L4 is out of the space. With no observer
-// every sector is ticked at the ladder's Unobserved level, L2 unless set. A system adds the
-// pace of its lod.Paces ([Plugin.Pace]) to its query and walks it with goke.Query.Paced; the
-// world's plans and effects go lod.Slowing(2, 4, 8).
+// its sector's level and how many levels coarser that is than the finest any observer sees
+// (package sector); what lies at L4 is out of the space. An entity gives itself [Keen] to keep
+// its sector so, [Calm] to keep it so no more. With no observer every sector is ticked at the
+// ladder's Unobserved level, L2 unless set. An entity travelling the abstract graph far from
+// every camera carries sector.Abstract, saved with the game. A system adds the pace of its
+// lod.Paces ([Plugin.Pace]) to its query and walks it with goke.Query.Paced, in full on the
+// finest level seen, so a world with no observer goes in full everywhere; the world's plans and
+// effects go lod.Slowing(2, 4, 8).
 // [Read.Sectors] lays them on the telemetry panel. A camera's View in such a world is of the
 // sectors it sees, each at the level it sees it at (view.NewSeen), within [Read.Sight];
 // [Read.Seen] lays the first camera's on the panel. [SwitchSectors] shows the sectors over the
 // ground by the level they are ticked at or by how the camera sees them ([Write.ShowSectors]);
 // [SwitchBands] switches the levels off, every sector ticked at L0, to weigh what they spare
 // ([Write.SetBanded]); both are the settings screen's alone.
+//
+// # Aggregates
+//
+// An [Aggregate] is a kind of entity standing for parts, a forest's trees or an army's soldiers:
+// they are the truth while its sector is ticked at L0 or L1, it alone from L2 on. It is told
+// [Unfold] once as its sector comes down to L1, when its rules spawn the parts ([SpawnPart]),
+// each carrying [PartOf] it, and [Fold] once its sector has lain at L2 or coarser for the
+// ladder's Fold seconds, with the [Parts] it has, each part told a [Folding] to sum itself into
+// it and go; the wait is the stretch's, an entity the world keeps while it is unfolded, saved
+// with the game. From its first Unfold till the step after its last Fold, its parts gone, it
+// carries [Unfolded], saved too: its parts are drawn for it and what moves it stands it, at any
+// level.
+// Before a point aggregate's Fold is told the world moves it to the centroid of its parts'
+// centres, so what sums them finds it where they stood; with no part left it stays. What the
+// parts are and what has changed of them is the game's: lod.Seed is the number a place of the
+// aggregate draws from, the same at every unfold, its losses its effects.
+// Two aggregates travelling the abstract graph (sector.Abstract) are told [Met] once as their
+// boxes come to overlap, again only after they have parted; one standing unfolded is on no such
+// graph. A unit's route is a plain value of its order, one an aggregate and the part leading it
+// may hand each other as they fold and unfold (navigation.Inherit).
+//
+// A [Field] aggregate, a forest, stands over a box round its centre wider than an entity may be
+// and goes by sector: each sector of it unfolds and folds apart, told with the Sector and the
+// Box of the field within it, its parts there those whose centre lies in it, and it is found
+// asleep too, its own sector at L4 stopping none of the others. A point aggregate's moments tell
+// the sector of its centre and its own box. A SpawnPart given under an Unfold is laid At off the
+// middle of that Box, so the plots a rule plants, picked by words over lod.Seed and the
+// aggregate's effects, lie in the sector. A field is drawn by sector, asleep too, wherever a
+// camera sees its part there: its look at the level of that sector stretched over the part, at
+// L3 its colour summed over every texel the part covers; a sector it is unfolded in has its
+// parts drawn alone, till they have gone the step after its Fold. Drawn so, it lies on the ground,
+// under the figures standing over it.
 //
 // # Views
 //
@@ -151,8 +187,15 @@
 //
 // # Vocabulary
 //
-// Knobs, for an effect's Alter: render.Appearance, the look's.
-// Commands: [Spawn] (a player's or an entity's own); [Despawn] (an entity's own); [Pause],
+// Moments, for a role's rules: [Unfold] (a stretch of an aggregate come down to L1, its subject
+// the stretch), [Fold] (one folding; its word [Parts]), [Folding] (each part of it, its subject
+// the aggregate), [Met] (a pair of aggregates on the abstract graph, host.Met). Marks:
+// [Aggregate] and [Field] (on a kind), [PartOf] (on a part), [Unfolded] (on an aggregate, for
+// the plugins: a rule reads no component). Knobs, for an effect's Alter:
+// render.Appearance, the look's.
+// Commands: [Spawn] (a player's or an entity's own); [SpawnPart] (an aggregate's own, aimed at
+// the stretch of an Unfold);
+// [Despawn], [Keen], [Calm] (an entity's own); [Pause],
 // [Faster], [Slower], [Tempo], [SwitchSectors], [SwitchBands] (a player's). Settings
 // ([Settings], saved with the game, in [Resources]): the sectors drawn, their levels on. The
 // clock's moment and the commands about effects (ceremony.Put, Take, Toggle, Trigger) are

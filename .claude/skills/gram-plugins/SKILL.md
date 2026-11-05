@@ -71,7 +71,15 @@ keeps only what those do not.
   ladder's `Unobserved` (zero: L2, a server's middle; a bench says `UnobservedL0`),
   lowered to a `sector.Keen` entity's level in its sector and the eight round (a shot in flight).
   Every sector begins at L4, so the first tick and a load wake everything near. Marks
-  `sector.L1`…`L4`, zero-size, saved with the game; L0 unmarked.
+  `sector.L1`…`L4`, zero-size, saved with the game; L0 unmarked. Beside them the pace marks
+  `sector.Far1`…`Far3` (2026-11-04): how many levels coarser than the finest level any observer
+  sees (`grade` returns it; `Keen` never lowers it; no observer → `Unobserved`) the entity's
+  sector is, swapped in `move` with the level mark; `Pace(paces)` builds `Every[Far_k]` on them
+  and `Never[L4]`, so time runs at full pace where the viewer looks most closely whatever the
+  level, and a world nobody watches at full pace everywhere (the user's rule; the aggregates are
+  its saving). A change of the finest level re-marks every awake entity (two archetype moves
+  each; batching through goke's `Editor` is open). `Contact`'s "none" rungs are relative too:
+  collision and vision run three levels deep from the finest seen.
 - **The space holds no L4 entity** (the index, motion's rebuild and collision skip them), so
   asking it would never find them again: the sleepers are listed by sector, laid anew at the
   first tick and after a load (`restart`), and woken by sector. A top-down zoom across a
@@ -111,6 +119,25 @@ keeps only what those do not.
   finer by another is both summed and recorded; `Keep[L3]` thins the sum as the records. The frame
   image is `world.AggregateImage`, bound per draw through `opts.Uniforms` (seven of the eight named
   images are in use now). `sector.Grid.Of` truncates, no float64.
+- Aggregates (`wholes.go`, 2026-11-04): `Aggregate`, `Field{Size}`, `PartOf`; the `wholes` system
+  (after the moments', `lod.Steady`) reads each aggregate's level at its centre (`levelAt`, not the
+  mark swaps: a spawn mid-tick reads unmarked L0), keeps a world-made `stretch` entity per
+  unfolded (aggregate, sector) with the fold's due time (saved; `Unfold`'s subject, which is how
+  `SpawnPart{At}` finds the sector's `Box`), tells `Folding` to the parts whose centre lies in
+  the sector, moves a point aggregate to its parts' centroid before `Fold` (`gather`, the space's
+  runs re-gathered), and checks `Met` among the bodies carrying `sector.Abstract` only when a rule
+  handles it (`meeting` entities remember a pair). `Grid.Cover` cuts a box by sector. A field's
+  record keeps its own box plus `Size` in a side table; `renderer.over` picks per camera: the
+  level read on the field box, drawn over it from L2 (the point path scales the look), over its
+  own box short of it; seen wherever the field box meets the view, asleep too (the render query
+  keeps L4 chunks carrying `Field`); never thinned, no shadow over the field; a box over 8×8
+  texels sums its inside a run at a time and weighs its rim alone. `Unfolded` (first Unfold →
+  the step after the last Fold): a point aggregate publishes no record while it carries it, a
+  field is published as one record per covered sector (`renderer.covers`), each at its own
+  sector's level, none for an unfolded sector nor for one whose stretch is `Folded` till its
+  parts are gone (the stretch outlives the Fold one step). `Keen`/`Calm` commands are carried in
+  the despawn system. **goke's `Query.Seek` ignores a query's Exclude and tag filters**: what a
+  Seek must leave out is read as an optional column (the minimap's marks, the keeping's release).
 
 ## motion, with steering
 
@@ -234,6 +261,12 @@ keeps only what those do not.
   `Rays`, or a board of no world, draws nothing. The tiles' shaders decode the sector's level;
   at L3 they lay the figures' colour the world sums (`world.Read.Aggregate`) under the tile's own
   alpha, in the plain pass and the full one alike, bound only while a sector seen is at L3.
+- A unit carrying `sector.Abstract` (2026-11-04) gets pace share 1 from the standing pass
+  (`moments/standing.go`) and the occupancy's keep (`occupancy/keep.go`) re-enters it into no
+  cell; a chunk carrying `sector.Abstract` or `world.Unfolded` gets no standing rules and no fall
+  log. `occupancy.PlaceSystem` (before standing) moves a part or aggregate holding no cell yet,
+  laid where its domain may not stand or on a held cell, to the nearest cell taking it within
+  three rings: the library's answer to parts spawned by offset.
 
 ## topography
 
@@ -381,9 +414,48 @@ keeps only what those do not.
   found, kept at the entity's first `Touch`.
 - What a wall leaves of a speed below a ten-thousandth is a stop, facing on; a unit under orders
   glances along the wall.
+- A body carrying `sector.Abstract` (abstract travel, 2026-11-04) is not excluded from the space
+  (that would drop it from sight and selection till the world's next gather): the walk reads the
+  mark as a column and a marked chunk goes `still()` as a far one does, Caps Plain, contacts
+  cleared, a resting pair with a marked side dropped in `rest()`.
 
 ## navigation
 
+- **Levels** (2026-11-04, second design): a unit's `bodies.Member.Level` is its own sector's
+  mark (`bodies.Levels`, once a chunk). At L2 or coarser the unit walks the same refined route of
+  cells the climb gives (`Finder.Climb`, 64 steps, re-asked when spent; the hierarchy not ready →
+  the ask waits: Madeira's first build ~20 s of game) in the **far mode** (`traffic/far.go`):
+  `goFar` releases the Leg, leaves the cells and puts `sector.Abstract`; `tailFar`/`driveFar` is
+  pure path-following (waypoint, lookahead, `passed`, `turnFactor`, `approach`, `Index++`,
+  `keep.Watch`) without `reserveLeg`, the occupancy, `keep.Steer`, the queue or the formation,
+  at `MaxSpeed · stepPace` from the planner's price of the step (`MoveOrder.Pace`/`Paced`
+  cache); entry is lazy (the cell path walked out, or the unit off its route with no step in
+  flight); `descend` (the mark gone or the level under L2) anchors the route to the cell under
+  the unit (its current step, one of the next 8, or a neighbour of the next) and enters it, or
+  `Snap`s off a taken one (`Snaps`) and asks anew; a folded aggregate goes far at once; a unit
+  told Stop in the far mode stands unmarked, on no cell (open). Groups at L2 march as units
+  (`Place 0`, no field). A marked body is `still()` for the collision, out of the occupancy's
+  keep and at pace share 1. The straight legs of hpastar's `Search.Abstract` were tried and
+  dropped (the user, 2026-11-04: the unit walks the road, not the chord); gram does not call it.
+- **Aggregates** (2026-11-04): `MoveOrder.Aim`/`Aimed` hold the aggregate a `To` named; `aims.keep`
+  recounts the orders aimed at each target every tick (units marked `order.Aiming`) and keeps
+  `sector.Keen{L1}` on it, recording its own Keen in `order.Sought` to restore it; a running count
+  would miss orders ending unseen. `Inherit{From}` (`traffic/inherit.go`, at the step's start so a
+  fold's parts still exist at tempo > 1) copies the order whole but the walk; zero `From` is the
+  giver's `PartOf.Whole`, or for an aggregate the least part with an order. An aggregate ticked
+  finer than L2 lands as a unit does (`standFor`, `land` shared with `descend`), drops the mark,
+  leaves its cells itself (a `Release` Seek would not) and stands out of the keepings with its
+  order kept while `world.Unfolded`, whatever its level, for the parts to take
+  (`kind.Entry.Told`); after the fold it is marked and marching. An abstract route inherited
+  below L2 is dropped for a cell route. `aims.heed` re-records a target's own Keen given or
+  calmed while an aimed order holds it (a game Keen at exactly L1 cannot be told apart and is
+  lost when the order ends). `Inherit` copies the `Path` with its `Index` (and Target, goals,
+  Aim); a heir not standing on the route keeps it as given (dropped below L2, walked straight to
+  its waypoint far).
+- The route renderer draws a selected unit's route whole (2026-11-04): past the order's 64-step
+  window it computes the rest with the same hierarchy (`previews`, keyed by the window's last
+  cell and the passage counter, one computation a frame, 16 units at most) so the line matches
+  the roads the unit will take; nothing of it is state.
 - **A route once planned is followed**: a better way opening (a road laid, a wall opened)
   changes no route; the unit takes it only on an impulse — a new order, a plan's step, a rule's
   command (rules/guard: the alarm's `MoveTo`, `StepAside` when `Stuck`, `Onward` on the round).
@@ -633,6 +705,11 @@ keeps only what those do not.
   last reading.
 
 ## minimap
+
+- The lens of a bounded world holds its centre `Reach` from an edge of an axis that does not
+  wrap, at the world's middle on an axis narrower than the circle; a torus is not held
+  (2026-11-04). An aggregate carrying `world.Unfolded` draws no mark (read as an optional
+  column: `Seek` ignores Exclude).
 
 - Its lens is no camera of the cameras' (no anchor, not saved) and nothing of `ctx.Draws`: aimed
   by the ticks, drawn as published.

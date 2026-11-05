@@ -2,6 +2,7 @@ package routes
 
 import (
 	"image/color"
+	"slices"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
@@ -23,10 +24,13 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-func pathCells(at unit.At, mt order.MoveOrder) []cell.ID { return appendPath(nil, at, mt) }
+func pathCells(at unit.At, mt order.MoveOrder, rest []cell.ID) []cell.ID {
+	return appendPath(nil, at, mt, rest)
+}
 
-// appendPath appends to dst the cells from at to the order's target: the leg's, the path's left
-func appendPath(dst []cell.ID, at unit.At, mt order.MoveOrder) []cell.ID {
+// appendPath appends to dst the cells from at to the order's target: the leg's, the path's left,
+// then rest, the steps past the path's last cell where it ends short of the target
+func appendPath(dst []cell.ID, at unit.At, mt order.MoveOrder, rest []cell.ID) []cell.ID {
 	cells := append(dst, at.Cell)
 	next := mt.Target
 	if mt.Path.Index < mt.Path.Length {
@@ -40,7 +44,17 @@ func appendPath(dst []cell.ID, at unit.At, mt order.MoveOrder) []cell.ID {
 			cells = append(cells, step)
 		}
 	}
-	if mt.Path.Length == 0 || mt.Path.Index >= mt.Path.Length {
+	if len(rest) > 0 {
+		if from, _ := windowEnd(at, &mt); from != cells[len(cells)-1] {
+			cells = append(cells, from)
+		}
+		for _, step := range rest {
+			if step != cells[len(cells)-1] {
+				cells = append(cells, step)
+			}
+		}
+	}
+	if len(rest) > 0 || mt.Path.Length == 0 || mt.Path.Index >= mt.Path.Length {
 		if mt.Target != cells[len(cells)-1] {
 			cells = append(cells, mt.Target)
 		}
@@ -85,8 +99,16 @@ type Renderer struct {
 	routes bool
 
 	// nil: the goals alone, no routes between them
-	Finder   *spacing.Finder
-	previews map[uid.UID64]*preview
+	Finder *spacing.Finder
+	// nil: every route searched
+	Hierarchies *spacing.Hierarchies
+	// nil: every unit planned as its own body
+	Classes   *pathfind.Classes
+	previews  map[uid.UID64]*preview
+	wholes    int       // the previews holding a whole route
+	budget    int       // the whole routes left to find this Publish
+	publishes uint64    // counted, a preview's seen the last that drew its unit
+	steps     []cell.ID // the whole route found last, wholeSteps long
 
 	selected tag.Tag[selection.Family]
 
@@ -97,6 +119,7 @@ type Renderer struct {
 	marks goke.Comp[tag.Tags[selection.Family]]
 	app   goke.OptComp[render.Appearance]
 	mover goke.OptComp[unit.Mover]
+	z     goke.OptComp[world.Z]
 
 	footprint []render.Corners
 	drawn     render.Buffered[planned]
@@ -183,11 +206,13 @@ func (r *Renderer) Init(si *goke.SysInit) {
 	r.query = si.NewQueryBuilder(&r.base, &r.cell, &r.order, &r.marks).
 		Optional(&r.app).
 		Optional(&r.mover).
+		Optional(&r.z).
 		Build()
 }
 
-// Publish takes every selected unit's goals and, the routes shown, its way, the routes to its
-// queued goals found once a change of them, for the frame drawn next.
+// Publish takes every selected unit's goals and, the routes shown, its way, whole past the window
+// its order holds, and the routes to its queued goals, found once a change of them, for the frame
+// drawn next.
 func (r *Renderer) Publish() {
 	b := r.drawn.Back()
 	b.routes = r.routes
@@ -195,6 +220,8 @@ func (r *Renderer) Publish() {
 	if r.space == nil {
 		return
 	}
+	r.publishes++
+	r.budget = wholesAPublish
 	var g ground.Heights
 	if r.heights != nil {
 		g = r.heights()
@@ -207,6 +234,7 @@ func (r *Renderer) Publish() {
 		cursor := r.query.Cursor()
 		bases, cells, orders := r.base.Slice(cursor), r.cell.Slice(cursor), r.order.Slice(cursor)
 		marks, apps, movers := r.marks.Slice(cursor), r.app.Slice(cursor), r.mover.Slice(cursor)
+		zs := r.z.Slice(cursor)
 		for i := range cursor.IDs {
 			if !marks[i].Has(r.selected) {
 				continue
@@ -227,14 +255,19 @@ func (r *Renderer) Publish() {
 			if r.routes {
 				u.center, u.dir, u.end = bases[i].Pos.Center(), bases[i].Vel.Dir,
 					r.point(o.Target, o.Spot, u.off)
-				b.cells = appendPath(b.cells, cells[i], *o)
-				from := u.end
-				var weight float32
-				if movers != nil {
-					weight = movers[i].Weight
+				m := bodies.Member{ID: cursor.IDs[i], Domain: domain, Pos: bases[i].Pos}
+				if zs != nil {
+					m.Z = zs[i]
 				}
-				body := bodies.BodyOf(world.Z{}, bases[i].Pos.Size, weight)
-				for k, route := range r.queued(cursor.IDs[i], domain, body, o) {
+				if movers != nil {
+					m.Weight = movers[i].Weight
+				}
+				if pv := r.previews[m.ID]; pv != nil {
+					pv.seen = r.publishes
+				}
+				b.cells = appendPath(b.cells, cells[i], *o, r.rest(m, cells[i], o))
+				from := u.end
+				for k, route := range r.queued(m, o) {
 					to := r.point(o.Waypoints[k].Cell, o.Waypoints[k].Spot, u.off)
 					b.legs = append(b.legs, leg{cells: route, from: from, to: to})
 					from = to
@@ -244,6 +277,7 @@ func (r *Renderer) Publish() {
 			b.units = append(b.units, u)
 		}
 	}
+	r.sweep()
 }
 
 // Swap has what was published last drawn.
@@ -282,16 +316,15 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		}
 	}
 	if r.onGPU && r.gpu.Len() > 0 {
-		f.ReadGround() // the routes find the ground under them
-		f.DrawAt(f.OnGround(routeLift))
+		f.ReadGround() // the routes find the ground under them, hidden by it alone
+		f.DrawAt(render.OnTop(routeLevel))
 	}
 }
 
-// how far over the ground a route lies among what lies on it: over the sight, under the figures;
-// its goal over it
+// the marks' levels: a route under its goals, both under the selection's outline (1)
 const (
-	routeLift = 0.75
-	goalLift  = 0.8
+	routeLevel = 0.5
+	goalLevel  = 0.75
 )
 
 // a step aside is no goal; each stands on g, where a unit off its cells' middles by off stands
@@ -361,16 +394,15 @@ func (r *Renderer) drawRoute(cells []cell.ID, from, to, off geom.Vec) {
 	r.line(at, to)
 }
 
-// on a wrapping world flat, the short way round; else in pieces of the ground's step, each at
-// the depth of its middle, so the line runs straight through any camera
+// on a wrapping world flat, the short way round; else in pieces of the ground's step, so the
+// line runs over the relief through any camera
 func (r *Renderer) line(a, b geom.Vec) {
+	at := render.OnTop(routeLevel)
 	if r.space != nil && r.space.Edges != 0 {
 		dx := spacing.ShortestAxisDelta(a.X, b.X, r.space.Width, r.space.Edges.WrapsX())
 		dy := spacing.ShortestAxisDelta(a.Y, b.Y, r.space.Height, r.space.Edges.WrapsY())
 		x0, y0 := r.camera.ToScreen(a.X, a.Y)
 		x1, y1 := r.camera.ToScreen(a.X+dx, a.Y+dy)
-		mid := geom.NewVec(a.X+dx/2, a.Y+dy/2)
-		at := r.frame.Lifted(mid.X, mid.Y, 0, routeLift)
 		r.frame.Line(at, x0, y0, x1, y1, r.Current.Width, r.Current.Line)
 		return
 	}
@@ -388,8 +420,6 @@ func (r *Renderer) line(a, b geom.Vec) {
 		t := float32(i) / float32(pieces)
 		p := geom.NewVec(a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t)
 		x1, y1 := r.on(p)
-		mid := geom.NewVec(a.X+(b.X-a.X)*(t-0.5/float32(pieces)), a.Y+(b.Y-a.Y)*(t-0.5/float32(pieces)))
-		at := r.frame.Lifted(mid.X, mid.Y, r.groundAt(mid), routeLift)
 		r.frame.Line(at, x0, y0, x1, y1, r.Current.Width, r.Current.Line)
 		x0, y0 = x1, y1
 	}
@@ -418,7 +448,7 @@ func (r *Renderer) goal(size, at geom.Vec, alt float32) {
 		}
 		r.footprint = append(r.footprint, q)
 	}
-	lies := r.frame.Lifted(at.X, at.Y, alt, goalLift)
+	lies := render.OnTop(goalLevel)
 	for _, q := range r.footprint {
 		pts := [4][2]float32{q[0], q[1], q[3], q[2]}
 		for i, p := range pts {
@@ -428,17 +458,188 @@ func (r *Renderer) goal(size, at geom.Vec, alt float32) {
 	}
 }
 
+// a selected unit's routes past what its order holds: to its queued goals, and whole, the rest of
+// its route from the last cell of its window to its Target, found as key says, none where no
+// route was
 type preview struct {
 	goals  [order.MaxWaypoints + 1]cell.ID
 	queued uint8
 	routes [][]cell.ID
+	whole  bool
+	key    restKey
+	rest   []cell.ID // the steps past key's from
+	seen   uint64    // the Publish that last drew its unit
+}
+
+// what a whole route's rest is found anew on a change of
+type restKey struct {
+	from, to cell.ID
+	level    order.Level
+	passage  uint64
+}
+
+const (
+	// the most units drawing their routes whole, the others' rests drawn straight
+	maxWholes = 16
+	// so many found a Publish at most, those of a selection in need found over the next ones
+	wholesAPublish = 1
+	// the most steps of a whole route drawn, the rest past them straight
+	wholeSteps = 1 << 13
+)
+
+// rest is the rest of o's route past its window, from the window's last cell to its Target, as
+// the routing plans it for m; nil where it is drawn straight
+func (r *Renderer) rest(m bodies.Member, at unit.At, o *order.MoveOrder) []cell.ID {
+	pv := r.previews[m.ID]
+	from, short := windowEnd(at, o)
+	if !short || r.Finder == nil {
+		if pv != nil {
+			r.unrest(m.ID, pv)
+		}
+		return nil
+	}
+	key := restKey{from: from, to: o.Target, level: o.Level, passage: r.passage()}
+	switch {
+	case pv != nil && pv.whole && pv.key == key:
+		return pv.rest
+	case (pv == nil || !pv.whole) && r.wholes >= maxWholes:
+		return nil
+	case r.budget == 0:
+		return pv.spliced(key)
+	}
+	n, found, wait := r.plan(m, from, o)
+	if wait {
+		return pv.spliced(key)
+	}
+	r.budget--
+	if pv == nil {
+		pv = r.entry(m.ID)
+	}
+	if !pv.whole {
+		pv.whole = true
+		r.wholes++
+	}
+	pv.key, pv.rest = key, pv.rest[:0]
+	if found {
+		pv.rest = append(pv.rest, r.steps[:n]...)
+	}
+	return pv.rest
+}
+
+// windowEnd is the last cell of o's window, the path its order holds, and whether the window ends
+// short of its Target; an empty window's is where the unit's step ends, short while a route is
+// to be asked
+func windowEnd(at unit.At, o *order.MoveOrder) (cell.ID, bool) {
+	if p := &o.Path; p.Length > 0 {
+		last := p.Steps[p.Length-1]
+		return last, last != o.Target
+	}
+	from := at.Cell
+	if o.Leg.Active {
+		from = o.Leg.To
+	}
+	return from, from != o.Target && (o.Ask == order.AskNone || o.Ask == order.AskRoute)
+}
+
+// plan writes into r.steps the route from from to o's Target for m as the routing plans it:
+// climbed through the hierarchy serving m's class where the route is far, else searched; wait
+// while that hierarchy is not ready, a far route searched cell by cell too long for a frame
+func (r *Renderer) plan(m bodies.Member, from cell.ID, o *order.MoveOrder) (n int, found,
+	wait bool) {
+	if r.steps == nil {
+		r.steps = make([]cell.ID, wholeSteps)
+	}
+	body, end := r.planned(m), pathfind.Level(o.Level)
+	if hs := r.Hierarchies; hs != nil && hs.Far(from, o.Target) {
+		if key, served := hs.Key(m); served {
+			h := hs.Take(key)
+			if h == nil || hs.Due() {
+				return 0, false, true
+			}
+			n, found = r.Finder.Climb(h, m.ID, m.Domain, body, from, o.Target, end, r.steps)
+			if found {
+				return n, true, false
+			}
+		}
+	}
+	n, found = r.Finder.Find(m.ID, m.Domain, body, from, o.Target, end, r.steps)
+	return n, found, false
+}
+
+// spliced is pv's rest from key's from on, where pv's leads to key's Target over the passage key
+// holds through key's from: drawn while the rest is not yet found anew
+func (pv *preview) spliced(key restKey) []cell.ID {
+	if pv == nil || !pv.whole || pv.key.to != key.to || pv.key.level != key.level ||
+		pv.key.passage != key.passage {
+		return nil
+	}
+	if k := slices.Index(pv.rest, key.from); k >= 0 {
+		return pv.rest[k+1:]
+	}
+	return nil
+}
+
+// planned is m's body as the routing plans its routes: its class's
+func (r *Renderer) planned(m bodies.Member) pathfind.Body {
+	if r.Classes == nil {
+		return m.Body()
+	}
+	return r.Classes.Planned(m.Domain, m.Body())
+}
+
+// passage is the board's, 0 where the terrain counts no changes
+func (r *Renderer) passage() uint64 {
+	if p, ok := r.Finder.Terrain.(interface{ Passage() uint64 }); ok {
+		return p.Passage()
+	}
+	return 0
+}
+
+func (r *Renderer) entry(id uid.UID64) *preview {
+	if r.previews == nil {
+		r.previews = map[uid.UID64]*preview{}
+	}
+	pv := &preview{seen: r.publishes}
+	r.previews[id] = pv
+	return pv
+}
+
+func (r *Renderer) unrest(id uid.UID64, pv *preview) {
+	if pv.whole {
+		pv.whole, pv.rest = false, pv.rest[:0]
+		r.wholes--
+	}
+	r.tidy(id, pv)
+}
+
+func (r *Renderer) tidy(id uid.UID64, pv *preview) {
+	if !pv.whole && pv.queued == 0 {
+		delete(r.previews, id)
+	}
+}
+
+// sweep drops the previews of the units this Publish drew none of: unselected, done, or the
+// routes hidden
+func (r *Renderer) sweep() {
+	for id, pv := range r.previews {
+		if pv.seen != r.publishes {
+			if pv.whole {
+				r.wholes--
+			}
+			delete(r.previews, id)
+		}
+	}
 }
 
 // planned once per change of the goals; a goal no route reaches is drawn on its own
-func (r *Renderer) queued(id uid.UID64, domain cell.Domain, body pathfind.Body,
-	mt *order.MoveOrder) [][]cell.ID {
+func (r *Renderer) queued(m bodies.Member, mt *order.MoveOrder) [][]cell.ID {
+	id := m.ID
+	pv := r.previews[id]
 	if mt.Queued == 0 {
-		delete(r.previews, id)
+		if pv != nil {
+			pv.queued, pv.routes = 0, nil
+			r.tidy(id, pv)
+		}
 		return nil
 	}
 	var goals [order.MaxWaypoints + 1]cell.ID
@@ -447,15 +648,19 @@ func (r *Renderer) queued(id uid.UID64, domain cell.Domain, body pathfind.Body,
 	for k, g := range mt.Waypoints[:mt.Queued] {
 		goals[k+1], levels[k+1] = g.Cell, g.Level
 	}
-	if pv := r.previews[id]; pv != nil && pv.queued == mt.Queued && pv.goals == goals {
+	if pv != nil && pv.queued == mt.Queued && pv.goals == goals {
 		return pv.routes
 	}
-	pv := &preview{goals: goals, queued: mt.Queued}
+	if pv == nil {
+		pv = r.entry(id)
+	}
+	pv.goals, pv.queued, pv.routes = goals, mt.Queued, nil
+	body := r.planned(m)
 	for k := 0; k < int(mt.Queued); k++ {
 		from, to := goals[k], goals[k+1]
 		route := []cell.ID{from}
 		if r.Finder != nil {
-			if path, ok := r.Finder.FindPath(id, domain, body, from, to, levels[k+1]); ok {
+			if path, ok := r.Finder.FindPath(id, m.Domain, body, from, to, levels[k+1]); ok {
 				for _, step := range path.Steps[:path.Length] {
 					route = append(route, step)
 				}
@@ -466,10 +671,6 @@ func (r *Renderer) queued(id uid.UID64, domain cell.Domain, body pathfind.Body,
 		}
 		pv.routes = append(pv.routes, route)
 	}
-	if r.previews == nil {
-		r.previews = map[uid.UID64]*preview{}
-	}
-	r.previews[id] = pv
 	return pv.routes
 }
 

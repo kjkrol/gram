@@ -25,6 +25,9 @@ func (k *HandKeeping) MayStep(id uid.UID64, pos world.Position, at, ahead cell.I
 		return true
 	}
 	m := bodies.Member{ID: id, Cell: at, From: at, Domain: domain, Pos: pos}
+	if k.Nav != nil {
+		m.Level = k.Nav.levelOf(id)
+	}
 	return k.Keep.MayStep(m, ahead, deck, heading, &k.near)
 }
 

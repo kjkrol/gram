@@ -20,6 +20,7 @@ var _ goke.Module = (*module)(nil)
 type module struct {
 	cells     goke.System
 	built     goke.System
+	place     goke.System
 	standing  goke.System
 	keep      goke.System
 	cellRules goke.System
@@ -30,6 +31,7 @@ type module struct {
 
 	cellsRunnable     goke.Runnable
 	builtRunnable     goke.Runnable
+	placeRunnable     goke.Runnable
 	standingRunnable  goke.Runnable
 	keepRunnable      goke.Runnable
 	cellRulesRunnable goke.Runnable
@@ -38,6 +40,7 @@ type module struct {
 func (m *module) RegSystems(ecs *goke.ECS) {
 	m.cellsRunnable = ecs.RegSys(m.cells) // first: it makes or finds the cells
 	m.builtRunnable = ecs.RegSys(m.built)
+	m.placeRunnable = ecs.RegSys(m.place) // before standing: none falls where it was only laid
 	m.standingRunnable = ecs.RegSys(m.standing)
 	m.keepRunnable = ecs.RegSys(m.keep) // after standing, which takes unit.Entered off
 	m.cellRulesRunnable = ecs.RegSys(m.cellRules)
@@ -50,6 +53,7 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 func (m *module) simulate(ctx goke.RunCtx, step time.Duration) {
 	ctx.Run(m.cellsRunnable, step)
 	ctx.Run(m.builtRunnable, step)
+	ctx.Run(m.placeRunnable, step)
 	ctx.Run(m.standingRunnable, step)
 	ctx.Run(m.keepRunnable, step)
 	ctx.Run(m.cellRulesRunnable, step)

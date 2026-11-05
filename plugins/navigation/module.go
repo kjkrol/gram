@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
 	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 )
@@ -53,5 +54,7 @@ func (m *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[Blocked](),
 		goke.LoadComp[Arrived](),
 		goke.LoadComp[Round](),
+		goke.LoadComp[order.Aiming](),
+		goke.LoadComp[order.Sought](),
 	}
 }

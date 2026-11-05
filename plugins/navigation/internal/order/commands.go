@@ -31,6 +31,13 @@ type March struct {
 	In    Formation
 }
 
+// Inherit is the command an entity gives itself to take over the MoveOrder of the one entity From
+// names in place of its own, the goals and the route as far as it came walked on from where it
+// stands, nothing of its walk; one with no order leaves it standing, as Stop does. From naming
+// nobody is the giver's whole (world.PartOf), or for an aggregate (world.Aggregate) its first
+// part with an order.
+type Inherit struct{ From ceremony.Whom }
+
 // Level is which of a cell's two levels, a raised deck or the ground under it, a goal lies on. A
 // cell of one level takes any.
 type Level uint8
@@ -110,6 +117,8 @@ func (Trail) Command() {}
 
 func (Stop) Command() {}
 
+func (Inherit) Command() {}
+
 var (
 	_ command.Command = MoveTo{}
 	_ command.Command = March{}
@@ -122,4 +131,5 @@ var (
 	_ command.Command = Trail{}
 	_ command.Command = Stop{}
 	_ command.Command = Onward{}
+	_ command.Command = Inherit{}
 )
