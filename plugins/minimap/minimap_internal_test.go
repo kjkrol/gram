@@ -374,7 +374,7 @@ func TestMarks_NoDotForAnAggregateUnfoldedItsPartsDotted(t *testing.T) {
 	})
 	army := kind.Named[spot](w.Kinds(), "army")
 	soldier := kind.Named[spot](w.Kinds(), "soldier")
-	// a world of no sectors lies at L0: the army unfolds at the first step
+	// a world of no sectors lies at L2: the army unfolds at the first step
 	w.Write().Seed(army.Entry(spot{450, 500}), soldier.Entry(spot{550, 500}))
 	a := w.NewAtlas()
 	a.Add(army, 4, render.Solid(markRed)).Styled(Mark{Color: markRed, Size: 6})

@@ -10,14 +10,14 @@ import (
 )
 
 // AggregateImage is the name the ground's shaders read [Read.Aggregate]'s image by, a frame image
-// (render.RegisterImage) a renderer binds where it draws a sector at L3.
+// (render.RegisterImage) a renderer binds where it draws a sector at L5.
 const AggregateImage = "Aggregate"
 
 func init() { render.RegisterImage(AggregateImage) }
 
-// Aggregates has the world sum the figures it draws at L3 into the image [Read.Aggregate] gives,
+// Aggregates has the world sum the figures it draws at L5 into the image [Read.Aggregate] gives,
 // for a renderer laying it over the ground it draws; a world no renderer asks it of draws nothing
-// of them at L3 and spends nothing on them.
+// of them at L5 and spends nothing on them.
 func (p *Plugin) Aggregates() {
 	if g := p.module.sectors.grid; g != nil && p.renderer.aggregate.img == nil {
 		p.renderer.aggregate = newAggregate(p.Res.Config, g.Side())
@@ -34,7 +34,7 @@ const (
 	aggregateTile = 1 << tileShift
 )
 
-// aggregate is the figures' colour summed into the ground from L3, an image over the whole world
+// aggregate is the figures' colour summed into the ground from L5, an image over the whole world
 // perUnit texels a world unit, cols by rows, in tiles across of them a row; summed by the
 // publisher into the back sums, the front put on the GPU as the frame is composed
 type aggregate struct {
@@ -44,7 +44,7 @@ type aggregate struct {
 	across       int
 	wrapX, wrapY bool
 	sums         render.Buffered[sums]
-	summing      bool // some view publishing sees a sector at L3, a kind summed there
+	summing      bool // some view publishing sees a sector at L5, a kind summed there
 	fresh        bool // the front not yet put on the GPU
 	// what the image holds: by tile the signature of its sums, 0 for clear, and the tiles not
 	// clear; each tile's rectangle of the image, made as it is first written

@@ -24,7 +24,7 @@ func lookingAt(w, h uint32, x, y float32) eye {
 
 func (e eye) Observers(each func(cam camera.Camera)) { each(e.cam) }
 
-func TestConversation_AsleepAtL4IsLeftAsItStandsTillItWakes(t *testing.T) {
+func TestConversation_AsleepAtL6IsLeftAsItStandsTillItWakes(t *testing.T) {
 	cfg := plain
 	cfg.Sectors = world.SectorsCfg{Buckets: 1}
 	cfg.LOD = lod.Ladder{Sight: 400}

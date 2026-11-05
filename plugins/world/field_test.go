@@ -60,8 +60,8 @@ type forestRow struct{ x, y float32 }
 type treeRow struct{}
 
 // a forest over sectors 0, 1, 8 and 9 of a world 8x2 sectors 512 a side, its centre in 9, seen by
-// one camera from above at L1 (half a pixel a world unit) and L2 (a quarter) within the sight of
-// where it looks, L4 past it
+// one camera from above at L3 (half a pixel a world unit) and L4 (a quarter) within the sight of
+// where it looks, L6 past it
 type forest struct {
 	eng      *engine.Engine
 	w        *world.Plugin
@@ -91,7 +91,7 @@ func (f *forest) SetupSystems() []goke.System {
 	}}}
 }
 
-// the forest's stage, its camera at L1 looking at at, with the forest unless a save is loaded
+// the forest's stage, its camera at L3 looking at at, with the forest unless a save is loaded
 func newForest(t *testing.T, at geom.Vec) *forest {
 	t.Helper()
 	f := &forest{cam: cameratest.NewFromSpace(4096, 1024, 0), at: at}
@@ -104,7 +104,7 @@ func newForest(t *testing.T, at geom.Vec) *forest {
 			Entities: world.EntitiesCfg{MaxCount: 64, MinSize: 5, MaxSize: 20},
 			Sectors:  world.SectorsCfg{Buckets: 2},
 			LOD: lod.Ladder{
-				Scales: [lod.Levels - 1]float32{0.8, 0.4},
+				Scales: [lod.Levels - 1]float32{0, 0, 0.8, 0.4},
 				Sight:  sight,
 				Fold:   float32(foldAfter.Seconds()),
 			},
@@ -392,15 +392,15 @@ func (f *forest) plantedIn(t *testing.T, density uint64, sectors ...int) {
 	}
 }
 
-func TestWholes_AFieldUnfoldsEachSectorComeToL1OnceAsleepInItsOwn(t *testing.T) {
+func TestWholes_AFieldUnfoldsEachSectorComeToL3OnceAsleepInItsOwn(t *testing.T) {
 	f := newForest(t, geom.NewVec(256, 256))
 	f.start(t, false)
 	f.run(2)
-	if got := f.w.Read(0).LevelAt(forestSide/2, forestSide/2); got != lod.L4 {
-		t.Fatalf("the forest's own sector at %v, want asleep at L4", got)
+	if got := f.w.Read(0).LevelAt(forestSide/2, forestSide/2); got != lod.L6 {
+		t.Fatalf("the forest's own sector at %v, want asleep at L6", got)
 	}
 	if got := sectorsOf(f.unfolded); !slices.Equal(got, []int{0, 1, 8}) {
-		t.Fatalf("unfolded sectors %v, want the three within sight at L1", got)
+		t.Fatalf("unfolded sectors %v, want the three within sight at L3", got)
 	}
 	for _, u := range f.unfolded {
 		if u.ID != f.id() || u.Box != boxOf(u.Sector) {
@@ -476,7 +476,7 @@ func TestWholes_AFieldsSectorFoldingDrawsItsTreesOrItsPartNeverBoth(t *testing.T
 		m := middleOf(b)
 		return m.X < sectorSide && m.Y < sectorSide
 	}
-	// drawn at L2 the sector waits to fold, its trees drawn as points till they go
+	// drawn at L4 the sector waits to fold, its trees drawn as points till they go
 	f.zoom(0.25)
 	trees, pieces, folded := 0, 0, false
 	for range 2*int(foldAfter/frame) + 4 {
@@ -539,7 +539,7 @@ func TestWholes_AFieldFoldedAndUnfoldedAgainKeepsItsStateAndItsPlaces(t *testing
 	f.zoom(0.25)
 	f.run(int(foldAfter/frame) + 2)
 	if got := sectorsOf(f.folded); !slices.Equal(got, []int{1, 9}) || len(f.bySector()) != 0 {
-		t.Fatalf("at L2 folded sectors %v with %d trees left, want 1 and 9, none left", got,
+		t.Fatalf("at L4 folded sectors %v with %d trees left, want 1 and 9, none left", got,
 			len(f.bySector()))
 	}
 	f.zoom(0.5)
@@ -582,8 +582,8 @@ func TestWholes_AFieldAsleepInItsOwnSectorTakesWhatItsOthersFoldInto(t *testing.
 	}
 	f.look(geom.NewVec(256, 256))
 	f.run(2)
-	if got := f.w.Read(0).LevelAt(forestSide/2, forestSide/2); got != lod.L4 {
-		t.Fatalf("the forest's own sector at %v, want asleep at L4", got)
+	if got := f.w.Read(0).LevelAt(forestSide/2, forestSide/2); got != lod.L6 {
+		t.Fatalf("the forest's own sector at %v, want asleep at L6", got)
 	}
 	f.plantedIn(t, 1, 0, 8)
 	f.plantedIn(t, 2, 1)

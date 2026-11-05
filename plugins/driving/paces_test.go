@@ -25,7 +25,7 @@ func lookingAt(w, h uint32, x, y float32) eye {
 
 func (e eye) Observers(each func(cam camera.Camera)) { each(e.cam) }
 
-func TestHand_DrivesNoUnitAsleepAtL4(t *testing.T) {
+func TestHand_DrivesNoUnitAsleepAtL6(t *testing.T) {
 	f := newFieldIn(t, nil, func(cfg *world.Config) sector.Observers {
 		cfg.Sectors = world.SectorsCfg{Buckets: 1}
 		cfg.LOD = lod.Ladder{Sight: 64}
@@ -40,7 +40,7 @@ func TestHand_DrivesNoUnitAsleepAtL4(t *testing.T) {
 	}
 	after := f.read()
 	if after[near].at == before[near].at || after[near].driven == nil {
-		t.Errorf("at L0 the unit stands at %v, Driven %v; want it driven on", after[near].at,
+		t.Errorf("at L2 the unit stands at %v, Driven %v; want it driven on", after[near].at,
 			after[near].driven)
 	}
 	if after[far].at != before[far].at || after[far].driven != nil {

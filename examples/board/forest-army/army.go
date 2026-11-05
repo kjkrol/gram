@@ -52,7 +52,7 @@ type armyRow struct {
 	Target cell.ID `yaml:"target"`
 }
 
-// army is a side's soldiers seen from afar, one point on the abstract graph: come down to L1 it
+// army is a side's soldiers seen from afar, one point on the abstract graph: come down to L3 it
 // stands and musters the soldiers its losses leave, each taking its march over; folded, it takes
 // the march back and the losses from those who fell in. Two meeting on the abstract graph stop
 // and fight blow by blow as long as the other has soldiers; one with none left goes. Charging, it
@@ -236,10 +236,10 @@ func swap(fx *cgoke.Effects, from, to string) act.Step {
 	return act.Steps(act.Self.Take(fx.Named(from)), act.Self.Put(fx.Named(to)))
 }
 
-// unseen while its soldiers stand, a banner of its colour from L2
+// unseen while its soldiers stand, a banner of its colour from L4
 func (r army) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[armyRow](w.Kinds(), r.kind), armyPx, unseen).
-		At(lod.L2, banner(r.color)).
+		At(lod.L4, banner(r.color)).
 		Styled(selection.Highlight{Line: r.color, Width: 2}).
 		Styled(navigation.RouteStyle{Line: r.color, Goal: r.color, Width: 1.5}).
 		Styled(minimap.Mark{Color: r.color, Size: 6})

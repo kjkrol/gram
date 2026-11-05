@@ -20,8 +20,8 @@ import (
 
 // two observers looking at (x, y) over a world w by h: the one a pixel a world unit, the other a
 // quarter of a pixel seeing four times as far; under a ladder seeing from half a pixel a world
-// unit, L0 within its sight of the point, within four times that the level its lower thresholds
-// give a quarter of a pixel, L4 beyond
+// unit, L2 within its sight of the point, within four times that the level its lower thresholds
+// give a quarter of a pixel, L6 beyond
 type observers [2]camera.Camera
 
 var _ sector.Observers = (*observers)(nil)
@@ -52,17 +52,17 @@ func (o *observers) Observers(each func(cam camera.Camera)) {
 
 // far off is four sectors on from where the cameras look away: room for a sector a level coarser
 // each between
-func TestScan_AnObserverSeesEveryStepThroughL2AndNothingFromL3(t *testing.T) {
+func TestScan_AnObserverSeesEveryStepThroughL4AndNothingFromL5(t *testing.T) {
 	for _, c := range []struct {
 		level  lod.Level
 		scales [lod.Levels - 1]float32
 		sight  float32
 		sees   bool
 	}{
-		{lod.L1, [lod.Levels - 1]float32{0.5, 0.2}, 600, true},
-		{lod.L2, [lod.Levels - 1]float32{0.5, 0.4, 0.2}, 600, true},
-		{lod.L3, [lod.Levels - 1]float32{0.5, 0.4, 0.3}, 600, false},
-		{lod.L4, [lod.Levels - 1]float32{0.5, 0.4, 0.3}, 400, false},
+		{lod.L3, [lod.Levels - 1]float32{0, 0, 0.5, 0.2}, 600, true},
+		{lod.L4, [lod.Levels - 1]float32{0, 0, 0.5, 0.4, 0.2}, 600, true},
+		{lod.L5, [lod.Levels - 1]float32{0, 0, 0.5, 0.4, 0.3}, 600, false},
+		{lod.L6, [lod.Levels - 1]float32{0, 0, 0.5, 0.4, 0.3}, 400, false},
 	} {
 		t.Run(fmt.Sprintf("L%d", c.level), func(t *testing.T) {
 			sees, level := lookedAway(t, c.scales, c.sight)
@@ -111,17 +111,17 @@ func lookedAway(t *testing.T, scales [lod.Levels - 1]float32, sight float32) (bo
 		t.Fatal(err)
 	}
 	var sighted goke.Comp[vision.Sighted]
-	var l1 goke.OptComp[sector.L1]
-	var l2 goke.OptComp[sector.L2]
 	var l3 goke.OptComp[sector.L3]
 	var l4 goke.OptComp[sector.L4]
+	var l5 goke.OptComp[sector.L5]
+	var l6 goke.OptComp[sector.L6]
 	var query *goke.Query
 	var systems []goke.System
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
 	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		query = si.NewQueryBuilder(&sighted).Optional(&l1, &l2, &l3, &l4).Build()
+		query = si.NewQueryBuilder(&sighted).Optional(&l3, &l4, &l5, &l6).Build()
 	}})
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
@@ -131,16 +131,16 @@ func lookedAway(t *testing.T, scales [lod.Levels - 1]float32, sight float32) (bo
 	})
 	seen := func() (uint8, lod.Level) {
 		for query.All(); query.Next(); {
-			cur, level := query.Cursor(), lod.L0
-			for k, mark := range []bool{l1.Present(cur), l2.Present(cur), l3.Present(cur),
-				l4.Present(cur)} {
+			cur, level := query.Cursor(), lod.L2
+			for k, mark := range []bool{l3.Present(cur), l4.Present(cur), l5.Present(cur),
+				l6.Present(cur)} {
 				if mark {
-					level = lod.Level(k + 1)
+					level = lod.L3 + lod.Level(k)
 				}
 			}
 			return sighted.Slice(cur)[0].Count, level
 		}
-		return 0, lod.L0
+		return 0, lod.L2
 	}
 	for range 3 {
 		ctx.ecs.Tick(time.Second / 60)

@@ -48,8 +48,8 @@ keeps only what those do not.
   what stands (board), `Collider` and `Physics` of a unit (collision). A missing requirement
   panics naming the plugin and its reason.
 - Levels (`lod.Paces` through `world.Plugin.Pace`, `gram-plugin`), every system's: `Slowing(2,
-  4, 8)` motion, gravity along Z, the plans, the effects; `Contact` (through L2) collision,
-  vision, gravity across; `Steady` (every level but L4) navigation, a shot's flight (keen at L2
+  4, 8)` motion, gravity along Z, the plans, the effects; `Contact` (through L4) collision,
+  vision, gravity across; `Steady` (every level but L6) navigation, a shot's flight (keen at L4
   while it flies), the light's sources, standing, occupancy, altitude, driving, selection,
   dialog, give, routing, shooting. Cells carry no `Base`, so no level; lookups by identity
   (`Seek`, a conversation's partner, a selected unit beyond sight) stay `All()` on purpose.
@@ -59,28 +59,36 @@ keeps only what those do not.
 
 ## world, with entity, view and clock
 
+- The ladder (`lod`): three scales of two rungs each, exact and coarse, and the omission: L0–L1
+  close (`lod.Close`; a game enters it by setting the first two thresholds, a zero there meaning
+  the scale is not used), L2–L3 standard (`lod.Standard`), L4–L5 strategic (`lod.Strategic`),
+  L6 omitted (`lod.Omitted`). `Paces` has seven rungs, counted from the finest level any
+  observer actually sees; `Plugin.Within(first)` filters a system's entities to one scale (it
+  excludes the other levels' marks: goke has no OR), so a system of the close scale ticks only
+  where someone looks closely.
 - Sectors (`SectorsCfg{Buckets}` cuts the world; `Config.LOD` is its `lod.Ladder`; board/
   topography and motion/expanse have them): the supervisor runs once a tick after the clock,
   before the views. Per observer camera (`sector.Observers`, the cameras' but a `Whole` one's or
   a minimap's) it holds a level a sector from `lod.Ladder.At(camera.ScaleShown(nearest point),
   distance from camera.Viewpoint)`, wrap-aware (`Grid.Nearest`), finer at once and coarser only
   past `Ladder.Hold`'s hysteresis (a threshold by 10%, the Sight by half a sector), then grades
-  it so neighbours both under L4 differ by one at most (a Chebyshev transform; L4 borders
+  it so neighbours both under L6 differ by one at most (a Chebyshev transform; L6 borders
   anything, else the lift would wake rings beyond the Sight) — the camera's view reads that
   graded level. The level ticked is the finest graded level of any observer, with none the
-  ladder's `Unobserved` (zero: L2, a server's middle; a bench says `UnobservedL0`),
+  ladder's `Unobserved` (zero: L4, a server's middle; a bench says `UnobservedL2`),
   lowered to a `sector.Keen` entity's level in its sector and the eight round (a shot in flight).
-  Every sector begins at L4, so the first tick and a load wake everything near. Marks
-  `sector.L1`…`L4`, zero-size, saved with the game; L0 unmarked. Beside them the pace marks
-  `sector.Far1`…`Far3` (2026-11-04): how many levels coarser than the finest level any observer
-  sees (`grade` returns it; `Keen` never lowers it; no observer → `Unobserved`) the entity's
-  sector is, swapped in `move` with the level mark; `Pace(paces)` builds `Every[Far_k]` on them
-  and `Never[L4]`, so time runs at full pace where the viewer looks most closely whatever the
-  level, and a world nobody watches at full pace everywhere (the user's rule; the aggregates are
-  its saving). A change of the finest level re-marks every awake entity (two archetype moves
-  each; batching through goke's `Editor` is open). `Contact`'s "none" rungs are relative too:
-  collision and vision run three levels deep from the finest seen.
-- **The space holds no L4 entity** (the index, motion's rebuild and collision skip them), so
+  Every sector begins at L6, so the first tick and a load wake everything near. Marks
+  `sector.L0`…`L6`, zero-size, saved with the game, one on every awake entity; beside them the
+  pace marks `Far1`…`Far5` (2026-11-04): how many levels coarser than the finest level any
+  observer sees (`grade` returns it; `Keen` never lowers it; no observer → `Unobserved`) the
+  entity's sector is, swapped in `move` with the level mark; `Pace(paces)` builds
+  `Every[Far_k]` on them and `Never[L6]`, so time runs at full pace where the viewer looks most
+  closely whatever the level, and a world nobody watches at full pace everywhere (the user's
+  rule; the aggregates are its saving). A change of the finest level re-marks every awake
+  entity (two archetype moves each; batching through goke's `Editor` is open). `Contact`'s
+  "none" rungs are relative too: collision and vision run three levels deep from the finest
+  seen.
+- **The space holds no L6 entity** (the index, motion's rebuild and collision skip them), so
   asking it would never find them again: the sleepers are listed by sector, laid anew at the
   first tick and after a load (`restart`), and woken by sector. A top-down zoom across a
   threshold re-marks every awake entity at once (~200 ns each): known, not spread yet.
@@ -103,34 +111,34 @@ keeps only what those do not.
   `Clock.Behind` lowers a tempo above 1 after 30 slow frames. `clock.At` and `Every` go by clock
   time: a moment passed never fires again after a load.
 - view: `View.Level(x, y)` is the picture's level: the observer's graded level shifted coarser
-  by the camera's `LevelShift` (the frame budget's; a sector seen at L0 is never shifted: what
-  the player looks at stays full, 2026-11-04), a drawn sector to L3 at most, L4 off the
-  picture or past the sight; the tick never sees the shift. Behind the eye `ScaleAt` gives the
-  scale of a point as far before it (`camera.InFront` says which side).
-- The figures' colour at L3 (`Plugin.Aggregates`, asked once by a ground's renderer in its
-  constructor: the topography's and the board's; a world none asks records L3 figures as before
-  and spends nothing): the publisher sums a figure some camera sees at L3 — one with a look of
+  by the camera's `LevelShift` (the frame budget's; a sector seen at L2 or finer is never
+  shifted: what the player looks at stays full, 2026-11-04), a drawn sector to L5 at most, L6
+  off the picture or past the sight; the tick never sees the shift. Behind the eye `ScaleAt`
+  gives the scale of a point as far before it (`camera.InFront` says which side).
+- The figures' colour at L5 (`Plugin.Aggregates`, asked once by a ground's renderer in its
+  constructor: the topography's and the board's; a world none asks records L5 figures as before
+  and spends nothing): the publisher sums a figure some camera sees at L5 — one with a look of
   its own, no material, nothing declared at any level — as its blob's mean colour
   (`render.MeanColour`, kept at `Close` for every sprite in the kind's place) premultiplied, by
   how much of each texel (`Ladder.Texel`) its box covers, into tiles of 64×64 texels in a
   `render.Buffered` pair: only the tiles a frame wrote exist (a sector left is clear the next
   frame, a still world writes nothing), the world's `Compose` uploads once a frame the tiles whose
-  signature changed, and a tile emptied is written as zeros. A figure seen at L3 by one camera and
-  finer by another is both summed and recorded; `Keep[L3]` thins the sum as the records. The frame
+  signature changed, and a tile emptied is written as zeros. A figure seen at L5 by one camera and
+  finer by another is both summed and recorded; `Keep[L5]` thins the sum as the records. The frame
   image is `world.AggregateImage`, bound per draw through `opts.Uniforms` (seven of the eight named
   images are in use now). `sector.Grid.Of` truncates, no float64.
 - Aggregates (`wholes.go`, 2026-11-04): `Aggregate`, `Field{Size}`, `PartOf`; the `wholes` system
   (after the moments', `lod.Steady`) reads each aggregate's level at its centre (`levelAt`, not the
-  mark swaps: a spawn mid-tick reads unmarked L0), keeps a world-made `stretch` entity per
+  mark swaps: a spawn mid-tick has no mark yet), keeps a world-made `stretch` entity per
   unfolded (aggregate, sector) with the fold's due time (saved; `Unfold`'s subject, which is how
   `SpawnPart{At}` finds the sector's `Box`), tells `Folding` to the parts whose centre lies in
   the sector, moves a point aggregate to its parts' centroid before `Fold` (`gather`, the space's
   runs re-gathered), and checks `Met` among the bodies carrying `sector.Abstract` only when a rule
   handles it (`meeting` entities remember a pair). `Grid.Cover` cuts a box by sector. A field's
   record keeps its own box plus `Size` in a side table; `renderer.over` picks per camera: the
-  level read on the field box, drawn over it from L2 (the point path scales the look), over its
+  level read on the field box, drawn over it from L4 (the point path scales the look), over its
   own box short of it; seen wherever the field box meets the view, asleep too (the render query
-  keeps L4 chunks carrying `Field`); never thinned, no shadow over the field; a box over 8×8
+  keeps L6 chunks carrying `Field`); never thinned, no shadow over the field; a box over 8×8
   texels sums its inside a run at a time and weighs its rim alone. `Unfolded` (first Unfold →
   the step after the last Fold): a point aggregate publishes no record while it carries it, a
   field is published as one record per covered sector (`renderer.covers`), each at its own
@@ -259,8 +267,8 @@ keeps only what those do not.
   the cells' data, the shaders work out the shapes; a changed cell is rewritten with its
   neighbours, all of them past an eighth. Nothing is composed on the CPU: a camera without
   `Rays`, or a board of no world, draws nothing. The tiles' shaders decode the sector's level;
-  at L3 they lay the figures' colour the world sums (`world.Read.Aggregate`) under the tile's own
-  alpha, in the plain pass and the full one alike, bound only while a sector seen is at L3.
+  at L5 they lay the figures' colour the world sums (`world.Read.Aggregate`) under the tile's own
+  alpha, in the plain pass and the full one alike, bound only while a sector seen is at L5.
 - A unit carrying `sector.Abstract` (2026-11-04) gets pace share 1 from the standing pass
   (`moments/standing.go`) and the occupancy's keep (`occupancy/keep.go`) re-enters it into no
   cell; a chunk carrying `sector.Abstract` or `world.Unfolded` gets no standing rules and no fall
@@ -300,15 +308,15 @@ keeps only what those do not.
   cost about 1.2 ms a frame so), and not on the skirt, whose huge far triangles showed it as
   angular shadows on the horizon.
 - By sector and level, from the camera's View (`gram-plugins` world): a shader a level (`const
-  LEVEL`): L0 everything on the whole lattice, L1 without shore, running water or mouth glint,
-  L2 on the coarse lattice (every second corner, the edge ring stitched by fans, crack-free)
-  with still water a mirror and no lamps or baked shade, L3 the sheet: the painter's albedo as
-  the only colour on the coarse lattice (a texture, not a fan: the L2|L3 edge shares vertices),
+  LEVEL`): L2 everything on the whole lattice, L3 without shore, running water or mouth glint,
+  L4 on the coarse lattice (every second corner, the edge ring stitched by fans, crack-free)
+  with still water a mirror and no lamps or baked shade, L5 the sheet: the painter's albedo as
+  the only colour on the coarse lattice (a texture, not a fan: the L4|L5 edge shares vertices),
   under the figures' colour the world sums (`world.Read.Aggregate`, laid over the albedo before
   the light and the fog, the skirt bare), lit by ambient and the sun's diffuse alone so it does
-  not glow at night; L4 nothing; the grid at L0 alone; the skirt always L3 in a world with
-  sectors, L0 without. Finest first, to prime the depth. A hex board draws tops alone at L1 and
-  L2 and one quad a sector from its tops' image at L3, the summed colour over it. No care rings,
+  not glow at night; L6 nothing; the grid at L2 alone; the skirt always L5 in a world with
+  sectors, L2 without. Finest first, to prime the depth. A hex board draws tops alone at L3 and
+  L4 and one quad a sector from its tops' image at L5, the summed colour over it. No care rings,
   no care settings (the user's rule: one level a sector).
 - The billboards stand upright across the screen's level right, as tall on the screen as their
   `Height` and inside their box, shorter the steeper the view.
@@ -422,7 +430,7 @@ keeps only what those do not.
 ## navigation
 
 - **Levels** (2026-11-04, second design): a unit's `bodies.Member.Level` is its own sector's
-  mark (`bodies.Levels`, once a chunk). At L2 or coarser the unit walks the same refined route of
+  mark (`bodies.Levels`, once a chunk). At L4 or coarser the unit walks the same refined route of
   cells the climb gives (`Finder.Climb`, 64 steps, re-asked when spent; the hierarchy not ready →
   the ask waits: Madeira's first build ~20 s of game) in the **far mode** (`traffic/far.go`):
   `goFar` releases the Leg, leaves the cells and puts `sector.Abstract`; `tailFar`/`driveFar` is
@@ -430,27 +438,27 @@ keeps only what those do not.
   `keep.Watch`) without `reserveLeg`, the occupancy, `keep.Steer`, the queue or the formation,
   at `MaxSpeed · stepPace` from the planner's price of the step (`MoveOrder.Pace`/`Paced`
   cache); entry is lazy (the cell path walked out, or the unit off its route with no step in
-  flight); `descend` (the mark gone or the level under L2) anchors the route to the cell under
+  flight); `descend` (the mark gone or the level under L4) anchors the route to the cell under
   the unit (its current step, one of the next 8, or a neighbour of the next) and enters it, or
   `Snap`s off a taken one (`Snaps`) and asks anew; a folded aggregate goes far at once; a unit
-  told Stop in the far mode stands unmarked, on no cell (open). Groups at L2 march as units
+  told Stop in the far mode stands unmarked, on no cell (open). Groups at L4 march as units
   (`Place 0`, no field). A marked body is `still()` for the collision, out of the occupancy's
   keep and at pace share 1. The straight legs of hpastar's `Search.Abstract` were tried and
   dropped (the user, 2026-11-04: the unit walks the road, not the chord); gram does not call it.
 - **Aggregates** (2026-11-04): `MoveOrder.Aim`/`Aimed` hold the aggregate a `To` named; `aims.keep`
   recounts the orders aimed at each target every tick (units marked `order.Aiming`) and keeps
-  `sector.Keen{L1}` on it, recording its own Keen in `order.Sought` to restore it; a running count
+  `sector.Keen{L3}` on it, recording its own Keen in `order.Sought` to restore it; a running count
   would miss orders ending unseen. `Inherit{From}` (`traffic/inherit.go`, at the step's start so a
   fold's parts still exist at tempo > 1) copies the order whole but the walk; zero `From` is the
   giver's `PartOf.Whole`, or for an aggregate the least part with an order. An aggregate ticked
-  finer than L2 lands as a unit does (`standFor`, `land` shared with `descend`), drops the mark,
+  finer than L4 lands as a unit does (`standFor`, `land` shared with `descend`), drops the mark,
   leaves its cells itself (a `Release` Seek would not) and stands out of the keepings with its
   order kept while `world.Unfolded`, whatever its level, for the parts to take
   (`kind.Entry.Told`); after the fold it is marked and marching. An abstract route inherited
-  below L2 is dropped for a cell route. `aims.heed` re-records a target's own Keen given or
-  calmed while an aimed order holds it (a game Keen at exactly L1 cannot be told apart and is
+  below L4 is dropped for a cell route. `aims.heed` re-records a target's own Keen given or
+  calmed while an aimed order holds it (a game Keen at exactly L3 cannot be told apart and is
   lost when the order ends). `Inherit` copies the `Path` with its `Index` (and Target, goals,
-  Aim); a heir not standing on the route keeps it as given (dropped below L2, walked straight to
+  Aim); a heir not standing on the route keeps it as given (dropped below L4, walked straight to
   its waypoint far).
 - The route renderer draws a selected unit's route whole (2026-11-04): past the order's 64-step
   window it computes the rest with the same hierarchy (`previews`, keyed by the window's last
@@ -612,7 +620,7 @@ keeps only what those do not.
   zero float takes its default).
 - The adapter's ladder: going coarser the `Config.Levers` in order (light, atmosphere), then the
   pictures' level shift +1 (`camera.Shifted`, at most 2, every camera but a minimap's, a sector
-  seen at L0 spared; a world without sectors has no rung) while "Detail follows the frame budget" (`Settings.StillDetail`
+  seen at L2 or finer spared; a world without sectors has no rung) while "Detail follows the frame budget" (`Settings.StillDetail`
   zero, `cameras.Detail{Follows}`), then the resolution; finer: levers, resolution, shift. It
   steps coarser once a window falls under the budget, finer only once two windows meet it. A
   measurement stills the shift too (`Detail{Follows: false}`).

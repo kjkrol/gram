@@ -35,7 +35,7 @@ func lookingAt(w, h uint32, x, y float32) eye {
 
 func (e eye) Observers(each func(cam camera.Camera)) { each(e.cam) }
 
-func TestBoard_AUnitAsleepAtL4StandsForNoRuleAndHoldsNoCellItIsPutIn(t *testing.T) {
+func TestBoard_AUnitAsleepAtL6StandsForNoRuleAndHoldsNoCellItIsPutIn(t *testing.T) {
 	const cols, rows = 40, 2
 	g := grid.DefaultGrids{}.Square(cols, rows, boardtest.CellSize)
 	near, far := g.At(1, 0), g.At(38, 0)
@@ -71,7 +71,7 @@ func TestBoard_AUnitAsleepAtL4StandsForNoRuleAndHoldsNoCellItIsPutIn(t *testing.
 	}
 	brd := bw.Board.Read(0).Board()
 	if !brd.States(near).Has(iced.Mark()) || brd.States(far).Has(iced.Mark()) {
-		t.Errorf("iced under the unit at L0 %v, asleep %v; want only the first",
+		t.Errorf("iced under the unit at L2 %v, asleep %v; want only the first",
 			brd.States(near).Has(iced.Mark()), brd.States(far).Has(iced.Mark()))
 	}
 	east := geom.NewVec(boardtest.CellSize, 0)

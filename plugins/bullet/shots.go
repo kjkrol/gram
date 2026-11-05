@@ -45,13 +45,13 @@ type Shot struct {
 	atWhole bool
 }
 
-// the sectors a shot keeps ticked while it flies: at L1 round one aimed at an aggregate, so a
-// fight unfolds it as the shot comes, else at L2
+// the sectors a shot keeps ticked while it flies: at L3 round one aimed at an aggregate, so a
+// fight unfolds it as the shot comes, else at Strategic
 func keenOf(r Shot) sector.Keen {
 	if r.atWhole {
-		return sector.Keen{Level: lod.L1}
+		return sector.Keen{Level: lod.L3}
 	}
-	return sector.Keen{Level: lod.L2}
+	return sector.Keen{Level: lod.Strategic}
 }
 
 // Flight is a shot in the air: where it is, which way and how far it goes, who shot it, how its

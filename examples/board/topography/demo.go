@@ -126,7 +126,7 @@ func main() {
 			},
 			Sectors: world.SectorsCfg{Buckets: 2},
 			LOD: lod.Ladder{
-				Scales: [lod.Levels - 1]float32{0.5, 0.25, 0.12, 0},
+				Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.25, 0.12, 0},
 				Sight:  scale.Units(30_000),
 				Fog:    scale.Units(6_000),
 			},

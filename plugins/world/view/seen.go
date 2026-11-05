@@ -30,20 +30,21 @@ func NewSeen(cam camera.Camera, sectors Sectors) *View {
 }
 
 // Level is how fully what stands at the world point (x, y) is drawn: the level the camera sees
-// its sector at, shifted coarser by its LevelShift (camera.Shifted) to lod.L3 at most but never
-// from lod.L0, lod.L4 off the picture or past the sight; lod.L0 in a View of no sectors.
+// its sector at, shifted coarser by its LevelShift (camera.Shifted) to lod.L5 at most but never
+// from lod.Standard or finer, lod.Omitted off the picture or past the sight; lod.Standard in a
+// View of no sectors.
 func (v *View) Level(x, y float32) lod.Level {
 	if v.sectors == nil {
-		return lod.L0
+		return lod.Standard
 	}
 	return v.levels[v.sectors.Of(x, y)]
 }
 
 // Sectors calls each with every sector seen, its index in the Grid, its rectangle and its level,
-// under lod.L4; a View of no sectors has none.
+// short of lod.Omitted; a View of no sectors has none.
 func (v *View) Sectors(each func(i int, box geom.AABB, level lod.Level)) {
 	for i, l := range v.levels {
-		if l != lod.L4 {
+		if l != lod.Omitted {
 			each(i, v.sectors.Box(i), l)
 		}
 	}
@@ -87,16 +88,16 @@ func (v *View) see(space *aabbworld.Space) {
 	cfg := space.Config
 	wx, wy := float32(cfg.Width), float32(cfg.Height)
 	// the frame budget's shift is the picture's alone, the tick's marks unshifted; it hides
-	// nothing, hiding being the ladder's, and leaves what is seen at L0 full
+	// nothing, hiding being the ladder's, and leaves what is seen at Standard or finer full
 	shift := camera.LevelShiftOf(v.cam)
 	for i := range v.levels {
-		v.levels[i] = lod.L4
+		v.levels[i] = lod.Omitted
 		level := v.sectors.Level(v.cam, i)
-		if level > lod.L0 && level < lod.L4 {
-			level += min(shift, lod.L3-level)
+		if level > lod.Standard && level < lod.Omitted {
+			level += min(shift, lod.Omitted-1-level)
 		}
 		box := v.sectors.Box(i)
-		if level == lod.L4 || !v.cam.Visible(box) {
+		if level == lod.Omitted || !v.cam.Visible(box) {
 			continue
 		}
 		v.levels[i] = level

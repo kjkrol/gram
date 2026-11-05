@@ -29,12 +29,16 @@ var shaders embed.FS
 
 func init() { render.RegisterImage("GroundDetail") }
 
-// the ground's shader for each level it draws, mesh.wgsl's LEVEL
-var byLevel [lod.L4]*render.Shader
+// the ground's shader for each level it draws, mesh.wgsl's LEVEL, the close levels drawn as
+// Standard
+var byLevel [lod.Omitted]*render.Shader
 
 func init() {
-	for l := range byLevel {
-		byLevel[l] = leveled(lod.Level(l))
+	for l := lod.Standard; l < lod.Omitted; l++ {
+		byLevel[l] = leveled(l)
+	}
+	for l := range lod.Standard {
+		byLevel[l] = byLevel[lod.Standard]
 	}
 }
 
@@ -120,7 +124,7 @@ type Config struct {
 	Seen func(camera.Camera) *view.View
 	// whether the frame drawn hazes the ground; nil, as Haze sets
 	Hazed func() bool
-	// the figures' colour summed into the ground, laid over the sheet at L3 (world's
+	// the figures' colour summed into the ground, laid over the sheet at L5 (world's
 	// Read.Aggregate); nil, none
 	Aggregate func() (img *render.Image, perUnit float32)
 }
@@ -149,7 +153,7 @@ type Renderer struct {
 	spans   []sectorSpans
 	skirted span
 	drawn   []span
-	ranges  [lod.L4][]render.IndexRange
+	ranges  [lod.Omitted][]render.IndexRange
 	counts  [lod.Levels]int
 	plain   *render.Image
 	painted Painted
@@ -168,8 +172,9 @@ func New(ground Ground, surface Surface, sky Sky, cfg Config) *Renderer {
 	return r
 }
 
-// Shaders are the ground's shaders by the level they draw at, L0 to L3, for a test to compile.
-func Shaders() []*render.Shader { return byLevel[:] }
+// Shaders are the ground's shaders by the level they draw at, Standard to L5, for a test to
+// compile.
+func Shaders() []*render.Shader { return byLevel[lod.Standard:] }
 
 // Levels is how many sectors the last frame drew at each level.
 func (r *Renderer) Levels() [lod.Levels]int { return r.counts }
@@ -207,7 +212,7 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	r.eachLevel(r.drawn, func(level lod.Level, ranges []render.IndexRange) {
 		r.opts.Ranges = ranges
 		px := float32(0)
-		if level == lod.L3 && aggregate != nil && perUnit > 0 {
+		if level == lod.L5 && aggregate != nil && perUnit > 0 {
 			px = perUnit
 			r.opts.Uniforms[world.AggregateImage] = aggregate
 		} else {

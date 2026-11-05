@@ -88,13 +88,12 @@
 // profile each; [Budget] sets the frame budget for both, [Sampling] how long the rate is
 // averaged over before it is followed and [Detail] whether, in a world cut into sectors, every
 // picture but a minimap's is drawn up to [MostLevelShift] levels coarser than the world sees it
-// (camera.Shifted; a sector seen at lod.L0 stays full) before its resolution falls and back after
-// it, the tick untouched. What else
-// follows the budget is a [Lever] given in [Config.Levers], turned ahead of the pictures' level
-// and resolution both ways. The budget is followed on the frame's barrier ([Plugin.Pace], told
-// each frame's times): coarser only while the drawing's side holds the frames back, not the
-// simulation, which no lever lightens. The plugin writes only the eye's part
-// of a ridden entity's steering.Driven (Look, Flown, Climb).
+// (camera.Shifted; a sector seen at lod.Standard or finer stays full) before its resolution falls
+// and back after it, the tick untouched. What else follows the budget is a [Lever] given in
+// [Config.Levers], turned ahead of the pictures' level and resolution both ways. The budget is
+// followed on the frame's barrier ([Plugin.Pace], told each frame's times): coarser only while the
+// drawing's side holds the frames back, not the simulation, which no lever lightens. The plugin
+// writes only the eye's part of a ridden entity's steering.Driven (Look, Flown, Climb).
 //
 // # Keys
 //

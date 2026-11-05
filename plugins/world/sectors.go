@@ -35,38 +35,39 @@ type sectors struct {
 	lifts int
 	// the observer seenBy last found, looked at first: the views refresh one after another
 	last int
-	// by sector: the fullest level a Keen entity in it or round it keeps it at, L4 for none
+	// by sector: the fullest level a Keen entity in it or round it keeps it at, Omitted for none
 	keen     []lod.Level
 	keens    *goke.Query
 	keenBase goke.Comp[Base]
 	keenOf   goke.Comp[sector.Keen]
-	// by sector: the level it is ticked at, every one L4 as a game begins
+	// by sector: the level it is ticked at, every one Omitted as a game begins
 	level []lod.Level
-	// the levels switched off: every sector ticked at L0
+	// the levels switched off: every sector ticked at Standard
 	unbanded bool
 	// the level every sector is ticked at with no observer, the ladder's Unobserved
 	unobserved lod.Level
 	// the finest level any observer sees a sector at, a Keen entity's none, and by the level
-	// ticked how many levels coarser than it that is, L4's none
+	// ticked how many levels coarser than it that is, Omitted's none
 	finest lod.Level
 	far    [lod.Levels]uint8
-	// by level: L0's none
+	// by level
 	marks [lod.Levels]goke.CompID
 	// by how many levels coarser than the finest seen: none's none
-	fars [lod.L4]goke.CompID
-	// by level but L4
-	walks  [lod.L4]levelWalk
+	fars [lod.Omitted]goke.CompID
+	// by level but Omitted, and those spawned since the last pass, carrying no level's mark yet
+	walks  [lod.Omitted]levelWalk
+	fresh  levelWalk
 	lookup *goke.Query
 	base   goke.Comp[Base]
-	off    goke.OptComp[sector.L4]
-	// those at L4 by the sector they sleep in, the space not holding them
+	off    goke.OptComp[sector.L6]
+	// those at Omitted by the sector they sleep in, the space not holding them
 	sleep     [][]uid.UID64
 	sleepers  *goke.Query
 	sleepBase goke.Comp[Base]
 	asleep    bool
 	woke      []int
 	ids       []uid.UID64
-	// entities at each level at the last pass, L4's but those it holds since
+	// entities at each level at the last pass, Omitted's but those it holds since
 	counts [lod.Levels]int
 }
 
@@ -98,44 +99,82 @@ func (s *sectors) Init(si *goke.SysInit) {
 	if s.grid == nil {
 		return
 	}
-	s.marks = [lod.Levels]goke.CompID{0, si.RegComp[sector.L1](), si.RegComp[sector.L2](),
-		si.RegComp[sector.L3](), si.RegComp[sector.L4]()}
-	s.fars = [lod.L4]goke.CompID{0, si.RegComp[sector.Far1](), si.RegComp[sector.Far2](),
-		si.RegComp[sector.Far3]()}
+	s.marks = [lod.Levels]goke.CompID{si.RegComp[sector.L0](), si.RegComp[sector.L1](),
+		si.RegComp[sector.L2](), si.RegComp[sector.L3](), si.RegComp[sector.L4](),
+		si.RegComp[sector.L5](), si.RegComp[sector.L6]()}
+	s.fars = [lod.Omitted]goke.CompID{0, si.RegComp[sector.Far1](), si.RegComp[sector.Far2](),
+		si.RegComp[sector.Far3](), si.RegComp[sector.Far4](), si.RegComp[sector.Far5]()}
 	si.RegComp[sector.Abstract]()
-	for k := range lod.L4 {
-		w := &s.walks[k]
-		qb := si.NewQueryBuilder(&w.base).Optional(&w.far1, &w.far2, &w.far3)
-		if k == lod.L0 {
-			qb.Exclude(goke.Exclude[sector.L1](), goke.Exclude[sector.L2](),
-				goke.Exclude[sector.L3](), goke.Exclude[sector.L4]())
-		} else {
-			qb.Include(markOf(k))
-		}
-		w.q = qb.Build()
+	for k := range lod.Omitted {
+		s.walks[k].build(si, markOf(k))
 	}
+	s.fresh.build(si, excludeMarks()...)
 	s.lookup = si.NewQueryBuilder(&s.base).Optional(&s.off).Build()
-	s.sleepers = si.NewQueryBuilder(&s.sleepBase).Include(goke.Include[sector.L4]()).Build()
+	s.sleepers = si.NewQueryBuilder(&s.sleepBase).Include(goke.Include[sector.L6]()).Build()
 	s.keens = si.NewQueryBuilder(&s.keenBase, &s.keenOf).Build()
 }
 
+// the level a fresh entity is taken to be marked at: none of them
+const unmarked = lod.Level(lod.Levels)
+
+// the filter of the entities carrying level's mark, of those below Omitted
 func markOf(level lod.Level) goke.Opt {
 	switch level {
+	case lod.L0:
+		return goke.Include[sector.L0]()
 	case lod.L1:
 		return goke.Include[sector.L1]()
 	case lod.L2:
 		return goke.Include[sector.L2]()
+	case lod.L3:
+		return goke.Include[sector.L3]()
+	case lod.L4:
+		return goke.Include[sector.L4]()
 	}
-	return goke.Include[sector.L3]()
+	return goke.Include[sector.L5]()
 }
 
-// the entities carrying a level's mark, with the pace's mark of each chunk
+// the filters leaving out every entity a level's mark is on but those of the levels in keep
+func excludeMarks(keep ...lod.Level) []goke.Opt {
+	out := make([]goke.Opt, 0, lod.Levels)
+	for k := range lod.Level(lod.Levels) {
+		if slices.Contains(keep, k) {
+			continue
+		}
+		switch k {
+		case lod.L0:
+			out = append(out, goke.Exclude[sector.L0]())
+		case lod.L1:
+			out = append(out, goke.Exclude[sector.L1]())
+		case lod.L2:
+			out = append(out, goke.Exclude[sector.L2]())
+		case lod.L3:
+			out = append(out, goke.Exclude[sector.L3]())
+		case lod.L4:
+			out = append(out, goke.Exclude[sector.L4]())
+		case lod.L5:
+			out = append(out, goke.Exclude[sector.L5]())
+		default:
+			out = append(out, goke.Exclude[sector.L6]())
+		}
+	}
+	return out
+}
+
+// the entities a level's filters let through, with the pace's mark of each chunk
 type levelWalk struct {
 	q    *goke.Query
 	base goke.Comp[Base]
 	far1 goke.OptComp[sector.Far1]
 	far2 goke.OptComp[sector.Far2]
 	far3 goke.OptComp[sector.Far3]
+	far4 goke.OptComp[sector.Far4]
+	far5 goke.OptComp[sector.Far5]
+}
+
+func (w *levelWalk) build(si *goke.SysInit, filters ...goke.Opt) {
+	w.q = si.NewQueryBuilder(&w.base).Optional(&w.far1, &w.far2, &w.far3, &w.far4, &w.far5).
+		With(filters...).Build()
 }
 
 // how many levels coarser than the finest seen the chunk under cur is marked
@@ -147,6 +186,10 @@ func (w *levelWalk) far(cur *goke.Cursor) uint8 {
 		return 2
 	case w.far3.Present(cur):
 		return 3
+	case w.far4.Present(cur):
+		return 4
+	case w.far5.Present(cur):
+		return 5
 	}
 	return 0
 }
@@ -159,8 +202,8 @@ type mark struct {
 }
 
 // Update lays each sector at the fullest level an observer sees it at or a Keen entity keeps it
-// at and moves the marks: of the entities asleep in the sectors that came back from L4, then of
-// every entity awake whose sector's marks are not the ones it carries.
+// at and moves the marks: of the entities asleep in the sectors that came back from Omitted, then
+// of every entity awake whose sector's marks are not the ones it carries.
 func (s *sectors) Update(cb *goke.CmdBuf, _ time.Duration) {
 	if s.grid == nil {
 		return
@@ -174,18 +217,18 @@ func (s *sectors) Update(cb *goke.CmdBuf, _ time.Duration) {
 	}
 	s.woke = s.woke[:0]
 	for i, from := range s.level {
-		to := lod.L0
+		to := lod.Standard
 		if !s.unbanded {
 			to = s.ticked(i)
 		}
 		if to != from {
 			s.level[i] = to
-			if from == lod.L4 {
+			if from == lod.Omitted {
 				s.woke = append(s.woke, i)
 			}
 		}
 	}
-	for k := range lod.L4 {
+	for k := range lod.Omitted {
 		s.far[k] = uint8(max(k, s.finest) - s.finest)
 	}
 	s.ids = s.ids[:0]
@@ -197,24 +240,30 @@ func (s *sectors) Update(cb *goke.CmdBuf, _ time.Duration) {
 		s.lookup.Seek(id)
 		c := s.base.At(s.lookup.Cursor()).Pos.Center()
 		at := s.grid.Of(c.X, c.Y)
-		s.move(cb, id, mark{level: lod.L4}, s.markOf(at), at)
+		s.move(cb, id, mark{level: lod.Omitted}, s.markOf(at), at)
 	}
 	clear(s.counts[:])
 	for k := range s.walks {
-		w := &s.walks[k]
-		for w.q.All(); w.q.Next(); {
-			cur := w.q.Cursor()
-			from := mark{lod.Level(k), w.far(cur)}
-			bases := w.base.Slice(cur)
-			for j, id := range cur.IDs {
-				c := bases[j].Pos.Center()
-				at := s.grid.Of(c.X, c.Y)
-				to := s.markOf(at)
-				if to != from {
-					s.move(cb, id, from, to, at)
-				}
-				s.counts[to.level]++
+		s.remark(cb, &s.walks[k], lod.Level(k))
+	}
+	s.remark(cb, &s.fresh, unmarked)
+}
+
+// moves the marks of every entity w walks, marked at level, whose sector's are not the ones it
+// carries
+func (s *sectors) remark(cb *goke.CmdBuf, w *levelWalk, level lod.Level) {
+	for w.q.All(); w.q.Next(); {
+		cur := w.q.Cursor()
+		from := mark{level, w.far(cur)}
+		bases := w.base.Slice(cur)
+		for j, id := range cur.IDs {
+			c := bases[j].Pos.Center()
+			at := s.grid.Of(c.X, c.Y)
+			to := s.markOf(at)
+			if to != from {
+				s.move(cb, id, from, to, at)
 			}
+			s.counts[to.level]++
 		}
 	}
 }
@@ -239,7 +288,7 @@ func (s *sectors) observe() {
 	s.lifts = 0
 	s.finest = s.unobserved
 	if len(s.cams) > 0 {
-		s.finest = lod.L4
+		s.finest = lod.Omitted
 	}
 	for j, cam := range s.cams {
 		s.take(j, cam)
@@ -250,7 +299,7 @@ func (s *sectors) observe() {
 	}
 }
 
-// has row j kept for cam: the row it had, else one at L4 everywhere, which the first pass lays
+// has row j kept for cam: the row it had, else one at Omitted everywhere, which the first pass lays
 // at once
 func (s *sectors) take(j int, cam camera.Camera) {
 	if s.owners[j] == cam {
@@ -265,7 +314,7 @@ func (s *sectors) take(j int, cam camera.Camera) {
 	}
 	s.owners[j] = cam
 	for i := range s.raw[j] {
-		s.raw[j][i] = lod.L4
+		s.raw[j][i] = lod.Omitted
 	}
 }
 
@@ -287,23 +336,24 @@ func (s *sectors) hold(cam camera.Camera, row []lod.Level) {
 }
 
 // has graded raw with no sector drawn more than a level coarser than one drawn beside it, each
-// level lifting the sectors round it in turn from the finest; one at L4 stays so and lifts none.
+// level lifting the sectors round it in turn from the finest; one at Omitted stays so and lifts
+// none.
 // It is how many were lifted and the finest level graded.
 func (s *sectors) grade(raw, graded []lod.Level) (lifts int, finest lod.Level) {
 	copy(graded, raw)
-	for k := lod.L0; k+1 < lod.L4; k++ {
+	for k := lod.L0; k+1 < lod.Omitted; k++ {
 		for i, l := range graded {
 			if l != k {
 				continue
 			}
 			s.grid.Neighbours(i, func(j int) {
-				if l := graded[j]; l > k+1 && l < lod.L4 {
+				if l := graded[j]; l > k+1 && l < lod.Omitted {
 					graded[j] = k + 1
 				}
 			})
 		}
 	}
-	finest = lod.L4
+	finest = lod.Omitted
 	for i, l := range graded {
 		if l < raw[i] {
 			lifts++
@@ -317,7 +367,7 @@ func (s *sectors) grade(raw, graded []lod.Level) (lifts int, finest lod.Level) {
 // too
 func (s *sectors) keep() {
 	for i := range s.keen {
-		s.keen[i] = lod.L4
+		s.keen[i] = lod.Omitted
 	}
 	for s.keens.All(); s.keens.Next(); {
 		cur := s.keens.Cursor()
@@ -344,13 +394,14 @@ func (s *sectors) ticked(i int) lod.Level {
 	return level
 }
 
-// the level the sector holding (x, y) is ticked at; L0 without sectors or with the levels off
+// the level the sector holding (x, y) is ticked at; Standard without sectors or with the levels
+// off
 func (s *sectors) levelAt(x, y float32) lod.Level { return s.levelOf(s.of(x, y)) }
 
-// the level sector i is ticked at; L0 without sectors or with the levels off
+// the level sector i is ticked at; Standard without sectors or with the levels off
 func (s *sectors) levelOf(i int) lod.Level {
 	if s.grid == nil || s.unbanded {
-		return lod.L0
+		return lod.Standard
 	}
 	return s.level[i]
 }
@@ -384,7 +435,7 @@ func (s *sectors) seenBy(cam camera.Camera, i int) lod.Level {
 	return s.graded[s.last][i]
 }
 
-// lays every entity marked L4 in the sector it sleeps in, as a game begins or after a load
+// lays every entity marked Omitted in the sector it sleeps in, as a game begins or after a load
 func (s *sectors) lull() {
 	for i := range s.sleep {
 		s.sleep[i] = s.sleep[i][:0]
@@ -400,15 +451,15 @@ func (s *sectors) lull() {
 	s.asleep = true
 }
 
-// gathers the entities asleep in sector i still marked L4; one moved off sleeps on where it is
-// if that sector is at L4 too
+// gathers the entities asleep in sector i still marked Omitted; one moved off sleeps on where it
+// is if that sector is Omitted too
 func (s *sectors) wake(i int) {
 	for _, id := range s.sleep[i] {
 		if !s.lookup.Seek(id) || !s.off.Present(s.lookup.Cursor()) {
 			continue
 		}
 		c := s.base.At(s.lookup.Cursor()).Pos.Center()
-		if at := s.grid.Of(c.X, c.Y); at != i && s.level[at] == lod.L4 {
+		if at := s.grid.Of(c.X, c.Y); at != i && s.level[at] == lod.Omitted {
 			s.sleep[at] = append(s.sleep[at], id)
 			continue
 		}
@@ -417,19 +468,19 @@ func (s *sectors) wake(i int) {
 	s.sleep[i] = s.sleep[i][:0]
 }
 
-// every sector at L4 again, its sleepers laid anew and every observer's levels begun afresh: as a
+// every sector Omitted again, its sleepers laid anew and every observer's levels begun afresh: as a
 // game begins and after a load
 func (s *sectors) restart() {
 	if s.grid != nil {
 		for i := range s.level {
-			s.level[i] = lod.L4
+			s.level[i] = lod.Omitted
 		}
 		clear(s.owners)
 		s.asleep = false
 	}
 }
 
-// to the marks of sector at, sleeping in it at L4
+// to the marks of sector at, sleeping in it at Omitted
 func (s *sectors) move(cb *goke.CmdBuf, id uid.UID64, from, to mark, at int) {
 	if from.far != to.far {
 		if from.far != 0 {
@@ -442,25 +493,34 @@ func (s *sectors) move(cb *goke.CmdBuf, id uid.UID64, from, to mark, at int) {
 			cb.AddOne(id, s.fars[to.far], sector.Far2{})
 		case 3:
 			cb.AddOne(id, s.fars[to.far], sector.Far3{})
+		case 4:
+			cb.AddOne(id, s.fars[to.far], sector.Far4{})
+		case 5:
+			cb.AddOne(id, s.fars[to.far], sector.Far5{})
 		}
 	}
 	if from.level == to.level {
 		return
 	}
-	if from.level != lod.L0 {
+	if from.level != unmarked {
 		cb.RemoveCompOne(id, s.marks[from.level])
 	}
 	switch to.level {
 	case lod.L0:
+		cb.AddOne(id, s.marks[to.level], sector.L0{})
 	case lod.L1:
 		cb.AddOne(id, s.marks[to.level], sector.L1{})
 	case lod.L2:
 		cb.AddOne(id, s.marks[to.level], sector.L2{})
 	case lod.L3:
 		cb.AddOne(id, s.marks[to.level], sector.L3{})
+	case lod.L4:
+		cb.AddOne(id, s.marks[to.level], sector.L4{})
+	case lod.L5:
+		cb.AddOne(id, s.marks[to.level], sector.L5{})
 	default:
 		s.sleep[at] = append(s.sleep[at], id)
-		cb.AddOne(id, s.marks[to.level], sector.L4{})
+		cb.AddOne(id, s.marks[to.level], sector.L6{})
 	}
 }
 
@@ -485,7 +545,7 @@ func (r seenReport) Report(line func(label, value string)) {
 	}
 	var n [lod.Levels]int
 	r.w.views[0].Sectors(func(_ int, _ geom.AABB, l lod.Level) { n[l]++ })
-	line("Sectors seen", levelsOf(n[:lod.L4]))
+	line("Sectors seen", levelsOf(n[:lod.Omitted]))
 }
 
 type sectorsReport struct{ w *module }
@@ -507,10 +567,10 @@ func (r sectorsReport) Report(line func(label, value string)) {
 	line("Sectors lifted", strconv.Itoa(s.lifts))
 	counts := s.counts
 	awake := 0
-	for _, n := range counts[:lod.L4] {
+	for _, n := range counts[:lod.Omitted] {
 		awake += n
 	}
-	counts[lod.L4] = max(r.w.telemetry.Count-awake, 0)
+	counts[lod.Omitted] = max(r.w.telemetry.Count-awake, 0)
 	line("Entities by level", levelsOf(counts[:]))
 }
 

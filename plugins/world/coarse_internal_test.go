@@ -128,7 +128,7 @@ func drawSeenAt(t *testing.T, cam camera.Camera, ladder lod.Ladder, xs []float32
 }
 
 func TestRenderer_Compose_DrawsACoarseEntityFlat(t *testing.T) {
-	look := drawStanding(t, lod.Ladder{Scales: [lod.Levels - 1]float32{0.5}}, true)
+	look := drawStanding(t, lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5}}, true)
 	if look.uprights != 1 || len(look.sprites) != 2 {
 		t.Errorf("uprights %d, sprites %d; want the near one standing, the far two flat",
 			look.uprights, len(look.sprites))
@@ -193,15 +193,15 @@ func places(f *render.Frame) int {
 
 func TestRenderer_Compose_DrawsEachKindAsTheLevelSays(t *testing.T) {
 	a, own := leveledRed()
-	// the right sector, a tenth of a pixel a unit, at the level the ladder says; the left at L0
+	// the right sector, a tenth of a pixel a unit, at the level the ladder says; the left at L2
 	for _, tc := range []struct {
 		scales [lod.Levels - 1]float32
 		want   []render.SpriteID
 		points bool
 	}{
-		{[...]float32{0.5, 0, 0, 0}, []render.SpriteID{own, own, own}, false},
-		{[...]float32{0.5, 0.2, 0, 0}, []render.SpriteID{own}, true},
-		{[...]float32{0.5, 0.3, 0.2, 0}, []render.SpriteID{own}, false},
+		{[...]float32{0, 0, 0.5, 0, 0, 0}, []render.SpriteID{own, own, own}, false},
+		{[...]float32{0, 0, 0.5, 0.2, 0, 0}, []render.SpriteID{own}, true},
+		{[...]float32{0, 0, 0.5, 0.3, 0.2, 0}, []render.SpriteID{own}, false},
 	} {
 		look := &counting{Look: ilook.NewFlat(1024, 1000, false, false)}
 		again := drawSeen(t, lod.Ladder{Scales: tc.scales}, a, own, look, readied(a))
@@ -216,25 +216,25 @@ func TestRenderer_Compose_DrawsEachKindAsTheLevelSays(t *testing.T) {
 	}
 }
 
-func TestRenderer_Compose_DrawsAtL2NothingThroughTheLook(t *testing.T) {
-	look := drawStanding(t, lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2}}, true)
+func TestRenderer_Compose_DrawsAtL4NothingThroughTheLook(t *testing.T) {
+	look := drawStanding(t, lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2}}, true)
 	if look.uprights != 1 || len(look.sprites) != 0 || len(look.fogs) != 2 {
 		t.Errorf("uprights %d, sprites %d, fogs %v; want the near one standing, the far two "+
 			"neither drawn nor fogged by the look", look.uprights, len(look.sprites), look.fogs)
 	}
 }
 
-func TestRenderer_Compose_LaysAMaterialDeclaredAtL2(t *testing.T) {
+func TestRenderer_Compose_LaysAMaterialDeclaredAtL4(t *testing.T) {
 	p := NewPlugin(Config{
 		Space:    SpaceCfg{Width: 1024, Height: 1000},
 		Entities: EntitiesCfg{MaxCount: 3, MinSize: 1, MaxSize: 10},
 	})
 	own := p.Kinds().NewSprite()
 	a := p.NewAtlas()
-	a.Add(own, 8, render.Solid(color.RGBA{R: 255, A: 255})).At(lod.L2, render.MaterialID(7))
+	a.Add(own, 8, render.Solid(color.RGBA{R: 255, A: 255})).At(lod.L4, render.MaterialID(7))
 	a.Close()
 	look := &counting{Look: ilook.NewFlat(1024, 1000, false, false)}
-	again := drawSeen(t, lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2}}, a, own, look,
+	again := drawSeen(t, lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2}}, a, own, look,
 		readied(a))
 	look.sprites = nil
 	f := again()
@@ -253,11 +253,11 @@ func TestRenderer_Compose_LaysAMaterialDeclaredAtL2(t *testing.T) {
 func TestRenderer_Compose_AllocatesNothingForTheLevels(t *testing.T) {
 	a, own := leveledRed()
 	look := ilook.NewFlat(1024, 1000, false, false)
-	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2, 0, 0}}
+	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2, 0, 0}}
 	again := drawSeen(t, ladder, a, own, look, readied(a))
 	again()
 	if n := testing.AllocsPerRun(10, func() { again() }); n != 0 {
-		t.Errorf("a frame of an entity at L0 and two at L2 allocates %v times, want none", n)
+		t.Errorf("a frame of an entity at L2 and two at L4 allocates %v times, want none", n)
 	}
 }
 
@@ -280,7 +280,7 @@ func (turned) Visible(b camera.AABB) bool { return b.TopLeft.X < 512 }
 
 func TestRenderer_Compose_DrawsWhatThePictureCutsByASectorOnIt(t *testing.T) {
 	a, own := leveledRed()
-	shown := lod.Ladder{Scales: [lod.Levels - 1]float32{8, 0.5, 0, 0}}
+	shown := lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 8, 0.5, 0, 0}}
 	cut := framed{farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}}
 	// the second's middle at 514 lies in the right sector, off the picture, its box from 509 over
 	// the picture's edge or the left sector's

@@ -74,12 +74,12 @@ func TestTerrain_DrawsTheLevelEvenlyAndABumpWhereItStands(t *testing.T) {
 
 func TestTerrainShaders_Compile(t *testing.T) {
 	gputest.Need(t)
-	if len(Shaders()) != int(lod.L4) {
-		t.Fatalf("%d shaders, want one a level drawn, %d", len(Shaders()), lod.L4)
+	if want := int(lod.Omitted - lod.Standard); len(Shaders()) != want {
+		t.Fatalf("%d shaders, want one a level drawn from Standard, %d", len(Shaders()), want)
 	}
-	for level, s := range Shaders() {
+	for k, s := range Shaders() {
 		if err := s.Compile(); err != nil {
-			t.Errorf("L%d: %v", level, err)
+			t.Errorf("L%d: %v", lod.Standard+lod.Level(k), err)
 		}
 	}
 }
@@ -161,13 +161,13 @@ func TestTerrain_DrawsEachLevelWithoutWhatItsWordDrops(t *testing.T) {
 		i := 4 * (y*64 + x)
 		return color.RGBA{pix[i], pix[i+1], pix[i+2], pix[i+3]}
 	}
-	var land, sea [lod.L4]color.RGBA
-	for level := lod.L0; level < lod.L4; level++ {
+	var land, sea [lod.L6]color.RGBA
+	for level := lod.L2; level < lod.L6; level++ {
 		runs, pix := draw(level)
-		// at L3 the world's coarse run and the skirt, which follows it, are one
-		if n := len(runs); runs[0].level != level || runs[n-1].level != lod.L3 ||
-			n != 2 && level != lod.L3 {
-			t.Fatalf("runs %v, want the world's at L%d and the skirt's at L3", runs, level)
+		// at L5 the world's coarse run and the skirt, which follows it, are one
+		if n := len(runs); runs[0].level != level || runs[n-1].level != lod.L5 ||
+			n != 2 && level != lod.L5 {
+			t.Fatalf("runs %v, want the world's at L%d and the skirt's at L5", runs, level)
 		}
 		land[level], sea[level] = at(pix, 5, 5), at(pix, 40, 40)
 		if land[level].A != 255 || sea[level].A != 255 {
@@ -175,10 +175,10 @@ func TestTerrain_DrawsEachLevelWithoutWhatItsWordDrops(t *testing.T) {
 				sea[level])
 		}
 	}
-	for level := lod.L1; level < lod.L4; level++ {
-		if !near(land[level], land[lod.L0], 1) {
-			t.Errorf("the land at L%d is %v, at L0 %v: want alike without a baked shade, a "+
-				"lamp, a grain or a grid", level, land[level], land[lod.L0])
+	for level := lod.L3; level < lod.L6; level++ {
+		if !near(land[level], land[lod.L2], 1) {
+			t.Errorf("the land at L%d is %v, at L2 %v: want alike without a baked shade, a "+
+				"lamp, a grain or a grid", level, land[level], land[lod.L2])
 		}
 		if near(sea[level], sea[level-1], 2) {
 			t.Errorf("the sea at L%d is %v, as at L%d: want it without what L%d drops", level,
@@ -186,19 +186,19 @@ func TestTerrain_DrawsEachLevelWithoutWhatItsWordDrops(t *testing.T) {
 		}
 	}
 	// the sheet: the sea's albedo in the light the land is in, no water
-	light := float32(land[lod.L3].R) / float32(landColour.R)
+	light := float32(land[lod.L5].R) / float32(landColour.R)
 	in := func(v byte) byte { return byte(float32(v)*light + 0.5) }
 	want := color.RGBA{in(seaColour.R), in(seaColour.G), in(seaColour.B), 255}
-	if !near(sea[lod.L3], want, 3) {
-		t.Errorf("the sea as a sheet is %v, want the albedo's %v in the light", sea[lod.L3], want)
+	if !near(sea[lod.L5], want, 3) {
+		t.Errorf("the sea as a sheet is %v, want the albedo's %v in the light", sea[lod.L5], want)
 	}
-	runs, pix := draw(lod.L4)
-	if len(runs) != 1 || runs[0].level != lod.L3 {
-		t.Errorf("runs at L4 %v, want the skirt alone, as a sheet", runs)
+	runs, pix := draw(lod.L6)
+	if len(runs) != 1 || runs[0].level != lod.L5 {
+		t.Errorf("runs at L6 %v, want the skirt alone, as a sheet", runs)
 	}
 	for k := 3; k < len(pix); k += 4 {
 		if pix[k] != 0 {
-			t.Fatalf("the pixel %d is drawn at L4, want nothing", k/4)
+			t.Fatalf("the pixel %d is drawn at L6, want nothing", k/4)
 			break
 		}
 	}
@@ -213,7 +213,7 @@ func (g *gridded) Surface() Painted {
 	return p
 }
 
-func TestTerrain_DrawsTheGridAtL0Alone(t *testing.T) {
+func TestTerrain_DrawsTheGridAtL2Alone(t *testing.T) {
 	gputest.Need(t)
 	u := render.UniformsOf(map[string]any{"LightWay": []float32{0, 0, 1},
 		"LightStrength": []float32{0}, "LightColor": []float32{1, 1, 1},
@@ -225,10 +225,10 @@ func TestTerrain_DrawsTheGridAtL0Alone(t *testing.T) {
 		return color.RGBA{pix[i], pix[i+1], pix[i+2], pix[i+3]}
 	}
 	// a pixel 2 world units: the cells' edge at 96 runs between the pixels 15 and 16
-	for level := lod.L0; level < lod.L4; level++ {
+	for level := lod.L2; level < lod.L6; level++ {
 		_, pix := draw(level)
 		edge, inside := at(pix, 16, 5), at(pix, 8, 5)
-		if want := level == lod.L0; near(edge, red, 2) != want || near(inside, red, 2) {
+		if want := level == lod.L2; near(edge, red, 2) != want || near(inside, red, 2) {
 			t.Errorf("L%d: the cells' edge %v, a cell's inside %v; want the grid's red on the "+
 				"edge %v", level, edge, inside, want)
 		}
@@ -260,14 +260,14 @@ func (m *mottled) Surface() Painted {
 	return Painted{Albedo: m.img, Px: mottledPx, Reach: 96}
 }
 
-func TestTerrain_DrawsASheetOfTheAlbedoAtL3(t *testing.T) {
+func TestTerrain_DrawsASheetOfTheAlbedoAtL5(t *testing.T) {
 	gputest.Need(t)
 	// in a light leaving a colour as it is, a pixel 8 world units, its middle a texel's
 	u := render.UniformsOf(map[string]any{"LightWay": []float32{0, 0, 1},
 		"LightStrength": []float32{0}, "LightColor": []float32{1, 1, 1},
 		"Ambience": []float32{1, 1, 1}})
 	draw := leveledDraw(t, &mottled{}, downward{cameratest.NewFromSpace(64, 64, 0)}, u)
-	_, pix := draw(lod.L3)
+	_, pix := draw(lod.L5)
 	for y := range 64 {
 		for x := range 64 {
 			i := 4 * (y*64 + x)
@@ -295,7 +295,7 @@ func aggregated() (*render.Image, float32) {
 	return img, 1.0 / 8
 }
 
-func TestTerrain_LaysTheFiguresColourOverTheSheetAtL3Alone(t *testing.T) {
+func TestTerrain_LaysTheFiguresColourOverTheSheetAtL5Alone(t *testing.T) {
 	gputest.Need(t)
 	u := render.UniformsOf(map[string]any{"LightWay": []float32{0, 0, 1},
 		"LightStrength": []float32{0}, "LightColor": []float32{1, 1, 1},
@@ -309,16 +309,16 @@ func TestTerrain_LaysTheFiguresColourOverTheSheetAtL3Alone(t *testing.T) {
 		i := 4 * (y*64 + x)
 		return color.RGBA{pix[i], pix[i+1], pix[i+2], pix[i+3]}
 	}
-	for _, level := range []lod.Level{lod.L2, lod.L3} {
+	for _, level := range []lod.Level{lod.L4, lod.L5} {
 		_, without := plain(level)
 		_, with := summed(level)
 		for y := range 64 {
 			for x := range 64 {
 				want := at(without, x, y)
-				if level == lod.L3 && x == 20 && y == 30 {
+				if level == lod.L5 && x == 20 && y == 30 {
 					want = color.RGBA{255, 0, 0, 255}
 				}
-				if level == lod.L3 && x == 40 && y == 10 {
+				if level == lod.L5 && x == 40 && y == 10 {
 					m := mottle(x, y)
 					want = color.RGBA{m.R / 2, m.G / 2, m.B/2 + 128, 255}
 				}

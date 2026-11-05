@@ -45,8 +45,8 @@ func TestSectorsView_LaysTheSectorsInSightInTheColoursOfTheirLevelsTickedOrSeen(
 	r.run()
 	r.run()
 	r.p.write.ShowSectors(SectorBands)
-	// round the observers at 100: two sectors at L0, one at L1, the rest asleep
-	l0, l1, l4 := levelColors[lod.L0], levelColors[lod.L1], levelColors[lod.L4]
+	// round the observers at 100: two sectors at L2, one at L3, the rest asleep
+	l0, l1, l4 := levelColors[lod.L2], levelColors[lod.L3], levelColors[lod.L6]
 	want := map[int]color.RGBA{0: l0, 512: l0, 1024: l1, 1536: l4}
 	if got := insides(t, r.p, cam); len(got) != len(want) || !sameColors(got, want) {
 		t.Errorf("by the level ticked %v, want %v", got, want)
@@ -121,9 +121,9 @@ func TestSectorsView_ShowsAnObserversSectorsAsItDrawsThemGraded(t *testing.T) {
 	r.run()
 	r.run()
 	r.p.write.ShowSectors(SectorsSeen)
-	// the scale falls from L0's to L3's past the second sector, the next two lifted
-	want := map[int]color.RGBA{0: levelColors[lod.L0], 512: levelColors[lod.L0],
-		1024: levelColors[lod.L1], 1536: levelColors[lod.L2]}
+	// the scale falls from L2's to L5's past the second sector, the next two lifted
+	want := map[int]color.RGBA{0: levelColors[lod.L2], 512: levelColors[lod.L2],
+		1024: levelColors[lod.L3], 1536: levelColors[lod.L4]}
 	if got := insides(t, r.p, cam); len(got) != len(want) || !sameColors(got, want) {
 		t.Errorf("as seen %v, want %v", got, want)
 	}

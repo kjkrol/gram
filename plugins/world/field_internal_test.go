@@ -20,7 +20,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// spot is an entity over a box, a field of size where size is not zero, asleep at L4 where
+// spot is an entity over a box, a field of size where size is not zero, asleep at L6 where
 // asleep, an aggregate Unfolded where unfolded with a stretch standing in each sector of in
 type spot struct {
 	box      plane.AABB
@@ -57,7 +57,7 @@ func spread(t *testing.T, cam camera.Camera, k summable, sprite render.SpriteID,
 	var base goke.Comp[Base]
 	var appearance goke.Comp[render.Appearance]
 	var field goke.Comp[Field]
-	var asleep goke.Comp[sector.L4]
+	var asleep goke.Comp[sector.L6]
 	var unfolded goke.Comp[Unfolded]
 	var st goke.Comp[stretch]
 	goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
@@ -168,29 +168,29 @@ var (
 func TestRenderer_Compose_DrawsAFieldFoldedOverItsFieldAtEveryLevel(t *testing.T) {
 	k := newSummable()
 	cam := farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}
-	// the right half at L2, a tenth of a pixel a unit
-	at := spread(t, cam, k, k.material, lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2}},
+	// the right half at L4, a tenth of a pixel a unit
+	at := spread(t, cam, k, k.material, lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2}},
 		ilook.NewFlat(1024, 1000, false, false), spot{box: ownBox, size: fieldSize})
 	wide := plane.NewAABB(fieldAt.TopLeft, fieldSize.X, fieldSize.Y)
 	if got := at.pieces(0); !slices.Equal(got, []plane.AABB{wide}) {
 		t.Fatalf("published over %v, want over its field %v", got, wide)
 	}
 	if got := materialBoxes(at.frame()); !slices.Equal(got, []geom.AABB{fieldAt}) {
-		t.Errorf("at L2 its material lies over %v, want over its field %v", got, fieldAt)
+		t.Errorf("at L4 its material lies over %v, want over its field %v", got, fieldAt)
 	}
 
-	// the left half at L1, a pixel a unit
+	// the left half at L3, a pixel a unit
 	look := &counting{Look: ilook.NewFlat(1024, 1000, false, false)}
 	own := plane.NewAABB(geom.NewVec(240, 490), 20, 20)
-	spread(t, cam, k, k.red, lod.Ladder{Scales: [lod.Levels - 1]float32{8, 0.5}}, look,
+	spread(t, cam, k, k.red, lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 8, 0.5}}, look,
 		spot{box: own, size: fieldSize}).frame()
 	left := plane.NewAABB(geom.NewVec(150, 400), fieldSize.X, fieldSize.Y)
 	if !slices.Equal(look.boxes, []plane.AABB{left}) {
-		t.Errorf("at L1 the look drew it over %v, want over its field %v", look.boxes, left)
+		t.Errorf("at L3 the look drew it over %v, want over its field %v", look.boxes, left)
 	}
 }
 
-// a field over both halves, the left at L1, the right at L2
+// a field over both halves, the left at L3, the right at L4
 var (
 	acrossOwn  = plane.NewAABB(geom.NewVec(502, 490), 20, 20)
 	acrossSize = geom.NewVec(400, 200)
@@ -202,8 +202,8 @@ func TestRenderer_Compose_DrawsEachSectorOfAFieldAtItsOwnLevel(t *testing.T) {
 	k := newSummable()
 	cam := farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}
 	look := &counting{Look: ilook.NewFlat(1024, 1000, false, false)}
-	at := spread(t, cam, k, k.red, lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2}}, look,
-		spot{box: acrossOwn, size: acrossSize})
+	at := spread(t, cam, k, k.red, lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2}},
+		look, spot{box: acrossOwn, size: acrossSize})
 	if got := at.pieces(0); !slices.Equal(got, []plane.AABB{leftPart, rightPart}) {
 		t.Fatalf("published over %v, want over its part in each sector %v and %v", got,
 			leftPart, rightPart)
@@ -211,7 +211,7 @@ func TestRenderer_Compose_DrawsEachSectorOfAFieldAtItsOwnLevel(t *testing.T) {
 	f := at.frame()
 	if !slices.Equal(look.boxes, []plane.AABB{leftPart}) || places(f) != 1 {
 		t.Errorf("the look drew it over %v, %d points drawn; want the left part through the "+
-			"look at L1 and the right one a point at L2", look.boxes, places(f))
+			"look at L3 and the right one a point at L4", look.boxes, places(f))
 	}
 }
 
@@ -219,8 +219,8 @@ func TestRenderer_Publish_LeavesASectorAFieldIsUnfoldedInToItsParts(t *testing.T
 	k := newSummable()
 	cam := farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}
 	look := &counting{Look: ilook.NewFlat(1024, 1000, false, false)}
-	at := spread(t, cam, k, k.red, lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2}}, look,
-		spot{box: acrossOwn, size: acrossSize, unfolded: true, in: []int{0}})
+	at := spread(t, cam, k, k.red, lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2}},
+		look, spot{box: acrossOwn, size: acrossSize, unfolded: true, in: []int{0}})
 	if got := at.pieces(0); !slices.Equal(got, []plane.AABB{rightPart}) {
 		t.Fatalf("unfolded in the left sector, published over %v, want over its right part %v "+
 			"alone", got, rightPart)
@@ -239,9 +239,9 @@ func TestRenderer_Publish_RecordsNoPointAggregateUnfolded(t *testing.T) {
 		ladder lod.Ladder
 		x      float32
 	}{
-		{"at L0", lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2}}, 100},
-		{"at L1", lod.Ladder{Scales: [lod.Levels - 1]float32{8, 0.5}}, 100},
-		{"at L2", lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2}}, 700},
+		{"at L2", lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2}}, 100},
+		{"at L3", lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 8, 0.5}}, 100},
+		{"at L4", lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2}}, 700},
 	} {
 		box := plane.NewAABB(geom.NewVec(c.x, 500), 20, 20)
 		at := spread(t, cam, k, k.red, c.ladder, ilook.NewFlat(1024, 1000, false, false),
@@ -259,7 +259,7 @@ func TestRenderer_Publish_WalksNoStretchesWithoutAField(t *testing.T) {
 	k := newSummable()
 	cam := farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}
 	box := plane.NewAABB(geom.NewVec(100, 500), 20, 20)
-	at := spread(t, cam, k, k.red, lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2}},
+	at := spread(t, cam, k, k.red, lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2}},
 		ilook.NewFlat(1024, 1000, false, false), spot{box: box, unfolded: true, in: []int{0}},
 		spot{box: box})
 	if at.r.found || len(at.r.unfoldedIn) != 0 {
@@ -267,11 +267,11 @@ func TestRenderer_Publish_WalksNoStretchesWithoutAField(t *testing.T) {
 	}
 }
 
-func TestRenderer_Compose_DrawsAFieldAtL2AsAPointNotThroughTheLook(t *testing.T) {
+func TestRenderer_Compose_DrawsAFieldAtL4AsAPointNotThroughTheLook(t *testing.T) {
 	k := newSummable()
 	cam := farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}
 	look := &counting{Look: ilook.NewFlat(1024, 1000, false, false)}
-	f := spread(t, cam, k, k.red, lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2}}, look,
+	f := spread(t, cam, k, k.red, lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2}}, look,
 		spot{box: ownBox, size: fieldSize}).frame()
 	if places(f) != 1 || len(look.sprites) != 0 {
 		t.Errorf("points drawn %v, the look's sprites %v; want a point, none through the look",
@@ -279,7 +279,7 @@ func TestRenderer_Compose_DrawsAFieldAtL2AsAPointNotThroughTheLook(t *testing.T)
 	}
 }
 
-func TestRenderer_Compose_AFieldsLookAtL2FillsItsField(t *testing.T) {
+func TestRenderer_Compose_AFieldsLookAtL4FillsItsField(t *testing.T) {
 	p := NewPlugin(Config{
 		Space:    SpaceCfg{Width: 64, Height: 32},
 		Entities: EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
@@ -287,18 +287,18 @@ func TestRenderer_Compose_AFieldsLookAtL2FillsItsField(t *testing.T) {
 	own := p.Kinds().NewSprite()
 	a := p.NewAtlas()
 	a.Add(own, 8, render.Solid(color.RGBA{R: 255, A: 255})).
-		At(lod.L2, render.Solid(color.RGBA{G: 255, A: 255}))
+		At(lod.L4, render.Solid(color.RGBA{G: 255, A: 255}))
 	a.Close()
 	cam := cameratest.NewFromSpace(64, 32, 0)
 	cam.SetViewport(64, 32)
 	// its own box 4 a side round (32, 16), its field from (12, 6) to (52, 26)
-	pix := pixelsOf(t, cam, 64, 32, 0, lod.L2, a, own, geom.NewVec(40, 20),
+	pix := pixelsOf(t, cam, 64, 32, 0, lod.L4, a, own, geom.NewVec(40, 20),
 		plane.NewAABB(geom.NewVec(30, 14), 4, 4))
 	for y := range 32 {
 		for x := range 64 {
 			in := x >= 12 && x < 52 && y >= 6 && y < 26
 			if got := pix(x, y); in && got != [4]byte{0, 255, 0, 255} || !in && got[3] != 0 {
-				t.Fatalf("pixel (%d, %d) is %v, want the green declared at L2 over the field "+
+				t.Fatalf("pixel (%d, %d) is %v, want the green declared at L4 over the field "+
 					"alone", x, y, got)
 			}
 		}
@@ -312,14 +312,14 @@ func (opaque) Compose(f *render.Frame, _ camera.Camera)           { f.DrawOpaque
 func (opaque) Draw(render.Target, camera.Camera, render.Uniforms) {}
 
 // beneath draws a field of canopy standing over own, of size, and a figure of banner over box,
-// both at L2 over an opaque ground of a world 64 by 32, and reads the screen
+// both at L4 over an opaque ground of a world 64 by 32, and reads the screen
 func beneath(t *testing.T, a *Atlas, canopy, banner render.SpriteID, own plane.AABB,
 	size geom.Vec, box plane.AABB) func(x, y int) [4]byte {
 	t.Helper()
 	gputest.Need(t)
 	cam := cameratest.NewFromSpace(64, 32, 0)
 	cam.SetViewport(64, 32)
-	v := view.NewSeen(cam, everywhere{w: 64, h: 32, level: lod.L2})
+	v := view.NewSeen(cam, everywhere{w: 64, h: 32, level: lod.L4})
 	look := ilook.NewFlat(64, 32, false, false)
 	r := newRenderer(a, seenBy(cam, v), &Rules{}, func() Look { return look })
 	readied(a)(r)
@@ -363,7 +363,7 @@ func beneath(t *testing.T, a *Atlas, canopy, banner render.SpriteID, own plane.A
 	return func(x, y int) [4]byte { i := 4 * (y*64 + x); return [4]byte(pix[i : i+4]) }
 }
 
-func TestRenderer_Compose_AFigureAtL2StandsOverAFieldsPiece(t *testing.T) {
+func TestRenderer_Compose_AFigureAtL4StandsOverAFieldsPiece(t *testing.T) {
 	p := NewPlugin(Config{
 		Space:    SpaceCfg{Width: 64, Height: 32},
 		Entities: EntitiesCfg{MaxCount: 2, MinSize: 1, MaxSize: 10},
@@ -371,9 +371,9 @@ func TestRenderer_Compose_AFigureAtL2StandsOverAFieldsPiece(t *testing.T) {
 	canopy, banner := p.Kinds().NewSprite(), p.Kinds().NewSprite()
 	a := p.NewAtlas()
 	a.Add(canopy, 8, render.Solid(color.RGBA{G: 255, A: 255})).
-		At(lod.L2, render.Solid(color.RGBA{G: 255, A: 255}))
+		At(lod.L4, render.Solid(color.RGBA{G: 255, A: 255}))
 	a.Add(banner, 8, render.Solid(color.RGBA{R: 255, A: 255})).
-		At(lod.L2, render.Solid(color.RGBA{R: 255, A: 255}))
+		At(lod.L4, render.Solid(color.RGBA{R: 255, A: 255}))
 	a.Close()
 	// the field from (12, 6) to (52, 26), the banner 4 a side round (40, 16) within it
 	own := plane.NewAABB(geom.NewVec(30, 14), 4, 4)
@@ -390,33 +390,33 @@ func TestRenderer_Compose_AFigureAtL2StandsOverAFieldsPiece(t *testing.T) {
 func TestRenderer_Compose_LaysAFieldsPieceUnderTheFigures(t *testing.T) {
 	k := newSummable()
 	cam := farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}
-	// the left half at L1, through a look laying what lies
+	// the left half at L3, through a look laying what lies
 	look := &lyingCounting{counting: &counting{Look: ilook.NewFlat(1024, 1000, false, false)}}
 	own := plane.NewAABB(geom.NewVec(240, 490), 20, 20)
-	spread(t, cam, k, k.red, lod.Ladder{Scales: [lod.Levels - 1]float32{8, 0.5}}, look,
+	spread(t, cam, k, k.red, lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 8, 0.5}}, look,
 		spot{box: own, size: fieldSize}).frame()
 	if len(look.lain) != 1 || len(look.sprites) != 0 {
-		t.Errorf("at L1 the look laid %v and stood %v, want the field laid alone", look.lain,
+		t.Errorf("at L3 the look laid %v and stood %v, want the field laid alone", look.lain,
 			look.sprites)
 	}
 
-	// the right half at L2, its material
-	f := spread(t, cam, k, k.material, lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2}},
+	// the right half at L4, its material
+	f := spread(t, cam, k, k.material, lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2}},
 		ilook.NewFlat(1024, 1000, false, false), spot{box: ownBox, size: fieldSize}).frame()
 	f.Each(func(at render.At, verts []render.Vertex) {
 		if verts[0].ColorA > 1.5 && at.Z() != ilook.PieceLift {
-			t.Errorf("at L2 its material lies at %v, want at %v", at.Z(), ilook.PieceLift)
+			t.Errorf("at L4 its material lies at %v, want at %v", at.Z(), ilook.PieceLift)
 		}
 	})
 }
 
-func TestRenderer_Publish_SumsAFieldAtL3OverEachTexelOfItsField(t *testing.T) {
+func TestRenderer_Publish_SumsAFieldAtL5OverEachTexelOfItsField(t *testing.T) {
 	k := newSummable()
 	cam := farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}
-	at := spread(t, cam, k, k.red, atL3, ilook.NewFlat(1024, 1000, false, false),
+	at := spread(t, cam, k, k.red, atL5, ilook.NewFlat(1024, 1000, false, false),
 		spot{box: ownBox, size: fieldSize})
 	if _, ok := at.record(0); ok {
-		t.Error("the field summed at L3 is recorded too")
+		t.Error("the field summed at L5 is recorded too")
 	}
 	g := &at.r.aggregate
 	if n := written(g); n != 25*25 {
@@ -431,9 +431,9 @@ func TestRenderer_Publish_SumsAFieldAtL3OverEachTexelOfItsField(t *testing.T) {
 
 func TestRenderer_Publish_HasAFieldSeenWhereverItsFieldIsAsleepOrNot(t *testing.T) {
 	k := newSummable()
-	// the left half alone in the picture, at L3
+	// the left half alone in the picture, at L5
 	cam := framed{farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}}
-	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{8, 4, 2}}
+	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 8, 4, 2}}
 	// centred at (700, 500) in the right half, off the picture, its field from 400 on it, its
 	// part in the left sector from 400 to 512
 	own := plane.NewAABB(geom.NewVec(690, 490), 20, 20)

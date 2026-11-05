@@ -91,7 +91,7 @@ func (seeing) ScaleAt(x, _, _ float32) float32 {
 
 func TestRuns_DrawEachSectorSeenAtItsLevelAndTheSkirt(t *testing.T) {
 	cam := seeing{Camera: cameratest.NewFromSpace(1024, 512, 0)}
-	sectors := pair{ladder: lod.Ladder{Scales: [lod.Levels - 1]float32{0.5}}}
+	sectors := pair{ladder: lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5}}}
 	v := view.NewSeen(cam, sectors)
 	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 1024, Height: 512, BucketSize: 128})
 	if err != nil {
@@ -103,9 +103,9 @@ func TestRuns_DrawEachSectorSeenAtItsLevelAndTheSkirt(t *testing.T) {
 	_, _, enc := encode(make([]float32, 33*17), nil)
 	r.lay(33, 17, 32, enc)
 	got := r.runs(cam, nil)
-	// the left sector at L0 and the right at L1, both whole, then the skirt as a sheet
+	// the left sector at L2 and the right at L3, both whole, then the skirt as a sheet
 	want := []span{r.spans[0].whole, r.spans[1].whole, r.skirted}
-	want[0].level, want[1].level, want[2].level = lod.L0, lod.L1, lod.L3
+	want[0].level, want[1].level, want[2].level = lod.L2, lod.L3, lod.L5
 	if len(got) != 3 || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
 		t.Errorf("runs %v, want %v", got, want)
 	}
@@ -133,12 +133,12 @@ func TestRuns_LayEachLevelsSectorsWholeOrCoarseTheSkirtAsASheetAndDrawTheFinestF
 		t.Fatal(err)
 	}
 	_, _, enc := encode(make([]float32, 81*49), nil)
-	// the middle row: L1 and L0 side by side, then L2, L3 and one at L4; the rows round it L4
+	// the middle row: L3 and L2 side by side, then L4, L5 and one at L6; the rows round it L6
 	var grid sheet
 	for i := range grid.levels {
-		grid.levels[i] = lod.L4
+		grid.levels[i] = lod.L6
 	}
-	copy(grid.levels[5:], []lod.Level{lod.L1, lod.L0, lod.L2, lod.L3, lod.L4})
+	copy(grid.levels[5:], []lod.Level{lod.L3, lod.L2, lod.L4, lod.L5, lod.L6})
 	cam := seeing{Camera: cameratest.NewFromSpace(2560, 1536, 0)}
 	v := view.NewSeen(cam, grid)
 	views := []*view.View{v}
@@ -151,8 +151,8 @@ func TestRuns_LayEachLevelsSectorsWholeOrCoarseTheSkirtAsASheetAndDrawTheFinestF
 		return s
 	}
 	// the whole runs laid before the coarse ones, and the skirt after those of every sector
-	want := []span{at(r.spans[5].whole, lod.L1), at(r.spans[6].whole, lod.L0),
-		at(r.spans[7].coarse, lod.L2), at(r.spans[8].coarse, lod.L3), at(r.skirted, lod.L3)}
+	want := []span{at(r.spans[5].whole, lod.L3), at(r.spans[6].whole, lod.L2),
+		at(r.spans[7].coarse, lod.L4), at(r.spans[8].coarse, lod.L5), at(r.skirted, lod.L5)}
 	if len(got) != len(want) {
 		t.Fatalf("%d runs %v, want %d %v", len(got), got, len(want), want)
 	}
@@ -161,7 +161,7 @@ func TestRuns_LayEachLevelsSectorsWholeOrCoarseTheSkirtAsASheetAndDrawTheFinestF
 			t.Errorf("run %d is %v, want %v", k, got[k], want[k])
 		}
 	}
-	if want := [lod.Levels]int{1, 1, 1, 1, 0}; r.counts != want {
+	if want := [lod.Levels]int{0, 0, 1, 1, 1, 1, 0}; r.counts != want {
 		t.Errorf("sectors drawn by level %v, want %v", r.counts, want)
 	}
 	var levels []lod.Level
@@ -170,7 +170,7 @@ func TestRuns_LayEachLevelsSectorsWholeOrCoarseTheSkirtAsASheetAndDrawTheFinestF
 		levels = append(levels, level)
 		ranges = append(ranges, append([]render.IndexRange(nil), rs...))
 	})
-	if !slices.Equal(levels, []lod.Level{lod.L0, lod.L1, lod.L2, lod.L3}) {
+	if !slices.Equal(levels, []lod.Level{lod.L2, lod.L3, lod.L4, lod.L5}) {
 		t.Fatalf("drawn by level %v, want the finest first", levels)
 	}
 	of := func(s span) render.IndexRange {
@@ -186,5 +186,34 @@ func TestRuns_LayEachLevelsSectorsWholeOrCoarseTheSkirtAsASheetAndDrawTheFinestF
 		r.eachLevel(got, func(lod.Level, []render.IndexRange) {})
 	}); n != 0 {
 		t.Errorf("%v allocations a frame grouping the runs by level, want none", n)
+	}
+}
+
+func TestRuns_LayTheCloseLevelsWholeAndDrawThemAsStandard(t *testing.T) {
+	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 2560, Height: 1536, BucketSize: 128})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, enc := encode(make([]float32, 81*49), nil)
+	var grid sheet
+	for i := range grid.levels {
+		grid.levels[i] = lod.Omitted
+	}
+	copy(grid.levels[5:], []lod.Level{lod.L0, lod.L1})
+	cam := seeing{Camera: cameratest.NewFromSpace(2560, 1536, 0)}
+	v := view.NewSeen(cam, grid)
+	views := []*view.View{v}
+	view.NewSystem(space, &views, 2560, 1536).Update(nil, 0)
+	r := &Renderer{cfg: Config{Seen: func(camera.Camera) *view.View { return v }}, grid: grid}
+	r.lay(81, 49, 32, enc)
+	got := r.runs(cam, nil)
+	if len(got) < 2 || got[0].first != r.spans[5].whole.first || got[0].level != lod.L0 ||
+		got[1].first != r.spans[6].whole.first || got[1].level != lod.L1 {
+		t.Errorf("runs %v, want the sectors at L0 and L1 whole at their levels", got)
+	}
+	for _, l := range []lod.Level{lod.L0, lod.L1} {
+		if byLevel[l] != byLevel[lod.Standard] {
+			t.Errorf("L%d drawn by a shader of its own, want Standard's", l)
+		}
 	}
 }

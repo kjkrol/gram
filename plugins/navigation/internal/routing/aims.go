@@ -11,7 +11,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// keeps each aggregate the orders are aimed at ticked at L1 while one is, its own Keen kept in a
+// keeps each aggregate the orders are aimed at ticked at L3 while one is, its own Keen kept in a
 // Sought, a Keen it gives itself meanwhile taken for its own, and put back as the last ends; the
 // orders counted afresh each tick over the units marked Aiming, those asleep too
 type aims struct {
@@ -90,21 +90,21 @@ func (a *aims) keep(cb *goke.CmdBuf) {
 		}
 		cb.AddOne(id, a.soughtID, r)
 		// the finer of the two holds
-		if !r.Had || r.Keen.Level > lod.L1 {
-			cb.AddOne(id, a.keenID, sector.Keen{Level: lod.L1})
+		if !r.Had || r.Keen.Level > lod.L3 {
+			cb.AddOne(id, a.keenID, sector.Keen{Level: lod.L3})
 		}
 	}
 }
 
 // heed takes a Keen the aggregate id kept carries other than the one it is kept at, r its record,
-// for its own, given it since or taken off (world.Calm), keeping it at L1 still where that is the
+// for its own, given it since or taken off (world.Calm), keeping it at L3 still where that is the
 // finer; its own given the same as the one it is kept at is not told apart
 func (a *aims) heed(cb *goke.CmdBuf, id uid.UID64, r *order.Sought) {
 	if !a.targets.Seek(id) {
 		return
 	}
-	held := sector.Keen{Level: lod.L1}
-	if r.Had && r.Keen.Level <= lod.L1 {
+	held := sector.Keen{Level: lod.L3}
+	if r.Had && r.Keen.Level <= lod.L3 {
 		held = r.Keen
 	}
 	now := a.keen.At(a.targets.Cursor())
@@ -115,7 +115,7 @@ func (a *aims) heed(cb *goke.CmdBuf, id uid.UID64, r *order.Sought) {
 	if now != nil {
 		r.Keen, r.Had = *now, true
 	}
-	if !r.Had || r.Keen.Level > lod.L1 {
-		cb.AddOne(id, a.keenID, sector.Keen{Level: lod.L1})
+	if !r.Had || r.Keen.Level > lod.L3 {
+		cb.AddOne(id, a.keenID, sector.Keen{Level: lod.L3})
 	}
 }

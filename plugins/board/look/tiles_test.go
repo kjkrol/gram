@@ -370,12 +370,12 @@ func TestTiles_LayTheCellsOfTheSectorsSeenAtTheirLevels(t *testing.T) {
 		grid        [2]bool
 		left, right lod.Level
 	}{
-		{"L0 and L1", [lod.Levels - 1]float32{0.5}, [2]bool{true, true}, [2]bool{true, false},
-			[2]bool{true, false}, lod.L0, lod.L1},
-		{"L0 and L2", [lod.Levels - 1]float32{0.5, 0.2}, [2]bool{true, false},
-			[2]bool{true, false}, [2]bool{true, false}, lod.L0, lod.L2},
-		{"L2 and L3", [lod.Levels - 1]float32{5, 2, 0.5}, [2]bool{}, [2]bool{}, [2]bool{},
-			lod.L2, lod.L3},
+		{"L2 and L3", [lod.Levels - 1]float32{0, 0, 0.5}, [2]bool{true, true}, [2]bool{true, false},
+			[2]bool{true, false}, lod.L2, lod.L3},
+		{"L2 and L4", [lod.Levels - 1]float32{0, 0, 0.5, 0.2}, [2]bool{true, false},
+			[2]bool{true, false}, [2]bool{true, false}, lod.L2, lod.L4},
+		{"L4 and L5", [lod.Levels - 1]float32{0, 0, 5, 2, 0.5}, [2]bool{}, [2]bool{}, [2]bool{},
+			lod.L4, lod.L5},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			at := laidSeen(t, lod.Ladder{Scales: tc.scales})
@@ -404,7 +404,7 @@ func TestTiles_LayTheCellsOfTheSectorsSeenAtTheirLevels(t *testing.T) {
 	}
 	at := laidSeen(t, lod.Ladder{Sight: 60, Fog: 40})
 	if got := at(96, 16); got != (color.RGBA{A: 255}) {
-		t.Errorf("the right half, at L4, is %v, want nothing drawn", got)
+		t.Errorf("the right half, at L6, is %v, want nothing drawn", got)
 	}
 	// the middles 23 and 51 off the left edge's middle, into the fog from 20 to 60
 	near, far := at(16, 48), at(48, 80)
@@ -414,8 +414,8 @@ func TestTiles_LayTheCellsOfTheSectorsSeenAtTheirLevels(t *testing.T) {
 	}
 }
 
-// a tile left half red and right half blue, at L1 so, from L2 in their mean colour across it
-func TestTiles_LayATileInOneColourFromL2(t *testing.T) {
+// a tile left half red and right half blue, at L3 so, from L4 in their mean colour across it
+func TestTiles_LayATileInOneColourFromL4(t *testing.T) {
 	gputest.Need(t)
 	g := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd, brdW := board.NewBoard(g)
@@ -434,9 +434,10 @@ func TestTiles_LayATileInOneColourFromL2(t *testing.T) {
 		levels  [2]lod.Level
 		striped [2]bool
 	}{
-		{[lod.Levels - 1]float32{0.5}, [2]lod.Level{lod.L0, lod.L1}, [2]bool{true, true}},
-		{[lod.Levels - 1]float32{0.5, 0.2}, [2]lod.Level{lod.L0, lod.L2}, [2]bool{true, false}},
-		{[lod.Levels - 1]float32{5, 2, 0.5}, [2]lod.Level{lod.L2, lod.L3},
+		{[lod.Levels - 1]float32{0, 0, 0.5}, [2]lod.Level{lod.L2, lod.L3}, [2]bool{true, true}},
+		{[lod.Levels - 1]float32{0, 0, 0.5, 0.2}, [2]lod.Level{lod.L2, lod.L4},
+			[2]bool{true, false}},
+		{[lod.Levels - 1]float32{0, 0, 5, 2, 0.5}, [2]lod.Level{lod.L4, lod.L5},
 			[2]bool{false, false}},
 	} {
 		cam := sighted{Camera: cameratest.NewFromSpace(128, 128, 0)}
@@ -467,11 +468,11 @@ func TestTiles_LayATileInOneColourFromL2(t *testing.T) {
 	}
 }
 
-// the figures' colour summed into the ground lies over the tiles of a sector at L3, a square
-// board's and a hex board's, the plain pass's and the full one's, and over none at L2
-func TestTiles_LayTheFiguresColourOverTheTilesAtL3(t *testing.T) {
+// the figures' colour summed into the ground lies over the tiles of a sector at L5, a square
+// board's and a hex board's, the plain pass's and the full one's, and over none at L4
+func TestTiles_LayTheFiguresColourOverTheTilesAtL5(t *testing.T) {
 	gputest.Need(t)
-	// a texel a world unit, a world unit a pixel: red under the left half, at L2, and the right
+	// a texel a world unit, a world unit a pixel: red under the left half, at L4, and the right
 	aggregate := render.NewImage(128, 128)
 	pix := make([]byte, 4*128*128)
 	for _, p := range [][2]int{{18, 40}, {98, 40}} {
@@ -489,7 +490,7 @@ func TestTiles_LayTheFiguresColourOverTheTilesAtL3(t *testing.T) {
 		laid := func(aggregate func() (*render.Image, float32)) func(x, y float32) color.RGBA {
 			cam := sighted{Camera: cameratest.NewFromSpace(128, 128, 0)}
 			v := view.NewSeen(cam,
-				halves{ladder: lod.Ladder{Scales: [lod.Levels - 1]float32{5, 2, 0.5}}})
+				halves{ladder: lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 5, 2, 0.5}}})
 			space, err := aabbworld.NewSpace(aabbworld.Config{Width: 128, Height: 128,
 				BucketSize: 32})
 			if err != nil {
@@ -507,7 +508,7 @@ func TestTiles_LayTheFiguresColourOverTheTilesAtL3(t *testing.T) {
 		}
 		without, with := laid(nil), laid(summed)
 		if got := with(98, 40); got != red || without(98, 40) != green {
-			t.Errorf("hex %v: the tile under the figures at L3 is %v, %v without; want red, "+
+			t.Errorf("hex %v: the tile under the figures at L5 is %v, %v without; want red, "+
 				"green", g.Directions() == 6, got, without(98, 40))
 		}
 		for y := range 128 {
@@ -517,7 +518,7 @@ func TestTiles_LayTheFiguresColourOverTheTilesAtL3(t *testing.T) {
 				}
 				if a, b := without(float32(x), float32(y)), with(float32(x), float32(y)); a != b {
 					t.Fatalf("hex %v: the pixel (%v, %v) is %v, %v without the figures; want "+
-						"them alike off the texel at L3", g.Directions() == 6, x, y, b, a)
+						"them alike off the texel at L5", g.Directions() == 6, x, y, b, a)
 				}
 			}
 		}
@@ -531,7 +532,7 @@ var stripesFS embed.FS
 var stripes = render.RegisterMaterials(render.Files(stripesFS, "testdata/stripes.wgsl"), nil,
 	"Stripes")[0]
 
-func TestTiles_LayAMaterialAsOneColourACellFromL2(t *testing.T) {
+func TestTiles_LayAMaterialAsOneColourACellFromL4(t *testing.T) {
 	gputest.Need(t)
 	g := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd, brdW := board.NewBoard(g)
@@ -543,9 +544,9 @@ func TestTiles_LayAMaterialAsOneColourACellFromL2(t *testing.T) {
 		scales  [lod.Levels - 1]float32
 		striped [2]bool
 	}{
-		{[lod.Levels - 1]float32{0.5}, [2]bool{true, true}},
-		{[lod.Levels - 1]float32{0.5, 0.2}, [2]bool{true, false}},
-		{[lod.Levels - 1]float32{5, 2, 0.5}, [2]bool{false, false}},
+		{[lod.Levels - 1]float32{0, 0, 0.5}, [2]bool{true, true}},
+		{[lod.Levels - 1]float32{0, 0, 0.5, 0.2}, [2]bool{true, false}},
+		{[lod.Levels - 1]float32{0, 0, 5, 2, 0.5}, [2]bool{false, false}},
 	} {
 		cam := sighted{Camera: cameratest.NewFromSpace(128, 128, 0)}
 		v := view.NewSeen(cam, halves{ladder: lod.Ladder{Scales: tc.scales}})

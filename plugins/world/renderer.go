@@ -30,7 +30,7 @@ type renderer struct {
 	lies        goke.OptComp[Lie]
 	active      goke.OptComp[cgoke.Active]
 	keen        goke.OptComp[sector.Keen]
-	asleep      goke.OptComp[sector.L4]
+	asleep      goke.OptComp[sector.L6]
 	field       goke.OptComp[Field]
 	unfolded    goke.OptComp[Unfolded]
 	rules       *Rules
@@ -68,7 +68,7 @@ type renderer struct {
 	quads    []camera.Quad
 	// by sprite, whether it is a material: shaded's keys
 	materials []bool
-	// what stands at L2, a point a figure, and the light they are drawn in
+	// what stands at L4, a point a figure, and the light they are drawn in
 	points render.Sprites
 	litFor pointLight
 	// the world's size and edges, for the sector an entity at a picture's edge is drawn by
@@ -109,7 +109,7 @@ func (*renderer) Overlies() {}
 
 // Compose hands f every entity published in sight of cam in its kind's look at the level cam sees
 // it at, as the world's Look lays it, lit as the Lighting says, in white light without one: the
-// Look knows the wind, the world its entities. What it sees at L2 it draws itself, a point each;
+// Look knows the wind, the world its entities. What it sees at L4 it draws itself, a point each;
 // a field over each sector of it, at that sector's level, casting nothing; what cam rides in,
 // fastened Inside, it leaves out but for its shadow.
 func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
@@ -165,7 +165,7 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 		if !levels.anyAt(layers, level) {
 			continue
 		}
-		if id, ok := levels.at(layers[0].SpriteID, level); ok && level != lod.L2 && !wide {
+		if id, ok := levels.at(layers[0].SpriteID, level); ok && level != lod.Strategic && !wide {
 			f.Cast(box.AABB, z.Altitude, z.Height, e.shadow, s.atlas, id)
 		}
 		if inside && e.id == rider {
@@ -176,12 +176,12 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 				lowest, low, any = at, z.Altitude, true
 			}
 		}
-		if level == lod.L2 {
+		if level == lod.Strategic {
 			pointed = s.point(f, cam, e, box, layers, levels, v.Fog(mid.X, mid.Y)) || pointed
 			continue
 		}
 		// coarsely: no edges, flat where it would stand
-		coarse := level >= lod.L1
+		coarse := level > lod.Standard
 		if foggy != nil {
 			foggy.Fog(v.Fog(mid.X, mid.Y))
 		}
@@ -243,7 +243,7 @@ func ridden(cam camera.Camera) (uid.UID64, bool) {
 	return 0, false
 }
 
-// point draws e at L2 over box as one point of the first of its layers drawn there, fogged by
+// point draws e at L4 over box as one point of the first of its layers drawn there, fogged by
 // fog, a material among them as it is; no Look, no light of its own and no shadow. It reports
 // whether it drew a point.
 func (s *renderer) point(f *render.Frame, cam camera.Camera, e *figure, box plane.AABB,
@@ -251,7 +251,7 @@ func (s *renderer) point(f *render.Frame, cam camera.Camera, e *figure, box plan
 	pointed := false
 	mid := Position{AABB: box}.Center()
 	for _, l := range layers {
-		id, ok := levels.at(l.SpriteID, lod.L2)
+		id, ok := levels.at(l.SpriteID, lod.Strategic)
 		switch {
 		case !ok:
 		case int(id) < len(s.materials) && s.materials[id]:
@@ -322,7 +322,7 @@ func (s *renderer) level(v *view.View, box geom.AABB, mid geom.Vec) lod.Level {
 	b := v.Bounds
 	if b.TopLeft.X <= mid.X && mid.X <= b.BottomRight.X && b.TopLeft.Y <= mid.Y &&
 		mid.Y <= b.BottomRight.Y {
-		if level := v.Level(mid.X, mid.Y); level != lod.L4 {
+		if level := v.Level(mid.X, mid.Y); level != lod.Omitted {
 			return level
 		}
 	}
@@ -330,7 +330,7 @@ func (s *renderer) level(v *view.View, box geom.AABB, mid geom.Vec) lod.Level {
 	wx, wy := s.space.Edges.WrapsX(), s.space.Edges.WrapsY()
 	level := v.Level(held(mid.X, b.TopLeft.X, b.BottomRight.X, w, wx),
 		held(mid.Y, b.TopLeft.Y, b.BottomRight.Y, h, wy))
-	if level != lod.L4 {
+	if level != lod.Omitted {
 		return level
 	}
 	if f := v.Fogging(); f[3] > 0 {

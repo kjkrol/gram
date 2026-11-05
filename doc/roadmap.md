@@ -135,14 +135,14 @@ What is left to do. Take an item out when it lands.
   by its query, the aggregate lacking the components the fine entities carry (an army has no
   `Collider`, a forest is no unit), which costs nothing (the user's word, 2026-11-04).
 - **The minimap by the ladder** (the user's word, 2026-11-04, the stage after the aggregates):
-  a minimap draws at its camera's level +1, its figures at L2 at most (the kind's version at that
-  level: the blob, a declared `At(L2, …)`, a `Mark` overriding it), its ground at L3 (the sheet),
+  a minimap draws at its camera's level +1, its figures at L4 at most (the kind's version at that
+  level: the blob, a declared `At(L4, …)`, a `Mark` overriding it), its ground at L5 (the sheet),
   `Keep` thinning the dots in a crowd, and refreshed far more seldom than the main picture, as
   today (the user's word, 2026-11-04); the expanse's minimap, with no ground and marks only
   within the Sight, leaves the circle empty past it: to fill the whole widget.
-- **A far figure's cost** — a point at L2 costs ~40 ns drawn (the target 20) and keeping a share
+- **A far figure's cost** — a point at L4 costs ~40 ns drawn (the target 20) and keeping a share
   (`Ladder.Keep`) ~7 ns an entity published: both the level read for every entity, at the
-  publishing and again at the drawing; the sum into the ground at L3 ~90 ns a box (the loop over
+  publishing and again at the drawing; the sum into the ground at L5 ~90 ns a box (the loop over
   the texels a box covers spills registers); a tile of the sum changed allocates ~4 KiB in
   `gpu.put`. Planned after the aggregates: `doc/plans-perf.md`, "Daleka figura taniej".
 

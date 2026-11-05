@@ -257,9 +257,9 @@ func newCrowd(t *testing.T, edges aabbworld.Edges, alone bool) *crowd {
 		for k, f := range []*goke.Factory{
 			si.NewFactory(&c.base),
 			si.NewFactory(&c.base, &drift),
-			si.NewFactory(&c.base, &goke.Comp[sector.L1]{}),
-			si.NewFactory(&c.base, &drift, &goke.Comp[sector.L1]{}),
-			si.NewFactory(&c.base, &goke.Comp[sector.L4]{}),
+			si.NewFactory(&c.base, &goke.Comp[sector.L3]{}),
+			si.NewFactory(&c.base, &drift, &goke.Comp[sector.L3]{}),
+			si.NewFactory(&c.base, &goke.Comp[sector.L6]{}),
 		} {
 			f.Create(150)
 			for f.Next() {
@@ -281,7 +281,7 @@ func newCrowd(t *testing.T, edges aabbworld.Edges, alone bool) *crowd {
 	var steps uint64
 	sys := newMoveSystem(space)
 	sys.pace = goke.PacedBy(func() uint64 { return steps },
-		goke.Never[sector.L4](), goke.Every[sector.L1](4))
+		goke.Never[sector.L6](), goke.Every[sector.L3](4))
 	var handle goke.Runnable
 	if alone {
 		handle = c.ecs.RegSys(stepwise{sys})

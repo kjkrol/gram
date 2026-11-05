@@ -21,8 +21,8 @@ import (
 
 // two observers looking at (x, y) over a world w by h: the one a pixel a world unit, the other a
 // quarter of a pixel seeing four times as far; under a ladder seeing from half a pixel a world
-// unit, L0 within its sight of the point, within four times that the level its lower thresholds
-// give a quarter of a pixel, L4 beyond
+// unit, L2 within its sight of the point, within four times that the level its lower thresholds
+// give a quarter of a pixel, L6 beyond
 type observers [2]camera.Camera
 
 var _ sector.Observers = (*observers)(nil)
@@ -52,17 +52,17 @@ func (o *observers) Observers(each func(cam camera.Camera)) {
 }
 
 // far off is four sectors on from the near boxes: room for a sector a level coarser each between
-func TestCollision_BoxesCollideEveryStepThroughL2AndRestFromL3(t *testing.T) {
+func TestCollision_BoxesCollideEveryStepThroughL4AndRestFromL5(t *testing.T) {
 	for _, c := range []struct {
 		level   lod.Level
 		scales  [lod.Levels - 1]float32
 		sight   float32
 		collide bool
 	}{
-		{lod.L1, [lod.Levels - 1]float32{0.5, 0.2}, 600, true},
-		{lod.L2, [lod.Levels - 1]float32{0.5, 0.4, 0.2}, 600, true},
-		{lod.L3, [lod.Levels - 1]float32{0.5, 0.4, 0.3}, 600, false},
-		{lod.L4, [lod.Levels - 1]float32{0.5, 0.4, 0.3}, 400, false},
+		{lod.L3, [lod.Levels - 1]float32{0, 0, 0.5, 0.2}, 600, true},
+		{lod.L4, [lod.Levels - 1]float32{0, 0, 0.5, 0.4, 0.2}, 600, true},
+		{lod.L5, [lod.Levels - 1]float32{0, 0, 0.5, 0.4, 0.3}, 600, false},
+		{lod.L6, [lod.Levels - 1]float32{0, 0, 0.5, 0.4, 0.3}, 400, false},
 	} {
 		t.Run(fmt.Sprintf("L%d", c.level), func(t *testing.T) {
 			w := world.NewPlugin(world.Config{
@@ -89,10 +89,10 @@ func TestCollision_BoxesCollideEveryStepThroughL2AndRestFromL3(t *testing.T) {
 			}
 			var base goke.Comp[world.Base]
 			var collider goke.Comp[collision.Collider]
-			var l1 goke.OptComp[sector.L1]
-			var l2 goke.OptComp[sector.L2]
-			var l3 goke.OptComp[sector.L3]
-			var l4 goke.OptComp[sector.L4]
+			var l1 goke.OptComp[sector.L3]
+			var l2 goke.OptComp[sector.L4]
+			var l3 goke.OptComp[sector.L5]
+			var l4 goke.OptComp[sector.L6]
 			var q *goke.Query
 			ecs := collisiontest.Start(t, w, m, coll, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 				q = si.NewQueryBuilder(&base, &collider).Optional(&l1, &l2, &l3, &l4).Build()
@@ -107,13 +107,13 @@ func TestCollision_BoxesCollideEveryStepThroughL2AndRestFromL3(t *testing.T) {
 							collides = collides || b.Caps&aabbworld.CanCollide != 0
 							switch {
 							case l1.Present(cur):
-								level = lod.L1
-							case l2.Present(cur):
-								level = lod.L2
-							case l3.Present(cur):
 								level = lod.L3
-							case l4.Present(cur):
+							case l2.Present(cur):
 								level = lod.L4
+							case l3.Present(cur):
+								level = lod.L5
+							case l4.Present(cur):
+								level = lod.L6
 							}
 						}
 					}

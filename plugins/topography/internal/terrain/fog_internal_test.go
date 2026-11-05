@@ -29,7 +29,7 @@ func (one) Box(int) geom.AABB {
 }
 func (one) Of(float32, float32) int            { return 0 }
 func (one) Ladder() lod.Ladder                 { return lod.Ladder{Sight: 150, Fog: 50} }
-func (one) Level(camera.Camera, int) lod.Level { return lod.L0 }
+func (one) Level(camera.Camera, int) lod.Level { return lod.L2 }
 
 func TestTerrain_TurnsTheGroundPastTheSightIntoTheFog(t *testing.T) {
 	gputest.Need(t)

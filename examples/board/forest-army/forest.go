@@ -50,7 +50,7 @@ type forestRow struct {
 	At cell.ID `yaml:"at"`
 }
 
-// forest stands over a field of sectors: each sector come down to L1 plants its trees on the
+// forest stands over a field of sectors: each sector come down to L3 plants its trees on the
 // plots its seed picks, sparser once the forest is thinned, as one folding short of a tree
 // felled thins it.
 type forest struct{}
@@ -107,11 +107,11 @@ func (forest) Define(b *board.Plugin) {
 		ceremony.Plays(w.Roles().Named(ForestRole))))
 }
 
-// its trees at L0 and L1, a sheet of crowns over its field at L2, the sheet's colour at L3
+// its trees at L2 and L3, a sheet of crowns over its field at L4, the sheet's colour at L5
 func (forest) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[forestRow](w.Kinds(), ForestKind), sheetPx, unseen).
-		At(lod.L2, canopy).
-		At(lod.L3, render.Solid(render.MeanColour(canopy, sheetPx)))
+		At(lod.L4, canopy).
+		At(lod.L5, render.Solid(render.MeanColour(canopy, sheetPx)))
 }
 
 // planted says whether the k-th plot of a sector of the forest whole, box its part there, holds a

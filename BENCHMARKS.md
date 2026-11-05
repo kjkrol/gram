@@ -70,12 +70,12 @@ each, or a twentieth and a hundredth of 50,000; the cases are named by the boxes
 | 1,296 and 1,190 of 5,000, two cameras | 39.2 µs | 220 µs | 262 µs |
 | 2,809 of 50,000 | 110 µs | 242 µs | 353 µs |
 | 529 of 50,000 | 82.2 µs | 45.5 µs | 128 µs |
-| 5,000 of 5,000 at L2 (points, v0.19) | 65.3 µs | 199 µs | |
-| 49 of 5,000 at L2 | 9.0 µs | 2.3 µs | |
-| 5,000 of 5,000 at L2, a quarter kept (`Keep`) | 99 µs | | |
-| 5,000 of 5,000 at L3, summed into the ground | 460 µs | 0.3 µs | |
-| 49 of 5,000 at L3, summed | 13.5 µs | 0.3 µs | |
-| 5,000 of 5,000 at L3, no ground reading the sum | 65.0 µs | 78 µs | |
+| 5,000 of 5,000 at L4 (points, v0.19) | 65.3 µs | 199 µs | |
+| 49 of 5,000 at L4 | 9.0 µs | 2.3 µs | |
+| 5,000 of 5,000 at L4, a quarter kept (`Keep`) | 99 µs | | |
+| 5,000 of 5,000 at L5, summed into the ground | 460 µs | 0.3 µs | |
+| 49 of 5,000 at L5, summed | 13.5 µs | 0.3 µs | |
+| 5,000 of 5,000 at L5, no ground reading the sum | 65.0 µs | 78 µs | |
 
 0 allocs/op. The publishing walks the world and writes a record an entity in view: under 2 ns an
 entity walked and some 10 ns a record. The drawing costs the boxes in view, about 85 ns a box
@@ -85,10 +85,10 @@ three fifths of it the look laying the sprite (`Flat.Sprite`, `VisitWrapImages` 
 copies), the rest the frame's placing (`Frame.At`, `Lifted`) and the atlas's lookups.
 
 The levels' rungs (v0.19; the first world cut into sectors of 1024, the camera's pixel a unit set
-so every sector is at L2 or L3): at L2 a figure is a point without a look, ~40 ns a box drawn, the
+so every sector is at L4 or L5): at L4 a figure is a point without a look, ~40 ns a box drawn, the
 record the same; keeping a quarter (`Ladder.Keep`) costs the hash of every entity in view at the
 publishing (~7 ns each) and spares three quarters of the points drawn (~150 µs here), a gain where
-the drawing outweighs it. At L3 with a ground reading the sum (`world.Plugin.Aggregates`) the
+the drawing outweighs it. At L5 with a ground reading the sum (`world.Plugin.Aggregates`) the
 publishing sums a box's colour into the texels it covers instead of a record, ~90 ns a box for
 20-unit boxes over 16-unit texels (about five texels each; ~25 ns at one, Go spilling registers
 in the loop), and the drawing has nothing left; without a reader the record is written as before
@@ -132,8 +132,8 @@ resting pairs (`rest`) 7%, its contacts and resolving 9%.
 
 One tick of world, motion and collision at the expanse demo's scale: a 16384×16384 torus, a
 hundred thousand boxes 5 a side spread evenly, the world in sectors of 512 at the demo's ladder
-(`Scales {0.5, 0, 0, 0}`, a sight of 1000 round a real camera of 1024×768 over the middle: the
-16 sectors within the sight at L0, the rest asleep at L4); then the same with the levels switched
+(`Scales {0, 0, 0.5, 0, 0, 0}`, a sight of 1000 round a real camera of 1024×768 over the middle: the
+16 sectors within the sight at L2, the rest asleep at L6); then the same with the levels switched
 off (`SwitchBands`), every box moving and colliding, the camera's view still refreshed.
 
 | Levels | Entities | Tick |
@@ -347,7 +347,7 @@ crowd replans every tick it is blocked.
 | abstract | 1,000 | 0.63 ms | 12 |
 
 `abstract` (v0.20.0) is the open scene in a world cut into sectors and observed by no camera, so
-it ticks at L2 (`Unobserved`, at full pace: the paces count from the finest level seen): every
+it ticks at L4 (`Unobserved`, at full pace: the paces count from the finest level seen): every
 walker walks its refined route of cells in the far mode, out of the occupancy, the queue, the
 field and the collision, at the pace the planner's prices give each step. Against v0.19.1
 alternately (2 rounds × `-count=1`, `BENCHTIME=1s`): the older rungs within +2% (open 1,000
@@ -533,7 +533,7 @@ drawn through the composer on a headless GPU into a 2560×1440 screen and read b
 so the GPU is waited for; "readback" alone is the wait's cost, taken off in the last column. In
 isometry and perspective; under a distant sun with the ground's shade baked (lit); without the
 water's shine (no water layer); at 0.7 of the pixels straight into a screen of that size (its
-readback smaller too); cut into sectors of 256 every one drawn at one level of detail, L0 to L3
+readback smaller too); cut into sectors of 256 every one drawn at one level of detail, L2 to L5
 (`lod`, v0.18); in layers (the whole frame at 0.5 of the pixels, the central
 60% at 0.75, the central 35% at all of them) inset or footed; and through a feed at 0.7 of the
 pixels scaled up to the screen; in layers and through the feed the figures at the ground's
@@ -547,11 +547,11 @@ resolution or at every pixel (sharp).
 | isometric, lit | 17.7 ms | 8.4 ms |
 | isometric, no water layer | 16.0 ms | 6.7 ms |
 | isometric at 0.7 of the pixels (1792×1008) | 8.4 ms | ~3.8 ms |
-| isometric, every sector at L0 (full) | 15.3 ms | 6.1 ms |
-| isometric, every sector at L1 (no shore nor running water) | 13.5 ms | 4.2 ms |
-| isometric, every sector at L2 (coarse lattice, still water) | 12.0 ms | 2.7 ms |
-| isometric, every sector at L3 (the albedo sheet) | 9.0 ms | ~0 |
-| isometric, every sector at L3, the figures' sum laid over the sheet (v0.19) | 9.3 ms | ~0.3 ms |
+| isometric, every sector at L2 (full) | 15.3 ms | 6.1 ms |
+| isometric, every sector at L3 (no shore nor running water) | 13.5 ms | 4.2 ms |
+| isometric, every sector at L4 (coarse lattice, still water) | 12.0 ms | 2.7 ms |
+| isometric, every sector at L5 (the albedo sheet) | 9.0 ms | ~0 |
+| isometric, every sector at L5, the figures' sum laid over the sheet (v0.19) | 9.3 ms | ~0.3 ms |
 | isometric in layers | 13.9 ms | 4.7 ms |
 | perspective in layers, inset | 15.0 ms | 5.7 ms |
 | perspective in layers, footed | 14.5 ms | 5.3 ms |
@@ -565,8 +565,8 @@ resolution or at every pixel (sharp).
 What it says: the frame is bound by the pixels — 0.7 of them costs half, the layers (0.52 of the
 pixels drawn) a third less than the whole; the figures at every pixel over a coarse ground cost
 2–2.3 ms, the pass over the ground at the screen's size; each level of the ground saves 1.5–2.7
-ms of the frame, the sheet at L3 nearly the whole ground's pass (v0.18); the figures' colour
-summed into the ground (v0.19) costs the sheet ~0.3 ms with no figure at L3 (its scale uniform
+ms of the frame, the sheet at L5 nearly the whole ground's pass (v0.18); the figures' colour
+summed into the ground (v0.19) costs the sheet ~0.3 ms with no figure at L5 (its scale uniform
 read, the sample skipped; +0.6 ms when it sampled an empty image); the baked shade costs
 nothing measurable here. The CPU is busy a fifth of the frame (the profile), the
 readback's copy and the Vulkan calls, and waits the rest.

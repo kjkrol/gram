@@ -45,13 +45,14 @@ no world and a modal panel over the ticking world: `examples/start/scenes`.
 
 - A world cut into sectors (`world.SectorsCfg{Buckets}`) sets its one ladder of detail,
   `world.Config.LOD` (`lod.Ladder{Scales, Sight, Fog, Unobserved, Keep, Texel}`; `Unobserved`
-  the level a world no camera observes ticks at, zero L2; `Keep` the share of a level's figures
+  the level a world no camera observes ticks at, zero L4; `Keep` the share of a level's figures
   published, zero all, a kind `Always()` or keen or with a declared version never thinned;
   `Texel` the aggregate image's grain): the scales in shown pixels a world
-  unit, descending, where the levels L0..L3 begin (a sector under the last, or past the Sight,
-  is L4: asleep and not drawn); the game's figures are 15× life on Madeira, so its thresholds
-  are its own. A camera's Ctrl+=/− multiplies the Sight for itself. No `Bands`, no `Detail`,
-  no care: what a level means is `lod/doc.go`'s table, what a system does at it the plugin's.
+  unit, descending, where L0..L5 begin, the first two zero unless the game uses the close scale
+  (a sector under the last, or past the Sight, is L6: asleep and not drawn); the game's figures
+  are 15× life on Madeira, so its thresholds are its own. A camera's Ctrl+=/− multiplies the
+  Sight for itself. No `Bands`, no `Detail`, no care: what a level means is `lod/doc.go`'s
+  table, what a system does at it the plugin's.
 - A kind-aggregate (2026-11-04; the model `plugins/world/wholes_test.go`, `field_test.go`,
   `plugins/navigation/handover_test.go`, the demo board/forest-army): `Define` gives
   `comp.Const(world.Aggregate{})`, a forest `world.Field{Size}` too; the parts' kind
@@ -60,8 +61,8 @@ no world and a modal panel over the ticking world: `examples/start/scenes`.
   a plot gated by a word over `lod.Seed(ID, Sector*K+k)` and the aggregate's effects (a rule
   computes nothing: K fixed offsets, one branch each); `Fold{Parts}` → `act.Self.Do(Inherit{})`
   and the strength written back (effects hold sums, 8 an entity); `Folding` on a part → sum into
-  the whole (`act.Other`) and despawn; `Met` → the abstract fight. Its own look is blank at
-  L0–L1 (a clear sprite), `Slot.At(L2, …)` the sheet stretched over the field.
+  the whole (`act.Other`) and despawn; `Met` → the abstract fight. Its own look is blank
+  below L4 (a clear sprite), `Slot.At(L4, …)` the sheet stretched over the field.
 - The arena holds handles and no state: the plugins in the order made, then, a blank line
   apart, the players, the game's resources (`*treasury`, a struct of exported fields given to
   the chain's `Keeps`, saved whole with the game), a telemetry count (`collision.ContactStats`)

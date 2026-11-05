@@ -21,7 +21,7 @@ func expanseConfig(texel float32) world.Config {
 		},
 		Sectors: world.SectorsCfg{Buckets: 8},
 		LOD: lod.Ladder{
-			Scales: [lod.Levels - 1]float32{0.5},
+			Scales: [lod.Levels - 1]float32{0, 0, 0.5},
 			Sight:  1_000,
 			Fog:    300,
 			Texel:  texel,
@@ -42,7 +42,7 @@ func topographyConfig() world.Config {
 		Heights: true,
 		Sectors: world.SectorsCfg{Buckets: 2},
 		LOD: lod.Ladder{
-			Scales: [lod.Levels - 1]float32{0.5, 0.25, 0.12},
+			Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.25, 0.12},
 			Sight:  30_000,
 			Fog:    6_000,
 		},

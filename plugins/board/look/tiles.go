@@ -522,11 +522,11 @@ func (g *tiles) draw(t render.Target, v seeing, u render.Uniforms, l *Renderer, 
 	}
 }
 
-// aggregate binds the figures' colour summed into the ground where a sector is seen at L3
+// aggregate binds the figures' colour summed into the ground where a sector is seen at L5
 func (g *tiles) aggregate(l *Renderer, seen *seenSectors) {
 	var img *render.Image
 	px := float32(0)
-	if seen.l3 && l.aggregate != nil {
+	if seen.l5 && l.aggregate != nil {
 		img, px = l.aggregate()
 	}
 	if img == nil || px <= 0 {

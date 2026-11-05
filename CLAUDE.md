@@ -274,29 +274,38 @@ Decisions the user has made; they are not up for revisiting in passing.
 - **What stands on the board is an entity, not terrain**: a lever, a trapdoor, a gate, a plate.
 - **Terrain is never an entity in the space**; a bridge is an entity a cell.
 - **One ladder of LOD** (the user's word, 2026-11-03): the world gives every sector one level,
-  `lod.L0`..`lod.L4` (full, no detail, shape, colour, nothing), from the shown pixels a world
+  `lod.L0`..`lod.L6`, three scales of two rungs each, exact and coarse, and the omission (the
+  user's word, 2026-11-05): L0–L1 the close scale (`lod.Close`: needles, pores; a game enters it
+  by setting the ladder's first two thresholds, a zero there meaning the scale is not used, so
+  no strategy game ever sees it), L2–L3 the standard scale (`lod.Standard`: full, no detail),
+  L4–L5 the strategic scale (`lod.Strategic`: shape, colour; the aggregates), L6 omitted
+  (`lod.Omitted`: neither ticked nor drawn), from the shown pixels a world
   unit spans there through each observer's camera and its distance within the ladder's Sight
   (`world.Config.LOD`), the same level for everything in the sector; an entity's mark is the
-  level ticked, the finest any observer sees (the ladder's `Unobserved` with none, L2 by
+  level ticked, the finest any observer sees (the ladder's `Unobserved` with none, L4 by
   default), held awake by a `sector.Keen` entity in it (a shot in flight); each camera's view
   holds the level it draws at, the frame budget shifting it coarser for every camera alike
-  before the resolution falls, never past L3 and never a sector seen at L0 (what the player
-  looks at stays full; the user's word, 2026-11-04). Every system says
-  how often it goes at each level (`lod.Paces` through `world.Plugin.Pace`), none without, the
+  before the resolution falls, never past L5 and never a sector seen at `Standard` or closer
+  (what the player looks at stays full; the user's word, 2026-11-04). Every system says
+  how often it goes at each rung (`lod.Paces` through `world.Plugin.Pace`), none without, the
   rungs counted from the finest level any observer sees (the user's word, 2026-11-04: time runs
   at full pace where the viewer looks most closely, whatever that level is; the coarser sectors
-  tick slower; a world no camera observes ticks at full pace, the aggregates its saving); every
-  drawn kind has a version a level (`Slot.At`, `Nothing`; a blob of its mean colour derived at
-  L2, that colour summed into the ground at L3 where a ground reads it,
+  tick slower; a world no camera observes ticks at full pace, the aggregates its saving); a
+  system of one scale alone (a face's play at the close scale) filters its entities with
+  `world.Plugin.Within(lod.Close)`, so it ticks only where someone looks that closely and not at
+  all when no one does; every
+  drawn kind has a version a level (`Slot.At`, `Nothing`; its own sprite at the close and
+  standard scales unless a closer look is declared, a blob of its mean colour derived at L4,
+  that colour summed into the ground at L5 where a ground reads it,
   `world.Plugin.Aggregates`) after the table of words in `lod/doc.go`. Nothing measures a
   distance or a ring of its own and nothing shifts the level for itself: the topography's care
   rings went that way.
-  **Behaviour keeps to the ladder too** (the user's word, 2026-11-04): below L2 a unit walks
-  cells with the occupancy; from L2 it walks the same refined route the HPA* hierarchy gives, out
-  of the occupancy, the queue and the collision (`sector.Abstract`), never a straight line from
-  gate to gate, and an aggregate (`world.Aggregate`, a `Field` by sector)
-  is its parts at L0–L1 and itself alone from L2, the game's rules to `Unfold`, `Fold`,
-  `Folding` and `Met` saying what each becomes. L2 is the thermodynamics, L0 the dynamics: a
+  **Behaviour keeps to the ladder too** (the user's word, 2026-11-04): below `Strategic` a unit
+  walks cells with the occupancy; from L4 it walks the same refined route the HPA* hierarchy
+  gives, out of the occupancy, the queue and the collision (`sector.Abstract`), never a straight
+  line from gate to gate, and an aggregate (`world.Aggregate`, a `Field` by sector)
+  is its parts at L0–L3 and itself alone from L4, the game's rules to `Unfold`, `Fold`,
+  `Folding` and `Met` saying what each becomes. L4 is the thermodynamics, L2 the dynamics: a
   descent realises the coarse state in fine terms as the fine processes would have run it (the
   cell at the elapsed share of the leg's refined route; the parts from `lod.Seed` and the
   aggregate's state), an ascent sums the fine into the coarse, both deterministic from the same

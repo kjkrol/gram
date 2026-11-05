@@ -19,7 +19,7 @@ import (
 )
 
 // thinnable is a world's atlas of a plain kind, a kind never thinned and one with a look declared
-// at L2, closed
+// at L4, closed
 type thinnable struct {
 	a                       *Atlas
 	plain, always, declared render.SpriteID
@@ -36,7 +36,7 @@ func newThinnable() thinnable {
 	red := render.Solid(color.RGBA{R: 255, A: 255})
 	k.a.Add(k.plain, 8, red)
 	k.a.Add(k.always, 8, red).Always()
-	k.a.Add(k.declared, 8, red).At(lod.L2, render.Solid(color.RGBA{G: 255, A: 255}))
+	k.a.Add(k.declared, 8, red).At(lod.L4, render.Solid(color.RGBA{G: 255, A: 255}))
 	k.a.Close()
 	return k
 }
@@ -49,8 +49,8 @@ type group struct {
 }
 
 // published is the records the renderer publishes through a camera seeing the world as halves
-// with ladder says of groups, the entities of each in a row along the right sector, at L2 under
-// the thresholds 0.5 and 0.2, and ten more in the left at L0; the ids of those of each group
+// with ladder says of groups, the entities of each in a row along the right sector, at L4 under
+// the thresholds 0.5 and 0.2, and ten more in the left at L2; the ids of those of each group
 // published, the left ones last
 func published(t *testing.T, k thinnable, ladder lod.Ladder,
 	groups ...group) (*figures, [][]uid.UID64) {
@@ -111,19 +111,19 @@ func published(t *testing.T, k thinnable, ladder lod.Ladder,
 	return figs, kept
 }
 
-// keeping is a ladder drawing the right sector at L2 keeping share there
-func keepingL2(share float32) lod.Ladder {
-	l := lod.Ladder{Scales: [lod.Levels - 1]float32{0.5, 0.2}}
-	l.Keep[lod.L2] = share
+// keeping is a ladder drawing the right sector at L4 keeping share there
+func keepingL4(share float32) lod.Ladder {
+	l := lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2}}
+	l.Keep[lod.L4] = share
 	return l
 }
 
 func TestRenderer_Publish_ThinsALevelByItsKeepTheSameEveryTime(t *testing.T) {
 	k := newThinnable()
 	plain := group{n: 400, sprite: k.plain}
-	_, half := published(t, k, keepingL2(0.5), plain)
-	_, again := published(t, k, keepingL2(0.5), plain)
-	_, more := published(t, k, keepingL2(0.75), plain)
+	_, half := published(t, k, keepingL4(0.5), plain)
+	_, again := published(t, k, keepingL4(0.5), plain)
+	_, more := published(t, k, keepingL4(0.75), plain)
 	if n := len(half[0]); n < 140 || n > 260 {
 		t.Errorf("kept %d of 400 at a half, want about 200", n)
 	}
@@ -136,14 +136,14 @@ func TestRenderer_Publish_ThinsALevelByItsKeepTheSameEveryTime(t *testing.T) {
 		}
 	}
 	if len(more[0]) <= len(half[0]) || len(half[1]) != 10 {
-		t.Errorf("kept %d at three quarters, %d at a half, %d of 10 at L0; want more, all",
+		t.Errorf("kept %d at three quarters, %d at a half, %d of 10 at L2; want more, all",
 			len(more[0]), len(half[0]), len(half[1]))
 	}
 }
 
 func TestRenderer_Publish_KeepsTheKeenTheKindsNeverThinnedAndThoseDeclaredThere(t *testing.T) {
 	k := newThinnable()
-	_, kept := published(t, k, keepingL2(0.01), group{n: 100, sprite: k.plain},
+	_, kept := published(t, k, keepingL4(0.01), group{n: 100, sprite: k.plain},
 		group{n: 100, sprite: k.plain, keen: true}, group{n: 100, sprite: k.always},
 		group{n: 100, sprite: k.declared})
 	if len(kept[0]) > 10 || len(kept[1]) != 100 || len(kept[2]) != 100 || len(kept[3]) != 100 {
@@ -155,10 +155,10 @@ func TestRenderer_Publish_KeepsTheKeenTheKindsNeverThinnedAndThoseDeclaredThere(
 func TestRenderer_Publish_KeepingAllPublishesAsWithoutAKeep(t *testing.T) {
 	k := newThinnable()
 	groups := []group{{n: 100, sprite: k.plain}, {n: 20, sprite: k.always}}
-	none, _ := published(t, k, keepingL2(0), groups...)
+	none, _ := published(t, k, keepingL4(0), groups...)
 	// a share at a level none is drawn at: every entity weighed, none thinned
-	l3 := keepingL2(0)
-	l3.Keep[lod.L3] = 0.5
+	l3 := keepingL4(0)
+	l3.Keep[lod.L5] = 0.5
 	weighed, _ := published(t, k, l3, groups...)
 	if !slices.Equal(none.all, weighed.all) || !slices.Equal(none.layers, weighed.layers) ||
 		len(none.all) != 130 {

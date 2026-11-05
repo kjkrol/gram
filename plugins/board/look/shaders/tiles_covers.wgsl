@@ -2,7 +2,7 @@
 // and a cover lying on it or a neighbour (its column, its row and which cover): the cover over
 // each quarter of the cell's tile, weighed at the quarter's corners (weightAt), shown where the
 // weight comes over a half, fading in over coverSoft of it (draw.Quarters); laid over the tiles,
-// U.TileShift along, through U.TileViewProj; none on a cell of a sector seen at L1 or past it.
+// U.TileShift along, through U.TileViewProj; none on a cell of a sector seen at L3 or past it.
 
 struct Part {
     @builtin(position) clip: vec4<f32>,
@@ -19,7 +19,7 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>) -> Part 
     let b = at.xy;
     let i = u32(at.z + 0.5);
     let flags = byteOf(b, 0.0, 0.0, 3);
-    if levelOf(b) != 0u || (U.TileFull > 0.5 && !plainly(flags)) {
+    if levelOf(b) > 2u || (U.TileFull > 0.5 && !plainly(flags)) {
         return out; // out of sight, or the full pass's
     }
     // the quarter, and its corner: two triangles of top-left, top-right, bottom-left, then

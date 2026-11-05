@@ -22,7 +22,7 @@ type walker struct{ x float32 }
 
 // two observers looking at (x, y) over a world w by h: the one a pixel a world unit, the other a
 // quarter of a pixel seeing twice as far; under a ladder seeing from half a pixel a world unit,
-// L0 within its sight of the point, L1 within twice that, L4 beyond
+// L2 within its sight of the point, L3 within twice that, L6 beyond
 type observers [2]camera.Camera
 
 var _ sector.Observers = (*observers)(nil)
@@ -51,12 +51,12 @@ func (o *observers) Observers(each func(cam camera.Camera)) {
 	}
 }
 
-func TestMove_AtL1GoesAsFarInAsLongAndNotAtAllAsleep(t *testing.T) {
+func TestMove_AtL3GoesAsFarInAsLongAndNotAtAllAsleep(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 4096, Height: 512},
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 1, MaxSize: 20},
 		Sectors:  world.SectorsCfg{Buckets: 2},
-		LOD:      lod.Ladder{Scales: [lod.Levels - 1]float32{0.5}, Sight: 600},
+		LOD:      lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5}, Sight: 600},
 	})
 	w.Write().Observe(newObservers(4096, 512, 100, 256))
 	m := motion.NewPlugin(w)
@@ -91,7 +91,7 @@ func TestMove_AtL1GoesAsFarInAsLongAndNotAtAllAsleep(t *testing.T) {
 	}
 	want, eps := float32(8*30*(time.Second/60).Seconds()), f32.Eps(1200)
 	if f32.Abs(gone[100]-want) > eps || f32.Abs(gone[1200]-want) > eps || gone[2000] != 0 {
-		t.Errorf("gone at L0 %v, at L1 %v, asleep %v; want %v, %v and 0",
+		t.Errorf("gone at L2 %v, at L3 %v, asleep %v; want %v, %v and 0",
 			gone[100], gone[1200], gone[2000], want, want)
 	}
 }

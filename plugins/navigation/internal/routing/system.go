@@ -23,7 +23,7 @@ import (
 )
 
 // System carries out the MoveTo, March, LookAt and Onward commands: an order for each unit sent;
-// it keeps an aggregate its orders are aimed at ticked at L1 while one is.
+// it keeps an aggregate its orders are aimed at ticked at L3 while one is.
 type System struct {
 	// Pace is the pace of the units a player's command sends, an option of their query; nil, all.
 	Pace     goke.Opt

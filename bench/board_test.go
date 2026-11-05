@@ -67,12 +67,12 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 
 // view is "above", "iso" or "persp"; far shows the whole island on a screen of 576 by 384
 func island(b *testing.B, view string, far bool) (*headless, *board.Plugin, render.Source) {
-	return islandWith(b, view, far, true, false, lod.L4)
+	return islandWith(b, view, far, true, false, lod.Omitted)
 }
 
 // islandWith is island with the water's shine or without it (no water layer drawn), under a
 // distant sun with the ground's shade baked or in no light at all, and cut into sectors of 256
-// every one at level or, at L4, whole
+// every one at level or, at Omitted, whole
 func islandWith(b *testing.B, view string, far bool, shine, lit bool, level lod.Level) (
 	*headless, *board.Plugin, render.Source) {
 	const w, h, size = 96, 64, 32
@@ -82,11 +82,12 @@ func islandWith(b *testing.B, view string, far bool, shine, lit bool, level lod.
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
 		Heights:  true,
 	}
-	if level < lod.L4 {
-		// sectors of 256, every one at level: the thresholds before it past any scale
+	if level < lod.Omitted {
+		// sectors of 256, every one at level: the thresholds from Standard before it past any
+		// scale
 		cfg.Sectors = world.SectorsCfg{Buckets: 1}
-		for k := range level {
-			cfg.LOD.Scales[k] = float32(1e6) / float32(k+1)
+		for k := lod.Standard; k < level; k++ {
+			cfg.LOD.Scales[k] = float32(1e6) / float32(k-lod.Standard+1)
 		}
 	}
 	ctx.UseWorld(cfg)

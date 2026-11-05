@@ -401,7 +401,7 @@ func TestRenderer_Compose_DrawsNothingAsleepEvenUnculled(t *testing.T) {
 	r.shade(nil, nil)
 	var base goke.Comp[Base]
 	var appearance goke.Comp[render.Appearance]
-	var off goke.Comp[sector.L4]
+	var off goke.Comp[sector.L6]
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		for k, f := range []*goke.Factory{

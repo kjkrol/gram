@@ -23,10 +23,10 @@ const (
 	expanseTPS   = 60
 )
 
-// the expanse demo's ladder: L0 from half a pixel a world unit, a sight of 6 km at 6 m a unit, its
+// the expanse demo's ladder: L2 from half a pixel a world unit, a sight of 6 km at 6 m a unit, its
 // last 1.8 km in the fog
 var expanseLOD = lod.Ladder{
-	Scales: [lod.Levels - 1]float32{0.5},
+	Scales: [lod.Levels - 1]float32{0, 0, 0.5},
 	Sight:  1_000,
 	Fog:    300,
 }

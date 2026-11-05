@@ -50,8 +50,8 @@ var sheets = render.NewMeshShaderWith("hexes sheet", render.Files(shaders, "shad
 		{Name: "Sight", Size: 4},
 	}).Instanced(2)
 
-// a cell's top in six triangles and a wall of two down each of its six edges; drawn at L1 and
-// L2, its top alone; a sheet's two triangles
+// a cell's top in six triangles and a wall of two down each of its six edges; drawn at L3 and
+// L4, its top alone; a sheet's two triangles
 const (
 	topVertices   = 18
 	wholeVertices = topVertices + 36
@@ -186,7 +186,7 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	h.set("Facing", float32(h.cols), float32(h.facing.Bounds().Dx()))
 	h.opts.Depth, h.opts.Images = t.Depth, [4]*render.Image{h.top, h.facing, nil, nil}
 	h.each(seen, func(cells []float32, vertices int) {
-		// the grid at L0 alone, whose cells are drawn whole
+		// the grid at Standard and finer alone, whose cells are drawn whole
 		grid := width
 		if vertices != wholeVertices {
 			grid = 0
@@ -220,9 +220,9 @@ func (h *Ground) Levels() [lod.Levels]int { return h.counts }
 // a sector's cells among the instances, from first, n of them
 type run struct{ first, n int }
 
-// calls draw with the cells seen, each sector's whole cells at L0 or their tops at L1 and L2,
-// sectors following one another at one level at one go, and lays the sheets of those at L3;
-// every cell whole in a world of no sectors
+// calls draw with the cells seen, each sector's whole cells at Standard or finer or their tops at
+// L3 and L4, sectors following one another at one level at one go, and lays the sheets of those at
+// L5; every cell whole in a world of no sectors
 func (h *Ground) each(seen *view.View, draw func(cells []float32, vertices int)) {
 	h.counts, h.sheet = [lod.Levels]int{}, h.sheet[:0]
 	if h.sectors == nil {
@@ -242,13 +242,13 @@ func (h *Ground) each(seen *view.View, draw func(cells []float32, vertices int))
 			return
 		}
 		h.counts[level]++
-		if level >= lod.L3 {
+		if level >= lod.L5 {
 			h.sheet = append(h.sheet, box.TopLeft.X, box.TopLeft.Y, box.BottomRight.X,
 				box.BottomRight.Y, h.heights[i], 0, 0, 0)
 			return
 		}
 		v := wholeVertices
-		if level != lod.L0 {
+		if level > lod.Standard {
 			v = topVertices
 		}
 		if v == vertices && at.first+at.n == r.first {

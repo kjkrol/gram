@@ -14,7 +14,7 @@ type span struct {
 }
 
 // the skirt to the horizon is drawn as a sheet, the coarsest the ground draws
-const skirtLevel = lod.L3
+const skirtLevel = lod.L5
 
 // a sector's triangles whole and coarse
 type sectorSpans struct{ whole, coarse span }
@@ -143,18 +143,18 @@ func (r *Renderer) lay(cols, rows int, cell float32, enc []byte) {
 }
 
 // the runs of the ground drawn through cam: the sectors its View sees, each at its level, its
-// whole triangles at L0 and L1 and its coarse ones beyond, joined where they follow one another
-// at one level, and the skirt at skirtLevel; the whole mesh at L0, its skirt too, in a world of
-// no sectors, which has no levels
+// whole triangles short of Strategic and its coarse ones beyond, joined where they follow one
+// another at one level, and the skirt at skirtLevel; the whole mesh at Standard, its skirt too, in
+// a world of no sectors, which has no levels
 func (r *Renderer) runs(cam camera.Camera, dst []span) []span {
 	r.counts = [lod.Levels]int{}
 	if r.grid == nil {
-		return append(dst, span{0, len(r.tris), lod.L0})
+		return append(dst, span{0, len(r.tris), lod.Standard})
 	}
 	v := r.cfg.Seen(cam)
 	v.Sectors(func(i int, _ geom.AABB, level lod.Level) {
 		s := r.spans[i].whole
-		if level >= lod.L2 {
+		if level >= lod.Strategic {
 			s = r.spans[i].coarse
 		}
 		if s.count == 0 {

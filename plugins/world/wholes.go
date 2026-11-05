@@ -16,9 +16,9 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Aggregate marks the kind of an entity standing for parts, a forest's trees or an army's
-// soldiers: they are the truth at L0 and L1, spawned by its rules at its Unfold, and it alone
-// from L2 on, as they are summed into it at its Fold.
+// Aggregate marks the kind of an entity standing for parts, a forest's trees or an army's soldiers:
+// they are the truth finer than Strategic, spawned by its rules at its Unfold, and it alone from
+// Strategic on, as they are summed into it at its Fold.
 type Aggregate struct{}
 
 // Field marks an aggregate standing over a field, a forest: the box of Size round its centre,
@@ -36,7 +36,7 @@ type Unfolded struct{}
 
 // a stretch of an aggregate unfolded: its sector, the aggregate within it (a point aggregate's one
 // stretch following its centre) and the clock's time it folds at, zero while that sector is finer
-// than L2; Folded once its Fold is told, kept the step its parts go so none draws it beside them
+// than L4; Folded once its Fold is told, kept the step its parts go so none draws it beside them
 type stretch struct {
 	Whole  uid.UID64
 	Sector int
@@ -52,8 +52,8 @@ type meeting struct{ A, B uid.UID64 }
 // pairing each with every other
 const sweepPast = 64
 
-// tells the aggregates their Unfold and Fold as the sectors of their stretches cross between L1
-// and L2, their parts a Folding, and those on the abstract graph whom they Met
+// tells the aggregates their Unfold and Fold as the sectors of their stretches cross between L3
+// and L4, their parts a Folding, and those on the abstract graph whom they Met
 type wholes struct {
 	w *module
 
@@ -121,7 +121,7 @@ type wholes struct {
 	toMeeting  func(p pair, m meeting) int
 }
 
-// a stretch standing as a step finds it: walked where its aggregate was, its sector at L1 or finer
+// a stretch standing as a step finds it: walked where its aggregate was, its sector at L3 or finer
 // where fine, its place there as the walk found it; folded, told its Fold the step before
 type holding struct {
 	id     uid.UID64
@@ -223,8 +223,8 @@ func (s *wholes) Update(cb *goke.CmdBuf, d time.Duration) {
 	}
 }
 
-// finds the stretches of the aggregates, waits out those standing at L2 or coarser, noting for fold
-// those whose wait is over, and tells Unfold of those come down to L1 or finer with none standing
+// finds the stretches of the aggregates, waits out those standing at L4 or coarser, noting for fold
+// those whose wait is over, and tells Unfold of those come down to L3 or finer with none standing
 // yet; the wait begins with the step, the sectors laid as the tick began
 func (s *wholes) unfold(cb *goke.CmdBuf, d time.Duration, t host.Tick) {
 	s.holding, s.unfolding, s.folding = s.holding[:0], s.unfolding[:0], s.folding[:0]
@@ -257,7 +257,7 @@ func (s *wholes) unfold(cb *goke.CmdBuf, d time.Duration, t host.Tick) {
 
 // finds the stretches of the aggregates of the block cur, a point aggregate's one in the sector of
 // its centre, a field's, of the sizes given, in each sector it covers: those standing are walked,
-// those come to L1 or finer with none standing but one folded the step before unfold
+// those come to L3 or finer with none standing but one folded the step before unfold
 func (s *wholes) find(cur *goke.Cursor, fields []Field) {
 	sectors := s.w.sectors
 	for i, b := range s.base.Slice(cur) {
@@ -270,7 +270,7 @@ func (s *wholes) find(cur *goke.Cursor, fields []Field) {
 		if fields == nil {
 			at := sectors.of(c.X, c.Y)
 			box := geom.NewAABB(b.Pos.TopLeft, b.Pos.TopLeft.Add(b.Pos.Size))
-			fine := sectors.levelOf(at) <= lod.L1
+			fine := sectors.levelOf(at) < lod.Strategic
 			if lo < hi && !s.holding[lo].folded {
 				h := &s.holding[lo]
 				h.walked, h.fine, h.sector, h.box = true, fine, at, box
@@ -285,7 +285,7 @@ func (s *wholes) find(cur *goke.Cursor, fields []Field) {
 		half := geom.NewVec(fields[i].Size.X/2, fields[i].Size.Y/2)
 		s.cover = sectors.cover(geom.NewAABB(c.Sub(half), c.Add(half)), s.cover[:0])
 		for _, p := range s.cover {
-			fine := sectors.levelOf(p.Sector) <= lod.L1
+			fine := sectors.levelOf(p.Sector) < lod.Strategic
 			if k := s.holdingIn(lo, hi, p.Sector); k >= 0 && !s.holding[k].folded {
 				s.holding[k].fine, s.holding[k].box = fine, p.Box
 			} else if fine {

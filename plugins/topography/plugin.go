@@ -347,7 +347,7 @@ func (r reporter) Report(line func(label, value string)) {
 		return
 	}
 	var b strings.Builder
-	for k, n := range r.p.levels[:lod.L4] {
+	for k, n := range r.p.levels[:lod.Omitted] {
 		if k > 0 {
 			b.WriteByte('\n')
 		}
