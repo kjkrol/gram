@@ -51,12 +51,15 @@ func TestEach_DrawsTheSectorsSeenWholeOrTheirTopsAloneNeighboursAtOneGo(t *testi
 	// asleep
 	h := &Ground{sectors: row{}, runs: []run{{0, 2}, {2, 1}, {3, 3}, {6, 1}},
 		cells: make([]float32, 7*cellFloats)}
-	type drawn struct{ cells, vertices int }
+	type drawn struct {
+		cells, vertices int
+		level           lod.Level
+	}
 	var got []drawn
-	h.each(v, func(cells []float32, vertices int) {
-		got = append(got, drawn{len(cells) / cellFloats, vertices})
+	h.each(v, func(cells []float32, vertices int, level lod.Level) {
+		got = append(got, drawn{len(cells) / cellFloats, vertices, level})
 	})
-	want := []drawn{{3, wholeVertices}, {3, topVertices}}
+	want := []drawn{{3, wholeVertices, lod.L2}, {3, topVertices, lod.L3}}
 	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
 		t.Errorf("drawn %v, want the near sectors' cells whole at one go, the far one's tops, "+
 			"nothing beyond", got)
@@ -87,15 +90,19 @@ func TestEach_DrawsTheTopsAtL3AndL4AndASheetAtL5(t *testing.T) {
 	// a cell in each sector, two in the one at L5, the mean of whose corners stands 6 high
 	h := &Ground{sectors: ladder{lod.Standard}, runs: []run{{0, 1}, {1, 1}, {2, 1}, {3, 2}, {5, 1}},
 		heights: []float32{0, 0, 0, 6, 0}, cells: make([]float32, 6*cellFloats)}
-	type drawn struct{ cells, vertices int }
+	type drawn struct {
+		cells, vertices int
+		level           lod.Level
+	}
 	var got []drawn
-	h.each(v, func(cells []float32, vertices int) {
-		got = append(got, drawn{len(cells) / cellFloats, vertices})
+	h.each(v, func(cells []float32, vertices int, level lod.Level) {
+		got = append(got, drawn{len(cells) / cellFloats, vertices, level})
 	})
-	want := []drawn{{1, wholeVertices}, {2, topVertices}}
-	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
-		t.Errorf("drawn %v, want the sector at L2 whole and those at L3 and L4 their tops at "+
-			"one go", got)
+	want := []drawn{{1, wholeVertices, lod.L2}, {1, topVertices, lod.L3},
+		{1, topVertices, lod.L4}}
+	if !slices.Equal(got, want) {
+		t.Errorf("drawn %v, want the sector at L2 whole and those at L3 and L4 their tops, a "+
+			"level at a go", got)
 	}
 	sheet := []float32{1536, 0, 2048, 512, 6, 0, 0, 0}
 	if !slices.Equal(h.sheet, sheet) {
@@ -105,7 +112,9 @@ func TestEach_DrawsTheTopsAtL3AndL4AndASheetAtL5(t *testing.T) {
 	if want := [lod.Levels]int{0, 0, 1, 1, 1, 1, 0}; h.Levels() != want {
 		t.Errorf("sectors drawn by level %v, want %v", h.Levels(), want)
 	}
-	if n := testing.AllocsPerRun(10, func() { h.each(v, func([]float32, int) {}) }); n != 0 {
+	if n := testing.AllocsPerRun(10, func() {
+		h.each(v, func([]float32, int, lod.Level) {})
+	}); n != 0 {
 		t.Errorf("%v allocations a frame, want none", n)
 	}
 }
@@ -121,12 +130,16 @@ func TestEach_DrawsTheCloseLevelsWholeAsStandard(t *testing.T) {
 	view.NewSystem(space, &views, 2560, 512).Update(nil, 0)
 	h := &Ground{sectors: ladder{lod.Close}, runs: []run{{0, 1}, {1, 1}, {2, 1}, {3, 1}, {4, 1}},
 		heights: make([]float32, 5), cells: make([]float32, 5*cellFloats)}
-	type drawn struct{ cells, vertices int }
+	type drawn struct {
+		cells, vertices int
+		level           lod.Level
+	}
 	var got []drawn
-	h.each(v, func(cells []float32, vertices int) {
-		got = append(got, drawn{len(cells) / cellFloats, vertices})
+	h.each(v, func(cells []float32, vertices int, level lod.Level) {
+		got = append(got, drawn{len(cells) / cellFloats, vertices, level})
 	})
-	want := []drawn{{3, wholeVertices}, {2, topVertices}}
+	want := []drawn{{3, wholeVertices, lod.L2}, {1, topVertices, lod.L3},
+		{1, topVertices, lod.L4}}
 	if !slices.Equal(got, want) || len(h.sheet) != 0 {
 		t.Errorf("drawn %v and sheets %v, want the sectors at L0 to L2 whole at one go, those at "+
 			"L3 and L4 their tops, no sheet", got, h.sheet)

@@ -95,7 +95,9 @@ func NewPlugin(cfg Config) *Plugin {
 	p.renderer.space = cfg.Space
 	if m.sectors.grid != nil {
 		p.renderer.covers = m.sectors.cover
+		p.renderer.far.look, p.renderer.far.counted = p.read.FarLook, p.read.Counts
 	}
+	p.renderer.sheet = newSheets(cfg, m.sectors.grid)
 	return p
 }
 

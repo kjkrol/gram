@@ -48,8 +48,9 @@ type Ladder struct {
 	// all; the rest are thinned by their identity, and Omitted's means nothing, none being
 	// published.
 	Keep [Levels]float32
-	// Texel is how many world units a texel of the figures' colour summed into the ground spans,
-	// zero a sector's side over 64. The world raises it to span 2048 texels a side at most.
+	// Texel is how many world units a texel of the sheet of what stands spans, zero the units a
+	// pixel spans at L4's threshold (a sector's side over 64 without one). The world raises it so
+	// the sheet spans 4096 texels a side at most.
 	Texel float32
 	// Fold is how many seconds an aggregate's sector lies at Strategic or coarser before it
 	// folds, zero for 3: a hold past the levels' own, so one on the edge of L3 and L4 does not

@@ -91,8 +91,9 @@ func (f *forest) SetupSystems() []goke.System {
 	}}}
 }
 
-// the forest's stage, its camera at L3 looking at at, with the forest unless a save is loaded
-func newForest(t *testing.T, at geom.Vec) *forest {
+// the forest's stage, its camera at L3 looking at at, with the forest unless a save is loaded, the
+// figures given noted
+func newForest(t *testing.T, at geom.Vec, figures ...world.Figure) *forest {
 	t.Helper()
 	f := &forest{cam: cameratest.NewFromSpace(4096, 1024, 0), at: at}
 	f.cam.SetViewport(100, 100)
@@ -111,6 +112,7 @@ func newForest(t *testing.T, at geom.Vec) *forest {
 		}).
 		Plugins(func(w *world.Plugin) {
 			f.w = w
+			w.Figures(figures...)
 			w.Write().Observe(f)
 			if err := w.Carry(&f.orders); err != nil {
 				t.Fatal(err)

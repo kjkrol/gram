@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gputest"
@@ -38,6 +39,10 @@ func (e everywhere) Of(x, y float32) int {
 
 func (e everywhere) Level(camera.Camera, int) lod.Level { return e.level }
 func (everywhere) Ladder() lod.Ladder                   { return lod.Ladder{} }
+
+func (everywhere) Neighbours(i int, each func(j int)) {
+	sector.NewGrid(4, 4, false, false, 1).Neighbours(i, each)
+}
 
 // pixelsAt draws entities of sprite over boxes from atlas, a world w by h with edges seen at level
 // through cam, onto a screen of cam's viewport, and reads it

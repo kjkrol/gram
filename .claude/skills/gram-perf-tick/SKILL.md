@@ -35,6 +35,17 @@ reguły, efekty, znaczniki) i planszę (grunt, wysokość, stanie).
   krokiem; świat bez obserwatora tyka pełnym krokiem, oszczędność dają agregaty), encje L6 poza
   przestrzenią (`gram-plugins`, wpis `world`). Zoom z góry przez próg znakuje wszystkie żywe
   encje naraz (~200 ns każda, teraz dwa ruchy archetypu na encję): koszt znany, nierozłożony.
+- Pętla publikacji (`renderer.publish`, 2026-11-06, `p/publish`): zwykły przebieg po chunku
+  (bez pól, nie `Fixed`, banery i liczby wyłączone) jest osobną, ciasną pętlą o takim zbiorze
+  zmiennych żywych jak przed płachtami; chunk `Fixed` albo z banerami idzie przez
+  `publishStandIns`. Dodanie stanu płachty i banerów do jednej pętli kosztowało +20…28 % na
+  każdym rungu `World_Publish` (osiem zbędnych zapisów na stos na encję, choć gałęzie były
+  martwe). `seenAny` jest `//go:noinline`: inlinowane do `Publish` dzieliło rejestry z lokalnymi
+  `Publish` i przeładowywało slot stosu na każdy widok (~0,7 ns na encję świata). Wspólny
+  pomocnik zapisu rekordu kosztuje ~1,8 ns na rekord (odrzucony: rekord pisany inline w obu
+  pętlach); zera pisane w kolejności pól struktury łączą się w mniej zapisów; strażnik `progress`
+  inlinuje się, gdy odczyt mapy siedzi w `phaseOf`. `figure` ma 88 B (80 przed płachtami):
+  samo to kosztuje 3–6 % na gęstych rungach, pokryte powyższym; spakowanie flag wróciłoby do 80.
 - Przebieg `standing` planszy pisze `Pace.Share` z `cell.PaceOf` ze stokiem do sąsiada w kierunku
   marszu; jego cena nad reliefem (`Map.Rise` i `exp` na jednostkę na krok) przyjęta jako cena
   strategii (`gram-perf-navigation`).

@@ -142,9 +142,24 @@ What is left to do. Take an item out when it lands.
   within the Sight, leaves the circle empty past it: to fill the whole widget.
 - **A far figure's cost** — a point at L4 costs ~40 ns drawn (the target 20) and keeping a share
   (`Ladder.Keep`) ~7 ns an entity published: both the level read for every entity, at the
-  publishing and again at the drawing; the sum into the ground at L5 ~90 ns a box (the loop over
-  the texels a box covers spills registers); a tile of the sum changed allocates ~4 KiB in
-  `gpu.put`. Planned after the aggregates: `doc/plans-perf.md`, "Daleka figura taniej".
+  publishing and again at the drawing. Planned: `doc/plans-perf.md`, "Daleka figura taniej"
+  (its parts on the L5 sum are moot since the sheets, 2026-11-05).
+- **The sheets, what is left** (2026-11-05) — the sheet casts no shadow on the ground at L4 (the
+  light's bake reads `GroundHeights` alone); a look changed under an effect, or an animated look
+  on a `Fixed` kind, re-photographs its sector (the sprite is in the signature: a frame of
+  animation a frame); the snapshots of a folded field's parts are not saved, so after a load in
+  one process a stale one stays till the stretch unfolds; a thing across a wrapping world's seam
+  is clamped in the photo, not wrapped; the minimap's `Miniature` could read the albedo's
+  quarter; `lay` builds a third index set at every relief change (~12 % more indices on
+  Madeira); the uniform `AlbedoSize` is read by no shader; `surface.wgsl`'s `albedo()` could read
+  `U.AlbedoPx` and `levelAlbedo` go; the tick and the drawing of Madeira jump by ~50 % at about
+  two minutes (seen in v0.19.1, cause unknown); the photo mesh costs the island's L4 frame
+  ~1.4 ms more than the bare ground (the raised domes' walls rasterised: culling the triangles
+  with a sunk corner would bring it to ~0.3 ms, changing the fringe under each top), a round of
+  photographs ~0.8 ms a sector over the benchmark's floor (a copy blend in `DrawMeshOptions`
+  would spare three draws a round; the albedo and the relief in one image another pass); hover
+  and the pointed commands do not know banners, only a click does; a banner's Z is its units'
+  mean, so it may sink under a hill between valley units.
 
 ## Landscape and Madeira
 

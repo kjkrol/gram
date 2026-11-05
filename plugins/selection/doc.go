@@ -10,7 +10,9 @@
 // at, given by a [Hover] every tick the cursor lies over the world. [Plugin.Tags] is for the
 // plugins reading them; a drawing rule asks [Read.IsSelected]. A [Select] names entities by id
 // or by a box, additive or not, and with a Camera the screen rectangle the player drew picks them
-// where that camera draws them; [SelectionSystem] carries it out.
+// where that camera draws them; [SelectionSystem] carries it out. Where the world draws a kind's
+// loose units far off as one banner (world.Banners), a click on the banner picks them all, and
+// none where they stand.
 //
 // # Whose units
 //

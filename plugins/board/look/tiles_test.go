@@ -468,29 +468,41 @@ func TestTiles_LayATileInOneColourFromL4(t *testing.T) {
 	}
 }
 
-// the figures' colour summed into the ground lies over the tiles of a sector at L5, a square
-// board's and a hex board's, the plain pass's and the full one's, and over none at L4
-func TestTiles_LayTheFiguresColourOverTheTilesAtL5(t *testing.T) {
+// the sheet of what stands lies over the tiles of the sectors at L4 and L5, a square board's and a
+// hex board's, the plain pass's and the full one's: L4's where a sector is seen at L4, L5's,
+// half as fine, where none is
+func TestTiles_LayTheSheetOverTheTilesAtL4AndL5(t *testing.T) {
 	gputest.Need(t)
-	// a texel a world unit, a world unit a pixel: red under the left half, at L4, and the right
-	aggregate := render.NewImage(128, 128)
+	// L4's a texel a world unit, a world unit a pixel: red under the left half and the right;
+	// L5's blue over two texels by two under the right
+	albedo := render.NewImage(128, 128)
 	pix := make([]byte, 4*128*128)
 	for _, p := range [][2]int{{18, 40}, {98, 40}} {
 		copy(pix[4*(p[1]*128+p[0]):], []byte{255, 0, 0, 255})
 	}
-	aggregate.WritePixels(pix)
-	summed := func() (*render.Image, float32) { return aggregate, 1 }
+	albedo.WritePixels(pix)
+	half := render.NewImage(64, 64)
+	pix = make([]byte, 4*64*64)
+	for _, p := range [][2]int{{49, 20}, {50, 20}, {49, 21}, {50, 21}} {
+		copy(pix[4*(p[1]*64+p[0]):], []byte{0, 0, 255, 255})
+	}
+	half.WritePixels(pix)
+	sheet := func() (_, _, _, _ *render.Image, _ float32) { return albedo, nil, half, nil, 1 }
+	blue := color.RGBA{B: 255, A: 255}
 	for _, g := range []grid.Grid{grid.DefaultGrids{}.Square(4, 4, 32),
 		grid.DefaultGrids{}.Hex(4, 4, 16)} {
+		hex := g.Directions() == 6
 		brd, brdW := board.NewBoard(g)
 		brdW.SetAll(cell.Kind{SpriteID: 1, Pace: 1, Allows: cell.Land})
 		atlas := render.NewAtlas()
 		atlas.Add(render.SpriteID(1), 32, render.Solid(green))
 		atlas.Close()
-		laid := func(aggregate func() (*render.Image, float32)) func(x, y float32) color.RGBA {
+		// the left half at L4 and the right at L5 under the first thresholds, both at L5 under
+		// the second
+		laid := func(l4 float32, withSheet bool) func(x, y float32) color.RGBA {
 			cam := sighted{Camera: cameratest.NewFromSpace(128, 128, 0)}
 			v := view.NewSeen(cam,
-				halves{ladder: lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 5, 2, 0.5}}})
+				halves{ladder: lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 5, 2, l4}}})
 			space, err := aabbworld.NewSpace(aabbworld.Config{Width: 128, Height: 128,
 				BucketSize: 32})
 			if err != nil {
@@ -501,26 +513,39 @@ func TestTiles_LayTheFiguresColourOverTheTilesAtL5(t *testing.T) {
 			r := look.NewRenderer(brd, atlas, dressed{look.Flat, nil},
 				world.SpaceCfg{Width: 128, Height: 128}).
 				WithSeen(func(camera.Camera) *view.View { return v })
-			if aggregate != nil {
-				r.WithAggregate(aggregate)
+			if withSheet {
+				r.WithSheet(sheet)
 			}
 			return shot(cam, 128, 128, r)
 		}
-		without, with := laid(nil), laid(summed)
-		if got := with(98, 40); got != red || without(98, 40) != green {
-			t.Errorf("hex %v: the tile under the figures at L5 is %v, %v without; want red, "+
-				"green", g.Directions() == 6, got, without(98, 40))
+		without, with := laid(0.5, false), laid(0.5, true)
+		for _, p := range [][2]float32{{18, 40}, {98, 40}} {
+			if got := with(p[0], p[1]); got != red || without(p[0], p[1]) != green {
+				t.Errorf("hex %v: the tile under the sheet's red at %v is %v, %v without; want "+
+					"red, green", hex, p, got, without(p[0], p[1]))
+			}
 		}
 		for y := range 128 {
 			for x := range 128 {
-				if x == 98 && y == 40 {
+				if x == 18 && y == 40 || x == 98 && y == 40 {
 					continue
 				}
 				if a, b := without(float32(x), float32(y)), with(float32(x), float32(y)); a != b {
-					t.Fatalf("hex %v: the pixel (%v, %v) is %v, %v without the figures; want "+
-						"them alike off the texel at L5", g.Directions() == 6, x, y, b, a)
+					t.Fatalf("hex %v: the pixel (%v, %v) is %v, %v without the sheet; want them "+
+						"alike off L4's texels", hex, x, y, b, a)
 				}
 			}
+		}
+		without, with = laid(1.5, false), laid(1.5, true)
+		for _, p := range [][2]float32{{99, 41}, {100, 41}, {99, 42}, {100, 42}} {
+			if got := with(p[0], p[1]); got != blue {
+				t.Errorf("hex %v: at L5 alone the tile under L5's blue at %v is %v, want blue",
+					hex, p, got)
+			}
+		}
+		if a, b := without(18, 40), with(18, 40); a != b {
+			t.Errorf("hex %v: at L5 alone the tile under L4's red is %v, %v without the sheet; "+
+				"want L4's sheet unread", hex, b, a)
 		}
 	}
 }

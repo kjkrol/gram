@@ -57,8 +57,9 @@
 // some other source hands it. In a world cut into sectors the ground drawn is that of the
 // sectors a camera sees, each at the level it sees it at as the lod package's words for the
 // ground say (on a hex board the cells' tops alone from L3, a quad a sector at L5), the skirt to
-// the horizon as at L5, turning into the fog before its sight's end; at L5 the figures' colour
-// the world sums into the ground (world.Read.Aggregate) lies over the sheet, the skirt bare.
+// the horizon as at L5, turning into the fog before its sight's end; from L4 the sheet of what
+// stands there (world.Read.Sheet) rises over the ground as relief in the frame's light, at L5
+// in half, the skirt bare.
 // [Read.Reporter] is the panel's line on how many sectors a frame drew at each level.
 // [Write.Miniature] is the board painted flat as one picture, a minimap's ground. It is a
 // plugin.CommandHandler for the shaping's and the haze's commands ([Plugin.Queues],

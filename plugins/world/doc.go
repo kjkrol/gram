@@ -100,14 +100,22 @@
 // its box as large as it shows and a pixel at least, as opaque as it covers, with no Look, lamp or
 // shadow, and a camera publishes the ladder's Keep share of a level's entities by their identity,
 // the same each frame, sparing the sector.Keen, a kind [Slot.Always] and one drawn in a look
-// declared there. A camera riding inside an entity (camera.Inside) draws none of its figure, its
-// shadow still. [Plugin.WithFog] is the fog's colour in a world without an atmosphere. The entities
-// are published once a frame, after its ticks: the looks' rules settle every one some camera sees,
-// the Lighting marks it, each camera's view is copied, and the frame is drawn of that alone. In a
-// world cut into sectors whose ground a renderer draws ([Plugin.Aggregates]) a figure some camera
-// sees at L5 is no record but its blob's colour summed by how much of each texel its box covers
-// into [Read.Aggregate], an image over the whole world the renderer lays over the ground it draws
-// there ([AggregateImage]).
+// declared there. As Config.Far and the settings say ([ShowFar], [Read.FarLook]), a kind's loose
+// units in a sector drawn from L4 on are a point each or, where the kind declares a look there,
+// one [Banner] at their centroid ([Read.Banners]), never thinned; with the counts drawn
+// ([ShowCounts], [Read.Counts]) the number of a banner's units, and of a kind's points two or
+// more in a sector, stands over them on the glass in the kind's colour. A camera riding inside
+// an entity (camera.Inside) draws none of its figure, its shadow still. [Plugin.WithFog] is the
+// fog's colour in a world without an atmosphere. The entities are published once a frame, after its
+// ticks: the looks' rules settle every one some camera sees, the Lighting marks it, each camera's
+// view is copied, and the frame is drawn of that alone. In a world cut into sectors whose ground a
+// renderer draws ([Plugin.Sheets]) what stands ([Fixed]) in a sector some camera sees at L4 or L5
+// is photographed on the GPU from its L3 looks, with the parts of the fields folded there, into
+// [Read.Sheet], an albedo and a relief over the whole world ([SheetImage], [SheetReliefImage], at
+// L5 in half), a few sectors a frame as their content changes; once a sector's sheet is painted its
+// standing entities are no record, the renderer drawing the sheet as the ground's relief, and a
+// unit there is its blob. A standing entity cut by a sector's edge, or beside a sector seen finer
+// than L4, is drawn alive at the finer level, never thinned, and photographed nowhere.
 //
 // [Read.Picture] is everything the Stage's plugins draw (plugin.Installer.Draws), one picture
 // for every scene; a scene shows it through a camera, ui.Image(render.NewFeed(camera, it)).
@@ -160,8 +168,8 @@
 // the sector of its centre and its own box. A SpawnPart given under an Unfold is laid At off the
 // middle of that Box, so the plots a rule plants, picked by words over lod.Seed and the
 // aggregate's effects, lie in the sector. A field is drawn by sector, asleep too, wherever a
-// camera sees its part there: its look at the level of that sector stretched over the part, at
-// L5 its colour summed over every texel the part covers; a sector it is unfolded in has its
+// camera sees its part there: its look at the level of that sector stretched over the part,
+// from L4 in the sector's sheet where it declares none; a sector it is unfolded in has its
 // parts drawn alone, till they have gone the step after its Fold. Drawn so, it lies on the ground,
 // under the figures standing over it.
 //
@@ -193,13 +201,15 @@
 // subject the stretch), [Fold] (one folding; its word [Parts]), [Folding] (each part of it, its
 // subject the aggregate), [Met] (a pair of aggregates on the abstract graph, host.Met). Marks:
 // [Aggregate] and [Field] (on a kind), [PartOf] (on a part), [Unfolded] (on an aggregate, for the
-// plugins: a rule reads no component). Knobs, for an effect's Alter:
+// plugins: a rule reads no component), [Fixed] (on a kind standing for good, what the sheets of
+// the strategic scale are photographed of). Knobs, for an effect's Alter:
 // render.Appearance, the look's.
 // Commands: [Spawn] (a player's or an entity's own); [SpawnPart] (an aggregate's own, aimed at
 // the stretch of an Unfold);
 // [Despawn], [Keen], [Calm] (an entity's own); [Pause],
-// [Faster], [Slower], [Tempo], [SwitchSectors], [SwitchBands] (a player's). Settings
-// ([Settings], saved with the game, in [Resources]): the sectors drawn, their levels on. The
+// [Faster], [Slower], [Tempo], [SwitchSectors], [SwitchBands], [ShowFar], [ShowCounts] (a
+// player's). Settings ([Settings], saved with the game, in [Resources]): the sectors drawn, their
+// levels on, how the loose units are drawn far off and whether they are counted. The
 // clock's moment and the commands about effects (ceremony.Put, Take, Toggle, Trigger) are
 // carried here too.
 package world

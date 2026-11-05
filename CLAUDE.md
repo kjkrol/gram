@@ -295,11 +295,20 @@ Decisions the user has made; they are not up for revisiting in passing.
   `world.Plugin.Within(lod.Close)`, so it ticks only where someone looks that closely and not at
   all when no one does; every
   drawn kind has a version a level (`Slot.At`, `Nothing`; its own sprite at the close and
-  standard scales unless a closer look is declared, a blob of its mean colour derived at L4,
-  that colour summed into the ground at L5 where a ground reads it,
-  `world.Plugin.Aggregates`) after the table of words in `lod/doc.go`. Nothing measures a
-  distance or a ring of its own and nothing shifts the level for itself: the topography's care
-  rings went that way.
+  standard scales unless a closer look is declared, a blob of its mean colour derived at L4 and
+  L5, thinned at L5) after the table of words in `lod/doc.go`. **What stands is in the sheet**
+  (the user's word, 2026-11-05): a kind standing for good carries `world.Fixed` (the board's
+  standing template gives it; a bridge's decks and piers), and where a ground reads the sheets
+  (`world.Plugin.Sheets`) what stands in a sector drawn at L4 or L5 is photographed on the GPU
+  from its L3 looks, with the parts of the fields folded there, into an albedo and a relief over
+  the whole world the ground draws as a solid in the frame's light, the L5 sheet the L4 one in
+  half, never worked out from the fine entities at L5; a standing entity cut by a sector's edge
+  or beside a sector drawn finer is drawn alive at the finer level and never photographed, so a
+  bridge stays whole across a seam; loose units far off are points, or banners of their kind
+  where the kind declares an L4 look and the game asks (`world.Config.Far`, a setting), with
+  counts on the glass if it asks (`Config.Counts`), a click on a banner selecting its units.
+  Nothing measures a distance or a ring of its own and nothing shifts the level for itself:
+  the topography's care rings went that way.
   **Behaviour keeps to the ladder too** (the user's word, 2026-11-04): below `Strategic` a unit
   walks cells with the occupancy; from L4 it walks the same refined route the HPA* hierarchy
   gives, out of the occupancy, the queue and the collision (`sector.Abstract`), never a straight

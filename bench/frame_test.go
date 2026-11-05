@@ -1,10 +1,16 @@
 package bench_test
 
 import (
+	"image/color"
 	"testing"
 
+	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/lod"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gputest"
 )
@@ -97,6 +103,34 @@ func Benchmark_Frame_Topography(b *testing.B) {
 			}
 		})
 	}
+	b.Run("iso,level=4,sheet", func(b *testing.B) {
+		ctx, _, _ := islandWith(b, "iso", false, true, false, lod.L4, standingHalf)
+		cam := ctx.cam
+		cam.SetViewport(frameW, frameH)
+		cam.CenterOn(96*32/2, 64*32/2, 0)
+		ctx.ecs.Tick(step)
+		ctx.publish()
+		picture := ctx.world.Read(0).Picture()
+		screen := render.NewImage(frameW, frameH)
+		buf := make([]byte, 4*frameW*frameH)
+		frame := func() {
+			screen.Clear()
+			picture.DrawWorld(screen, cam)
+			render.Submit()
+			screen.ReadPixels(buf)
+		}
+		// the view sees its sectors from the second tick on, sheetPerFrame of them photographed a
+		// frame: the frames measured hold every one
+		for range 12 {
+			frame()
+			ctx.ecs.Tick(step)
+			ctx.publish()
+		}
+		b.ReportAllocs()
+		for b.Loop() {
+			frame()
+		}
+	})
 	b.Run("readback", func(b *testing.B) {
 		screen := render.NewImage(frameW, frameH)
 		buf := make([]byte, 4*frameW*frameH)
@@ -106,4 +140,37 @@ func Benchmark_Frame_Topography(b *testing.B) {
 			screen.ReadPixels(buf)
 		}
 	})
+}
+
+type lanternRow struct{ x, y float32 }
+
+// standingHalf has four lanterns stand fixed in every other sector of the island's, 256 a side,
+// in a look of their own, so the sheets photograph half its sectors
+func standingHalf(ctx *headless) {
+	w := ctx.world
+	kind.Define[lanternRow](w.Kinds(), "lantern", kind.Spec{
+		comp.Load(func(r lanternRow) world.Position {
+			return world.Position{AABB: plane.NewAABB(geom.NewVec(r.x, r.y), 24, 24)}
+		}),
+		comp.Const(world.Velocity{}),
+		comp.Const(world.Fixed{}),
+		comp.Const(world.Z{Altitude: 100, Height: 40}),
+	})
+	lanterns := kind.Named[lanternRow](w.Kinds(), "lantern")
+	atlas := w.NewAtlas()
+	atlas.Add(lanterns, 16, render.Solid(color.RGBA{R: 230, G: 200, B: 90, A: 255}))
+	atlas.Close()
+	var entries []kind.Entry
+	for sy := range 8 {
+		for sx := range 12 {
+			if (sx+sy)%2 != 0 {
+				continue
+			}
+			for k := range 4 {
+				entries = append(entries, lanterns.Entry(lanternRow{
+					float32(sx*256 + 64 + (k%2)*128), float32(sy*256 + 64 + (k/2)*128)}))
+			}
+		}
+	}
+	w.Write().Seed(entries...)
 }

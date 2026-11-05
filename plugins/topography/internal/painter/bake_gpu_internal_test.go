@@ -1,10 +1,12 @@
 package painter
 
 import (
+	"bytes"
 	"image"
 	"image/color"
 	"image/png"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -152,6 +154,86 @@ func TestPainter_PaintsTheGroundAnewRoundACellAsWhole(t *testing.T) {
 	if off := bakedApart(t, d, atlas); off != [3]int{} {
 		t.Errorf("a cell changed, %v pixels of the albedo, the kinds and the water painted round "+
 			"it differ from the board painted whole, want none", off)
+	}
+}
+
+func TestPainter_ShrinksTheAlbedoToAHalfAndAQuarterAnewRoundACell(t *testing.T) {
+	gputest.Need(t)
+	d, brdW, atlas, g := bakedBoard(t)
+	d.Surface(atlas)
+	half, quarter := d.Shrunk()
+	if half == nil || quarter == nil {
+		t.Fatal("no albedo shrunk, want a half and a quarter")
+	}
+	before := pixels(half)
+	shrunkAlike(t, d)
+	brdW.Set(g.At(8, 1), d.kinds.(kindsOf)[3])
+	d.Surface(atlas)
+	// the cells 6 to 10 by 0 to 3, 16 pixels each, in the half's pixels
+	if r := d.baking.rects; len(r) != 1 || r[0] != image.Rect(48, 0, 88, 32) {
+		t.Errorf("a cell by the edge changed, the half laid anew over %v, want one rectangle "+
+			"under the 20 cells painted anew", r)
+	}
+	if bytes.Equal(before, pixels(half)) {
+		t.Error("a cell changed, the half stays as it was, want it laid anew")
+	}
+	shrunkAlike(t, d)
+}
+
+// shrunkAlike checks that each pixel of d's half is the mean of the albedo's 2 by 2 under it
+// and each of its quarter that of the 4 by 4
+func shrunkAlike(t *testing.T, d *Painter) {
+	t.Helper()
+	half, quarter := d.Shrunk()
+	img := d.albedo.img
+	for _, c := range []struct {
+		name  string
+		img   *render.Image
+		scale int
+		by    int
+	}{{"half", half, 2, 1}, {"quarter", quarter, 4, 2}} {
+		w, h := img.Bounds().Dx(), img.Bounds().Dy()
+		if got := c.img.Bounds(); got.Dx() != w/c.scale || got.Dy() != h/c.scale {
+			t.Fatalf("the %s is %v, the albedo %dx%d", c.name, got, w, h)
+		}
+		full, small := pixels(img), pixels(c.img)
+		sw := w / c.scale
+		for y := range h / c.scale {
+			for x := range sw {
+				for k := range 4 {
+					sum := 0
+					for dy := range c.scale {
+						for dx := range c.scale {
+							sum += int(full[4*((c.scale*y+dy)*w+c.scale*x+dx)+k])
+						}
+					}
+					n := c.scale * c.scale
+					want, got := (sum+n/2)/n, int(small[4*(y*sw+x)+k])
+					if got < want-c.by || got > want+c.by {
+						t.Fatalf("the %s's pixel (%d, %d) has %d in channel %d, want the mean "+
+							"%d under it", c.name, x, y, got, k, want)
+					}
+				}
+			}
+		}
+	}
+}
+
+func pixels(img *render.Image) []byte {
+	pix := make([]byte, 4*img.Bounds().Dx()*img.Bounds().Dy())
+	img.ReadPixels(pix)
+	return pix
+}
+
+func TestCellRects_JoinTheCellsRowsAndStandOnFoursOfPixels(t *testing.T) {
+	// cells of 6 pixels: two by two at (1, 1), one alone at (5, 2), a row clipped by the edge
+	at := []float32{1, 1, 0, 0, 2, 1, 0, 0, 1, 2, 0, 0, 2, 2, 0, 0, 5, 2, 0, 0, 8, 4, 0, 0, 9, 4,
+		0, 0}
+	got := cellRects(at, 6, 0, image.Rect(0, 0, 58, 30), nil)
+	want := []image.Rectangle{image.Rect(4, 4, 20, 20), image.Rect(28, 12, 36, 20),
+		image.Rect(48, 24, 58, 30)}
+	if !slices.Equal(got, want) {
+		t.Errorf("rectangles %v, want %v", got, want)
 	}
 }
 

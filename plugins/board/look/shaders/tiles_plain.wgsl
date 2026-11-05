@@ -1,6 +1,6 @@
 // The tiles' plain pass (tiles_screen.wgsl): each cell of a square board nothing sways on or
 // beside and no material lies over, drawn by its sprite over its own box, in one colour at L4 and
-// L5 (plainAt), at L5 under the figures' colour (summedOver), faded into U.Fog as far into the
+// L5 (plainAt) under the sheet of what stands (sheetOver), faded into U.Fog as far into the
 // fog before the sight's end as its middle lies (U.TileFogging: from where, where it begins and
 // ends); nothing of a cell whose middle lies in a sector at L6.
 
@@ -30,8 +30,8 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> Laid {
     } else {
         laid = spriteAt(id, lo, hi, p);
     }
-    if level >= 5u {
-        laid = summedOver(laid, p);
+    if level >= 4u {
+        laid = sheetOver(laid, p);
     }
     if U.TileSeen > 0.5 {
         laid = vec4<f32>(mix(laid.rgb, U.Fog * laid.a, fogOf(b.xy)), laid.a);

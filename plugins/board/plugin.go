@@ -133,21 +133,22 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 		worldPlugin.Res.Config.Space).
 		WithSeen(worldPlugin.Read(0).ViewFor).
 		WithLights(worldPlugin.Read(0).Lights).
-		WithAggregate(worldPlugin.Read(0).Aggregate)
-	worldPlugin.Aggregates()
+		WithSheet(worldPlugin.Read(0).Sheet)
+	worldPlugin.Sheets()
 	p.holdsView = p.newHoldsView()
 	return p
 }
 
 // KindTemplates is what the board asks of the kinds a game defines: of a unit, where it starts
-// and the domains it moves in; of a kind standing on it, lying as it is and casting a Baked
-// shadow.
+// and the domains it moves in; of a kind standing on it, lying as it is, Fixed and casting a
+// Baked shadow.
 func (p *Plugin) KindTemplates(r *kind.Roster) {
 	kind.Require[unit.At](r, motion.UnitTemplate, "board", "the cell it starts in")
 	kind.Require[unit.Mover](r, motion.UnitTemplate, "board", "the domains it moves in")
 	r.Default(motion.UnitTemplate, comp.Const(steering.Pace{Share: 1}))
 	r.Default(motion.UnitTemplate, comp.Marks[unit.States]())
 	r.Default(StandingTemplate, comp.Const(world.Lie{}))
+	r.Default(StandingTemplate, comp.Const(world.Fixed{}))
 	r.Default(StandingTemplate, comp.Const(light.Shadow{Cast: light.Baked}))
 }
 

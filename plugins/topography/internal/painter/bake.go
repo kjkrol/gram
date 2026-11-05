@@ -14,6 +14,8 @@ type groundSheet struct {
 	atlas render.AtlasSource
 	top   int
 	px    int
+	// the albedo at half and a quarter its size, each pixel the mean of the 2 by 2 under it
+	half, quarter *render.Image
 	// nil where the water would not fit
 	water *render.Image
 	wpx   int
@@ -60,6 +62,15 @@ func (l *Painter) Surface(atlas render.AtlasSource) (albedo, water *render.Image
 	return s.img, s.water, s.px, s.wpx
 }
 
+// Shrunk is the albedo Surface brought up to date at half and a quarter its size, each pixel the
+// mean of the 2 by 2 under it, for the ground drawn far off. Both are nil where Surface is.
+func (l *Painter) Shrunk() (half, quarter *render.Image) {
+	if l.albedo == nil {
+		return nil, nil
+	}
+	return l.albedo.half, l.albedo.quarter
+}
+
 // Wet is, by cell of a square grid, row by row, whether water may lie on it, and the board's
 // count of changes it holds for, 1 more. Call it after Surface.
 func (l *Painter) Wet() ([]bool, uint64) {
@@ -102,6 +113,8 @@ func (l *Painter) newSheet(atlas render.AtlasSource) *groundSheet {
 	}
 	s := &groundSheet{atlas: atlas, px: px}
 	s.img = render.NewImage(cols*px, rows*px)
+	s.half = render.NewImage(max(cols*px/2, 1), max(rows*px/2, 1))
+	s.quarter = render.NewImage(max(cols*px/4, 1), max(rows*px/4, 1))
 	if wpx := min(px, maxSheet/(2*cols), maxSheet/(2*rows)); wpx >= minBakePx {
 		s.water, s.wpx = render.NewImage(2*cols*wpx, 2*rows*wpx), wpx
 	}

@@ -17,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 type mover struct{ x, y float32 }
@@ -110,26 +111,23 @@ func worldDrawn(b *testing.B, n, spacing int, view uint32, two bool) (*headless,
 }
 
 // the worlds of worldViews cut into sectors of 1024, the camera's pixel a unit under the ladder's
-// L3 at 4 and over its L4 at 0.5, or under its L4 at 2, keeping keep of what it draws at L4, the
-// figures' colour summed into the ground where a renderer reads it
+// L3 at 4 and over its L4 at 0.5, or under its L4 at 2, keeping keep of what it draws at L4
 var leveledViews = []struct {
 	name       string
 	n, spacing int
 	view       uint32
 	keep       float32
 	level      lod.Level
-	read       bool
-}{{"5000 of 5000 in view, level=4", 5000, 56, 4000, 0, lod.L4, true},
-	{"49 of 5000 in view, level=4", 5000, 56, 400, 0, lod.L4, true},
-	{"5000 of 5000 in view, level=5", 5000, 56, 4000, 0, lod.L5, true},
-	{"49 of 5000 in view, level=5", 5000, 56, 400, 0, lod.L5, true},
-	{"5000 of 5000 in view, level=5, unread", 5000, 56, 4000, 0, lod.L5, false}}
+}{{"5000 of 5000 in view, level=4", 5000, 56, 4000, 0, lod.L4},
+	{"49 of 5000 in view, level=4", 5000, 56, 400, 0, lod.L4},
+	{"5000 of 5000 in view, level=5", 5000, 56, 4000, 0, lod.L5},
+	{"49 of 5000 in view, level=5", 5000, 56, 400, 0, lod.L5}}
 
 // worldLeveled is the world of n boxes spacing apart cut into sectors and ticked once, its kind
 // in the world's own atlas, its picture and the camera drawing it at level, L4 or L5, keeping
-// keep at L4, the figures summed into the ground where read
-func worldLeveled(b *testing.B, n, spacing int, view uint32, keep float32, level lod.Level,
-	read bool) (*headless, *render.Composer, camera.Camera) {
+// keep at L4
+func worldLeveled(b *testing.B, n, spacing int, view uint32, keep float32,
+	level lod.Level) (*headless, *render.Composer, camera.Camera) {
 	ctx := newHeadless()
 	var r *render.Composer
 	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 8, 4, 0.5}}
@@ -140,9 +138,6 @@ func worldLeveled(b *testing.B, n, spacing int, view uint32, keep float32, level
 	cfg := world.Config{Sectors: world.SectorsCfg{Buckets: 4}, LOD: ladder}
 	ecs := benchWorldIn(b, ctx, cfg, n, spacing, view, func(w *world.Plugin,
 		movers kind.Of[mover]) {
-		if read {
-			w.Aggregates()
-		}
 		atlas := w.NewAtlas()
 		atlas.Add(movers, 20, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
 		atlas.Close()
@@ -171,7 +166,7 @@ func Benchmark_World_Draw(b *testing.B) {
 	}
 	for _, v := range leveledViews {
 		b.Run(v.name, func(b *testing.B) {
-			ctx, r, cam := worldLeveled(b, v.n, v.spacing, v.view, v.keep, v.level, v.read)
+			ctx, r, cam := worldLeveled(b, v.n, v.spacing, v.view, v.keep, v.level)
 			ctx.publish()
 			b.ReportAllocs()
 			for b.Loop() {
@@ -197,7 +192,7 @@ func Benchmark_World_Publish(b *testing.B) {
 	thinned.name, thinned.keep = thinned.name+", keep=0.25", 0.25
 	for _, v := range append(leveledViews, thinned) {
 		b.Run(v.name, func(b *testing.B) {
-			ctx, _, _ := worldLeveled(b, v.n, v.spacing, v.view, v.keep, v.level, v.read)
+			ctx, _, _ := worldLeveled(b, v.n, v.spacing, v.view, v.keep, v.level)
 			b.ReportAllocs()
 			for b.Loop() {
 				ctx.publish()
@@ -217,6 +212,45 @@ func Benchmark_World_Frame(b *testing.B) {
 				for _, cam := range cams {
 					r.DrawWorld(nil, cam)
 				}
+			}
+		})
+	}
+}
+
+// Benchmark_World_Sheet is a frame's photographs of what stands, the publishing, the composing and
+// the GPU's work waited for: a sector of 64 things fixed, and 8 such sectors at once, each raised
+// or lowered a frame so its sheet is photographed anew.
+func Benchmark_World_Sheet(b *testing.B) {
+	gputest.Need(b)
+	for _, sc := range []struct {
+		name     string
+		clusters int
+	}{{"sector,64", 1}, {"frame,8", 8}} {
+		b.Run(sc.name, func(b *testing.B) {
+			ctx, picture, q, z := sheetWorld(b, sc.clusters)
+			albedo, _, _, _, _ := ctx.world.Read(0).Sheet()
+			dst := render.NewImage(1, 1)
+			px := make([]byte, 4)
+			rise := float32(1)
+			shoot := func() {
+				for q.All(); q.Next(); {
+					zs := z.Slice(q.Cursor())
+					for i := range zs {
+						zs[i].Altitude += rise
+					}
+				}
+				rise = -rise
+				ctx.publish()
+				picture.DrawWorld(nil, ctx.cam)
+				// read as a draw reads it, the sheet has the frame's photographs developed
+				dst.CopyFrom(albedo)
+				render.Submit()
+				dst.ReadPixels(px)
+			}
+			shoot()
+			b.ReportAllocs()
+			for b.Loop() {
+				shoot()
 			}
 		})
 	}
@@ -260,4 +294,57 @@ func Benchmark_World_PositionScan(b *testing.B) {
 			_ = sink
 		})
 	}
+}
+
+// fixedRow is a thing fixed where it stands
+type fixedRow struct{ x, y float32 }
+
+// sheetWorld is a world of 4096 a side cut into sectors, a camera seeing all of it at L4 from
+// above, and clusters of 64 things fixed, each 16 a side, 12 apart, in a sector of its own; its
+// sheets photographed and the things' Z to change through z
+func sheetWorld(b *testing.B, clusters int) (*headless, render.Picture, *goke.Query,
+	*goke.Comp[world.Z]) {
+	ctx := newHeadless()
+	cfg := world.Config{
+		Space:    world.SpaceCfg{Width: 4096, Height: 4096},
+		Entities: world.EntitiesCfg{MaxCount: 64 * clusters, MinSize: 1, MaxSize: 32},
+		Heights:  true,
+		Sectors:  world.SectorsCfg{Buckets: 2},
+		LOD:      lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 8, 4}},
+	}
+	w := ctx.UseWorld(cfg)
+	w.Sheets()
+	kind.Define[fixedRow](w.Kinds(), "fixed", kind.Spec{
+		comp.Load(func(r fixedRow) world.Position {
+			return world.Position{AABB: plane.NewAABB(geom.NewVec(r.x, r.y), 16, 16)}
+		}),
+		comp.Const(world.Velocity{}),
+		comp.Const(world.Fixed{}),
+		comp.Const(world.Z{Altitude: 10, Height: 30}),
+	})
+	fixed := kind.Named[fixedRow](w.Kinds(), "fixed")
+	atlas := w.NewAtlas()
+	atlas.Add(fixed, 16, render.Solid(color.RGBA{R: 200, G: 180, B: 90, A: 255}))
+	atlas.Close()
+	ctx.look()
+	var entries []kind.Entry
+	for k := range clusters {
+		x0, y0 := float32(k%4)*1024+16, float32(k/4)*1024+16
+		for i := range 64 {
+			entries = append(entries, fixed.Entry(fixedRow{x0 + float32(i%8)*12,
+				y0 + float32(i/8)*12}))
+		}
+	}
+	w.Write().Seed(entries...)
+	ctx.cam = ctx.camera(cameras.Config{}, cameras.FromAbove, 4096, 4096)
+	var z goke.Comp[world.Z]
+	var q *goke.Query
+	ctx.pending = append(ctx.pending, ctx.bound, func() []goke.System {
+		return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) {
+			q = si.NewQueryBuilder(&z).Include(goke.Include[world.Fixed]()).Build()
+		}}}
+	})
+	ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) { w.RunPlan(rc, d) })
+	ecs.Tick(step)
+	return ctx, w.Read(0).Picture(), q, &z
 }

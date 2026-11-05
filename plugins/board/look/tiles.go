@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/f32"
+	"github.com/kjkrol/gram/lod"
 	_ "github.com/kjkrol/gram/plugins/atmosphere/air" // the Wind the shaders lean the tiles in
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
@@ -52,7 +53,7 @@ var tilesUniforms = []render.Uniform{
 	{Name: "TileSways", Size: 1},
 	{Name: "TileFull", Size: 1},
 	// in the floats TileCovers' alignment leaves free
-	{Name: "TileAggregatePx", Size: 1},
+	{Name: "TileSheetPx", Size: 1},
 	{Name: "TileCovers", Size: 4},
 	{Name: "TileCoversOn", Size: 4},
 	{Name: "TileSeen", Size: 1},
@@ -489,7 +490,7 @@ func (g *tiles) draw(t render.Target, v seeing, u render.Uniforms, l *Renderer, 
 	g.set("TileCovers", covers[:4]...)
 	g.set("TileCoversOn", covers[4:]...)
 	g.set("TileShift", 0, 0)
-	g.aggregate(l, seen)
+	g.standing(l, seen)
 	g.laid = true
 	g.opts.Images = [4]*render.Image{g.sheet.Atlas(), g.rects, g.cells,
 		seen.uniforms(g.set, "Tile")}
@@ -522,20 +523,28 @@ func (g *tiles) draw(t render.Target, v seeing, u render.Uniforms, l *Renderer, 
 	}
 }
 
-// aggregate binds the figures' colour summed into the ground where a sector is seen at L5
-func (g *tiles) aggregate(l *Renderer, seen *seenSectors) {
+// standing binds the albedo of the sheets of what stands where a sector is seen at L4 or L5: L4's
+// where one is seen at L4, else L5's, which the sectors at L5 read too
+func (g *tiles) standing(l *Renderer, seen *seenSectors) {
 	var img *render.Image
 	px := float32(0)
-	if seen.l5 && l.aggregate != nil {
-		img, px = l.aggregate()
+	if seen.on && l.sheet != nil {
+		if albedo, _, albedoL5, _, perUnit := l.sheet(); perUnit > 0 {
+			switch seen.far {
+			case lod.Strategic:
+				img, px = albedo, perUnit
+			case lod.L5:
+				img, px = albedoL5, perUnit/2
+			}
+		}
 	}
-	if img == nil || px <= 0 {
+	if img == nil {
 		px = 0
-		delete(g.opts.Uniforms, world.AggregateImage)
+		delete(g.opts.Uniforms, world.SheetImage)
 	} else {
-		g.opts.Uniforms[world.AggregateImage] = img
+		g.opts.Uniforms[world.SheetImage] = img
 	}
-	g.set("TileAggregatePx", px)
+	g.set("TileSheetPx", px)
 }
 
 // materials lays the cells drawn by their material over what draw laid, with its uniforms

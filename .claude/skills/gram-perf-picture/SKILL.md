@@ -29,10 +29,12 @@ Protokół i pułapki pomiaru: `gram-perf`; jak się rysuje: `gram-render`. Licz
   (wyklucza znaczniki pozostałych poziomów, bo goke nie ma OR), więc system bliskiej skali tyka
   tylko tam, gdzie ktoś patrzy z bliska.
 - Grunt w rozdzielczości kamery, z wariantem shadera po poziomie sektora z widoku kamery
-  (`lod`, jedna drabina: L2 pełnia, L3 bez brzegu i wody biegnącej, L4 siatka zgrubna bez fal,
-  L5 płachta albedo malarza, L6 nic; żadnych pierścieni staranności); figury ostre nad nim, w
-  każdym pikselu, każdy rodzaj wersją swojego poziomu (L4 plama koloru, L5 kolor zsumowany w
-  grunt).
+  (`lod`, jedna drabina: L2 pełnia, L3 bez brzegu i wody biegnącej, L4 siatka co drugi narożnik
+  bez fal z albedo w pół, L5 siatka co czwarty narożnik z albedo w ćwierć, L6 nic; żadnych
+  pierścieni staranności); figury ostre nad nim, w każdym pikselu, każdy rodzaj wersją swojego
+  poziomu (L4 i L5 plama koloru, na L5 rzedzona `Keep`); to, co stoi (`world.Fixed`), od L4 w
+  płachcie sektora: sfotografowane na GPU z wyglądu L3 (albedo i relief: szczyt f16 i normalna),
+  rysowane przez grunt jako relief w świetle klatki, na L5 w pół (2026-11-05).
 - Rozdzielczość i poziom obrazu idą za budżetem klatki (adapter kamer: dźwignie, przesunięcie
   poziomu o 1–2 dla każdej kamery, najwyżej do L5 i nigdy sektora widzianego na L2 lub bliżej, potem
   rozdzielczość): pomiar ustawia
@@ -45,12 +47,33 @@ Protokół i pułapki pomiaru: `gram-perf`; jak się rysuje: `gram-render`. Licz
   (ścieżka `sees` bajt w bajt jak bez rzedzenia; hasz ~7 ns na każdą encję w kadrze: `keep=0.25`
   publikuje 65 → 99 µs przy 5000, rysowanie oszczędza ~150 µs — opłaca się, gdy rysowanie
   przeważa; tańszy hasz do spróbowania).
-- Figura na L5 to kolor jej plamy zsumowany przy publikacji w obraz agregatu zamiast rekordu
-  (rysowanie ~0): ~94 ns na encję w `World_Publish/…,level=5` przy pudle 20 na tekselu 16
-  (~5 tekseli; sam dodatek ~25 ns na teksel, Go rozlewa rejestry; stały punkt i szybszy floor
-  nie pomogły). Świat, którego gruntu nikt nie rysuje (ekspansja; `Aggregates` niewołane), idzie
-  starą ścieżką: rung `level=5, unread` kosztuje tyle, co L4. Do spróbowania: jeden teksel pod
-  środkiem, rekordy zwarte.
+- Suma koloru na L5 (etap `g`) odeszła w etapie `p` (2026-11-05): figura na L5 to plama jak na
+  L4, a to, co stoi, siedzi w płachcie i nie ma rekordu w sektorze namalowanym. Fotografia
+  sektora to dwa przebiegi `Primed` do buforów sektorowych z własną głębią, `CopyFrom` do płachty
+  i przebieg zmniejszający do L5 (~10 przebiegów na sektor; najwyżej 8 sektorów na publikację;
+  `World_Sheet/sector,64` i `frame,8`); następna dźwignia, gdyby trzeba: wiele sektorów w jednym
+  buforze. Sygnatura treści liczy się przy publikacji dla każdego sektora rysowanego na L4+, nie
+  tylko widzianego, inaczej sektory brzegowe fotografowałyby się przy każdym przesunięciu
+  kamery. Krata płachty rysuje się tylko dla sektorów, które coś trzymają (`Read.Painted`):
+  pusty sektor nic nie kosztuje; `Frame_Topography/iso,level=4,sheet` to grunt L4 z płachtą.
+  Po `p/photo` (2026-11-06): runda do `perFrame` sektorów fotografuje się jednym rysowaniem
+  instancjonowanym do jednej ciemni (albedo po lewej, relief po prawej, każda rzecz trzymana w
+  swoim slocie przez shader fragmentów; czyszczenie rysowaniem zera w tym samym przebiegu, nie
+  `Clear`, bo to osobny przebieg), kopie do płacht i połówki L5 jednym rysowaniem na obraz
+  (prostokąt najpierw wypełniony jedynkami, wartości kładzione `Darkest`, żeby teksel L5
+  wspólny dwóm sektorom rundy wyszedł jak przy sektorach po jednym): 5 przebiegów i ~10 draw
+  na rundę zamiast 10 przebiegów i ~12 draw na sektor (`frame,8` 6,2 → 2,0 ms). Prawie każda
+  alokacja to wgpu: ~45 na przebieg i ~25 na draw (goffi); sam bench `World_Sheet` ma podłogę
+  ~0,45 ms i 436 alokacji (publikacja, kompozycja, kopia 1×1 i odczyt na czekanie na GPU), więc
+  `sector,64` ≈ 0,8 ms nad nią. Krata płachty rysowana przez bufor indeksów nad wspólnymi
+  narożnikami (6 wierzchołków na kwadrat bez dzielenia kosztowało 0,8 ms); reszta kosztu
+  (`level=4,sheet` ≈ +1,4 ms nad `level=4`) to raster podniesionej geometrii: marginesy wokół
+  szczytów i ściany od szczytu do komórki pod gruntem (912 tys. pikseli na 1440p przy kilku
+  tysiącach pikseli latarni); shader fragmentów tylko z `discard` kosztuje tyle samo. Dźwignie
+  dalej: odrzucić trójkąty z zatopionym narożnikiem albo topić dalsze narożniki głębiej (zmienia
+  obraz: półprzezroczysty obrys pod szczytem to frędzel albedo na ścianach), blend kopiujący w
+  `DrawMeshOptions` (3 draw mniej na rundę), albedo i relief w jednym obrazie (zmienia
+  `Read.Sheet`).
 - Płaska plansza: CPU pisze dane komórek, shadery liczą kształty; wypiek paintera idzie na GPU.
 - Plansza, relief, pogoda, światło i znaki minimapy publikowane raz na klatkę; renderery czytają
   kopię, nigdy żywy stan.

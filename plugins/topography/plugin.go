@@ -233,13 +233,14 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 	p.painter = ipainter.New(p.drawnBoard, p.drawnRelief, true, map[cell.Name]painter.Style{}).
 		WithKinds(boardPlugin.Read(0).CellKinds())
 	boardPlugin.WithMap(p)
-	worldPlugin.Aggregates()
+	worldPlugin.Sheets()
 	if _, _, _, _, square := p.relief.Lattice(); square {
 		p.ground = terrain.New(drawnGround{p}, boardSurface{p}, liveSky{p}, terrain.Config{
-			Scale:     worldPlugin.Read(0).Scale(),
-			Seen:      worldPlugin.Read(0).ViewFor,
-			Hazed:     func() bool { return p.drawnSettings().Haze },
-			Aggregate: worldPlugin.Read(0).Aggregate,
+			Scale:   worldPlugin.Read(0).Scale(),
+			Seen:    worldPlugin.Read(0).ViewFor,
+			Hazed:   func() bool { return p.drawnSettings().Haze },
+			Sheet:   worldPlugin.Read(0).Sheet,
+			Painted: worldPlugin.Read(0).Painted,
 		})
 	} else {
 		p.hexes = hexes.New(worldPlugin, boardPlugin, p.drawnBoard, drawnMap{p}, p.drawnRelief,
@@ -263,6 +264,7 @@ func (s boardSurface) Surface() terrain.Painted {
 	if atlas := s.p.boardPlugin.Read(0).Atlas(); atlas != nil {
 		out.Albedo, out.Water, out.Px, out.WaterPx = d.Surface(atlas)
 		if out.Albedo != nil {
+			out.AlbedoHalf, out.AlbedoQuarter = d.Shrunk()
 			out.Wet, out.Wetness = d.Wet()
 			out.Kinds = d.Kinds()
 			out.Details, _ = d.Details()

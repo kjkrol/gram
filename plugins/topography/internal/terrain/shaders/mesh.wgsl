@@ -74,9 +74,9 @@ fn fs_prime() -> @location(0) vec4<f32> {
 //   3  the grid; the shore: the waves come in with no swell, surf or foam, no water runs down
 //      the ways and no mouth glints
 //   4  the waves and their glint, the still water a level mirror of the sky; the baked shade and
-//      the lamps, every cell taking every shade
+//      the lamps, every cell taking every shade; the albedo at half its size
 //   5  the clouds' shadow and the wind's sway (vs_main), the details' grain and the water's
-//      picture: a sheet of the albedo's flat colour, the figures' colour summed over it
+//      picture: a sheet of the albedo's flat colour, a quarter its size
 @fragment
 fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     let p = g.world;
@@ -126,10 +126,7 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     if LEVEL <= 3u && takes(taken, takesLamps) {
         light += lampLightAt(p);
     }
-    var ground = albedo(p.xy);
-    if LEVEL == 5u && inside {
-        ground = over(aggregateAt(p.xy), ground);
-    }
+    var ground = levelAlbedo(p.xy);
     if LEVEL <= 4u && U.DetailPx > 0.0 && inside {
         let show = detailShow(span);
         if show > 0.0 {
@@ -190,6 +187,12 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
         rgb = mix(rgb, U.Fog, smoothstep(U.Sight.z, U.Sight.w, distance(p.xy, U.Sight.xy)));
     }
     return vec4<f32>(rgb, 1.0);
+}
+
+// levelAlbedo is albedo at p from the board painted flat as the level reads it, U.AlbedoPx
+// pixels a cell: shrunk at the strategic levels, so far off a cell's pattern does not shimmer.
+fn levelAlbedo(p: vec2<f32>) -> vec3<f32> {
+    return imageSrc1Linear(imageSrc1Origin() + p / U.Cell * U.AlbedoPx).rgb;
 }
 
 // banded is the light d quantised into bands steps, each edge softened a little.

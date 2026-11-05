@@ -8,7 +8,8 @@
 // U.TopPx pixels a world unit, lit by the sun the way the ground faces, blended from the
 // corners' (the second image) and the centre's, shaded by the clouds, outlined in the grid's line
 // U.GridLine, premultiplied, U.GridWidth pixels wide (0 none), hazed as much air as lies before
-// it (hazeDepth) over U.Visibility.
+// it (hazeDepth) over U.Visibility; a top under the albedo of the sheet of what stands
+// (world.SheetImage, U.SheetPx texels a world unit, none where it is 0).
 
 struct Face {
     @builtin(position) clip: vec4<f32>,
@@ -116,7 +117,11 @@ fn vs_main(
 @fragment
 fn fs_main(f: Face) -> @location(0) vec4<f32> {
     let unit = max(length(dpdx(f.world.xy)), length(dpdy(f.world.xy))); // world units a pixel spans
-    let albedo = imageSrc0Linear(imageSrc0Origin() + f.sample * U.TopPx);
+    var albedo = imageSrc0Linear(imageSrc0Origin() + f.sample * U.TopPx);
+    if U.SheetPx > 0.0 && f.edge >= 0.0 {
+        let stands = sheetAt(f.world.xy);
+        albedo = vec4<f32>(stands.rgb + albedo.rgb * (1.0 - stands.a), albedo.a);
+    }
     let sun = lightWay();
     let n = normalize(f.normal);
     var light = U.Ambience + U.LightColor * max(dot(n, sun), 0.0) * U.LightStrength;
@@ -149,4 +154,12 @@ fn hazeDepth(p: vec3<f32>) -> f32 {
         return distance(U.Eye, p);
     }
     return max(U.HazeUp - p.z, 0.0) / max(-U.HazeWay.z, 0.05);
+}
+
+// sheetAt is the albedo of the sheet of what stands at p, premultiplied, blended between the four
+// texels round p.
+fn sheetAt(p: vec2<f32>) -> vec4<f32> {
+    let size = vec2<f32>(textureDimensions(Sheet));
+    let t = clamp(p * U.SheetPx, vec2<f32>(0.5), size - 0.5);
+    return textureSampleLevel(Sheet, linear, t / size, 0.0);
 }

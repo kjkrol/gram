@@ -7,8 +7,8 @@
 // columns and rows. Along an axis U.TileWrap says wraps the cells run on. Where U.TileSeen, the
 // world's sectors are seen at their levels (image 3, a pixel a sector, red its lod.Level;
 // U.TileSectors.xy of them across and down, U.TileSectors.zw large): at L2 and finer a cell's tile,
-// its covers and its way, at L3 its tile and its way, at L4 its tile in one colour alone (plainAt),
-// at L5 that colour under the figures' colour summed into the ground (summedOver), at L6 nothing.
+// its covers and its way, at L3 its tile and its way, at L4 and L5 its tile in one colour alone
+// (plainAt) under the sheet of what stands (sheetOver), at L6 nothing.
 // What is drawn is drawn in U.TileTint and, where U.TileLit, in the light on level ground as the
 // cell under it takes it.
 
@@ -157,15 +157,15 @@ fn plainAt(id: u32, lo: vec2<f32>, hi: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
     return vec4<f32>(sum.rgb / sum.a * at.a, at.a);
 }
 
-// summedOver is laid, premultiplied, under the figures' colour summed into the ground at p
-// (world.AggregateImage, U.TileAggregatePx texels a world unit), blended between the four texels
-// round p, as far as laid itself covers; laid where U.TileAggregatePx is 0.
-fn summedOver(laid: vec4<f32>, p: vec2<f32>) -> vec4<f32> {
-    if U.TileAggregatePx <= 0.0 {
+// sheetOver is laid, premultiplied, under the albedo of the sheet of what stands at p
+// (world.SheetImage, U.TileSheetPx texels a world unit), blended between the four texels round p,
+// as far as laid itself covers; laid where U.TileSheetPx is 0.
+fn sheetOver(laid: vec4<f32>, p: vec2<f32>) -> vec4<f32> {
+    if U.TileSheetPx <= 0.0 {
         return laid;
     }
-    let size = vec2<f32>(textureDimensions(Aggregate));
-    var t = p * U.TileAggregatePx;
+    let size = vec2<f32>(textureDimensions(Sheet));
+    var t = p * U.TileSheetPx;
     if U.TileWrap.x > 0.5 {
         t.x = modulo(t.x, size.x);
     } else {
@@ -176,7 +176,7 @@ fn summedOver(laid: vec4<f32>, p: vec2<f32>) -> vec4<f32> {
     } else {
         t.y = clamp(t.y, 0.5, size.y - 0.5);
     }
-    let a = textureSampleLevel(Aggregate, wrapped, t / size, 0.0);
+    let a = textureSampleLevel(Sheet, wrapped, t / size, 0.0);
     return vec4<f32>(laid.rgb * (1.0 - a.a) + a.rgb * laid.a, laid.a);
 }
 

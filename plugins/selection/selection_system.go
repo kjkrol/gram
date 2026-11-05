@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
@@ -22,6 +23,9 @@ var _ goke.System = (*SelectionSystem)(nil)
 
 // world units: a unit high up is drawn above its ground
 const pickReach = 160
+
+// pixels: how far round its middle a banner drawn smaller is hit
+const bannerReach = 4
 
 // SelectionSystem carries out the selection's commands: Select as the Selected tag on the
 // Selectable entities the player owns, a command for the selected or the pointed at, Hovered on
@@ -53,6 +57,12 @@ type SelectionSystem struct {
 	lookupZ    goke.OptComp[world.Z]
 
 	look func() world.Look
+
+	// the banners a camera drew (world.Read.Banners), nil for none; those of a Select, and the
+	// units drawn in them, hit by their banner alone
+	banners  func(cam camera.Camera, dst []world.Banner) []world.Banner
+	shown    []world.Banner
+	bannered map[uid.UID64]struct{}
 }
 
 // NewSelectionSystem builds a SelectionSystem draining selects over space, picking through each
@@ -100,8 +110,9 @@ func (s *SelectionSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 		case cmd.Screen == (geom.AABB{}) || cmd.Camera == nil:
 			s.space.Query(cmd.Box, aabbworld.AnyCapability, func(id uid.UID64) { hit[id] = struct{}{} })
 		default:
+			s.bannersIn(cmd.Screen, cmd.Camera, hit)
 			s.space.Query(grow(cmd.Box, pickReach), aabbworld.AnyCapability, func(id uid.UID64) {
-				if s.drawnIn(id, cmd.Screen, cmd.Camera) {
+				if _, in := s.bannered[id]; !in && s.drawnIn(id, cmd.Screen, cmd.Camera) {
 					hit[id] = struct{}{}
 				}
 			})
@@ -254,12 +265,44 @@ func (s *SelectionSystem) drawnIn(id uid.UID64, screen geom.AABB, cam camera.Cam
 	if z := s.lookupZ.At(cur); z != nil {
 		stands = *z
 	}
-	c := s.look().Drawn(cam, box.AABB, stands)
+	return meets(s.look().Drawn(cam, box.AABB, stands), screen, 0)
+}
+
+// bannersIn has hit the units of every banner cam drew whose box meets screen, and s.bannered
+// the units of every banner it drew, drawn nowhere else
+func (s *SelectionSystem) bannersIn(screen geom.AABB, cam camera.Camera,
+	hit map[uid.UID64]struct{}) {
+	clear(s.bannered)
+	if s.banners == nil || s.look == nil {
+		return
+	}
+	s.shown = s.banners(cam, s.shown[:0])
+	if len(s.shown) > 0 && s.bannered == nil {
+		s.bannered = map[uid.UID64]struct{}{}
+	}
+	for _, b := range s.shown {
+		in := meets(s.look().Drawn(cam, b.Box, b.Z), screen, bannerReach)
+		for _, id := range b.IDs {
+			s.bannered[id] = struct{}{}
+			if in {
+				hit[id] = struct{}{}
+			}
+		}
+	}
+	clear(s.shown)
+}
+
+// meets reports whether the screen rectangle of the corners c, reach round its middle at least,
+// meets screen
+func meets(c render.Corners, screen geom.AABB, reach float32) bool {
 	minX, minY, maxX, maxY := c[0][0], c[0][1], c[0][0], c[0][1]
 	for _, p := range c[1:] {
 		minX, maxX = min(minX, p[0]), max(maxX, p[0])
 		minY, maxY = min(minY, p[1]), max(maxY, p[1])
 	}
+	mx, my := (minX+maxX)/2, (minY+maxY)/2
+	minX, maxX = min(minX, mx-reach), max(maxX, mx+reach)
+	minY, maxY = min(minY, my-reach), max(maxY, my+reach)
 	return maxX >= screen.TopLeft.X && minX <= screen.BottomRight.X &&
 		maxY >= screen.TopLeft.Y && minY <= screen.BottomRight.Y
 }

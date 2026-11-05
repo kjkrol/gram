@@ -2454,3 +2454,617 @@ poziomach zamiast pięciu). Alokacje bez zmian. Pliki pomiaru w scratchpadzie se
 
 **Co zostało**: skala bliska w którymś demie (roadmapa); etap `p` (płachty) od `main` po
 scaleniu tego PR, plan przepisany na nowe numery.
+
+## Płachty: fotografia tego, co stoi, L5 w pół, banery i liczby (plan 2026-11-05, gałąź `feat/sheets`, litera `p`, po etapie `e`, v0.20.0)
+
+Numery poziomów w nowej numeracji po etapie `e` (L2–L3 zwykła, L4–L5 strategiczna, L6
+pominięcie). Fakty niżej sprawdzono na `main` `7d6095f5` (przed `e`); po `e` (`7496b324`) nazwy
+trzymają, numery wierszy mogą się różnić o kilka linii, a warunek plamy w `Compose` brzmi
+`level == lod.Strategic` (`renderer.go:179`). Wykonanie: agenci Opus 5.5, preludium w klonie na
+`feat/sheets`, części w worktree'ach; brief agenta = jego część tej sekcji plus „Model wykonania".
+
+### Kontekst
+
+Agregaty (etap `b`) mają służyć Maderze. Dziś figura bez własnej wersji L4 jest na L4 plamą
+(`render.Blob`), a na L5 jej kolor sumuje się do obrazu `world.AggregateImage`, który grunt kładzie
+pod sobą. Użytkownik (2026-11-05): zamiast sumy ma być **płachta**: bryła (albedo, wysokość,
+normalna) sfotografowana na GPU z wyglądu drobniejszego poziomu tego, co **stoi** w sektorze,
+rysowana przez grunt jako relief oświetlany światłem klatki, odświeżana w biegu (mapa jest
+przekształcalna), z L5 jako gorszą (zmniejszoną) wersją L4, nigdy liczoną po zwykłych encjach;
+fallback tam, gdzie gra nie podała własnej wersji (`Slot.At`). Granice sektorów: poziom na kawałek,
+długa encja nie dostaje całości drobno, części zszywają się. Luźne jednostki na L4: baner (tylko
+gdzie gra podała wersję L4) albo miniatury, osobno liczby; per gra, w Maderze na F10.
+
+### Decyzje użytkownika (2026-11-05, nie do rewizji)
+
+- Płachta jest bryłą: zmiana położenia słońca działa na niej normalnie. Fotografia na GPU.
+- L5 = gorsza wersja L4 (zmniejszona płachta). Suma koloru z etapu g odchodzi.
+- Poziom encji zostaje na kawałek (sektor środka). Kawałek przecięty granicą należy do
+  drobniejszego sektora; kawałek na L4 stykający się z sektorem L3 jest rysowany wersją L3
+  (pierścień jednego kawałka); dalsze są w płachcie.
+- Baner tylko tam, gdzie gra zadeklarowała wersję L4 rodzaju; tryb Banner/Points per gra w
+  Config, w Maderze w ustawieniach; osobny przełącznik liczby; klik w baner zaznacza jego
+  jednostki.
+- Jeden tag v0.20.0 po trzech etapach (`p` płachty, `d` Madera z agregatami, `i` minimapa po
+  drabinie; litery `m` i `n` są zajęte przez sesje fali 1 w `doc/plans-perf.md`). Wpisy pod
+  „v0.20.0 — unreleased".
+- Scalenia części idą na gałąź etapu i są wypychane; etap kończy się PR-em zgniecionym do jednego
+  commitu (użytkownik 2026-11-05 wieczorem: „już wolę PR, niż jakieś szczątki do review"). Integrator
+  koordynuje, nie koduje.
+
+### Fakty sprawdzone (stan `main` `7d6095f5`)
+
+- **Suma dziś**: `plugins/world/aggregate.go` (`AggregateImage = "Aggregate"` rejestrowane w
+  `init`, `newAggregate`, `add`, `upload` przez `SubImage.WritePixels`, kafle 64, `aggregateSide
+  2048`), `Plugin.Aggregates()` (:21), `Read.Aggregate()` (`rw.go:113`); publisher `recorded` →
+  `fate` (`publisher.go:356-409`: L5 → `sum`), `keepAll` (`k.l3`), pola `spread`/`pieceAt`
+  (:254-303, L5 → `aggregate.add`); atlas `level()` liczy `MeanColour` tylko dla rodzaju bez
+  żadnej deklaracji (`atlas.go:528`), `versionsOf` daje plamę na L4 i nic na L5 (:579),
+  `declares(id, level)` (:341), `blobColour` (:348), `isAlways`. Klienci: `board/plugin.go:136`
+  (`WithAggregate`, `look/renderer.go:274`, `look/tiles.go:526` `summedOver` w
+  `tiles_common.wgsl:163`), `topography/plugin.go:236,242` (`terrain.go:124,205-216`
+  `AggregatePx`, `surface.wgsl aggregateAt`; `hexes.go:199,206` `drawSheets`), `bench/
+  world_test.go:144`, testy `aggregate_test.go`, `aggregate_internal_test.go`, `field_internal_test.go:52`,
+  `export_test.go` (`AggregateTexels`).
+- **Rekordy**: `figures{all []figure, layers []layer}`, `figure{id, box, z Z, from, n, piece,
+  shadow}` (`publisher.go:21-46`); wersja na poziom dobierana w `Compose` przez `levels.at(sprite,
+  level)` (`renderer.go:165-190`), L4 przez `s.point`. Poziom encji: `renderer.level(v, box, mid)`
+  (`renderer.go:318`) = `v.Level(mid)`.
+- **Sektory**: `sector.Grid{Of, Box, Cover(box, dst) []Part{Sector, Box}, Side, Neighbours}`
+  (`sector/grid.go`); nadzorca `sectors{graded, level, finest, far}` (`sectors.go`), `seenBy(cam,
+  i)` (:376), `seenSectors` implementuje `view.Sectors` (`view/seen.go:15`: `Len, Cols, Box, Of,
+  Level(cam,i), Ladder`); `view.View.Sectors(each(i, box, level))` pomija L6. Znaczniki
+  `sector.L3..L6, Far1..3, Keen, Abstract` (`sector/sector.go`), rejestrowane w `sectors.Init`
+  (:101-105), zapisywane w `module.go:178-186` (`goke.LoadComp`). Bok sektora = `Buckets ·
+  BucketSize` (:86); Madera: 16 komórek = 512 jednostek, 800 sektorów.
+- **Z**: `entity.Z{Altitude, Height, Step}`, `Altitude` to **bezwzględna** wysokość spodu (plansza
+  pisze ją jednostkom z reliefu, `board/units.go:110`; filar mostu `Z{Altitude: Bottom, Height:
+  Top−Bottom}`, `bridges/types.go:104`; pokład z `NewEntities` ma `Z{Height: Thickness}` a jego
+  `Altitude` pisze plansza jak encjom stojącym).
+- **Encje stojące**: `board.NewEntities[P](brd, shape, at)` → `Define` daje `Position`, `cell.On`,
+  `world.Z{Height}` i `StandingTemplate` (`board/entities.go:24-48`, `templates.go:10`, domyślne
+  `world.Lie{}`, `light.Shadow{Cast: Baked}`); pokłady mostów przez `NewEntities` (:78), filary
+  przez gołe `kind.Define` (:104). `SpawnPart` nie dotyka szablonu.
+- **Ustawienia świata**: `Settings{Sectors, Unbanded}` (`commands.go:92`), `plugin.Keep` w
+  `plugin.go:82`, `Restore` (:247) nakłada je przez `write`; wzór komendy ustawienia:
+  `SwitchSectors` → kolejka `module.go:81` → `switchSectors` (`sectors_view.go:172`) →
+  `write.ShowSectors` (`rw.go:254`); `Settings()` (`commands.go:109`) z `control.Choice`/`Switch`.
+- **Zaznaczenie**: `NewSelectionSystem(selects, space, tags, look func() world.Look)`
+  (`selection_system.go:60`, wołane z `selection/plugin.go:71`), `pick(at, screen, cam)` (:218),
+  `Select{IDs, Box, Screen, Camera, Additive}` → `applySelection` (:274); brak uchwytu `Read`.
+- **Render**: obrazy klatki: `render.RegisterImage(name)` przed pierwszym shaderem, **8 nazw,
+  7 w użyciu** (`GroundHeights, GroundShade, GroundShadeWas, Aggregate, CloudTile, AirMasses,
+  GroundDetail`); Direct wiąże obraz klatki per draw przez `opts.Uniforms[name]`; draw ma 4 własne
+  sloty `opts.Images`. **Brak mipmap** (`gpu/texture.go:53` `MipLevelCount: 1`, samplery bez
+  `MipmapFilter`, wszystkie odczyty `textureSampleLevel(…, 0.0)`), brak compute. Render-to-texture:
+  `render.NewImage`, `SubImage`, `Clear`, `WritePixels`, `ReadPixels`, `DrawImage`, `DrawMesh(idx,
+  shader, &DrawMeshOptions{Depth, WriteDepth, Vertices, Ranges, Instances, Images [4], Uniforms,
+  Untested})`, `render.NewMeshShaderWith(label, src, uniforms).Instanced(n)`. Tekst tylko
+  ekranowy (`render.Font.Draw(dst, s, x, y, c)`, `DefaultFont`), żadnego tekstu w świecie.
+- **Malarz** (`painter/bake_gpu.go`): wypiek do `render.Image` w `Painter.Surface` wołanym
+  z `terrain.Renderer.Draw → prepare → refresh` (leniwie, gdy `seen`/`styled` się zmieniły);
+  shadery `paint_*.wgsl` `Instanced(1)`, 6 wierzchołków na instancję, `PaintMasked` dla komórek
+  zmienionych (`toPaint`), `paintMask`; sprite'y atlasu przez `opts.Images[0] = atlas.Atlas()`;
+  testy `gputest.Need` + `ReadPixels`, pomocnik `differ`; `Benchmark_Painter_Bake` leży w
+  pakiecie malarza (`measure.sh` go nie widzi).
+- **Teren** (`terrain/sectors.go`, `terrain.go`): bez buforów wierzchołków (narożnik z
+  `vertex_index`, `mesh.wgsl:19-45`), jeden bufor indeksów: `whole` wszystkich sektorów, potem
+  `coarse` (co drugi narożnik, pierścień jednej komórki wachlarzami do pełnych narożników
+  brzegu, :69-117), potem `skirt`; `runs` wybiera `coarse` od L4, `eachLevel` grupuje w
+  `IndexRange`, jeden `DrawMesh(r.mesh, byLevel[level], &r.opts)` na poziom; shader na poziom z
+  `const LEVEL` (`leveled`); `opts.Images = {lattice, albedo, water, kinds}`; siatka wysokości
+  `r.lattice` RGBA8 w ćwiartkach (wysokości 16 bit `(h−low)/span·65535`, normalne, flagi,
+  brzegi), `encode` (:480), `Low`/`Span` w uniformach; `mesh.wgsl:70-79`: L4 bez fal, cienia
+  wypieczonego i lamp, L5 bez chmur, kołysania, ziarna i wody, suma nad albedo (:130).
+  `Config.Aggregate func() (*render.Image, float32)` (:124). Światło: `lightWay()`,
+  `groundShadeOf` (tylko `LEVEL <= 1`), `cloudsShadeAt` (`LEVEL <= 2`), `lampLightAt`, mgła
+  `U.Sight`. Test wzorcowy: `terrain/draw_internal_test.go:52` (`gputest.Need`, `render.Target`,
+  `cameratest.NewFromSpace`, `ReadPixels`), `atLevel` (:127).
+- **Światło**: wypiek cienia gruntu czyta obraz klatki `GroundHeights` (`compose/bake.go:188`),
+  nie siatkę pluginu; `light.Relief{Lattice, GroundAt, Version}` daje tylko metadane.
+- **Dema**: topography: rodzaje `unit, rival, hawk, plateau` (jednostki), `bridge, ford,
+  lantern` (stojące), żaden nie deklaruje `At`; drabina `Scales{0.5, 0.25, 0.12, 0}`, Sight 30 km,
+  Fog 6 km, 640×320 komórek po 32 jednostki (jedn. 3.125 m), `Buckets 2`; `map.yaml`: 21 mostów,
+  7 brodów, 1 latarnia, 37 jednostek; brak własnych `Tunable`. forest-army: las `At(L4, canopy)
+  .At(L5, Solid(MeanColour))`, armia `At(L4, banner)`, `Scales{2, 1, 0.5, 0}`, Fold 2.
+- **Testy/rigi**: `sectors_internal_test.go` (`sectorWorld`, `sectorRig`, `watchers`, `ticked`,
+  `drawn`), `aggregate_internal_test.go` (`summable`, `newSumming`, `texel`, `written`),
+  `coarse_internal_test.go` (`halves`, `farther`, `readied`), `publisher_internal_test.go`
+  (`thinnable`, `published`, `keepingL2`). Benche: `World_Publish`/`World_Draw` rungi
+  `leveledViews` („5000 of 5000 in view, level=2|3", „…level=3, unread", „…level=2, keep=0.25"),
+  `World_Frame`, `Frame_Topography` („iso,level=0..3", …), `Sectors_Expanse` (banded/unbanded),
+  `Text_Panel`.
+- Gałąź `feat/sheets` nie istnieje; drzewo czyste; brak worktree'ów; `p/*` wolne.
+
+### Projekt (co buduje etap)
+
+**Obrazy płachty** (świat, `plugins/world/sheet.go`): nad całym światem, teksel `Ladder.Texel`
+(zero: `1/Scales[L4]` jednostek, czyli jednostki na piksel na progu L4; podniesiony tak, by
+płachta miała ≤ 4096 tekseli na bok — Madera: 2048×1024 dałoby 3,2 teksela na komórkę 100 m, 4096
+daje 6,4); dwa obrazy RGBA8 na poziom:
+- `Sheet` (albedo premultiplied; alfa 0 = teksel pusty, nic tam nie stoi),
+- `SheetRelief` (RG: **wysokość bezwzględna szczytu** jako f16 przez `pack2x16float`, bajty w R i
+  G; BA: normalna xy `(n+1)/2`), świat nie zna gruntu i nie musi: pisze szczyty swoich encji;
+oraz ich połówki na L5 (`SheetL3`, `SheetReliefL3`: przebieg zmniejszający na GPU, albedo przez
+`DrawImage` w pół, relief własnym shaderem: średnia wysokości tekseli niepustych i średnia
+normalnych). Nazwy obrazów klatki: `world.SheetImage = "Sheet"`, `world.SheetReliefImage =
+"SheetRelief"` zastępują `Aggregate` (8 z 8 nazw w użyciu; to samo dwie nazwy niosą obrazy L4 albo
+L5 zależnie od draw, bo wiązanie jest per draw przez `opts.Uniforms`). Teren nie potrzebuje
+nazw: ma własny shader płachty z 4 slotami `opts.Images`.
+
+**Fotografia sektora** (świat, GPU, jak wypiek malarza): do **bufora sektorowego** (dwa
+`render.NewImage` rozmiaru sektora w tekselach, albedo i relief, z własną głębią `render.NewDepth`;
+głębia w `render` jest zawsze rozmiaru całej tekstury celu, więc bufor na całą płachtę kosztowałby
+64 MB i nie da się jej czyścić prostokątem), dwa przebiegi `DrawMesh` (jeden cel na draw: najpierw
+albedo, potem relief) z tą samą głębią, **oba `Primed`** (`fs_prime` kładzie głębię i musi
+`discard`ować te same teksele z alfą 0 co `fs_main`; kolor pisany tylko gdy głębia równa, więc raz
+na teksel, bez mieszania `SourceOver` niższej encji z wyższą), głębia = wysokość szczytu
+znormalizowana do [0, 1] plus `instance_index · 1e-6` przeciw remisom (dwa pokłady obok); potem
+`sheet.SubImage(rect).CopyFrom(bufor)` do obu obrazów L4 (`CopyFrom` kopiuje alfę bez mieszania).
+W tekselu wygrywa najwyższa encja (drzewo nad domem). Instancje: encje `world.Fixed` sektora, których rodzaj **nie zadeklarował**
+L4 (`declares(sprite, L4)` fałsz) i których poziom rysowania jest ≥ L4, oraz **zrzuty części
+agregatu** zwiniętego bez L4 (migawka pudeł, `Z` i sprite'ów L3 części, brana w `wholes.fold`
+zanim powie `Fold`, trzymana per rozciąg do `Unfold`). Instancja (`Instanced(3)`: trzy `vec4` na
+instancję jako `@location(0..2)`, jak `compose/cast.go` z `Instanced(4)`) niesie pudło, prostokąt UV
+sprite'a L3 (wersja `levels.at(sprite, L3)` z efektów `Under` tak, jak widzi je publisher),
+`Altitude`, `Height`, flagę `Lying`; sprite'y przez `opts.Images[0] = atlas.Atlas()`. Shader: 6
+wierzchołków na pudło; alfa sprite'a mówi, czy
+teksel należy do encji; wysokość szczytu `Altitude + Height·(1 − r²/2)` (r = odległość od środka
+sprite'a w jego połowie rozmiaru; `Lying`: `Altitude + Height`, płasko), normalna z gradientu
+kopuły (`Lying`: w górę); albedo = teksel sprite'a. Teksel bez encji: bufor wyczyszczony (`Clear()`
+całego bufora przed przebiegami, darmowy `LoadOpClear`). **Wersja treści** sektora (`uint32` na
+sektor w CPU): rośnie, gdy zmieni się **sygnatura treści** sektora: liczba encji `Fixed` i xor po
+nich z `mixed(id) ^ mixed(sprite L3 pierwszej warstwy)` liczone w tej publikacji względem
+poprzedniej (publisher i tak idzie po każdej widzianej encji i czyta jej `Appearance`; sprite w
+sygnaturze sprawia, że zmiana wyglądu pod efektem też odświeża płachtę; spawn i despawn świata
+znają tylko id, a części zwinięte omijają `despawn`, więc hak tam byłby droższy i dziurawy; goke
+nie ma śledzenia zmian komponentów ani relacji między encjami, a dodanie go kosztowałoby barierę na
+każdym zapisie), przy `fold`/`unfold` rozciągu w nim i przez hak `neighbourChanged(i)` (część
+2). Sektor encji: `grid.Of(mid.X, mid.Y)` (publisher dostaje `Of` jak dziś `covers`). **Kiedy**: w `Compose` publishera, dla sektorów, które
+jakiś widok rysuje na L4+ (`v.Sectors`) i których wersja namalowana ≠ wersja treści, najwyżej
+`sheetPerFrame` sektorów na klatkę (start 8; profil `Frame_Sheet` decyduje), potem przebieg
+zmniejszający dla ich prostokątów w L5. Płachta nie jest zapisywana (odtwarzana z treści; wersje
+startują od 1, namalowane od 0).
+
+**Publisher**: encja `Fixed` w sektorze, który jest namalowany w aktualnej wersji, nie dostaje
+rekordu na L4 ani L5 (dopóki sektor nie jest namalowany, rekord jak dziś: plama); suma L5 i
+`k.l3` odchodzą; jednostka (nie-`Fixed`) na L5 to rekord plamy jak na L4 (miniatura), rzedzona
+`Keep[L5]`; pola (`spread`) na L5 rysują wersję zadeklarowaną albo nic (pole bez L5 nie sumuje
+się już). `Read.Sheet() (albedo, relief, albedoL3, reliefL3 *render.Image, perUnit float32)`
+(nil, 0 bez sektorów albo zanim ktoś poprosił `Sheets()`).
+
+**Grunt rysuje płachtę** (teren, `terrain/photo.go`, typ `photoMesh`; nazwa `sheet` jest zajęta
+w testach terenu i w `render.Sheet` arkusza sprite'ów): na L4 i L5 sektor namalowany dostaje,
+**ponad** dzisiejszą zgrubną siatką (która rysuje się jak dziś), dodatkową siatkę płachty: regularna
+krata na sektor
+(krok w tekselach = najmniejsza potęga dwójki, przy której sektor ma ≤ 32×32 czworokątów na L4;
+na L5 z obrazów L5 i ≤ 8×8), wierzchołki bez bufora jak w `mesh.wgsl`, wysokość wierzchołka z
+`SheetRelief` tam, gdzie teksel ma alfę (albedo) > 0, inaczej wysokość siatki terenu minus
+`sheetSink` (pod gruntem, niewidoczna); fragment z alfą 0 odrzucony; albedo z `Sheet`, normalna z
+`SheetRelief` (między wierzchołkami z teksela: relief pod krokiem siatki widać w oświetleniu),
+oświetlenie jak grunt tego poziomu (`lightWay`, `cloudsShadeAt` na L4, mgła, `U.Sight`), bez
+cienia wypieczonego i lamp (L4 ich nie czyta). Shader przez `leveled` (konkatenacja z `const
+LEVEL`), więc deklaruje w swojej liście uniformów wszystko, co czytają pożyczone pliki
+(`lattice.wgsl`: `Cell, Corners, Low, Span` i slot 0; `light.wgsl`: `Cell, Corners`); własne
+`DrawMeshOptions` (własne `Images`; `Uniforms` wspólne z gruntem, `Layout.Put` ignoruje nieznane
+nazwy), `Primed` z `fs_prime` odrzucającym alfę 0 albo `Primed: false, WriteDepth: true` z
+`discard` w `fs_main` (porównanie głębi `GreaterEqual`, odwrócone; brak kontraktu early-z). Siatka płachty rysowana tylko dla sektorów, które
+mają co najmniej jedną encję w płachcie (lista z `Read.Sheet`-owego `Painted(i) bool`; pusty
+sektor nic nie kosztuje). Dzięki temu płachta nie zszywa się z siatką terenu — leży na niej jako
+bryły; szwy między poziomami załatwia część 2 na encjach. Płaska plansza (`look/tiles.go`) i heksy
+(`hexes.go`) kładą albedo płachty (L4 i L5, odpowiedni obraz) nad kaflami tam, gdzie kładły sumę,
+płasko, bez normalnej (świat płaski; hex to osobny temat).
+
+**Szwy L3|L4** (część 2): poziom rysowania encji `Fixed` = najdrobniejszy z poziomów sektorów,
+które pokrywa `Grid.Cover(box.Grown(size))`; liczony w publisherze tylko dla encji `Fixed` w
+sektorach L4+ sąsiadujących z drobniejszym; taka encja rysuje się żywo wersją drobniejszego
+poziomu i **nie wchodzi do płachty** (fotografia pomija encje z poziomem rysowania < L4); zmiana
+poziomu sąsiada przez L3|L4 podnosi wersję treści sektora. Znak ticku zostaje po środku.
+
+**Banery** (część 3): `Config.Far FarLook` (`Points` zero, `Banner`), `Config.Counts bool`,
+`Settings{…, Far FarLook, Counts Shown}` z **zerem znaczącym „jak Config"** (`plugin.Keep`
+dekoduje stary zapis w zerowy struct i nadpisuje nim wartości z Config, więc zero musi być
+neutralne: `FarLook{AsConfig 0, Points 1, Banner 2}` w ustawieniu, `Shown{AsConfig 0, On 1, Off 2}`
+dla liczb; `Read.FarLook()`/`Read.Counts()` rozstrzygają), komendy `ShowFar{Look}`,
+`ShowCounts{On}`, ustawienia w F10; `Read.Banners(cam, dst) []Banner{Kind kind.ID, Sector int,
+Center geom.Vec, IDs []uid.UID64, Count int}`; klik w baner zaznacza `IDs`; liczby na **szkle**:
+renderer świata implementuje `render.Glass` (`DrawGlass(dst, cam)`, wołane przez feed po wszystkim,
+jak `cameras/zones.go`), tekst `render.DefaultFont().Draw(dst, s, x, y, c)` przy
+`cam.Project(x, y, z)` centroidu, przesunięty o `dst.Bounds().Min`.
+
+**Siatka L5 i albedo zmniejszone** (część 4): `coarse` sparametryzowane krokiem (2 na L4, 4 na L5,
+pierścień jak dziś), albedo malarza w pół i w ćwierć (`DrawImage`) po każdym wypieku, teren
+wiąże w `opts.Images[1]` obraz poziomu (pełny L2–L3, pół L4, ćwierć L5).
+
+### Model wykonania
+
+Jak w etapie b (`CLAUDE.md` „A stage in parts"): integrator planuje, briefuje, scala, mierzy
+(≤10 min), pisze dokumenty; agenci Opus 5.5 (`Agent`, `model: opus`): preludium w klonie na
+`feat/sheets`, części w worktree'ach `/home/karol/worktrees/gram/<część>` na `p/<część>` od
+commitu preludium (`git worktree add /home/karol/worktrees/gram/<część> -b p/<część>
+feat/sheets`; tam `GOWORK=off` niepotrzebne, `go.mod` wystarcza). **Wspólne reguły dla każdego
+agenta** (do wklejenia w brief): czytaj skille warstw (`gram-plugin`, `gram-plugins`,
+`gram-render`, `gram-perf-picture`, `gram-perf-tick`, przy testach `gram-probe`); trzymaj się
+plików części; `go build ./... && go vet ./... && gofmt -l . && go test ./...` przed każdym
+commitem (`GOEXPERIMENT=simd`); commity z prefiksami konwencjonalnymi i trailerem
+`Claude-Session: https://claude.ai/code/session_014GbD5V5FZgxcEYK1zPRzjF`, bez `Co-Authored-By`;
+żadnych zmian w `doc/`, `.claude/`, `BENCHMARKS.md`, `CHANGELOG.md`, `go.mod`, README; godoc ≤ 2
+zdania, komentarze tylko gdzie kod nie powie; linie ≤ 100 kolumn; nic nie mierzyć (benche
+pisać i podać komendy, integrator mierzy); demonstracje tylko na kopii dema (`gram-probe`,
+`run_demo.sh`), nigdy na plikach dema; nic nie wypychać; raport końcowy: co zrobiono, odstępstwa
+od briefu z powodem, komendy benchów, co zostało.
+
+### Preludium (agent A, `feat/sheets`): kontrakty
+
+Pliki: `plugins/world/{fixed.go (nowy), commands.go, rw.go, config.go, plugin.go, module.go,
+sheet.go (nowy: typy i puste wiązania), aggregate.go (usunięcie), renderer.go, publisher.go
+(tylko usunięcie sumy), doc.go (jedno zdanie), atlas.go (test)}`, `lod/lod.go` (godoc `Texel`),
+`plugins/board/{templates.go, plugin.go, look/renderer.go, look/tiles.go, look/shaders/
+tiles_common.wgsl}`, `plugins/topography/{plugin.go, internal/terrain/terrain.go, internal/
+terrain/shaders/surface.wgsl, internal/terrain/shaders/mesh.wgsl, internal/hexes/hexes.go,
+internal/hexes/shaders/sheet.wgsl}`, `plugins/bridges/types.go`, `bench/world_test.go`, testy.
+
+1. `world.Fixed{}` (`fixed.go`): zerowy komponent-znak encji stojącej, rejestrowany w świecie
+   (`si.RegComp`), zapisywany (`goke.LoadComp[Fixed]` w `module.go` za `Unfolded`), w słowniku
+   `doc.go`. `board.StandingTemplate` daje go domyślnie (obok `world.Lie{}`), więc `NewEntities`
+   i pokłady go noszą; filary mostów dostają `world.Fixed{}` w `Define` (`types.go:104`).
+   `SpawnPart` i `NewUnits` nic nie dodają. Test: encja z `NewEntities` ma `Fixed`, jednostka nie,
+   zapis/odczyt zachowuje.
+2. **Suma odchodzi**: usunąć `aggregate.go`, `Plugin.Aggregates()`, `Read.Aggregate`,
+   `AggregateImage`, `export_test AggregateTexels`, testy sumy (`aggregate_test.go`,
+   `aggregate_internal_test.go`; `field_internal_test.go:52` przepisać bez sumy), rungi
+   `World_Publish|Draw` „level=3, unread" (zostaje „level=3": rekordy plam), `worldLeveled(…,
+   read)` bez `read`; publisher: `k.l3`, `recorded`→`fate` bez `sum` (L5 jak L4: rekord), `spread`
+   na L5 bez `add`; atlas: `MeanColour` w `level()` i `a.colours` odchodzą (plama L4 liczy swój
+   kolor jak dziś przez `render.Blob`), `blobColour` zostaje (część 3 bierze z niego kolor liczby);
+   **`versionsOf` daje plamę także na L5** (`of[L5] = of[L4]` gdy niezadeklarowane; dziś L5 to
+   zero = nic, `atlas.go:579-598`) i **`Compose` posyła L5 do `s.point` jak L4**
+   (`renderer.go:179` warunek `level == lod.L4` → `>= lod.L4` dla niezadeklarowanych): jednostki na
+   L5 stają się miniaturami już w preludium, co zastępuje sumę na oko. Testy publishera/renderera
+   na L5: rekord plamy, `Keep[L5]` rzedzi.
+   Klienci: `board/plugin.go:136` `WithAggregate` → `WithSheet(worldPlugin.Read(0).Sheet)` i
+   `worldPlugin.Sheets()`; `look/tiles.go aggregate()` → `sheet()` wiążące `opts.Uniforms[world.
+   SheetImage]` (L4: obraz L4, L5: obraz L5; `TileSheetPx`) — `summedOver` czyta `Sheet` zamiast
+   `Aggregate` (na razie obraz jest pusty, więc kafle bez zmian na oko); topografia analogicznie
+   (`terrain.Config.Sheet func() (…)`, `AggregatePx` → `SheetPx`, `aggregateAt` → `sheetAt` czyta
+   `Sheet` na L4 **i** L5; heksy tak samo). Rejestracja `RegisterImage(SheetImage)` i
+   `RegisterImage(SheetReliefImage)` w `init` `sheet.go`.
+3. `sheet.go`: typ `sheets` (nie `sheet`: `render.Sheet` to arkusz sprite'ów) z polami obrazów
+   (`albedo, relief, albedoL3, reliefL3 *render.Image`, `perUnit`, `cols, rows`, `version, painted
+   []uint32` na sektor, `perFrame int`), `newSheets(cfg, grid)` (teksel jak w „Projekt": `cfg.LOD.Texel`, zero → `1/Scales[L4]`, podniesiony do ≤ 4096
+   tekseli na bok; obrazy tworzone leniwie przy `Sheets()`), `Plugin.Sheets()` (odpowiednik
+   dawnego `Aggregates()`), `Read.Sheet()` (nil, 0 gdy brak), `Read.Painted(i int) bool`,
+   `sheet.bump(i)` (wersja treści), hak `sheet.neighbourChanged(i)` (= `bump`). Fotografii jeszcze
+   nie ma: `Painted` zawsze fałsz, obrazy puste (`Clear`). `lod.Ladder.Texel` godoc: „teksel
+   płachty tego, co stoi, w jednostkach świata; zero: jednostki na piksel na progu L4; świat
+   podnosi go tak, by płachta miała ≤ 4096 tekseli na bok". `Config.LOD.Check` bez zmian.
+4. `Config.Far FarLook` (`type FarLook uint8`: `AsConfig 0` tylko w ustawieniu, `Points 1`,
+   `Banner 2`; w Config zero znaczy `Points`), `Config.Counts bool`; `Settings{Sectors, Unbanded,
+   Far FarLook, Counts Shown}` (zero = jak Config, patrz „Projekt/Banery": stary zapis nie może
+   nadpisać Config zerami), `Read.FarLook() FarLook` i `Read.Counts() bool` rozstrzygają; komendy `ShowFar{Look FarLook}`, `ShowCounts{On bool}` (`commands.go`,
+   `var _ command.Command`, kolejki w `module.go` i `Queues()`, obsługa jak `switchSectors` →
+   `write.ShowFar`, `write.ShowCounts`); `Settings()` dodaje `control.Choice{Label: "Far units",
+   Options: {"points", "banners"}}` i `control.Switch{Label: "Counts"}` w `Section:
+   control.Graphics` (sprawdzić, jak inne pluginy nazywają sekcję); `Read.FarLook()`,
+   `Read.Counts()`. Testy: komenda zmienia ustawienie, zapis/odczyt je zachowuje, `Settings()`
+   ma 4 pozycje ze sektorami.
+5. `type Banner struct{ Kind kind.ID; Sector int; Center geom.Vec; IDs []uid.UID64; Count int }`,
+   `Read.Banners(cam camera.Camera, dst []Banner) []Banner` (w preludium zawsze puste; godoc mówi,
+   że wypełnia je publikacja w trybie Banner).
+6. Test atlasu: wersja każdego poziomu (plama L4, `At(L4)`, `At(L5)`) jest rysowana w pudle encji
+   i na jej `Z` — utrwala ślad, na którym stoi zszywanie (`atlas_test.go` albo `renderer` test:
+   `Published()`/`Drawn` z `export_test.go`).
+7. Sekwencja zielona; dema topography, flat, forest-army, atlas, navigation/square 5 s na kopii;
+   zrzut topography L5 różni się od bazy tylko tym, że figury są plamami, nie kolorem w gruncie
+   (nazwać). Commity: `refactor: the L5 colour sum goes, the sheet's images and settings stand in
+   its place` (można 2–3 commity tematyczne).
+
+### Część 1 `p/sheet` (agent B, po preludium): fotografia, L5 w pół, grunt z reliefem płachty
+
+Pliki: `plugins/world/{sheet.go, sheet_gpu.go (nowy), shaders/sheet_photo.wgsl, shaders/
+sheet_half.wgsl (nowe), publisher.go, renderer.go (Compose: fotografie i rekordy), wholes.go
+(migawka części przy fold), rw.go, doc.go (słownik), export_test.go}`, `plugins/topography/
+internal/terrain/{terrain.go, photo.go (nowy: krata płachty), shaders/photo.wgsl (nowy),
+shaders/surface.wgsl}`, `plugins/board/look/{tiles.go, shaders/
+tiles_common.wgsl}` (albedo L4 i L5 nad kaflami, jeśli preludium nie domknęło), `plugins/
+topography/internal/hexes/*` (albedo płachty nad quadem sektora), `bench/world_test.go`, `bench/
+frame_test.go`, testy. Nie dotyka: `atlas.go` poza odczytami, `sectors.go` świata, `commands.go`,
+`selection`, `bridges`, `painter`.
+
+Kroki:
+1. **Migawka części** (`wholes.go`): w `fold` (:430), zanim `Fold` zostanie powiedziany, dla
+   rozciągu, którego całość nie deklaruje L4 (`wa := s.w.p.renderer.atlas.(*Atlas)`,
+   `wa.declares(sprite całości, L4)`; sprite całości przez `Base.TypeID → ikinds.Kind.SpriteID`
+   albo `OptComp[render.Appearance]` w `s.all`), zebrać `snapshot{box, z Z, sprite
+   render.SpriteID}` części (pudło z `partBase`; dodać `partZ goke.OptComp[Z]` i `partLook
+   goke.OptComp[render.Appearance]` do zapytania `s.parts`, oba `Optional`; sprite L3 przez
+   `wa.levels.at(sprite, lod.L3)`), `sheets.folded[stretch] = snaps`, `sheets.bump(sector)`; w `unfold`/`open` usunąć i `bump`. Pola (`Field`) po sektorze:
+   migawka na sektor. Test (`wholes` rig z `field_internal_test`/`aggregate` kontraktu): po `Fold`
+   migawka ma tyle wpisów, ile części, po `Unfold` jest pusta; z deklaracją L4 nic.
+2. **Fotografia na GPU** (`sheet_gpu.go`, `sheet_photo.wgsl`): shader `NewMeshShaderWith("world's
+   sheet", …, uniforms{SheetOrigin, SheetPx, SheetPass, SheetSpan}).Instanced(3)` (instancja:
+   pudło, UV sprite'a, `Altitude, Height, Lying, 0`); `opts.Images[0] = atlas.Atlas()`; dwa
+   przebiegi do bufora sektorowego (`SheetPass` 0 albedo, 1 relief) z jedną głębią, oba `Primed`
+   z `fs_prime` odrzucającym alfę 0, głębia znormalizowana przez `SheetSpan` (zakres wysokości
+   świata z `Low/Span`? świat go nie zna: wziąć `max |Altitude + Height|` po instancjach sektora
+   jako skalę, to tylko porządek), bias `instance_index · 1e-6`; `CopyFrom` do `SubImage` sektora
+   w obu obrazach L4. Kodowanie: wysokość f16 w RG (`pack2x16float` — naga v0.20.5 ma je w WGSL,
+   SPIR-V i MSL; bajty `/255`), normalna w BA; odczyt bajtów po stronie terenu przez `textureLoad`
+   jak `lattice.wgsl corner()`. Kopuła i `Lying` jak w „Projekt". Zbieranie instancji: w `Compose` publishera po rekordach, z
+   `figures.all` (encje `Fixed` bez L4, poziom rysowania ≥ L4 — część 2 doda wyjątek pierścienia,
+   tu: wszystkie `Fixed` sektora) i z `sheet.folded`; sektory do fotografii: `v.Sectors` każdego
+   widoku, poziom ≥ L4, `painted[i] != version[i]`, ≤ `perFrame` (8); po przebiegu `painted[i] =
+   version[i]`; potem przebieg `sheet_half.wgsl` dla prostokątów L5 tych sektorów (relief: średnia
+   po tekselach z alfą, normalna średnia renormalizowana; albedo: `DrawImage` w pół albo ten sam
+   shader; `DrawImage` w pół: `GeoM` liczy w pikselach tekstury, nie podobrazu — przesunąć o
+   `Bounds().Min` celu; `FilterLinear` w skali 0.5 trafia w rogi tekseli, więc daje dokładną
+   średnią 2×2). Wersja treści z liczby i xor identyfikatorów `Fixed` na sektor (patrz „Projekt"),
+   `OptComp[Fixed]` w zapytaniu publishera wzorem `keen` (`renderer.go:32`, `publisher.go:52-54`,
+   `s.keen.Slice(cur) != nil`).
+3. **Publisher**: `fate`: encja `Fixed` (opcjonalny komponent w zapytaniu) z poziomem ≥ L4 w
+   sektorze `painted[i] == version[i]` → bez rekordu; inaczej jak dziś. Jednostki na L5: rekord
+   plamy (jak L4) — upewnić się, że `Compose` na L5 idzie przez `s.point` jak L4 (dziś L5 bez
+   wersji nie rysuje). `Keep[L5]` rzedzi. `Read.Painted(i)`.
+4. **Teren** (`terrain/photo.go`, `shaders/photo.wgsl`, typ `photoMesh`): krata płachty na
+   sektor (indeksy raz, jak `lay`; krok z „Projekt"), rysowana po siatce poziomu w `Draw`
+   (`terrain.go:199-217`, `eachLevel` :227) dla sektorów L4/L5 z `Painted(i)` (lista `Ranges`),
+   własne `DrawMeshOptions{Images: {lattice, Sheet lub SheetL3, SheetRelief lub SheetReliefL3,
+   albedo malarza}, Uniforms: r.opts.Uniforms}`, uniformy `SheetPx`, `SheetStep`, `SheetSink` plus
+   te, których wymagają pożyczone pliki (patrz „Projekt"); shader: wierzchołek → teksel →
+   wysokość z reliefu albo lattice−sink; fragment: alfa 0 → `discard`, kolor albedo · światło
+   (`lightWay` z normalną reliefu, `cloudsShadeAt` na L4, mgła jak `mesh.wgsl` tego poziomu),
+   `Depth` wspólna z gruntem; dwa shadery przez `leveled` (L4, L5) w `TestTerrainShaders_Compile`. `aggregateAt`/`sheetAt` w `surface.wgsl` odchodzi z `mesh.wgsl` dla
+   terenu (płachta rysuje się własną kratą; płaska plansza i heksy kładą albedo płasko jak w
+   preludium).
+5. Testy GPU (`gputest.Need`, `ReadPixels`): (a) świat: dwie encje `Fixed` jednego koloru w
+   sektorze widzianym na L4 → po `Compose` teksele albedo w pudłach mają ten kolor (±1/255), poza
+   pudłami alfa 0; wysokość w środku pudła = `Altitude + Height` (±0.5 % f16), normalna w górę w
+   środku, pochylona na zboczu kopuły; `Lying` płasko; rodzaj z `At(L4)` nie trafia do płachty;
+   `Fold` agregatu bez L4 maluje części, `Unfold` czyści; wersja rośnie przy spawn, nie rośnie bez
+   zmiany; `Painted` fałsz do pierwszej fotografii, potem prawda; L5 teksel = średnia 2×2;
+   encja `Fixed` w sektorze namalowanym nie ma rekordu L4 (`Published()`), jednostka na L5 ma
+   rekord. (b) teren: `draw_internal_test` wzorzec: sektor na L4 z płachtą o jednym pudle →
+   piksele w pudle mają albedo płachty, poza nim grunt; dwa kierunki `LightWay` dają jaśniejszą
+   stronę kopuły od światła; kamera pochylona: szczyt kopuły przesunięty względem jej podstawy
+   (paralaksa) — `TestTerrainShaders_Compile` obejmuje nowy shader na L4 i L5.
+6. Benche: `Benchmark_World_Sheet` w `bench/world_test.go` („sector,64": fotografia jednego
+   sektora z 64 encjami `Fixed` włącznie z czekaniem na GPU; „frame,8": klatka z 8 sektorami do
+   fotografii), `World_Publish|Draw level=3` zostają (teraz plamy), `Frame_Topography` nowy rung
+   „iso,level=2,sheet" (grunt L4 z płachtą w 50 % sektorów). Cele podane w „Pomiar".
+7. Sonda topografii na kopii: `GRAM_SHOT` z kamerą oddaloną do L4: latarnia i mosty w płachcie
+   (różnica względem bazy nazwana), log `Painted` per klatka: ile sektorów sfotografowano,
+   stabilizuje się do 0 po kilku klatkach.
+
+### Część 2 `p/seams` (agent C, po części 1): szwy na granicach, mosty
+
+Pliki: `plugins/world/{publisher.go (poziom rysowania Fixed), sheet.go (wykluczenie, hak
+sąsiada), renderer.go}`, `plugins/bridges/doc.go`, testy. Nie dotyka: `sectors.go` (znakowanie
+ticku bez zmian), terenu, atlasu.
+
+1. **Poziom rysowania** encji `Fixed`: maska sąsiedztwa na publikację: dla każdego widoku
+   sektory L4+ mające sąsiada (`Grid.Neighbours`) drobniejszego; dla encji `Fixed` w takim
+   sektorze poziom = min po `Grid.Cover(box.Grown(size), dst)` (`size` = większy bok pudła);
+   inaczej jak dziś (`v.Level(mid)`). Encja z poziomem < L4 rysuje się żywo (rekord) i nie wchodzi
+   do zbioru fotografii (filtr w zbieraniu instancji części 1: `drawLevel >= L4`).
+2. **Wersja treści**: gdy zbiór sektorów „L4+ z drobniejszym sąsiadem" zmienia się między
+   publikacjami (sektor wchodzi albo wychodzi ze zbioru), `sheet.neighbourChanged(i)`.
+3. **Mosty**: pokłady i filary są `Fixed` (preludium), więc na szwie L3|L4 pokład żywy i pokład w
+   płachcie leżą na jednej wysokości (`Altitude + Height` w f16) i zmienia się tylko detal;
+   plugin mostów nic nie deklaruje; `bridges/doc.go` jedno zdanie.
+4. Testy (`plugins/world`, rig `sectorWorld` + płachta): encja `Fixed` przecięta granicą L3|L4
+   ma rekord L3 i nie ma jej w płachcie; sąsiadka w L4 przy granicy (pudło powiększone sięga
+   L3) rekord L3; dalsza w L4 żaden rekord, jest w płachcie; po przejściu sąsiada na L4 (kamera
+   dalej) wszystkie trzy w płachcie, wersja treści sektora wzrosła dokładnie raz; jednostka
+   (nie-`Fixed`) przy granicy jak dziś; `routes.golden` nietknięte; zrzut forest-army piksel w
+   piksel z bazą (las i armia mają własne L4). Sonda topografii: most przez granicę L3|L4 w
+   perspektywie, zrzut; wysokość pokładu odczytana z reliefu płachty równa `Z.Top()` kawałków
+   żywych ±0.5 %.
+
+### Część 3 `p/far` (agent D, po części 1, równolegle z 4): banery, miniatury, liczby, klik
+
+Pliki: `plugins/world/{publisher.go, renderer.go, rw.go, doc.go, banners.go (nowy)}`,
+`plugins/selection/{selection_system.go, plugin.go, doc.go}`, testy. `render` tylko gdy szkło nie
+ma wejścia dla pluginu (wtedy stop i raport, nie improwizacja).
+
+1. **Banner** (`banners.go`): w trybie `Banner` jednostki (nie-`Fixed`, nie `Unfolded`
+   agregaty) jednego rodzaju w sektorze L4+ widoku, których atlas **zadeklarował** L4 (`declares`),
+   dają zamiast rekordów jeden rekord w centroidzie pudeł, wersja L4 rodzaju, pudło rozmiaru
+   sprite'a; `Banner{Kind, Sector, Center, IDs, Count}` do `Read.Banners(cam)` (bufor podwójny
+   jak rekordy). Rodzaj bez deklaracji L4 zostaje miniaturami także w trybie Banner. `Keep`
+   rzedzi miniatury, nie banery. **Points**: dziś.
+2. **Counts**: liczba jednostek rodzaju w sektorze (banner: `Count`; points: skupisko ≥ 2 przy
+   centroidzie) rysowana na szkle: renderer świata (już `Direct` + `Overlying`,
+   `renderer.go:21-22`) implementuje `render.Glass` (`DrawGlass(dst *render.Image, cam
+   camera.Camera)`, wzór `cameras/zones.go:84-113`), tekst `render.DefaultFont().Draw(dst, s, x,
+   y, c)` w kolorze rodzaju (`blobColour`) przy `cam.Project(x, y, z)` centroidu (piksele okna
+   kamery), przesunięty o `dst.Bounds().Min`; liczby z ostatniej publikacji (bufor jak rekordy).
+3. **Klik**: `NewSelectionSystem` dostaje `banners func(cam camera.Camera, dst []world.Banner)
+   []world.Banner` (z
+   `worldPlugin.Read(0).Banners` w `selection/plugin.go`); `pick`: gdy pod kursorem leży pudło
+   banera (ekranowo, jak `drawnIn`), `Select{IDs: banner.IDs}` (`Allow` respektowane); poza
+   banerem jak dziś.
+4. Testy (`plugins/world`, rig `published`/`thinnable` z `At(L4)`): dziesięć jednostek rodzaju
+   z L4 w sektorze L4 w trybie Banner → jeden rekord, `Banners` ma `Count 10` i 10 `IDs`; rodzaj
+   bez L4 → dziesięć plam; `ShowFar{Points}` → dziesięć rekordów; `ShowCounts{On}` → znak liczby
+   (w `Published()` albo osobny odczyt); zapis/odczyt zachowują ustawienia. `plugins/selection`:
+   klik w baner zaznacza dziesięć; klik obok nic. Sonda forest-army (kopia): 20 żołnierzy luzem na
+   L4 (rozstawieni sondą), zrzut w obu trybach i z liczbami.
+
+### Część 4 `p/terrain` (agent E, po preludium, równolegle z 1–3): siatka L5, albedo w pół
+
+Pliki: `plugins/topography/internal/terrain/{sectors.go, terrain.go, shaders/mesh.wgsl}`,
+`plugins/topography/internal/painter/{bake.go, bake_gpu.go}`, testy. Nie dotyka: `surface.wgsl`,
+`sheet.*`, świata.
+
+1. `coarse(c, dst, step)` z krokiem 2 (L4) i 4 (L5): wnętrze co `step` narożników, pierścień
+   jednej komórki wachlarzami do pełnych narożników brzegu (jak dziś; krok 4 → wachlarz łączy 4
+   zewnętrzne z 1 wewnętrznym), sektor za mały na krok wraca do mniejszego; `sectorSpans{whole,
+   coarse, coarser}`, `lay` układa trzy przebiegi, `runs` wybiera po poziomie (L4 `coarse`, L5
+   `coarser`), horyzont bez zmian.
+2. Albedo malarza w pół i w ćwierć (`groundSheet.half, quarter *render.Image` odnawiane przez
+   `DrawImage` po każdym `bake`, tylko prostokąty zmienione przy wypieku częściowym, całość przy
+   pełnym); `Painter.Surface` zwraca też je (albo `Surfaces(level)`); teren wiąże
+   `opts.Images[1]` po poziomie w `Draw`; `mesh.wgsl` bez zmian poza tym, że na L4/L5 czyta już
+   mniejszy obraz (ta sama UV).
+3. Testy: `sectors_internal_test` krok 4: każda krawędź wnętrza dzielona ma wierzchołek po obu
+   stronach (brak pęknięć na granicy 4|2|1), liczba trójkątów jak wzór; test GPU malarza: pół =
+   średnia 2×2 pełnego (±1/255); test terenu: zrzut L5 bez częstotliwości komórki (energia widma
+   wzdłuż wiersza na okresie komórki ≥ 4× niższa niż na L3). `Benchmark_Painter_Bake` ±5 %
+   (zmniejszanie w cenie), `Frame_Topography iso,level=3` ≤ dziś.
+
+### Kolejność, szwy, scalanie
+
+Preludium → (1 ∥ 4) → 2 → 3 (3 może iść równolegle z 2: pliki rozłączne poza `publisher.go` —
+jeśli oba dotykają `fate`, 3 startuje po scaleniu 2). Szwy: `world.Fixed`, wersja treści i
+`Painted` (prelude↔1↔2), `Read.Banners` (prelude↔3↔selection), `Read.Sheet`/nazwy obrazów
+(prelude↔1↔board/topography), `opts.Images[1]` po poziomie w `terrain.Draw` (1↔4: 4 ustawia
+albedo poziomu, 1 dodaje osobny draw płachty po nim — konflikt tekstowy w `Draw`, integrator
+scala). Integrator po każdym scaleniu: sekwencja, dema 5 s, push `feat/sheets`, worktree
+usunięty.
+
+### Pomiar (integrator, ≤10 min, baza `main` `7496b324` po `e` na zmianę z drzewem, `measure.sh`)
+
+| Bench | Cel |
+|---|---|
+| `World_Publish|Draw …level=3` | ≤ 60 % bazy (plamy zamiast sumy; baza miała sumę ~94 ns/encję) |
+| `World_Publish|Draw` pozostałe rungi | ±2 % |
+| `World_Sheet/sector,64` | ≤ 0.2 ms (z czekaniem na GPU) |
+| `World_Sheet/frame,8` | ≤ 1.5 ms |
+| `Frame_Topography iso,level=2` | ±3 %; `iso,level=2,sheet` ≤ level=2 + 0.3 ms |
+| `Frame_Topography iso,level=3` | ≤ baza |
+| `Painter_Bake` (pakiet malarza) | ±5 % |
+| `Sectors_Expanse` | ±3 % |
+
+Sonda topografii (`GRAM_FPS_LOG=1 GRAM_VSYNC=off`, kamera oddalona do L4 i do L5, 35 s po
+rozgrzewce, baza przeciw drzewu dwa razy): FPS, tick, drawing, presenting; zrzuty: forest-army
+L4/L5 piksel w piksel z bazą; topography L4 (latarnie i mosty w płachcie: różnica nazwana), most
+przez granicę L3|L4, F10 baner/miniatury/liczby z 20 żołnierzami luzem w forest-army.
+
+### Dokumenty (integrator)
+
+`lod/doc.go` (tabela: figura L4 „plama; co stoi: płachta sektora", L5 „płachta w pół; jednostki
+miniaturami", grunt L5 „siatka co czwarty narożnik, albedo w ćwierć"; akapit o banerach i
+`Texel`), `CLAUDE.md` (reguła LOD: płachta i jej źródła, L5 gorszą wersją L4, poziom na kawałek
+i pierścień, baner ustawieniem; tabela dem bez zmian), `plugins/world/doc.go`, `topography/
+doc.go`, `board/doc.go`, `bridges/doc.go`, `selection/doc.go`, `CHANGELOG.md` (pod v0.20.0
+unreleased: Added płachty, `Fixed`, banery i liczby, `World_Sheet`; Changed L5 i `Texel`,
+jednostki na L5 miniaturami; Removed suma, `Aggregates`, `Read.Aggregate`, `AggregateImage`),
+`BENCHMARKS.md`, skille `gram-render` (obrazy płachty, nazwy 8/8, f16 w RG, brak mipmap i jak
+to obchodzimy), `gram-plugins` (world :110-135, board :260, topography :305, bridges, selection),
+`gram-perf-picture` (:26-46), `doc/roadmap.md` (zdjąć „A far figure's cost" część o sumie;
+dodać: wygląd pod efektem nie odświeża płachty; cień płachty na gruncie na L4; skok ticku po
+~2 min Madery), `doc/plans-perf.md` (sekcja etapu i wynik; etap `f`: części 2–3 bezprzedmiotowe,
+część 1 zostaje). Pamięć `lod-plan.md`.
+
+### Weryfikacja końcowa
+
+Sekwencja z SIMD; wszystkie dema 5 s; topography (zoom L2→L5: latarnie i mosty w płachcie,
+most spójny na szwie, F10 banery/miniatury/liczby), forest-army (bez zmian na oko; żołnierze
+luzem w obu trybach), flat, atlas, navigation/square, expanse; worktree'y usunięte; gałąź
+wypchnięta; zmiany integratora w stage; raport z liczbami i tym, co zostało.
+
+### Co nie wchodzi
+
+Cień płachty na gruncie (L4 nie czyta `GroundShade` z słowa drabiny; płachta w wypieku cienia to
+osobny punkt roadmapy), impostor pionowy z wielu kierunków, odświeżanie płachty przy zmianie
+samej fazy animacji (`progress`) bez zmiany sprite'a, płachty do plików (etap `d`), chmury po poziomie, selekcja a
+śpiący, poziom w rekordzie (etap `f` część 1), relief płachty na płaskiej planszy i heksach
+(albedo płasko), więcej niż 8 nazw obrazów klatki.
+
+---
+
+### Wynik etapu `p` (2026-11-06, `feat/sheets`, baza `main` `7496b324` po `e`)
+
+**Wykonanie.** Preludium (agent A, w klonie): `29be1637` `world.Fixed`, `04d64728` suma L5
+odchodzi i obrazy płachty, `81766e1d` ustawienia `FarLook`/`Counts` i `Read.Banners`. Części
+w worktree'ach od `81766e1d`: E `p/terrain` (`b1078fab`, `71979082`, `49a4780e`, `20988a2a`;
+scalenie `7393f835`) i B `p/sheet` (`331b35b2`, `ae862838`, `63ec11c3`; scalenie `1d3b9df2`,
+konflikty w `terrain.Draw` i `mesh.wgsl` rozwiązane ręcznie: wiązanie albedo poziomu z E zostaje,
+płaska płachta preludium odchodzi) równolegle; potem od `1d3b9df2` D `p/far` (`5ea303c1`,
+`b285b981`, `2da56624`; scalenie `d0e51f8e`) i C `p/seams` (`b2929e06`, `195d1de6`, `7c102f6e`;
+scalenie `4d4f2cff`, konflikt w polach `figure`: `banner` i `ringed` oba, struktura dalej 88 B)
+równolegle. Każde scalenie: sekwencja zielona (90 ok, 41 bez testów), dema.
+
+**Odstępstwa przyjęte.** Preludium: `blobColour` zostaje (część 3 go czyta; teraz
+`farColour`), `AsConfig` jedno nietypowane zero, stała `Banners` (nie `Banner`), kafle płaskiej
+planszy kładą płachtę od L4, teksel domyślny spada na bok sektora / 64 przy zerowym progu L4.
+Część 1: zdjęcia zbierane w `Publish`, nie w `Compose` (stan płachty na wątku gry, do klatki
+przez bufor podwójny, wywołanie `img.Defer` planowane w `Swap`; w `Compose` nie działało, bo
+renderer świata jest `Overlying` i składa się po gruncie, więc każde zdjęcie było wiecznie
+ponawiane); sygnatura liczy wszystkie `Fixed` sektorów rysowanych na L4+ (nie tylko widzianych),
+z wysokością i miejscem; migawki tylko dla pól (agregat punktowy się rusza); krata płachty bez
+bufora indeksów, instancja na sektor, narożnik na najwyższym szczycie w kwadracie (sam teksel
+narożnika topił rzeczy węższe niż kwadrat); instancja tła pisze „pusto, w górę" do reliefu;
+heksy kładą albedo płachty też na szczytach L4. Część 4: uniform `AlbedoPx` (albedo czytane w
+pikselach obrazu, `U.Px` służy mapie rodzajów), `Painter.Shrunk()` zamiast zmiany `Surface`,
+resztka pierścienia poszerza pierścień zamiast kłaść całe komórki (sektor Madery na L5: 94
+trójkąty wobec 190 na L4 i 512 pełnych). Część 2: hak `neighbourChanged` usunięty — sygnatura
+liczy rzeczy wbite w płachtę, więc przejście sąsiada przez szew podnosi wersję dokładnie raz,
+wtedy gdy zdjęcie się zmienia; hak na zbiorze pierścienia fotografowałby sektory bez zmian i
+przy przesunięciu kamery (pierścień o rząd sektorów, więcej niż `perFrame`) migotałby je do
+punktów; szew L4|L5 nietknięty; pierścień tylko przy otwartych płachtach. Część 3:
+`NewSelectionSystem` bez zmiany sygnatury (pole `banners` ustawiane w `Install`); banery to lista
+grup w buforze podwójnym, nie rekordy; „pudło rozmiaru sprite'a" = średnie pudło jednostki;
+`pick` (hover, komendy wskazane) banerów nie zna, tylko `Select`.
+
+**Sprawdzenia deterministyczne.** forest-army piksel w piksel z bazą na L4 i L5 (las i armia
+deklarują własne wersje). topography L5 (próg L4 podniesiony sondą do 0,24, 247 sektorów L5):
+2152 piksele w 33 komórkach, wszystkie na mostach, brodach i jednostkach — w bazie rozmyty kolor
+w gruncie, w drzewie plama na własnej wysokości (preludium); L4: 2412 pikseli, pokłady mostów
+jako cienkie pasy z płachty zamiast łańcucha plam; liczba sektorów namalowanych rośnie 14 → 23 i
+stoi. Szew L3|L4: kawałek pokładu przy granicy rysowany żywo (26 pikseli różnicy poza panelem),
+wysokość pozostałych w płachcie równa `Z.Top()` z dokładnością 0,02 %. Siatka L5: trzy kroki
+1|2|4 obok siebie bez pęknięć (każda krawędź wewnętrzna w dokładnie dwóch trójkątach); albedo w
+pół i ćwierć = średnie 2×2 i 4×4 (±1/255, ±2); widmo wiersza na okresie komórki na L5 ≥ 4×
+niższe niż na L3. Banery: tryb Points piksel w piksel z bazą; Banners 20 punktów → 2 banery;
+liczby „12", „8", „1"; klik w baner zaznacza 12, obok 0. `routes.golden` nietknięte. Na oko do
+decyzji: na L4 cienkie rzeki i drogi są bledsze, zmieszane z lasem w tekselu połówki albedo
+(67 tys. pikseli różnicy w zrzucie iso L4); jeśli to przeszkadza, L4 może czytać pełne albedo,
+pół zostawiając L5.
+
+**Pomiar** (baza na zmianę z drzewem, 2 rundy × `-count=2`; maszyna niosła obciążenie 2–3
+z zapisu dysku i indeksera pulpitu, nie z CPU — próg 1,5 `measure.sh` obejściem, mediany):
+
+| Bench | Zmiana | Uwaga |
+|---|---|---|
+| `World_Draw` wszystkie rungi L2/L4 | −2,4…+4,8 % mediany, min ±2 % | szum; alokacje 0 |
+| `World_Draw …level=5` | 0,48 µs → 3,7 µs (49), 0,49 → 309 µs (5000) | plan: L5 rysuje plamy jak L4 (baza nic) |
+| `World_Publish …level=5` | −83 % (657 → 112 µs), −16 % (49) | suma odeszła; cel ≤ 60 % spełniony |
+| `World_Publish` pozostałe rungi | **+20…28 %** przed poprawką → **−3…−10 %** po `p/publish` | patrz niżej |
+| `World_Sheet/sector,64`, `frame,8` | 1,27 ms / 1,96 ms, 1131 alokacji (po `p/photo`; przed: 1,30 / 5,9 ms, 1304 / 7329) | podłoga benchu ~0,45 ms, 436 alokacji (wgpu) |
+| `Frame_Topography iso,level=2/3/4/5` | +0,2 / +0,4 / −1,7 / −4,9 % | L4 albedo w pół, L5 siatka co czwarty |
+| `Frame_Topography iso,level=4,sheet` | 14,1–14,7 ms wobec 12,8 ms `level=4` (po `p/photo`; przed 14,7) | raster ścian kopuł; cel +0,3 ms nieosiągnięty, roadmapa |
+| `Sectors_Expanse banded/unbanded` | −2,1 / −2,6 % mediany, min ±1 % | bez zmian |
+| `Painter_Bake whole/cell` | +0,1 / +5,8 % mediany, min +1,1 / +0,7 % | zmniejszanie w cenie, cel ±5 % na granicy |
+
+**Poprawki po pierwszym pomiarze.** `p/publish` (`80054897`): pierwszy pomiar dał `World_Publish`
++20…28 % na każdym rungu bez płachet i banerów; profil (`-list publish`) pokazał czas na liniach,
+które nic nie robią — stan płachty i banerów w jednej pętli zerowany i rozlewany na stos przy
+każdej encji (8 zapisów), a `seenAny` inlinowane do `Publish` dzieliło rejestry z nowymi
+lokalnymi i przeładowywało slot stosu na każdy widok; do tego `figure` 80 → 88 B (3–6 % na
+gęstych rungach). Poprawka: zwykły chunk idzie ciasną pętlą jak w bazie, `Fixed` i banery przez
+`publishStandIns`; `seenAny` `//go:noinline`; zapisy rekordu w kolejności pól (zera łączone);
+`progress` inlinowany przez `phaseOf`; wspólny pomocnik rekordu odrzucony (+1,8 ns na rekord).
+Wynik: −3…−10 % względem bazy na każdym rungu. `p/photo` (`f0687cd5`, `3e4ed7db`, `91abe569`):
+sektor kosztował 10 przebiegów i ~12 draw, prawie każda alokacja to wgpu (~45 na przebieg, ~25
+na draw); teraz runda do `perFrame` sektorów to jedno rysowanie instancjonowane do jednej
+ciemni (albedo i relief obok siebie), czyszczenie rysowaniem w tym samym przebiegu, kopie i
+połówki jednym rysowaniem na obraz (5 przebiegów, ~10 draw na rundę); krata płachty przez bufor
+indeksów nad wspólnymi narożnikami. Obrazy co do bajta te same (ekran 1440p wyspy, cztery
+płachty w trzech światach); nowy test GPU: dwa sektory jednej rundy stykające się na nieparzystym
+tekselu L5 wychodzą jak po jednym. Reszta kosztu kraty w klatce (+1,3–1,9 ms) to raster ścian
+kopuł od szczytu do komórki pod gruntem (912 tys. pikseli na 1440p); odrzucenie trójkątów z
+zatopionym narożnikiem zeszłoby do ~0,3 ms, ale zmienia frędzel pod szczytem — do decyzji,
+w roadmapie.
+
+**Weryfikacja końcowa.** Sekwencja z SIMD zielona po każdym scaleniu (90 ok, 41 bez testów);
+25 dem po 5 s; forest-army piksel w piksel z bazą; worktree'y usunięte; gałąź wypchnięta;
+jeden commit squash, PR.
+
+**Co zostało** (roadmapa): cień płachty na gruncie na L4; wygląd pod efektem albo animowany na
+rodzaju `Fixed` fotografuje sektor na nowo przy każdej klatce animacji; migawki pól nie są
+zapisywane; rzecz przez szew zawijanego świata przycięta w zdjęciu; `Miniature` minimapy mogłaby
+czytać ćwiartkę albedo; `lay` buduje trzeci zestaw indeksów przy każdej zmianie reliefu;
+`AlbedoSize` nieczytany, `albedo()` w `surface.wgsl` mogłoby czytać `U.AlbedoPx`; hover i
+komendy wskazane nie znają banerów; Z banera to średnia jednostek; koszt kraty i rundy jak wyżej;
+na L4 drogi i rzeki bledsze przez albedo w pół (do decyzji); skok ticku Madery po ~2 min.
