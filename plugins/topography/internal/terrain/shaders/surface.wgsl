@@ -47,18 +47,6 @@ fn waterAt(p: vec2<f32>, q: vec2<f32>) -> vec3<f32> {
     return imageSrc2Linear(imageSrc2Origin() + q * size + t).rgb;
 }
 
-// aggregateAt is the figures' colour summed into the ground at p (world.AggregateImage),
-// premultiplied, U.AggregatePx texels a world unit, blended between the four texels round p;
-// clear where U.AggregatePx is 0.
-fn aggregateAt(p: vec2<f32>) -> vec4<f32> {
-    if U.AggregatePx <= 0.0 {
-        return vec4<f32>(0.0);
-    }
-    let size = vec2<f32>(textureDimensions(Aggregate));
-    let t = clamp(p * U.AggregatePx, vec2<f32>(0.5), size - 0.5);
-    return textureSampleLevel(Aggregate, linear, t / size, 0.0);
-}
-
 // over is c laid over what is under it: a premultiplied colour, as the composer lays an overlay.
 fn over(c: vec4<f32>, under: vec3<f32>) -> vec3<f32> {
     return c.rgb + under * (1.0 - c.a);

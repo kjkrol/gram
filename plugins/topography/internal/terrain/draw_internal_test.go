@@ -3,6 +3,7 @@ package terrain
 import (
 	"image"
 	"image/color"
+	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld"
@@ -80,6 +81,11 @@ func TestTerrainShaders_Compile(t *testing.T) {
 	for k, s := range Shaders() {
 		if err := s.Compile(); err != nil {
 			t.Errorf("L%d: %v", lod.Standard+lod.Level(k), err)
+		}
+	}
+	for k, s := range photoShaders {
+		if err := s.Compile(); err != nil {
+			t.Errorf("the sheets at L%d: %v", lod.Strategic+lod.Level(k), err)
 		}
 	}
 }
@@ -279,61 +285,197 @@ func TestTerrain_DrawsASheetOfTheAlbedoAtL5(t *testing.T) {
 	}
 }
 
+// ground striped down each cell, Px pixels a cell, its left half light and its right dark, the
+// green rising row by row, with its half and quarter as the painter shrinks it
+type striped struct{ albedo, half, quarter *render.Image }
+
+const stripedPx = 4
+
+func stripe(x, y int) color.RGBA {
+	v := byte(150)
+	if x%stripedPx >= stripedPx/2 {
+		v = 70
+	}
+	return color.RGBA{v, byte(60 + 8*(y/stripedPx)), 220 - v, 255}
+}
+
+func (s *striped) Surface() Painted {
+	if s.albedo == nil {
+		n := 16 * stripedPx
+		pix := make([]byte, 0, 4*n*n)
+		for y := range n {
+			for x := range n {
+				c := stripe(x, y)
+				pix = append(pix, c.R, c.G, c.B, c.A)
+			}
+		}
+		s.albedo = imageOf(pix, n)
+		s.half = imageOf(meansOf(pix, n, 2), n/2)
+		s.quarter = imageOf(meansOf(pix, n, 4), n/4)
+	}
+	return Painted{Albedo: s.albedo, AlbedoHalf: s.half, AlbedoQuarter: s.quarter, Px: stripedPx,
+		Reach: 96}
+}
+
+func imageOf(pix []byte, n int) *render.Image {
+	img := render.NewImage(n, n)
+	img.WritePixels(pix)
+	return img
+}
+
+// the n by n pixels of pix shrunk by k, each the mean of the k by k under it
+func meansOf(pix []byte, n, k int) []byte {
+	var out []byte
+	for y := 0; y < n; y += k {
+		for x := 0; x < n; x += k {
+			for c := range 4 {
+				sum := 0
+				for dy := range k {
+					for dx := range k {
+						sum += int(pix[4*((y+dy)*n+x+dx)+c])
+					}
+				}
+				out = append(out, byte((sum+k*k/2)/(k*k)))
+			}
+		}
+	}
+	return out
+}
+
+func TestTerrain_DrawsTheAlbedoShrunkAtL4AndL5SoACellsPatternFades(t *testing.T) {
+	gputest.Need(t)
+	u := render.UniformsOf(map[string]any{"LightWay": []float32{0, 0, 1},
+		"LightStrength": []float32{0}, "LightColor": []float32{1, 1, 1},
+		"Ambience": []float32{1, 1, 1}})
+	draw := leveledDraw(t, &striped{}, overSea{cameratest.NewFromSpace(64, 64, 0)}, u)
+	// a pixel 2 world units, a cell 16 pixels: the row 8 runs along the middle of the cells'
+	// row 8, four cells across
+	const row, cells = 8, 4
+	var energy [lod.L6]float64
+	for _, level := range []lod.Level{lod.L3, lod.L4, lod.L5} {
+		_, pix := draw(level)
+		var re, im float64
+		for x := range 64 {
+			v := float64(pix[4*(row*64+x)])
+			a := 2 * math.Pi * cells * float64(x) / 64
+			re += v * math.Cos(a)
+			im -= v * math.Sin(a)
+		}
+		energy[level] = re*re + im*im
+		if level != lod.L5 {
+			continue
+		}
+		for x := range 64 {
+			i := 4 * (row*64 + x)
+			got := color.RGBA{pix[i], pix[i+1], pix[i+2], pix[i+3]}
+			if want := (color.RGBA{110, 60 + 8*8, 110, 255}); !near(got, want, 2) {
+				t.Fatalf("L5: the pixel (%d, %d) is %v, want the cell's mean %v", x, row, got, want)
+			}
+		}
+	}
+	if !(4*energy[lod.L5] <= energy[lod.L3] && energy[lod.L5] < energy[lod.L4] &&
+		energy[lod.L4] < energy[lod.L3]) {
+		t.Errorf("the energy at a cell's period along a row L3 %.0f, L4 %.0f, L5 %.0f: want it "+
+			"falling, at L5 a quarter of L3's at most", energy[lod.L3], energy[lod.L4],
+			energy[lod.L5])
+	}
+}
+
 func near(a, b color.RGBA, by int) bool {
 	d := func(x, y byte) int { return max(int(x)-int(y), int(y)-int(x)) }
 	return d(a.R, b.R) <= by && d(a.G, b.G) <= by && d(a.B, b.B) <= by && d(a.A, b.A) <= by
 }
 
-// an aggregate 64 texels a side over the flat land, a texel a screen pixel looking downward: red
-// at (20, 30), half blue at (40, 10)
-func aggregated() (*render.Image, float32) {
-	img := render.NewImage(64, 64)
+// the sheets of what stands over the flat land, a world unit over it: at L4 64 texels a side, a
+// texel a screen pixel looking downward, red at (20, 30) and half blue at (40, 10); at L5 half
+// blue all over
+func sheeted() (*render.Image, *render.Image, *render.Image, *render.Image, float32) {
+	albedo := render.NewImage(64, 64)
 	pix := make([]byte, 4*64*64)
 	copy(pix[4*(30*64+20):], []byte{255, 0, 0, 255})
 	copy(pix[4*(10*64+40):], []byte{0, 0, 128, 128})
-	img.WritePixels(pix)
-	return img, 1.0 / 8
+	albedo.WritePixels(pix)
+	half := render.NewImage(32, 32)
+	pix = make([]byte, 4*32*32)
+	for i := 0; i < len(pix); i += 4 {
+		pix[i+2], pix[i+3] = 128, 128
+	}
+	half.WritePixels(pix)
+	level := func(int, int) (float32, float32, float32) { return 1, 0, 0 }
+	return albedo, reliefOf(64, 64, level), half, reliefOf(32, 32, level), 1.0 / 8
 }
 
-func TestTerrain_LaysTheFiguresColourOverTheSheetAtL5Alone(t *testing.T) {
+// reliefOf is a sheet's relief w by h texels, each as at says: its top's height and the x and y
+// of the way it faces
+func reliefOf(w, h int, at func(x, y int) (top, nx, ny float32)) *render.Image {
+	img := render.NewImage(w, h)
+	pix := make([]byte, 0, 4*w*h)
+	for y := range h {
+		for x := range w {
+			top, nx, ny := at(x, y)
+			f := half(top)
+			pix = append(pix, byte(f), byte(f>>8), byte((nx+1)/2*255+0.5), byte((ny+1)/2*255+0.5))
+		}
+	}
+	img.WritePixels(pix)
+	return img
+}
+
+// half is v a float16, rounded down; v a whole number under 2048 or zero is exact
+func half(v float32) uint16 {
+	if v == 0 {
+		return 0
+	}
+	bits := math.Float32bits(v)
+	sign := uint16(bits>>16) & 0x8000
+	exp := int(bits>>23&0xff) - 127 + 15
+	return sign | uint16(exp)<<10 | uint16(bits>>13&0x3ff)
+}
+
+func TestTerrain_LaysTheSheetOverTheGroundAtL4AndL5(t *testing.T) {
 	gputest.Need(t)
 	u := render.UniformsOf(map[string]any{"LightWay": []float32{0, 0, 1},
 		"LightStrength": []float32{0}, "LightColor": []float32{1, 1, 1},
 		"Ambience": []float32{1, 1, 1}})
 	cam := downward{cameratest.NewFromSpace(64, 64, 0)}
-	img, perUnit := aggregated()
 	plain := leveledDraw(t, &mottled{}, cam, u)
-	summed := leveledDrawWith(t, &mottled{}, cam, u,
-		func() (*render.Image, float32) { return img, perUnit })
+	laid := leveledDrawWith(t, &mottled{}, cam, u, sheeted)
 	at := func(pix []byte, x, y int) color.RGBA {
 		i := 4 * (y*64 + x)
 		return color.RGBA{pix[i], pix[i+1], pix[i+2], pix[i+3]}
 	}
-	for _, level := range []lod.Level{lod.L4, lod.L5} {
+	halfBlue := func(c color.RGBA) color.RGBA {
+		return color.RGBA{c.R / 2, c.G / 2, c.B/2 + 128, 255}
+	}
+	for _, level := range []lod.Level{lod.L3, lod.L4, lod.L5} {
 		_, without := plain(level)
-		_, with := summed(level)
+		_, with := laid(level)
 		for y := range 64 {
 			for x := range 64 {
 				want := at(without, x, y)
-				if level == lod.L5 && x == 20 && y == 30 {
+				switch {
+				case level == lod.L5:
+					want = halfBlue(want)
+				case level == lod.L4 && x == 20 && y == 30:
 					want = color.RGBA{255, 0, 0, 255}
-				}
-				if level == lod.L5 && x == 40 && y == 10 {
-					m := mottle(x, y)
-					want = color.RGBA{m.R / 2, m.G / 2, m.B/2 + 128, 255}
+				case level == lod.L4 && x == 40 && y == 10:
+					want = halfBlue(want)
 				}
 				if got := at(with, x, y); !near(got, want, 2) {
-					t.Errorf("L%d: the pixel (%d, %d) is %v, want %v", level, x, y, got, want)
+					t.Fatalf("L%d: the pixel (%d, %d) is %v, want %v", level, x, y, got, want)
 				}
 			}
 		}
 	}
 }
 
-// leveledDrawWith is leveledDraw with the figures' colour summed over the sheet as aggregate
-// gives it, none for nil
+// sheets gives the sheets of what stands, as the world's Read.Sheet
+type sheets = func() (_, _, _, _ *render.Image, _ float32)
+
+// leveledDrawWith is leveledDraw with the sheets of what stands laid over the ground as sheet
+// gives them, none for nil
 func leveledDrawWith(t *testing.T, surface Surface, cam camera.Camera, u render.Uniforms,
-	aggregate func() (*render.Image, float32)) (draw func(level lod.Level) ([]span, []byte)) {
+	sheet sheets) (draw func(level lod.Level) ([]span, []byte)) {
 	t.Helper()
 	grid := &atLevel{}
 	v := view.NewSeen(cam, grid)
@@ -344,7 +486,11 @@ func leveledDrawWith(t *testing.T, surface Surface, cam camera.Camera, u render.
 	views := []*view.View{v}
 	system := view.NewSystem(space, &views, 512, 512)
 	seen := func(camera.Camera) *view.View { return v }
-	r := New(flatland{}, surface, noAir{}, Config{Seen: seen, Aggregate: aggregate})
+	cfg := Config{Seen: seen, Sheet: sheet}
+	if sheet != nil {
+		cfg.Painted = func(int) bool { return true }
+	}
+	r := New(flatland{}, surface, noAir{}, cfg)
 	return func(level lod.Level) ([]span, []byte) {
 		grid.level = level
 		system.Update(nil, 0)
@@ -355,5 +501,112 @@ func leveledDrawWith(t *testing.T, surface Surface, cam camera.Camera, u render.
 		pix := make([]byte, 4*64*64)
 		screen.ReadPixels(pix)
 		return r.drawn, pix
+	}
+}
+
+// domed is the sheets of what stands over the flat land, 8 world units a texel: a white dome
+// round the texel (32, 32), 8 texels across its middle, top high in it; the same halved at L5
+func domed(top float32) sheets {
+	disc := func(x, y, r int) bool { return (x-32)*(x-32)+(y-32)*(y-32) <= r*r }
+	albedo, half := render.NewImage(64, 64), render.NewImage(32, 32)
+	pix := make([]byte, 0, 4*64*64)
+	for y := range 64 {
+		for x := range 64 {
+			if disc(x, y, 8) {
+				pix = append(pix, 255, 255, 255, 255)
+			} else {
+				pix = append(pix, 0, 0, 0, 0)
+			}
+		}
+	}
+	albedo.WritePixels(pix)
+	pix = pix[:0]
+	for y := range 32 {
+		for x := range 32 {
+			if disc(2*x, 2*y, 8) {
+				pix = append(pix, 255, 255, 255, 255)
+			} else {
+				pix = append(pix, 0, 0, 0, 0)
+			}
+		}
+	}
+	half.WritePixels(pix)
+	// the dome top·(1 − r²/2), r a share of its half-width, facing away from its middle
+	dome := func(scale int) func(x, y int) (float32, float32, float32) {
+		return func(x, y int) (float32, float32, float32) {
+			dx, dy := float32(x*scale-32)/8, float32(y*scale-32)/8
+			if dx*dx+dy*dy > 1 {
+				return 0, 0, 0
+			}
+			gx, gy := -top*dx/64, -top*dy/64
+			l := float32(math.Sqrt(float64(gx*gx + gy*gy + 1)))
+			return top * (1 - (dx*dx+dy*dy)/2), -gx / l, -gy / l
+		}
+	}
+	return func() (*render.Image, *render.Image, *render.Image, *render.Image, float32) {
+		return albedo, reliefOf(64, 64, dome(1)), half, reliefOf(32, 32, dome(2)), 1.0 / 8
+	}
+}
+
+func TestTerrain_LightsTheSheetsDomeOnTheSideTowardTheSun(t *testing.T) {
+	gputest.Need(t)
+	cam := downward{cameratest.NewFromSpace(64, 64, 0)}
+	lit := func(way float32) []byte {
+		u := render.UniformsOf(map[string]any{"LightWay": []float32{way, 0, 0.6},
+			"LightStrength": []float32{1}, "LightColor": []float32{1, 1, 1},
+			"Ambience": []float32{0.2, 0.2, 0.2}})
+		_, pix := leveledDrawWith(t, &grey{}, cam, u, domed(64))(lod.L4)
+		return pix
+	}
+	east, west := lit(0.8), lit(-0.8)
+	red := func(pix []byte, x, y int) byte { return pix[4*(y*64+x)] }
+	if e, w := red(east, 36, 32), red(east, 28, 32); e <= w+20 {
+		t.Errorf("the sun in the east lights the dome's east side %d, its west %d: want brighter",
+			e, w)
+	}
+	if e, w := red(west, 36, 32), red(west, 28, 32); w <= e+20 {
+		t.Errorf("the sun in the west lights the dome's west side %d, its east %d: want brighter",
+			w, e)
+	}
+	if g := red(east, 5, 5); g == red(east, 32, 32) {
+		t.Errorf("the ground far off is %d as the dome's middle, want the dome drawn over it", g)
+	}
+}
+
+// slanted looks north and down at 37° over the flat land, a screen pixel 8 world units across
+// and 10 along the ground down the screen at its level, the top row seeing y = 600 there
+type slanted struct{ camera.Camera }
+
+func (slanted) Rays() (camera.RayField, bool) {
+	return camera.RayField{Origin: [3]float32{0, 300, 400}, DX: [3]float32{8, 0, 0},
+		DY: [3]float32{0, -6.4, -4.8}, Dir: [3]float32{0, 0.6, -0.8}}, true
+}
+
+func TestTerrain_StandsTheSheetsTopsOverTheGround(t *testing.T) {
+	gputest.Need(t)
+	u := render.UniformsOf(map[string]any{"LightWay": []float32{0, 0, 1},
+		"LightStrength": []float32{0}, "LightColor": []float32{1, 1, 1},
+		"Ambience": []float32{1, 1, 1}})
+	cam := slanted{cameratest.NewFromSpace(64, 64, 0)}
+	// the row the white of the dome lies at on the screen, on the mean
+	row := func(top float32) float32 {
+		_, pix := leveledDrawWith(t, &grey{}, cam, u, domed(top))(lod.L4)
+		var sum, n float32
+		for y := range 64 {
+			for x := range 64 {
+				if pix[4*(y*64+x)] > 200 {
+					sum, n = sum+float32(y), n+1
+				}
+			}
+		}
+		if n == 0 {
+			t.Fatalf("no dome seen %v high", top)
+		}
+		return sum / n
+	}
+	// the middle at 64 lies 0.75·64/10 rows nearer the top than on the ground, its rim not at all
+	if low, high := row(1), row(64); low-high < 1.5 {
+		t.Errorf("the dome's white at row %v standing 64 high, %v lying on the ground: want it "+
+			"higher on the screen", high, low)
 	}
 }

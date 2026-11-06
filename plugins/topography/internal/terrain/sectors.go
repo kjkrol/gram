@@ -16,8 +16,8 @@ type span struct {
 // the skirt to the horizon is drawn as a sheet, the coarsest the ground draws
 const skirtLevel = lod.L5
 
-// a sector's triangles whole and coarse
-type sectorSpans struct{ whole, coarse span }
+// a sector's triangles whole, coarse (every second corner) and coarser (every fourth)
+type sectorSpans struct{ whole, coarse, coarser span }
 
 // the cells [x0, x1) x [y0, y1) of the lattice
 type cells struct{ x0, y0, x1, y1 int }
@@ -66,58 +66,85 @@ func (l lattice) whole(c cells, dst []uint32) []uint32 {
 	return dst
 }
 
-// c with every second corner within: two cells by two a quad, and round them a ring of whole
-// cells, stitched to them by fans, so the edge of c meets a whole neighbour without a crack
-func (l lattice) coarse(c cells, dst []uint32) []uint32 {
-	// within the ring, an even number of cells each way; an odd one leaves a second ring cell
-	in := cells{c.x0 + 1, c.y0 + 1, c.x1 - 1, c.y1 - 1}
-	in.x1 -= (in.x1 - in.x0) % 2
-	in.y1 -= (in.y1 - in.y0) % 2
-	if in.x1-in.x0 < 2 || in.y1-in.y0 < 2 {
+// c with every step-th corner within: step cells by step a quad, and round them a ring stitched
+// to them by fans, its outer edge every corner of c, so the edge of c meets a neighbour of any
+// step without a crack; a c too small for step is laid at half of it
+func (l lattice) coarse(c cells, step int, dst []uint32) []uint32 {
+	if step < 2 {
 		return l.whole(c, dst)
 	}
-	for y := in.y0; y < in.y1; y += 2 {
-		for x := in.x0; x < in.x1; x += 2 {
-			dst = l.quad(l.at(x, y), l.at(x+2, y), l.at(x, y+2), l.at(x+2, y+2), dst)
+	// within a ring of a cell, a multiple of step each way, what is left over split between the
+	// ring's two sides
+	in := cells{c.x0 + 1, c.y0 + 1, c.x1 - 1, c.y1 - 1}
+	if in.x1-in.x0 < step || in.y1-in.y0 < step {
+		return l.coarse(c, step/2, dst)
+	}
+	left, top := (in.x1-in.x0)%step, (in.y1-in.y0)%step
+	in.x0, in.x1 = in.x0+left/2, in.x1-(left-left/2)
+	in.y0, in.y1 = in.y0+top/2, in.y1-(top-top/2)
+	for y := in.y0; y < in.y1; y += step {
+		for x := in.x0; x < in.x1; x += step {
+			dst = l.quad(l.at(x, y), l.at(x+step, y), l.at(x, y+step), l.at(x+step, y+step), dst)
 		}
 	}
-	for x := in.x0; x < in.x1; x += 2 {
-		// above: the whole corners on the ring's outer edge, the coarse ones on the inner
-		a, b, cc := l.at(x, in.y0-1), l.at(x+1, in.y0-1), l.at(x+2, in.y0-1)
-		A, C := l.at(x, in.y0), l.at(x+2, in.y0)
-		dst = append(dst, a, b, A, b, cc, C, b, C, A)
-		// below
-		A, C = l.at(x, in.y1), l.at(x+2, in.y1)
-		a, b, cc = l.at(x, in.y1+1), l.at(x+1, in.y1+1), l.at(x+2, in.y1+1)
-		dst = append(dst, A, C, b, A, b, a, C, cc, b)
+	// each side a fan a coarse quad: its inner corners to every outer corner of c along it
+	for x := in.x0; x < in.x1; x += step {
+		dst = l.fan(x, in.y0, x+step, in.y0, x, c.y0, 1, 0, step, dst)
+		dst = l.fan(x, in.y1, x+step, in.y1, x, c.y1, 1, 0, step, dst)
 	}
-	for y := in.y0; y < in.y1; y += 2 {
-		// left
-		a, b, cc := l.at(in.x0-1, y), l.at(in.x0-1, y+1), l.at(in.x0-1, y+2)
-		A, C := l.at(in.x0, y), l.at(in.x0, y+2)
-		dst = append(dst, a, A, b, A, C, b, b, C, cc)
-		// right
-		A, C = l.at(in.x1, y), l.at(in.x1, y+2)
-		a, b, cc = l.at(in.x1+1, y), l.at(in.x1+1, y+1), l.at(in.x1+1, y+2)
-		dst = append(dst, A, a, b, A, b, C, C, b, cc)
+	for y := in.y0; y < in.y1; y += step {
+		dst = l.fan(in.x0, y, in.x0, y+step, c.x0, y, 0, 1, step, dst)
+		dst = l.fan(in.x1, y, in.x1, y+step, c.x1, y, 0, 1, step, dst)
 	}
-	// the ring's cells along no stitched side: its corners, and the second ring an odd side
-	// leaves
-	for y := c.y0; y < c.y1; y++ {
-		for x := c.x0; x < c.x1; x++ {
-			inside := x >= in.x0 && x < in.x1 && y >= in.y0 && y < in.y1
-			stitched := x >= in.x0 && x < in.x1 && (y == in.y0-1 || y == in.y1) ||
-				y >= in.y0 && y < in.y1 && (x == in.x0-1 || x == in.x1)
-			if !inside && !stitched {
-				dst = l.quad(l.at(x, y), l.at(x+1, y), l.at(x, y+1), l.at(x+1, y+1), dst)
-			}
+	// each corner of the ring a fan from the corner of the coarse quads
+	corner := func(ix, iy, ox, oy int) {
+		dx, dy := sign(ox-ix), sign(iy-oy)
+		for x := ix; x != ox; x += dx {
+			dst = l.tri(ix, iy, x, oy, x+dx, oy, dst)
+		}
+		for y := oy; y != iy; y += dy {
+			dst = l.tri(ix, iy, ox, y, ox, y+dy, dst)
 		}
 	}
+	corner(in.x0, in.y0, c.x0, c.y0)
+	corner(in.x1, in.y0, c.x1, c.y0)
+	corner(in.x0, in.y1, c.x0, c.y1)
+	corner(in.x1, in.y1, c.x1, c.y1)
 	return dst
 }
 
-// the ground's triangles, by sector where the world has them, each whole and then each coarse,
-// and the skirt after
+// the fan from the inner corners (ax, ay) and (bx, by) to the n+1 outer corners from (x, y) a
+// (dx, dy) apart: the first n/2 edges between them to a, the rest to b, and a, b and the corner
+// between the halves
+func (l lattice) fan(ax, ay, bx, by, x, y, dx, dy, n int, dst []uint32) []uint32 {
+	h := n / 2
+	for k := range n {
+		px, py := ax, ay
+		if k >= h {
+			px, py = bx, by
+		}
+		dst = l.tri(px, py, x+k*dx, y+k*dy, x+(k+1)*dx, y+(k+1)*dy, dst)
+	}
+	return l.tri(ax, ay, bx, by, x+h*dx, y+h*dy, dst)
+}
+
+// the triangle of the corners a, b and c, turned as a whole cell's triangles turn
+func (l lattice) tri(ax, ay, bx, by, cx, cy int, dst []uint32) []uint32 {
+	if (bx-ax)*(cy-ay)-(by-ay)*(cx-ax) < 0 {
+		bx, by, cx, cy = cx, cy, bx, by
+	}
+	return append(dst, l.at(ax, ay), l.at(bx, by), l.at(cx, cy))
+}
+
+func sign(v int) int {
+	if v < 0 {
+		return -1
+	}
+	return 1
+}
+
+// the ground's triangles, by sector where the world has them, each whole, then each coarse, then
+// each coarser, and the skirt after
 func (r *Renderer) lay(cols, rows int, cell float32, enc []byte) {
 	l := lattice{cols: cols, enc: enc}
 	r.tris = r.tris[:0]
@@ -133,8 +160,13 @@ func (r *Renderer) lay(cols, rows int, cell float32, enc []byte) {
 		}
 		for i := range n {
 			from := len(r.tris)
-			r.tris = l.coarse(cellsIn(r.grid.Box(i), cell, cols, rows), r.tris)
+			r.tris = l.coarse(cellsIn(r.grid.Box(i), cell, cols, rows), 2, r.tris)
 			r.spans[i].coarse = span{first: from, count: len(r.tris) - from}
+		}
+		for i := range n {
+			from := len(r.tris)
+			r.tris = l.coarse(cellsIn(r.grid.Box(i), cell, cols, rows), 4, r.tris)
+			r.spans[i].coarser = span{first: from, count: len(r.tris) - from}
 		}
 	}
 	from := len(r.tris)
@@ -143,9 +175,9 @@ func (r *Renderer) lay(cols, rows int, cell float32, enc []byte) {
 }
 
 // the runs of the ground drawn through cam: the sectors its View sees, each at its level, its
-// whole triangles short of Strategic and its coarse ones beyond, joined where they follow one
-// another at one level, and the skirt at skirtLevel; the whole mesh at Standard, its skirt too, in
-// a world of no sectors, which has no levels
+// whole triangles short of Strategic, its coarse ones at it and its coarser ones beyond, joined
+// where they follow one another at one level, and the skirt at skirtLevel; the whole mesh at
+// Standard, its skirt too, in a world of no sectors, which has no levels
 func (r *Renderer) runs(cam camera.Camera, dst []span) []span {
 	r.counts = [lod.Levels]int{}
 	if r.grid == nil {
@@ -154,7 +186,10 @@ func (r *Renderer) runs(cam camera.Camera, dst []span) []span {
 	v := r.cfg.Seen(cam)
 	v.Sectors(func(i int, _ geom.AABB, level lod.Level) {
 		s := r.spans[i].whole
-		if level >= lod.Strategic {
+		switch {
+		case level > lod.Strategic:
+			s = r.spans[i].coarser
+		case level == lod.Strategic:
 			s = r.spans[i].coarse
 		}
 		if s.count == 0 {

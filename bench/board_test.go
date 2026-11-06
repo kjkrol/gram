@@ -73,14 +73,18 @@ func island(b *testing.B, view string, far bool) (*headless, *board.Plugin, rend
 // islandWith is island with the water's shine or without it (no water layer drawn), under a
 // distant sun with the ground's shade baked or in no light at all, and cut into sectors of 256
 // every one at level or, at Omitted, whole
-func islandWith(b *testing.B, view string, far bool, shine, lit bool, level lod.Level) (
-	*headless, *board.Plugin, render.Source) {
+func islandWith(b *testing.B, view string, far bool, shine, lit bool, level lod.Level,
+	arrange ...func(*headless)) (*headless, *board.Plugin, render.Source) {
 	const w, h, size = 96, 64, 32
 	ctx := newHeadless()
 	cfg := world.Config{
 		Space:    world.SpaceCfg{Width: w * size, Height: h * size},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
 		Heights:  true,
+	}
+	// room for what arrange puts in the world, its buckets as large
+	if len(arrange) > 0 {
+		cfg.Entities.MaxCount = 256
 	}
 	if level < lod.Omitted {
 		// sectors of 256, every one at level: the thresholds from Standard before it past any
@@ -193,6 +197,9 @@ func islandWith(b *testing.B, view string, far bool, shine, lit bool, level lod.
 	}
 	atlas.Close()
 	p.Write().SetAtlas(atlas)
+	for _, f := range arrange {
+		f(ctx)
+	}
 	ctx.look()
 	ctx.pending = append(ctx.pending, ctx.bound)
 	ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {

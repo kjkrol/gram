@@ -106,6 +106,7 @@ func (t *Types) Define(name string, spec Spec) {
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Mass: f32.Inf(1)}),
 		comp.Const(light.Shadow{Cast: light.Baked}),
+		comp.Const(world.Fixed{}),
 	})
 	if t.specs == nil {
 		t.specs = map[string]Spec{}

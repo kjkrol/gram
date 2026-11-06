@@ -26,8 +26,9 @@ func (halves) Cols() int { return 2 }
 func (halves) Box(i int) geom.AABB {
 	return geom.NewAABB(geom.NewVec(float32(i)*512, 0), geom.NewVec(float32(i+1)*512, 1000))
 }
-func (halves) Of(x, _ float32) int  { return min(max(int(x/512), 0), 1) }
-func (h halves) Ladder() lod.Ladder { return h.ladder }
+func (halves) Of(x, _ float32) int                { return min(max(int(x/512), 0), 1) }
+func (h halves) Ladder() lod.Ladder               { return h.ladder }
+func (halves) Neighbours(i int, each func(j int)) { each(1 - i) }
 
 func (h halves) Level(cam camera.Camera, i int) lod.Level {
 	x := float32(i) * 512
@@ -201,7 +202,7 @@ func TestRenderer_Compose_DrawsEachKindAsTheLevelSays(t *testing.T) {
 	}{
 		{[...]float32{0, 0, 0.5, 0, 0, 0}, []render.SpriteID{own, own, own}, false},
 		{[...]float32{0, 0, 0.5, 0.2, 0, 0}, []render.SpriteID{own}, true},
-		{[...]float32{0, 0, 0.5, 0.3, 0.2, 0}, []render.SpriteID{own}, false},
+		{[...]float32{0, 0, 0.5, 0.3, 0.2, 0}, []render.SpriteID{own}, true},
 	} {
 		look := &counting{Look: ilook.NewFlat(1024, 1000, false, false)}
 		again := drawSeen(t, lod.Ladder{Scales: tc.scales}, a, own, look, readied(a))

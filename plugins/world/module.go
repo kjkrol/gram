@@ -76,6 +76,8 @@ type module struct {
 	slowers      command.Queue[Slower]
 	tempos       command.Queue[Tempo]
 	bandSwitches command.Queue[SwitchBands]
+	farLooks     command.Queue[ShowFar]
+	counts       command.Queue[ShowCounts]
 	// what is drawn of the sectors, switched by sectorSwitches
 	sectorsShown   SectorsShown
 	sectorSwitches command.Queue[SwitchSectors]
@@ -113,6 +115,7 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	if w.spawnRunnable != nil {
 		return
 	}
+	ecs.RegComp[Fixed]()
 	// before the clock's, which finds its State on the world's own entity
 	ecs.RegSys(w.selves.system())
 	// first in a step, so its commands land with the step's effects
@@ -137,6 +140,8 @@ func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	w.slowers.Drain(func(command.Issued[Slower]) { w.clock.Slower() })
 	w.tempos.Drain(func(i command.Issued[Tempo]) { w.clock.SetTempo(i.Command.X) })
 	w.bandSwitches.Drain(func(i command.Issued[SwitchBands]) { w.p.write.SetBanded(i.Command.On) })
+	w.farLooks.Drain(func(i command.Issued[ShowFar]) { w.p.write.ShowFar(i.Command.Look) })
+	w.counts.Drain(func(i command.Issued[ShowCounts]) { w.p.write.ShowCounts(i.Command.On) })
 	w.switchSectors()
 	ctx.Run(w.clockRunnable, d)
 	ctx.Run(w.sectorsRunnable, d)
@@ -193,6 +198,7 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[Field](),
 		goke.LoadComp[PartOf](),
 		goke.LoadComp[Unfolded](),
+		goke.LoadComp[Fixed](),
 		goke.LoadComp[stretch](),
 		goke.LoadComp[meeting](),
 	}, w.effects.Module().LoadComps()...)

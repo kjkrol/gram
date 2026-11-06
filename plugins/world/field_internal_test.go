@@ -30,8 +30,40 @@ type spot struct {
 	in       []int
 }
 
+// leveledKinds is a world's atlas of a red kind, a blue one, one never thinned, one with a look
+// declared at L5, one drawn as nothing from L5 and a material, closed
+type leveledKinds struct {
+	a                                    *Atlas
+	red, blue, always, declared, nothing render.SpriteID
+	material                             render.SpriteID
+}
+
+func newLeveledKinds() leveledKinds {
+	p := NewPlugin(Config{
+		Space:    SpaceCfg{Width: 1024, Height: 1000},
+		Entities: EntitiesCfg{MaxCount: 1000, MinSize: 1, MaxSize: 40},
+	})
+	k := leveledKinds{a: p.NewAtlas()}
+	for _, id := range []*render.SpriteID{&k.red, &k.blue, &k.always, &k.declared, &k.nothing,
+		&k.material} {
+		*id = p.Kinds().NewSprite()
+	}
+	red := render.Solid(color.RGBA{R: 255, A: 255})
+	k.a.Add(k.red, 8, red)
+	k.a.Add(k.blue, 8, render.Solid(color.RGBA{B: 255, A: 255}))
+	k.a.Add(k.always, 8, red).Always()
+	k.a.Add(k.declared, 8, red).At(lod.L5, render.Solid(color.RGBA{G: 255, A: 255}))
+	k.a.Add(k.nothing, 8, red).Nothing(lod.L5)
+	k.a.Add(k.material, 8, render.MaterialID(0))
+	k.a.Close()
+	return k
+}
+
+// the right half at L5, the left at L2
+var atL5 = lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2, 0.15}}
+
 // spreading is a renderer of entities of one kind over a world 1024 by 1000 seen as halves
-// through cam, its aggregate 8 world units a texel
+// through cam
 type spreading struct {
 	r   *renderer
 	cam camera.Camera
@@ -40,7 +72,7 @@ type spreading struct {
 
 // spread publishes entities of sprite at spots from k's atlas, seen by cam as ladder says, drawn
 // through look
-func spread(t *testing.T, cam camera.Camera, k summable, sprite render.SpriteID,
+func spread(t *testing.T, cam camera.Camera, k leveledKinds, sprite render.SpriteID,
 	ladder lod.Ladder, look Look, spots ...spot) *spreading {
 	t.Helper()
 	v := view.NewSeen(cam, halves{ladder: ladder})
@@ -49,7 +81,6 @@ func spread(t *testing.T, cam camera.Camera, k summable, sprite render.SpriteID,
 	readied(k.a)(s.r)
 	s.r.space = SpaceCfg{Width: 1024, Height: 1000}
 	s.r.covers = halves{}.cover
-	s.r.aggregate = newAggregate(Config{Space: s.r.space, LOD: lod.Ladder{Texel: 8}}, 512)
 	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 1024, Height: 1000, BucketSize: 128})
 	if err != nil {
 		t.Fatal(err)
@@ -157,8 +188,7 @@ func materialBoxes(f *render.Frame) []geom.AABB {
 	return boxes
 }
 
-// a field centred at (772, 508) in the right half, its own box 20 a side, over 200 a side, lying
-// on the texels 84 to 108 across and 51 to 75 down
+// a field centred at (772, 508) in the right half, its own box 20 a side, over 200 a side
 var (
 	ownBox    = plane.NewAABB(geom.NewVec(762, 498), 20, 20)
 	fieldSize = geom.NewVec(200, 200)
@@ -166,7 +196,7 @@ var (
 )
 
 func TestRenderer_Compose_DrawsAFieldFoldedOverItsFieldAtEveryLevel(t *testing.T) {
-	k := newSummable()
+	k := newLeveledKinds()
 	cam := farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}
 	// the right half at L4, a tenth of a pixel a unit
 	at := spread(t, cam, k, k.material, lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2}},
@@ -199,7 +229,7 @@ var (
 )
 
 func TestRenderer_Compose_DrawsEachSectorOfAFieldAtItsOwnLevel(t *testing.T) {
-	k := newSummable()
+	k := newLeveledKinds()
 	cam := farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}
 	look := &counting{Look: ilook.NewFlat(1024, 1000, false, false)}
 	at := spread(t, cam, k, k.red, lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2}},
@@ -216,7 +246,7 @@ func TestRenderer_Compose_DrawsEachSectorOfAFieldAtItsOwnLevel(t *testing.T) {
 }
 
 func TestRenderer_Publish_LeavesASectorAFieldIsUnfoldedInToItsParts(t *testing.T) {
-	k := newSummable()
+	k := newLeveledKinds()
 	cam := farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}
 	look := &counting{Look: ilook.NewFlat(1024, 1000, false, false)}
 	at := spread(t, cam, k, k.red, lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2}},
@@ -232,7 +262,7 @@ func TestRenderer_Publish_LeavesASectorAFieldIsUnfoldedInToItsParts(t *testing.T
 }
 
 func TestRenderer_Publish_RecordsNoPointAggregateUnfolded(t *testing.T) {
-	k := newSummable()
+	k := newLeveledKinds()
 	cam := farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}
 	for _, c := range []struct {
 		name   string
@@ -256,7 +286,7 @@ func TestRenderer_Publish_RecordsNoPointAggregateUnfolded(t *testing.T) {
 }
 
 func TestRenderer_Publish_WalksNoStretchesWithoutAField(t *testing.T) {
-	k := newSummable()
+	k := newLeveledKinds()
 	cam := farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}
 	box := plane.NewAABB(geom.NewVec(100, 500), 20, 20)
 	at := spread(t, cam, k, k.red, lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2}},
@@ -268,7 +298,7 @@ func TestRenderer_Publish_WalksNoStretchesWithoutAField(t *testing.T) {
 }
 
 func TestRenderer_Compose_DrawsAFieldAtL4AsAPointNotThroughTheLook(t *testing.T) {
-	k := newSummable()
+	k := newLeveledKinds()
 	cam := farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}
 	look := &counting{Look: ilook.NewFlat(1024, 1000, false, false)}
 	f := spread(t, cam, k, k.red, lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2}}, look,
@@ -388,7 +418,7 @@ func TestRenderer_Compose_AFigureAtL4StandsOverAFieldsPiece(t *testing.T) {
 }
 
 func TestRenderer_Compose_LaysAFieldsPieceUnderTheFigures(t *testing.T) {
-	k := newSummable()
+	k := newLeveledKinds()
 	cam := farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}
 	// the left half at L3, through a look laying what lies
 	look := &lyingCounting{counting: &counting{Look: ilook.NewFlat(1024, 1000, false, false)}}
@@ -410,27 +440,23 @@ func TestRenderer_Compose_LaysAFieldsPieceUnderTheFigures(t *testing.T) {
 	})
 }
 
-func TestRenderer_Publish_SumsAFieldAtL5OverEachTexelOfItsField(t *testing.T) {
-	k := newSummable()
+func TestRenderer_Compose_DrawsAFieldAtL5AsAPointAsAtL4(t *testing.T) {
+	k := newLeveledKinds()
 	cam := farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}
-	at := spread(t, cam, k, k.red, atL5, ilook.NewFlat(1024, 1000, false, false),
-		spot{box: ownBox, size: fieldSize})
-	if _, ok := at.record(0); ok {
-		t.Error("the field summed at L5 is recorded too")
+	look := &counting{Look: ilook.NewFlat(1024, 1000, false, false)}
+	at := spread(t, cam, k, k.red, atL5, look, spot{box: ownBox, size: fieldSize})
+	wide := plane.NewAABB(fieldAt.TopLeft, fieldSize.X, fieldSize.Y)
+	if got := at.pieces(0); !slices.Equal(got, []plane.AABB{wide}) {
+		t.Fatalf("published over %v, want over its field %v", got, wide)
 	}
-	g := &at.r.aggregate
-	if n := written(g); n != 25*25 {
-		t.Errorf("%d texels written, want the 625 of its field", n)
-	}
-	for _, xy := range [][2]int{{84, 51}, {108, 51}, {84, 75}, {108, 75}, {96, 63}} {
-		if got := texel(g, xy[0], xy[1]); got != [4]uint8{255, 0, 0, 255} {
-			t.Errorf("texel %v is %v, want red wholly", xy, got)
-		}
+	if f := at.frame(); places(f) != 1 || len(look.sprites) != 0 {
+		t.Errorf("points drawn %v, the look's sprites %v; want a point, none through the look",
+			places(f) == 1, look.sprites)
 	}
 }
 
 func TestRenderer_Publish_HasAFieldSeenWhereverItsFieldIsAsleepOrNot(t *testing.T) {
-	k := newSummable()
+	k := newLeveledKinds()
 	// the left half alone in the picture, at L5
 	cam := framed{farther{Camera: cameratest.NewFromSpace(1024, 1000, 0)}}
 	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 8, 4, 2}}

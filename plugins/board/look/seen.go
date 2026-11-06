@@ -8,20 +8,22 @@ import (
 )
 
 // seenSectors is a frame's sectors as the shaders read them: a pixel a sector, red its level
-// (lod.Level, Omitted for one not seen), and where they lie; l5, whether one is seen at L5
+// (lod.Level, Omitted for one not seen), and where they lie; far, the finest level of the
+// strategic scale one is seen at, Omitted for none
 type seenSectors struct {
 	img        *render.Image
 	pix, drawn []byte
 	cols, rows int
 	side       [2]float32
 	fogging    [4]float32
-	on, l5     bool
+	on         bool
+	far        lod.Level
 }
 
 // see takes the levels v sees its sectors at; nothing without a View of sectors
 func (s *seenSectors) see(v *view.View) {
 	s.on = v != nil && v.Grid() != nil && v.Grid().Len() > 0
-	s.l5 = false
+	s.far = lod.Omitted
 	if !s.on {
 		return
 	}
@@ -42,7 +44,9 @@ func (s *seenSectors) see(v *view.View) {
 	}
 	v.Sectors(func(i int, _ geom.AABB, l lod.Level) {
 		s.pix[4*i] = byte(l)
-		s.l5 = s.l5 || l == lod.L5
+		if l >= lod.Strategic {
+			s.far = min(s.far, l)
+		}
 	})
 	if string(s.pix) != string(s.drawn) {
 		s.img.WritePixels(s.pix)

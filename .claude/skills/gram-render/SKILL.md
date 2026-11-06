@@ -42,9 +42,15 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   `Target.Ground` and writes `frag_depth` = the ground's own); one asking nothing is not drawn.
 - Frame images (`render.RegisterImage`, `f.Image` in Compose) are read in WGSL by name through
   `linear` or `wrapped`; the light never binds `GroundShade` while it bakes into it. A new shader
-  honours a drawn thing's `render.Taking` bits. Eight names at most, seven in use (the world's
-  `Aggregate` the last); a draw's own image slots are four, so a renderer short of them binds a
-  frame image per draw through `opts.Uniforms` (the terrain's `GroundDetail`, the aggregate).
+  honours a drawn thing's `render.Taking` bits. Eight names at most, all eight in use (the
+  world's `Sheet` and `SheetRelief` the last two, 2026-11-05: a ninth needs a name freed); a
+  draw's own image slots are four, so a renderer short of them binds a frame image per draw
+  through `opts.Uniforms` (the terrain's `GroundDetail`); the same name carries the L4 image or
+  its L5 half by the draw. No mipmaps (`MipLevelCount` 1, no `MipmapFilter`): a smaller copy is
+  drawn (`DrawImage` at 0.5 with `FilterLinear` is an exact 2×2 mean; its GeoM counts in the
+  texture's pixels, so a `SubImage` target is translated by `Bounds().Min`) or made by a shader.
+  A height in an RGBA8 image goes as f16 through `pack2x16float` (naga 0.20.5 has it on every
+  backend), the low byte in R, the high in G, read back with `textureLoad` (the sheet's relief).
 - Navigation's route line and goal are marks `OnTop` (route < goal < the selection's outline),
   never lifts in the world (2026-11-04); the GPU route lines `Untested` with `ReadGround` kept,
   so the ground still hides a route behind a hill while figures and a canopy do not.
@@ -94,7 +100,9 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
 - `OverFigures` is drawn after every figure against the ground's depth alone: a collision solid
   shows through its own billboard, a hill before it hides it.
 - **A source whose pieces lie over the figures says so** (`render.Overlying`). The cameras' zones
-  are a `render.Glass`, drawn after the whole screen, so the HUD never covers them (2026-10-20).
+  are a `render.Glass`, drawn after the whole screen, so the HUD never covers them (2026-10-20);
+  so are the world's counts of far units (text by `render.DefaultFont().Draw` at `cam.Project`,
+  scaled from the camera's viewport to `dst` and offset by `dst.Bounds().Min`, 2026-11-05).
 - **A Direct draws once a layer and keeps what Compose gathered**: reset in Compose or `Begin`,
   never in `Draw` (`Sprites`, the routes and vision's views each broke it: the outer layer alone
   had them).

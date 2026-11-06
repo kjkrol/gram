@@ -74,6 +74,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	sys.effectCmds, sys.effects = &p.effectCmds, p.worldPlugin.Write().Effects()
 	sys.hovers = &p.hovers
 	sys.allows, sys.forbids = &p.allows, &p.forbids
+	sys.banners = p.worldPlugin.Read(0).Banners
 	p.module = &module{sys: sys, ready: p.readied}
 	ctx.UseModule(p.module)
 	ctx.Draws(p.renderer)

@@ -13,8 +13,8 @@ func (p *Plugin) Hook(rules ...act.Rule) error {
 	return ceremony.Deliver([]host.Host{&p.module.moments.host}, rules...)
 }
 
-// AggregateTexels is how many texels a world unit the aggregate spans, held or not.
-func (p *Plugin) AggregateTexels() float32 { return p.renderer.aggregate.perUnit }
+// SheetTexels is how many texels a world unit the sheets span at L4, held or not.
+func (p *Plugin) SheetTexels() float32 { return p.renderer.sheet.perUnit }
 
 // Drawn is a record the renderer publishes: its entity, the box it is drawn over and whether it
 // is a field's part in a sector.
@@ -31,6 +31,15 @@ func (p *Plugin) Published() []Drawn {
 	var out []Drawn
 	for _, e := range p.renderer.figures.Front().all {
 		out = append(out, Drawn{ID: e.id, Box: e.box.AABB, Piece: e.piece})
+	}
+	return out
+}
+
+// SheetShots is, by sector, how many parts of the fields folded there the sheets keep.
+func (p *Plugin) SheetShots() map[int]int {
+	out := map[int]int{}
+	for at, shots := range p.renderer.sheet.folded {
+		out[at.sector] += len(shots)
 	}
 	return out
 }

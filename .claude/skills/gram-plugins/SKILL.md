@@ -115,18 +115,61 @@ keeps only what those do not.
   shifted: what the player looks at stays full, 2026-11-04), a drawn sector to L5 at most, L6
   off the picture or past the sight; the tick never sees the shift. Behind the eye `ScaleAt`
   gives the scale of a point as far before it (`camera.InFront` says which side).
-- The figures' colour at L5 (`Plugin.Aggregates`, asked once by a ground's renderer in its
-  constructor: the topography's and the board's; a world none asks records L5 figures as before
-  and spends nothing): the publisher sums a figure some camera sees at L5 — one with a look of
-  its own, no material, nothing declared at any level — as its blob's mean colour
-  (`render.MeanColour`, kept at `Close` for every sprite in the kind's place) premultiplied, by
-  how much of each texel (`Ladder.Texel`) its box covers, into tiles of 64×64 texels in a
-  `render.Buffered` pair: only the tiles a frame wrote exist (a sector left is clear the next
-  frame, a still world writes nothing), the world's `Compose` uploads once a frame the tiles whose
-  signature changed, and a tile emptied is written as zeros. A figure seen at L5 by one camera and
-  finer by another is both summed and recorded; `Keep[L5]` thins the sum as the records. The frame
-  image is `world.AggregateImage`, bound per draw through `opts.Uniforms` (seven of the eight named
-  images are in use now). `sector.Grid.Of` truncates, no float64.
+- The sheets of what stands (`sheet.go`, `sheet_gpu.go`, 2026-11-05; `Plugin.Sheets`, asked once
+  by a ground's renderer in its constructor: the topography's and the board's; a world none asks
+  photographs nothing and records L4–L5 figures as blobs): `world.Fixed`, a zero-size tag goke
+  refuses as a `Comp` (read it `OptComp[Fixed].Present` or `Include`), marks a kind standing for
+  good: the board's `StandingTemplate` gives it (so `NewEntities` kinds and bridge decks carry it),
+  bridge piers get it in their `Define`, units and `SpawnPart` never. Over the whole world lie two
+  RGBA8 images a texel `Ladder.Texel` wide (zero: one over `Scales[L4]`, a sector's side over 64
+  where that is zero too, raised to 4096 texels a side at most): `Sheet`, premultiplied albedo
+  (alpha 0 = nothing stands), and `SheetRelief`, the top's absolute height as f16 in R and G and
+  the normal in B and A; and their L5 halves. A sector a view draws at L4 or coarser is signed at
+  the publish (count plus xor of a mix of id, L3 sprite, top and place of every `Fixed` in it;
+  a thing across a border is signed into every sector it covers), a changed signature bumps its
+  content version, and at most `perFrame` (8) sectors a publish whose painted version lags are
+  photographed round-robin: the `Fixed` things whose kind declares no L4 look, and the parts a
+  folding field snapshotted (`wholes.fold`, before `Fold`; dropped at unfold; point aggregates
+  move, so none), each a dome `Altitude + Height·(1 − r²/2)` (a `Lie` flat at its top, turned to
+  its heading) drawn into sector-sized scratch images with their own depth in two `Primed` passes
+  (albedo, relief; depth = the top over the photo's highest plus `instance_index·1e-6`), copied
+  into the L4 sheets with `CopyFrom`, the L5 halves drawn by a shader (mean albedo, mean top and
+  normal over the texels something stands on); an empty sector that never held anything is held
+  without GPU work. The photos are gathered in `Publish` (all sheet state on the game goroutine),
+  cross to the frame through the double buffer, and are developed by `img.Defer` scheduled at
+  `Swap` (not `Compose`: the world renderer is `Overlying`, composed after the ground; scheduled
+  there every photo was recalled forever); one no frame developed is taken again two publishes
+  later. A `Fixed` thing in a held sector loses its record when every view that sees it draws it at
+  L4 or coarser (`figure.fine`), keeps it where another view draws it finer (`figure.sheet` skips
+  it per view). `Read.Sheet()` (perUnit 0 till a sector holds a photograph: clients skip their
+  sample), `Read.Painted(i)` (a held sector holding something, frame-consistent). A unit at L5 is
+  its blob as at L4, thinned by `Keep[L5]`. `sector.Grid.Of` truncates, no float64.
+- Seams L3|L4 (`p/seams`, 2026-11-05): once a publish `sheets.begin` marks the sectors a view
+  draws at L4–L5 with a neighbour it draws short of L4 (`sheets.ring`, the union over views,
+  `tiling.Neighbours`); a `Fixed` thing is `alive` when some view draws it finer than its middle's
+  sector (`renderer.alive`: its middle in the ring and its box grown by its longer side covering
+  a finer sector, `renderer.drawn` giving the finest level short of L4 it covers; or its middle
+  on the finer side with its box crossing into a sector drawn at L4+): it keeps its record,
+  skips `kept` (never thinned), is stamped into no sheet, and `Compose` draws it at that finer
+  level (`figure.ringed`). The L4|L5 seam is left alone. The plan's `neighbourChanged` hook went:
+  the signature counts the things stamped, so a neighbour crossing the seam bumps the version
+  once, exactly when the photograph changes; a hook on the ring set would have re-photographed
+  unchanged sectors and, a pan moving the ring by a row (more than `perFrame`), flickered them to
+  points. A world that never calls `Sheets()` draws a thing by a seam as before.
+- Banners and counts (`banners.go`, `p/far`, 2026-11-05): with `Config.Far` `Banners` (a setting,
+  `ShowFar`), the loose units (no field, not `Fixed`) of one kind in one sector a view draws at
+  L4–L5 whose kind declares a look at that level (`Atlas.declares`) are one group a view
+  (`figures.far`, in the double buffer: a flat id list, a centroid, the mean box and `Z`), drawn
+  by `Compose` through `s.point` as that look over the mean box, never thinned (gathered before
+  `kept`); a kind without the look stays points; a unit another view draws finer keeps its record
+  (`figure.banner`, skipped per view). `Read.Banners(cam, dst)` appends the frame's banners (ids
+  alias the frame's buffer: valid till the next frame). Counts (`Config.Counts`, `ShowCounts`):
+  the world renderer is a `render.Glass` (`DrawGlass`), writing the count in the kind's far
+  colour (`Atlas.farColour`: the mean colour of its L4 look where it declares one, else its
+  blob's; `blobColour` renamed) at `cam.Project` of the centroid, scaled to `dst` and offset by
+  its `Bounds().Min`, a banner's count over its box, a points cluster's (≥ 2, the thinned
+  counted) at its centroid; a folded aggregate with an L4 look is a banner of one. Hover and the
+  pointed commands still hit a bannered unit at its real place; only `Select` knows banners.
 - Aggregates (`wholes.go`, 2026-11-04): `Aggregate`, `Field{Size}`, `PartOf`; the `wholes` system
   (after the moments', `lod.Steady`) reads each aggregate's level at its centre (`levelAt`, not the
   mark swaps: a spawn mid-tick has no mark yet), keeps a world-made `stretch` entity per
@@ -267,8 +310,9 @@ keeps only what those do not.
   the cells' data, the shaders work out the shapes; a changed cell is rewritten with its
   neighbours, all of them past an eighth. Nothing is composed on the CPU: a camera without
   `Rays`, or a board of no world, draws nothing. The tiles' shaders decode the sector's level;
-  at L5 they lay the figures' colour the world sums (`world.Read.Aggregate`) under the tile's own
-  alpha, in the plain pass and the full one alike, bound only while a sector seen is at L5.
+  from L4 they lay the sheet's albedo (`world.Read.Sheet`, `WithSheet`, the method `standing`)
+  flat under the tile's own alpha, in the plain pass and the full one alike: one image a draw,
+  the L4 albedo while any sector seen is at L4, the L5 half at `perUnit/2` when all are at L5.
 - A unit carrying `sector.Abstract` (2026-11-04) gets pace share 1 from the standing pass
   (`moments/standing.go`) and the occupancy's keep (`occupancy/keep.go`) re-enters it into no
   cell; a chunk carrying `sector.Abstract` or `world.Unfolded` gets no standing rules and no fall
@@ -309,15 +353,26 @@ keeps only what those do not.
   angular shadows on the horizon.
 - By sector and level, from the camera's View (`gram-plugins` world): a shader a level (`const
   LEVEL`): L2 everything on the whole lattice, L3 without shore, running water or mouth glint,
-  L4 on the coarse lattice (every second corner, the edge ring stitched by fans, crack-free)
-  with still water a mirror and no lamps or baked shade, L5 the sheet: the painter's albedo as
-  the only colour on the coarse lattice (a texture, not a fan: the L4|L5 edge shares vertices),
-  under the figures' colour the world sums (`world.Read.Aggregate`, laid over the albedo before
-  the light and the fog, the skirt bare), lit by ambient and the sun's diffuse alone so it does
-  not glow at night; L6 nothing; the grid at L2 alone; the skirt always L5 in a world with
-  sectors, L2 without. Finest first, to prime the depth. A hex board draws tops alone at L3 and
-  L4 and one quad a sector from its tops' image at L5, the summed colour over it. No care rings,
-  no care settings (the user's rule: one level a sector).
+  L4 on the coarse lattice (every second corner, the edge ring one cell stitched by fans to
+  every outer corner, crack-free) with still water a mirror and no lamps or baked shade, the
+  painter's albedo at half its size; L5 on the coarser lattice (every fourth corner, the same
+  ring; a Madeira sector 94 triangles against 190 and 512; `lattice.coarse(c, step, dst)`, a
+  sector too small for the step falling back) with the albedo at a quarter as the only colour,
+  lit by ambient and the sun's diffuse alone so it does not glow at night; the albedo's halves
+  (`Painter.Shrunk`, `Painted.AlbedoHalf/Quarter`, `DrawImage` at 0.5 after every bake, the
+  changed cells' rectangles widened to fours after a partial one) are bound as `Images[1]` by
+  level with the uniform `AlbedoPx` (the shader reads the albedo in its pixels; `U.Px` serves the
+  kinds image too, so it cannot be halved); L6 nothing; the grid at L2 alone; the skirt always L5
+  in a world with sectors, L2 without. Finest first, to prime the depth. Over the ground of a
+  sector seen at L4 or L5 whose sheet is painted (`Config.Painted`), the photo mesh
+  (`terrain/photo.go`, `photo.wgsl`, one instanced draw a level after `eachLevel`, no index
+  buffer): 32 quads a side at L4, 8 at L5, never under a texel; a corner stands at the highest top
+  within a quad of it (the corner's own texel sank a thing narrower than a quad), one cell under
+  the ground where nothing stands; a fragment with alpha 0 discarded, the rest the sheet's albedo
+  lit through the relief's normal as that level's ground, clouds at L4, haze and the sight's fog;
+  it never binds the ground's albedo. A hex board draws tops alone at L3 and L4 (the sheet's
+  albedo flat on the L4 tops) and one quad a sector from its tops' image at L5, the sheet over
+  it. No care rings, no care settings (the user's rule: one level a sector).
 - The billboards stand upright across the screen's level right, as tall on the screen as their
   `Height` and inside their box, shorter the steeper the view.
 - Its parts are packages none of which imports the plugin. selection must not import topography,
@@ -573,6 +628,12 @@ keeps only what those do not.
 - The settings screen names its parts for tests and probes: `setting:<section path>/<label>`
   (twin sections, as the cameras' profiles, side by side), `frame:<section>`; the controls
   screen `frame:<group>` and `section:<group>`.
+- A click selects a banner's units (2026-11-05): `SelectionSystem.banners` (set in `Install` from
+  `world.Read.Banners`, the constructor's signature unchanged) is read in a `Select` with a camera
+  and a screen rectangle; every banner whose drawn box (`Drawn(cam, b.Box, b.Z)`, at least
+  `bannerReach` 4 px round its middle) meets the rectangle adds its ids, the units drawn in
+  banners are skipped by the ordinary pick, and `applySelection` still enforces `Allow` and the
+  owner. The selection's outlines of such units stay at their real places.
 
 ## dialog
 
@@ -662,6 +723,11 @@ keeps only what those do not.
   `Res.Orders` entry (its kind by name), saved, so a bridge confirmed in the pause is built after
   a load. The renderer draws the hands alone: a bridge confirmed in the pause is not seen until
   its step builds it.
+
+- A bridge across an L3|L4 seam (2026-11-05): its decks and piers carry `world.Fixed` (the
+  standing template; the piers in their `Define`), so from L4 the sheets hold them at their tops
+  and the pieces beside a finer sector are drawn alive at its level: the deck stays whole and
+  level across the seam, the plugin declaring nothing.
 
 ## roads, with site
 

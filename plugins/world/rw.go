@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
 	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/host"
@@ -106,16 +107,73 @@ func (r *Read) Picture() render.Picture {
 	return r.p.picture
 }
 
-// Aggregate is the figures' colour summed into the ground from L5: an image over the whole world,
-// perUnit texels a world unit from its top-left corner, for the ground's renderers to sample. It
-// is nil until a renderer asks for it (Plugin.Aggregates) and in a world without sectors, perUnit
-// 0 while it holds no colour.
-func (r *Read) Aggregate() (img *render.Image, perUnit float32) {
-	a := &r.p.renderer.aggregate
-	if !a.live() {
-		return a.img, 0
+// Sheet is the sheets of what stands, images over the whole world from its top-left corner: at
+// L4 the albedo, premultiplied, and the relief (the top's height a float16, its low byte in red
+// and its high in green, its normal's x and y in blue and alpha as (n+1)/2), perUnit texels a
+// world unit, and their halves at L5. They are nil until a renderer asks for them
+// (Plugin.Sheets) and in a world without sectors, perUnit 0 while no sector holds a photograph of
+// something; for what draws, as the frame drawn holds them.
+func (r *Read) Sheet() (albedo, relief, albedoL5, reliefL5 *render.Image, perUnit float32) {
+	s := &r.p.renderer.sheet
+	live := s.live()
+	if f := &r.p.renderer.figures.Front().sheet; f.on {
+		live = f.live
 	}
-	return a.img, a.perUnit
+	if live {
+		perUnit = s.perUnit
+	}
+	return s.albedo, s.relief, s.albedoL5, s.reliefL5, perUnit
+}
+
+// Painted reports whether sector i's sheet holds a photograph of what stands in it now, something
+// standing there: for what draws, as the frame drawn holds it.
+func (r *Read) Painted(i int) bool {
+	if f := &r.p.renderer.figures.Front().sheet; f.on {
+		return i >= 0 && i < len(f.held) && f.held[i]
+	}
+	return r.p.renderer.sheet.holds(i)
+}
+
+// FarLook is how the loose units are drawn at the strategic scale: as the Settings say, else as
+// the Config does, else Points.
+func (r *Read) FarLook() FarLook {
+	if f := r.p.Res.Settings.Far; f != AsConfig {
+		return f
+	}
+	if f := r.p.Res.Config.Far; f != AsConfig {
+		return f
+	}
+	return Points
+}
+
+// Counts reports whether the number of a kind's units in a sector is drawn by them at the
+// strategic scale: as the Settings say, else as the Config does.
+func (r *Read) Counts() bool {
+	switch r.p.Res.Settings.Counts {
+	case On:
+		return true
+	case Off:
+		return false
+	}
+	return r.p.Res.Config.Counts
+}
+
+// Banner is a kind's loose units in a sector drawn as one at the strategic scale: Count of them,
+// IDs, drawn over Box round their centroid, Center, at their mean Z.
+type Banner struct {
+	Kind   kind.ID
+	Sector int
+	Center geom.Vec
+	IDs    []uid.UID64
+	Count  int
+	Box    geom.AABB
+	Z      Z
+}
+
+// Banners appends to dst the banners cam drew in the frame drawn, where the far units are drawn
+// as Banners; their IDs are the frame's, good till the next frame is drawn.
+func (r *Read) Banners(cam camera.Camera, dst []Banner) []Banner {
+	return r.p.renderer.bannersOf(cam, dst)
 }
 
 // Atlas is the world's looks as Write.SetAtlas took them, nil before.
@@ -254,4 +312,17 @@ func (w *Write) SetBanded(on bool) {
 func (w *Write) ShowSectors(shown SectorsShown) {
 	w.p.Res.Settings.Sectors = shown
 	w.p.module.sectorsShown = shown
+}
+
+// ShowFar has the loose units drawn at the strategic scale as look says (ShowFar, Settings.Far),
+// AsConfig as the Config does.
+func (w *Write) ShowFar(look FarLook) { w.p.Res.Settings.Far = look }
+
+// ShowCounts has the number of a kind's units in a sector drawn by them at the strategic scale,
+// or not (ShowCounts, Settings.Counts).
+func (w *Write) ShowCounts(on bool) {
+	w.p.Res.Settings.Counts = Off
+	if on {
+		w.p.Res.Settings.Counts = On
+	}
 }

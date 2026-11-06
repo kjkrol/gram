@@ -49,6 +49,7 @@ type baking struct {
 	stamp uint32
 	mask  *render.Image // the cells to paint anew, white
 	pix   []byte
+	rects []image.Rectangle // the albedo's pixels to shrink anew
 }
 
 // toPaint are the cells to paint anew after the cells changed as the last refresh says: every
@@ -141,6 +142,66 @@ func (l *Painter) bake(s *groundSheet, atlas render.AtlasSource, at []float32) {
 			layer(s.water, layerWater+q, s.waterLayer(q).Min, s.wpx)
 		}
 	}
+	l.shrink(s, at, whole)
+}
+
+// shrink lays the albedo's pixels under the cells at anew into its half, and the half's under
+// them into its quarter; all of them where whole
+func (l *Painter) shrink(s *groundSheet, at []float32, whole bool) {
+	b := &l.baking
+	b.rects = b.rects[:0]
+	if whole {
+		b.rects = append(b.rects, s.img.Bounds())
+	} else {
+		b.rects = cellRects(at, s.px, s.top, s.img.Bounds(), b.rects)
+	}
+	for k, r := range b.rects {
+		b.rects[k] = halve(s.half, s.img, r)
+	}
+	for _, r := range b.rects {
+		halve(s.quarter, s.half, r)
+	}
+}
+
+// cellRects are the pixels of the cells at, px a cell from the row top down: a run of them along
+// a row a rectangle, joined to the one above where it spans the same cells, widened out to fours
+// of pixels, so its half and quarter stand on whole pixels, and held within bounds
+func cellRects(at []float32, px, top int, bounds image.Rectangle,
+	dst []image.Rectangle) []image.Rectangle {
+	from := len(dst)
+	for k := 0; k < len(at); {
+		x, y := int(at[k]), int(at[k+1])
+		end := x + 1
+		for k += 4; k < len(at) && int(at[k+1]) == y && int(at[k]) == end; k += 4 {
+			end++
+		}
+		if n := len(dst); n > from && dst[n-1].Min.X == x && dst[n-1].Max.X == end &&
+			dst[n-1].Max.Y == y {
+			dst[n-1].Max.Y++
+			continue
+		}
+		dst = append(dst, image.Rect(x, y, end, y+1))
+	}
+	for k := from; k < len(dst); k++ {
+		c := dst[k]
+		r := image.Rect(c.Min.X*px&^3, (top+c.Min.Y*px)&^3, (c.Max.X*px+3)&^3,
+			(top+c.Max.Y*px+3)&^3)
+		dst[k] = r.Intersect(bounds)
+	}
+	return dst
+}
+
+// halve lays the pixels r of src into dst at half their size, each the mean of the 2 by 2 under
+// it, r's corner on even pixels; it is the pixels of dst laid
+func halve(dst, src *render.Image, r image.Rectangle) image.Rectangle {
+	to := dst.SubImage(image.Rect(r.Min.X/2, r.Min.Y/2, (r.Max.X+1)/2, (r.Max.Y+1)/2))
+	to.Clear()
+	var op render.DrawImageOptions
+	op.GeoM.Scale(0.5, 0.5)
+	op.GeoM.Translate(float64(to.Bounds().Min.X), float64(to.Bounds().Min.Y))
+	op.Filter = render.FilterLinear
+	to.DrawImage(src.SubImage(r), &op)
+	return to.Bounds()
 }
 
 // wayCells are the cells whose ways may reach the cells at, row by row: those within one of them

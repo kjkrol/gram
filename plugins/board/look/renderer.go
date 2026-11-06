@@ -65,8 +65,8 @@ type Renderer struct {
 	// those of the sectors seen alone, at their levels
 	sees  func(camera.Camera) *view.View
 	sight *view.View
-	// the figures' colour summed into the ground, laid over the tiles at L5; nil, none
-	aggregate func() (*render.Image, float32)
+	// the sheets of what stands, laid over the tiles at L4 and L5; nil, none
+	sheet func() (albedo, relief, albedoL5, reliefL5 *render.Image, perUnit float32)
 	// what lights the tiles, nil for white light
 	lights func() *render.Lights
 	atlas  render.AtlasSource
@@ -269,10 +269,12 @@ func (l *Renderer) lit() *render.Lights {
 	return l.lights()
 }
 
-// WithAggregate has the figures' colour summed into the ground, as aggregate gives it (the
-// world's Read.Aggregate), laid over the tiles of the sectors seen at L5.
-func (l *Renderer) WithAggregate(aggregate func() (*render.Image, float32)) *Renderer {
-	l.aggregate = aggregate
+// WithSheet has the sheets of what stands, as sheet gives them (the world's Read.Sheet), laid
+// over the tiles of the sectors seen at L4 and L5, flat.
+func (l *Renderer) WithSheet(
+	sheet func() (albedo, relief, albedoL5, reliefL5 *render.Image, perUnit float32),
+) *Renderer {
+	l.sheet = sheet
 	return l
 }
 

@@ -73,6 +73,8 @@ type dale struct {
 	blocks  *goke.Query
 	blockZ  goke.Comp[world.Z]
 	cast    goke.Comp[light.Shadow]
+	fixed   *goke.Query
+	fixedB  goke.Comp[world.Base]
 }
 
 var rules = site.Rules{Longest: 3, Under: 5, Clearance: 1, Reshape: 10}
@@ -146,6 +148,7 @@ func (d *dale) start(heights func(geom.Vec) float32) {
 		d.piers = si.NewQueryBuilder(&d.pierB, &d.pierZ).
 			Include(goke.Include[collision.Collider]()).Build()
 		d.blocks = si.NewQueryBuilder(&d.blockZ, &d.cast).Build()
+		d.fixed = si.NewQueryBuilder(&d.fixedB).Include(goke.Include[world.Fixed]()).Build()
 	}})
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, dt time.Duration) {
@@ -246,6 +249,14 @@ func TestTool_APlayerLaysABridgeOutAndBuildsIt(t *testing.T) {
 	if n != len(decks)+len(piers) {
 		t.Errorf("%d blocks cast their shadows with the ground's, want the %d pieces of deck "+
 			"and the %d piers", n, len(decks), len(piers))
+	}
+	n = 0
+	for d.fixed.All(); d.fixed.Next(); {
+		n += len(d.fixed.Cursor().IDs)
+	}
+	if n != len(decks)+len(piers) {
+		t.Errorf("%d pieces Fixed, want the %d pieces of deck and the %d piers", n, len(decks),
+			len(piers))
 	}
 }
 

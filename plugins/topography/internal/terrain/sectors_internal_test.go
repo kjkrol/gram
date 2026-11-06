@@ -14,54 +14,124 @@ import (
 )
 
 func TestCoarse_CoversItsCellsWithoutACrackAgainstWholeNeighbours(t *testing.T) {
-	const cols = 16
+	const cols = 20
 	_, _, enc := encode(make([]float32, cols*cols), nil)
 	l := lattice{cols: cols, enc: enc}
-	for _, c := range []cells{{0, 0, 10, 8}, {3, 2, 12, 11}, {1, 1, 4, 4}, {0, 0, 15, 15}} {
-		tris := l.coarse(c, nil)
-		at := func(i uint32) (int, int) { return int(i) % cols, int(i) / cols }
-		area, edges := 0, map[[2]uint32]int{}
-		for k := 0; k < len(tris); k += 3 {
-			ax, ay := at(tris[k])
-			bx, by := at(tris[k+1])
-			cx, cy := at(tris[k+2])
-			// twice the area, signed as a whole cell's triangles go
-			twice := (bx-ax)*(cy-ay) - (by-ay)*(cx-ax)
-			if twice <= 0 {
-				t.Fatalf("%v: triangle %v turns the other way", c, tris[k:k+3])
+	for _, step := range []int{2, 4} {
+		for _, c := range []cells{{0, 0, 10, 8}, {3, 2, 12, 11}, {1, 1, 4, 4}, {0, 0, 15, 15},
+			{0, 0, 16, 16}, {2, 1, 9, 14}, {0, 0, 5, 5}, {1, 2, 19, 7}} {
+			tris := l.coarse(c, step, nil)
+			area, edges := cover(t, tris, cols)
+			w, h := c.x1-c.x0, c.y1-c.y0
+			if area != 2*w*h {
+				t.Errorf("step %d, %v: triangles cover %v cells, want %d", step, c,
+					float32(area)/2, w*h)
 			}
-			area += twice
-			for _, e := range [3][2]uint32{{tris[k], tris[k+1]}, {tris[k+1], tris[k+2]},
-				{tris[k+2], tris[k]}} {
-				edges[[2]uint32{min(e[0], e[1]), max(e[0], e[1])}]++
+			border := 0
+			for e, n := range edges {
+				ax, ay := int(e[0])%cols, int(e[0])/cols
+				bx, by := int(e[1])%cols, int(e[1])/cols
+				onEdge := ax == bx && (ax == c.x0 || ax == c.x1) ||
+					ay == by && (ay == c.y0 || ay == c.y1)
+				unit := (ax-bx)*(ax-bx)+(ay-by)*(ay-by) == 1
+				switch {
+				case n > 2:
+					t.Errorf("step %d, %v: the edge %v is shared by %d triangles", step, c, e, n)
+				case n == 1 && (!onEdge || !unit):
+					t.Errorf("step %d, %v: the edge %v is open inside, or long on the border: a "+
+						"crack", step, c, e)
+				case n == 1:
+					border++
+				}
 			}
-		}
-		w, h := c.x1-c.x0, c.y1-c.y0
-		if area != 2*w*h {
-			t.Errorf("%v: triangles cover %v cells, want %d", c, float32(area)/2, w*h)
-		}
-		border := 0
-		for e, n := range edges {
-			ax, ay := at(e[0])
-			bx, by := at(e[1])
-			onEdge := ax == bx && (ax == c.x0 || ax == c.x1) ||
-				ay == by && (ay == c.y0 || ay == c.y1)
-			unit := (ax-bx)*(ax-bx)+(ay-by)*(ay-by) == 1
-			switch {
-			case n > 2:
-				t.Errorf("%v: the edge %v is shared by %d triangles", c, e, n)
-			case n == 1 && (!onEdge || !unit):
-				t.Errorf("%v: the edge %v is open inside, or long on the border: a crack", c, e)
-			case n == 1:
-				border++
+			if border != 2*(w+h) {
+				t.Errorf("step %d, %v: %d border edges, want every one of the %d whole", step, c,
+					border, 2*(w+h))
+			}
+			if w >= 6 && h >= 6 && len(tris)/3 >= 2*w*h {
+				t.Errorf("step %d, %v: %d triangles coarse, want fewer than the %d whole", step, c,
+					len(tris)/3, 2*w*h)
 			}
 		}
-		if border != 2*(w+h) {
-			t.Errorf("%v: %d border edges, want every one of the %d whole", c, border, 2*(w+h))
+	}
+}
+
+// the triangles' area doubled, each one's signed as a whole cell's triangles turn, and how many
+// triangles share each edge, of a lattice cols corners wide
+func cover(t *testing.T, tris []uint32, cols int) (int, map[[2]uint32]int) {
+	t.Helper()
+	at := func(i uint32) (int, int) { return int(i) % cols, int(i) / cols }
+	area, edges := 0, map[[2]uint32]int{}
+	for k := 0; k < len(tris); k += 3 {
+		ax, ay := at(tris[k])
+		bx, by := at(tris[k+1])
+		cx, cy := at(tris[k+2])
+		twice := (bx-ax)*(cy-ay) - (by-ay)*(cx-ax)
+		if twice <= 0 {
+			t.Fatalf("triangle %v turns the other way", tris[k:k+3])
 		}
-		if w >= 6 && h >= 6 && len(tris)/3 >= 2*w*h {
-			t.Errorf("%v: %d triangles coarse, want fewer than the %d whole", c, len(tris)/3,
-				2*w*h)
+		area += twice
+		for _, e := range [3][2]uint32{{tris[k], tris[k+1]}, {tris[k+1], tris[k+2]},
+			{tris[k+2], tris[k]}} {
+			edges[[2]uint32{min(e[0], e[1]), max(e[0], e[1])}]++
+		}
+	}
+	return area, edges
+}
+
+func TestCoarse_LaysTheQuadsOfItsStepAndTheRingRoundThem(t *testing.T) {
+	const cols = 20
+	_, _, enc := encode(make([]float32, cols*cols), nil)
+	l := lattice{cols: cols, enc: enc}
+	// within a ring of 1, w - 2 cells by h - 2 cut to the step, the rest added to the ring; the
+	// quads two triangles each, a fan step + 1 along each side of each, a corner of the ring as
+	// many as its outer edges
+	for _, tc := range []struct {
+		c          cells
+		step, want int
+	}{
+		{cells{0, 0, 16, 16}, 4, 2*3*3 + 5*4*3 + 2*(4+4)},
+		{cells{0, 0, 16, 16}, 2, 2*7*7 + 3*4*7 + 2*(2+2)},
+		{cells{0, 0, 8, 8}, 4, 2*1*1 + 5*4*1 + 2*(4+4)},
+		{cells{0, 0, 8, 8}, 2, 2*3*3 + 3*4*3 + 2*(2+2)},
+		{cells{1, 2, 19, 10}, 4, 2*4*1 + 5*2*(4+1) + 2*(2+4)},
+		// too small for 4: at 2, the ring wider than 1 where the cells are odd
+		{cells{1, 2, 19, 7}, 4, 2*8*1 + 3*2*(8+1) + 2*(2+3)},
+		{cells{0, 0, 5, 5}, 4, 2*1*1 + 3*4*1 + 2*(3+3)},
+		// too small for 2: whole
+		{cells{1, 1, 4, 4}, 4, 2 * 3 * 3},
+	} {
+		if got := len(l.coarse(tc.c, tc.step, nil)) / 3; got != tc.want {
+			t.Errorf("%v at a step of %d: %d triangles, want %d", tc.c, tc.step, got, tc.want)
+		}
+	}
+}
+
+func TestCoarse_MeetsNeighboursOfEveryStepWithoutACrack(t *testing.T) {
+	// sectors of 13, 16 and 18 cells across by 16, 11 and 17 down, whole, every second corner
+	// and every fourth in turn
+	xs, ys := []int{0, 13, 29, 47}, []int{0, 16, 27, 44}
+	cols, rows := xs[3]+1, ys[3]+1
+	_, _, enc := encode(make([]float32, cols*rows), nil)
+	l := lattice{cols: cols, enc: enc}
+	var tris []uint32
+	for j := range 3 {
+		for i := range 3 {
+			step := []int{1, 2, 4}[(i+j)%3]
+			tris = l.coarse(cells{xs[i], ys[j], xs[i+1], ys[j+1]}, step, tris)
+		}
+	}
+	area, edges := cover(t, tris, cols)
+	if want := 2 * xs[3] * ys[3]; area != want {
+		t.Errorf("the sectors cover %v cells, want %d", float32(area)/2, want/2)
+	}
+	for e, n := range edges {
+		ax, ay := int(e[0])%cols, int(e[0])/cols
+		bx, by := int(e[1])%cols, int(e[1])/cols
+		rim := ax == bx && (ax == 0 || ax == xs[3]) || ay == by && (ay == 0 || ay == ys[3])
+		if want := map[bool]int{true: 1, false: 2}[rim]; n != want {
+			t.Errorf("the edge (%d, %d)-(%d, %d) is shared by %d triangles, want %d", ax, ay, bx,
+				by, n, want)
 		}
 	}
 }
@@ -126,7 +196,7 @@ func (sheet) Of(x, y float32) int {
 func (sheet) Ladder() lod.Ladder                       { return lod.Ladder{} }
 func (s sheet) Level(_ camera.Camera, i int) lod.Level { return s.levels[i] }
 
-func TestRuns_LayEachLevelsSectorsWholeOrCoarseTheSkirtAsASheetAndDrawTheFinestFirst(
+func TestRuns_LayEachLevelsSectorsWholeCoarseOrCoarserTheSkirtAsASheetAndDrawTheFinestFirst(
 	t *testing.T) {
 	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 2560, Height: 1536, BucketSize: 128})
 	if err != nil {
@@ -150,9 +220,10 @@ func TestRuns_LayEachLevelsSectorsWholeOrCoarseTheSkirtAsASheetAndDrawTheFinestF
 		s.level = level
 		return s
 	}
-	// the whole runs laid before the coarse ones, and the skirt after those of every sector
+	// the whole runs laid before the coarse ones, those before the coarser ones, and the skirt
+	// after those of every sector
 	want := []span{at(r.spans[5].whole, lod.L3), at(r.spans[6].whole, lod.L2),
-		at(r.spans[7].coarse, lod.L4), at(r.spans[8].coarse, lod.L5), at(r.skirted, lod.L5)}
+		at(r.spans[7].coarse, lod.L4), at(r.spans[8].coarser, lod.L5), at(r.skirted, lod.L5)}
 	if len(got) != len(want) {
 		t.Fatalf("%d runs %v, want %d %v", len(got), got, len(want), want)
 	}

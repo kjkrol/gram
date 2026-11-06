@@ -253,6 +253,34 @@ func TestRail_AnEffectTakesTheRailingsDown(t *testing.T) {
 	}
 }
 
+// carrying is how many of bw's entities carry the mark M
+func carrying[M any](bw *boardtest.World) int {
+	var base goke.Comp[world.Base]
+	var q *goke.Query
+	bw.ECS.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		q = si.NewQueryBuilder(&base).Include(goke.Include[M]()).Build()
+	}})
+	n := 0
+	for q.All(); q.Next(); {
+		n += len(q.Cursor().IDs)
+	}
+	return n
+}
+
+func TestEntities_AreFixedUnlessTheirKindSaysOtherwiseAndUnitsAreNot(t *testing.T) {
+	if n := carrying[world.Fixed](newStrip(t, grass, effect.Spec{}).World); n != 1 {
+		t.Errorf("%d things standing on the board Fixed, want the one", n)
+	}
+	loose := newStrip(t, grass, effect.Spec{}, comp.Without[world.Fixed]())
+	if n := carrying[world.Fixed](loose.World); n != 0 {
+		t.Errorf("%d things told to carry no Fixed carry it, want none", n)
+	}
+	units, _ := boardtest.SquareWorld(t, boardtest.Mover{})
+	if n := carrying[world.Fixed](units); n != 0 {
+		t.Errorf("%d units Fixed, want none", n)
+	}
+}
+
 func TestEntities_CastBakedShadowsUnlessTheirKindSaysOtherwise(t *testing.T) {
 	for _, c := range []struct {
 		extra []comp.Comp

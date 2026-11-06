@@ -4,7 +4,7 @@
 // stretched over its box leant with the wind (U.Wind) as air.Weather.Sway leans what stands on it,
 // faded into the fog as the plain pass fades it, the material laid over it and the covers on it
 // over that, the tile and the covers lit by the light on the ground at the point; at L4 and L5
-// the tile alone in one colour (plainAt), unleant, at L5 under the figures' colour (summedOver).
+// the tile alone in one colour (plainAt), unleant, under the sheet of what stands (sheetOver).
 
 @fragment
 fn fs_main(@builtin(position) frag: vec4<f32>) -> Laid {
@@ -65,8 +65,8 @@ fn tileAt(c: vec2<f32>, p: vec2<f32>, light: vec3<f32>) -> vec4<f32> {
         } else {
             laid = spriteAt(id, lo, hi, p);
         }
-        if level >= 5u {
-            laid = summedOver(laid, p);
+        if level >= 4u {
+            laid = sheetOver(laid, p);
         }
         if U.TileSeen > 0.5 {
             laid = vec4<f32>(mix(laid.rgb, U.Fog * laid.a, fogOf(b.xy)), laid.a);

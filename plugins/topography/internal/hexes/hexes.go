@@ -38,6 +38,7 @@ var fans = render.NewMeshShaderWith("hexes", render.Files(shaders, "shaders/hexe
 		{Name: "HazeUp", Size: 1}, {Name: "HazeWay", Size: 3},
 		{Name: "Sight", Size: 4},
 		{Name: "Base", Size: 1}, {Name: "Facing", Size: 2},
+		{Name: "SheetPx", Size: 1},
 	}).Instanced(3)
 
 // a sector seen as a sheet: a quad over its box at the mean height of its cells' corners,
@@ -46,7 +47,7 @@ var sheets = render.NewMeshShaderWith("hexes sheet", render.Files(shaders, "shad
 	[]render.Uniform{
 		{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1},
 		{Name: "TopPx", Size: 1},
-		{Name: "HazeUp", Size: 1}, {Name: "AggregatePx", Size: 1}, {Name: "HazeWay", Size: 3},
+		{Name: "HazeUp", Size: 1}, {Name: "SheetPx", Size: 1}, {Name: "HazeWay", Size: 3},
 		{Name: "Sight", Size: 4},
 	}).Instanced(2)
 
@@ -185,33 +186,47 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	h.set("Base", h.base)
 	h.set("Facing", float32(h.cols), float32(h.facing.Bounds().Dx()))
 	h.opts.Depth, h.opts.Images = t.Depth, [4]*render.Image{h.top, h.facing, nil, nil}
-	h.each(seen, func(cells []float32, vertices int) {
+	albedo, _, albedoL5, _, perUnit := h.world.Read(0).Sheet()
+	h.each(seen, func(cells []float32, vertices int, level lod.Level) {
 		// the grid at Standard and finer alone, whose cells are drawn whole
 		grid := width
 		if vertices != wholeVertices {
 			grid = 0
 		}
 		h.set("GridWidth", grid)
+		// the sheet of what stands laid over the tops at L4
+		img, px := albedo, perUnit
+		if level != lod.Strategic {
+			img, px = nil, 0
+		}
+		h.laySheet(img, px)
 		h.opts.Instances, h.opts.Vertices = cells, vertices
 		t.Screen.DrawMesh(nil, fans, &h.opts)
 	})
 	if len(h.sheet) > 0 {
-		img, perUnit := h.world.Read(0).Aggregate()
-		h.drawSheets(t, img, perUnit)
+		h.drawSheets(t, albedoL5, perUnit/2)
 	}
+	delete(h.opts.Uniforms, world.SheetImage)
 }
 
-// drawSheets draws the sheets each laid, the figures' colour summed over them from img, perUnit
-// texels a world unit
+// drawSheets draws the sheets each laid, the albedo of the sheet of what stands at L5 laid over
+// them from img, perUnit texels a world unit
 func (h *Ground) drawSheets(t render.Target, img *render.Image, perUnit float32) {
-	if img == nil || perUnit <= 0 {
-		img, perUnit = nil, 0
-	}
-	h.set("AggregatePx", perUnit)
-	h.opts.Uniforms[world.AggregateImage] = img
+	h.laySheet(img, perUnit)
 	h.opts.Instances, h.opts.Vertices = h.sheet, sheetVertices
 	t.Screen.DrawMesh(nil, sheets, &h.opts)
-	delete(h.opts.Uniforms, world.AggregateImage)
+}
+
+// laySheet has what is drawn next lay the albedo of the sheet of what stands from img, perUnit
+// texels a world unit; nothing for none
+func (h *Ground) laySheet(img *render.Image, perUnit float32) {
+	if img == nil || perUnit <= 0 {
+		h.set("SheetPx", 0)
+		delete(h.opts.Uniforms, world.SheetImage)
+		return
+	}
+	h.set("SheetPx", perUnit)
+	h.opts.Uniforms[world.SheetImage] = img
 }
 
 // Levels is how many sectors the last frame drew at each level.
@@ -220,20 +235,20 @@ func (h *Ground) Levels() [lod.Levels]int { return h.counts }
 // a sector's cells among the instances, from first, n of them
 type run struct{ first, n int }
 
-// calls draw with the cells seen, each sector's whole cells at Standard or finer or their tops at
-// L3 and L4, sectors following one another at one level at one go, and lays the sheets of those at
-// L5; every cell whole in a world of no sectors
-func (h *Ground) each(seen *view.View, draw func(cells []float32, vertices int)) {
+// calls draw with the cells seen at a level, each sector's whole cells at Standard or finer or
+// their tops at L3 and L4, sectors following one another drawn alike at one go, the close levels
+// as Standard, and lays the sheets of those at L5; every cell whole in a world of no sectors
+func (h *Ground) each(seen *view.View, draw func(cells []float32, vertices int, level lod.Level)) {
 	h.counts, h.sheet = [lod.Levels]int{}, h.sheet[:0]
 	if h.sectors == nil {
-		draw(h.cells, wholeVertices)
+		draw(h.cells, wholeVertices, lod.Standard)
 		return
 	}
 	var at run
-	vertices := 0
+	vertices, drawn := 0, lod.Standard
 	flush := func() {
 		if at.n > 0 {
-			draw(h.cells[cellFloats*at.first:cellFloats*(at.first+at.n)], vertices)
+			draw(h.cells[cellFloats*at.first:cellFloats*(at.first+at.n)], vertices, drawn)
 		}
 	}
 	seen.Sectors(func(i int, box geom.AABB, level lod.Level) {
@@ -247,16 +262,16 @@ func (h *Ground) each(seen *view.View, draw func(cells []float32, vertices int))
 				box.BottomRight.Y, h.heights[i], 0, 0, 0)
 			return
 		}
-		v := wholeVertices
+		v, as := wholeVertices, max(level, lod.Standard)
 		if level > lod.Standard {
 			v = topVertices
 		}
-		if v == vertices && at.first+at.n == r.first {
+		if v == vertices && as == drawn && at.first+at.n == r.first {
 			at.n += r.n
 			return
 		}
 		flush()
-		at, vertices = r, v
+		at, vertices, drawn = r, v, as
 	})
 	flush()
 }

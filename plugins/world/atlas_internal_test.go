@@ -6,11 +6,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/lod"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
+	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
+	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -220,7 +226,7 @@ func TestAtlas_Close_GivesEveryKindItsLookAtEachLevel(t *testing.T) {
 		declare func(Slot)
 		want    string
 	}{
-		{"nothing declared", func(Slot) {}, "own own own own blob - -"},
+		{"nothing declared", func(Slot) {}, "own own own own blob blob -"},
 		{"at L3", func(s Slot) { s.At(lod.L3, flat) }, "own own own x x x -"},
 		{"at L4", func(s Slot) { s.At(lod.L4, flat) }, "own own own own x x -"},
 		{"at L5", func(s Slot) { s.At(lod.L5, flat) }, "own own own own blob x -"},
@@ -229,11 +235,11 @@ func TestAtlas_Close_GivesEveryKindItsLookAtEachLevel(t *testing.T) {
 			"own own own x x - -"},
 		{"at L4, then L3", func(s Slot) { s.At(lod.L4, dot).At(lod.L3, flat) },
 			"own own own y x x -"},
-		{"at L0", func(s Slot) { s.At(lod.L0, flat) }, "x x own own blob - -"},
-		{"at L1", func(s Slot) { s.At(lod.L1, flat) }, "own x own own blob - -"},
+		{"at L0", func(s Slot) { s.At(lod.L0, flat) }, "x x own own blob blob -"},
+		{"at L1", func(s Slot) { s.At(lod.L1, flat) }, "own x own own blob blob -"},
 		{"at L0, then L1", func(s Slot) { s.At(lod.L0, flat).At(lod.L1, dot) },
-			"x y own own blob - -"},
-		{"nothing at L0", func(s Slot) { s.Nothing(lod.L0) }, "- - own own blob - -"},
+			"x y own own blob blob -"},
+		{"nothing at L0", func(s Slot) { s.Nothing(lod.L0) }, "- - own own blob blob -"},
 		{"at L0 and L4", func(s Slot) { s.At(lod.L0, flat).At(lod.L4, dot) },
 			"x x own own y y -"},
 	} {
@@ -265,12 +271,12 @@ func TestAtlas_Close_GivesEveryKindItsLookAtEachLevel(t *testing.T) {
 	}
 }
 
-func TestAtlas_Close_DrawsAMaterialItselfAtL4(t *testing.T) {
+func TestAtlas_Close_DrawsAMaterialItselfToL5(t *testing.T) {
 	a, _, shaded := leveledAtlas(func(Slot) {})
 	self := version{id: shaded, drawn: true}
-	want := [lod.Levels]version{self, self, self, self, self}
+	want := [lod.Levels]version{self, self, self, self, self, self}
 	if got := a.versions[shaded]; got != want {
-		t.Errorf("the material's versions %+v, want itself to L4 and nothing past", got)
+		t.Errorf("the material's versions %+v, want itself to L5 and nothing past", got)
 	}
 }
 
@@ -393,6 +399,157 @@ func TestAtlas_RefusesALookAtALevelThatCannotBe(t *testing.T) {
 				}
 			}()
 			declare(s, a)
+		})
+	}
+}
+
+func TestAtlas_GivesAKindItsFarColourWhateverSpriteItIsDrawnIn(t *testing.T) {
+	p := NewPlugin(Config{
+		Space:    SpaceCfg{Width: 100, Height: 100},
+		Entities: EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+	a := p.NewAtlas()
+	walker, flag := p.Kinds().NewSprite(), p.Kinds().NewSprite()
+	halves := func(dst *render.Canvas, size int) {
+		dst.FillRect(0, 0, float32(size)/2, float32(size), color.RGBA{R: 255, A: 255})
+		dst.FillRect(float32(size)/2, 0, float32(size)/2, float32(size),
+			color.RGBA{B: 255, A: 255})
+	}
+	a.Add(walker, 8, halves).Facing(4, func(float64) render.SpriteDrawer {
+		return render.Solid(color.RGBA{G: 255, A: 255})
+	})
+	a.Add(flag, 8, halves).At(lod.L4, render.Solid(color.RGBA{G: 255, A: 255}))
+	a.Close()
+	want := [4]uint8{128, 0, 128, 255}
+	sprites := append([]render.SpriteID{walker, a.versions[walker][lod.L4].id}, a.faced[walker]...)
+	for _, id := range sprites {
+		if c, ok := a.farColour(id); !ok || c != want {
+			t.Errorf("the sprite %d's colour %v, %v; want its kind's blob's %v", id, c, ok, want)
+		}
+	}
+	if c, ok := a.farColour(flag); !ok || c != [4]uint8{0, 255, 0, 255} {
+		t.Errorf("a kind declaring its look at L4 has the colour %v, %v; want that look's green",
+			c, ok)
+	}
+}
+
+// recording is a look recording the sprite, the box and the Z of every sprite it is handed
+type recording struct {
+	Look
+	sprites []render.SpriteID
+	boxes   []plane.AABB
+	zs      []Z
+}
+
+func (r *recording) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z,
+	atlas render.AtlasSource, a render.Appearance, lit render.Illumination) {
+	r.sprites = append(r.sprites, a.SpriteID)
+	r.boxes = append(r.boxes, box)
+	r.zs = append(r.zs, z)
+	r.Look.Sprite(f, cam, box, z, atlas, a, lit)
+}
+
+// composedAt composes an entity of sprite from a over box at z through look, a world 64 by 32
+// seen at level everywhere
+func composedAt(t *testing.T, a *Atlas, sprite render.SpriteID, level lod.Level,
+	box plane.AABB, z Z, look Look) *render.Frame {
+	t.Helper()
+	cam := cameratest.NewFromSpace(64, 32, 0)
+	v := view.NewSeen(cam, everywhere{w: 64, h: 32, level: level})
+	r := newRenderer(a, seenBy(cam, v), &Rules{}, func() Look { return look })
+	readied(a)(r)
+	r.space = SpaceCfg{Width: 64, Height: 32}
+	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 64, Height: 32, BucketSize: 16})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var base goke.Comp[Base]
+	var appearance goke.Comp[render.Appearance]
+	var zs goke.Comp[Z]
+	goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		f := si.NewFactory(&base, &appearance, &zs)
+		f.Create(1)
+		f.Next()
+		base.Slice(&f.Cursor)[0] = Base{Pos: Position{AABB: box}}
+		appearance.Slice(&f.Cursor)[0] = render.Appearance{SpriteID: sprite}
+		zs.Slice(&f.Cursor)[0] = z
+		space.Rebuild([]aabbworld.Item{{ID: f.Cursor.IDs[0], Box: box}})
+		r.Init(si)
+	}})
+	views := []*view.View{v}
+	view.NewSystem(space, &views, 64, 32).Update(nil, 0)
+	return composed(r, cam)
+}
+
+// what the seams between levels rest on: each level's version is drawn over the entity's box at
+// its Z, through the Look or as a point
+func TestAtlas_DrawsEachLevelsVersionOverTheEntitysBoxAtItsZ(t *testing.T) {
+	p := NewPlugin(Config{
+		Space:    SpaceCfg{Width: 64, Height: 32},
+		Entities: EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+	plain, atL4, atL5 := p.Kinds().NewSprite(), p.Kinds().NewSprite(), p.Kinds().NewSprite()
+	red := render.Solid(color.RGBA{R: 255, A: 255})
+	a := p.NewAtlas()
+	a.Add(plain, 8, red)
+	a.Add(atL4, 8, red).At(lod.L4, render.Solid(color.RGBA{G: 255, A: 255}))
+	a.Add(atL5, 8, red).At(lod.L5, render.Solid(color.RGBA{B: 255, A: 255}))
+	a.Close()
+	box := plane.NewAABB(geom.NewVec(20, 12), 10, 6)
+	z := Z{Altitude: 30, Height: 8}
+	for _, c := range []struct {
+		name   string
+		sprite render.SpriteID
+		level  lod.Level
+		point  bool
+	}{
+		{"its own at L2", plain, lod.L2, false},
+		{"its own at L3", plain, lod.L3, false},
+		{"its blob at L4", plain, lod.L4, true},
+		{"its blob at L5", plain, lod.L5, true},
+		{"declared at L4", atL4, lod.L4, true},
+		{"declared at L4, at L5", atL4, lod.L5, false},
+		{"its blob at L4, declared at L5", atL5, lod.L4, true},
+		{"declared at L5", atL5, lod.L5, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			look := &recording{Look: ilook.NewFlat(64, 32, false, false)}
+			f := composedAt(t, a, c.sprite, c.level, box, z, look)
+			want, _ := a.levels.at(c.sprite, c.level)
+			switch {
+			case c.point && len(look.sprites) != 0:
+				t.Errorf("the look drew %v, want a point alone", look.sprites)
+			case !c.point && (len(look.sprites) != 1 || look.sprites[0] != want ||
+				look.boxes[0] != box || look.zs[0] != z):
+				t.Errorf("the look drew %v over %v at %v, want sprite %d over %v at %+v",
+					look.sprites, look.boxes, look.zs, want, box, z)
+			}
+			if c.point {
+				lowest := z.Altitude + FigureLift
+				f.Places(func(_ render.Pass, at render.At) {
+					if at.Z() != lowest {
+						t.Errorf("the point drawn among the figures at %v, want at %v", at.Z(),
+							lowest)
+					}
+				})
+				if places(f) != 1 {
+					t.Errorf("%d places asked for, want the point's", places(f))
+				}
+			}
+			cam := cameratest.NewFromSpace(64, 32, 0)
+			cam.SetViewport(64, 32)
+			pix := pixelsAt(t, cam, 64, 32, 0, c.level, a, c.sprite, box)
+			for y := range 32 {
+				for x := range 64 {
+					in := x >= 20 && x < 30 && y >= 12 && y < 18
+					if px := pix(x, y); !in && px[3] != 0 {
+						t.Fatalf("pixel (%d, %d) is %v, want nothing drawn off the box", x, y, px)
+					}
+				}
+			}
+			if px := pix(25, 15); px[3] == 0 {
+				t.Errorf("the box's middle is %v, want its version drawn there", px)
+			}
 		})
 	}
 }

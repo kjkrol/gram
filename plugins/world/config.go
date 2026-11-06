@@ -27,7 +27,27 @@ type Config struct {
 	// they lie; zero, Standard everywhere without end round an observer, Strategic with none. It
 	// needs Sectors.
 	LOD lod.Ladder
+	// Far is how the loose units are drawn at the strategic scale; zero, Points.
+	Far FarLook
+	// Counts has the number of a kind's units in a sector drawn by them at the strategic scale.
+	Counts bool
 }
+
+// FarLook is how the loose units of a kind are drawn at the strategic scale: a point each, or one
+// banner a sector where the kind declares a look of its own there.
+type FarLook uint8
+
+// The FarLooks but AsConfig.
+const (
+	// Points draws every unit a point of its own.
+	Points FarLook = iota + 1
+	// Banners draws a kind's units in a sector as one, in its look at L4, where it declares one.
+	Banners
+)
+
+// AsConfig is a setting left as the Config says (Settings.Far, Settings.Counts): the zero an older
+// save loads such a setting as.
+const AsConfig = 0
 
 // SectorsCfg is the world's sectors: Buckets of the space's buckets a side, the world cut into
 // sectors where it is over zero.

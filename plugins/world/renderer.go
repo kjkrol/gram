@@ -33,6 +33,7 @@ type renderer struct {
 	asleep      goke.OptComp[sector.L6]
 	field       goke.OptComp[Field]
 	unfolded    goke.OptComp[Unfolded]
+	fixed       goke.OptComp[Fixed]
 	rules       *Rules
 	layers      [][]render.Appearance
 	shown       []bool
@@ -45,10 +46,13 @@ type renderer struct {
 	stretch    goke.Comp[stretch]
 	unfoldedIn []place
 	found      bool
-	// the sectors a box covers, nil in a world of none; a field's parts, and those recorded
-	covers func(box geom.AABB, dst []sector.Part) []sector.Part
-	parts  []sector.Part
-	pieces []plane.AABB
+	// the sectors a box covers, nil in a world of none; a field's parts, and those recorded; the
+	// sectors round a thing fixed, as Publish and as Compose read its level by a seam
+	covers  func(box geom.AABB, dst []sector.Part) []sector.Part
+	parts   []sector.Part
+	pieces  []plane.AABB
+	reach   []sector.Part
+	reached []sector.Part
 	// by view published, what it keeps of each level's entities; thinned, whether any thins
 	keeps   []keeping
 	thinned bool
@@ -73,14 +77,23 @@ type renderer struct {
 	litFor pointLight
 	// the world's size and edges, for the sector an entity at a picture's edge is drawn by
 	space SpaceCfg
-	// the figures' colour summed into the ground, Read.Aggregate's; none without sectors
-	aggregate aggregate
+	// the photographs of what stands, Read.Sheet's, none without sectors, and how a frame's are
+	// developed as a draw first reads them
+	sheet      sheets
+	developing func(*render.Image)
+	// how the loose units are gathered at the strategic scale, in banners and counted
+	far farring
 }
 
 func newRenderer(atlas render.AtlasSource, views func() map[camera.Camera]*view.View,
 	rules *Rules, look func() Look) *renderer {
-	return &renderer{atlas: atlas, views: views, rules: rules, look: look}
+	s := &renderer{atlas: atlas, views: views, rules: rules, look: look}
+	s.developing = s.develop
+	return s
 }
+
+// develop develops the photographs of the frame drawn into the sheets.
+func (s *renderer) develop(*render.Image) { s.sheet.develop(&s.figures.Front().sheet, s.atlas) }
 
 func (s *renderer) shade(shaded map[render.SpriteID]render.MaterialID,
 	phased map[render.SpriteID]phase) {
@@ -109,15 +122,18 @@ func (*renderer) Overlies() {}
 
 // Compose hands f every entity published in sight of cam in its kind's look at the level cam sees
 // it at, as the world's Look lays it, lit as the Lighting says, in white light without one: the
-// Look knows the wind, the world its entities. What it sees at L4 it draws itself, a point each;
-// a field over each sector of it, at that sector's level, casting nothing; what cam rides in,
-// fastened Inside, it leaves out but for its shadow.
+// Look knows the wind, the world its entities. What it sees at L4, and at L5 in no look declared
+// there, it draws itself, a point each; a field over each sector of it, at that sector's level,
+// casting nothing; what cam rides in, fastened Inside, it leaves out but for its shadow; what a
+// sheet holding a photograph of it stands in the place of from L4 on, it leaves out there; what
+// stands by a seam it draws at the finer side's level; the units cam drew in banners, it draws
+// as their banners.
 func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
-	s.aggregate.upload()
 	s.points.Reset()
 	if s.atlas == nil {
 		return
 	}
+	figs := s.figures.Front()
 	if s.fog != nil && !f.Uniformed("Fog") {
 		f.Uniform("Fog", s.fog[:]...)
 	}
@@ -132,16 +148,17 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	lies, _ := look.(LyingLook)
 	uprights, _ := look.(UprightLook)
 	foggy, _ := look.(FoggyLook)
-	figs := s.figures.Front()
+	held := figs.sheet.held
 	v := figs.views[camera.OriginOf(cam)]
 	var levels byLevel
-	if wa, ok := s.atlas.(*Atlas); ok {
+	wa, _ := s.atlas.(*Atlas)
+	if wa != nil {
 		levels = wa.levels
 	}
 	// a view sorting by height alone has the frame asked where a figure lies only when it is lower
 	sorts := cam.Projection().Sorts()
 	rider, inside := ridden(cam)
-	lowest, low, any, pointed := render.Nearest, float32(0), false, false
+	lowest, low, any, drew := render.Nearest, float32(0), false, false
 	for k := range figs.all {
 		e := &figs.all[k]
 		if v == nil {
@@ -154,18 +171,28 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 				continue
 			}
 			level = s.level(v, box.AABB, Position{AABB: box}.Center())
+			if e.ringed {
+				level = s.drawn(v, box.AABB, level, &s.reached)
+			}
 		} else {
 			var seen bool
 			if level, seen = s.pieceAt(v, box); !seen {
 				continue
 			}
 		}
+		if e.sheet > 0 && level >= lod.Strategic && held[e.sheet-1] {
+			continue
+		}
+		if e.banner && bannerAt(wa, figs.layers[e.from].SpriteID, level) {
+			continue
+		}
 		mid := Position{AABB: box}.Center()
 		layers := figs.layers[e.from : e.from+int32(e.n)]
 		if !levels.anyAt(layers, level) {
 			continue
 		}
-		if id, ok := levels.at(layers[0].SpriteID, level); ok && level != lod.Strategic && !wide {
+		pointing := drawnAsPoint(wa, layers[0].SpriteID, level)
+		if id, ok := levels.at(layers[0].SpriteID, level); ok && !pointing && !wide {
 			f.Cast(box.AABB, z.Altitude, z.Height, e.shadow, s.atlas, id)
 		}
 		if inside && e.id == rider {
@@ -176,8 +203,8 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 				lowest, low, any = at, z.Altitude, true
 			}
 		}
-		if level == lod.Strategic {
-			pointed = s.point(f, cam, e, box, layers, levels, v.Fog(mid.X, mid.Y)) || pointed
+		if pointing {
+			drew = s.point(f, cam, e, box, layers, levels, level, v.Fog(mid.X, mid.Y)) || drew
 			continue
 		}
 		// coarsely: no edges, flat where it would stand
@@ -216,12 +243,21 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			look.Sprite(f, cam, box, z, s.atlas, a, lit)
 		}
 	}
+	if v != nil && len(figs.far.groups) > 0 {
+		drew = s.drawBanners(f, cam, figs, v, levels, sorts, &lowest, &low, &any) || drew
+	}
 	if foggy != nil {
 		foggy.Fog(0)
 	}
-	if any && (direct || pointed) {
+	if any && (direct || drew) {
 		f.DrawAt(lowest) // the figures come after what lies beneath the lowest of them
 	}
+}
+
+// drawnAsPoint reports whether a figure of the sprite id seen at level is drawn as a point: at
+// L4, and at L5 in no look its kind declared there (wa's)
+func drawnAsPoint(wa *Atlas, id render.SpriteID, level lod.Level) bool {
+	return level == lod.Strategic || level == lod.L5 && (wa == nil || !wa.declares(id, level))
 }
 
 // lifted is how far over its Altitude e lies among what is drawn back to front: a field's piece
@@ -243,15 +279,15 @@ func ridden(cam camera.Camera) (uid.UID64, bool) {
 	return 0, false
 }
 
-// point draws e at L4 over box as one point of the first of its layers drawn there, fogged by
+// point draws e at level over box as one point of the first of its layers drawn there, fogged by
 // fog, a material among them as it is; no Look, no light of its own and no shadow. It reports
 // whether it drew a point.
 func (s *renderer) point(f *render.Frame, cam camera.Camera, e *figure, box plane.AABB,
-	layers []layer, levels byLevel, fog float32) bool {
+	layers []layer, levels byLevel, level lod.Level, fog float32) bool {
 	pointed := false
 	mid := Position{AABB: box}.Center()
 	for _, l := range layers {
-		id, ok := levels.at(l.SpriteID, lod.Strategic)
+		id, ok := levels.at(l.SpriteID, level)
 		switch {
 		case !ok:
 		case int(id) < len(s.materials) && s.materials[id]:

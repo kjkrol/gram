@@ -49,12 +49,12 @@ func leveled(level lod.Level) *render.Shader {
 	src = append([]byte(fmt.Sprintf("const LEVEL: u32 = %du;\n", level)), src...)
 	return render.NewMeshShaderWith(fmt.Sprintf("terrain-level%d", level), src, []render.Uniform{
 		{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1},
-		// in the float Corners' alignment leaves free
-		{Name: "Cell", Size: 1}, {Name: "AggregatePx", Size: 1},
-		{Name: "Corners", Size: 2}, {Name: "Low", Size: 1},
+		{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1},
 		{Name: "Span", Size: 1}, {Name: "ShoreReach", Size: 1}, {Name: "Px", Size: 1},
 		{Name: "AlbedoSize", Size: 2}, {Name: "WaterPx", Size: 1}, {Name: "FlowSpan", Size: 1},
 		{Name: "Shadows", Size: 1}, {Name: "GridFrom", Size: 1},
+		// in the alignment the vec4 GridLine leaves free
+		{Name: "AlbedoPx", Size: 1},
 		{Name: "GridLine", Size: 4}, {Name: "GridWidth", Size: 1},
 		{Name: "Skirt", Size: 2}, {Name: "Perspective", Size: 1},
 		{Name: "HazeUp", Size: 1}, {Name: "HazeWay", Size: 3},
@@ -86,6 +86,9 @@ type Surface interface {
 type Painted struct {
 	Albedo, Water *render.Image
 	Px, WaterPx   int // pixels a cell
+	// AlbedoHalf and AlbedoQuarter are the Albedo at half and a quarter its size, which L4 and
+	// L5 read; nil, the Albedo
+	AlbedoHalf, AlbedoQuarter *render.Image
 	// Kinds is the detail each pixel's kind carries, Px pixels a cell as the Albedo; Details
 	// the kinds' details baked (painter.DetailPx pixels a tile), nil without one; CellDetails
 	// by cell the detail of its kind, or Dressed where Kinds must be read, CellDetailsAt
@@ -124,9 +127,12 @@ type Config struct {
 	Seen func(camera.Camera) *view.View
 	// whether the frame drawn hazes the ground; nil, as Haze sets
 	Hazed func() bool
-	// the figures' colour summed into the ground, laid over the sheet at L5 (world's
-	// Read.Aggregate); nil, none
-	Aggregate func() (img *render.Image, perUnit float32)
+	// the sheets of what stands, drawn over the ground at L4 and L5 in a relief of their own
+	// (world's Read.Sheet); nil, none
+	Sheet func() (albedo, relief, albedoL5, reliefL5 *render.Image, perUnit float32)
+	// whether sector i's sheet holds a photograph of something standing there (world's
+	// Read.Painted), the sheets drawn over those alone; nil, none
+	Painted func(i int) bool
 }
 
 // Renderer draws the ground as a mesh: a render.Direct source in the opaque pass.
@@ -161,6 +167,7 @@ type Renderer struct {
 	opts     render.DrawMeshOptions
 	uniforms map[string][]float32
 	boxed    map[string]any
+	photo    photoMesh
 }
 
 var _ render.Direct = (*Renderer)(nil)
@@ -169,6 +176,7 @@ var _ render.Direct = (*Renderer)(nil)
 func New(ground Ground, surface Surface, sky Sky, cfg Config) *Renderer {
 	r := &Renderer{ground: ground, surface: surface, sky: sky, cfg: cfg, uniforms: map[string][]float32{}, boxed: map[string]any{}}
 	r.opts = render.DrawMeshOptions{WriteDepth: true, Primed: true, Uniforms: map[string]any{}}
+	r.photo.init(cfg.Painted)
 	return r
 }
 
@@ -205,30 +213,33 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		}
 		albedo = r.plain
 	}
-	r.opts.Images = [4]*render.Image{r.lattice, albedo, r.painted.Water, r.painted.Kinds}
+	r.opts.Images = [4]*render.Image{r.lattice, nil, r.painted.Water, r.painted.Kinds}
 	r.opts.Depth = t.Depth
 	r.drawn = r.runs(cam, r.drawn[:0])
-	aggregate, perUnit := r.aggregate()
 	r.eachLevel(r.drawn, func(level lod.Level, ranges []render.IndexRange) {
 		r.opts.Ranges = ranges
-		px := float32(0)
-		if level == lod.L5 && aggregate != nil && perUnit > 0 {
-			px = perUnit
-			r.opts.Uniforms[world.AggregateImage] = aggregate
-		} else {
-			delete(r.opts.Uniforms, world.AggregateImage)
-		}
-		r.set("AggregatePx", px)
+		shrunk, apx := r.albedoAt(level, albedo)
+		r.opts.Images[1] = shrunk
+		r.set("AlbedoPx", apx)
 		t.Screen.DrawMesh(r.mesh, byLevel[level], &r.opts)
 	})
+	r.drawPhotos(t, cam)
 }
 
-// the figures' colour summed into the ground and its texels a world unit, nil for none
-func (r *Renderer) aggregate() (*render.Image, float32) {
-	if r.cfg.Aggregate == nil {
-		return nil, 0
+// the board painted flat as level reads it, whole short of Strategic, halved at it and quartered
+// beyond, where the surface has it so, and its pixels a cell
+func (r *Renderer) albedoAt(level lod.Level, whole *render.Image) (*render.Image, float32) {
+	if r.painted.Albedo == nil {
+		return whole, 1
 	}
-	return r.cfg.Aggregate()
+	px := float32(r.painted.Px)
+	switch {
+	case level > lod.Strategic && r.painted.AlbedoQuarter != nil:
+		return r.painted.AlbedoQuarter, px / 4
+	case level >= lod.Strategic && r.painted.AlbedoHalf != nil:
+		return r.painted.AlbedoHalf, px / 2
+	}
+	return whole, px
 }
 
 // eachLevel calls draw with the runs of each level drawn, the finest first: every call primes its

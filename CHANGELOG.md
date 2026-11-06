@@ -2,6 +2,38 @@
 
 ## v0.20.0 — unreleased
 
+**The sheets: what stands photographed into the ground from L4, the L5 lattice coarser, banners
+of far units** (2026-11-05, branch `feat/sheets`, parts `p/sheet`, `p/terrain`, `p/seams`,
+`p/far`)
+- Added: `world.Fixed`, the mark of a kind standing for good (the board's `StandingTemplate`
+  gives it, bridge decks and piers carry it, units never). In a world whose ground a renderer
+  draws (`world.Plugin.Sheets`), what stands in a sector some camera draws at L4 or L5 is
+  photographed on the GPU from its L3 looks, with the parts of the fields folded there, into two
+  images over the whole world (`Read.Sheet`: the albedo and the relief, the top's height as f16
+  and the normal; `SheetImage`, `SheetReliefImage`; at L5 in half), a few sectors a frame as their
+  content changes (`Read.Painted`); the topography draws the sheet over the ground as relief lit
+  by the frame's light, the flat board and the hex tops lay its albedo flat; a standing entity
+  of a painted sector is no record. `Ladder.Texel` is the sheet's texel (zero: one over the L4
+  threshold, at most 4096 texels a side).
+- Added: `world.Config.Far` (`Points`, `Banners`) and `Config.Counts`, saved as `Settings.Far`
+  and `Settings.Counts` (zero: as the Config), set by `ShowFar{Look}` and `ShowCounts{On}` and on
+  the settings screen ("Far units", "Counts"); `Read.Banners(cam, dst)`; `Read.FarLook`,
+  `Read.Counts`. In the `Banners` look the loose units of a kind in a sector drawn at L4 or L5 are
+  one banner where the kind declares a look at that level, drawn as that look at their centroid,
+  never thinned; the counts are drawn on the glass in the kind's far colour; a click on a banner
+  selects its units (`selection`).
+- Added: a standing entity cut by a sector's edge or beside a sector drawn finer than L4 is drawn
+  alive at the finer level and kept out of the sheet, so a bridge stays whole across a seam.
+- Changed: a figure some camera sees at L5 is its blob, as at L4, thinned by `Keep[L5]`; a kind's
+  L5 version is its L4 one unless declared. The L5 colour sum is gone: `Plugin.Aggregates`,
+  `Read.Aggregate`, `AggregateImage`, the board's `WithAggregate` and the terrain's
+  `Config.Aggregate` with it (`WithSheet`, `Config.Sheet`, `Config.Painted` in their place); the
+  benchmarks' rung `level=5, unread` too.
+- Changed: the topography's ground at L5 is a lattice of every fourth corner (a Madeira sector
+  94 triangles against 190 at L4), its albedo at a quarter; at L4 the albedo at half; the
+  painter keeps both (`Painted.AlbedoHalf`, `AlbedoQuarter`, `Painter.Shrunk`).
+- Added: `Benchmark_World_Sheet` (`sector,64`, `frame,8`), `Frame_Topography/iso,level=4,sheet`.
+
 **Three scales of the ladder: the levels renumbered** (2026-11-05, branch `refactor/levels`,
 part `e/levels`)
 - Changed: the ladder has seven levels in three scales of two rungs each, exact and coarse, and

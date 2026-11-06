@@ -73,9 +73,19 @@ each, or a twentieth and a hundredth of 50,000; the cases are named by the boxes
 | 5,000 of 5,000 at L4 (points, v0.19) | 65.3 µs | 199 µs | |
 | 49 of 5,000 at L4 | 9.0 µs | 2.3 µs | |
 | 5,000 of 5,000 at L4, a quarter kept (`Keep`) | 99 µs | | |
-| 5,000 of 5,000 at L5, summed into the ground | 460 µs | 0.3 µs | |
-| 49 of 5,000 at L5, summed | 13.5 µs | 0.3 µs | |
-| 5,000 of 5,000 at L5, no ground reading the sum | 65.0 µs | 78 µs | |
+| 5,000 of 5,000 at L5 (points, as L4; v0.20) | as L4 | as L4 | |
+| 49 of 5,000 at L5 | as L4 | as L4 | |
+
+The sheets (v0.20, `Benchmark_World_Sheet`): a world of 64 standing things (`world.Fixed`) in one
+sector seen at L4, photographed into the sheets and waited for (a 1×1 copy read back), and a
+frame of 8 sectors so; each op is a publish, a compose, the photographs and the wait, of which
+the publish, compose, copy and readback alone are ~0.45 ms and 436 allocations (wgpu's, a Vulkan
+call each).
+
+| Photographed | Time | Allocations |
+|:---|---:|---:|
+| one sector of 64 things | 1.27 ms | 1,131 |
+| a frame of 8 sectors | 1.96 ms | 1,131 |
 
 0 allocs/op. The publishing walks the world and writes a record an entity in view: under 2 ns an
 entity walked and some 10 ns a record. The drawing costs the boxes in view, about 85 ns a box
@@ -89,13 +99,17 @@ so every sector is at L4 or L5): at L4 a figure is a point without a look, ~40 n
 record the same; keeping a quarter (`Ladder.Keep`) costs the hash of every entity in view at the
 publishing (~7 ns each) and spares three quarters of the points drawn (~150 µs here), a gain where
 the drawing outweighs it. At L5 with a ground reading the sum (`world.Plugin.Aggregates`) the
-publishing sums a box's colour into the texels it covers instead of a record, ~90 ns a box for
-20-unit boxes over 16-unit texels (about five texels each; ~25 ns at one, Go spilling registers
-in the loop), and the drawing has nothing left; without a reader the record is written as before
-and skipped at the drawing (~15 ns). Against v0.18 the plain rungs publish +4–6% (the level and
-the hash read for every entity) and draw −5%. At v0.20.0 (the field aggregates' records, a
-piece a sector) the plain rungs stand: 49 in view −3.8%, 5,000 +0.9% against v0.19.1, once the
-fields' checks left the plain path (a `seenAny` that stopped inlining had cost the 49 rung 40%).
+publishing summed a box's colour into the texels it covers instead of a record (v0.19, ~90 ns a
+box); since v0.20 the sum is gone: what stands is photographed into the sheets (above) and a unit
+at L5 is a point as at L4, so the L5 rungs equal L4's (the publishing of 5,000 at L5 657 → 83 µs).
+Against v0.18 the plain rungs publish +4–6% (the level and the hash read for every entity) and
+draw −5%. At v0.20.0 (the field aggregates' records, a piece a sector) the plain rungs stand: 49
+in view −3.8%, 5,000 +0.9% against v0.19.1, once the fields' checks left the plain path (a
+`seenAny` that stopped inlining had cost the 49 rung 40%); with the sheets and the banners the
+plain publish is −3…−10% against that, once its walk was kept apart from the stand-ins' (one loop
+with the sheets' state had cost +20…28% on every rung: eight spilled stores an entity, and
+`seenAny` inlined sharing registers with the new locals; `seenAny` is `//go:noinline` now, the
+record's zero stores merged in field order, `progress`'s guard inlined).
 
 ## Collision tick — `Benchmark_Collision_Tick`, `Benchmark_Collision_Swept`
 
@@ -549,9 +563,9 @@ resolution or at every pixel (sharp).
 | isometric at 0.7 of the pixels (1792×1008) | 8.4 ms | ~3.8 ms |
 | isometric, every sector at L2 (full) | 15.3 ms | 6.1 ms |
 | isometric, every sector at L3 (no shore nor running water) | 13.5 ms | 4.2 ms |
-| isometric, every sector at L4 (coarse lattice, still water) | 12.0 ms | 2.7 ms |
-| isometric, every sector at L5 (the albedo sheet) | 9.0 ms | ~0 |
-| isometric, every sector at L5, the figures' sum laid over the sheet (v0.19) | 9.3 ms | ~0.3 ms |
+| isometric, every sector at L4 (coarse lattice, still water, the albedo at half; v0.20) | 12.0 ms | 2.7 ms |
+| isometric, every sector at L4, the sheets of what stands in half of the sectors (v0.20) | +1.3–1.9 ms over L4 | |
+| isometric, every sector at L5 (every fourth corner, the albedo at a quarter; v0.20) | 9.0 ms, −5% against v0.19 | ~0 |
 | isometric in layers | 13.9 ms | 4.7 ms |
 | perspective in layers, inset | 15.0 ms | 5.7 ms |
 | perspective in layers, footed | 14.5 ms | 5.3 ms |
@@ -566,9 +580,13 @@ What it says: the frame is bound by the pixels — 0.7 of them costs half, the l
 pixels drawn) a third less than the whole; the figures at every pixel over a coarse ground cost
 2–2.3 ms, the pass over the ground at the screen's size; each level of the ground saves 1.5–2.7
 ms of the frame, the sheet at L5 nearly the whole ground's pass (v0.18); the figures' colour
-summed into the ground (v0.19) costs the sheet ~0.3 ms with no figure at L5 (its scale uniform
-read, the sample skipped; +0.6 ms when it sampled an empty image); the baked shade costs
-nothing measurable here. The CPU is busy a fifth of the frame (the profile), the
+summed into the ground (v0.19) cost the sheet ~0.3 ms and went with v0.20; the albedo at half at
+L4 and the lattice of every fourth corner with the albedo at a quarter at L5 take −1.7% and
+−4.9% off those rungs; the sheets of what stands drawn as relief over half the sectors cost
+1.3–1.9 ms a frame, nearly all of it the raised domes' walls rasterised (a quarter of the 1440p
+screen for a few thousand pixels of lanterns; a fragment shader that only discards costs the
+same), the photographs themselves settled after setup; the baked shade costs nothing measurable
+here. The CPU is busy a fifth of the frame (the profile), the
 readback's copy and the Vulkan calls, and waits the rest.
 
 ## The flat board's frame — `Benchmark_Frame_Flat`
@@ -596,6 +614,9 @@ cell changed every time.
 |:---|---:|---:|
 | whole | 18.1 ms | 3,272 |
 | round a cell | 4.5 ms | 4,671 |
+
+Since v0.20 every bake also shrinks the albedo to a half and a quarter (`DrawImage` at 0.5, the
+changed cells' rectangles after a partial one): whole +0.1…2%, round a cell +4…6% of the median.
 
 ### The composer's share — `Benchmark_Composer_Render` (`render/internal/compose`)
 

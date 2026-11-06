@@ -61,6 +61,14 @@ type Tempo struct{ X float32 }
 // world cut into sectors.
 type SwitchBands struct{ On bool }
 
+// ShowFar has the loose units drawn at the strategic scale as Look says (Settings.Far), AsConfig
+// as the Config does. The settings screen alone, in a world cut into sectors.
+type ShowFar struct{ Look FarLook }
+
+// ShowCounts has the number of a kind's units in a sector drawn by them at the strategic scale,
+// or not (Settings.Counts). The settings screen alone, in a world cut into sectors.
+type ShowCounts struct{ On bool }
+
 func (Despawn) Command()     {}
 func (Spawn) Command()       {}
 func (SpawnPart) Command()   {}
@@ -71,6 +79,8 @@ func (Faster) Command()      {}
 func (Slower) Command()      {}
 func (Tempo) Command()       {}
 func (SwitchBands) Command() {}
+func (ShowFar) Command()     {}
+func (ShowCounts) Command()  {}
 
 var (
 	_ command.Command = Despawn{}
@@ -84,28 +94,42 @@ var (
 	_ command.Command = Slower{}
 	_ command.Command = Tempo{}
 	_ command.Command = SwitchBands{}
+	_ command.Command = ShowFar{}
+	_ command.Command = ShowCounts{}
 )
 
 // Settings is what the world lets the players adjust, saved with the game: the looks of the
-// sectors and whether their levels are ticked. The tempo and the pause are the clock's
-// (clock.State).
+// sectors, whether their levels are ticked and how the loose units are drawn far off. The tempo
+// and the pause are the clock's (clock.State).
 type Settings struct {
 	Sectors  SectorsShown
 	Unbanded bool
+	Far      FarLook
+	Counts   Shown
 }
+
+// Shown is whether a setting has something drawn, or AsConfig.
+type Shown uint8
+
+// The Showns but AsConfig.
+const (
+	On Shown = iota + 1
+	Off
+)
 
 // Queues are the queues of every command the world carries out.
 func (p *Plugin) Queues() []command.CommandQueue {
 	m := p.module
 	return []command.CommandQueue{
 		&m.pauses, &m.fasters, &m.slowers, &m.tempos, &m.bandSwitches, &m.sectorSwitches,
-		&m.spawns, &m.spawnParts, &m.despawns, &m.keens, &m.calms, &m.effectCmds.queue,
-		&m.effectCmds.triggers,
+		&m.farLooks, &m.counts, &m.spawns, &m.spawnParts, &m.despawns, &m.keens, &m.calms,
+		&m.effectCmds.queue, &m.effectCmds.triggers,
 	}
 }
 
 // Settings are the tempo, with more than one to choose from, and, in a world cut into sectors,
-// what is drawn of them and whether their levels are ticked (plugin.Tunable).
+// what is drawn of them, whether their levels are ticked and how the loose units are drawn far
+// off (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {
 	var out []control.Setting
 	if tempos := p.module.clock.Read().Tempos(); len(tempos) > 1 {
@@ -136,6 +160,19 @@ func (p *Plugin) Settings() []control.Setting {
 			Label: "Sectors' levels",
 			Get:   p.read.Banded,
 			Set:   func(on bool) command.Command { return SwitchBands{On: on} },
+		},
+		control.Choice{
+			Label:   "Far units",
+			Section: control.Graphics,
+			Options: []string{"points", "banners"},
+			Get:     func() int { return int(p.read.FarLook()) - 1 },
+			Set:     func(i int) command.Command { return ShowFar{Look: FarLook(i + 1)} },
+		},
+		control.Switch{
+			Label:   "Counts",
+			Section: control.Graphics,
+			Get:     p.read.Counts,
+			Set:     func(on bool) command.Command { return ShowCounts{On: on} },
 		})
 }
 

@@ -1,8 +1,8 @@
 // A sector of a hex board seen as a sheet (topography's hexes at lod.L5): an instance a sector,
 // its box (x0, y0, x1, y1) and its height (the mean of its cells' corners), a quad over the box
 // at that height, drawn through U.ViewProj (camera.Transform) sunk U.Bend·d² under U.Eye's level;
-// coloured from the board from above, the first image, U.TopPx pixels a world unit, the figures'
-// colour summed over it (world.AggregateImage, U.AggregatePx texels a world unit), in the ambient
+// coloured from the board from above, the first image, U.TopPx pixels a world unit, the sheet of
+// what stands laid over it (world.SheetImage, U.SheetPx texels a world unit), in the ambient
 // light and the sun's on level ground, nothing off the board; hazed and fogged as the cells are.
 
 struct Sheet {
@@ -31,9 +31,9 @@ fn fs_main(s: Sheet) -> @location(0) vec4<f32> {
     if albedo.a < 0.5 {
         discard;
     }
-    let summed = aggregateAt(s.world.xy);
+    let stands = sheetAt(s.world.xy);
     let light = U.Ambience + U.LightColor * max(lightWay().z, 0.0) * U.LightStrength;
-    var rgb = (summed.rgb + albedo.rgb * (1.0 - summed.a)) * light;
+    var rgb = (stands.rgb + albedo.rgb * (1.0 - stands.a)) * light;
     if U.Visibility > 0.0 {
         rgb = mix(rgb, U.Fog, 1.0 - exp(-hazeDepth(s.world) / U.Visibility));
     }
@@ -52,13 +52,13 @@ fn hazeDepth(p: vec3<f32>) -> f32 {
     return max(U.HazeUp - p.z, 0.0) / max(-U.HazeWay.z, 0.05);
 }
 
-// aggregateAt is the figures' colour summed into the ground at p, premultiplied, blended between
-// the four texels round p; clear where U.AggregatePx is 0.
-fn aggregateAt(p: vec2<f32>) -> vec4<f32> {
-    if U.AggregatePx <= 0.0 {
+// sheetAt is the albedo of the sheet of what stands at p, premultiplied, blended between the four
+// texels round p; clear where U.SheetPx is 0.
+fn sheetAt(p: vec2<f32>) -> vec4<f32> {
+    if U.SheetPx <= 0.0 {
         return vec4<f32>(0.0);
     }
-    let size = vec2<f32>(textureDimensions(Aggregate));
-    let t = clamp(p * U.AggregatePx, vec2<f32>(0.5), size - 0.5);
-    return textureSampleLevel(Aggregate, linear, t / size, 0.0);
+    let size = vec2<f32>(textureDimensions(Sheet));
+    let t = clamp(p * U.SheetPx, vec2<f32>(0.5), size - 0.5);
+    return textureSampleLevel(Sheet, linear, t / size, 0.0);
 }

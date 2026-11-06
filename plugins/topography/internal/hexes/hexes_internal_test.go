@@ -152,7 +152,7 @@ func (downward) Rays() (camera.RayField, bool) {
 		DY: [3]float32{0, 8, 0}, Dir: [3]float32{0, 0, -1}}, true
 }
 
-func TestGround_LaysTheFiguresColourOverASheet(t *testing.T) {
+func TestGround_LaysTheSheetOfWhatStandsOverASheet(t *testing.T) {
 	gputest.Need(t)
 	cam := downward{cameratest.NewFromSpace(64, 64, 0)}
 	field, _ := cam.Rays()
@@ -160,15 +160,15 @@ func TestGround_LaysTheFiguresColourOverASheet(t *testing.T) {
 	if !ok {
 		t.Fatal("no transform looking down")
 	}
-	// tops of grey 4 world units a pixel; a texel of the aggregate a screen pixel, red at (20, 30)
+	// tops of grey 4 world units a pixel; a texel of what stands a screen pixel, red at (20, 30)
 	// and half blue at (40, 10)
 	top := render.NewImage(128, 128)
 	top.Fill(color.RGBA{100, 120, 140, 255})
-	aggregate := render.NewImage(64, 64)
+	stands := render.NewImage(64, 64)
 	pix := make([]byte, 4*64*64)
 	copy(pix[4*(30*64+20):], []byte{255, 0, 0, 255})
 	copy(pix[4*(10*64+40):], []byte{0, 0, 128, 128})
-	aggregate.WritePixels(pix)
+	stands.WritePixels(pix)
 	draw := func(img *render.Image) func(x, y int) color.RGBA {
 		h := &Ground{own: map[string]any{}, px: 0.25,
 			sheet: []float32{0, 0, 512, 512, 0, 0, 0, 0}}
@@ -191,7 +191,7 @@ func TestGround_LaysTheFiguresColourOverASheet(t *testing.T) {
 			return color.RGBA{out[i], out[i+1], out[i+2], out[i+3]}
 		}
 	}
-	plain, summed := draw(nil), draw(aggregate)
+	plain, laid := draw(nil), draw(stands)
 	for y := range 64 {
 		for x := range 64 {
 			want := plain(x, y)
@@ -201,7 +201,7 @@ func TestGround_LaysTheFiguresColourOverASheet(t *testing.T) {
 			case x == 40 && y == 10:
 				want = color.RGBA{want.R / 2, want.G / 2, want.B/2 + 128, 255}
 			}
-			got := summed(x, y)
+			got := laid(x, y)
 			d := func(a, b byte) int { return max(int(a)-int(b), int(b)-int(a)) }
 			if d(got.R, want.R) > 2 || d(got.G, want.G) > 2 || d(got.B, want.B) > 2 ||
 				got.A != want.A {
@@ -210,6 +210,65 @@ func TestGround_LaysTheFiguresColourOverASheet(t *testing.T) {
 		}
 	}
 	if got := plain(5, 5); got != (color.RGBA{100, 120, 140, 255}) {
-		t.Errorf("the sheet without figures is %v, want the tops' grey", got)
+		t.Errorf("the sheet with nothing standing is %v, want the tops' grey", got)
+	}
+}
+
+func TestGround_LaysTheSheetOfWhatStandsOverTheTopsAtL4(t *testing.T) {
+	gputest.Need(t)
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 256, Height: 256},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 4},
+		Heights:  true,
+	})
+	b := board.NewPlugin(grid.DefaultGrids{}.Hex(8, 8, 20), &cell.MultipleOccupancy{}, w)
+	r := relief.New(b.Read(0).Board(), nil)
+	gridded := func() (bool, look.RenderState) { return false, *b.Res.Render }
+	h := New(w, b, b.Read(0).Drawn(), nil, func() *relief.Relief { return r }, gridded, nil, nil)
+	h.lay()
+	h.face()
+	cam := downward{cameratest.NewFromSpace(64, 64, 0)}
+	field, _ := cam.Rays()
+	tr, ok := camera.SceneTransform(field, 64, 64)
+	if !ok {
+		t.Fatal("no transform looking down")
+	}
+	// tops of grey 2 pixels a world unit; a texel of what stands a screen pixel, red at (10, 12)
+	top := render.NewImage(512, 512)
+	top.Fill(color.RGBA{100, 120, 140, 255})
+	stands := render.NewImage(32, 32)
+	pix := make([]byte, 4*32*32)
+	copy(pix[4*(12*32+10):], []byte{255, 0, 0, 255})
+	stands.WritePixels(pix)
+	draw := func(img *render.Image) []byte {
+		h.opts.Uniforms = map[string]any{"LightWay": []float32{0, 0, 1},
+			"LightStrength": []float32{0}, "LightColor": []float32{1, 1, 1},
+			"Ambience": []float32{1, 1, 1}}
+		h.set("ViewProj", tr.M[:]...)
+		h.set("Eye", tr.Eye[:]...)
+		h.set("HexSize", h.size)
+		h.set("TopPx", 2)
+		h.set("Base", h.base)
+		h.set("Facing", float32(h.cols), float32(h.facing.Bounds().Dx()))
+		h.laySheet(img, 1.0/8)
+		screen := render.NewImage(64, 64)
+		depth := render.NewDepth()
+		screen.ClearDepth(depth)
+		h.opts.Depth, h.opts.WriteDepth = depth, true
+		h.opts.Images = [4]*render.Image{top, h.facing, nil, nil}
+		h.opts.Instances, h.opts.Vertices = h.cells, topVertices
+		screen.DrawMesh(nil, fans, &h.opts)
+		out := make([]byte, 4*64*64)
+		screen.ReadPixels(out)
+		return out
+	}
+	plain, laid := draw(nil), draw(stands)
+	at := func(pix []byte, x, y int) [4]byte { return [4]byte(pix[4*(y*64+x) : 4*(y*64+x)+4]) }
+	if got := at(laid, 10, 12); got != [4]byte{255, 0, 0, 255} {
+		t.Errorf("the top under what stands at (10, 12) is %v, want its red", got)
+	}
+	if got, want := at(laid, 14, 12), at(plain, 14, 12); got != want || want[3] == 0 {
+		t.Errorf("a top with nothing standing on it is %v, want as without the sheet, %v", got,
+			want)
 	}
 }

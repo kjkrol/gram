@@ -166,3 +166,28 @@ func TestRenderer_Publish_KeepingAllPublishesAsWithoutAKeep(t *testing.T) {
 			len(none.all), len(weighed.all))
 	}
 }
+
+// keepingL5 is a ladder drawing the right sector at L5 keeping share there
+func keepingL5(share float32) lod.Ladder {
+	l := lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.2, 0.15}}
+	l.Keep[lod.L5] = share
+	return l
+}
+
+func TestRenderer_Publish_RecordsWhatItSeesAtL5ThinnedByItsKeep(t *testing.T) {
+	k := newThinnable()
+	groups := []group{{n: 100, sprite: k.plain}, {n: 100, sprite: k.plain, keen: true},
+		{n: 100, sprite: k.always}, {n: 100, sprite: k.declared}}
+	_, all := published(t, k, keepingL5(0), groups...)
+	for g, ids := range all[:len(groups)] {
+		if len(ids) != 100 {
+			t.Errorf("recorded %d of the group %d's 100 at L5 keeping all, want every one",
+				len(ids), g)
+		}
+	}
+	_, kept := published(t, k, keepingL5(0.01), groups...)
+	if len(kept[0]) > 10 || len(kept[1]) != 100 || len(kept[2]) != 100 || len(kept[3]) != 100 {
+		t.Errorf("kept %d plain, %d keen, %d never thinned, %d declared of 100 each at L5; want "+
+			"few, then all", len(kept[0]), len(kept[1]), len(kept[2]), len(kept[3]))
+	}
+}

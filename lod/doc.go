@@ -10,14 +10,14 @@
 // sees, the finest going every step. The words of the levels are a contract every kind of thing
 // keeps:
 //
-//	level and word       a figure                    a tile              the ground
-//	L0 close             its L0 look, else as at L2  as at L2            as at L2
-//	L1 close, no detail  its L1 look, else as at L2  as at L2            as at L2
-//	L2 full              sprite, edged, upright      covers, ways, grid  full
-//	L3 no detail         flat sprite                 tile and ways       no shore nor running water
-//	L4 shape             blob of its mean colour     colour              coarse lattice, no waves
-//	L5 colour            colour in the sheet         colour              sheet
-//	L6 nothing           nothing                     nothing             nothing
+//	level and word       a figure                     a tile             the ground
+//	L0 close             its L0 look, else as at L2   as at L2           as at L2
+//	L1 close, no detail  its L1 look, else as at L2   as at L2           as at L2
+//	L2 full              sprite, edged, upright       covers, ways, grid full
+//	L3 no detail         flat sprite                  tile and ways      no shore, still water
+//	L4 shape             blob; what stands: sheet     colour             coarse, no waves
+//	L5 colour            blob, thinned; sheet in half colour             coarser, albedo quartered
+//	L6 nothing           nothing                      nothing            nothing
 //
 // The levels are three scales of two rungs each, exact and coarse, and the omission: the close
 // scale from [Close] (L0, L1), the standard from [Standard] (L2, L3), the strategic from
