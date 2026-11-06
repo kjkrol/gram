@@ -250,6 +250,7 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 	p.look = billboards.New(worldPlugin.Read(0).FlatLook(), liveSky{p},
 		func() (*irelief.Relief, bool) { return p.drawnRelief(), p.drawnSettings().Haze })
 	worldPlugin.Write().SetLook(p.look)
+	worldPlugin.Write().SetGround(p.relief.GroundAt)
 	if lightPlugin != nil {
 		lightPlugin.OverRelief(lightRelief{p})
 	}

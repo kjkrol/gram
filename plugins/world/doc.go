@@ -23,6 +23,8 @@
 // workers read the world at once; Write is the game's goroutine's. Read(w).Space() queries the
 // spatial index, Read(w).Clock() reads the clock and Read(w).Effects() which effects the entities
 // are under; Write() spawns, writes the space, drives the clock and casts the effects.
+// Read(w).GroundAt is the ground's height under a point as the plugin laying the ground in relief
+// gives it ([Write.SetGround], the topography's), 0 in a world without one.
 //
 // # Base, Position and Velocity
 //
@@ -117,6 +119,13 @@
 // unit there is its blob. A standing entity cut by a sector's edge, or beside a sector seen finer
 // than L4, is drawn alive at the finer level, never thinned, and photographed nowhere.
 //
+// Config.Sheets ([SheetsCfg]) keeps the sheets between runs: they are read from the tiles in its
+// Dir as they are made, so a sector photographed in an earlier run is photographed again only once
+// what stands in it changes, and with Keep the tiles a sector was photographed in are written back
+// there as they settle, a tile a second; without Keep the folder is only read. Tiles of another
+// Version, texel or world are not read. What a field's folded parts look like is not in what a
+// sector is signed by, so a game changing how it plants its fields changes Version.
+//
 // [Read.Picture] is everything the Stage's plugins draw (plugin.Installer.Draws), one picture
 // for every scene; a scene shows it through a camera, ui.Image(render.NewFeed(camera, it)).
 //
@@ -172,6 +181,13 @@
 // from L4 in the sector's sheet where it declares none; a sector it is unfolded in has its
 // parts drawn alone, till they have gone the step after its Fold. Drawn so, it lies on the ground,
 // under the figures standing over it.
+//
+// A field's stretch a sheet draws, of a kind declaring no look of its own at L4, with none of its
+// parts kept (never unfolded, or not since the game was loaded), is previewed before its sector
+// is photographed: told its Unfold as though it unfolded, it has the parts its rules give there
+// photographed where they would stand, on the ground the world is given ([Write.SetGround]), and
+// kept as a Fold keeps them; none is spawned, no stretch is made, nothing is saved. Its rules
+// cannot tell a preview from an unfolding, so whatever else they do under Unfold is done then too.
 //
 // # Views
 //

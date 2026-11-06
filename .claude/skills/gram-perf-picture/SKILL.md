@@ -74,6 +74,15 @@ Protokół i pułapki pomiaru: `gram-perf`; jak się rysuje: `gram-render`. Licz
   obraz: półprzezroczysty obrys pod szczytem to frędzel albedo na ścianach), blend kopiujący w
   `DrawMeshOptions` (3 draw mniej na rundę), albedo i relief w jednym obrazie (zmienia
   `Read.Sheet`).
+- Kafle płacht (`sheet_files.go`, `d/files`, 2026-11-06): kafel 512 tekseli, PNG przez
+  `image.NRGBA` nad bajtami (pułapka: `image.RGBA` jest premultiplied i koder dzieli kolor
+  każdego półprzykrytego teksela przez alfę); brudny kafel pisany 2 s po ostatniej fotografii w
+  nim, najwyżej jeden na sekundę: `CopyFrom` i `ReadPixels` w klatce, `png.BestSpeed` w
+  goroutine, `.tmp` i rename. `World_SheetFiles` (pakiet `plugins/world`, `measure.sh` go nie
+  widzi): `load,tile` i `save,tile`; liczby w BENCHMARKS. Drugi bieg Madery ma pełną płachtę od
+  pierwszej narysowanej klatki (klatki 5 i 10 różnią się od 120 o 40 px, bez kafli o ~30 tys.);
+  klatka 1 niczego nie dowodzi, świat dopiero się budzi. Dźwignia, gdyby zapis przeszkadzał:
+  kompresja (BestSpeed → brak) albo zapis rzadziej.
 - Płaska plansza: CPU pisze dane komórek, shadery liczą kształty; wypiek paintera idzie na GPU.
 - Plansza, relief, pogoda, światło i znaki minimapy publikowane raz na klatkę; renderery czytają
   kopię, nigdy żywy stan.

@@ -83,6 +83,7 @@ type wholes struct {
 	partOf   goke.Comp[PartOf]
 	partBase goke.Comp[Base]
 	partZ    goke.OptComp[Z]
+	partLie  goke.OptComp[Lie]
 	partLook goke.OptComp[render.Appearance]
 
 	abstract *goke.Query
@@ -93,10 +94,18 @@ type wholes struct {
 	making   *goke.Factory
 	made     goke.Comp[meeting]
 
-	// a step's stretches standing, by whole and sector, and those to make as they unfold
-	holding   []holding
-	unfolding []piece
-	cover     []sector.Part
+	// a step's stretches standing, by whole and sector, those to make as they unfold, those to
+	// preview and those told their Unfold, by place
+	holding    []holding
+	unfolding  []piece
+	previewing []piece
+	telling    []piece
+	cover      []sector.Part
+	// by id, the previews told their Unfold at a step, whose parts the spawning of the next one
+	// photographs and hands the sheets: a preview lives two steps and is never saved
+	previews []preview
+	// the last preview's id among the world's own
+	previewed uid.UID64
 	// the aggregates Unfolded comes off this step
 	marking []uid.UID64
 	// a step's stretches folding, by whole and sector, found by a field's place or a point's whole
@@ -111,6 +120,9 @@ type wholes struct {
 	walk    struct {
 		ids   []uid.UID64
 		bases []Base
+		// whether the sheets are photographed, and the world's atlas they are of
+		sheets bool
+		atlas  *Atlas
 		// by the i-th walked: where its moments begin, how many, and which of them is told now
 		from, n []int
 		round   int
@@ -206,7 +218,8 @@ func (s *wholes) Init(si *goke.SysInit) {
 	s.unfoldedAll = si.NewQueryBuilder(&s.unfoldedOf).
 		Include(goke.Include[Aggregate](), goke.Include[Unfolded]()).Build()
 	s.opening = si.NewFactory(&s.opened)
-	pb := si.NewQueryBuilder(&s.partOf, &s.partBase).Optional(&s.partZ).Optional(&s.partLook)
+	pb := si.NewQueryBuilder(&s.partOf, &s.partBase).Optional(&s.partZ).Optional(&s.partLie).
+		Optional(&s.partLook)
 	s.partCols = cgoke.NewColumns(pb)
 	s.foldings.Bind(s.partCols)
 	s.parts = pb.Build()
@@ -235,9 +248,12 @@ func (s *wholes) Update(cb *goke.CmdBuf, d time.Duration) {
 
 // finds the stretches of the aggregates, waits out those standing at L4 or coarser, noting for fold
 // those whose wait is over, and tells Unfold of those come down to L3 or finer with none standing
-// yet; the wait begins with the step, the sectors laid as the tick began
+// yet and of those the sheets wait for, previewed; the wait begins with the step, the sectors laid
+// as the tick began
 func (s *wholes) unfold(cb *goke.CmdBuf, d time.Duration, t host.Tick) {
 	s.holding, s.unfolding, s.folding = s.holding[:0], s.unfolding[:0], s.folding[:0]
+	s.previewing = s.previewing[:0]
+	s.sheeting()
 	for s.stretches.All(); s.stretches.Next(); {
 		cur := s.stretches.Cursor()
 		sts := s.stretch.Slice(cur)
@@ -267,9 +283,14 @@ func (s *wholes) unfold(cb *goke.CmdBuf, d time.Duration, t host.Tick) {
 
 // finds the stretches of the aggregates of the block cur, a point aggregate's one in the sector of
 // its centre, a field's, of the sizes given, in each sector it covers: those standing are walked,
-// those come to L3 or finer with none standing but one folded the step before unfold
+// those come to L3 or finer with none standing but one folded the step before unfold, a field's
+// coarser with none standing are bare to the sheets
 func (s *wholes) find(cur *goke.Cursor, fields []Field) {
 	sectors := s.w.sectors
+	var looks []render.Appearance
+	if fields != nil && s.walk.sheets {
+		looks = s.look.Slice(cur)
+	}
 	for i, b := range s.base.Slice(cur) {
 		id := cur.IDs[i]
 		if _, gone := s.w.despawned[id]; gone {
@@ -294,12 +315,16 @@ func (s *wholes) find(cur *goke.Cursor, fields []Field) {
 		}
 		half := geom.NewVec(fields[i].Size.X/2, fields[i].Size.Y/2)
 		s.cover = sectors.cover(geom.NewAABB(c.Sub(half), c.Add(half)), s.cover[:0])
+		kept := s.walk.sheets && s.keptBy(looks, i)
 		for _, p := range s.cover {
 			fine := sectors.levelOf(p.Sector) < lod.Strategic
-			if k := s.holdingIn(lo, hi, p.Sector); k >= 0 && !s.holding[k].folded {
+			switch k := s.holdingIn(lo, hi, p.Sector); {
+			case k >= 0 && !s.holding[k].folded:
 				s.holding[k].fine, s.holding[k].box = fine, p.Box
-			} else if fine {
+			case fine:
 				s.unfolding = append(s.unfolding, piece{whole: id, sector: p.Sector, box: p.Box})
+			case k < 0 && kept:
+				s.bare(id, p)
 			}
 		}
 	}
@@ -405,12 +430,32 @@ func (s *wholes) unfoldingOf(whole uid.UID64) bool {
 	return false
 }
 
-// makes a stretch for each unfolding, the sheets letting go of its parts, then tells their
-// aggregates their Unfold
+// makes a stretch for each unfolding, the sheets letting go of its parts, and a preview for each
+// previewing, then tells their aggregates their Unfold
 func (s *wholes) open(t host.Tick) {
-	if len(s.unfolding) == 0 {
+	if len(s.unfolding) > 0 {
+		s.openStretches()
+	}
+	if len(s.previewing) > 0 {
+		s.preview()
+	}
+	if s.unfolds.Empty() || len(s.unfolding)+len(s.previewing) == 0 {
 		return
 	}
+	s.telling = append(append(s.telling[:0], s.unfolding...), s.previewing...)
+	slices.SortFunc(s.telling, piecesByPlace)
+	for s.all.All(); s.all.Next(); {
+		cur := s.all.Cursor()
+		s.walk.bases = s.base.Slice(cur)
+		most := s.unfoldsOf(cur.IDs)
+		for s.walk.round = 0; s.walk.round < most; s.walk.round++ {
+			s.unfolds.RunWhere(t, s.cols.Row(cur), len(cur.IDs), s.unfoldsAt, s.unfoldAt)
+		}
+	}
+}
+
+// makes a stretch for each unfolding, the sheets letting go of its parts
+func (s *wholes) openStretches() {
 	for _, p := range s.unfolding {
 		s.w.p.renderer.sheet.unfold(place{whole: p.whole, sector: p.sector})
 	}
@@ -423,18 +468,6 @@ func (s *wholes) open(t host.Tick) {
 			p.stretch = id
 			made[i] = stretch{Whole: p.whole, Sector: p.sector, Box: p.box}
 			n++
-		}
-	}
-	if s.unfolds.Empty() {
-		return
-	}
-	slices.SortFunc(s.unfolding, piecesByPlace)
-	for s.all.All(); s.all.Next(); {
-		cur := s.all.Cursor()
-		s.walk.bases = s.base.Slice(cur)
-		most := s.unfoldsOf(cur.IDs)
-		for s.walk.round = 0; s.walk.round < most; s.walk.round++ {
-			s.unfolds.RunWhere(t, s.cols.Row(cur), len(cur.IDs), s.unfoldsAt, s.unfoldAt)
 		}
 	}
 }
@@ -500,18 +533,13 @@ func (s *wholes) fold(t host.Tick) {
 // has the step's shots ready for the parts of each field folding whose kind declares no look of
 // its own at L4, where the sheets are photographed: nil for the others
 func (s *wholes) snapping() {
-	r := s.w.p.renderer
-	wa, _ := r.atlas.(*Atlas)
 	for len(s.shots) < len(s.folding) {
 		s.shots = append(s.shots, nil)
 	}
 	for k, f := range s.folding {
 		s.shots[k] = nil
-		if !f.field || r.sheet.albedo == nil || r.atlas == nil || !s.all.Seek(f.whole) {
-			continue
-		}
-		if look := s.look.At(s.all.Cursor()); wa != nil && look != nil &&
-			wa.declares(look.SpriteID, lod.Strategic) {
+		if !f.field || !s.walk.sheets || !s.all.Seek(f.whole) ||
+			!s.kept(s.look.At(s.all.Cursor())) {
 			continue
 		}
 		s.shots[k] = make([]shot, 0, 8)
@@ -538,9 +566,13 @@ func (s *wholes) snap(k int, cur *goke.Cursor, i int) {
 	if zs := s.partZ.Slice(cur); zs != nil {
 		z = zs[i]
 	}
+	var lie *Lie
+	if lies := s.partLie.Slice(cur); lies != nil && lies[i].Length > 0 {
+		lie = &lies[i]
+	}
 	b := &s.partBase.Slice(cur)[i]
 	var at shot
-	r.photographed(&at, b.Pos.AABB, b.Vel.Dir, nil, z, l3)
+	r.photographed(&at, b.Pos.AABB, b.Vel.Dir, lie, z, l3)
 	s.shots[k] = append(s.shots[k], at)
 }
 
@@ -587,14 +619,14 @@ func (s *wholes) foldsWithin(id, whole uid.UID64, c geom.Vec) int {
 	return -1
 }
 
-// has the walk say where the stretches unfolding of each of ids begin and how many; it is the
-// most any has, each told in a round of its own
+// has the walk say where the stretches told their Unfold of each of ids begin and how many; it is
+// the most any has, each told in a round of its own
 func (s *wholes) unfoldsOf(ids []uid.UID64) (most int) {
 	s.walk.from, s.walk.n = s.walk.from[:0], s.walk.n[:0]
 	for _, id := range ids {
-		k, _ := slices.BinarySearchFunc(s.unfolding, id, pieceToWhole)
+		k, _ := slices.BinarySearchFunc(s.telling, id, pieceToWhole)
 		n := 0
-		for k+n < len(s.unfolding) && s.unfolding[k+n].whole == id {
+		for k+n < len(s.telling) && s.telling[k+n].whole == id {
 			n++
 		}
 		s.walk.from, s.walk.n = append(s.walk.from, k), append(s.walk.n, n)
@@ -623,7 +655,7 @@ func (s *wholes) foldsOf(ids []uid.UID64) (most int) {
 func (s *wholes) told(i int) bool { return s.walk.round < s.walk.n[i] }
 
 func (s *wholes) unfoldOf(i int) Unfold {
-	p := &s.unfolding[s.walk.from[i]+s.walk.round]
+	p := &s.telling[s.walk.from[i]+s.walk.round]
 	return Unfold{ID: p.whole, At: s.walk.bases[i].Pos.Center(), Sector: p.sector, Box: p.box,
 		stretch: p.stretch}
 }

@@ -33,13 +33,17 @@ type altitudeSystem struct {
 	on       goke.Comp[cell.On]
 	floor    goke.OptComp[cell.Floor]
 
+	// the parts of aggregates standing for good on no cell; not every world.Fixed off a cell, as a
+	// bridge's pier stands where its bridge put it
+	parts *goke.Query
+
 	span float32 // a cell's: a body wider stands on the highest ground under its box
 }
 
 // AltitudeSystem is the goke.System keeping the movers on r at their heights, standing on what
 // surfaces says, or on r's ground where it is nil, one bigger than a cell on the highest ground
-// under its box, each as pace says (nil, all). Run it in every step of the simulation, after
-// movement and collisions.
+// under its box, and what stands on r's ground, each as pace says (nil, all). Run it in every
+// step of the simulation, after movement and collisions.
 func (r *Relief) AltitudeSystem(surfaces ground.Surfaces, pace goke.Opt) goke.System {
 	return &altitudeSystem{relief: r, surfaces: surfaces, pace: pace, span: r.grid.CellSpan()}
 }
@@ -48,11 +52,15 @@ func (s *altitudeSystem) Init(si *goke.SysInit) {
 	movers := si.NewQueryBuilder(&s.base, &s.z, &s.mover).Optional(&s.driven).Optional(&s.course).
 		Exclude(goke.Exclude[motion.Drift]())
 	standing := si.NewQueryBuilder(&s.base, &s.z, &s.on).Optional(&s.floor)
+	parts := si.NewQueryBuilder(&s.base, &s.z).
+		Include(goke.Include[world.Fixed](), goke.Include[world.PartOf]()).
+		Exclude(goke.Exclude[cell.On](), goke.Exclude[unit.Mover]())
 	if s.pace != nil {
 		movers.With(s.pace)
 		standing.With(s.pace)
+		parts.With(s.pace)
 	}
-	s.query, s.standing = movers.Build(), standing.Build()
+	s.query, s.standing, s.parts = movers.Build(), standing.Build(), parts.Build()
 }
 
 func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
@@ -103,6 +111,16 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 				continue
 			}
 			zs[i].Altitude = s.relief.GroundAt(bases[i].Pos.Center())
+		}
+	}
+	for s.parts.Paced(d); s.parts.Next(); {
+		cursor := s.parts.Cursor()
+		bases, zs := s.base.Slice(cursor), s.z.Slice(cursor)
+		for i := range zs {
+			ground := s.relief.GroundAt(bases[i].Pos.Center())
+			if f32.Abs(zs[i].Altitude-ground) > f32.Eps(ground) {
+				zs[i].Altitude = ground
+			}
 		}
 	}
 }

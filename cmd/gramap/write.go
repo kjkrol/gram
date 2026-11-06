@@ -57,6 +57,7 @@ var legend = []struct {
 	{":", func(k kinds) string { return k.Sand }},
 	{"^", func(k kinds) string { return k.Rock }},
 	{"*", func(k kinds) string { return k.Forest }},
+	{"@", func(k kinds) string { return k.Built }},
 }
 
 func (w *chart) writeBoard(b *bytes.Buffer) {
@@ -73,16 +74,12 @@ func (w *chart) writeBoard(b *bytes.Buffer) {
 	for y := range w.rows {
 		b.WriteString("    ")
 		for x := range w.cols {
-			kind := k.Sea
-			if w.land[y*w.cols+x] {
-				kind = w.soils[y*w.cols+x]
-			}
-			b.WriteString(keys[kind])
+			b.WriteString(keys[w.kindAt(x, y)])
 		}
 		b.WriteString("\n")
 	}
-	stands := w.standing()
-	if len(stands) == 0 {
+	stands, fields := w.standing(), w.fields()
+	if len(stands)+len(fields) == 0 {
 		return
 	}
 	b.WriteString("  entities:\n")
@@ -95,6 +92,10 @@ func (w *chart) writeBoard(b *bytes.Buffer) {
 		}
 		dx, dy := w.grid.Offset(s.way)
 		fmt.Fprintf(b, "    - {kind: %s, at: [%d, %d], way: [%d, %d]}\n", s.kind, x, y, dx, dy)
+	}
+	for _, f := range fields {
+		fmt.Fprintf(b, "    - {kind: %s, from: %s, to: %s, cells: %d}\n", f.kind, w.point(f.from),
+			w.point(f.to), f.cells)
 	}
 }
 

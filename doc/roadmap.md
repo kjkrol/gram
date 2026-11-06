@@ -125,8 +125,7 @@ What is left to do. Take an item out when it lands.
   navigation keeps a target keen is overwritten on restore; abstract routes drawn
   (`routes/renderer.go` reads `Path`); re-checking an abstract route after a passage change; a
   right click sending `MoveTo{To}` at the entity under the cursor (navigation's click sends a
-  cell, selection exposes no hovered entity); a part standing on the board (`SpawnPart` re-lays
-  `Position` alone, not `cell.On`/`unit.At`); a Fold the moment an unfolded aggregate's last part
+  cell, selection exposes no hovered entity); a Fold the moment an unfolded aggregate's last part
   goes, or a `MoveTo` aimed at the nearest of a group, so a charge can last till the foe is gone;
   a unit told Stop in the far mode stands unmarked on no cell; a change of the finest level seen
   re-marks every awake entity in two archetype moves (goke's `Editor` would make it one); the
@@ -147,8 +146,7 @@ What is left to do. Take an item out when it lands.
 - **The sheets, what is left** (2026-11-05) — the sheet casts no shadow on the ground at L4 (the
   light's bake reads `GroundHeights` alone); a look changed under an effect, or an animated look
   on a `Fixed` kind, re-photographs its sector (the sprite is in the signature: a frame of
-  animation a frame); the snapshots of a folded field's parts are not saved, so after a load in
-  one process a stale one stays till the stretch unfolds; a thing across a wrapping world's seam
+  animation a frame); a thing across a wrapping world's seam
   is clamped in the photo, not wrapped; the minimap's `Miniature` could read the albedo's
   quarter; `lay` builds a third index set at every relief change (~12 % more indices on
   Madeira); the uniform `AlbedoSize` is read by no shader; `surface.wgsl`'s `albedo()` could read
@@ -160,6 +158,30 @@ What is left to do. Take an item out when it lands.
   would spare three draws a round; the albedo and the relief in one image another pass); hover
   and the pointed commands do not know banners, only a click does; a banner's Z is its units'
   mean, so it may sink under a hill between valley units.
+- **Madeira with aggregates, what is left** (2026-11-06) — the trees carry no `Collider` and
+  hold no cell, so units walk through a forest (a decision: a collider costs the L2 tick, an
+  occupancy the planner); a settlement's lamp is in the sheet without its light (the sheet
+  carries no light sources); the flat demo reads no fields and its map is not renewed; a change
+  to the rules planting a field is a new `SheetsVersion` by hand (a sector's signature knows the
+  kinds in it, not the rules); `Swap` schedules the developing only when photos wait, so the
+  dirty tiles re-arm the Defer themselves (the condition in `Swap` is the cleaner lever); an
+  orthographic camera at L2 unfolds every field within the Sight (the scale is one over the
+  whole frame: ~30 000 trees on Madeira), so the island's L2 tick is the forests' (the ladder by
+  distance for the ortho camera, or a shorter Sight); a banner at L4 is a pixel or two (drawn in
+  the kind's mean box at 0.12–0.25 px a unit: an icon in screen pixels needs the world); an
+  unfolded caravan stands at its goal till it folds (the whole learns its parts arrived only at
+  `Fold`: an effect laid under `Unfold`, safe for a point aggregate, or a moment); houses as
+  prisms at noon are dark boxes with a roof (a billboard with a facade); only two settlements get
+  a lamp (the blocks of 16 cut the big towns into fields under 16 cells; a settlement as one
+  field over its cells); a hand-placed entity row goes when gramap regenerates the map (it keeps
+  `units:` alone); the caravans stand ~20 s of game at the start till the hierarchy is built.
+  Measured and open (2026-11-06, `doc/plans-perf.md` "Wynik etapu `d`"): the island at L4 costs
+  22 ms of GPU a frame on an Intel UHD 620 (the whole island in the sheets, 173 sectors with the
+  photo mesh) and a steady tick of 8.7 ms where the old map at L2 had 2.1 ms (a CPU profile of
+  the probe is the next step); the forest at L2 is 24,000 trees and a tick of 20–30 ms, of which
+  the topography's altitude pass reads `GroundAt` for every standing part every step (a part
+  never moves: once at the spawn and at a relief change would do); a tile is saved in 29 ms
+  (`png.BestSpeed`, in a goroutine; the target was 10) and loaded in 2.5 ms (the target 2).
 
 ## Landscape and Madeira
 

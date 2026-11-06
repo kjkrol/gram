@@ -17,14 +17,24 @@
 // a leg that cannot be laid is left out and named. A units: section in the file made before stays
 // as it was. The map is laid on a board before it is written: what a board refuses, gramap
 // refuses.
+//
+// The recipe's fields: section lays fields over the cells of a kind, an entity a block (grain
+// cells a side from the first cell; a sector of the world, so a field folds and unfolds by
+// sector) where at least least of its cells are of that kind, written as rows of the map's
+// entities: with the kind, the block's first and last cell and how many cells it covers, for
+// the game's rules to plant. Its settlements: section lays cells of a kind round the roads'
+// places, as many as a place's size names in sizes: (cells, the words the recipe's: hamlet,
+// village, town; none for a pass), beside the roads first; the game says what stands on them.
 package main
 
 import (
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 )
 
 func main() {
@@ -80,17 +90,43 @@ func run(recipePath, out, cache string, flat bool) error {
 	for _, leg := range c.roads.skipped {
 		fmt.Fprintf(os.Stderr, "gramap: no road from %s to %s: %v\n", leg.from, leg.to, leg.why)
 	}
+	for _, name := range c.unsettled {
+		fmt.Fprintf(os.Stderr, "gramap: no settlement at %s: no cell of it\n", name)
+	}
 	fmt.Printf("%d x %d cells, the recipe's area from [%d, %d]\n", c.cols, c.rows, c.origin[0],
 		c.origin[1])
 	fmt.Println(c.roads.summary())
-	names := make([]string, 0, len(c.roads.places))
-	for name := range c.roads.places {
-		names = append(names, name)
+	if line := c.fieldsSummary(); line != "" {
+		fmt.Println(line)
 	}
-	slices.Sort(names)
-	for _, name := range names {
+	for _, name := range slices.Sorted(maps.Keys(c.roads.places)) {
 		x, y := c.xy(c.roads.places[name])
-		fmt.Printf("%s: [%d, %d]\n", name, x, y)
+		fmt.Printf("%s: [%d, %d]", name, x, y)
+		if built := len(c.settled[name]); built > 0 {
+			fmt.Printf(", %d cells built", built)
+			if n, _ := r.Settlements.cells(r.Roads.Places[name].Size); built < n {
+				fmt.Printf(" of %d", n)
+			}
+		}
+		fmt.Println()
 	}
 	return nil
+}
+
+// fieldsSummary is how many fields of each kind the map has, in the recipe's order
+func (w *chart) fieldsSummary() string {
+	counts := map[string]int{}
+	for _, f := range w.fields() {
+		counts[f.kind]++
+	}
+	var parts []string
+	for i, f := range w.r.Fields {
+		if !slices.ContainsFunc(w.r.Fields[:i], func(g fieldCfg) bool { return g.Kind == f.Kind }) {
+			parts = append(parts, fmt.Sprintf("%d %s", counts[f.Kind], f.Kind))
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "fields: " + strings.Join(parts, ", ")
 }

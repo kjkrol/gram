@@ -41,6 +41,8 @@ const (
 	sight = 300
 	// the places a stretch of the forest may hold a tree at
 	plots = 8
+	// a tree's height in a world with heights
+	treeHeight = 4
 )
 
 // off the middle of a stretch
@@ -61,13 +63,15 @@ type treeRow struct{}
 
 // a forest over sectors 0, 1, 8 and 9 of a world 8x2 sectors 512 a side, its centre in 9, seen by
 // one camera from above at L3 (half a pixel a world unit) and L4 (a quarter) within the sight of
-// where it looks, L6 past it
+// where it looks, L6 past it; in a world with heights where tall, its ground at ground
 type forest struct {
 	eng      *engine.Engine
 	w        *world.Plugin
 	ecs      *goke.ECS
 	cam      camera.Camera
 	at       geom.Vec
+	tall     bool
+	ground   float32
 	orders   heards
 	heard    []said
 	unfolded []world.Unfold
@@ -78,6 +82,8 @@ type forest struct {
 	treeOf   goke.Comp[world.PartOf]
 	forests  *goke.Query
 	base     goke.Comp[world.Base]
+	// whether the forest carries Unfolded
+	marked goke.OptComp[world.Unfolded]
 }
 
 var _ sector.Observers = (*forest)(nil)
@@ -87,7 +93,8 @@ func (f *forest) Observers(each func(cam camera.Camera)) { each(f.cam) }
 func (f *forest) SetupSystems() []goke.System {
 	return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		f.trees = si.NewQueryBuilder(&f.treeBase, &f.treeOf).Build()
-		f.forests = si.NewQueryBuilder(&f.base).Include(goke.Include[world.Field]()).Build()
+		f.forests = si.NewQueryBuilder(&f.base).Include(goke.Include[world.Field]()).
+			Optional(&f.marked).Build()
 	}}}
 }
 
@@ -95,7 +102,21 @@ func (f *forest) SetupSystems() []goke.System {
 // figures given noted
 func newForest(t *testing.T, at geom.Vec, figures ...world.Figure) *forest {
 	t.Helper()
-	f := &forest{cam: cameratest.NewFromSpace(4096, 1024, 0), at: at}
+	return newForestOf(t, &forest{at: at}, figures...)
+}
+
+// newGroundedForest is newForest in a world with heights, its ground at ground, its trees
+// treeHeight tall
+func newGroundedForest(t *testing.T, at geom.Vec, ground float32,
+	figures ...world.Figure) *forest {
+	t.Helper()
+	return newForestOf(t, &forest{at: at, tall: true, ground: ground}, figures...)
+}
+
+func newForestOf(t *testing.T, f *forest, figures ...world.Figure) *forest {
+	t.Helper()
+	at := f.at
+	f.cam = cameratest.NewFromSpace(4096, 1024, 0)
 	f.cam.SetViewport(100, 100)
 	f.cam.ZoomOut(2, 0, 0)
 	f.look(at)
@@ -109,9 +130,13 @@ func newForest(t *testing.T, at geom.Vec, figures ...world.Figure) *forest {
 				Sight:  sight,
 				Fold:   float32(foldAfter.Seconds()),
 			},
+			Heights: f.tall,
 		}).
 		Plugins(func(w *world.Plugin) {
 			f.w = w
+			if f.tall {
+				w.Write().SetGround(func(geom.Vec) float32 { return f.ground })
+			}
 			w.Figures(figures...)
 			w.Write().Observe(f)
 			if err := w.Carry(&f.orders); err != nil {
@@ -222,13 +247,17 @@ func (f *forest) kinds() {
 		comp.Const(world.Field{Size: geom.NewVec(forestSide, forestSide)}),
 		ceremony.Plays(roles.Named(forestRole)),
 	})
-	kind.Define[treeRow](f.w.Kinds(), treeKind, kind.Spec{
+	tree := kind.Spec{
 		comp.Load(func(treeRow) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(-5, -5), 10, 10)}
 		}),
 		comp.Const(world.Velocity{}),
 		ceremony.Plays(roles.Named(treeRole)),
-	})
+	}
+	if f.tall {
+		tree = append(tree, comp.Const(world.Z{Height: treeHeight}))
+	}
+	kind.Define[treeRow](f.w.Kinds(), treeKind, tree)
 }
 
 func (f *forest) start(t *testing.T, load bool) {

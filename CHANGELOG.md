@@ -2,6 +2,36 @@
 
 ## v0.20.0 — unreleased
 
+**Madeira with aggregates: fields from gramap, the dry unfolding, the sheets kept in tiles,
+caravans on the roads** (2026-11-06, branch `feat/madeira-aggregates`, parts `d/gramap`,
+`d/preview`, `d/files`, `d/madeira`)
+- Added: a field never unfolded is previewed before its sector is photographed: its `Unfold` is
+  told as though its sector came down, a `SpawnPart` under it records where the part would stand
+  (on the ground the world is given) instead of spawning, and the shots are photographed into the
+  sheet as a folded field's are; nothing is spawned, no stretch made, nothing saved. Its rules
+  cannot tell a preview from an unfolding. `Benchmark_World_Preview`.
+- Added: `world.Write.SetGround` and `Read.GroundAt`, the ground's height under a point as the
+  plugin laying the ground gives it (the topography's), 0 in a world without one; the world
+  reads a kind's `Z` template, so a part previewed has its Height.
+- Added: `world.Config.Sheets` (`SheetsCfg{Dir, Keep, Version}`): the sheets kept between runs
+  in tiles of 512 texels (`albedo-<x>-<y>.png`, `relief-<x>-<y>.png`, `sheets.yaml`), read as the
+  sheets are made so a sector photographed in an earlier run is photographed again only once what
+  stands in it changes, written back a tile a second as they settle where `Keep`; tiles of another
+  `Version`, texel or world are not read. `Benchmark_World_SheetFiles` (in `plugins/world`).
+- Added: gramap's recipe `fields:` (a field entity over the cells of a kind in each block of
+  `grain` cells where at least `least` lie, written as rows `{kind, from, to, cells}`) and
+  `settlements:` (cells of a kind laid round the roads' places by their size, `sizes` in cells,
+  `default`, `none` for a pass; a place `[x, y]` or `{at, size}`), the legend's `@`; Madeira's
+  recipe plants forests of 4 cells a block of 16 and settlements of 3, 8 and 16 cells.
+- Added: the topography demo on the renewed map: `built` cells, forests and settlements as
+  fields (trees and houses as parts, a lamp in a settlement of 16 built cells), caravans (a wagon
+  and three porters) and travellers shuttling between places, banners with counts far off, the
+  sheets kept in the user's cache (`Keep`, Version `madeira-1`), 40 000 entities.
+- Changed: the topography sets a standing part's altitude (`Fixed` and `PartOf`, on no cell)
+  from the relief, as a unit's.
+- Fixed: a part standing on the board had no height (`SpawnPart` laid `Position` alone); a folded
+  field's snapshots lost on a load are previewed anew.
+
 **The sheets: what stands photographed into the ground from L4, the L5 lattice coarser, banners
 of far units** (2026-11-05, branch `feat/sheets`, parts `p/sheet`, `p/terrain`, `p/seams`,
 `p/far`)
