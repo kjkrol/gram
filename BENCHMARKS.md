@@ -87,6 +87,33 @@ call each).
 | one sector of 64 things | 1.27 ms | 1,131 |
 | a frame of 8 sectors | 1.96 ms | 1,131 |
 
+The preview (v0.20, `Benchmark_World_Preview`): a field never unfolded is told its `Unfold` as
+though its sector came down, and the 256 parts its rules would spawn are recorded as shots for
+the sheet instead; each op is the preview and a publish.
+
+| Previewed | Time | Allocations |
+|:---|---:|---:|
+| a field of 256 parts, no look of its own at L4 | 104–117 µs | 1 (the shots, 12 KB) |
+| a field declaring an L4 look (no preview) | 18–20 µs | 0 |
+
+The sheet files (v0.20, `Benchmark_World_SheetFiles` in `plugins/world`, since it needs the
+store): one tile of 512×512 texels, the albedo and the relief, read from PNG into the sheets'
+bytes and written back (`png.BestSpeed`, in a goroutine in the game, at most a tile a second).
+
+| Tile | Time | Allocations |
+|:---|---:|---:|
+| load | 2.5 ms | 822 (2.1 MB) |
+| save | 29.4 ms | 528 (1.7 MB) |
+
+Madeira with its forests and settlements as fields (v0.20, the topography demo, a probe at
+1024×768, both builds without SIMD, Intel UHD 620): at the start view, the whole island at L4
+(736 sectors), the steady tick is 8.7 ms (11–18 ms for the first ~6 s: the previews and the
+hierarchy), the publishing 0.75 ms, the drawing 2.3 ms and the presenting 22 ms (the island in
+the sheets, 173 sectors with the photo mesh), 40 FPS; the tiles of the view are 0.9 MB. Over the
+forest at L2 the orthographic camera unfolds every field within the Sight: 24,000 trees, a tick
+of 20–30 ms (the publishing 5 ms), the drawing 5 ms, 40–50 FPS. Both are open items in the
+roadmap.
+
 0 allocs/op. The publishing walks the world and writes a record an entity in view: under 2 ns an
 entity walked and some 10 ns a record. The drawing costs the boxes in view, about 85 ns a box
 (+2–4% with the version a level picked for every layer and the level read at the middle held in

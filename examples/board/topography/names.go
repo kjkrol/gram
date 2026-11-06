@@ -16,6 +16,7 @@ const (
 	StreamCell = "stream"
 	RiverCell  = "river"
 	RoadCell   = "road"
+	BuiltCell  = "built"
 	IceCell    = "ice"
 
 	BloodMoonEf    = "blood moon"
@@ -23,21 +24,40 @@ const (
 	GatheringEf    = "gathering"
 	SilhouetteEf   = "silhouette"
 
-	MortalRole = "mortal"
-	LunarRole  = "lunar"
-	UplandRole = "upland"
+	MortalRole     = "mortal"
+	LunarRole      = "lunar"
+	UplandRole     = "upland"
+	ForestRole     = "forest"
+	TreeRole       = "tree"
+	SettlementRole = "settlement"
+	HouseRole      = "house"
+	LampRole       = "lamp"
+	CaravanRole    = "caravan"
+	CarrierRole    = "carrier"
+
+	CaravanPlan   = "caravan"
+	TravellerPlan = "traveller"
 
 	BleedCmd      = "bleed"
 	SilhouetteCmd = "silhouette"
 
-	UnitKind    = "unit"
-	RivalKind   = "rival"
-	HawkKind    = "hawk"
-	PlateauKind = "plateau"
+	UnitKind      = "unit"
+	RivalKind     = "rival"
+	HawkKind      = "hawk"
+	PlateauKind   = "plateau"
+	CaravanKind   = "caravan"
+	WagonKind     = "wagon"
+	PorterKind    = "porter"
+	TravellerKind = "traveller"
 
-	BridgeKind  = "bridge"
-	FordKind    = "ford"
-	LanternKind = "lantern"
+	BridgeKind     = "bridge"
+	FordKind       = "ford"
+	LanternKind    = "lantern"
+	ForestKind     = "forest"
+	TreeKind       = "tree"
+	SettlementKind = "settlement"
+	HouseKind      = "house"
+	LampKind       = "lamp"
 
 	PlayerSide  = "player"
 	RivalSide   = "rival"
@@ -51,6 +71,10 @@ const (
 
 	BarHUD     = "bar"
 	WidgetsHUD = "widgets"
+
+	// SheetsVersion is how the fields are planted: a change to the forests', the settlements' or
+	// their parts' rules or looks changes it, or the sheets kept from an earlier run show the old.
+	SheetsVersion = "madeira-1"
 )
 
 func snowyCell(kind string) string { return "snowy " + kind }

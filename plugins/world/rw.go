@@ -53,6 +53,10 @@ func (r *Read) HasHeights() bool { return r.p.Res.Config.Heights }
 // Scale is how many metres a world unit spans.
 func (r *Read) Scale() Scale { return r.p.Res.Config.Scale }
 
+// GroundAt is the ground's height under the world point at, as the plugin giving the ground has
+// it (Write.SetGround); 0 in a world without one.
+func (r *Read) GroundAt(at geom.Vec) float32 { return r.p.module.groundAt(at) }
+
 // Lights are the lights the frame drawn is lit by, the light plugin's; nil without one, or before
 // a frame was published.
 func (r *Read) Lights() *render.Lights {
@@ -260,6 +264,10 @@ func (w *Write) NewView(cam camera.Camera) *view.View {
 
 // SetLook has the world's entities drawn, picked and outlined by look, a view plugin's.
 func (w *Write) SetLook(look Look) { w.p.look = look }
+
+// SetGround has the ground's height under a world point read off ground (Read.GroundAt), the
+// plugin's laying the ground in relief.
+func (w *Write) SetGround(ground func(at geom.Vec) float32) { w.p.module.ground = ground }
 
 // SetLighting has the world's entities marked by l as they are published, the light plugin's.
 // Before Install.

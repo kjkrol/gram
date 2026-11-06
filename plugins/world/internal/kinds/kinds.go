@@ -31,7 +31,8 @@ type Registry struct {
 }
 
 // Kind is a kind as the world spawns it. Position and Velocity are picked out of the Spec, since
-// they live in Base rather than in columns of their own.
+// they live in Base rather than in columns of their own; its Z, where it gives one (HasZ), is
+// picked out too and kept among the Comps.
 type Kind struct {
 	Name     string
 	TypeID   kind.ID
@@ -39,6 +40,8 @@ type Kind struct {
 	Row      reflect.Type
 	Position comp.Template[entity.Position]
 	Velocity comp.Template[entity.Velocity]
+	Z        comp.Template[entity.Z]
+	HasZ     bool
 	Comps    []comp.Comp
 }
 
@@ -78,6 +81,9 @@ func (k *Registry) Register(name string, row reflect.Type, spec kind.Spec) (kind
 			r.Position, positions = t, positions+1
 		case comp.Template[entity.Velocity]:
 			r.Velocity, velocities = t, velocities+1
+		case comp.Template[entity.Z]:
+			r.Z, r.HasZ = t, true
+			r.Comps = append(r.Comps, c)
 		default:
 			r.Comps = append(r.Comps, c)
 		}

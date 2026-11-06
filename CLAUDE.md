@@ -65,11 +65,11 @@ make demo-rules-guard                                           # guards on a pl
 make demo-board-atlas                                           # a small flat board from the game's own atlas, the water a material
 make demo-board-flat                                            # Madeira on the simple map: a flat board, bands for the ways, bridges and fords
 make demo-board-roads                                           # two villages either side of a river: roads laid with Shift+R, planned, priced and built; I brings the winter
-make demo-board-topography                                      # Madeira in relief: light, water, roads, bridges, the camera on a stick (Q/E, R/F, Tab), the weather; the ground textured from photographs
+make demo-board-topography                                      # Madeira in relief: light, water, roads, bridges, the camera on a stick (Q/E, R/F, Tab), the weather; the ground textured from photographs; forests and settlements as fields, caravans on the roads, far off in the sheets kept between runs
 make demo-board-topography-ghibli                               # the same ground painted, the light in bands (-look ghibli)
 make demo-board-topography-widgets                              # the hour, the date and the weather apart by the corners, not in a bar (-hud widgets)
 make demo-board-forest-army                                     # a forest and two armies folded far off and unfolded near: trees, soldiers, a battle either way
-go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS
+go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS, its forests and settlements as fields
 make demo-navigation-square                                     # units sent round a wall, over a river by a bridge a wagon is too wide for; walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-hex                                        # the same on a hex board
 make demo-navigation-spawn                                      # walkers spawned under the cursor (N) hold their cells, the cells held shown
@@ -302,7 +302,15 @@ Decisions the user has made; they are not up for revisiting in passing.
   (`world.Plugin.Sheets`) what stands in a sector drawn at L4 or L5 is photographed on the GPU
   from its L3 looks, with the parts of the fields folded there, into an albedo and a relief over
   the whole world the ground draws as a solid in the frame's light, the L5 sheet the L4 one in
-  half, never worked out from the fine entities at L5; a standing entity cut by a sector's edge
+  half, never worked out from the fine entities at L5; a field never unfolded is **previewed**
+  (2026-11-06): its `Unfold` told as though its sector came down, the parts its rules give
+  photographed where they would stand, on the ground the world is given (`Write.SetGround`, the
+  topography's), none spawned, nothing saved, so a forest is in the sheet before anyone comes
+  near and only the game's rules say what stands in it; the sheets are **kept in tiles** between
+  runs where the game says (`world.Config.Sheets`: a folder read as the sheets are made, written
+  back sector by sector as they settle where it asks `Keep`; the policy is the game's, a static
+  world shipping its tiles read-only, a dynamic one writing them back; a change to how a game
+  plants its fields is a new `Version`); a standing entity cut by a sector's edge
   or beside a sector drawn finer is drawn alive at the finer level and never photographed, so a
   bridge stays whole across a seam; loose units far off are points, or banners of their kind
   where the kind declares an L4 look and the game asks (`world.Config.Far`, a setting), with

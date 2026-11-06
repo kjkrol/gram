@@ -10,6 +10,7 @@ import (
 	cgoke "github.com/kjkrol/ceremony/goke"
 
 	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/cond"
@@ -40,6 +41,8 @@ type module struct {
 	versions  []uint32 // each run's table version as it was gathered
 
 	kinds *Kinds
+	// the ground's height under a point, the topography's; nil, the ground lies at 0
+	ground func(at geom.Vec) float32
 
 	drawing Rules
 
@@ -109,6 +112,13 @@ func (w *module) tick(d time.Duration) host.Tick {
 	clk := w.clock.Read()
 	return host.Tick{Now: time.Now(), Dt: d, Commands: &w.commands, Effects: w.effects,
 		Time: clk.Time() + d, Seed: w.config.Seed, World: clk.Entity(), Roles: w.rolesOf}
+}
+
+func (w *module) groundAt(at geom.Vec) float32 {
+	if w.ground == nil {
+		return 0
+	}
+	return w.ground(at)
 }
 
 func (w *module) RegSystems(ecs *goke.ECS) {

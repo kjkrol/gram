@@ -141,7 +141,7 @@ func (r *roads) lay() error {
 	}
 	slices.Sort(names)
 	for _, name := range names {
-		c, ok := r.nearest(r.cfg.Places[name])
+		c, ok := r.nearest(r.cfg.Places[name].At)
 		if !ok {
 			return fmt.Errorf("no ground a road may take near %s", name)
 		}

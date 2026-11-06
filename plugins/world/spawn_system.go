@@ -43,6 +43,9 @@ type spawner struct {
 	base    goke.Comp[Base]
 	label   goke.Comp[ceremony.Label]
 	spawner *cgoke.Spawner
+	// the kind's Lie, where it gives one
+	lie  comp.Template[Lie]
+	lies bool
 }
 
 type spawnGroup struct {
@@ -72,6 +75,11 @@ func newSpawnSystem(w *module) *spawnSystem { return &spawnSystem{w: w} }
 func (s *spawnSystem) Init(si *goke.SysInit) {
 	s.w.kinds.r.Each(func(k ikinds.Kind) {
 		sp := &spawner{kind: k, spawner: spawnerOf(k)}
+		for _, c := range k.Comps {
+			if lie, ok := c.(comp.Template[Lie]); ok {
+				sp.lie, sp.lies = lie, true
+			}
+		}
 		comps := append([]goke.Addable{&sp.base, &sp.label}, sp.spawner.Columns()...)
 		sp.factory = si.NewFactory(comps...)
 		s.kinds = append(s.kinds, sp)
@@ -82,7 +90,8 @@ func (s *spawnSystem) Init(si *goke.SysInit) {
 }
 
 func (s *spawnSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
-	if s.w.spawns.Empty() && s.w.spawnParts.Empty() {
+	previews := len(s.w.wholes.previews) > 0
+	if s.w.spawns.Empty() && s.w.spawnParts.Empty() && !previews {
 		return
 	}
 	s.groups, s.accepted = s.groups[:0], 0
@@ -102,12 +111,18 @@ func (s *spawnSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 		s.w.spawnedCount += len(g.rows)
 		s.w.telemetry.Count += len(g.rows)
 	}
+	if previews {
+		s.w.wholes.foldPreviews()
+	}
 }
 
 func (s *spawnSystem) part(i command.Issued[SpawnPart]) error {
 	cmd := i.Command
 	if !i.ByEntity || !s.givers.Seek(i.Entity) || !s.whole.Present(s.givers.Cursor()) {
 		return fmt.Errorf("kind %q: a part given by no aggregate", cmd.Entry.Kind())
+	}
+	if cmd.aimed && isPreview(cmd.in) {
+		return s.shoot(i.Entity, cmd)
 	}
 	cur := s.givers.Cursor()
 	at := s.giver.At(cur).Pos.Center()
@@ -120,32 +135,16 @@ func (s *spawnSystem) part(i command.Issued[SpawnPart]) error {
 }
 
 func (s *spawnSystem) take(e kind.Entry, place placing) error {
-	k, ok := s.w.kinds.r.Kind(e.Kind())
-	if !ok {
-		return fmt.Errorf("unknown kind %q", e.Kind())
-	}
-	if int(k.TypeID) >= len(s.kinds) {
-		return fmt.Errorf("kind %q was defined after the world was set up", k.Name)
-	}
-	if got := reflect.TypeOf(e.Row()); got != k.Row {
-		return fmt.Errorf("kind %q: the entry carries a %v, its rows are %v", k.Name, got, k.Row)
-	}
-	if err := s.w.handled(e); err != nil {
-		return fmt.Errorf("kind %q: %w", k.Name, err)
-	}
-	row := e.Row()
-	pos := place.laid(k.Position.Resolve(row))
-	if err := s.w.sizeOf(pos); err != nil {
-		return fmt.Errorf("kind %q: %w", k.Name, err)
-	}
-	if box := pos.AABB; !s.w.space.Place(&box) {
-		return fmt.Errorf("kind %q: %v lies wholly past an open edge", k.Name, pos.AABB.AABB)
+	by, _, err := s.checked(e, place)
+	if err != nil {
+		return err
 	}
 	if s.w.spawnedCount+s.accepted >= s.w.config.Entities.MaxCount {
-		return fmt.Errorf("kind %q: the world is full, Config.Entities.MaxCount %d", k.Name, s.w.config.Entities.MaxCount)
+		return fmt.Errorf("kind %q: the world is full, Config.Entities.MaxCount %d", by.kind.Name,
+			s.w.config.Entities.MaxCount)
 	}
 	s.accepted++
-	by := s.kinds[k.TypeID]
+	row := e.Row()
 	for i := range s.groups {
 		if g := &s.groups[i]; g.by == by {
 			g.rows, g.entries = append(g.rows, row), append(g.entries, e)
@@ -159,6 +158,36 @@ func (s *spawnSystem) take(e kind.Entry, place placing) error {
 	g.by, g.rows, g.entries = by, append(g.rows[:0], row), append(g.entries[:0], e)
 	g.places = append(g.places[:0], place)
 	return nil
+}
+
+// checked is the spawner of e's kind and the box e's entity lies over laid as place says, put
+// into the world, or why the world refuses e but for being full
+func (s *spawnSystem) checked(e kind.Entry, place placing) (*spawner, plane.AABB, error) {
+	k, ok := s.w.kinds.r.Kind(e.Kind())
+	if !ok {
+		return nil, plane.AABB{}, fmt.Errorf("unknown kind %q", e.Kind())
+	}
+	if int(k.TypeID) >= len(s.kinds) {
+		return nil, plane.AABB{}, fmt.Errorf("kind %q was defined after the world was set up",
+			k.Name)
+	}
+	if got := reflect.TypeOf(e.Row()); got != k.Row {
+		return nil, plane.AABB{}, fmt.Errorf("kind %q: the entry carries a %v, its rows are %v",
+			k.Name, got, k.Row)
+	}
+	if err := s.w.handled(e); err != nil {
+		return nil, plane.AABB{}, fmt.Errorf("kind %q: %w", k.Name, err)
+	}
+	pos := place.laid(k.Position.Resolve(e.Row()))
+	if err := s.w.sizeOf(pos); err != nil {
+		return nil, plane.AABB{}, fmt.Errorf("kind %q: %w", k.Name, err)
+	}
+	box := pos.AABB
+	if !s.w.space.Place(&box) {
+		return nil, plane.AABB{}, fmt.Errorf("kind %q: %v lies wholly past an open edge", k.Name,
+			pos.AABB.AABB)
+	}
+	return s.kinds[k.TypeID], box, nil
 }
 
 func spawnerOf(k ikinds.Kind) *cgoke.Spawner {

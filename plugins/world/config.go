@@ -31,6 +31,22 @@ type Config struct {
 	Far FarLook
 	// Counts has the number of a kind's units in a sector drawn by them at the strategic scale.
 	Counts bool
+	// Sheets is where the sheets of what stands are kept between runs; zero, they are made anew
+	// each run and live in memory alone.
+	Sheets SheetsCfg
+}
+
+// SheetsCfg is the files of the sheets of what stands: tiles of them read as the game starts,
+// so a sector photographed in an earlier run is not photographed again unless what stands in it
+// has changed.
+type SheetsCfg struct {
+	// Dir is the folder of the tiles and their manifest; empty, no files.
+	Dir string
+	// Keep has the tiles of the sectors photographed written back to Dir; false, Dir only read.
+	Keep bool
+	// Version is the game's word for how it plants its fields: tiles written under another are
+	// ignored, so a game changes it as it changes its rules of planting.
+	Version string
 }
 
 // FarLook is how the loose units of a kind are drawn at the strategic scale: a point each, or one

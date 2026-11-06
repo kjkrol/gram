@@ -144,6 +144,20 @@ keeps only what those do not.
   it per view). `Read.Sheet()` (perUnit 0 till a sector holds a photograph: clients skip their
   sample), `Read.Painted(i)` (a held sector holding something, frame-consistent). A unit at L5 is
   its blob as at L4, thinned by `Keep[L5]`. `sector.Grid.Of` truncates, no float64.
+  Tiles (`sheet_files.go`, `d/files`, 2026-11-06; `Config.Sheets{Dir, Keep, Version}`): the two
+  sheets in 512-texel tiles `albedo-<tx>-<ty>.png` and `relief-<tx>-<ty>.png` beside `sheets.yaml`
+  (version, per_unit, grid, sector, tile, space, the painted sectors with their signature and
+  inked), read in `open()` with the uploads deferred and the L5 halves by `darkroom.halve`; a
+  manifest of another Version, texel or world is ignored with one log line. **PNG is written
+  through `image.NRGBA` over the bytes, never `image.RGBA`**: that one is premultiplied and the
+  encoder divides every half-covered texel's colour by its alpha. With `Keep` a dirty tile (a
+  sector in it photographed) is written 2 s after its last photo, at most one a second
+  (`CopyFrom` and `ReadPixels` in the frame, `png.BestSpeed` in a goroutine, `.tmp` then rename,
+  the manifest rewritten after each). `Swap` schedules `develop` only when photos wait, so `keep`
+  re-arms the Defer fill while tiles are dirty (a workaround; `Swap`'s condition is the cleaner
+  lever). `Benchmark_World_SheetFiles` lives in `plugins/world` (it needs the store), so
+  `measure.sh` does not see it. The policy is the game's: a static world ships its tiles
+  read-only (`Keep` false), a dynamic one writes them back (the user's word, 2026-11-06).
 - Seams L3|L4 (`p/seams`, 2026-11-05): once a publish `sheets.begin` marks the sectors a view
   draws at L4–L5 with a neighbour it draws short of L4 (`sheets.ring`, the union over views,
   `tiling.Neighbours`); a `Fixed` thing is `alive` when some view draws it finer than its middle's
@@ -189,6 +203,17 @@ keeps only what those do not.
   parts are gone (the stretch outlives the Fold one step). `Keen`/`Calm` commands are carried in
   the despawn system. **goke's `Query.Seek` ignores a query's Exclude and tag filters**: what a
   Seek must leave out is read as an optional column (the minimap's marks, the keeping's release).
+- The preview, a dry unfold (`preview.go`, `d/preview`, 2026-11-06): a sector waiting for its
+  photo (`sheets.pending`) under a bare field stretch (no snapshot, no stretch entity: never
+  unfolded, or not since the load) gets its parts without spawning them: `wholes` opens a
+  preview (ids counted from 0xFFFF0000, at most `perFrame` a step), `Unfold` goes to the rules
+  through the same RunWhere as a real one, a `SpawnPart` under a preview records a shot (Z from
+  the kind's Spec — `ikinds.Kind.Z`, `HasZ` — Altitude `GroundAt(middle)`, the L3 sprite, Lie)
+  instead of spawning, `foldPreviews` hands them to `sheet.fold(place, shots)`; a preview lives
+  two steps; nothing is saved. **The rules cannot tell a preview from an unfolding**, so under
+  `Unfold` only `SpawnPart`: a `Forbid`, an effect or a count there would run for the preview
+  too. `Write.SetGround`/`Read.GroundAt` (the topography sets it after `SetLook`; 0 without): the
+  world knows no ground and the shot needs the part's altitude.
 
 ## motion, with steering
 
@@ -303,7 +328,19 @@ keeps only what those do not.
   the planner sees a cell the levelling could flatten as flat at its corners' mean; a cell
   flanking a diagonal bridge's head is barred (its corners are fixed at the deck and on the
   ground); the map is laid on a board and run a step before it is written, the old file's
-  `units:` kept.
+  `units:` kept — and `units:` alone: a hand-placed row of `entities:` goes with a regeneration.
+  Fields and settlements (`fields.go`, `settle.go`, `d/gramap`, 2026-11-06): `fields:` rows
+  `{cells, kind, grain, least}` lay a field entity a block of `grain` cells from (0, 0) over the
+  cells of a kind where at least `least` lie, written as `{kind, from: [x, y], to: [x, y],
+  cells: n}` rows of the board's `entities:` (the demo's `fieldRow`); `settlements:` `{cells,
+  sizes, default}` lays `cells` of a kind round each road place, as many as its size's word
+  names (a place `[x, y]` or `{at, size}`, `none` for a pass), by a BFS roadside first over land
+  that is not wet, road, rock, bridge or another settlement; the legend's `@`. The thresholds,
+  the words and the sizes are the game's, in its recipe, sizes in cells never in houses (the
+  user's word, 2026-11-06: gramap stays general; what stands on a built cell is the game's
+  Unfold rules). `check.go` defines `built` like soil and stand-in field kinds so the map lays
+  on a board. Madeira: 239 forests and 21 settlements over 800 sectors; a town grows in strips
+  along its roads, and the grain of 16 cuts a big town into several fields.
 - The board's field (collision's `Field`) and cover (sight's) read the cell entities whenever
   asked; nothing copies them.
 - The flat board is drawn on the GPU from an image of its cells (`look/tiles.go`): the CPU writes
@@ -342,7 +379,12 @@ keeps only what those do not.
   all. The corners' facing lives in an image in the relief's order, the middle's worked out in
   the shader. A hex save of a level a cell loads, every corner at the mean of its cells. It lives
   on the plugin's own entity. `world.Z`, the relief and `Heights` are the world's heights, not
-  the view: sight reads them in a top-down game too.
+  the view: sight reads them in a top-down game too. The altitude pass has a third query
+  (`d/prelude`, 2026-11-06: `Fixed` and `PartOf`, no `cell.On`, no `unit.Mover`) setting a
+  standing part's `Altitude` to `GroundAt(middle)` when off by more than `f32.Eps`; `PartOf` is
+  required, else the bridge piers (Fixed, their Altitude the bottom they stand at) would be
+  regrounded; the plugin hands `relief.GroundAt` to `world.Write.SetGround` right after
+  `SetLook`, for the world's previews.
 - The painter paints the cells within two of a changed one anew, all of them past an eighth.
 - A kind's detail (`painter.Style.Detail`): a uniform cell's detail comes from its flags; the
   kinds sheet is read only where a cell is `painter.Dressed` (a way on it or beside it, a ground

@@ -3068,3 +3068,478 @@ czytać ćwiartkę albedo; `lay` buduje trzeci zestaw indeksów przy każdej zmi
 `AlbedoSize` nieczytany, `albedo()` w `surface.wgsl` mogłoby czytać `U.AlbedoPx`; hover i
 komendy wskazane nie znają banerów; Z banera to średnia jednostek; koszt kraty i rundy jak wyżej;
 na L4 drogi i rzeki bledsze przez albedo w pół (do decyzji); skok ticku Madery po ~2 min.
+
+## Madera z agregatami: pola z gramapu, suche rozwinięcie, płachty w kaflach, karawany (plan 2026-11-06, gałąź `feat/madeira-aggregates`, litera `d`, po etapie `p`, v0.20.0)
+
+### Kontekst
+
+Etap `b` dał agregaty (`Aggregate`, `Field`, `Unfold`/`Fold`), etap `p` płachty tego, co stoi,
+z migawkami części pól zwiniętych. Madera (`examples/board/topography`) nie ma z tego nic: 37
+jednostek, 21 mostów, 7 brodów, latarnia; las jest fakturą gruntu. Etap `d` zaludnia ją tak, by
+drabina miała co liczyć: lasy i osady jako pola, karawany i wędrowcy jako agregaty punktowe i
+jednostki po drogach, a płachty gotowe od pierwszej klatki i odświeżane sektorowo.
+
+### Decyzje użytkownika (2026-11-06, nie do rewizji)
+
+- gramap zostaje ogólny: nie wie, co to las ani miasto. Jeden mechanizm: pole nad plamą komórek
+  danego rodzaju w bloku, od progu komórek; które rodzaje, pod jaką nazwą i od ilu komórek, mówi
+  receptura (plik gry). Domyślny próg lasu 4 komórki wpisuje receptura Madery, nie kod.
+- Osada idzie tą samą drogą: miejsce w recepturze ma wielkość w **komórkach** (słowa
+  hamlet/village/town i ich liczby definiuje receptura, np. 3/8/16; `none` dla przełęczy), gramap
+  kładzie tyle komórek rodzaju zabudowanego wokół środka wzdłuż dróg, pole powstaje nad nimi jak
+  nad lasem. Co stoi na komórce zabudowanej (ile domów, latarnia), to reguły `Unfold` w demie.
+  Żadnego liczenia domów w gramapie.
+- Ikony karawan i wędrowców, skład karawan i ich trasy są w demie; świat nic nie przybywa.
+- Płachta to dwie tekstury RGBA8 (albedo; relief: szczyt f16 w RG, normalna w BA), bryłę robi z
+  nich grunt w shaderze. Plik płachty to bajty tych tekstur, cięte na kafle o stałym boku, PNG
+  jako pojemnik (bezstratny, dekoder w bibliotece standardowej). Ważne jest tanie odświeżanie
+  sektorowe (gra w rodzaju SimCity); polityka należy do gry: płachty tylko czytane (świat
+  statyczny) albo czytane i zapisywane kaflami (dynamiczny).
+- Jeden tag v0.20.0 po `p`, `d` i `i`; wpisy pod „v0.20.0 — unreleased".
+
+### Fakty sprawdzone (stan `main` `03ef991e` po `p`)
+
+- **Płachta w biegu** (`plugins/world/sheet.go`, `sheet_gpu.go`): `sheets{albedo, relief,
+  albedoL5, reliefL5, perUnit, cols, rows, version/painted/signed/now/inked/wanted/snapped []
+  per sektor, folded map[place][]shot, room darkroom, perFrame 8}`; `newSheets(cfg, grid)` liczy
+  teksel (`Ladder.Texel`, zero → `1/Scales[L4]`, ≤ 4096 na bok); `open()` tworzy obrazy przy
+  `Plugin.Sheets()`; publikacja: `recall` → `begin(views)` (sektory `wanted` na L4+, `ring` przy
+  szwie) → `stand(box, h, shot)` dla każdej encji `Fixed` (sygnatura `now[i]`) → `settle`
+  (sygnatura ≠ `signed` → `version++`; do `perFrame` sektorów z `painted ≠ version` do
+  `f.photos`, `mark(i, full)`) → `gather` (instancje z `cands` i `folded`) → `develop` w `Swap`
+  przez `img.Defer`. `fold(place, shots)`/`unfold(place)` z `wholes` podbijają wersję. Płachta
+  nie jest zapisywana; migawki pól nie są zapisywane (roadmapa: po wczytaniu sektor z polem
+  nigdy nierozwiniętym nie ma migawek, więc odświeżenie go gubi las).
+- **Migawki** powstają tylko w `wholes.fold` (`snapping`/`snap`: `shot` z pudła części, `Z`,
+  sprite'a L3 przez `levels.at`, `photographable`, `photographed`). Pole nigdy nierozwinięte nie
+  ma migawek: dziś w płachcie nie ma go wcale.
+- **Rozwinięcie**: `wholes.unfold` → `find` (stretch pola na sektor: `Field.Size` wokół środka,
+  przecięcie z `Grid.Box(i)`) → `open` (encja `stretch{Whole, Sector, Box, Folded}`, zapisywana;
+  `Unfold{ID, At, Sector, Box, stretch}` do reguł przez `RunWhere`) → reguły dają
+  `SpawnPart{Entry, At}` celowane w stretch (`Aim`) → `spawnSystem.part` kładzie pudło
+  `placing.laid(k.Position.Resolve(row))` od środka `st.Box` i spawnuje w `take` (grupami,
+  `PartOf`). `ikinds.Kind` wyjmuje ze Spec tylko `Position` i `Velocity`; `Z` części daje jej
+  Spec (`comp.Const(world.Z{Height})`), a `Altitude` pisze topografia: `altitudeSystem`
+  (`relief/altitude.go`) dla ruchomych (`motion.Mover`) i stojących (`cell.On`); część z
+  `SpawnPart` bez `cell.On` nie dostaje wysokości (roadmapa „a part standing on the board").
+  W forest-army drzewa mają `Altitude` 0 na płaskiej łące, więc nie było widać.
+- **Świat nie zna gruntu**: `Write.SetLook(look)` jest jedynym wejściem widoku; nie ma
+  `GroundAt`. Topografia ma `Relief.GroundAt(at)`/`Altitude(c)`.
+- **gramap** (`cmd/gramap`): receptura `recipe{Area, Zoom, Kinds, Ground, Rivers, Roads, Flat}`;
+  `Kinds{Sea, Earth, Sand, Rock, Forest, Brook, Stream, River, Road, Bridge, Ford}`; las to
+  komórki wybrane szumem (`soil`: `fbm` w plamach 1700 m, `Forest.Share` 0.45 między 300 a 1400
+  m); `Roads.Places map[string][2]float64` (17 miejsc, w tym przełęcze Encumeada i Poiso),
+  `Routes`; `roads.nearest(lonlat)` daje komórkę miejsca; `write.go`: `legend` stała (`~ . : ^
+  *`), `writeBoard` pisze `entities:` (mosty `from/to`, brody `at/way`), `text()` dokleja
+  `units:` ze starej mapy (`unitsOf`, `shiftUnits`); `check.go` kładzie mapę na planszy bez GPU
+  i bez rodzajów gry (definiuje rodzaje komórek z receptury, mosty, brody) i tyka raz: **gramap
+  nie ma sprite'ów gry, więc płacht nie sfotografuje**; `main.go` drukuje miejsca `[x, y]`.
+  Mapa Madery: 640×320 komórek po 100 m, jednostka 3,125 m, sektor 16 komórek (Buckets 2), 800
+  sektorów; `map.yaml` 1299 linii, `units:` 37 wierszy z komentarzami tras.
+- **Plansza**: `Level` (`level.go`) czyta `board.entities` i `units` jako `yaml.Node`, każdy
+  wiersz `kind:` plus pola wiersza rodzaju; `board.Spawn[R](level, sides)` spawnuje wiersze
+  rodzajów o wierszu `R`; `cell.ID` w yaml to `[x, y]`; wiersz niewzięty przez żaden `Spawn`
+  wywala `Populate`. `NewEntities` daje `Position` z komórki, `cell.On`, `Z{Height}`,
+  `StandingTemplate` (`world.Lie{}`, `Fixed{}`, `light.Shadow{Baked}`).
+- **forest-army**: las `Field{Size: 1500×990}` jedną encją `{kind: forest, at}`; 144 działki na
+  sektor na kracie 42 jednostek (`plotAt`, `plot(k, density)` słowem nad `Unfold` z
+  `lod.Seed`), drzewo `treePx 20` z `Collider`; armia agregat punktowy `NewUnits` z
+  `MoveOrder`, `navigation.Inherit`, `At(L4, banner)` (dysk z obwódką); `MaxEntCount 1024`.
+- **Madera**: `MaxEntCount 512`, `Entities{MinSize 2, MaxSize 32}`, `LOD.Scales{0,0,0.5,0.25,
+  0.12,0}`, `Sight 30 km`, `Fog 6 km`; rodzaje `unit, rival, plateau` (`walker`, `NewUnits`,
+  `Upright`, `Mark`), `hawk`, `ford`, `lantern` (`NewEntities`, 8 px), `bridge`; `tiles.go`
+  definiuje komórki (`ground{name, kind}` z zimową odmianą), `scene.go` style malarza na
+  rodzaj komórki; `textures.go` fotografie gruntu. Benche: `World_Tick`, `World_Sheet`,
+  `Frame_Topography`; brak bencha ticku Madery (sonda `gram-probe`).
+- `render.Image`: `SubImage`, `WritePixels`, `ReadPixels`, `DrawImage`, `CopyFrom`, `Defer`;
+  PNG w gramie: `internal/engine/shot.go`, `cmd/gramap/tiles.go`, `textures.go`. **Pułapka**:
+  `png.Encode` z `*image.RGBA` dzieli przez alfę (RGBA jest premultiplied) i psuje bajty reliefu
+  (A to składowa normalnej); bajty tekstury idą przez `*image.NRGBA` w obie strony, wprost.
+- Gałąź `feat/madeira-aggregates` od `main` `03ef991e`; worktree'ów brak; `d/*` wolne.
+
+### Projekt (co buduje etap)
+
+**Suche rozwinięcie** (świat): sektor, który płachta chce sfotografować (`wanted`, `painted ≠
+version`), a który pokrywa stretch pola bez migawek (`folded[place]` brak) i nierozwinięty
+(brak encji `stretch`), dostaje najpierw **podgląd**: świat mówi regułom zwykłe `Unfold` tego
+stretchu (reguły nie odróżniają podglądu od rozwinięcia: ten sam `Seed`, te same słowa, ten sam
+wynik), a `SpawnPart` wydane pod nim **nie spawnuje** części, tylko zapisuje jej `shot`
+(pudło `placing.laid(k.Position.Resolve(row))`, `Z.Height` ze Spec rodzaju, `Altitude` z gruntu
+świata w środku pudła, sprite L3 przez `levels.at` i `photographable`) do `sheets.folded[place]`;
+po spłynięciu wszystkich `SpawnPart` kroku `sheets.fold(place, shots)` podbija wersję i sektor
+fotografuje się z lasem. Podgląd nie jest stretchem: nie czeka na `Fold`, nie kładzie
+`Unfolded`, nie trafia do zapisu. Sektor czekający na podgląd nie fotografuje się bez niego
+(flaga `pending` w `settle`). Budżet: `perFrame` podglądów na krok. To zamyka też punkt roadmapy
+o migawkach po wczytaniu: brakujące odtwarzają się same. Grunt świat dostaje od topografii:
+`Write.SetGround(func(at geom.Vec) float32)` (wzór `SetLook`), zero bez niego (świat płaski).
+Części prawdziwe dostają `Altitude` tak samo: topografia ugruntowuje raz encję `Fixed` z `Z`
+bez `cell.On` w środku jej pudła (`altitudeSystem`, trzecie zapytanie).
+
+**Płachty w kaflach** (świat, `Config.Sheets world.SheetsCfg{Dir string; Keep bool; Version
+string}`): `Dir` to katalog kafli (zero: żadnych plików); kafel to kwadrat `sheetTile` 512
+tekseli obrazów L4, dwa pliki PNG na kafel (`albedo-<tx>-<ty>.png`, `relief-<tx>-<ty>.png`,
+bajty tekstury przez `image.NRGBA`), i manifest `sheets.yaml` (`version` gry, teksel na
+jednostkę, `cols, rows`, bok kafla, rozmiar świata, i dla każdego sektora namalowanego jego
+sygnatura `signed[i]` `{n, mix}` oraz czy trzyma coś, `inked`). Odczyt przy `Sheets()`: manifest
+niezgodny (inna `Version`, inny teksel lub rozmiar) → katalog ignorowany; zgodny → kafle
+wgrywane do obrazów L4 (`SubImage(rect).WritePixels` odroczone `Defer`, jak fotografie), połówki
+L5 z nich (`DrawImage` 0.5 na kafel), sektory z manifestu `painted = version`, `signed`
+z manifestu, `inked` z manifestu; pierwsza publikacja liczy `now[i]` i podbija wersję tylko tam,
+gdzie treść `Fixed` się zmieniła. Migawki pól nie wchodzą do sygnatury (deterministyczne z
+`Seed`); zmiana reguł sadzenia to zmiana `Version` w grze (udokumentować). Zapis (`Keep`):
+kafel, którego sektor sfotografowano, jest brudny; co najwyżej jeden brudny kafel na sekundę,
+nie wcześniej niż 2 s po ostatniej fotografii w nim, czytany `ReadPixels` prostokątem i kodowany
+w goroutine, zapisany atomowo (plik tymczasowy, `rename`), manifest po nim; `Keep` fałsz: nic
+nie pisze (świat statyczny żyje w pamięci). Pierwszy bieg gry z `Keep` pisze cały katalog;
+drugi wczytuje go i fotografuje tylko zmiany. Zapis gry (F5) nie dotyka płacht. Demo Madery:
+`Dir` w katalogu podręcznym użytkownika (`os.UserCacheDir()/gram/topography/sheets`), `Keep`
+prawda, `Version` stałą w `names.go`.
+
+**gramap ogólny**: receptura dostaje
+```yaml
+fields:                      # a field over the cells of a kind in each block of the board
+  - {cells: forest, kind: forest, grain: 16, least: 4}
+  - {cells: built, kind: settlement, grain: 16, least: 1}
+settlements:
+  cells: built               # the cell kind laid round a place
+  sizes: {hamlet: 3, village: 8, town: 16}   # cells
+  default: village
+kinds: {…, built: built}
+roads:
+  places:
+    Funchal: {at: [-16.9086, 32.6496], size: town}
+    Encumeada: {at: [-17.019, 32.755], size: none}
+    Seixal: [-17.102, 32.824]        # a bare pair stays: the default size
+```
+Blok to kwadrat `grain` komórek liczony od komórki (0, 0) mapy (z morzem), więc przy `grain` =
+bok sektora w komórkach (Madera 16) bloki pokrywają się z sektorami świata; pole nad komórkami
+rodzaju `cells` w bloku, gdy jest ich co najmniej `least`, pisane do `board.entities` jako
+`{kind: <kind>, from: [x0, y0], to: [x1, y1], cells: n}` (prostokąt opisany na komórkach,
+włącznie; `n` komórek). Komórki zabudowane: po drogach, przed zapisem: od komórki miejsca BFS po
+komórkach lądu niebędących drogą, wodą, skałą ani mostem, najpierw sąsiadujące z drogą, potem
+po odległości, aż `size` komórek (0 dla `none`); legenda dostaje znak `"@"` dla rodzaju
+`settlements.cells`; `check.go` definiuje ten rodzaj jak glebę. Receptura bez `fields` i
+`settlements` daje mapę jak dziś (test). `madeira.yaml` dostaje oba i rangi: town Funchal,
+Machico, Câmara de Lobos, Ribeira Brava, Santa Cruz, Caniço; hamlet Prazeres, Seixal, Ponta
+Delgada, Faial, Ponta do Sol; none Encumeada, Poiso; reszta village (domyślna). Mapa Madery
+odnawia się gramapem (`units:` zostaje), a demo dostaje wiersze pól.
+
+**Demo Madery** (`examples/board/topography`): rodzaje
+- komórka `built` (`BuiltCell`, ląd, krok 1, kolor kamienny, styl malarza jak skała z
+  domieszką ziemi; odmiana zimowa jak reszta);
+- `forest` pole: wiersz `fieldRow{From, To cell.ID; Cells int}` → `Position` i `Field{Size}` z
+  prostokąta (`comp.Load`), `Aggregate{}`, rola `ForestRole`: reguły `Unfold` sadzą drzewa:
+  działka na pół komórki (dwie na komórkę, krata 16 jednostek w komórce 32, potrząśnięta z
+  `Seed`), słowo działki: środek działki leży w `Box` stretchu, komórka pod nim jest `forest`
+  (słowo czyta planszę) i `lod.Seed(whole, k) % 4 < 3`; bez `Thinned` (Madera nie ścina); `Look`
+  bez `At(L4)` ani `At(L5)`: na obu las jest płachtą z migawek;
+- `tree` część: `Fixed{}` (szablon `StandingTemplate` bez `cell.On`: `Position` stała jak w
+  forest-army, `Z{Height: scale.Figure(12)}`), bez `Collider` i bez zajętości (komórki leśne już
+  spowalniają przez mobilność; decyzja do potwierdzenia), rola `TreeRole` z `Folding` → `Despawn`;
+  korona 20 px jak w forest-army (kod skopiowany: dema są samowystarczalne);
+- `settlement` pole: `fieldRow` jak las, rola `SettlementRole`: `Unfold` stawia dom na każdej
+  komórce `built` w `Box` (jedna działka na komórkę, lekko potrząśnięta z `Seed`); w osadzie o
+  co najmniej 16 komórkach (słowo liczy komórki `built` w `Box` na planszy) jedna latarnia w
+  komórce najbliższej środka (część z `light.Source` jak dzisiejsza latarnia, `Fixed`);
+- `house` część: `Fixed{}`, `Z{Height: scale.Figure(6)}`, rysowany w kodzie z góry (prostokąt
+  dachu w dwóch odcieniach z kalenicą, obrys ścian), 14 px; `Folding` → `Despawn`;
+- `caravan` agregat punktowy jak armia (`NewUnits`, `Mover{Land}`, `Aggregate{}`, `MoveOrder` z
+  wiersza, bez kolizji), plan: po dojściu zamienia start z celem (kursuje); `Unfold` ustawia wóz
+  i trzech tragarzy w rzędzie wzdłuż kierunku (`Inherit` trasy jak armia), `Fold` zbiera; `Look`:
+  `At(L4, caravanIcon)`;
+- `wagon`, `porter` części: `Mover{Land}`, tragarz jak `walker` bez `Sight`, wóz 12×8 px (brązowy
+  prostokąt, dwa koła), `Folding` → `Despawn`;
+- `traveller` jednostka: walker z `MoveOrder` z wiersza i planem kursowania jak karawana,
+  pojedynczy, `At(L4, travellerIcon)`.
+Ikony 24 px, w kodzie: dysk promienia 11 w kolorze (245, 240, 225, α 0,7) z obwódką 1 px
+(40, 35, 30); sylwetka: głowa (koło r 2,2) i tułów (zaokrąglony trapez 5,5 szer., 9 wys.) w
+kolorze właściciela z obwódką 1 px; wędrowiec jedna sylwetka pośrodku; karawana trzy w rzędzie
+(x 6, 12, 18), środkowa o 2 px wyżej i ×1,2, prawa z garbem juku (ciemnobrązowe koło r 2 przy
+ramieniu). Liczby powyżej trzech zostawia się licznikowi na szkle (`Counts`). W `map.yaml`
+`units:` dostaje 6 karawan (`caravan`, strona `reserve`: Funchal↔Machico, Funchal↔Ribeira
+Brava, Calheta↔Porto Moniz, Porto Moniz↔Santana, Santana↔Machico, Ribeira Brava↔São Vicente)
+i 4 wędrowców (Funchal↔Poiso, Câmara de Lobos↔Ponta do Sol, Seixal↔São Vicente,
+Faial↔Santa Cruz), współrzędne z wydruku gramapu. `MaxEntCount` 512 → 40 000 (drzewa
+rozwinięte przy kamerze: ~230 na sektor leśny, kilkadziesiąt sektorów na L2–L3), `MaxSize`
+zostaje 32; `Config.Far: Banners`, `Counts: true` (F10 przełącza); `Config.Sheets` jak wyżej;
+`Fold` 3 s.
+
+### Model wykonania
+
+Jak w etapie `p` (`CLAUDE.md` „A stage in parts"): integrator planuje, briefuje, scala, mierzy
+(≤ 10 min), pisze dokumenty; agenci Opus 5.5 (`Agent`, `model: opus`): preludium w klonie na
+`feat/madeira-aggregates`, części w worktree'ach `/home/karol/worktrees/gram/<część>` na
+`d/<część>` od commitu preludium. Wspólne reguły agenta jak w `p`: skille warstw; tylko pliki
+części; `go build ./... && go vet ./... && gofmt -l . && go test ./...` z `GOEXPERIMENT=simd`
+przed każdym commitem; prefiksy konwencjonalne i trailer `Claude-Session`, bez
+`Co-Authored-By`; żadnych zmian w `doc/`, `.claude/`, `BENCHMARKS.md`, `CHANGELOG.md`, `go.mod`,
+README; godoc ≤ 2 zdania; linie ≤ 100 kolumn; nic nie mierzyć; dema tylko na kopii
+(`gram-probe`); nic nie wypychać; raport końcowy.
+
+### Preludium (agent A, `feat/madeira-aggregates`): kontrakty
+
+Pliki: `plugins/world/{config.go, rw.go, module.go, doc.go, internal/kinds/kinds.go}`,
+`plugins/topography/{plugin.go, internal/relief/altitude.go}`, testy.
+
+1. `world.SheetsCfg{Dir, Keep, Version}` i `Config.Sheets` z godoc (bez zachowania; `newSheets`
+   tylko przechowuje; gra czyta je z `Resources`, jak resztę `Config`).
+2. `Write.SetGround(func(at geom.Vec) float32)`, `Read.GroundAt(at) float32` (zero bez gruntu);
+   topografia woła `SetGround(p.relief.GroundAt)` tam, gdzie woła `SetLook`. Test: świat bez
+   gruntu daje 0; z ustawionym daje jego wartość.
+3. `ikinds.Kind` wyjmuje ze Spec także `Z` (`comp.Template[entity.Z]`, opcjonalne, `HasZ`),
+   jak `Position`; test: rodzaj z `Z{Height}` daje je, bez — zero.
+4. Topografia ugruntowuje encję `Fixed` z `Z` bez `cell.On` (trzecie zapytanie `altitudeSystem`:
+   `Base, Z, world.Fixed`, `Exclude[cell.On]`, `Exclude[motion.Mover]`), raz: `Altitude =
+   GroundAt(środek)` gdy różni się o więcej niż `f32.Eps`; test w `relief`: encja `Fixed` położona
+   w `Position` dostaje wysokość gruntu, jednostka z `Mover` jak dziś.
+5. Sekwencja zielona; commit `feat: the world's ground and sheet files declared, a kind's Z,
+   fixed parts grounded` (2–3 commity tematyczne dopuszczalne).
+
+### Część 1 `d/preview` (agent B, po preludium): suche rozwinięcie
+
+Pliki: `plugins/world/{wholes.go, spawn_system.go, preview.go (nowy), sheet.go (flaga
+`pending` i wejście `fold` z podglądu, minimalnie), moments.go (godoc Unfold: „także jako
+podgląd"), doc.go (akapit w # Aggregates)}`, testy, `bench/world_test.go`. Nie dotyka:
+`sheet_gpu.go`, `renderer.go`, `publisher.go`, topografii, gramapu, dem.
+
+1. `sheets` zgłasza sektory do podglądu: w `settle` sektor `wanted`, `painted ≠ version`, bez
+   `snapped[i]`, którego pokrywa pole bez migawki i bez stretchu → `pending[i] = true`, bez
+   fotografii w tej publikacji; `wholes` czyta `pending` w `unfold` (gdzie i tak idzie po
+   polach w `find`) i dla każdego pola pokrywającego taki sektor, bez `folded[place]` i bez
+   `holding` tam, otwiera **podgląd**: `Unfold{ID, At, Sector, Box, stretch: id podglądu}` do
+   reguł jak w `open` (ta sama ścieżka `RunWhere`), bez encji `stretch`, bez `Unfolded`; podgląd
+   żyje w `wholes.previews` (mapa id podglądu → `place`), id z puli świata (`uid` tymczasowy,
+   nigdy zapisywany: podgląd trwa jeden krok). Budżet `perFrame` podglądów na krok.
+2. `spawnSystem.part`: `cmd.in` jest podglądem → zamiast `take`: `shot` części (pudło
+   `placing.laid(k.Position.Resolve(row))` od środka `Box`; `Z` ze Spec (`HasZ`), `Altitude =
+   Read.GroundAt(środek)` gdy świat ma wysokości; sprite L3 rodzaju przez atlas, `photographable`;
+   `Lie` ze Spec, jeśli jest) do `previews[id].shots`; po `Drain` wszystkich `SpawnPart` kroku:
+   `sheets.fold(place, shots)` dla każdego podglądu (pusty podgląd też zapisuje pustą migawkę,
+   `snapped[i]` prawda, by sektor nie prosił w kółko), `pending[i] = false`, podgląd usunięty.
+   Kolejność w kroku: `wholes.Update` (Unfold) → reguły → `spawnSystem.Update` (Drain): zbadać
+   w `module.go`, czy `SpawnPart` z reguł kroku spływa w tym samym kroku; jeśli w następnym,
+   podgląd żyje dwa kroki (udokumentować w godoc `previews`).
+3. Rozwinięcie prawdziwe stretchu z migawką z podglądu: `open` woła `sheet.unfold(place)` jak
+   dziś (migawka znika, części żywe); `fold` kładzie migawkę z części jak dziś.
+4. Testy (`plugins/world`, rig z `field_internal_test`/`sectors_internal_test`): pole bez L4 w
+   sektorze widzianym na L4, nigdy nierozwiniętym: po dwóch publikacjach `folded[place]` ma tyle
+   migawek, ile reguły dałyby części (ten sam `Seed`: rozwinięcie prawdziwe daje tyle samo
+   części), żadnej encji części nie ma, `Unfolded` nie ma, zapis nie zawiera podglądu;
+   sektor fotografuje się raz po podglądzie (`SheetShots`), nie przed; pole z `At(L4)` nie
+   dostaje podglądu; po `Unfold` prawdziwym migawka z podglądu znika; po `Fold` wraca z części;
+   wczytanie zapisu z polem zwiniętym: podgląd odtwarza migawkę; `Altitude` migawki równa
+   `GroundAt` (świat z `SetGround` stałym).
+5. Bench `Benchmark_World_Preview` (`bench/world_test.go`): sektor z polem o 256 częściach,
+   podgląd + publikacja, ns i alokacje; cel w „Pomiar".
+
+### Część 2 `d/files` (agent C, po preludium, równolegle z 1 i 3): płachty w kaflach
+
+Pliki: `plugins/world/{sheet_files.go (nowy), sheet.go (wejścia: `loaded(i, signed, inked)`,
+`dirty(i)`, minimalnie), sheet_gpu.go (wgranie kafli i połówki L5 odroczone), doc.go (akapit w
+# Sheets)}`, testy GPU (`gputest.Need`). Nie dotyka: `wholes.go`, `spawn_system.go`,
+`publisher.go`, gramapu, dem.
+
+1. Format jak w „Projekt": `sheetTile 512`; `sheets.yaml` (`go.yaml.in/yaml/v3`, jak gramap i
+   plansza): `version`, `per_unit`, `cols`, `rows`, `tile`, `space: [w, h]`, `sectors: [{i, n,
+   mix, inked}]` tylko namalowane. PNG przez `image.NRGBA` nad bajtami `ReadPixels`/do
+   `WritePixels` (pułapka premultiplied w „Fakty").
+2. Odczyt w `open()` (przy `Sheets()`, gdy `Dir ≠ ""`): manifest zgodny → `Defer` wgrania kafli
+   do `albedo`/`relief` i połówek L5 (`DrawImage` 0.5 na kafel, jak `develop`), `painted[i] =
+   version[i]`, `signed[i]`, `inked[i]`/`shots` z manifestu; niezgodny lub brak → nic, log jedną
+   linią (`[world] sheets: …`). Kafel uszkodzony (błąd PNG) → jego sektory jak nienamalowane.
+3. Zapis (`Keep`): `develop` oznacza kafle sektorów sfotografowanych brudnymi z czasem; w
+   `Swap`/`develop` kolejnej klatki: najstarszy brudny kafel bez fotografii od 2 s, najwyżej
+   jeden na sekundę: `ReadPixels` obu obrazów prostokątem kafla (odroczone `Defer`, w klatce),
+   kodowanie i zapis w goroutine (plik `.tmp` + `os.Rename`), manifest przepisany po każdym
+   kaflu (mały); błąd zapisu logowany raz. `Keep` fałsz: nic.
+4. Testy: zapis i odczyt kafla zachowuje bajty co do bajta (albedo z alfą < 255, relief z
+   normalną o A < 255); manifest niezgodny ignorowany; po wczytaniu sektor z manifestu jest
+   `Painted` i nie fotografuje się, gdy `now == signed`, fotografuje się, gdy treść `Fixed`
+   inna; `Keep` fałsz nie tworzy plików; brudny kafel pisany po 2 s, nie wcześniej; świat bez
+   `Dir` jak dziś co do bajta (`World_Sheet` bez zmian).
+5. Bench `Benchmark_World_SheetFiles` („load,tile": wgranie kafla; „save,tile": odczyt i
+   kodowanie kafla) w `bench/world_test.go`.
+
+### Część 3 `d/gramap` (agent D, po preludium, równolegle z 1 i 2): pola i osady z receptury
+
+Pliki: `cmd/gramap/{recipe.go, build.go, fields.go (nowy), settle.go (nowy), write.go,
+check.go, main.go, gramap_test.go, madeira.yaml}`, `examples/board/topography/map.yaml`
+(odnowiona gramapem, `units:` zachowane). Nie dotyka: pluginów, kodu dem.
+
+1. Receptura jak w „Projekt": `fields []fieldCfg{Cells, Kind, Grain, Least}`, `settlements
+   {Cells, Sizes map[string]int, Default string}`, `Kinds.Built`, miejsce jako para albo
+   `{at, size}` (własny `UnmarshalYAML`; `size` słowo z `Sizes`, `none`, albo liczba);
+   `-flat` bez zmian. Walidacja: `cells` i `kind` niepuste, `grain ≥ 1`, `least ≥ 1`, słowo
+   `size` znane.
+2. Komórki zabudowane (`settle.go`) po drogach: BFS jak w „Projekt"; miejsce bez komórki
+   (`nearest` nie znalazło) pomijane z ostrzeżeniem jak `skipped`. Pola (`fields.go`): bloki
+   `grain` od (0, 0) mapy; prostokąt opisany; wiersz `{kind, from, to, cells}`, sortowane po
+   `from` jak `standing`. `writeBoard`: legenda `"@"` dla `settlements.cells`, wiersze pól po
+   stojących. `check.go`: rodzaj zabudowany jak gleba. `main.go` drukuje liczbę pól na rodzaj i
+   komórek zabudowanych na miejsce.
+3. Testy: receptura bez `fields`/`settlements` daje tekst mapy jak dotąd (test bajt w bajt na
+   małej recepturze z `gramap_test`); blok z `least−1` komórkami nie daje pola, z `least` daje
+   prostokąt opisany; komórki zabudowane: `size` komórek, żadna na wodzie, drodze, skale ani
+   moście, każda z pierwszych przy drodze; `none` nic; `check` przyjmuje mapę z polami (wiersze
+   nieznanych rodzajów są dla planszy tylko czekającymi: sprawdzić, że `check` nie wywala
+   `Populate`; jeśli wywala, `check` spawnuje je atrapą rodzaju pola).
+4. `madeira.yaml` z `fields`, `settlements`, `built` i rangami jak w „Projekt"; mapa odnowiona
+   (`go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out examples/board/topography/map.yaml`;
+   kafle terenu w `~/.cache/gramap/terrarium` są; bez sieci agent zgłasza i zostawia mapę
+   integratorowi); flat (`examples/board/flat/map.yaml`) **nie** odnawiana (płaska plansza
+   nie czyta pól w tym etapie; jej mapa bez `fields` zostaje jak jest: sprawdzić, że gramap z
+   `-flat` i tą samą recepturą dałby pola — więc flat zostaje przy starym pliku, odnotować).
+
+### Część 4 `d/madeira` (agent E, po scaleniu 1–3): demo Madery
+
+Pliki: `examples/board/topography/{demo.go, names.go, scene.go, tiles.go, forest.go, tree.go,
+settlement.go, house.go, caravan.go, traveller.go, icons.go (nowe), walker.go (tragarz
+współdzieli profil), map.yaml (tylko `units:`)}`. Nie dotyka: pluginów, gramapu, innych dem.
+
+1. Rodzaje, pola, części, reguły, ikony i konfiguracja jak w „Projekt"; `BuiltCell` w
+   `tiles.go` i `scene.go` (styl, kolor, odmiana zimowa); `Config.Sheets`, `Far`, `Counts`,
+   `MaxEntCount`, `Fold`. Nazwy w `names.go` z sufiksami (`ForestKind`, `TreeKind`,
+   `SettlementKind`, `HouseKind`, `CaravanKind`, `WagonKind`, `PorterKind`, `TravellerKind`,
+   `ForestRole`, `TreeRole`, `SettlementRole`, `HouseRole`, `CaravanRole`, `CaravanPlan`,
+   `TravellerPlan`, `SheetsVersion`).
+2. `spawn`: `board.Spawn[fieldRow]` dla lasów i osad, `board.Spawn[caravanRow]` i
+   `board.Spawn[travellerRow]` (oba `{Start, Target}`, kursujące planem).
+3. Testy: dema nie są testowane; sprawdzenia deterministyczne sondą na kopii (`gram-probe`):
+   po 10 s na L4 (kamera startowa): liczba encji po poziomach (`Read.Sectors()`/telemetria),
+   `SheetShots()` stabilizuje się do 0; zoom do L2 nad lasem: drzewa spawnują się tylko na
+   komórkach `forest`, dom tylko na `built`, `Altitude` każdego drzewa = `GroundAt` ±`Eps`;
+   karawana rozwinięta: 4 części idą tą samą trasą; zwinięta: jeden rekord ikony; F10 Points:
+   punkty; Counts: liczby. Zrzuty `GRAM_SHOT`: L4 nad Funchal (osada i las w płachcie), L2 nad
+   lasem, L2 nad Funchal, karawana na drodze w obu trybach; drugi bieg z kaflami w katalogu:
+   pierwsza klatka ma płachtę pełną (zrzut klatki 1 przeciw klatce 120).
+4. Sonda tempa (komendy dla integratora): `GRAM_FPS_LOG=1 GRAM_VSYNC=off` na kopii, 35 s po
+   rozgrzewce, kamera startowa (L4) i zoom L2 nad lasem, baza (`main` po `p`, stara mapa)
+   przeciw drzewu: tick, drawing, encje.
+
+### Kolejność, szwy, scalanie
+
+Preludium → (1 ∥ 2 ∥ 3) → 4. Szwy: `sheet.go` (1: `pending`/`fold` z podglądu; 2: `loaded`/
+`dirty`; integrator scala, nowy kod w `preview.go` i `sheet_files.go`), `Read.GroundAt` (prelude
+↔ 1), `SheetsCfg` (prelude ↔ 2 ↔ 4), wiersz pola `{kind, from, to, cells}` (3 ↔ 4), rodzaj
+komórki zabudowanej `built` (3 ↔ 4, nazwa w recepturze i `names.go`). Integrator po każdym
+scaleniu: sekwencja, dema 5 s, push `feat/madeira-aggregates`, worktree usunięty.
+
+### Pomiar (integrator, ≤ 10 min, baza `main` `03ef991e` na zmianę z drzewem, `measure-nogate.sh`)
+
+| Bench / sonda | Cel |
+|---|---|
+| `World_Publish`, `World_Draw`, `World_Sheet`, `Sectors_Expanse` | ±2 % (ścieżki nietknięte) |
+| `World_Preview` (nowy) | ≤ 0,3 ms na sektor z 256 częściami, alokacje tylko migawek |
+| `World_SheetFiles` (nowy) | load,tile ≤ 2 ms; save,tile ≤ 10 ms (PNG w goroutine) |
+| `Frame_Topography` | ±2 % (grunt bez zmian) |
+| Madera, sonda L4 (start) | tick ≤ baza + 15 % (~1000 pól, 10 agregatów) |
+| Madera, `SheetShots` na L4 | 0 po ≤ 150 klatkach bez kafli, ≤ 10 z kaflami |
+| Madera, sonda L2 nad lasem | tick ≤ 4 ms z ~5 000 drzew; rozwinięcie sektora ≤ 1 ms |
+| Katalog kafli Madery | ≤ 20 MB; pełne pokrycie zapisane w ≤ 2 min gry |
+
+### Dokumenty (integrator)
+
+`CLAUDE.md` (reguła LOD: suche rozwinięcie, płachty w kaflach z polityką gry; tabela dem:
+opis topography o lasach, osadach, karawanach; gramap: `fields`, `settlements`),
+`plugins/world/doc.go` (# Aggregates: podgląd; # Sheets: kafle), `cmd/gramap` godoc/README
+akapit, `CHANGELOG.md` (v0.20.0 unreleased: Added `SheetsCfg`, `SetGround`/`GroundAt`, podgląd,
+`fields`/`settlements` gramapu, demo Madery; Changed `Kind` z `Z`, topografia ugruntowuje części;
+Fixed roadmapy „a part standing on the board" i „migawki po wczytaniu"), `BENCHMARKS.md`
+(`World_Preview`, `World_SheetFiles`, sonda Madery), skille `gram-plugins` (world, topography,
+board/gramap), `gram-perf-picture` (kafle), `gram-perf-tick` (podgląd), `gram-game` (demo),
+`doc/roadmap.md` (zdjąć dwa punkty, dodać: kolizja drzew, latarnie osad w płachcie bez światła,
+flat bez pól, zmiana reguł sadzenia a `Version`), `doc/plans-perf.md` (wynik). Pamięć
+`lod-plan.md`.
+
+### Weryfikacja końcowa
+
+Sekwencja z SIMD; wszystkie dema 5 s; topography (start L4: lasy i osady w płachcie od razu w
+drugim biegu; zoom L2: drzewa i domy, karawana w częściach; F10 banery/punkty/liczby; zapis i
+odczyt F5/F9 z lasem zwiniętym), forest-army piksel w piksel z bazą (bez `Dir`, drzewa z
+`Collider` jak były), flat bez zmian; worktree'y usunięte; gałąź wypchnięta; squash, PR.
+
+### Co nie wchodzi
+
+Płachty na płaskiej planszy z plików (flat nie czyta pól), pola na heksach, zapis kafli przy
+F5, cień płachty, karawany handlujące (żadnej ekonomii: kursują), kolizja drzew na Maderze (do
+decyzji), latarnie osad jako światło w płachcie (płachta nie niesie źródeł światła), minimapa
+(etap `i`).
+
+### Wynik etapu `d` (2026-11-06, `feat/madeira-aggregates`, baza `main` `03ef991e` po `p`)
+
+**Wykonanie.** Preludium (agent A, w klonie): `237620c8` (`SheetsCfg`, `SetGround`/`GroundAt`,
+`Kind.Z`, części `Fixed`+`PartOf` ugruntowane przez topografię). Części w worktree'ach od
+`237620c8`, równolegle: D `d/gramap` (`b697bf5f`, `e1f7dc5a`; scalenie `1d6899c0`), B `d/preview`
+(`829c325a`; scalenie `04e1261c`), C `d/files` (`3d28aa71`; scalenie `b7267a80`); potem od
+`b7267a80` E `d/madeira` (`2c63dba9`; scalenie `bef40b8f`). Każde scalenie: sekwencja zielona
+(90 ok), 25 dem po 6 s (kod 124, bez paniki; topografia startuje na odnowionej mapie dopiero po
+części 4, wcześniej nie znała rodzajów pól), push.
+
+**Odstępstwa przyjęte.** Preludium: trzecie zapytanie przebiegu wysokości wymaga `PartOf` obok
+`Fixed`, bo bez niego filary mostów (Altitude = dno) byłyby ugruntowane na nowo (test: 2,25
+wobec 1). Część 1: podgląd dostaje id od 0xFFFF0000 w dół, żyje dwa kroki, `Unfold` idzie tym
+samym RunWhere co prawdziwe; reguły nie odróżniają podglądu, więc pod `Unfold` tylko `SpawnPart`
+(zasada dla gier). Część 2: `Swap` planuje wywołanie tylko przy zdjęciach, więc brudne kafle same
+ponawiają `Defer` (obejście; czystsza dźwignia to warunek w `Swap`); `Benchmark_World_SheetFiles`
+w `plugins/world` (potrzebuje magazynu), poza `measure.sh`; PNG przez `image.NRGBA` (pułapka
+premultiplied). Część 3: miejsce drogi jako para albo `{at, size}` (własny `UnmarshalYAML`),
+legenda `@`, `check.go` definiuje `built` jak glebę i zastępcze rodzaje pól; gramap zachowuje
+tylko `units:`, więc ręczny wiersz latarni z `entities:` przepadł przy regeneracji; pól 260
+(239 lasów, 21 osad), nie ~1000 z szacunku planu (ziarno 16 i próg 4 łączą las w bloki); miasta
+rosną pasami wzdłuż dróg. Część 4: `Buckets` 8, nie 2 (przy `MaxEntCount` 40 000 kubełek
+przestrzeni spada do 64 jednostek, sektor 16 komórek wymaga 8; indeks drobniejszy); kamera
+startuje na L4 (`Zoom` 0,15), wóz 7,2×4,8 (większy nie mieścił się w pasie mostu ukośnego i szedł
+inną trasą niż tragarze); cztery trasy zamienione na takie, które mają drogę; `LampKind`,
+`LampRole`, `CarrierRole`; karawany gracza, ale bez `Allow` (zaznaczenie wymagałoby `Forbid` pod
+`Unfold`); latarnia tylko w osadzie o ≥ 16 komórkach `built` w jednym polu (Ribeira Brava i
+Caniço; Funchal, Machico, Santa Cruz pocięte ziarnem na mniejsze pola).
+
+**Sprawdzenia deterministyczne (agent E, sonda na kopii, tempo ×4).** Start na L4: 736 sektorów
+L4, 450 encji, `Read.Painted` rośnie o 24 na sekundę gry i staje na 173 po 8 s. L2 nad lasem:
+24 519 drzew, każde na komórce leśnej, na gruncie (odchyłka 0). L2 nad Funchal i Ribeira Brava:
+135–143 domy, każdy na `built`; latarnie 2. Karawana rozwinięta: 4 części, jeden cel, jedna
+trasa przez most; po powrocie na L4 części znikają, `Banners()` daje każdą karawanę i wędrowca
+banerem (8 w kadrze), po F10 Points 0 banerów, liczby na szkle. Kafle: pierwszy bieg (100 s)
+zapisał 8 kafli widocznej części wyspy, 944 KB; drugi bieg ma pełną płachtę od pierwszej
+narysowanej klatki (klatki 5 i 10 różnią się od 120 o 40 px, bez kafli o 27–31 tys.). Na oko
+(zrzuty): las na L4 ciemnymi blokami z kropkami drzew w płachcie, na L2 gęste korony; domy to
+bryły z dachem (ciemne skrzynki w południe); karawana wozem i trzema tragarzami przez most;
+banery na L4 to piksel–dwa, liczby czytelne.
+
+**Pomiar** (baza na zmianę z drzewem, 2 rundy × `-count=2`; maszyna niosła obciążenie 1,5–4 z
+zapisu dysku, nie z CPU; pierwsza runda baza→drzewo dała drzewo o +1…+5 % wszędzie, także na
+gruncie GPU i sektorach, których etap nie tknął, a odwrócona kolejność drzewo→baza dała bazę o
++0…+15 % median: przesunięcie jest z kolejności i obciążenia, nie z kodu; mediany i minima obu
+rund razem):
+
+| Bench / sonda | Wynik | Cel |
+|---|---|---|
+| `World_Publish` wszystkie rungi | min ±4 % w obu kolejnościach, alokacje 0 | ±2 %: szum, bez zmian |
+| `World_Draw` wszystkie rungi | min −1…+10 % (baza→drzewo), mediany −2…+7 % | ±2 %: szum (dwie kamery +7–9 %, ścieżka nietknięta) |
+| `World_Sheet/sector,64`, `frame,8` | 1,45 / 2,20 ms, +1,6 / +0,7 % min | ±2 % |
+| `Sectors_Expanse banded/unbanded` | +1,6 / +1,7 % min, odwrócone +0,4 / −0,9 % | ±2 % |
+| `World_Preview/field,256` | **104–117 µs**, 12 KB, 1 alokacja (migawki) | ≤ 0,3 ms ✓ |
+| `World_Preview/declared,256` | 18–20 µs, 0 alokacji (pole z własnym L4: bez podglądu) | — |
+| `World_SheetFiles/load,tile` | **2,5 ms**, 2,1 MB, 822 alokacji | ≤ 2 ms: minięty o 25 % |
+| `World_SheetFiles/save,tile` | **29,4 ms**, 1,7 MB, 528 alokacji (PNG BestSpeed) | ≤ 10 ms: minięty 3×; w goroutine, ≤ 1 kafel/s |
+| `Frame_Topography` wszystkie rungi | +1,3…+5,6 % min, +0,6…+7,8 % median (jedna kolejność) | ±2 %: grunt nietknięty, przesunięcie jak wyżej |
+| Madera L4 (start, 736 sektorów L4, 1024×768, bez SIMD w obu buildach sondy) | tick **8,7 ms** w stanie ustalonym (11–18 ms przez pierwsze ~6 s: podglądy i hierarchia), publikacja 0,75 ms, rysowanie 2,3 ms, **presenting 22 ms**, 40 FPS; baza (stara mapa, start na L2): tick 2,1 ms, presenting 5,6 ms, 114 FPS | tick ≤ baza + 15 %: **nieosiągnięty**; baza nieporównywalna (L2, bez pól) |
+| Madera, `Read.Painted` na L4 | 24 sektory na sekundę gry, 173 po 8 s i stoi (agent E) | 0 zdjęć po ≤ 150 klatkach: ✓ |
+| Madera L2 nad lasem | 24 118 drzew na L2 (kamera ortogonalna rozwija wszystko w `Sight`); tick **20–30 ms** (publikacja 5 ms), rysowanie 5 ms, 40–50 FPS; baza 1,6 ms | tick ≤ 4 ms z ~5 000 drzew: **nieosiągnięty**, założenie 5 000 błędne |
+| Katalog kafli | 928 KB po 45 s (17 plików, widoczna część wyspy); 944 KB po 100 s (agent E) | ≤ 20 MB ✓; pełne pokrycie w 2 min: nie sprawdzone (kamera stała) |
+| Drugi bieg | pełna płachta od pierwszej narysowanej klatki (agent E) | ✓ |
+
+**Wnioski.** Ścieżki nietknięte bez zmian (szum pomiaru). Podgląd tani (0,1 ms na sektor z 256
+częściami, koszt leży w regułach gry). Kafle: zapis 29 ms na kafel w goroutine, przy ≤ 1 na
+sekundę to ~3 % rdzenia przez czas zapisu; odczyt 2,5 ms na kafel na starcie (Madera: kilkadziesiąt
+kafli, poniżej 0,2 s). Dwie rzeczy do decyzji użytkownika, nie do zamknięcia w tym etapie:
+(1) **wyspa na L4** kosztuje 22 ms GPU na Intel UHD 620 (presenting; cała wyspa w płachcie z
+lasami jako kopułami i kratą płachty w 173 sektorach, do tego 8 fotografii na klatkę w biegu bez
+kafli) i 8,7 ms ticku w stanie ustalonym, gdzie baza na starej mapie na L2 miała 2,1 ms: tick
+jest po stronie gry (hierarchia tras dla karawan, 260 pól, 800 sektorów) albo świata (sygnatura
+736 sektorów w publikacji to 0,75 ms, nie to); profil CPU sondy to następny krok;
+(2) **las na L2** to 24 tys. drzew, bo kamera ortogonalna ma jedną skalę w kadrze i rozwija
+każde pole w zasięgu `Sight` (30 km): tick 20–30 ms, z czego przebieg wysokości topografii liczy
+`GroundAt` dla każdej stojącej części co krok (24 tys. odczytów reliefu; część nie rusza się,
+więc gruntowanie raz przy spawnie i przy zmianie reliefu wystarczy), reszta do profilu; drabina
+kamery ortogonalnej po odległości albo krótszy `Sight` to decyzja o świecie. Oba w roadmapie.

@@ -46,6 +46,13 @@ reguły, efekty, znaczniki) i planszę (grunt, wysokość, stanie).
   pętlach); zera pisane w kolejności pól struktury łączą się w mniej zapisów; strażnik `progress`
   inlinuje się, gdy odczyt mapy siedzi w `phaseOf`. `figure` ma 88 B (80 przed płachtami):
   samo to kosztuje 3–6 % na gęstych rungach, pokryte powyższym; spakowanie flag wróciłoby do 80.
+- Suche rozwinięcie (`preview.go`, `d/preview`, 2026-11-06): sektor czekający na fotografię pod
+  gołym rozciągiem pola dostaje podgląd, najwyżej `perFrame` na krok: `Unfold` idzie do reguł
+  jak przy rozwinięciu, `SpawnPart` pod podglądem zapisuje migawkę zamiast spawnu, podgląd żyje
+  dwa kroki. `World_Preview` (bench/): podgląd i publikacja sektora z 256 częściami, alokacje
+  tylko migawek. Koszt leży w regułach gry, nie w świecie: w demie Madery 512 reguł lasu i 1024
+  osady idą raz na sektor na bieg (potem kafle); kamera ortogonalna na L2 rozwija wszystkie pola
+  w zasięgu `Sight` (skala stała w kadrze: ~30 tys. drzew), więc tick L2 nad wyspą to lasy.
 - Przebieg `standing` planszy pisze `Pace.Share` z `cell.PaceOf` ze stokiem do sąsiada w kierunku
   marszu; jego cena nad reliefem (`Map.Rise` i `exp` na jednostkę na krok) przyjęta jako cena
   strategii (`gram-perf-navigation`).

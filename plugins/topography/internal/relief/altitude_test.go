@@ -181,6 +181,60 @@ func TestAltitude_ABodyBiggerThanAHexStandsOnTheHighestGroundUnderItsBox(t *test
 	}
 }
 
+// a part of an aggregate laid at a Position off any cell stands on the ground under its middle; a
+// bridge's pier, standing for good off a cell too, keeps the altitude its bridge gave it
+func TestAltitude_APartStandingOnNoCellStandsOnTheGroundUnderItsMiddle(t *testing.T) {
+	middle := geom.NewVec(56, 48) // in (1,1), up the slope to the hill at (2,1)
+	var tree, pier, walker kind.Of[topotest.Recruit]
+	define := func(qw *topotest.QuasiWorld, units *board.Units[topotest.Recruit]) []kind.Entry {
+		laid := comp.Const(world.Position{
+			AABB: plane.NewAABB(geom.NewVec(middle.X-10, middle.Y-10), 20, 20),
+		})
+		kind.Define[topotest.Recruit](qw.World.Kinds(), "tree", kind.Spec{
+			laid,
+			comp.Const(world.Velocity{}),
+			comp.Const(world.Z{Height: 6}),
+			comp.Const(world.Fixed{}),
+			comp.Const(world.PartOf{}),
+		})
+		tree = kind.Named[topotest.Recruit](qw.World.Kinds(), "tree")
+		kind.Define[topotest.Recruit](qw.World.Kinds(), "pier", kind.Spec{
+			laid,
+			comp.Const(world.Velocity{}),
+			comp.Const(world.Z{Altitude: 1, Height: 5}),
+			comp.Const(world.Fixed{}),
+		})
+		pier = kind.Named[topotest.Recruit](qw.World.Kinds(), "pier")
+		units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
+		walker = units.Named("walker")
+		row := topotest.Recruit{Start: qw.Grid.At(2, 1)}
+		return []kind.Entry{tree.Entry(row), pier.Entry(row), walker.Entry(row)}
+	}
+	qw := topotest.NewQuasiWorldWith(t, false, define)
+	qw.ECS.Tick(time.Second / 60)
+
+	relief := qw.Topo.Write().Relief()
+	ground := relief.At(middle)
+	if level := relief.Altitude(qw.Grid.At(1, 1)); ground <= level {
+		t.Fatalf("the ground under the tree lies at %v, its cell's level at %v: no slope", ground,
+			level)
+	}
+	if got := qw.World.Read(0).GroundAt(middle); got != ground {
+		t.Errorf("the world has the ground under the tree at %v, want the relief's %v", got, ground)
+	}
+	zs := qw.Zs()
+	if got := zs[tree.ID()]; len(got) != 1 || got[0].Altitude != ground || got[0].Height != 6 {
+		t.Errorf("the tree: %v, want it 6 tall on the ground under its middle, %v", got, ground)
+	}
+	if got := zs[pier.ID()]; len(got) != 1 || got[0].Altitude != 1 || got[0].Height != 5 {
+		t.Errorf("the pier: %v, want it where its bridge put it, at 1 and 5 tall", got)
+	}
+	hill := relief.At(qw.Grid.CellCenter(qw.Grid.At(2, 1)))
+	if got := zs[walker.ID()]; len(got) != 1 || got[0].Altitude != hill {
+		t.Errorf("the walker: %v, want it on the hill's ground, %v", got, hill)
+	}
+}
+
 func TestAltitude_AFloorCarriesItsDomainsAtItsHeight(t *testing.T) {
 	var walker, hawk, bridge kind.Of[topotest.Recruit]
 	define := func(qw *topotest.QuasiWorld, units *board.Units[topotest.Recruit]) []kind.Entry {

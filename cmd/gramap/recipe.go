@@ -3,8 +3,11 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"math"
 	"os"
+	"slices"
+	"strconv"
 
 	"github.com/kjkrol/gram/plugins/board/ground"
 	roadsite "github.com/kjkrol/gram/plugins/roads/site"
@@ -12,13 +15,15 @@ import (
 )
 
 type recipe struct {
-	Area   area      `yaml:"area"`
-	Zoom   int       `yaml:"zoom"` // 0: one fine enough for the cells
-	Kinds  kinds     `yaml:"kinds"`
-	Ground groundCfg `yaml:"ground"`
-	Rivers riversCfg `yaml:"rivers"`
-	Roads  roadsCfg  `yaml:"roads"`
-	Flat   flatCfg   `yaml:"flat"`
+	Area        area           `yaml:"area"`
+	Zoom        int            `yaml:"zoom"` // 0: one fine enough for the cells
+	Kinds       kinds          `yaml:"kinds"`
+	Ground      groundCfg      `yaml:"ground"`
+	Rivers      riversCfg      `yaml:"rivers"`
+	Roads       roadsCfg       `yaml:"roads"`
+	Fields      []fieldCfg     `yaml:"fields"`
+	Settlements settlementsCfg `yaml:"settlements"`
+	Flat        flatCfg        `yaml:"flat"`
 }
 
 // what a map with -flat takes in place of the rest's; 0, as the rest has it
@@ -67,6 +72,43 @@ type kinds struct {
 	Road   string `yaml:"road"`
 	Bridge string `yaml:"bridge"`
 	Ford   string `yaml:"ford"`
+	Built  string `yaml:"built"`
+}
+
+// land is the kinds the land's cells are drawn as
+func (k kinds) land() []string { return []string{k.Earth, k.Sand, k.Rock, k.Forest, k.Built} }
+
+// a field over the cells of a kind in each block of the board, a square grain cells a side counted
+// from its first cell, where at least least of them lie
+type fieldCfg struct {
+	Cells string `yaml:"cells"` // the cells' kind
+	Kind  string `yaml:"kind"`  // the field's, a kind of entity
+	Grain int    `yaml:"grain"`
+	Least int    `yaml:"least"`
+}
+
+// the cells laid round the places, as many as a place's size: a word of sizes, none or a number
+type settlementsCfg struct {
+	Cells   string         `yaml:"cells"` // the kind laid
+	Sizes   map[string]int `yaml:"sizes"` // cells
+	Default string         `yaml:"default"`
+}
+
+// cells is how many cells a place of size is settled on
+func (s settlementsCfg) cells(size string) (int, error) {
+	if size == "" {
+		size = s.Default
+	}
+	if n, ok := s.Sizes[size]; ok {
+		return n, nil
+	}
+	if size == "" || size == "none" {
+		return 0, nil
+	}
+	if n, err := strconv.Atoi(size); err == nil && n >= 0 {
+		return n, nil
+	}
+	return 0, fmt.Errorf("no size %q", size)
 }
 
 type groundCfg struct {
@@ -103,27 +145,65 @@ type riversCfg struct {
 // what the roads are allowed (cut, fill, earth, step, spread, slope, fords) and priced (metre,
 // cubic, climb, rock, bridge), as the roads tool's site has them
 type roadsCfg struct {
-	Width     float64               `yaml:"width"`     // world units
-	Deck      float64               `yaml:"deck"`      // world units
-	Thickness float64               `yaml:"thickness"` // metres
-	Cut       float64               `yaml:"cut"`       // metres a corner is dug down, at most
-	Fill      float64               `yaml:"fill"`      // metres a corner is raised, at most
-	Earth     float64               `yaml:"earth"`     // m³ cut and filled in all, at most
-	Step      float64               `yaml:"step"`      // metres; 0: no ground off a road moves
-	Spread    int                   `yaml:"spread"`    // cells off a road the ground follows
-	Slope     float64               `yaml:"slope"`     // degrees, the steepest ramp
-	Fords     bool                  `yaml:"fords"`     // through a river's fords
-	Metre     float64               `yaml:"metre"`     // a metre of road's price
-	Cubic     float64               `yaml:"cubic"`     // a cubic metre of earth's price
-	Climb     float64               `yaml:"climb"`     // a metre dearer by it per rise over run
-	Rock      float64               `yaml:"rock"`      // times a metre's price, over rock
-	Bridge    float64               `yaml:"bridge"`    // times a metre's price, on a bridge
-	Longest   int                   `yaml:"longest"`   // cells a bridge spans, at most
-	High      float64               `yaml:"high"`      // metres
-	Figure    float64               `yaml:"figure"`    // metres, the tallest figure as drawn
-	Route     allowance             `yaml:"route"`
-	Places    map[string][2]float64 `yaml:"places"` // longitude, latitude
-	Routes    [][]string            `yaml:"routes"` // each a chain of places
+	Width     float64          `yaml:"width"`     // world units
+	Deck      float64          `yaml:"deck"`      // world units
+	Thickness float64          `yaml:"thickness"` // metres
+	Cut       float64          `yaml:"cut"`       // metres a corner is dug down, at most
+	Fill      float64          `yaml:"fill"`      // metres a corner is raised, at most
+	Earth     float64          `yaml:"earth"`     // m³ cut and filled in all, at most
+	Step      float64          `yaml:"step"`      // metres; 0: no ground off a road moves
+	Spread    int              `yaml:"spread"`    // cells off a road the ground follows
+	Slope     float64          `yaml:"slope"`     // degrees, the steepest ramp
+	Fords     bool             `yaml:"fords"`     // through a river's fords
+	Metre     float64          `yaml:"metre"`     // a metre of road's price
+	Cubic     float64          `yaml:"cubic"`     // a cubic metre of earth's price
+	Climb     float64          `yaml:"climb"`     // a metre dearer by it per rise over run
+	Rock      float64          `yaml:"rock"`      // times a metre's price, over rock
+	Bridge    float64          `yaml:"bridge"`    // times a metre's price, on a bridge
+	Longest   int              `yaml:"longest"`   // cells a bridge spans, at most
+	High      float64          `yaml:"high"`      // metres
+	Figure    float64          `yaml:"figure"`    // metres, the tallest figure as drawn
+	Route     allowance        `yaml:"route"`
+	Places    map[string]place `yaml:"places"`
+	Routes    [][]string       `yaml:"routes"` // each a chain of places
+}
+
+// a place roads run to, at a longitude and latitude, settled on as its size says, the
+// settlements' default for a bare pair
+type place struct {
+	At   [2]float64
+	Size string
+}
+
+func (p *place) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind == yaml.SequenceNode {
+		return n.Decode(&p.At)
+	}
+	if n.Kind != yaml.MappingNode {
+		return fmt.Errorf("line %d: a place is [longitude, latitude] or {at, size}", n.Line)
+	}
+	at := false
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		k, v := n.Content[i], n.Content[i+1]
+		switch k.Value {
+		case "at":
+			if err := v.Decode(&p.At); err != nil {
+				return err
+			}
+			at = true
+		case "size":
+			if v.Kind != yaml.ScalarNode {
+				return fmt.Errorf("line %d: a place's size is a word or a number", v.Line)
+			}
+			p.Size = v.Value
+		default:
+			return fmt.Errorf("line %d: a place has no %s, only at and size", k.Line, k.Value)
+		}
+	}
+	if !at {
+		return fmt.Errorf("line %d: a place needs its at", n.Line)
+	}
+	return nil
 }
 
 // the most cut and fill a route between places is planned with, metres, the levelling's where it
@@ -195,7 +275,45 @@ func parseRecipe(data []byte, path string) (recipe, error) {
 			}
 		}
 	}
+	if err := r.validate(); err != nil {
+		return r, fmt.Errorf("%s: %w", path, err)
+	}
 	return r, nil
+}
+
+func (r recipe) validate() error {
+	land := r.Kinds.land()
+	for i, f := range r.Fields {
+		switch {
+		case f.Cells == "" || f.Kind == "":
+			return fmt.Errorf("fields: field %d names no cells or no kind", i+1)
+		case f.Grain < 1 || f.Least < 1:
+			return fmt.Errorf("fields: %s over %s wants a grain and a least of a cell or more",
+				f.Kind, f.Cells)
+		case f.Cells != r.Kinds.Sea && !slices.Contains(land, f.Cells):
+			return fmt.Errorf("fields: %s lies over %q, no kind of the recipe's", f.Kind, f.Cells)
+		}
+	}
+	s := r.Settlements
+	if _, err := s.cells(""); err != nil {
+		return fmt.Errorf("settlements: the default: %w", err)
+	}
+	for word, n := range s.Sizes {
+		if n < 0 {
+			return fmt.Errorf("settlements: %s is %d cells", word, n)
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(r.Roads.Places)) {
+		n, err := s.cells(r.Roads.Places[name].Size)
+		switch {
+		case err != nil:
+			return fmt.Errorf("%s: %w", name, err)
+		case n > 0 && !slices.Contains(land, s.Cells):
+			return fmt.Errorf("%s is settled on %d cells of %q, no kind of the recipe's land",
+				name, n, s.Cells)
+		}
+	}
+	return nil
 }
 
 func defaultRecipe() recipe {
@@ -204,7 +322,7 @@ func defaultRecipe() recipe {
 	r.Kinds = kinds{
 		Sea: "water", Earth: "earth", Sand: "sand", Rock: "rock", Forest: "forest",
 		Brook: "brook", Stream: "stream", River: "river",
-		Road: "road", Bridge: "bridge", Ford: "ford",
+		Road: "road", Bridge: "bridge", Ford: "ford", Built: "built",
 	}
 	r.Ground.Rock.Slope = 0.5
 	r.Ground.Rock.Above = 1e9

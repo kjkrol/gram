@@ -78,8 +78,15 @@ type sheets struct {
 	// whether some lie in it
 	folded  map[place][]shot
 	snapped []bool
+	// by sector whether its photograph waits for the parts of a field a preview gives, and the
+	// stretches of fields with no look declared at L4 a step found neither unfolded nor kept
+	pending []bool
+	bare    []place
 	want    func(i int, box geom.AABB, level lod.Level)
 	room    darkroom
+	files   SheetsCfg
+	// the tiles of the files read and written, nil without a folder
+	store *sheetStore
 }
 
 // signature is what stands in a sector as a publish signs it: how many, and their identities,
@@ -103,12 +110,14 @@ type shot [photoFloats]float32
 const photoFloats = 12
 
 // photo is a sector to photograph: its texels at L4, its instances among the frame's and the
-// most any reaches up or down, for the depth
+// most any reaches up or down, for the depth; what stands in it as signed and whether anything does
 type photo struct {
 	sector   int
 	rect     image.Rectangle
 	from, to int
 	span     float32
+	signed   signature
+	full     bool
 }
 
 // sheetFrame is what a publish hands the frame of the sheets: whether they are photographed, by
@@ -138,8 +147,10 @@ func newSheets(cfg Config, grid *sector.Grid) sheets {
 	}
 	w, h := float32(cfg.Space.Width), float32(cfg.Space.Height)
 	texel = max(texel, max(w, h)/sheetSide)
-	return sheetsOver(grid, 1/texel, min(max(int(f32.Ceil(w/texel)), 1), sheetSide),
+	s := sheetsOver(grid, 1/texel, min(max(int(f32.Ceil(w/texel)), 1), sheetSide),
 		min(max(int(f32.Ceil(h/texel)), 1), sheetSide))
+	s.files = cfg.Sheets
+	return s
 }
 
 // sheetsOver is the sheets of a world cut by grid, perUnit texels a world unit, cols by rows
@@ -158,6 +169,7 @@ func sheetsOver(grid tiling, perUnit float32, cols, rows int) sheets {
 		inked:    make([]bool, n),
 		wanted:   make([]bool, n),
 		snapped:  make([]bool, n),
+		pending:  make([]bool, n),
 		folded:   map[place][]shot{},
 		seen:     make([]lod.Level, n),
 		ring:     make([]bool, n),
@@ -188,6 +200,7 @@ func (s *sheets) open() {
 	s.albedo, s.relief = render.NewImage(s.cols, s.rows), render.NewImage(s.cols, s.rows)
 	cols, rows := (s.cols+1)/2, (s.rows+1)/2
 	s.albedoL5, s.reliefL5 = render.NewImage(cols, rows), render.NewImage(cols, rows)
+	s.openFiles()
 }
 
 // bump has sector i photographed anew: what stands in it has changed
@@ -195,6 +208,13 @@ func (s *sheets) bump(i int) { s.version[i]++ }
 
 // paint has sector i hold a photograph of what stands in it now, something standing there
 func (s *sheets) paint(i int) { s.mark(i, true) }
+
+// loaded has sector i hold a photograph a file kept of what stood in it as signed, something
+// standing there where inked
+func (s *sheets) loaded(i int, signed signature, inked bool) {
+	s.signed[i] = signed
+	s.mark(i, inked)
+}
 
 // mark has sector i hold a photograph of what stands in it now, full where something does
 func (s *sheets) mark(i int, full bool) {
@@ -334,10 +354,11 @@ func (s *sheets) settle(f *sheetFrame) {
 	for p := range s.folded {
 		s.snapped[p.sector] = true
 	}
+	s.waiting()
 	budget := s.perFrame
 	for k := range n {
 		i := (s.next + k) % n
-		if !s.wanted[i] || s.painted[i] == s.version[i] {
+		if !s.wanted[i] || s.painted[i] == s.version[i] || s.pending[i] {
 			continue
 		}
 		full := s.now[i].n > 0 || s.snapped[i]
@@ -350,7 +371,8 @@ func (s *sheets) settle(f *sheetFrame) {
 			break
 		}
 		budget--
-		f.photos = append(f.photos, photo{sector: i, rect: s.rect(i)})
+		f.photos = append(f.photos, photo{sector: i, rect: s.rect(i), signed: s.signed[i],
+			full: full})
 		s.mark(i, full)
 	}
 	s.gather(f)
@@ -392,11 +414,9 @@ func appendShot(dst []float32, at *shot, span *float32) []float32 {
 	return append(dst, at[:]...)
 }
 
-// fold keeps the parts of the stretch at as the sheets photograph them, at being photographed anew
+// fold keeps the parts of the stretch at as the sheets photograph them, none too, at being
+// photographed anew
 func (s *sheets) fold(at place, parts []shot) {
-	if len(parts) == 0 {
-		return
-	}
 	s.folded[at] = append(s.folded[at][:0], parts...)
 	s.bump(at.sector)
 }

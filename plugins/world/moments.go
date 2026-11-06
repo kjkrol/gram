@@ -35,7 +35,8 @@ func (m *moments) system() goke.System {
 
 // Unfold is the moment a stretch of an aggregate comes down finer than Strategic, once as it comes:
 // the time its rules spawn the parts lying there (SpawnPart), a point aggregate's round At, its
-// centre.
+// centre. It is told also as a preview, of a field's stretch a sheet draws holding none of its
+// parts: the parts its rules give there are photographed into the sheet, none spawned.
 type Unfold struct {
 	ID uid.UID64
 	At geom.Vec

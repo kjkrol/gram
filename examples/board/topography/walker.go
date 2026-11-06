@@ -29,6 +29,16 @@ const (
 // three quarters of a cell a second: a man walks 1.4 m/s
 var walkerSpeed = scale.Units(75)
 
+// walking is how whoever goes on foot steers, a caravan's wagon keeping its porters' pace
+var walking = steering.Steering{
+	MaxSpeed: walkerSpeed,
+	Sprint:   sprint,
+	Accel:    walkerSpeed * 2,
+	Brake:    walkerSpeed * 4,
+	V0:       walkerSpeed / 2,
+	TurnRate: 0.15,
+}
+
 // walker is a figure on foot: mortal, looking ahead, standing on the ground under gravity; an
 // ordered one sets out for its target from the map, a highland one climbs the steeper slopes.
 type walker struct {
@@ -44,17 +54,9 @@ func (wk walker) Define(b *board.Plugin) {
 	units := board.NewUnits[unitRow](b,
 		board.Shape{Size: scale.Figure(0.6), Height: figure},
 		func(u unitRow) geom.Vec { return b.Read(0).Board().CellCenter(u.Start) })
-	profile := steering.Steering{
-		MaxSpeed: walkerSpeed,
-		Sprint:   sprint,
-		Accel:    walkerSpeed * 2,
-		Brake:    walkerSpeed * 4,
-		V0:       walkerSpeed / 2,
-		TurnRate: 0.15,
-	}
 	extra := append(looking(),
 		ceremony.Plays(b.Read(0).World().Roles().Named(MortalRole)),
-		comp.Const(gravity.Body{Leap: scale.Figure(1.5)}))
+		leaping())
 	if wk.ordered {
 		extra = append(extra, ordered())
 	}
@@ -62,8 +64,11 @@ func (wk walker) Define(b *board.Plugin) {
 	if wk.highland {
 		domain |= HighlandDomain
 	}
-	units.Define(wk.kind, unit.Mover{Domain: domain}, profile, extra...)
+	units.Define(wk.kind, unit.Mover{Domain: domain}, walking, extra...)
 }
+
+// a figure on foot under gravity leaps a little
+func leaping() comp.Comp { return comp.Const(gravity.Body{Leap: scale.Figure(1.5)}) }
 
 func (wk walker) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[unitRow](w.Kinds(), wk.kind), walkerPx, render.Solid(wk.color)).
