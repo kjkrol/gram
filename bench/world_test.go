@@ -1,6 +1,7 @@
 package bench_test
 
 import (
+	"fmt"
 	"image/color"
 	"testing"
 	"time"
@@ -8,7 +9,10 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
@@ -347,4 +351,128 @@ func sheetWorld(b *testing.B, clusters int) (*headless, render.Picture, *goke.Qu
 	ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) { w.RunPlan(rc, d) })
 	ecs.Tick(step)
 	return ctx, w.Read(0).Picture(), q, &z
+}
+
+// Benchmark_World_Preview is a field of 256 parts, never unfolded, previewed into the sheet of the
+// sector it stands over, seen at L4: spawned where another went, told its Unfold, its parts
+// photographed and none spawned, the sector published before and after. "declared" is the same
+// round with the field's look declared at L4, nothing previewed: what the preview adds is the
+// difference.
+func Benchmark_World_Preview(b *testing.B) {
+	for _, sc := range []struct {
+		name     string
+		declared bool
+	}{{"field,256", false}, {"declared,256", true}} {
+		b.Run(sc.name, func(b *testing.B) {
+			pv := previewWorld(b, sc.declared)
+			pv.again()
+			b.ReportAllocs()
+			for b.Loop() {
+				pv.again()
+			}
+		})
+	}
+}
+
+// fieldRow is a field, partRow a part of it
+type (
+	fieldRow struct{ x, y float32 }
+	partRow  struct{}
+)
+
+// previewing is a world of a field and the entry of another like it
+type previewing struct {
+	ctx    *headless
+	ecs    *goke.ECS
+	fields *goke.Query
+	entry  kind.Entry
+}
+
+// previewWorld is a world of 1024 a side with heights, cut into sectors 512 a side, a camera
+// seeing all of it at L4 from above and a field 256 a side over the middle of the first sector,
+// planting 16 by 16 parts 16 apart as it unfolds, its look declared at L4 where declared; its
+// sheets photographed
+func previewWorld(b *testing.B, declared bool) *previewing {
+	ctx := newHeadless()
+	w := ctx.UseWorld(world.Config{
+		Space:    world.SpaceCfg{Width: 1024, Height: 1024},
+		Entities: world.EntitiesCfg{MaxCount: 16, MinSize: 1, MaxSize: 32},
+		Heights:  true,
+		Sectors:  world.SectorsCfg{Buckets: 2},
+		LOD:      lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 8, 4}},
+	})
+	w.Sheets()
+	w.Write().SetGround(func(geom.Vec) float32 { return 5 })
+	kind.Define[partRow](w.Kinds(), "part", kind.Spec{
+		comp.Load(func(partRow) world.Position {
+			return world.Position{AABB: plane.NewAABB(geom.NewVec(-4, -4), 8, 8)}
+		}),
+		comp.Const(world.Velocity{}),
+		comp.Const(world.Fixed{}),
+		comp.Const(world.Z{Height: 12}),
+	})
+	parts := kind.Named[partRow](w.Kinds(), "part")
+	plant := make([]act.Rule, 0, 256)
+	for k := range 256 {
+		at := geom.NewVec(float32(k%16)*16-120, float32(k/16)*16-120)
+		plant = append(plant, act.Branch[world.Unfold]{
+			Name: fmt.Sprintf("plant %d", k),
+			When: cond.Self.If(cond.Always),
+			Then: act.Self.Do(world.SpawnPart{Entry: parts.Entry(partRow{}), At: at}),
+		})
+	}
+	w.Roles().Define("planting", plant...)
+	kind.Define[fieldRow](w.Kinds(), "field", kind.Spec{
+		comp.Load(func(r fieldRow) world.Position {
+			return world.Position{AABB: plane.NewAABB(geom.NewVec(r.x-8, r.y-8), 16, 16)}
+		}),
+		comp.Const(world.Velocity{}),
+		comp.Const(world.Aggregate{}),
+		comp.Const(world.Field{Size: geom.NewVec(256, 256)}),
+		ceremony.Plays(w.Roles().Named("planting")),
+	})
+	fields := kind.Named[fieldRow](w.Kinds(), "field")
+	atlas := w.NewAtlas()
+	look := atlas.Add(fields, 16, render.Solid(color.RGBA{R: 40, G: 120, B: 50, A: 255}))
+	if declared {
+		look.At(lod.L4, render.Solid(color.RGBA{R: 30, G: 90, B: 40, A: 255}))
+	}
+	atlas.Add(parts, 8, render.Solid(color.RGBA{R: 50, G: 140, B: 60, A: 255}))
+	atlas.Close()
+	ctx.look()
+	pv := &previewing{ctx: ctx, entry: fields.Entry(fieldRow{256, 256})}
+	w.Write().Seed(pv.entry)
+	if err := ctx.Deliver(w.Kinds().Played()...); err != nil {
+		b.Fatal(err)
+	}
+	ctx.cam = ctx.camera(cameras.Config{}, cameras.FromAbove, 1024, 1024)
+	var base goke.Comp[world.Base]
+	ctx.pending = append(ctx.pending, ctx.bound, func() []goke.System {
+		return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) {
+			pv.fields = si.NewQueryBuilder(&base).Include(goke.Include[world.Field]()).Build()
+		}}}
+	})
+	pv.ecs = ctx.start(b, func(rc goke.RunCtx, d time.Duration) { w.RunPlan(rc, d) })
+	pv.ecs.Tick(step)
+	return pv
+}
+
+// again has the field go and another come in its place, previewed into the sheet and published
+func (pv *previewing) again() {
+	w := pv.ctx.world
+	for pv.fields.All(); pv.fields.Next(); {
+		for _, id := range pv.fields.Cursor().IDs {
+			w.Write().Carrier().PutFrom(id, world.Despawn{})
+		}
+	}
+	w.Write().Spawn(pv.entry)
+	// the field comes, the last goes; the sheet lets go of the last one's parts
+	pv.ecs.Tick(step)
+	pv.ecs.Tick(step)
+	// the sector waits for the preview
+	pv.ctx.publish()
+	// the preview told its Unfold; its parts photographed and kept by the sheet
+	pv.ecs.Tick(step)
+	pv.ecs.Tick(step)
+	pv.ctx.publish()
 }

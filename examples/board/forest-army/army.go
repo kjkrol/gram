@@ -62,6 +62,7 @@ type army struct {
 	// the other army's name, and the group its soldiers muster in
 	foeArmy, soldiers string
 	color             color.RGBA
+	badge             render.BadgeShape
 	// what the soldiers it musters are told as they are made: whose they are
 	enlisted func() []command.Command
 }
@@ -173,7 +174,7 @@ func (r army) Define(b *board.Plugin) {
 		comp.Load(func(row armyRow) navigation.MoveOrder {
 			return navigation.MoveOrder{Target: row.Target}
 		}),
-		comp.Const(world.Aggregate{}),
+		comp.Const(world.Aggregate{Strength: soldiers}),
 		// its soldiers stand round it, pushed by nothing of its own
 		comp.Without[collision.Collider](),
 		comp.Without[collision.Physics](),
@@ -240,6 +241,7 @@ func swap(fx *cgoke.Effects, from, to string) act.Step {
 func (r army) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[armyRow](w.Kinds(), r.kind), armyPx, unseen).
 		At(lod.L4, banner(r.color)).
+		Styled(world.BannerStyle{Shape: r.badge, Fill: r.color}).
 		Styled(selection.Highlight{Line: r.color, Width: 2}).
 		Styled(navigation.RouteStyle{Line: r.color, Goal: r.color, Width: 1.5}).
 		Styled(minimap.Mark{Color: r.color, Size: 6})

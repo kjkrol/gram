@@ -74,6 +74,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	// than the finest seen or more
 	p.module.pace = p.worldPlugin.Pace(lod.Contact)
 	p.module.leave = p.motion.Write().Leave
+	p.module.restill = p.worldPlugin.Write().Restill
 	ctx.UseModule(p.module)
 	ctx.Hosts(&p.pairs, &p.entities)
 	ctx.Draws(p.boxesView)

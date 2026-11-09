@@ -25,7 +25,7 @@ func PlaceSystem(o cell.Occupancy, footing Footing, g grid.Grid, pace goke.Opt,
 	terrain cell.Terrain, space func() *aabbworld.Space) goke.System {
 	s := &placeSystem{occupancy: o, footing: footing, grid: g, span: g.CellSpan(), pace: pace,
 		terrain: terrain, space: space}
-	s.holding = s.isHolding
+	s.holding, s.gone = s.isHolding, s.leaving.gone
 	return s
 }
 
@@ -54,6 +54,11 @@ type placeSystem struct {
 	holding func(uid.UID64, cell.Domain, bool) // isHolding, bound once
 	asked   uid.UID64
 	held    bool
+	// whoever left the world this step still holds its cell till the keep lets it go: on a cell
+	// taken, the holds of those gone are let go first, once a step
+	leaving  leaving
+	gone     func(uid.UID64) bool
+	released bool
 	// the cells placed onto this step, and a search's rings and the cells it has seen
 	placed           []cell.ID
 	ring, next, seen []cell.ID
@@ -66,13 +71,14 @@ func (s *placeSystem) Init(si *goke.SysInit) {
 		qb.With(s.pace)
 	}
 	s.units = qb.Build()
+	s.leaving.init(si)
 }
 
 func (s *placeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 	if s.occupancy == nil {
 		return
 	}
-	s.placed = s.placed[:0]
+	s.placed, s.released = s.placed[:0], false
 	for s.units.Paced(d); s.units.Next(); {
 		cur := s.units.Cursor()
 		if !s.partOf.Present(cur) && !s.whole.Present(cur) {
@@ -94,6 +100,10 @@ func (s *placeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 				continue
 			}
 			domain := unit.DomainAt(movers, i)
+			if !s.released && !s.takes(c, deck, id, domain) {
+				s.occupancy.Release(s.gone)
+				s.released = true
+			}
 			if s.takes(c, deck, id, domain) {
 				s.placed = append(s.placed, c)
 				continue

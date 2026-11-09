@@ -2,6 +2,8 @@ package light
 
 import (
 	"fmt"
+	"math"
+	"slices"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -83,6 +85,7 @@ type Plugin struct {
 	blockLie  goke.OptComp[world.Lie]
 
 	lights  render.Buffered[render.Lights]
+	casts   []cast                // each sector's blocks as last published
 	swapped bool                  // a frame's light published
 	drawnFn func() *render.Lights // drawn, bound once
 
@@ -233,15 +236,15 @@ func shone(sun Distant, s Source) Distant {
 }
 
 // Publish hands the frame drawn next the light as it stands: the distant light and the lamps,
-// how it is set, the blocks the ground bakes the shadows of, the ground they are baked over and
-// the relief under the live shadows.
+// how it is set, the blocks the ground bakes the shadows of, a set a sector, the ground they are
+// baked over and the relief under the live shadows.
 func (p *Plugin) Publish() {
 	b := p.lights.Back()
 	b.Sun, b.Lamps = p.distant, append(b.Lamps[:0], p.lamps...)
 	b.LampShadows, b.Coarse, b.Policy = p.Res.Settings.LampShadows, p.Res.Settings.Coarse, p.policy
-	b.Blocks = p.standing(b.Blocks[:0])
+	standing := p.standing(b)
 	b.Ground, b.GroundAt = render.Lattice{}, nil
-	if lat, ok := p.lattice(len(b.Blocks) > 0); ok {
+	if lat, ok := p.lattice(standing); ok {
 		b.Ground = lat
 	}
 	if p.relief != nil {
@@ -308,12 +311,48 @@ func (p *Plugin) lattice(standing bool) (render.Lattice, bool) {
 	return p.lat, p.lat.Cols > 0
 }
 
-// standing is dst with every Baked block on the ground: a deck over its Lie from its Altitude
-// down its Height, anything else over its box from its Altitude up
-func (p *Plugin) standing(dst []render.Block) []render.Block {
-	if p.blocks == nil {
-		return dst
+// a sector's blocks: the sum of their hashes as last published and as gathered now, the version
+// they are published at, their joint rectangle (origin and size) and their highest top
+type cast struct {
+	sum, now, version uint64
+	box               [4]float32
+	top               float32
+}
+
+// standing puts every Baked block on the ground into b's set of the sector its middle lies in, one
+// lying along (a bridge's handle) over its Lie from its Altitude down its Height, anything else
+// over its box from its Altitude up, and raises the version of each set standing other than at the
+// last publish; it reports whether any block stands
+func (p *Plugin) standing(b *render.Lights) bool {
+	r := p.w.Read(0)
+	n := max(r.SectorsLen(), 1)
+	if len(b.Casts) != n {
+		b.Casts = slices.Grow(b.Casts[:0], n)[:n]
 	}
+	for len(p.casts) < n {
+		p.casts = append(p.casts, cast{version: 1})
+	}
+	for i := range b.Casts {
+		b.Casts[i].Blocks = b.Casts[i].Blocks[:0]
+		p.casts[i].now = 0
+	}
+	stands := p.blocks != nil && p.gather(b, r, n)
+	for i := range b.Casts {
+		c, was := &b.Casts[i], &p.casts[i]
+		if was.now != was.sum {
+			was.sum = was.now
+			was.version++
+			was.box, was.top = bounds(c.Blocks)
+		}
+		c.Box, c.Top, c.Version = was.box, was.top, was.version
+	}
+	return stands
+}
+
+// gather puts every Baked block into b's set of the sector its middle lies in, n of them, summing
+// their hashes; it reports whether any block stands
+func (p *Plugin) gather(b *render.Lights, r *world.Read, n int) bool {
+	stands, casts, sets := false, p.casts, b.Casts
 	for p.blocks.All(); p.blocks.Next(); {
 		cur := p.blocks.Cursor()
 		bases, zs, lies := p.blockBase.Slice(cur), p.blockZ.Slice(cur), p.blockLie.Slice(cur)
@@ -322,12 +361,7 @@ func (p *Plugin) standing(dst []render.Block) []render.Block {
 				continue
 			}
 			box, alt := bases[i].Pos.AABB, zs[i].Altitude
-			if lies != nil && lies[i].Length > 0 {
-				dst = append(dst, lying(bases[i].Pos.Center(), bases[i].Vel.Dir, lies[i],
-					alt-zs[i].Height, alt))
-				continue
-			}
-			dst = append(dst, render.Block{
+			bl := render.Block{
 				X:      box.TopLeft.X + box.Size.X/2,
 				Y:      box.TopLeft.Y + box.Size.Y/2,
 				UX:     1,
@@ -335,10 +369,56 @@ func (p *Plugin) standing(dst []render.Block) []render.Block {
 				Wide:   box.Size.Y / 2,
 				Bottom: alt,
 				Top:    alt + zs[i].Height,
-			})
+			}
+			if lies != nil && lies[i].Length > 0 {
+				bl = lying(bases[i].Pos.Center(), bases[i].Vel.Dir, lies[i], alt-zs[i].Height, alt)
+			}
+			k := 0
+			if n > 1 {
+				k = r.SectorOf(bl.X, bl.Y)
+			}
+			casts[k].now += hashed(bl)
+			sets[k].Blocks = append(sets[k].Blocks, bl)
+			stands = true
 		}
 	}
-	return dst
+	return stands
+}
+
+// bounds is the joint rectangle of bs (origin and size) and the highest of their tops; zero for
+// none
+func bounds(bs []render.Block) (box [4]float32, top float32) {
+	if len(bs) == 0 {
+		return box, 0
+	}
+	lo := [2]float32{f32.Inf(1), f32.Inf(1)}
+	hi := [2]float32{f32.Inf(-1), f32.Inf(-1)}
+	top = f32.Inf(-1)
+	for _, b := range bs {
+		ux, uy := f32.Abs(b.UX), f32.Abs(b.UY)
+		hx, hy := ux*b.Along+uy*b.Wide, uy*b.Along+ux*b.Wide
+		lo = [2]float32{min(lo[0], b.X-hx), min(lo[1], b.Y-hy)}
+		hi = [2]float32{max(hi[0], b.X+hx), max(hi[1], b.Y+hy)}
+		top = max(top, b.Top)
+	}
+	return [4]float32{lo[0], lo[1], hi[0] - lo[0], hi[1] - lo[1]}, top
+}
+
+// hashed mixes the block's eight numbers into one; a set's blocks are summed in any order
+func hashed(b render.Block) uint64 {
+	xy := uint64(math.Float32bits(b.X)) | uint64(math.Float32bits(b.Y))<<32
+	u := uint64(math.Float32bits(b.UX)) | uint64(math.Float32bits(b.UY))<<32
+	s := uint64(math.Float32bits(b.Along)) | uint64(math.Float32bits(b.Wide))<<32
+	z := uint64(math.Float32bits(b.Bottom)) | uint64(math.Float32bits(b.Top))<<32
+	return mixed(xy*0x9e3779b97f4a7c15 ^ u*0xc2b2ae3d27d4eb4f ^ s*0x165667b19e3779f9 ^
+		z*0xd6e8feb86659fd93)
+}
+
+// splitmix64's finaliser
+func mixed(h uint64) uint64 {
+	h = (h ^ h>>30) * 0xbf58476d1ce4e5b9
+	h = (h ^ h>>27) * 0x94d049bb133111eb
+	return h ^ h>>31
 }
 
 func lying(m, dir geom.Vec, lie world.Lie, bottom, top float32) render.Block {

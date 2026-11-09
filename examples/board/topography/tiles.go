@@ -42,6 +42,7 @@ var grounds = []ground{
 	{name: StreamCell, kind: cell.Kind{Pace: 0.2, Allows: cell.Land | wet}.Paced(wet, 1)},
 	{name: RiverCell, kind: cell.Kind{Pace: 1, Allows: wet}},
 	{name: RoadCell, kind: cell.Kind{Pace: 1, Allows: dry, Graded: true}},
+	{name: BuiltCell, kind: cell.Kind{Pace: 1, Allows: dry}, snowable: true},
 	{
 		name: ForestCell,
 		kind: cell.Kind{

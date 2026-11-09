@@ -3,15 +3,19 @@ package bridges_test
 import (
 	"bytes"
 	"encoding/gob"
+	"math"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
@@ -25,8 +29,10 @@ import (
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/topography"
+	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/uid"
 )
 
 type installer struct {
@@ -75,6 +81,17 @@ type dale struct {
 	cast    goke.Comp[light.Shadow]
 	fixed   *goke.Query
 	fixedB  goke.Comp[world.Base]
+	all     *goke.Query
+	allB    goke.Comp[world.Base]
+	allZ    goke.OptComp[world.Z]
+	allLie  goke.OptComp[world.Lie]
+	allCast goke.OptComp[light.Shadow]
+	allOf   goke.OptComp[world.PieceOf]
+	allDeck goke.OptComp[cell.Floor]
+	allPier goke.OptComp[collision.Collider]
+	allWho  goke.OptComp[world.Whole]
+	allKept goke.OptComp[world.Fixed]
+	allSeen goke.OptComp[vision.Transparency]
 }
 
 var rules = site.Rules{Longest: 3, Under: 5, Clearance: 1, Reshape: 10}
@@ -143,12 +160,19 @@ func (d *dale) start(heights func(geom.Vec) float32) {
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
 	}
+	for _, s := range d.drawn {
+		if b, ok := s.(plugin.Bound); ok {
+			systems = append(systems, goke.SystemFn{OnInit: b.Init})
+		}
+	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		d.floors = si.NewQueryBuilder(&d.floor, &d.on).Build()
 		d.piers = si.NewQueryBuilder(&d.pierB, &d.pierZ).
 			Include(goke.Include[collision.Collider]()).Build()
 		d.blocks = si.NewQueryBuilder(&d.blockZ, &d.cast).Build()
 		d.fixed = si.NewQueryBuilder(&d.fixedB).Include(goke.Include[world.Fixed]()).Build()
+		d.all = si.NewQueryBuilder(&d.allB).Optional(&d.allZ, &d.allLie, &d.allCast, &d.allOf,
+			&d.allDeck, &d.allPier, &d.allWho, &d.allKept, &d.allSeen).Build()
 	}})
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, dt time.Duration) {
@@ -246,18 +270,193 @@ func TestTool_APlayerLaysABridgeOutAndBuildsIt(t *testing.T) {
 			}
 		}
 	}
-	if n != len(decks)+len(piers) {
-		t.Errorf("%d blocks cast their shadows with the ground's, want the %d pieces of deck "+
-			"and the %d piers", n, len(decks), len(piers))
+	if n != 1+len(piers) {
+		t.Errorf("%d blocks cast their shadows with the ground's, want the bridge's handle and "+
+			"the %d piers", n, len(piers))
 	}
 	n = 0
 	for d.fixed.All(); d.fixed.Next(); {
 		n += len(d.fixed.Cursor().IDs)
 	}
-	if n != len(decks)+len(piers) {
-		t.Errorf("%d pieces Fixed, want the %d pieces of deck and the %d piers", n, len(decks),
-			len(piers))
+	if n != 1+len(decks)+len(piers) {
+		t.Errorf("%d Fixed, want the handle, the %d pieces of deck and the %d piers", n,
+			len(decks), len(piers))
 	}
+	d.wholeOver(at(2, 3), at(6, 3), 20, 5, 2)
+}
+
+// standing is an entity standing as the dale's query reads it
+type standing struct {
+	id           uid.UID64
+	base         world.Base
+	z            world.Z
+	lie          world.Lie
+	cast         light.Casting
+	of           uid.UID64 // the whole it is a piece of, 0 for none
+	deck, pier   bool
+	whole, fixed bool
+	seen         float32 // its Transparency, 0 for none
+}
+
+func (d *dale) standings() []standing {
+	var out []standing
+	for d.all.All(); d.all.Next(); {
+		cur := d.all.Cursor()
+		zs, lies, casts := d.allZ.Slice(cur), d.allLie.Slice(cur), d.allCast.Slice(cur)
+		ofs, seens := d.allOf.Slice(cur), d.allSeen.Slice(cur)
+		for i, id := range cur.IDs {
+			s := standing{id: id, base: d.allB.Slice(cur)[i], deck: d.allDeck.Present(cur),
+				pier: d.allPier.Present(cur), whole: d.allWho.Present(cur),
+				fixed: d.allKept.Present(cur)}
+			if zs != nil {
+				s.z = zs[i]
+			}
+			if lies != nil {
+				s.lie = lies[i]
+			}
+			if casts != nil {
+				s.cast = casts[i].Cast
+			}
+			if ofs != nil {
+				s.of = ofs[i].Whole
+			}
+			if seens != nil {
+				s.seen = seens[i].Value
+			}
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// wholeOver checks the one bridge standing from the middle from to the middle to, its deck at
+// deck on decks pieces and piers piers, is a handle over its pieces: the handle Fixed, lying
+// from head to head, seen through, its shadow Baked and the block it casts the one its pieces of
+// deck would cast joined; every piece under it, the decks casting no shadow, the piers theirs
+func (d *dale) wholeOver(from, to geom.Vec, deck float32, decks, piers int) {
+	d.t.Helper()
+	var handles, pieces []standing
+	for _, s := range d.standings() {
+		switch {
+		case s.whole:
+			handles = append(handles, s)
+		case s.deck || s.pier:
+			pieces = append(pieces, s)
+		}
+	}
+	if len(handles) != 1 {
+		d.t.Fatalf("%d handles stand, want the bridge's one", len(handles))
+	}
+	h := handles[0]
+	box := h.base.Pos.AABB
+	wantLie := world.Lie{Length: to.X - from.X, Width: 6}
+	if !h.fixed || h.cast != light.Baked || h.lie != wantLie ||
+		box.TopLeft != geom.NewVec(from.X, from.Y-3) ||
+		box.BottomRight != geom.NewVec(to.X, to.Y+3) ||
+		h.base.Vel.Dir != geom.NewVec(1, 0) || h.z != (world.Z{Altitude: deck, Height: 1}) ||
+		h.seen != 1 {
+		d.t.Errorf("the handle is Fixed %v, casts %v, lies %+v over %v headed %v at %+v, seen "+
+			"through %v; want Fixed, Baked, lying %+v from %v to %v 6 wide, east, from %v down "+
+			"1, seen through 1", h.fixed, h.cast, h.lie, box, h.base.Vel.Dir, h.z, h.seen,
+			wantLie, from, to, deck)
+	}
+	var lain []render.Block
+	nDecks, nPiers := 0, 0
+	for _, p := range pieces {
+		if p.of != h.id {
+			d.t.Errorf("a piece of the bridge is a piece of %d, want of the handle %d", p.of, h.id)
+		}
+		switch {
+		case p.deck:
+			nDecks++
+			if p.cast != light.NoShadow {
+				d.t.Errorf("a piece of deck casts %v, want no shadow: the handle casts it", p.cast)
+			}
+			lain = append(lain, lying(p.base.Pos.Center(), p.base.Vel.Dir, p.lie,
+				p.z.Altitude-p.z.Height, p.z.Altitude))
+		case p.pier:
+			nPiers++
+			if p.cast != light.Baked {
+				d.t.Errorf("a pier casts %v, want its own Baked shadow", p.cast)
+			}
+		}
+	}
+	if nDecks != decks || nPiers != piers {
+		d.t.Errorf("%d pieces of deck and %d piers under the handle, want %d and %d", nDecks,
+			nPiers, decks, piers)
+	}
+	joint := joined(lain)
+	got := lying(h.base.Pos.Center(), h.base.Vel.Dir, h.lie, h.z.Altitude-h.z.Height,
+		h.z.Altitude)
+	if len(joint) != 1 || got != joint[0] {
+		d.t.Errorf("the handle casts the block %+v, want the one its pieces of deck joined "+
+			"cast, %v", got, joint)
+	}
+}
+
+// lying is the block the light makes of what lies along: its Lie round m headed dir, from bottom
+// up to top
+func lying(m, dir geom.Vec, lie world.Lie, bottom, top float32) render.Block {
+	c := lie.Corners(m, dir)
+	length := f32.Hypot(c[1].X-c[0].X, c[1].Y-c[0].Y)
+	width := f32.Hypot(c[2].X-c[0].X, c[2].Y-c[0].Y)
+	b := render.Block{
+		X:      (c[0].X + c[3].X) / 2,
+		Y:      (c[0].Y + c[3].Y) / 2,
+		UX:     1,
+		Along:  length / 2,
+		Wide:   width / 2,
+		Bottom: bottom,
+		Top:    top,
+	}
+	if length > 0 {
+		b.UX, b.UY = (c[1].X-c[0].X)/length, (c[1].Y-c[0].Y)/length
+	}
+	return b
+}
+
+// joined is the blocks of a deck laid in pieces joined into one, as the ground's shade joined
+// them before the handle cast the deck's shadow
+func joined(bs []render.Block) []render.Block {
+	for i := range bs {
+		if bs[i].UX < 0 || bs[i].UX == 0 && bs[i].UY < 0 {
+			bs[i].UX, bs[i].UY = -bs[i].UX, -bs[i].UY
+		}
+	}
+	for again := true; again; {
+		again = false
+		for i := 0; i < len(bs); i++ {
+			for j := i + 1; j < len(bs); j++ {
+				if b, ok := join(bs[i], bs[j]); ok {
+					bs[i], again = b, true
+					bs = slices.Delete(bs, j, j+1)
+					j--
+				}
+			}
+		}
+	}
+	return bs
+}
+
+func join(a, b render.Block) (render.Block, bool) {
+	const near = 0.01
+	apart := func(x, y float32) bool { return math.Abs(float64(x-y)) > near }
+	if apart(a.UX, b.UX) || apart(a.UY, b.UY) || apart(a.Wide, b.Wide) ||
+		apart(a.Bottom, b.Bottom) || apart(a.Top, b.Top) {
+		return a, false
+	}
+	dx, dy := b.X-a.X, b.Y-a.Y
+	if apart(dx*a.UY-dy*a.UX, 0) {
+		return a, false
+	}
+	s := dx*a.UX + dy*a.UY
+	if s-b.Along > a.Along+near || s+b.Along < -a.Along-near {
+		return a, false
+	}
+	lo, hi := min(-a.Along, s-b.Along), max(a.Along, s+b.Along)
+	mid := (lo + hi) / 2
+	a.X, a.Y, a.Along = a.X+a.UX*mid, a.Y+a.UY*mid, (hi-lo)/2
+	return a, true
 }
 
 func TestTool_TheBridgeInHandLiesOverItsCells(t *testing.T) {
@@ -282,6 +481,51 @@ func TestTool_TheBridgeInHandLiesOverItsCells(t *testing.T) {
 	})
 	if n == 0 {
 		t.Fatal("the bridge in hand is not drawn")
+	}
+}
+
+// sprites is a look noting the sprite of every entity it is handed to draw
+type sprites struct {
+	world.Look
+	drawn map[render.SpriteID]bool
+}
+
+func (s sprites) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z,
+	atlas render.AtlasSource, a render.Appearance, lit render.Illumination) {
+	s.drawn[a.SpriteID] = true
+}
+
+type sheet struct{}
+
+func (sheet) Atlas() *render.Image                            { return nil }
+func (sheet) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 1, 1 }
+func (sheet) White() (u, v float32)                           { return 0, 0 }
+
+func TestTool_TheWorldDrawsABridgesPiecesNeverItsHandle(t *testing.T) {
+	d := newDale(t)
+	d.start(valley)
+	at := func(x, y uint32) geom.Vec { return d.g.CellCenter(d.g.At(x, y)) }
+	d.give(bridges.Mark{At: at(2, 3)})
+	d.give(bridges.Aim{At: at(6, 3)})
+	d.give(bridges.Mark{At: at(6, 3)})
+	d.give(bridges.Build{})
+	cam := cameratest.NewFromSpace(100, 60, 0)
+	d.w.Write().NewView(cam)
+	look := sprites{Look: d.w.Read(0).Look(), drawn: map[render.SpriteID]bool{}}
+	d.w.Write().SetLook(look)
+	d.w.Write().SetAtlas(sheet{})
+	d.ticks(5)
+	r := d.drawn[0] // the world's own, installed first
+	r.(plugin.Publisher).Publish()
+	r.(plugin.Publisher).Swap()
+	var f render.Frame
+	f.Reset(cam)
+	r.Compose(&f, cam)
+	_, handle, _, ok := d.w.Kinds().Lookup("bridge.whole")
+	bridge := d.bridges.Types().Named("bridge")
+	if !ok || look.drawn[handle] || !look.drawn[bridge.Deck()] || !look.drawn[bridge.Pier()] {
+		t.Errorf("the world draws the handle %v, the decks %v, the piers %v; want the pieces "+
+			"alone", look.drawn[handle], look.drawn[bridge.Deck()], look.drawn[bridge.Pier()])
 	}
 }
 
@@ -424,6 +668,8 @@ func TestSpawn_ALevelsBridges(t *testing.T) {
 			if got := d.decks(); len(got) != 5 {
 				t.Errorf("built %d pieces of deck, want 5", len(got))
 			}
+			at := func(x, y uint32) geom.Vec { return d.g.CellCenter(d.g.At(x, y)) }
+			d.wholeOver(at(2, 3), at(6, 3), 20, 5, 2)
 		})
 	}
 }

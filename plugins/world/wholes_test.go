@@ -60,8 +60,12 @@ type folds struct {
 	orders heards
 	heard  []said
 
+	// the band's declared strength, zero for none
+	strength int
+
 	bands, members, abstract *goke.Query
 	base, memberBase         goke.Comp[world.Base]
+	aggregate                goke.Comp[world.Aggregate]
 	partOf                   goke.Comp[world.PartOf]
 	abstractBase             goke.Comp[world.Base]
 	unfolded                 goke.OptComp[world.Unfolded]
@@ -81,7 +85,7 @@ func (f *folds) Observers(each func(cam camera.Camera)) { each(f.cam) }
 
 func (f *folds) SetupSystems() []goke.System {
 	return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f.bands = si.NewQueryBuilder(&f.base).Include(goke.Include[world.Aggregate]()).
+		f.bands = si.NewQueryBuilder(&f.base, &f.aggregate).
 			Exclude(goke.Exclude[sector.Abstract]()).Optional(&f.unfolded, &f.keen).Build()
 		f.members = si.NewQueryBuilder(&f.memberBase, &f.partOf).Build()
 		f.abstract = si.NewQueryBuilder(&f.abstractBase).
@@ -189,7 +193,7 @@ func (f *folds) kinds() {
 	kind.Define[bandRow](f.w.Kinds(), bandKind, kind.Spec{
 		comp.Load(box),
 		comp.Const(world.Velocity{}),
-		comp.Const(world.Aggregate{}),
+		comp.Const(world.Aggregate{Strength: f.strength}),
 		ceremony.Plays(roles.Named(bandRole)),
 	})
 	kind.Define[memberRow](f.w.Kinds(), memberKind, kind.Spec{
@@ -424,6 +428,67 @@ func TestWholes_APointAggregateFoldsWhereItsPartsStandStayingWithNoneLeft(t *tes
 	f.until(t, "fold", 2*int(foldAfter/frame))
 	if _, at := f.band(); !near(at, want) {
 		t.Errorf("the band folded with no member left at %v, want where it stood, %v", at, want)
+	}
+}
+
+func TestWholes_AFoldWritesAStrengthDeclaredAsThePartsFoldedInLeavingNoneAlone(t *testing.T) {
+	for _, declared := range []int{9, 0} {
+		f := newFolds(t, 1, nil, nil)
+		f.strength = declared
+		f.start(t, false)
+		f.run(2)
+		id, _ := f.band()
+		f.unfoldedInto(t, 4)
+		f.zoom(0.25)
+		f.until(t, "fold", 2*int(foldAfter/frame))
+		if !f.bands.Seek(id) {
+			t.Fatal("the band is gone")
+		}
+		want := 0
+		if declared > 0 {
+			want = 4
+		}
+		if got := f.aggregate.At(f.bands.Cursor()).Strength; got != want {
+			t.Errorf("declared %d, the band folded with four members has strength %d, want %d",
+				declared, got, want)
+		}
+	}
+}
+
+func TestWholes_APointAggregateUnfoldedStandsAtTheMiddleOfItsPartsASaveBetween(t *testing.T) {
+	t.Chdir(t.TempDir())
+	was := newFolds(t, 1, nil, nil)
+	was.start(t, false)
+	was.run(2)
+	id, _ := was.band()
+	east := geom.NewVec(356, 256)
+	was.walk(id, geom.NewVec(341, 241), geom.NewVec(371, 241), geom.NewVec(341, 271),
+		geom.NewVec(371, 271))
+	was.run(1)
+	if _, at := was.band(); !near(at, east) {
+		t.Fatalf("the band at %v, its members walked 100 east, want at their middle %v", at, east)
+	}
+	found := false
+	round := geom.NewAABB(east.Sub(geom.NewVec(1, 1)), east.Add(geom.NewVec(1, 1)))
+	was.w.Read(0).Space().Query(round, aabbworld.AnyCapability, func(e uid.UID64) {
+		found = found || e == id
+	})
+	if !found {
+		t.Error("the space finds the band not at its members' middle")
+	}
+	if err := was.eng.Save(""); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	now := newFolds(t, 1, nil, nil)
+	now.start(t, true)
+	now.run(2)
+	if _, at := now.band(); !near(at, east) || len(now.times("unfold", 0)) != 0 {
+		t.Errorf("loaded, the band at %v unfolded %d times again, want at %v, never again", at,
+			len(now.times("unfold", 0)), east)
+	}
+	if members, centroid := now.parts(id); len(members) != 4 || !near(centroid, east) {
+		t.Errorf("loaded, %d members round %v, want the four round %v", len(members), centroid,
+			east)
 	}
 }
 

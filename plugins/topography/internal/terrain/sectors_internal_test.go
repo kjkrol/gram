@@ -288,3 +288,39 @@ func TestRuns_LayTheCloseLevelsWholeAndDrawThemAsStandard(t *testing.T) {
 		}
 	}
 }
+
+func TestPhotoMesh_WorksTheTopsOutAnewRoundASectorWhosePhotographChanged(t *testing.T) {
+	versions := make([]uint32, 15)
+	var p photoMesh
+	p.init(func(i int) uint32 { return versions[i] })
+	p.quads = [2]int{4, 2}
+	var grid sheet
+	stale := func() (at [2][]int) {
+		for k := range p.stale {
+			for i, s := range p.stale[k] {
+				if s {
+					at[k] = append(at[k], i)
+				}
+			}
+			clear(p.stale[k])
+		}
+		return at
+	}
+	p.watch(grid)
+	if at := stale(); len(at[0]) != 15 || len(at[1]) != 15 {
+		t.Fatalf("tops to work out on the first look %v, want every sector's", at)
+	}
+	if w, h := p.tops[0].Bounds().Dx(), p.tops[0].Bounds().Dy(); w != 21 || h != 13 {
+		t.Errorf("the tops at L4 %dx%d, want a texel a corner, 21x13", w, h)
+	}
+	p.watch(grid)
+	if at := stale(); len(at[0]) != 0 || len(at[1]) != 0 {
+		t.Errorf("tops to work out with no photograph changed %v, want none", at)
+	}
+	versions[7], versions[14] = 3, 1
+	p.watch(grid)
+	want := []int{1, 2, 3, 6, 7, 8, 9, 11, 12, 13, 14}
+	if at := stale(); !slices.Equal(at[0], want) || !slices.Equal(at[1], want) {
+		t.Errorf("tops to work out %v, want the sectors round the two photographed, %v", at, want)
+	}
+}

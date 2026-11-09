@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/vec"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/topography/internal/relief"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -41,6 +42,11 @@ type sprites struct {
 	relief *relief.Relief // the frame's
 	on     bool
 
+	// the frame's sky: its sun, the sun's share of the light on what faces up, and its weather
+	beam    light.Beam
+	up      float32
+	weather air.Weather
+
 	batches []spriteBatch
 	lain    []spriteBatch
 	haze    air.Hazer
@@ -71,9 +77,11 @@ func (s *sprites) begin(cam camera.Camera) {
 	_, rays := cam.(camera.Rays)
 	s.on = rays && inRelief(cam)
 	s.relief, s.hazed = s.drawn()
+	s.beam, s.weather = s.sky.Distant().Beam(), s.sky.Air()
+	s.up = directShare(s.beam, 0, 0, 1)
 	s.haze = air.Hazer{}
 	if s.hazed {
-		s.haze = s.sky.Air().Hazer(cam)
+		s.haze = s.weather.Hazer(cam)
 	}
 }
 
@@ -83,17 +91,16 @@ func (s *sprites) add(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 	x1, y1 := box.BottomRight.X, box.BottomRight.Y
 	alt, h := z.Altitude, tall(z, y0, y1)
 	cx, cy := (x0+x1)/2, (y0+y1)/2
-	sun, weather := s.sky.Distant(), s.sky.Air()
 	var lx, ly float32
 	if sway > 0 {
-		lx, ly = weather.Sway(t, cx, cy, sway)
+		lx, ly = s.weather.Sway(t, cx, cy, sway)
 	}
 	haze := s.hazeAt(cx, cy, alt)
 	u0, v0, u1, v1 := atlas.UV(id)
 	l := lit.Light
 	b := batchOf(&s.batches, atlas)
 	b.inst = append(b.inst, cx, cy, alt, h, x1-x0, lx*h, ly*h, haze, u0, v0, u1, v1,
-		l[0], l[1], l[2], directShare(sun, 0, 0, 1), s.groundAt(cx, cy), float32(lit.Takes), 0, 0)
+		l[0], l[1], l[2], s.up, s.groundAt(cx, cy), float32(lit.Takes), 0, 0)
 }
 
 // angle in degrees; wherever the ground stands higher, the sprite lies on the ground
@@ -111,10 +118,9 @@ func (s *sprites) lay(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 		b.inst = append(b.inst, x, y, max(alt, ground), ground)
 	}
 	u0, v0, u1, v1 := atlas.UV(id)
-	sun := s.sky.Distant()
 	l := lit.Light
 	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.hazeAt(cx, cy, alt),
-		directShare(sun, 0, 0, 1), lyingSoft*min(hw, hh), float32(lit.Takes), 0)
+		s.up, lyingSoft*min(hw, hh), float32(lit.Takes), 0)
 }
 
 // how far into the relief's shadow what lies over the ground fades into it, of half its shorter
@@ -134,12 +140,11 @@ func (s *sprites) level(cam camera.Camera, c [4]geom.Vec, alt float32, atlas ren
 	}
 	mx, my := (c[0].X+c[3].X)/2, (c[0].Y+c[3].Y)/2
 	u0, v0, u1, v1 := atlas.UV(id)
-	sun := s.sky.Distant()
 	l := lit.Light
 	short := min(f32.Hypot(c[1].X-c[0].X, c[1].Y-c[0].Y),
 		f32.Hypot(c[2].X-c[0].X, c[2].Y-c[0].Y))
 	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.hazeAt(mx, my, alt),
-		directShare(sun, 0, 0, 1), lyingSoft*short/2, float32(lit.Takes), 0)
+		s.up, lyingSoft*short/2, float32(lit.Takes), 0)
 }
 
 // seen from the right of a to b, the way out of what it edges
@@ -155,12 +160,11 @@ func (s *sprites) upright(cam camera.Camera, a, b geom.Vec, alt, high float32,
 	bt.inst = append(bt.inst, ax, ay, top, ga, bx, by, top, gb, ax, ay, alt, ga, bx, by, alt, gb)
 	dx, dy := bx-ax, by-ay
 	n := f32.Hypot(dx, dy)
-	sky := s.sky.Distant()
-	sun := faceLit(sky, -dy/n, dx/n, 0, lit)
+	sun := faceLit(s.beam, -dy/n, dx/n, 0, lit)
 	u0, v0, u1, v1 := atlas.UV(id)
 	haze := s.hazeAt((ax+bx)/2, (ay+by)/2, alt)
 	bt.inst = append(bt.inst, u0, v0, u1, v1, sun[0], sun[1], sun[2], haze,
-		directShare(sky, -dy/n, dx/n, 0), uprightSoft*high, float32(lit.Takes), 0)
+		directShare(s.beam, -dy/n, dx/n, 0), uprightSoft*high, float32(lit.Takes), 0)
 }
 
 func batchOf(batches *[]spriteBatch, atlas render.AtlasSource) *spriteBatch {

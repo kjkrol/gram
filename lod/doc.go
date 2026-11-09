@@ -4,8 +4,10 @@
 // # Levels
 //
 // A world's [Ladder] says a sector's level from the shown pixels a world unit spans there and its
-// distance from the observer; the level ticked is the fullest any observer sees it at, and each
-// camera draws at its own. A system says by its [Paces] ([Exact], [Steady], [Slowing]) how
+// distance from the observer (coarser than a level past its ring, Rings, so a camera
+// seeing far at one scale does not hold the world at that scale's level; nothing past the
+// Sight); the level ticked is the fullest any observer sees it at, and each camera draws at its
+// own. A system says by its [Paces] ([Exact], [Steady], [Slowing]) how
 // often it goes in a sector by how many levels coarser that is than the finest any observer
 // sees, the finest going every step. The words of the levels are a contract every kind of thing
 // keeps:

@@ -3,9 +3,10 @@ package instanced
 import (
 	"github.com/kjkrol/gram/render/internal/compose"
 	"github.com/kjkrol/gram/render/internal/gfx"
+	"github.com/kjkrol/gram/render/internal/text"
 )
 
-// the names of compose's and gfx's the sprites draw with
+// the names of compose's, gfx's and text's the sprites and labels draw with
 type (
 	At              = compose.At
 	Light           = compose.Light
@@ -15,6 +16,7 @@ type (
 	AtlasSource     = gfx.AtlasSource
 	SpriteID        = gfx.SpriteID
 	DrawMeshOptions = gfx.DrawMeshOptions
+	Font            = text.Font
 )
 
 // TakesAll takes every shade and the lamps' light, as a zero Taking does.

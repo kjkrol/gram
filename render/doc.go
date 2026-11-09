@@ -16,7 +16,8 @@
 //
 // Pictures are [Image]s on the GPU, drawn into and filled ([Image.FillRect] and kin); sprites
 // are painted on the CPU into an [Atlas] ([SpriteDrawer], [Solid] and kin, [Blob] one seen from
-// afar), text in a [Font]. A [Look] is a drawer, a material or frames ([Phases], [Loops]); an
+// afar), text in a [Font], and by points of the world, as deep as they stand, in [Labels] (text
+// and badges). A [Look] is a drawer, a material or frames ([Phases], [Loops]); an
 // [Appearance] is the sprite an entity is drawn from. A color.RGBA given to render is straight
 // alpha; render premultiplies it for the GPU.
 //

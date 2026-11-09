@@ -2,6 +2,162 @@
 
 ## v0.20.0 — unreleased
 
+**Forests as a plugin, the still layer of the space, one banner for a crowd and a badge for a
+banner, a point whole at its parts' middle** (2026-11-08, branch `feat/madeira-aggregates`, parts
+`f/space`, `f/counts`, `f/band`, `w/forest`, `f/badge`)
+- Added: `plugins/forest`: forests planted over the board by the world's moments of an aggregate: a
+  game defines its kinds of trees (`forest.Spec`: height, crown, trunk, colours or its own drawers,
+  shadow, `Solid`, roles) and its stands (`forest.Stand`: the kinds of cells, the density, the
+  jitter, a `Mix` of `Share`s by weight within bands of the ground's height, a `When`); each sector
+  of a forest come down to L3 plants the same trees each time by `lod.Seed`, the world previewing
+  them into its sheets; a tree is a billboard of its side at L2, a body (`Upright`) where its
+  `Spec.Body` says (five quads a tree: 26 000 of them over Madeira at zoom 1 cost 6–7 ms of drawing,
+  so Madeira's trees are billboards and the forest-army's bodies), a billboard of its crown at L3,
+  in the sheet from L4; `Stands.Felled` tells a forest folding short of its trees. Madeira's forests
+  are laurel up to 800 m, pine from 600 m and tree heather from 1300 m; the forest-army's forest is
+  on the plugin, its trees solid.
+- Changed: what stands for good (`Fixed`) lives in the still layer of aabbworld's space
+  (v1.21.0, `Space.RebuildStill`, sparse cells): the world indexes it once and keeps it across
+  the moving runs' rebuilds, motion steps and moves none of it, the collision rebuilds the moving
+  runs alone and keeps a `Fixed` collider's caps constant (`Write.Restill` has the layer taken
+  anew once a `Fixed` collider comes or a `Collider` goes); 30 000 standing parts cost a step
+  26 µs instead of 157.
+- Fixed: the counts of far units were drawn on the glass over the whole picture and showed through a
+  hillside hiding their banners; they are drawn in the picture at the banner's depth
+  (`render.Labels`: text from the font's sheet at a world point, standing upright on it, so what
+  stands before the point hides it and what stands behind it does not), nothing of the world on the
+  glass.
+- Added: a banner is a badge: a disc or a diamond of a fixed size in shown pixels at the top of the
+  banner, in the kind's far colour within a darker rim, the count centred inside it from two units
+  on, white or black by the fill, growing to hold its digits (`render.BadgeWidth`); a kind styles it
+  with `world.BannerStyle{Shape, Size, Fill, Rim}` on its slot, and a style alone has the kind
+  bannered far off without an L4 look; `Banner.Reach` and `Banner.BadgeAt` give the selection the
+  badge to hit. The topography's rival flies a blue diamond, its band, caravan and traveller red
+  discs; the forest-army's armies a disc each in their colour, the blue one a diamond, its world
+  drawing banners with their counts (`Far: Banners`, `Counts`).
+- Fixed: a crowd of one kind standing across the seams of sectors was several banners with
+  several counts; banners of a kind in neighbouring sectors whose units stand within
+  `Config.Sectors.Small` of each other are one banner, across the torus's seam too.
+- Fixed: a point aggregate unfolded stood where it unfolded while its parts walked, so a
+  selected caravan's `Chosen` and the camera's C/V followed an empty spot; while `Unfolded` it
+  stands each step at the middle of its parts, its own size kept. An unfolded whole without an
+  order kept its own cell and pushed the part spawned there aside; the keeping treats an
+  `Unfolded` whole as gone and the placing releases the gone on a first conflict in a step.
+- Changed: the topography's thirty highlanders of Paul da Serra are one `band`, a point
+  aggregate unfolding into them a cell apart and selectable as a whole; its `SheetsVersion` is
+  `madeira-2`.
+- Added: `lod.Ladder.Rings`: how far from an observer the levels reach, a sector past `Rings[k]`
+  coarser than level k whatever scale it shows, widened with the Sight and held past by the same
+  margin; a camera seeing far at one scale, the orthographic one, no longer holds every sector
+  within its Sight at that scale's level.
+- Improved: a profile of Madeira (2026-11-08) at the start view, zoom 0.5 and zoom 1: the pathfinder
+  cleared its board's worth of ground steps kept across searches every time a router read the board,
+  a tick, though each step is stamped by the board's passage and the search's domain (0.9 ms a tick
+  of zeroing while the hierarchy built or any unit asked); it clears them only when another terrain,
+  pacing or levels are read. The world renderer looked a sprite up in four maps a layer an entity a
+  frame (a fifth of its Compose over 26 000 trees); it reads one table by sprite. A view's fog took
+  a square root for every entity; it takes one only within the fog's band.
+
+**What stands costs less a step, the shade at the sun's pace, the sheet from a tree under eight
+pixels** (2026-11-08, branch `feat/madeira-aggregates`, parts `f/still`, `f/shine`, `f/ladder`)
+- Fixed: the topography full screen ran at 24 FPS (`main` 55): the camera raises the start zoom
+  to where the world fills the window (0.18 at 1024 px wide, 0.28 at 1920, 0.38 at 2560) and the
+  demo's ladder put L3 from 0.25, so the island's 31 397 trees and houses stood unfolded and
+  ticked (12–15 ms a step against 2.4). The demo's ladder is `{0.6, 0.4, 0.12}`: L4, the sheet,
+  under a tree of 8 pixels, the start at L4 up to a window ~2700 px wide; 60 FPS at 1920×1080.
+- Changed: a part standing for good (`Fixed`, `PartOf`) is set on the ground as it comes and when
+  the relief's version changes, never each step (the topography); the minimap walks the marked
+  kinds instead of querying every entity round it and seeking each; the ground's shade bakes a
+  band once the sun has turned 1/16° since the last, at most one a frame (a 16-minute day: ~6 a
+  second instead of one a frame over every block; no band more than 1° behind), and a leap of the
+  hour bakes the bands one a frame over 16 frames instead of all at once; the distant light on
+  what stands and the frame's sky are read once a frame, not once a sprite.
+
+**The sheets' tops cached and their quads by texels, a part standing for its whole** (2026-11-07,
+branch `feat/madeira-aggregates`, parts `f/photos`, `f/caravan`)
+- Fixed: the topography's start view over Madeira ran at 38 FPS (`main` 110): the photo mesh over
+  every photographed sector searched the tops round each of its 1089 corners in the vertex shader
+  every frame. The tops are worked out once a photograph changes (`terrain/shaders/tops.wgsl`, a
+  texel a corner, the sector and its eight neighbours redone) and the lattice lays quads of at
+  most 8 texels a side (Madeira: 8 a side at L4, 4 at L5): 123–135 FPS, the canopies' silhouettes
+  within 1–2 px of before.
+- Added: `world.Aggregate.Strength`: how many units a folded aggregate stands for, counted so in
+  its banner and in the counts on the glass (the band 30, an army its soldiers), the world setting
+  a Strength declared to the parts folded in at each Fold; `Banner.Count` is the units the
+  banner's `IDs` stand for. Breaking: saves holding aggregates from before do not load.
+- Added: a part stands for its whole in the selection: a click, a marquee, a hover or
+  `Select{IDs}` on an entity carrying `world.PartOf` without `Allow` selects its whole where the
+  whole allows it and obeys the issuer, once however many parts are hit; the outline of a selected
+  whole whose parts stand is drawn round each part; an unfolded whole is hit nowhere itself. The
+  topography's caravans are selectable as a whole (`selection.Allow` and a `Highlight` on the
+  caravan, none on its wagon and porters).
+- Changed: Breaking: `world.Read.Painted(i)` returns the version of the photograph the sector
+  holds (`uint32`, 0 for none) in place of a bool.
+
+**Tiers of sectors, the handle of a whole, the unfolding budgeted** (2026-11-07, branch
+`feat/madeira-aggregates`, parts `t/tiers`, `t/whole`, `t/budget`)
+- Added: the grid's tiers over its sectors (`sector.Grid.Tiers`, `TierLen`, `TierBox`, `TierOf`,
+  `Under`, `Fit`): a cell of tier k is 2ᵏ×2ᵏ sectors, the highest one cell over the world; a
+  standing thing no longer than `Config.Sectors.Small` (`Read.Small`; a quarter of a sector's side
+  unless set) lives in its centre's sector, a longer one in the lowest cell holding it whole, and
+  is drawn at the finest level of the sectors under that cell, in no sheet below L4, photographed
+  into every sector it covers from L4; a small thing beside a finer sector keeps the ring rule.
+  `Benchmark_World_Seams`.
+- Added: the handle of a thing standing in pieces: `world.Whole` on the handle, `world.PieceOf`
+  on each piece, `Write.SpawnWhole(whole, pieces...)` and `SeedWhole` spawning them in one step
+  (the command `SpawnWhole`, all or nothing), the handle's despawn taking its pieces with it; a
+  handle's box is not bounded by `Entities.MaxSize`; a handle is drawn at no level and
+  photographed into no sheet, its pieces take its cell's level and are never thinned by `Keep`.
+- Added: `lod.Ladder.Unfolds`: the world unfolds at most that many stretches a step (16 unless
+  set), the nearest an observer first, the rest waiting folded as they are, their snapshot kept.
+- Changed: a bridge stands on a handle: `bridges.Types.Define` registers `<name>.whole`
+  (`Whole`, `Fixed`, the box of the span, `Lie` and `Dir` along it, `Shadow{Baked}`,
+  `vision.Transparency{1}`, no look) and a built or seeded bridge spawns it with its decks and
+  piers as a whole; the decks cast `NoShadow`, the handle casting the deck's shadow whole, the
+  piers `Baked`. A save from before keeps its decks' `Baked` and has no handle: they cast piece by
+  piece, within a colour step.
+- Removed: the bake's joining of the deck's pieces into one block (`joined`): a lying thing is
+  one block of the light's.
+
+**Madeira with aggregates: fields from gramap, the dry unfolding, the sheets kept in tiles,
+caravans on the roads** (2026-11-06, branch `feat/madeira-aggregates`, parts `d/gramap`,
+`d/preview`, `d/files`, `d/madeira`, `d/shade`)
+- Added: a field never unfolded is previewed before its sector is photographed: its `Unfold` is
+  told as though its sector came down, a `SpawnPart` under it records where the part would stand
+  (on the ground the world is given) instead of spawning, and the shots are photographed into the
+  sheet as a folded field's are; nothing is spawned, no stretch made, nothing saved. Its rules
+  cannot tell a preview from an unfolding. `Benchmark_World_Preview`.
+- Added: `world.Write.SetGround` and `Read.GroundAt`, the ground's height under a point as the
+  plugin laying the ground gives it (the topography's), 0 in a world without one; the world
+  reads a kind's `Z` template, so a part previewed has its Height.
+- Added: `world.Config.Sheets` (`SheetsCfg{Dir, Keep, Version}`): the sheets kept between runs
+  in tiles of 512 texels (`albedo-<x>-<y>.png`, `relief-<x>-<y>.png`, `sheets.yaml`), read as the
+  sheets are made so a sector photographed in an earlier run is photographed again only once what
+  stands in it changes, written back a tile a second as they settle where `Keep`; tiles of another
+  `Version`, texel or world are not read. `Benchmark_World_SheetFiles` (in `plugins/world`).
+- Added: gramap's recipe `fields:` (a field entity over the cells of a kind in each block of
+  `grain` cells where at least `least` lie, written as rows `{kind, from, to, cells}`) and
+  `settlements:` (cells of a kind laid round the roads' places by their size, `sizes` in cells,
+  `default`, `none` for a pass; a place `[x, y]` or `{at, size}`), the legend's `@`; Madeira's
+  recipe plants forests of 4 cells a block of 16 and settlements of 3, 8 and 16 cells.
+- Added: the topography demo on the renewed map: `built` cells, forests and settlements as
+  fields (trees and houses as parts, a lamp in a settlement of 16 built cells), caravans (a wagon
+  and three porters) and travellers shuttling between places, banners with counts far off, the
+  sheets kept in the user's cache (`Keep`, Version `madeira-1`), 40 000 entities.
+- Changed: the topography sets a standing part's altitude (`Fixed` and `PartOf`, on no cell)
+  from the relief, as a unit's.
+- Changed: the light publishes the blocks whose shadows the ground bakes a set a sector
+  (`render.Lights.Casts []BlockSet{Box, Top, Version, Blocks}` in place of `Blocks []Block`), a
+  set's `Version` raised when its blocks stand other than at the last publish; the ground's shade
+  is baked anew in tiles of 256 pixels, at most 8 a frame, only where the shadows of a changed
+  set may fall, with no fade, the sun's turn still baked by bands. `world.Read.SectorOf`,
+  `Read.SectorsLen`. `Benchmark_Bake_Tile`, `Benchmark_Light_Publish`.
+- Fixed: Madeira stood for ~50 s at every zoom and pan: the bake joined every pair of the
+  ~30 000 blocks the forests unfolded and baked the whole shade anew; a bridge's pieces are
+  joined among the blocks near one tile alone.
+- Fixed: a part standing on the board had no height (`SpawnPart` laid `Position` alone); a folded
+  field's snapshots lost on a load are previewed anew.
+
 **The sheets: what stands photographed into the ground from L4, the L5 lattice coarser, banners
 of far units** (2026-11-05, branch `feat/sheets`, parts `p/sheet`, `p/terrain`, `p/seams`,
 `p/far`)

@@ -26,7 +26,7 @@ type moveSystem struct {
 	steps     []geom.Vec
 	left      []uid.UID64
 	pace      goke.Opt
-	// what the space holds: all but those asleep at L6
+	// what the space holds of what moves: all but those asleep at L6 and those standing for good
 	held     *goke.Query
 	heldBase goke.Comp[world.Base]
 }
@@ -37,12 +37,18 @@ func newMoveSystem(space *aabbworld.Space) *moveSystem {
 
 func (s *moveSystem) Init(si *goke.SysInit) {
 	s.outsideID = si.RegComp[Outside]()
-	qb := si.NewQueryBuilder(&s.base).Optional(&s.drift).Optional(&s.outside)
+	// what stands for good has no step to take and lies in the space's still layer, the world's
+	qb := si.NewQueryBuilder(&s.base).
+		Optional(&s.drift).
+		Optional(&s.outside).
+		Exclude(goke.Exclude[world.Fixed]())
 	if s.pace != nil {
 		qb.With(s.pace)
 	}
 	s.moveQuery = qb.Build()
-	s.held = si.NewQueryBuilder(&s.heldBase).Exclude(goke.Exclude[sector.L6]()).Build()
+	s.held = si.NewQueryBuilder(&s.heldBase).
+		Exclude(goke.Exclude[sector.L6](), goke.Exclude[world.Fixed]()).
+		Build()
 }
 
 func (s *moveSystem) Update(cb *goke.CmdBuf, d time.Duration) {

@@ -130,9 +130,9 @@ type Config struct {
 	// the sheets of what stands, drawn over the ground at L4 and L5 in a relief of their own
 	// (world's Read.Sheet); nil, none
 	Sheet func() (albedo, relief, albedoL5, reliefL5 *render.Image, perUnit float32)
-	// whether sector i's sheet holds a photograph of something standing there (world's
-	// Read.Painted), the sheets drawn over those alone; nil, none
-	Painted func(i int) bool
+	// the version of the photograph of something standing in sector i its sheet holds, 0 for
+	// none (world's Read.Painted), the sheets drawn over those alone; nil, none
+	Painted func(i int) uint32
 }
 
 // Renderer draws the ground as a mesh: a render.Direct source in the opaque pass.

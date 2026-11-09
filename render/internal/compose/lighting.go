@@ -29,6 +29,9 @@ type lighting struct {
 	eyed   bool
 	right  [2]float32 // the camera's way across, whose side a silhouette is seen from
 
+	up    light.Illumination // the distant light's on a surface facing up
+	reach [4]float32         // the box (x0, y0, x1, y1) no lamp of near lights past
+
 	casters []caster
 	casts   []float32
 	atlas   AtlasSource
@@ -58,6 +61,11 @@ func (l *lighting) begin(f *Frame, cam camera.Camera, p part) {
 	f.lighting = l
 	l.now.Sun.Frame(f)
 	l.beam = l.now.Sun.Beam()
+	l.up = light.Illumination{Light: l.beam.Shaded(0, 0, 1, 1)}
+	if sum := l.up.Light[0] + l.up.Light[1] + l.up.Light[2]; sum > 0 {
+		sky := l.beam.Shaded(0, 0, 1, 0)
+		l.up.Direct = 1 - (sky[0]+sky[1]+sky[2])/sum
+	}
 	l.look(cam)
 	f.Uniform("LampCount", float32(len(l.near)))
 	for k, lamp := range l.near {
@@ -101,6 +109,16 @@ func (l *lighting) look(cam camera.Camera) {
 	if len(l.near) > wgsl.Lamps {
 		l.near = l.near[:wgsl.Lamps]
 	}
+	inf := float32(math.Inf(1))
+	l.reach = [4]float32{inf, inf, -inf, -inf}
+	for _, lamp := range l.near {
+		if lamp.Reach > 0 {
+			// a unit and a sixty-fourth spare, past what rounding takes
+			r := lamp.Reach*(1+1.0/64) + 1
+			l.reach[0], l.reach[1] = min(l.reach[0], lamp.X-r), min(l.reach[1], lamp.Y-r)
+			l.reach[2], l.reach[3] = max(l.reach[2], lamp.X+r), max(l.reach[3], lamp.Y+r)
+		}
+	}
 }
 
 func (l *lighting) byDistance(a, b light.Lamp) int {
@@ -123,7 +141,7 @@ func (l *lighting) plan(f *Frame) {
 		l.baker.Drop()
 		return
 	}
-	if shade, shown := l.baker.Plan(l.now.Ground, l.now.Sun.Dir, l.now.Blocks); shown {
+	if shade, shown := l.baker.Plan(l.now.Ground, l.now.Sun.Dir, l.now.Casts); shown {
 		f.GroundShade(shade)
 	}
 	if l.baker.Pending() {
@@ -172,12 +190,10 @@ func (l *lighting) on(x, y, z float32, takes light.Taking) light.Illumination {
 	if takes == 0 {
 		return light.Illumination{Light: light.Light{1, 1, 1}}
 	}
-	lit := light.Illumination{Light: l.beam.Shaded(0, 0, 1, 1), Takes: takes}
-	if sum := lit.Light[0] + lit.Light[1] + lit.Light[2]; sum > 0 {
-		sky := l.beam.Shaded(0, 0, 1, 0)
-		lit.Direct = 1 - (sky[0]+sky[1]+sky[2])/sum
-	}
-	if takes&light.TakesLamps == 0 {
+	lit := l.up
+	lit.Takes = takes
+	if takes&light.TakesLamps == 0 || x < l.reach[0] || y < l.reach[1] || x > l.reach[2] ||
+		y > l.reach[3] {
 		return lit
 	}
 	for _, lamp := range l.near {

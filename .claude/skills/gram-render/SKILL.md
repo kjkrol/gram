@@ -40,6 +40,18 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   `render.Sprites` lays the figures' rectangles on the GPU, copies at a wrap's seams.
 - A `Direct` asks in Compose where it draws: `DrawOpaque`, `DrawAt(at)`, `ReadGround` (it gets
   `Target.Ground` and writes `frag_depth` = the ground's own); one asking nothing is not drawn.
+- The ground's shade (`compose/bake.go`) is one image over the whole relief, baked by two lanes
+  into the same pixels: the sun's turn by 16 bands with a fade (`GroundShadeMix`), a band once
+  the sun has turned 1/16° since the last (`shadeStep`), at most one a frame, a leap over 1° (the
+  hour jumped) baking them from the top one a frame, a relief's new version, a span change and
+  the first bake all at once (2026-11-08: a band a frame over 31 000 blocks cost a third of the
+  frame rate through the iGPU's shared power budget); and the content by tiles of 256 px queued
+  where the shadows of a changed set of blocks (`Lights.Casts`, a set a sector, versioned by the
+  light) reached before and reach now, at most 8 a frame, no fade. A shader reading the shade
+  reads one image and the bands' mixes, so a change of the bake changes no shader. A lying thing
+  (a bridge's handle) is one block (2026-11-07). The distant light on a surface facing up and
+  its share are worked out once a frame in `lighting.begin`, the lamps per sprite only within
+  the box of their reach (2026-11-08).
 - Frame images (`render.RegisterImage`, `f.Image` in Compose) are read in WGSL by name through
   `linear` or `wrapped`; the light never binds `GroundShade` while it bakes into it. A new shader
   honours a drawn thing's `render.Taking` bits. Eight names at most, all eight in use (the
@@ -101,8 +113,19 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   shows through its own billboard, a hill before it hides it.
 - **A source whose pieces lie over the figures says so** (`render.Overlying`). The cameras' zones
   are a `render.Glass`, drawn after the whole screen, so the HUD never covers them (2026-10-20);
-  so are the world's counts of far units (text by `render.DefaultFont().Draw` at `cam.Project`,
-  scaled from the camera's viewport to `dst` and offset by `dst.Bounds().Min`, 2026-11-05).
+  nothing of the world is: its counts of far units were a Glass till 2026-11-08 (`f/counts`) and
+  are `render.Labels` now (`render/internal/instanced/labels.go`, `labels.wgsl`: glyph pieces
+  and badges from one instance stream at a world point, a fixed size in shown pixels, the same
+  projection as the L4 points; `Font.Draw` shares `lay`/`ready` with it). A label stands upright on
+  its point (`f/badge`, 2026-11-08): the vertex shader gives each corner the depth of its height
+  over the point from how many pixels a world unit rises there, so what stands behind the point
+  hides nothing of it and what stands before it still does. A badge (`render.BadgeDisc`,
+  `BadgeDiamond`) is a distance field in the fragment stage, a soft pixel at its edge, the rim
+  blended in, its data flat varyings (no uniform, no indexing: Metal); `render.BadgeWidth` grows
+  it to hold its number, measured on the publishing goroutine with the number face's own copy
+  under a mutex (`text.NumberInk`), the drawing taking `text.NumberFont()`, so the two goroutines
+  never share a font. `Labels.Text` takes a `color.RGBA`: through `color.Color` it allocated a
+  label a frame.
 - **A Direct draws once a layer and keeps what Compose gathered**: reset in Compose or `Begin`,
   never in `Draw` (`Sprites`, the routes and vision's views each broke it: the outer layer alone
   had them).

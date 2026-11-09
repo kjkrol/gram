@@ -1,6 +1,8 @@
 package sector
 
 import (
+	"math/bits"
+
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/internal/f32"
 )
@@ -48,6 +50,79 @@ func (g *Grid) Box(i int) geom.AABB {
 	c, r := float32(i%g.cols), float32(i/g.cols)
 	return geom.NewAABB(geom.NewVec(c*g.side, r*g.side),
 		geom.NewVec(min((c+1)*g.side, g.width), min((r+1)*g.side, g.height)))
+}
+
+// Tiers is how many tiers of cells lie over the sectors: tier 0 the sectors themselves, tier k
+// cells of 2^k by 2^k sectors from sector 0, the top the first whose one cell covers the world.
+func (g *Grid) Tiers() int { return bits.Len(uint(max(g.cols, g.rows)-1)) + 1 }
+
+// TierLen is how many cells tier k has.
+func (g *Grid) TierLen(k int) int { return g.tierCols(k) * g.tierRows(k) }
+
+func (g *Grid) tierCols(k int) int { return (g.cols + 1<<k - 1) >> k }
+
+func (g *Grid) tierRows(k int) int { return (g.rows + 1<<k - 1) >> k }
+
+// TierBox is cell i of tier k's rectangle, cut at the world's edges.
+func (g *Grid) TierBox(k, i int) geom.AABB {
+	n, span := g.tierCols(k), g.side*float32(int(1)<<k)
+	c, r := float32(i%n), float32(i/n)
+	return geom.NewAABB(geom.NewVec(c*span, r*span),
+		geom.NewVec(min((c+1)*span, g.width), min((r+1)*span, g.height)))
+}
+
+// TierOf is the cell of tier k holding the world point (x, y), held to the world's edges.
+func (g *Grid) TierOf(k int, x, y float32) int {
+	s := g.Of(x, y)
+	return ((s/g.cols)>>k)*g.tierCols(k) + (s%g.cols)>>k
+}
+
+// Under calls each with every sector of cell i of tier k, row by row; one of tier 0 is the
+// sector i.
+func (g *Grid) Under(k, i int, each func(sector int)) {
+	n := g.tierCols(k)
+	c0, r0 := (i%n)<<k, (i/n)<<k
+	c1, r1 := min(c0+1<<k, g.cols), min(r0+1<<k, g.rows)
+	for r := r0; r < r1; r++ {
+		for c := c0; c < c1; c++ {
+			each(r*g.cols + c)
+		}
+	}
+}
+
+// Fit is the tier and the cell a thing lying over box lives in: one whose longer side is small at
+// most (zero, a quarter of a sector's side) the sector of its centre, whatever it overlaps; a
+// longer one the cell of the lowest tier holding it whole, the top's where none below does.
+func (g *Grid) Fit(box geom.AABB, small float32) (tier, cell int) {
+	if small <= 0 {
+		small = g.side / 4
+	}
+	cx := (box.TopLeft.X + box.BottomRight.X) / 2
+	cy := (box.TopLeft.Y + box.BottomRight.Y) / 2
+	longer := max(box.BottomRight.X-box.TopLeft.X, box.BottomRight.Y-box.TopLeft.Y)
+	if longer <= small {
+		return 0, g.Of(cx, cy)
+	}
+	top := g.Tiers() - 1
+	// the tier to start from, the lowest whose cells (2^k sectors a side) are as long as the box
+	n := int(f32.Ceil(min(longer/g.side, float32(int(1)<<top))))
+	// a box past an edge the world does not wrap at is held by what of it lies within; one across
+	// a seam it wraps at no cell short of the top holds
+	lo, hi := box.TopLeft, box.BottomRight
+	if !g.wrapX {
+		lo.X, hi.X = max(lo.X, 0), min(hi.X, g.width)
+	}
+	if !g.wrapY {
+		lo.Y, hi.Y = max(lo.Y, 0), min(hi.Y, g.height)
+	}
+	for k := bits.Len(uint(n - 1)); k < top; k++ {
+		i := g.TierOf(k, cx, cy)
+		if c := g.TierBox(k, i); c.TopLeft.X <= lo.X && c.TopLeft.Y <= lo.Y &&
+			hi.X <= c.BottomRight.X && hi.Y <= c.BottomRight.Y {
+			return k, i
+		}
+	}
+	return top, 0
 }
 
 // Part is a sector a rectangle covers and the part of the rectangle within it.

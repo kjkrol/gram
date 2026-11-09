@@ -35,14 +35,14 @@ func footprint(cam camera.Camera, box geom.AABB, alt float32, dst []render.Corne
 
 // faceLit is the light on an upright face whose normal is (nx, ny, nz): the sun's on it and the
 // lamps' the entity takes
-func faceLit(sun light.Distant, nx, ny, nz float32, lit render.Illumination) render.Light {
-	l := sun.Light(nx, ny, nz)
+func faceLit(sun light.Beam, nx, ny, nz float32, lit render.Illumination) render.Light {
+	l := sun.Shaded(nx, ny, nz, 1)
 	return render.Light{l[0] + lit.Lamps[0], l[1] + lit.Lamps[1], l[2] + lit.Lamps[2]}
 }
 
 // directShare is how much of the light on a surface whose normal is (nx, ny, nz) is the sun's, 0 to
 // 1: what a shadow over it takes away
-func directShare(sun light.Distant, nx, ny, nz float32) float32 {
+func directShare(sun light.Beam, nx, ny, nz float32) float32 {
 	all, sky := sun.Shaded(nx, ny, nz, 1), sun.Shaded(nx, ny, nz, 0)
 	total := all[0] + all[1] + all[2]
 	if total <= 0 {

@@ -32,8 +32,11 @@ type renderer struct {
 	keen        goke.OptComp[sector.Keen]
 	asleep      goke.OptComp[sector.L6]
 	field       goke.OptComp[Field]
+	aggregate   goke.OptComp[Aggregate]
 	unfolded    goke.OptComp[Unfolded]
 	fixed       goke.OptComp[Fixed]
+	pieceOf     goke.OptComp[PieceOf]
+	whole       goke.OptComp[Whole]
 	rules       *Rules
 	layers      [][]render.Appearance
 	shown       []bool
@@ -46,6 +49,13 @@ type renderer struct {
 	stretch    goke.Comp[stretch]
 	unfoldedIn []place
 	found      bool
+	// the Wholes' handles, by identity the slot of the cell of the tiers each lives in, as Publish
+	// meets its first piece, whether it has yet, and the one found last
+	handles    *goke.Query
+	handleBase goke.Comp[Base]
+	homes      []home
+	homed      bool
+	last       home
 	// the sectors a box covers, nil in a world of none; a field's parts, and those recorded; the
 	// sectors round a thing fixed, as Publish and as Compose read its level by a seam
 	covers  func(box geom.AABB, dst []sector.Part) []sector.Part
@@ -69,12 +79,17 @@ type renderer struct {
 	lying    map[render.SpriteID]bool
 	standing map[render.SpriteID]bool
 	edges    map[render.SpriteID]render.SpriteID
+	// the four by sprite, for the frame's loop: a map a layer an entity was a fifth of Compose
+	flags    []spriteFlag
+	shadedOf []render.MaterialID
+	edgeOf   []render.SpriteID
 	quads    []camera.Quad
 	// by sprite, whether it is a material: shaded's keys
 	materials []bool
-	// what stands at L4, a point a figure, and the light they are drawn in
+	// what stands at L4, a point a figure, and the light they are drawn in; the counts by them
 	points render.Sprites
 	litFor pointLight
+	labels render.Labels
 	// the world's size and edges, for the sector an entity at a picture's edge is drawn by
 	space SpaceCfg
 	// the photographs of what stands, Read.Sheet's, none without sectors, and how a frame's are
@@ -105,11 +120,64 @@ func (s *renderer) shade(shaded map[render.SpriteID]render.MaterialID,
 		}
 		s.materials[id] = true
 	}
+	s.table()
 }
 
 func (s *renderer) lie(lying map[render.SpriteID]bool, edges map[render.SpriteID]render.SpriteID,
 	standing map[render.SpriteID]bool) {
 	s.lying, s.edges, s.standing = lying, edges, standing
+	s.table()
+}
+
+type spriteFlag uint8
+
+const (
+	flagShaded spriteFlag = 1 << iota
+	flagLying
+	flagStanding
+	flagEdged
+)
+
+// table lays shaded, lying, standing and edges out by sprite
+func (s *renderer) table() {
+	clear(s.flags)
+	clear(s.shadedOf)
+	clear(s.edgeOf)
+	for id, m := range s.shaded {
+		s.flag(id, flagShaded)
+		s.shadedOf[id] = m
+	}
+	for id, on := range s.lying {
+		if on {
+			s.flag(id, flagLying)
+		}
+	}
+	for id, on := range s.standing {
+		if on {
+			s.flag(id, flagStanding)
+		}
+	}
+	for id, e := range s.edges {
+		s.flag(id, flagEdged)
+		s.edgeOf[id] = e
+	}
+}
+
+func (s *renderer) flag(id render.SpriteID, f spriteFlag) {
+	for int(id) >= len(s.flags) {
+		s.flags = append(s.flags, 0)
+		s.shadedOf = append(s.shadedOf, 0)
+		s.edgeOf = append(s.edgeOf, 0)
+	}
+	s.flags[id] |= f
+}
+
+// of is what the tables say of the sprite id, nothing of one past them
+func (s *renderer) of(id render.SpriteID) spriteFlag {
+	if int(id) < len(s.flags) {
+		return s.flags[id]
+	}
+	return 0
 }
 
 // Clock is the game time the frame's animations go by, the tactical clock's as shown.
@@ -126,10 +194,12 @@ func (*renderer) Overlies() {}
 // there, it draws itself, a point each; a field over each sector of it, at that sector's level,
 // casting nothing; what cam rides in, fastened Inside, it leaves out but for its shadow; what a
 // sheet holding a photograph of it stands in the place of from L4 on, it leaves out there; what
-// stands by a seam it draws at the finer side's level; the units cam drew in banners, it draws
-// as their banners.
+// stands by a seam it draws at the finer side's level, what lives in a cell of the tiers at the
+// cell's; the units cam drew in banners, it draws as their banners' badges, their counts in them;
+// the counts of points by them.
 func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	s.points.Reset()
+	s.labels.Reset()
 	if s.atlas == nil {
 		return
 	}
@@ -144,12 +214,14 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	}
 	sp := s.space
 	s.points.Wrap(float32(sp.Width), float32(sp.Height), sp.Edges.WrapsX(), sp.Edges.WrapsY())
+	s.labels.Wrap(float32(sp.Width), float32(sp.Height), sp.Edges.WrapsX(), sp.Edges.WrapsY())
 	s.litFor.ok = false
 	lies, _ := look.(LyingLook)
 	uprights, _ := look.(UprightLook)
 	foggy, _ := look.(FoggyLook)
 	held := figs.sheet.held
 	v := figs.views[camera.OriginOf(cam)]
+	tiered := figs.sheet.tiersOf(v)
 	var levels byLevel
 	wa, _ := s.atlas.(*Atlas)
 	if wa != nil {
@@ -171,8 +243,13 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 				continue
 			}
 			level = s.level(v, box.AABB, Position{AABB: box}.Center())
-			if e.ringed {
+			switch {
+			case e.ringed && e.tier == 0:
 				level = s.drawn(v, box.AABB, level, &s.reached)
+			case e.ringed && tiered != nil:
+				if l := tiered.at(e.tier); l != lod.Omitted {
+					level = l
+				}
 			}
 		} else {
 			var seen bool
@@ -180,7 +257,7 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 				continue
 			}
 		}
-		if e.sheet > 0 && level >= lod.Strategic && held[e.sheet-1] {
+		if e.sheet > 0 && level >= lod.Strategic && held[e.sheet-1] != 0 {
 			continue
 		}
 		if e.banner && bannerAt(wa, figs.layers[e.from].SpriteID, level) {
@@ -220,23 +297,23 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			}
 			a := l.Appearance
 			a.SpriteID = id
-			if m, ok := s.shaded[id]; ok {
-				s.material(f, cam, e, box, m, l.progress)
+			fl := s.of(id)
+			if fl&flagShaded != 0 {
+				s.material(f, cam, e, box, s.shadedOf[id], l.progress)
 				continue
 			}
-			if lies != nil && s.lying[id] && e.lie > 0 && !wide {
+			if lies != nil && fl&flagLying != 0 && e.lie > 0 && !wide {
 				lain := figs.lies[e.lie-1]
-				edge, ok := s.edges[id]
-				lain.Edged = lain.Edged && ok && !coarse
-				lies.Lay(f, cam, box, e.dir, lain, z, s.atlas, a, edge, lit)
+				lain.Edged = lain.Edged && fl&flagEdged != 0 && !coarse
+				lies.Lay(f, cam, box, e.dir, lain, z, s.atlas, a, s.edgeOf[id], lit)
 				continue
 			}
 			// a field's piece lies on its ground, under what stands there
-			if lies != nil && (s.lying[id] || wide) {
+			if lies != nil && (fl&flagLying != 0 || wide) {
 				lies.Lie(f, cam, box, z, s.atlas, a, lit)
 				continue
 			}
-			if uprights != nil && s.standing[id] && !coarse && !wide {
+			if uprights != nil && fl&flagStanding != 0 && !coarse && !wide {
 				uprights.Upright(f, cam, box, z, s.atlas, a, lit)
 				continue
 			}
@@ -244,7 +321,8 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 		}
 	}
 	if v != nil && len(figs.far.groups) > 0 {
-		drew = s.drawBanners(f, cam, figs, v, levels, sorts, &lowest, &low, &any) || drew
+		drew = s.drawBanners(f, figs, v, sorts, &lowest, &low, &any) || drew
+		drew = s.drawCounts(f, figs, v, sorts, &lowest, &low, &any) || drew
 	}
 	if foggy != nil {
 		foggy.Fog(0)
@@ -459,12 +537,14 @@ func (b byLevel) anyAt(layers []layer, level lod.Level) bool {
 	return false
 }
 
-// Draw has a DirectLook draw the sprites Compose handed it, and draws the points after them.
+// Draw has a DirectLook draw the sprites Compose handed it, and draws the points and the counts
+// after them.
 func (s *renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if d, ok := s.look().(DirectLook); ok {
 		d.DrawSprites(t, cam, u)
 	}
 	s.points.Draw(t, cam, u)
+	s.labels.Draw(t, cam, u)
 }
 
 // the material's inputs: Custom the box's middle, half its side and its heading in radians,

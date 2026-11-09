@@ -45,6 +45,15 @@ type Atlas struct {
 	declaring []uint8
 	// after Close: by sprite, the straight colour its kind is drawn in far off, clear for none
 	colours [][4]uint8
+	// after Close: by sprite, its kind's banners
+	banners []kindBanner
+}
+
+// kindBanner is how a kind's banners are drawn, as its BannerStyle says, and the levels it is drawn
+// in banners at, a bit each
+type kindBanner struct {
+	style  BannerStyle
+	levels uint8
 }
 
 // owned is a kind's own look as Add took it, its drawer nil for a material
@@ -348,6 +357,22 @@ func (a *Atlas) declares(id render.SpriteID, level lod.Level) bool {
 	return int(id) < len(a.declaring) && a.declaring[id]&(1<<level) != 0
 }
 
+// bannered reports whether the sprite id's kind is drawn in banners at level, where it declares a
+// look there or a BannerStyle and is drawn there, once the atlas is closed
+func (a *Atlas) bannered(id render.SpriteID, level lod.Level) bool {
+	return int(id) < len(a.banners) && a.banners[id].levels&(1<<level) != 0
+}
+
+// bannerStyle is how the banners of the sprite id's kind are drawn, colour its far colour, once
+// the atlas is closed; the defaults of a nil Atlas
+func (a *Atlas) bannerStyle(id render.SpriteID, colour [4]uint8) BannerStyle {
+	var st BannerStyle
+	if a != nil && int(id) < len(a.banners) {
+		st = a.banners[id].style
+	}
+	return st.filled(colour)
+}
+
 // farColour is the straight colour the sprite id's kind is drawn in at the strategic scale, its
 // look's at L4, else its own's, once the atlas is closed; false for a kind of neither
 func (a *Atlas) farColour(id render.SpriteID) ([4]uint8, bool) {
@@ -529,6 +554,7 @@ func (a *Atlas) level() {
 		of, always := a.versions[own.id], a.always[own.id]
 		declaring := a.declaredLevels(own.id)
 		colour := a.farColourOf(own)
+		banner := a.bannerOf(own.id, of, declaring)
 		a.kin(own.id, func(k render.SpriteID) {
 			for int(k) >= len(a.levels) {
 				a.levels = append(a.levels, itself(render.SpriteID(len(a.levels))))
@@ -557,8 +583,31 @@ func (a *Atlas) level() {
 				}
 				a.colours[k] = colour
 			}
+			if banner != (kindBanner{}) {
+				for int(k) >= len(a.banners) {
+					a.banners = append(a.banners, kindBanner{})
+				}
+				a.banners[k] = banner
+			}
 		})
 	}
+}
+
+// bannerOf is how the banners of the kind own, drawn at each level as of says and in a look
+// declared at the levels declaring, are drawn: at the strategic levels it declares a look at, or
+// is drawn at under a BannerStyle
+func (a *Atlas) bannerOf(own render.SpriteID, of [lod.Levels]version, declaring uint8) kindBanner {
+	far := uint8(1<<lod.Strategic | 1<<lod.L5)
+	st, styled := render.StyleOf[BannerStyle](&a.styles, own)
+	b := kindBanner{style: st, levels: declaring & far}
+	if styled {
+		for _, l := range [...]lod.Level{lod.Strategic, lod.L5} {
+			if of[l].drawn {
+				b.levels |= 1 << l
+			}
+		}
+	}
+	return b
 }
 
 // farColourOf is the straight mean colour of the look the kind own is drawn in at L4 where it

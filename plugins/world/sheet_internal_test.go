@@ -19,9 +19,9 @@ func TestSheets_HoldAPhotographTillWhatStandsInItsSectorChanges(t *testing.T) {
 			len(s.version), s.perFrame, p.module.sectors.grid.Len(), sheetPerFrame)
 	}
 	s.paint(1)
-	if !read.Painted(1) || read.Painted(0) {
-		t.Errorf("painted %v, %v; want the sector photographed alone", read.Painted(1),
-			read.Painted(0))
+	first := read.Painted(1)
+	if first == 0 || read.Painted(0) != 0 {
+		t.Errorf("painted %v, %v; want the sector photographed alone", first, read.Painted(0))
 	}
 	if _, _, _, _, perUnit := read.Sheet(); perUnit != 0 {
 		t.Errorf("%v texels a unit read before a renderer asked for the sheets, want 0", perUnit)
@@ -31,15 +31,15 @@ func TestSheets_HoldAPhotographTillWhatStandsInItsSectorChanges(t *testing.T) {
 		t.Errorf("%v texels a unit read with a photograph held, want %v", perUnit, s.perUnit)
 	}
 	s.bump(1)
-	if read.Painted(1) {
+	if read.Painted(1) != 0 {
 		t.Error("painted after what stands in it changed, want photographed anew first")
 	}
 	s.paint(1)
-	if !read.Painted(1) || s.shots != 1 {
-		t.Errorf("painted %v, %d sectors holding a photograph; want painted, one", read.Painted(1),
-			s.shots)
+	if v := read.Painted(1); v == 0 || v == first || s.shots != 1 {
+		t.Errorf("painted %v after %v, %d sectors holding a photograph; want a version anew, one",
+			v, first, s.shots)
 	}
-	if read.Painted(-1) || read.Painted(len(s.version)) {
+	if read.Painted(-1) != 0 || read.Painted(len(s.version)) != 0 {
 		t.Error("a sector off the grid painted")
 	}
 }

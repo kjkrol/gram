@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/light"
+	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -47,6 +48,30 @@ type pierRow struct {
 	Bottom, Top float32
 }
 
+// a bridge whole: its heads' middles, the way from the first to the second, its deck's level
+type wholeRow struct {
+	From, To geom.Vec
+	Dir      geom.Vec
+	Deck     float32
+}
+
+func (r wholeRow) lie(wide float32) world.Lie {
+	return world.Lie{Length: f32.Hypot(r.To.X-r.From.X, r.To.Y-r.From.Y), Width: wide}
+}
+
+// box bounds the deck's rectangle wide wide, no side under least: a smaller handle is refused
+func (r wholeRow) box(wide, least float32) plane.AABB {
+	mid := geom.NewVec((r.From.X+r.To.X)/2, (r.From.Y+r.To.Y)/2)
+	c := r.lie(wide).Corners(mid, r.Dir)
+	lo, hi := c[0], c[0]
+	for _, p := range c[1:] {
+		lo = geom.NewVec(min(lo.X, p.X), min(lo.Y, p.Y))
+		hi = geom.NewVec(max(hi.X, p.X), max(hi.Y, p.Y))
+	}
+	size := geom.NewVec(max(hi.X-lo.X, least), max(hi.Y-lo.Y, least))
+	return plane.NewAABB(geom.NewVec(mid.X-size.X/2, mid.Y-size.Y/2), size.X, size.Y)
+}
+
 // Types is the register of the kinds of bridges, defined on the Stage's kinds.
 type Types struct {
 	p     *Plugin
@@ -55,7 +80,7 @@ type Types struct {
 }
 
 // Define registers the kind of bridge named name, as spec says, with the kinds of its parts,
-// "<name>.deck" and "<name>.pier".
+// "<name>.deck" and "<name>.pier", and of its handle, "<name>.whole".
 func (t *Types) Define(name string, spec Spec) {
 	if spec.Width <= 0 || spec.Allows == 0 {
 		panic(fmt.Sprintf("bridges: bridge %q: its deck needs a Width and a domain it carries",
@@ -91,6 +116,8 @@ func (t *Types) Define(name string, spec Spec) {
 		}),
 		comp.Const(spec.Rail),
 		comp.Load(func(r deckRow) world.Velocity { return world.Velocity{Dir: r.Dir} }),
+		// the handle casts the deck's shadow whole
+		comp.Const(light.Shadow{Cast: light.NoShadow}),
 	}
 	decks.Define(deckName(name), deck...)
 	half := spec.Pier / 2
@@ -108,6 +135,23 @@ func (t *Types) Define(name string, spec Spec) {
 		comp.Const(light.Shadow{Cast: light.Baked}),
 		comp.Const(world.Fixed{}),
 	})
+	least := float32(w.Res.Config.Entities.MinSize)
+	kind.Define[wholeRow](w.Kinds(), wholeName(name), kind.Spec{
+		comp.Load(func(r wholeRow) world.Position {
+			return world.Position{AABB: r.box(spec.Width, least)}
+		}),
+		comp.Load(func(r wholeRow) world.Velocity { return world.Velocity{Dir: r.Dir} }),
+		// as a deck lies: from its Altitude down its Height
+		comp.Load(func(r wholeRow) world.Z {
+			return world.Z{Altitude: r.Deck, Height: spec.Thickness}
+		}),
+		comp.Load(func(r wholeRow) world.Lie { return r.lie(spec.Width) }),
+		comp.Const(light.Shadow{Cast: light.Baked}),
+		// its pieces cut sight, cell by cell
+		comp.Const(vision.Transparency{Value: 1}),
+		comp.Const(world.Fixed{}),
+		comp.Const(world.Whole{}),
+	})
 	if t.specs == nil {
 		t.specs = map[string]Spec{}
 	}
@@ -123,19 +167,21 @@ func (t *Types) Named(name string) Type {
 	}
 	w := t.p.worldPlugin
 	return Type{
-		name: name,
-		spec: spec,
-		deck: kind.Named[deckRow](w.Kinds(), deckName(name)),
-		pier: kind.Named[pierRow](w.Kinds(), pierName(name)),
+		name:  name,
+		spec:  spec,
+		deck:  kind.Named[deckRow](w.Kinds(), deckName(name)),
+		pier:  kind.Named[pierRow](w.Kinds(), pierName(name)),
+		whole: kind.Named[wholeRow](w.Kinds(), wholeName(name)),
 	}
 }
 
 // Type is a kind of bridge defined.
 type Type struct {
-	name string
-	spec Spec
-	deck kind.Of[deckRow]
-	pier kind.Of[pierRow]
+	name  string
+	spec  Spec
+	deck  kind.Of[deckRow]
+	pier  kind.Of[pierRow]
+	whole kind.Of[wholeRow]
 }
 
 // Name is what the kind of bridge is called.
@@ -151,5 +197,6 @@ func (t Type) Deck() render.SpriteID { return t.deck.SpriteID() }
 // stands on none.
 func (t Type) Pier() render.SpriteID { return t.pier.SpriteID() }
 
-func deckName(name string) string { return name + ".deck" }
-func pierName(name string) string { return name + ".pier" }
+func deckName(name string) string  { return name + ".deck" }
+func pierName(name string) string  { return name + ".pier" }
+func wholeName(name string) string { return name + ".whole" }

@@ -24,9 +24,6 @@ var _ goke.System = (*SelectionSystem)(nil)
 // world units: a unit high up is drawn above its ground
 const pickReach = 160
 
-// pixels: how far round its middle a banner drawn smaller is hit
-const bannerReach = 4
-
 // SelectionSystem carries out the selection's commands: Select as the Selected tag on the
 // Selectable entities the player owns, a command for the selected or the pointed at, Hovered on
 // the entity each Hover points at.
@@ -52,9 +49,11 @@ type SelectionSystem struct {
 	owners goke.OptComp[tag.Tags[owner.Family]]
 	roles  goke.OptComp[tag.Tags[cond.Roles]]
 
-	lookup     *goke.Query
-	lookupBase goke.Comp[world.Base]
-	lookupZ    goke.OptComp[world.Z]
+	lookup         *goke.Query
+	lookupBase     goke.Comp[world.Base]
+	lookupZ        goke.OptComp[world.Z]
+	lookupPart     goke.OptComp[world.PartOf]
+	lookupUnfolded goke.OptComp[world.Unfolded]
 
 	look func() world.Look
 
@@ -85,7 +84,8 @@ func (s *SelectionSystem) Init(si *goke.SysInit) {
 		qb.With(s.pace)
 	}
 	s.query = qb.Build()
-	s.lookup = si.NewQueryBuilder(&s.lookupBase).Optional(&s.lookupZ).Build()
+	s.lookup = si.NewQueryBuilder(&s.lookupBase).
+		Optional(&s.lookupZ, &s.lookupPart, &s.lookupUnfolded).Build()
 }
 
 func (s *SelectionSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
@@ -102,18 +102,21 @@ func (s *SelectionSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			s.marquees.hide(cmd.Camera)
 		}
 		hit := make(map[uid.UID64]struct{}, len(cmd.IDs))
+		by := i.Issuer
 		switch {
 		case cmd.IDs != nil:
 			for _, id := range cmd.IDs {
-				hit[id] = struct{}{}
+				hit[s.standsFor(id, by)] = struct{}{}
 			}
 		case cmd.Screen == (geom.AABB{}) || cmd.Camera == nil:
-			s.space.Query(cmd.Box, aabbworld.AnyCapability, func(id uid.UID64) { hit[id] = struct{}{} })
+			s.space.Query(cmd.Box, aabbworld.AnyCapability, func(id uid.UID64) {
+				hit[s.standsFor(id, by)] = struct{}{}
+			})
 		default:
-			s.bannersIn(cmd.Screen, cmd.Camera, hit)
+			s.bannersIn(cmd.Screen, cmd.Camera, hit, by)
 			s.space.Query(grow(cmd.Box, pickReach), aabbworld.AnyCapability, func(id uid.UID64) {
 				if _, in := s.bannered[id]; !in && s.drawnIn(id, cmd.Screen, cmd.Camera) {
-					hit[id] = struct{}{}
+					hit[s.standsFor(id, by)] = struct{}{}
 				}
 			})
 		}
@@ -218,7 +221,8 @@ func (s *SelectionSystem) hover() {
 		if h.Camera == nil {
 			return
 		}
-		if id, ok := s.pick(h.At, h.Screen, h.Camera); ok && s.query.Seek(id) {
+		id, ok := s.pick(h.At, h.Screen, h.Camera)
+		if ok && s.query.Seek(s.standsFor(id, i.Issuer)) {
 			m := s.marks.At(s.query.Cursor())
 			*m = m.With(s.tags.Hovered)
 			s.hovered = true
@@ -260,6 +264,10 @@ func (s *SelectionSystem) drawnIn(id uid.UID64, screen geom.AABB, cam camera.Cam
 		return false
 	}
 	cur := s.lookup.Cursor()
+	// an aggregate unfolded is drawn by its parts alone, hit through them
+	if s.lookupUnfolded.Present(cur) {
+		return false
+	}
 	box := s.lookupBase.At(cur).Pos.AABB
 	var stands world.Z
 	if z := s.lookupZ.At(cur); z != nil {
@@ -268,10 +276,43 @@ func (s *SelectionSystem) drawnIn(id uid.UID64, screen geom.AABB, cam camera.Cam
 	return meets(s.look().Drawn(cam, box.AABB, stands), screen, 0)
 }
 
-// bannersIn has hit the units of every banner cam drew whose box meets screen, and s.bannered
-// the units of every banner it drew, drawn nowhere else
+// standsFor is what a hit on id picks for by: the whole of a part not Selectable itself where by
+// may select that whole, else id
+func (s *SelectionSystem) standsFor(id uid.UID64, by command.Issuer) uid.UID64 {
+	if !s.lookup.Seek(id) {
+		return id
+	}
+	part := s.lookupPart.At(s.lookup.Cursor())
+	if part == nil {
+		return id
+	}
+	whole := part.Whole
+	if self, _ := s.selectable(id, by); self {
+		return id
+	}
+	if marked, obeys := s.selectable(whole, by); !marked || !obeys {
+		return id
+	}
+	return whole
+}
+
+// selectable reports whether id is Selectable and whether it obeys by
+func (s *SelectionSystem) selectable(id uid.UID64, by command.Issuer) (marked, obeys bool) {
+	if !s.query.Seek(id) {
+		return false, false
+	}
+	cur := s.query.Cursor()
+	var whose tag.Tags[owner.Family]
+	if o := s.owners.At(cur); o != nil {
+		whose = *o
+	}
+	return s.marks.At(cur).Has(s.tags.Selectable), owner.Obeys(whose, by)
+}
+
+// bannersIn has hit what the units of every banner cam drew whose box or badge meets screen pick
+// for by, and s.bannered the units of every banner it drew, drawn nowhere else
 func (s *SelectionSystem) bannersIn(screen geom.AABB, cam camera.Camera,
-	hit map[uid.UID64]struct{}) {
+	hit map[uid.UID64]struct{}, by command.Issuer) {
 	clear(s.bannered)
 	if s.banners == nil || s.look == nil {
 		return
@@ -281,11 +322,13 @@ func (s *SelectionSystem) bannersIn(screen geom.AABB, cam camera.Camera,
 		s.bannered = map[uid.UID64]struct{}{}
 	}
 	for _, b := range s.shown {
-		in := meets(s.look().Drawn(cam, b.Box, b.Z), screen, bannerReach)
+		x, y, r := b.BadgeAt(cam)
+		badge := render.Corners{{x, y}, {x, y}, {x, y}, {x, y}}
+		in := meets(s.look().Drawn(cam, b.Box, b.Z), screen, 0) || meets(badge, screen, r)
 		for _, id := range b.IDs {
 			s.bannered[id] = struct{}{}
 			if in {
-				hit[id] = struct{}{}
+				hit[s.standsFor(id, by)] = struct{}{}
 			}
 		}
 	}

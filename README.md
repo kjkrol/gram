@@ -79,6 +79,7 @@ cgo. Without a GPU the tests that draw skip themselves.
 | **Conversations** | `plugins/dialog` | Nodes of lines and answers from YAML, every unit with lines of its own; what an answer changes is the game's own |
 | **Board and navigation** | `plugins/board`, `plugins/navigation` | Square or hex grid with terrain, ways and what stands on it, in a world with heights; a map laid out of a file; `MoveOrder` paths that re-route, onto a bridge's deck or under it |
 | **Bridges** | `plugins/bridges` | Bridges built by one set of rules whoever builds them: a level's file, the map maker, a player with a bridge in hand |
+| **Forests** | `plugins/forest` | Kinds of trees and the stands planting them over the board's cells by the ground's height, the same trees each time; standing near, in the sheets far off |
 | **Light** | `plugins/light` | The sun and the lamps as sources on entities, what each thing casts and takes; the shadows of the relief and of what stands still baked into the ground as the sun moves, the live ones laid over whatever ground is drawn |
 | **Topography** | `plugins/topography` | A map in relief on the GPU: heights shaped, lit and shaded, every step's slope for the board's mobility, water glinting and running; the cameras' cage |
 | **Atmosphere** | `plugins/atmosphere` | The calendar, the sky of the hour (the Earth's with the real stars, or a game's own of four parts), the climate and the weather, what falls and what it does to the board |
@@ -322,7 +323,7 @@ demo opens a window; what it shows is tested in the library's package that does 
 | [`board/custom-map`](examples/board/custom-map) | A board drawn by a map of the game's own (`board.Plugin.WithMap`) and walked by a mobility of its own (`cell.Mobility`): hills rising out of the grass, shaded by how high they lie; the walkers go round the steep and slow down climbing | `make demo-board-custom-map` |
 | [`board/flat`](examples/board/flat) | Madeira on the simple map out of `cmd/gramap`: the island in its colours, rivers and roads as bands, bridges and fords standing on it, a day and the weather going by, a minimap north up | `make demo-board-flat` |
 | [`board/roads`](examples/board/roads) | A valley with two villages either side of a river, a bridge and a ford: Shift+R takes a road in hand, marked point by point or laid a piece at a time, planned by the cheapest way the rules allow, the ground it levels outlined, priced and paid from a treasury before it is built; the builders refuse while the treasury is empty or the ground is frozen (I brings the winter) | `make demo-board-roads` |
-| [`board/topography`](examples/board/topography) | Madeira in relief, its true heights, a cell 100 m: lit by the sun, water running, roads laid as Transport Tycoon lays them, bridges on piers (Shift+B builds one), the ground shaped under the cursor; the camera on a stick turned (Q, E) and leaned (R, F) from straight down to isometric and flatter, orthographic or in perspective (Tab); a minimap turning with it, a click on it taking the camera there; the ground textured from photographs (`make demo-board-topography`) or painted, the light in bands (`make demo-board-topography-ghibli`); the hour, the date and the weather in a bar or apart by the corners (`make demo-board-topography-widgets`) | `make demo-board-topography` |
+| [`board/topography`](examples/board/topography) | Madeira in relief, its true heights, a cell 100 m: lit by the sun, water running, roads laid as Transport Tycoon lays them, bridges on piers (Shift+B builds one), the ground shaped under the cursor; the camera on a stick turned (Q, E) and leaned (R, F) from straight down to isometric and flatter, orthographic or in perspective (Tab); a minimap turning with it, a click on it taking the camera there; the ground textured from photographs (`make demo-board-topography`) or painted, the light in bands (`make demo-board-topography-ghibli`); the hour, the date and the weather in a bar or apart by the corners (`make demo-board-topography-widgets`); its forests and settlements fields of the map, trees and houses near and photographed into the ground far off, the sheets kept between runs; caravans and travellers on its roads, banners with counts far off | `make demo-board-topography` |
 | [`board/forest-army`](examples/board/forest-army) | A forest and two armies, each one thing far off and its parts near: zoomed out the forest a sheet of crowns and each army a point marching from region to region, zoomed in the trees planted sector by sector and the soldiers stood round their army, taking its march over and folding back in where they stand; soldiers fell the trees they strike and the forest grows back sparser; two armies meeting far off fight blow by blow, soldiers meeting near strike each other | `make demo-board-forest-army` |
 
 ### Navigation: units sent across a board
@@ -558,7 +559,11 @@ as chains of named places. The heights come from the
 [Terrain Tiles on AWS](https://registry.opendata.aws/terrain-tiles/), fetched once into the
 user's cache. The rivers are carved into the ground, the roads routed and graded as Transport
 Tycoon lays them, with bridges over water and down valleys and fords where a river is shallow;
-with `-flat` the map has no heights.
+with `-flat` the map has no heights. Its `fields:` lay a field entity over the cells of a kind
+in each block where enough of them lie (Madeira's forests, four cells of sixteen a side), its
+`settlements:` cells of a kind round the roads' places, as many as a place's size says in the
+recipe's own words (a hamlet, a village, a town); what grows and stands on them is the game's
+rules', as the fields unfold.
 
 <a id="architecture"></a>
 # Architecture
@@ -590,6 +595,7 @@ has a `doc.go` describing what it brings. What is left to do is in
 | [`plugins/driving`](plugins/driving/doc.go) | Units driven by hand: `Ahead`, `Back`, `Turn`, `Toward`, `Jump`, `Tank` and `Compass` keys |
 | [`plugins/gravity`](plugins/gravity/doc.go) | Bodies falling, standing and leaping: `Pull`, `Body`, `Leap`, `Away`, `Landing` |
 | [`plugins/bridges`](plugins/bridges/doc.go) | Bridges: `Types` of them, a level's, a player's with a `Tool` in hand; where one may stand in `bridges/site` |
+| [`plugins/forest`](plugins/forest/doc.go) | Forests: `Types` of trees (`Spec`), `Stands` planting them (`Stand`, `Share`), `Felled` |
 | [`plugins/bullet`](plugins/bullet/doc.go) | Shots fired and flown: `Shoot`, `Shots`, `Flight`, `Landing`, `Resting`, `Burst` into `Blast`s |
 | [`plugins/selection`](plugins/selection/doc.go) | `Select` into `Selected`, `Hovered`, `Selected(roles...)` and `Pointed()` as the targets of commands |
 | [`plugins/dialog`](plugins/dialog/doc.go) | Conversations as data: `Node`s from YAML, a unit's `Script`, the game's `Changes` and `Conditions`, `Window` |

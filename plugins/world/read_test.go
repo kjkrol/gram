@@ -118,3 +118,62 @@ func TestRead_TheWorkersReadTheWorldAtOnceAsTheGameDoes(t *testing.T) {
 		}
 	}
 }
+
+func TestRead_SaysTheSectorOfAPointAndHowManyThereAre(t *testing.T) {
+	cfg := world.Config{
+		Space:    world.SpaceCfg{Width: 400, Height: 400},
+		Entities: world.EntitiesCfg{MaxCount: 64, MinSize: 10, MaxSize: 10},
+	}
+	if r := world.NewPlugin(cfg).Read(0); r.SectorsLen() != 0 || r.SectorOf(300, 300) != 0 {
+		t.Errorf("a world of no sectors has %d, the point (300, 300) in sector %d; want 0 and 0",
+			r.SectorsLen(), r.SectorOf(300, 300))
+	}
+	// buckets of 64 a side, two of them a sector's: four sectors across, the last cut short
+	cfg.Sectors = world.SectorsCfg{Buckets: 2}
+	r := world.NewPlugin(cfg).Read(0)
+	if n := r.SectorsLen(); n != 16 {
+		t.Fatalf("the world is cut into %d sectors, want 4 by 4", n)
+	}
+	for _, c := range []struct {
+		x, y float32
+		want int
+	}{{10, 10, 0}, {130, 10, 1}, {10, 130, 4}, {399, 399, 15}, {-5, 500, 12}} {
+		if got := r.SectorOf(c.x, c.y); got != c.want {
+			t.Errorf("the point (%v, %v) lies in sector %d, want %d", c.x, c.y, got, c.want)
+		}
+	}
+}
+
+func TestRead_SaysTheSectorsSide(t *testing.T) {
+	cfg := world.Config{
+		Space:    world.SpaceCfg{Width: 400, Height: 400},
+		Entities: world.EntitiesCfg{MaxCount: 64, MinSize: 10, MaxSize: 10},
+	}
+	if s := world.NewPlugin(cfg).Read(0).SectorSide(); s != 0 {
+		t.Errorf("a world of no sectors says its sector's side is %v, want 0", s)
+	}
+	// buckets of 64 a side, two of them a sector's
+	cfg.Sectors = world.SectorsCfg{Buckets: 2}
+	if s := world.NewPlugin(cfg).Read(0).SectorSide(); s != 128 {
+		t.Errorf("the sector's side is %v, want 128", s)
+	}
+}
+
+func TestRead_SmallIsAQuarterOfASectorsSideUnlessSet(t *testing.T) {
+	cfg := world.Config{
+		Space:    world.SpaceCfg{Width: 400, Height: 400},
+		Entities: world.EntitiesCfg{MaxCount: 64, MinSize: 10, MaxSize: 10},
+	}
+	if s := world.NewPlugin(cfg).Read(0).Small(); s != 0 {
+		t.Errorf("a world of no sectors says small is %v, want 0", s)
+	}
+	// sectors 128 a side
+	cfg.Sectors = world.SectorsCfg{Buckets: 2}
+	if s := world.NewPlugin(cfg).Read(0).Small(); s != 32 {
+		t.Errorf("small unset is %v, want a quarter of a sector's side, 32", s)
+	}
+	cfg.Sectors.Small = 50
+	if s := world.NewPlugin(cfg).Read(0).Small(); s != 50 {
+		t.Errorf("small set to 50 is %v", s)
+	}
+}

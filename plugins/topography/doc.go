@@ -16,7 +16,10 @@
 // ground.MeanOfCells from a height per cell) and shaped at play by [Raise], [Lower] and [Level]
 // as the Config's [Shaping] says. Every step the plugin puts every unit at the surface under it,
 // the ground or a deck carrying its domain within its step, plus its Mover's Lift; a unit
-// carrying a motion.Drift is gravity's. How steep a step from cell to cell is, is the relief's
+// carrying a motion.Drift is gravity's. A part of an aggregate standing for good (world.Fixed
+// and world.PartOf, on no cell) is set on the ground under its middle too, and the world is given
+// the ground's height (world.Write.SetGround) for what it previews and photographs without
+// spawning. How steep a step from cell to cell is, is the relief's
 // ([Plugin.Rise], the board's Map's); what the slope does to a unit is the board's mobility's,
 // in the planner and on the move alike. [Write.Flatten] lays a cell flat and [Write.Grade] puts
 // a cell's corners at heights of their own, the ground round following within the Shaping's

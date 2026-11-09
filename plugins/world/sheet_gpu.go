@@ -69,12 +69,20 @@ type darkroom struct {
 }
 
 // develop has the frame's photographs developed into the sheets, once a frame, the sprites drawn
-// from atlas
+// from atlas, after the tiles read from the files; where they are kept, a tile settled is written
 func (s *sheets) develop(f *sheetFrame, atlas render.AtlasSource) {
-	if f.developed {
-		return
+	s.upload()
+	if !f.developed {
+		f.developed = true
+		s.developPhotos(f, atlas)
 	}
-	f.developed = true
+	if s.store != nil {
+		s.store.keep(s)
+	}
+}
+
+// developPhotos develops the frame's photographs, the sprites drawn from atlas
+func (s *sheets) developPhotos(f *sheetFrame, atlas render.AtlasSource) {
 	if atlas == nil || len(f.photos) == 0 {
 		return
 	}
@@ -93,13 +101,36 @@ func (s *sheets) develop(f *sheetFrame, atlas render.AtlasSource) {
 	if d.n > 0 {
 		d.shoot(s, sprites)
 	}
+	if s.store != nil {
+		s.store.took(f.photos)
+	}
 }
 
 // schedule has the frame's photographs developed as a draw first reads a sheet
 func (s *sheets) schedule(fill func(*render.Image)) {
+	if s.store != nil {
+		s.store.again = fill
+	}
 	for _, img := range [4]*render.Image{s.albedo, s.relief, s.albedoL5, s.reliefL5} {
 		img.Defer(fill)
 	}
+}
+
+// upload puts the tiles read from the files into the sheets at L4, then halves them at L5
+func (s *sheets) upload() {
+	st := s.store
+	if st == nil || len(st.loads) == 0 {
+		return
+	}
+	halves := make([]float32, 0, 8*len(st.loads))
+	for _, t := range st.loads {
+		s.albedo.SubImage(t.rect).WritePixels(t.albedo)
+		s.relief.SubImage(t.rect).WritePixels(t.relief)
+		halves = appendRect(halves, halfOf(t.rect), 0, 0)
+	}
+	st.loads = nil
+	s.room.readyHalves()
+	s.room.halve(s, halves)
 }
 
 // lay puts the photograph p of the things inst in the round's next slots
@@ -151,9 +182,15 @@ func (d *darkroom) shoot(s *sheets, atlas *render.Image) {
 	d.room.DrawMesh(nil, photoShader, &d.opts)
 	d.develop(s.albedo, d.rects, developCopy, d.albedo, nil)
 	d.develop(s.relief, d.rects, developCopy, d.relief, nil)
-	d.develop(s.albedoL5, d.halves, developAlbedo, s.albedo, s.relief)
-	d.develop(s.reliefL5, d.halves, developRelief, s.albedo, s.relief)
+	d.halve(s, d.halves)
 	d.inst, d.rects, d.halves, d.n = d.inst[:0], d.rects[:0], d.halves[:0], 0
+}
+
+// halve draws into the sheets at L5 the texels halves lays out, each the half of those at L4 it
+// lies over
+func (d *darkroom) halve(s *sheets, halves []float32) {
+	d.develop(s.albedoL5, halves, developAlbedo, s.albedo, s.relief)
+	d.develop(s.reliefL5, halves, developRelief, s.albedo, s.relief)
 }
 
 // develop fills the rectangles rects of dst with ones, then lays over them darkest what pass
@@ -193,12 +230,20 @@ func (d *darkroom) ready(s *sheets) {
 	d.albedo = d.room.SubImage(image.Rect(0, 0, d.split, rows*h))
 	d.relief = d.room.SubImage(image.Rect(d.split, 0, 2*d.split, rows*h))
 	d.depth = render.NewDepth()
-	d.uniforms, d.boxed = map[string][]float32{}, map[string]any{}
+	d.readyHalves()
 	d.opts = render.DrawMeshOptions{Depth: d.depth, Primed: true, WriteDepth: true, Vertices: 6,
 		Uniforms: map[string]any{}}
 	d.whole = appendRect(nil, d.room.Bounds(), 0, 0)
 	d.clearing = render.DrawMeshOptions{Depth: d.depth, ClearDepth: true, Untested: true,
 		Darkest: true, Vertices: 6, Instances: d.whole, Uniforms: map[string]any{}}
+}
+
+// readyHalves readies what developing draws with, the darkroom made or not
+func (d *darkroom) readyHalves() {
+	if d.uniforms != nil {
+		return
+	}
+	d.uniforms, d.boxed = map[string][]float32{}, map[string]any{}
 	d.developing = render.DrawMeshOptions{Vertices: 6, Uniforms: map[string]any{}}
 }
 

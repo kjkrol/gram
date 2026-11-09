@@ -29,6 +29,7 @@ var (
 	floorColor  = color.RGBA{R: 65, G: 100, B: 50, A: 255}
 	crownColor  = color.RGBA{R: 30, G: 95, B: 45, A: 255}
 	leafColor   = color.RGBA{R: 70, G: 135, B: 60, A: 255}
+	trunkColor  = color.RGBA{R: 95, G: 70, B: 45, A: 255}
 	redColor    = color.RGBA{R: 215, G: 60, B: 50, A: 255}
 	redWounded  = color.RGBA{R: 120, G: 35, B: 30, A: 255}
 	blueColor   = color.RGBA{R: 60, G: 110, B: 220, A: 255}
@@ -86,7 +87,7 @@ func (s *status) Init(si *goke.SysInit) {
 	s.kinds.blue = kind.Named[armyRow](w.Kinds(), BlueArmyKind).ID()
 	s.kinds.redMen = kind.Named[soldierRow](w.Kinds(), RedSoldierKind).ID()
 	s.kinds.blueMen = kind.Named[soldierRow](w.Kinds(), BlueSoldierKind).ID()
-	s.kinds.tree = kind.Named[treeRow](w.Kinds(), TreeKind).ID()
+	s.kinds.tree = s.arena.forest.Types().Named(TreeKind).ID()
 }
 
 func (s *status) count() tally {

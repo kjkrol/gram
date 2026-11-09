@@ -41,6 +41,7 @@ type collisionSystem struct {
 	physics      goke.OptComp[Physics]
 	walkSweep    goke.OptComp[Sweep]
 	walkAbstract goke.OptComp[sector.Abstract]
+	walkFixed    goke.OptComp[world.Fixed]
 	each         *host.Rules[Struck]
 	cols         *cgoke.Columns
 	walking      struct {
@@ -53,6 +54,7 @@ type collisionSystem struct {
 	all       *goke.Query
 	allBase   goke.Comp[world.Base]
 	allSweep  goke.OptComp[Sweep]
+	allFixed  goke.OptComp[world.Fixed]
 	runs      []aabbworld.Run
 	stretches [][]aabbworld.Item // a swept chunk's stretched boxes, in the chunk's place
 
@@ -77,6 +79,8 @@ type collisionSystem struct {
 	between  *host.PairRules[Meeting]
 	seekCols *cgoke.Columns
 	leave    func(cb *goke.CmdBuf, id uid.UID64)
+	// has the world gather what stands for good anew, a Caps of it changed
+	restill func()
 
 	fieldOf func() Field
 	heights bool
@@ -96,8 +100,9 @@ type collisionSystem struct {
 	ticks   uint32
 	keeping bool
 
-	tick  host.Tick
-	stale bool
+	tick       host.Tick
+	stale      bool
+	staleStill bool
 }
 
 // an entity's box as the tick found it, kept the first time the engine asks of the entity,
@@ -278,7 +283,7 @@ func (d *collisionSystem) Init(si *goke.SysInit) {
 	d.engine = d.space.CollideEngine((*handler)(d), cfg)
 	_, _, edges := d.space.Bounds()
 	d.wraps = edges.WrapsX() || edges.WrapsY()
-	qb := si.NewQueryBuilder(&d.base, &d.collider).Optional(&d.physics)
+	qb := si.NewQueryBuilder(&d.base, &d.collider).Optional(&d.physics, &d.walkFixed)
 	d.cols = cgoke.NewColumns(qb)
 	d.cols.Own(&d.walkSweep)
 	d.cols.Own(&d.walkAbstract)
@@ -288,7 +293,8 @@ func (d *collisionSystem) Init(si *goke.SysInit) {
 	}
 	d.walk = qb.Build()
 
-	d.all = si.NewQueryBuilder(&d.allBase).Optional(&d.allSweep).
+	d.all = si.NewQueryBuilder(&d.allBase).
+		Optional(&d.allSweep, &d.allFixed).
 		Exclude(goke.Exclude[sector.L6]()).
 		Build()
 
@@ -304,12 +310,16 @@ func (d *collisionSystem) Init(si *goke.SysInit) {
 func (d *collisionSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 	d.tick = d.tickOf.Of(dt)
 	d.sweeping = false
-	if d.mark() || d.sweeping {
+	moved, stood := d.mark()
+	if stood {
+		d.restill()
+	}
+	if moved || d.sweeping {
 		d.rebuild(d.sweeping)
 	}
 
 	d.pending = d.pending[:0]
-	d.lookupHot, d.stale = false, false
+	d.lookupHot, d.stale, d.staleStill = false, false, false
 	d.ticks++
 	d.keeping = d.field.field != nil || d.sweeping
 	d.engine.Tick()
@@ -321,6 +331,9 @@ func (d *collisionSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 	}
 	if d.stale || d.sweeping {
 		d.rebuild(false)
+	}
+	if d.staleStill {
+		d.restill()
 	}
 	d.record()
 	if d.stats != nil {
@@ -343,18 +356,25 @@ func (d *collisionSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 	}
 }
 
-func (d *collisionSystem) mark() bool {
-	changed := false
+// mark reports whether it changed a Caps of what moves and of what stands for good, which
+// keeps its Caps far off too: the space's still layer holds them as it was last gathered
+func (d *collisionSystem) mark() (moved, stood bool) {
 	d.walk.All()
 	for d.walk.Next() {
 		cursor := d.walk.Cursor()
 		bases, colliders, physics := d.base.Slice(cursor), d.collider.Slice(cursor), d.physics.Slice(cursor)
+		fixed := d.walkFixed.Present(cursor)
 		// far off, or travelling the abstract graph, a box collides with nothing
 		if !d.walk.Due() || d.walkAbstract.Present(cursor) {
-			changed = d.still(bases, colliders) || changed
+			if fixed {
+				stood = d.stand(bases, colliders, physics) || stood
+			} else {
+				moved = d.still(bases, colliders) || moved
+			}
 			continue
 		}
 		sweeps := d.walkSweep.Slice(cursor)
+		changed := false
 
 		d.walking.ids, d.walking.colliders = cursor.IDs, colliders
 		d.each.RunWhere(d.tick, d.cols.Row(cursor), len(cursor.IDs), d.hitAt, d.struckAt)
@@ -365,25 +385,33 @@ func (d *collisionSystem) mark() bool {
 				}
 			}
 			colliders[i].clearContacts()
-			caps := aabbworld.CanCollide
-			switch {
-			case sweeps != nil:
+			if sweeps != nil {
 				if d.wraps {
 					panic("collision: Sweep in a wrapping world; a swept entity's step must not cross a seam")
 				}
 				d.sweeping = true
-				caps |= aabbworld.Sensor
-			case physics == nil:
-				caps |= aabbworld.Sensor
-			case physics[i].immovable():
-				caps |= aabbworld.Static
 			}
-			if bases[i].Caps != caps {
+			if caps := collides(sweeps, physics, i); bases[i].Caps != caps {
 				bases[i].Caps, changed = caps, true
 			}
 		}
+		if fixed {
+			stood = stood || changed
+		} else {
+			moved = moved || changed
+		}
 	}
-	return changed
+	return moved, stood
+}
+
+func collides(sweeps []Sweep, physics []Physics, i int) aabbworld.Capability {
+	switch {
+	case sweeps != nil, physics == nil:
+		return aabbworld.CanCollide | aabbworld.Sensor
+	case physics[i].immovable():
+		return aabbworld.CanCollide | aabbworld.Static
+	}
+	return aabbworld.CanCollide
 }
 
 // far off a box collides with nothing, out of the pairs and the push from the ground
@@ -398,13 +426,29 @@ func (d *collisionSystem) still(bases []world.Base, colliders []Collider) bool {
 	return changed
 }
 
-// the space reads the boxes where they lie, a run a chunk; a swept one's stretched boxes are
-// copies, which the engine never pushes: a swept entity is a sensor
+// what stands for good keeps the Caps it collides by far off, out of the pairs with what moves
+// there, which is Plain
+func (d *collisionSystem) stand(bases []world.Base, colliders []Collider, physics []Physics) bool {
+	changed := false
+	for i := range bases {
+		colliders[i].clearContacts()
+		if caps := collides(nil, physics, i); bases[i].Caps != caps {
+			bases[i].Caps, changed = caps, true
+		}
+	}
+	return changed
+}
+
+// the space reads the moving boxes where they lie, a run a chunk; a swept one's stretched boxes
+// are copies, which the engine never pushes: a swept entity is a sensor
 func (d *collisionSystem) rebuild(stretch bool) {
 	d.runs = d.runs[:0]
 	swept := 0
 	for d.all.All(); d.all.Next(); {
 		cursor := d.all.Cursor()
+		if d.allFixed.Present(cursor) {
+			continue
+		}
 		bases, sweeps := d.allBase.Slice(cursor), d.allSweep.Slice(cursor)
 		if !stretch || sweeps == nil {
 			d.runs = append(d.runs, world.RunOf(cursor.IDs, bases))
@@ -626,7 +670,13 @@ func (d *collisionSystem) footing(pen geom.Vec) float32 {
 func (d *collisionSystem) side(id uid.UID64) (contactSide, host.Marks, bool) {
 	if !d.seek(id) {
 		if d.all.Seek(id) {
-			d.allBase.At(d.all.Cursor()).Caps, d.stale = aabbworld.Plain, true
+			cur := d.all.Cursor()
+			d.allBase.At(cur).Caps = aabbworld.Plain
+			if d.allFixed.Present(cur) {
+				d.staleStill = true
+			} else {
+				d.stale = true
+			}
 		}
 		return contactSide{}, host.Marks{}, false
 	}

@@ -1,10 +1,13 @@
 package minimap
 
 import (
+	"cmp"
 	"image/color"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/command"
@@ -413,6 +416,139 @@ func TestMarks_NoDotForAnAggregateUnfoldedItsPartsDotted(t *testing.T) {
 	if len(xs) != 1 || !near(xs[0], 150) {
 		t.Errorf("dots at x %v, want the soldier's alone, at 150", xs)
 	}
+}
+
+func TestMarks_APartOfAMarkedKindIsDottedAPartStandingUnmarkedIsNot(t *testing.T) {
+	w := flatWorld(nil)
+	for _, name := range []string{"soldier", "tree"} {
+		kind.Define[spot](w.Kinds(), name, kind.Spec{
+			comp.Load(func(s spot) world.Position {
+				return world.Position{AABB: plane.NewAABB(geom.NewVec(s.x-2, s.y-2), 4, 4)}
+			}),
+			comp.Const(world.Velocity{}),
+			comp.Const(world.Fixed{}),
+			comp.Const(world.PartOf{}),
+		})
+	}
+	soldier := kind.Named[spot](w.Kinds(), "soldier")
+	tree := kind.Named[spot](w.Kinds(), "tree")
+	w.Write().Seed(tree.Entry(spot{450, 500}), soldier.Entry(spot{550, 500}),
+		tree.Entry(spot{500, 520}))
+	a := w.NewAtlas()
+	a.Add(soldier, 4, render.Solid(markRed)).Styled(Mark{Color: markRed, Size: 6})
+	a.Add(tree, 4, render.Solid(plainSky))
+	a.Close()
+	if err := w.Populate(); err != nil {
+		t.Fatal(err)
+	}
+	// a unit a pixel round (500, 500): the soldier at 550 alone
+	if dots := publishedDots(t, w, 500, 500); len(dots) != 1 || !near(dots[0][0], 150) ||
+		!near(dots[0][1], 100) {
+		t.Errorf("dots at %v, want the soldier's alone, at (150, 100)", dots)
+	}
+}
+
+func TestMarks_RoundATorusAMarkAcrossTheSeamIsDotted(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 1000, Height: 1000, Edges: aabbworld.Torus},
+		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 4, MaxSize: 4},
+	})
+	kind.Define[spot](w.Kinds(), "marked", kind.Spec{
+		comp.Load(func(s spot) world.Position {
+			return world.Position{AABB: plane.NewAABB(geom.NewVec(s.x-2, s.y-2), 4, 4)}
+		}),
+		comp.Const(world.Velocity{}),
+	})
+	marked := kind.Named[spot](w.Kinds(), "marked")
+	w.Write().Seed(marked.Entry(spot{10, 990}), marked.Entry(spot{500, 500}),
+		marked.Entry(spot{985, 15}))
+	a := w.NewAtlas()
+	a.Add(marked, 4, render.Solid(markRed)).Styled(Mark{Color: markRed, Size: 6})
+	a.Close()
+	if err := w.Populate(); err != nil {
+		t.Fatal(err)
+	}
+	// looking at (990, 980), a unit a pixel: one 20 east across a seam, one 35 south across the
+	// other, the middle far off
+	got := publishedDots(t, w, 990, 980)
+	slices.SortFunc(got, func(a, b [2]float32) int { return cmp.Compare(a[0], b[0]) })
+	if len(got) != 2 || !near(got[0][0], 95) || !near(got[0][1], 135) ||
+		!near(got[1][0], 120) || !near(got[1][1], 110) {
+		t.Errorf("dots at %v, want at (95, 135) and (120, 110)", got)
+	}
+}
+
+func TestMarks_ArePublishedWithoutAllocating(t *testing.T) {
+	w := flatWorld(nil)
+	kind.Define[spot](w.Kinds(), "marked", kind.Spec{
+		comp.Load(func(s spot) world.Position {
+			return world.Position{AABB: plane.NewAABB(geom.NewVec(s.x-2, s.y-2), 4, 4)}
+		}),
+		comp.Const(world.Velocity{}),
+	})
+	marked := kind.Named[spot](w.Kinds(), "marked")
+	w.Write().Seed(marked.Entry(spot{450, 500}), marked.Entry(spot{550, 500}))
+	a := w.NewAtlas()
+	a.Add(marked, 4, render.Solid(markRed)).Styled(Mark{Color: markRed, Size: 6})
+	a.Close()
+	if err := w.Populate(); err != nil {
+		t.Fatal(err)
+	}
+	marks := marksAt(t, w, 500, 500)
+	now := time.Now()
+	publish := func() {
+		now = now.Add(redraw)
+		marks.publish(now, true)
+		marks.swap()
+	}
+	publish()
+	publish()
+	if allocs := testing.AllocsPerRun(10, publish); allocs != 0 {
+		t.Errorf("a publish of the marks allocates %v times, want none", allocs)
+	}
+	if got := len(marks.drawn.Front().all); got != 2 {
+		t.Errorf("%d dots published, want 2", got)
+	}
+}
+
+// the marks of a minimap of reach 100 over w looking at (x, y), a unit a pixel, in its picture
+// 200 a side, the world stepped once
+func marksAt(t *testing.T, w *world.Plugin, x, y float32) *marksView {
+	t.Helper()
+	p := NewPlugin(w, nil, Config{Reach: 100})
+	space := w.Res.Config.Space
+	cam := cameratest.NewFromSpace(space.Width, space.Height, space.Edges)
+	cam.SetViewport(200, 200)
+	p.For(cam, command.Nobody)
+	m := p.maps[0]
+	m.lens.SetViewport(200, 200)
+	marks := &marksView{m: m}
+	ecs := start(t, w, goke.SystemFn{OnInit: marks.Init})
+	ecs.Tick(time.Second / 60)
+	m.at = aim{x, y, 0, -1}
+	m.lens.aim(x, y, 0, -1)
+	return marks
+}
+
+// the dots marksAt publishes, by their place in the picture
+func publishedDots(t *testing.T, w *world.Plugin, x, y float32) [][2]float32 {
+	t.Helper()
+	marks := marksAt(t, w, x, y)
+	marks.publish(time.Now(), true)
+	marks.swap()
+	var f render.Frame
+	f.Reset(marks.m.lens)
+	marks.Compose(&f, marks.m.lens)
+	var dots [][2]float32
+	f.Each(func(_ render.At, v []render.Vertex) {
+		var x, y float32
+		for _, p := range v {
+			x += p.DstX / float32(len(v))
+			y += p.DstY / float32(len(v))
+		}
+		dots = append(dots, [2]float32{x, y})
+	})
+	return dots
 }
 
 type installCtx struct {

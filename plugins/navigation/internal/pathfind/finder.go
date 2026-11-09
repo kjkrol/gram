@@ -1,6 +1,8 @@
 package pathfind
 
 import (
+	"reflect"
+
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -171,6 +173,11 @@ func New(grid grid.Grid, terrain cell.Terrain, pacing Pacing, occupancy cell.Occ
 // Reads has p search through terrain, pacing and, made WithLevels, levels from now on: the same
 // board read on another goroutine.
 func (p *Finder) Reads(terrain cell.Terrain, pacing Pacing, levels Levels) {
+	// the ground steps kept are stamped by the passage and the domain: they hold while the same
+	// terrain, pacing and levels are read, and a Read a tick cleared a board's worth each time
+	if !same(p.terrain, terrain) || !same(p.pacing, pacing) || !same(p.levels, levels) {
+		clear(p.flats)
+	}
 	p.terrain, p.levels = terrain, levels
 	p.paces(pacing)
 	p.ways, _ = terrain.(ways)
@@ -180,7 +187,15 @@ func (p *Finder) Reads(terrain cell.Terrain, pacing Pacing, levels Levels) {
 	p.passing, _ = terrain.(passing)
 	p.railings, _ = terrain.(railings)
 	p.cells, _ = terrain.(cellPassages)
-	clear(p.flats)
+}
+
+// same reports whether a and b are one value, false where their type cannot be compared
+func same(a, b any) bool {
+	t := reflect.TypeOf(a)
+	if t == nil || t != reflect.TypeOf(b) || !t.Comparable() {
+		return a == nil && b == nil
+	}
+	return a == b
 }
 
 func (p *Finder) paces(pacing Pacing) {

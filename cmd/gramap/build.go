@@ -24,6 +24,8 @@ type chart struct {
 	soils      []string
 	rivers     *water.Network
 	roads      *roads
+	settled    map[string][]cell.ID // a place's settlement, by its name
+	unsettled  []string             // places of a size with no cell of their own
 }
 
 func build(r recipe, height elevation, flat bool) (*chart, error) {
@@ -71,6 +73,7 @@ func build(r recipe, height elevation, flat bool) (*chart, error) {
 	if err := w.roads.lay(); err != nil {
 		return nil, err
 	}
+	w.settle()
 	return w, nil
 }
 

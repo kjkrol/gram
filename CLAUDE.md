@@ -65,11 +65,11 @@ make demo-rules-guard                                           # guards on a pl
 make demo-board-atlas                                           # a small flat board from the game's own atlas, the water a material
 make demo-board-flat                                            # Madeira on the simple map: a flat board, bands for the ways, bridges and fords
 make demo-board-roads                                           # two villages either side of a river: roads laid with Shift+R, planned, priced and built; I brings the winter
-make demo-board-topography                                      # Madeira in relief: light, water, roads, bridges, the camera on a stick (Q/E, R/F, Tab), the weather; the ground textured from photographs
+make demo-board-topography                                      # Madeira in relief: light, water, roads, bridges, the camera on a stick (Q/E, R/F, Tab), the weather; the ground textured from photographs; forests and settlements as fields, caravans on the roads, far off in the sheets kept between runs
 make demo-board-topography-ghibli                               # the same ground painted, the light in bands (-look ghibli)
 make demo-board-topography-widgets                              # the hour, the date and the weather apart by the corners, not in a bar (-hud widgets)
 make demo-board-forest-army                                     # a forest and two armies folded far off and unfolded near: trees, soldiers, a battle either way
-go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS
+go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS, its forests and settlements as fields
 make demo-navigation-square                                     # units sent round a wall, over a river by a bridge a wagon is too wide for; walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-hex                                        # the same on a hex board
 make demo-navigation-spawn                                      # walkers spawned under the cursor (N) hold their cells, the cells held shown
@@ -280,7 +280,9 @@ Decisions the user has made; they are not up for revisiting in passing.
   no strategy game ever sees it), L2–L3 the standard scale (`lod.Standard`: full, no detail),
   L4–L5 the strategic scale (`lod.Strategic`: shape, colour; the aggregates), L6 omitted
   (`lod.Omitted`: neither ticked nor drawn), from the shown pixels a world
-  unit spans there through each observer's camera and its distance within the ladder's Sight
+  unit spans there through each observer's camera and its distance: within the ladder's Sight,
+  and coarser than a level past that level's ring (`Ladder.Rings`, 2026-11-08: a camera seeing
+  far at one scale, the orthographic one, does not hold the world at that scale's level)
   (`world.Config.LOD`), the same level for everything in the sector; an entity's mark is the
   level ticked, the finest any observer sees (the ladder's `Unobserved` with none, L4 by
   default), held awake by a `sector.Keen` entity in it (a shot in flight); each camera's view
@@ -302,11 +304,33 @@ Decisions the user has made; they are not up for revisiting in passing.
   (`world.Plugin.Sheets`) what stands in a sector drawn at L4 or L5 is photographed on the GPU
   from its L3 looks, with the parts of the fields folded there, into an albedo and a relief over
   the whole world the ground draws as a solid in the frame's light, the L5 sheet the L4 one in
-  half, never worked out from the fine entities at L5; a standing entity cut by a sector's edge
-  or beside a sector drawn finer is drawn alive at the finer level and never photographed, so a
-  bridge stays whole across a seam; loose units far off are points, or banners of their kind
+  half, never worked out from the fine entities at L5; a field never unfolded is **previewed**
+  (2026-11-06): its `Unfold` told as though its sector came down, the parts its rules give
+  photographed where they would stand, on the ground the world is given (`Write.SetGround`, the
+  topography's), none spawned, nothing saved, so a forest is in the sheet before anyone comes
+  near and only the game's rules say what stands in it; the sheets are **kept in tiles** between
+  runs where the game says (`world.Config.Sheets`: a folder read as the sheets are made, written
+  back sector by sector as they settle where it asks `Keep`; the policy is the game's, a static
+  world shipping its tiles read-only, a dynamic one writing them back; a change to how a game
+  plants its fields is a new `Version`); **what crosses sectors belongs to a cell of the
+  tiers** (the user's word, 2026-11-07): the grid has tiers over its sectors (`sector.Grid.Tiers`,
+  a cell of tier k 2ᵏ×2ᵏ sectors), a standing thing no longer than `Config.Sectors.Small` (a
+  quarter of a sector's side unless set) lives in its centre's sector, a longer one in the lowest
+  cell holding it whole (`Grid.Fit`), its level the finest of the sectors under that cell: drawn
+  alive at it below L4 and in no sheet, photographed into every sector it covers from L4; a thing
+  standing in pieces (a bridge: still an entity a cell) is held whole by a **handle** (`world.Whole`
+  on it, `world.PieceOf` on each piece, spawned together by `Write.SpawnWhole` or `SeedWhole` and
+  despawned together) carrying what is the whole's (its joint box, its `Lie`, its shadow, no look),
+  its pieces taking its cell's level, so a bridge stays whole across a seam and casts one shadow;
+  a small thing beside a sector drawn finer keeps the ring rule (drawn alive at the finer level,
+  never photographed); the world unfolds at most `Ladder.Unfolds` stretches a step (16 unless
+  set), the nearest an observer first, the rest waiting folded; loose units far off are points,
+  or banners of their kind
   where the kind declares an L4 look and the game asks (`world.Config.Far`, a setting), with
-  counts on the glass if it asks (`Config.Counts`), a click on a banner selecting its units.
+  counts on the glass if it asks (`Config.Counts`; a folded aggregate counts for its
+  `Aggregate.Strength`, the band 30, the army its soldiers left; the user's word, 2026-11-09: the
+  number is in the banner from the start, not after a zoom), a click on a banner selecting its
+  units.
   Nothing measures a distance or a ring of its own and nothing shifts the level for itself:
   the topography's care rings went that way.
   **Behaviour keeps to the ladder too** (the user's word, 2026-11-04): below `Strategic` a unit
@@ -314,11 +338,17 @@ Decisions the user has made; they are not up for revisiting in passing.
   gives, out of the occupancy, the queue and the collision (`sector.Abstract`), never a straight
   line from gate to gate, and an aggregate (`world.Aggregate`, a `Field` by sector)
   is its parts at L0–L3 and itself alone from L4, the game's rules to `Unfold`, `Fold`,
-  `Folding` and `Met` saying what each becomes. L4 is the thermodynamics, L2 the dynamics: a
-  descent realises the coarse state in fine terms as the fine processes would have run it (the
-  cell at the elapsed share of the leg's refined route; the parts from `lod.Seed` and the
-  aggregate's state), an ascent sums the fine into the coarse, both deterministic from the same
-  state and seed; what the coarse level does not model, the descent does not invent.
+  `Folding` and `Met` saying what each becomes; an aggregate is selected as a whole (the user's
+  word, 2026-11-07): a click, a marquee or a hover on a part without `selection.Allow` selects
+  its whole, the outline drawn round each part standing, the orders going to the whole; a part
+  told `Allow` is picked itself (2026-11-08: a group of individuals, the army, the band, tells
+  its parts `Allow`, so one is selected where it stands; a unit of pieces, the caravan, does
+  not). L4 is
+  the thermodynamics, L2 the dynamics: a descent realises the coarse state in fine terms as the
+  fine processes would have run it (the cell at the elapsed share of the leg's refined route; the
+  parts from `lod.Seed` and the aggregate's state), an ascent sums the fine into the coarse, both
+  deterministic from the same state and seed; what the coarse level does not model, the descent
+  does not invent.
 - **Never make a unit see the others ahead**: it senses nothing of them and learns of them by
   striking (navigation); its order may be told by the group's plan (a field, a column's place
   and pace). Lanes were tried and dropped.
@@ -386,7 +416,8 @@ lamps, the shadows baked and cast; made before the board and the topography, whi
 `cmd/gramap` makes maps of the
 Earth), `topography` (a map in relief, the cameras' cage), `atmosphere` (the time of day, the
 climate, the weather), `collision`, `navigation`, `selection`, `dialog`, `players` (with
-`players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`, `roads` (roads laid
+`players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`, `forest` (forests
+planted over the board's cells: kinds of trees, stands by the ground's height), `roads` (roads laid
 with a tool: planned, priced, judged by the game's rules and built, by `roads/site`'s rules, which
 `cmd/gramap` plans its roads by too), `bullet`, `minimap`
 (small pictures round the players' cameras), `telemetry`

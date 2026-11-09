@@ -2,14 +2,19 @@ package bench_test
 
 import (
 	"image/color"
+	"math/rand/v2"
 	"testing"
+	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/lod"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gputest"
@@ -173,4 +178,97 @@ func standingHalf(ctx *headless) {
 		}
 	}
 	w.Write().Seed(entries...)
+}
+
+// Benchmark_Bake_Tile bakes anew a tile of the ground's shade, 256 pixels a side, as the set of
+// 2000 posts standing within it changes, over level ground 1024 a side lit by a sun 45° high,
+// waited for: the shadows of the posts near the tile found and drawn over the ground's.
+func Benchmark_Bake_Tile(b *testing.B) {
+	gputest.Need(b)
+	rng := rand.New(rand.NewPCG(0x5eed, 0xc0ffee))
+	tall := render.Block{X: 100, Y: 900, UX: 1, Along: 4, Wide: 4, Top: 40}
+	// within tile (2, 2), their shadows too: 20 west of a post at most, and the penumbra
+	posts := make([]render.Block, 2000)
+	for i := range posts {
+		posts[i] = render.Block{X: 560 + rng.Float32()*192, Y: 530 + rng.Float32()*220, UX: 1,
+			Along: 2, Wide: 2, Top: 10 + rng.Float32()*10}
+	}
+	lights := &render.Lights{
+		Sun:    render.Distant{Dir: [3]float32{0.7071, 0, 0.7071}, Strength: 1, Ambient: 0.3},
+		Ground: render.Lattice{Cols: 129, Rows: 129, Cell: 8},
+		Casts: []render.BlockSet{
+			{Box: [4]float32{96, 896, 8, 8}, Top: 40, Version: 1, Blocks: []render.Block{tall}},
+			{Box: [4]float32{558, 528, 196, 224}, Top: 20, Version: 1, Blocks: posts},
+		},
+	}
+	c := render.NewComposer()
+	c.Light(func() *render.Lights { return lights })
+	cam := cameratest.NewFromSpace(1024, 1024, 0)
+	screen := render.NewImage(8, 8)
+	buf := make([]byte, 4*8*8)
+	frame := func() {
+		c.DrawWorld(screen, cam)
+		render.Submit()
+		screen.ReadPixels(buf)
+	}
+	// the whole baked first, as a game's first frame does
+	frame()
+	b.ReportAllocs()
+	for b.Loop() {
+		lights.Casts[1].Version++
+		frame()
+	}
+}
+
+// Benchmark_Light_Publish publishes the light over a world of 800 sectors, 64 a side, where
+// 30 000 entities stand with their shadows Baked, nothing changed since the last publish: the
+// blocks gathered into their sectors' sets and summed to find none changed.
+func Benchmark_Light_Publish(b *testing.B) {
+	const n = 30_000
+	ctx := newHeadless()
+	w := ctx.UseWorld(world.Config{
+		Space:    world.SpaceCfg{Width: 2560, Height: 1280},
+		Entities: world.EntitiesCfg{MaxCount: n, MinSize: 4, MaxSize: 4},
+		Sectors:  world.SectorsCfg{Buckets: 4},
+		Heights:  true,
+	})
+	sun := light.Distant{Dir: [3]float32{-0.8, 0.45, 0.3}, Strength: 0.75, Ambient: 0.3}
+	l := light.NewPlugin(w, light.Config{}).WithDistant(sun)
+	if err := ctx.Use(l); err != nil {
+		b.Fatal(err)
+	}
+	kind.Define[world.Position](w.Kinds(), "tree", kind.Spec{
+		comp.Load(func(p world.Position) world.Position { return p }),
+		comp.Const(world.Velocity{}),
+		comp.Const(world.Z{Height: 12}),
+		comp.Const(light.Shadow{Cast: light.Baked}),
+	})
+	trees := kind.Named[world.Position](w.Kinds(), "tree")
+	placement := world.NewGridPlacement(2560, 1280, 4)
+	entries := make([]kind.Entry, n)
+	for i := range entries {
+		entries[i] = trees.Entry(placement.Place(i, n))
+	}
+	w.Write().Seed(entries...)
+	ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
+		w.RunPlan(rc, d)
+		l.RunPlan(rc, d)
+	})
+	ecs.Tick(step)
+	ecs.Tick(step)
+	if got := w.Read(0).SectorsLen(); got != 800 {
+		b.Fatalf("the world is cut into %d sectors, want 800", got)
+	}
+	for range 2 {
+		l.Publish()
+		l.Swap()
+	}
+	if lit := w.Read(0).Lights(); lit == nil || lit.Ground.Cols == 0 {
+		b.Fatal("nothing published to bake")
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		l.Publish()
+		l.Swap()
+	}
 }

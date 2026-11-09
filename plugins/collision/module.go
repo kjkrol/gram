@@ -30,6 +30,7 @@ type module struct {
 	tick    host.TickSource
 	pace    goke.Opt
 	leave   func(cb *goke.CmdBuf, id uid.UID64)
+	restill func()
 	built   bool
 }
 
@@ -68,7 +69,7 @@ func (m *module) build() {
 	s := newCollisionSystem(m.space, m.pairs, m.entities, m.fieldOf)
 	s.stats, s.log, s.heights = m.stats, m.log, m.heights
 	s.tickOf, s.pace = m.tick, m.pace
-	s.leave = m.leave
+	s.leave, s.restill = m.leave, m.restill
 	m.system = m.ecs.RegSys(s)
 	m.built = true
 }

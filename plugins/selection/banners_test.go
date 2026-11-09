@@ -10,7 +10,7 @@ import (
 )
 
 // bannered is the harness with ten units in a row at (600, 600) the camera draws in one banner
-// over (300, 300) to (304, 304), the units' ids
+// over (300, 300) to (304, 304) under a badge reaching 7 round (302, 293), the units' ids
 func bannered(t *testing.T) (*harness, []*uid.UID64) {
 	t.Helper()
 	h := newHarness(t)
@@ -24,7 +24,7 @@ func bannered(t *testing.T) (*harness, []*uid.UID64) {
 			return dst
 		}
 		b := world.Banner{Count: 10, Center: geom.NewVec(302, 302),
-			Box: geom.NewAABBAt(geom.NewVec(300, 300), 4, 4)}
+			Box: geom.NewAABBAt(geom.NewVec(300, 300), 4, 4), Reach: 7}
 		for _, id := range ids {
 			b.IDs = append(b.IDs, *id)
 		}
@@ -45,6 +45,29 @@ func TestSystem_Update_ClickOnABannerSelectsItsUnits(t *testing.T) {
 	for i, id := range ids {
 		if h.isSelected(*id) {
 			t.Errorf("unit %d selected after a click beside the banner, want none", i)
+		}
+	}
+}
+
+func TestSystem_Update_ClickOnTheEdgeOfABannersBadgeOrOnItsBoxSelectsItsUnits(t *testing.T) {
+	for _, tc := range []struct {
+		x, y int
+		hit  bool
+	}{
+		{309, 293, true},
+		{302, 286, true},
+		{295, 300, true},
+		{303, 304, true},
+		{311, 293, false},
+		{302, 284, false},
+		{302, 306, false},
+	} {
+		h, ids := bannered(t)
+		h.click(tc.x, tc.y, false)
+		if h.isSelected(*ids[0]) != tc.hit {
+			t.Errorf("a click at (%d, %d) by a badge reaching 7 round (302, 293) over a box "+
+				"(300, 300) to (304, 304) selected %v, want %v", tc.x, tc.y,
+				h.isSelected(*ids[0]), tc.hit)
 		}
 	}
 }

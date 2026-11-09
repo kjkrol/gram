@@ -127,7 +127,8 @@ type laid struct {
 	heights func(geom.Vec) float32
 }
 
-func (p *Plugin) parts(t Type, b site.Bridge, g *boardGround) []kind.Entry {
+// parts is the bridge b of the kind t over g: its handle, and its pieces of deck and its piers
+func (p *Plugin) parts(t Type, b site.Bridge, g *boardGround) (kind.Entry, []kind.Entry) {
 	gr := g.Grid()
 	step := gr.Step(b.Way)
 	length := f32.Hypot(step.X, step.Y)
@@ -148,7 +149,8 @@ func (p *Plugin) parts(t Type, b site.Bridge, g *boardGround) []kind.Entry {
 		row := pierRow{At: at, Bottom: g.at(at), Top: b.Deck - t.spec.Thickness}
 		out = append(out, t.pier.Entry(row))
 	}
-	return out
+	whole := wholeRow{From: gr.CellCenter(b.From), To: gr.CellCenter(b.To), Dir: dir, Deck: b.Deck}
+	return t.whole.Entry(whole), out
 }
 
 func (p *Plugin) rules() site.Rules {
@@ -197,7 +199,8 @@ func (p *Plugin) build(o Order) {
 			}
 		}
 	}
-	p.worldPlugin.Write().Spawn(p.parts(t, plan, g)...)
+	whole, pieces := p.parts(t, plan, g)
+	p.worldPlugin.Write().SpawnWhole(whole, pieces...)
 }
 
 // Window is the window asking a player whether to build the bridge it marked out, shown while it

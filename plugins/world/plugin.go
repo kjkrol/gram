@@ -19,6 +19,7 @@ import (
 	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
+	ikinds "github.com/kjkrol/gram/plugins/world/internal/kinds"
 	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
@@ -46,6 +47,7 @@ type Plugin struct {
 	kinds    *Kinds
 	roster   *kind.Roster
 	seeded   []kind.Entry
+	wholes   []SpawnWhole // seeded, a handle and its pieces each
 	views    map[camera.Camera]*view.View
 	look     Look
 	looked   bool
@@ -258,15 +260,9 @@ func (p *Plugin) Populate() error {
 	groups := make(map[string][]any)
 	entries := make(map[string][]kind.Entry)
 	for _, e := range p.seeded {
-		r, ok := p.kinds.r.Kind(e.Kind())
-		if !ok {
-			return fmt.Errorf("world: unknown kind %q", e.Kind())
-		}
-		if got := reflect.TypeOf(e.Row()); got != r.Row {
-			return fmt.Errorf("world: kind %q: an entry carries a %v, its rows are %v", r.Name, got, r.Row)
-		}
-		if err := p.module.handled(e); err != nil {
-			return fmt.Errorf("world: kind %q: %w", r.Name, err)
+		r, err := p.seedKind(e)
+		if err != nil {
+			return err
 		}
 		if _, seen := groups[r.Name]; !seen {
 			order = append(order, r.Name)
@@ -274,12 +270,36 @@ func (p *Plugin) Populate() error {
 		groups[r.Name] = append(groups[r.Name], e.Row())
 		entries[r.Name] = append(entries[r.Name], e)
 	}
+	for _, sw := range p.wholes {
+		if err := p.wholeSeeded(sw); err != nil {
+			return err
+		}
+	}
 	for _, name := range order {
 		k, _ := p.kinds.r.Kind(name)
 		p.module.populateEntries(k, groups[name], entries[name])
 	}
-	p.seeded = nil
+	if len(p.wholes) > 0 {
+		p.module.populateWholes(p.wholes)
+	}
+	p.seeded, p.wholes = nil, nil
 	return nil
+}
+
+// seedKind is the kind of an entry seeded, or why the world refuses it
+func (p *Plugin) seedKind(e kind.Entry) (ikinds.Kind, error) {
+	r, ok := p.kinds.r.Kind(e.Kind())
+	if !ok {
+		return r, fmt.Errorf("world: unknown kind %q", e.Kind())
+	}
+	if got := reflect.TypeOf(e.Row()); got != r.Row {
+		return r, fmt.Errorf("world: kind %q: an entry carries a %v, its rows are %v", r.Name, got,
+			r.Row)
+	}
+	if err := p.module.handled(e); err != nil {
+		return r, fmt.Errorf("world: kind %q: %w", r.Name, err)
+	}
+	return r, nil
 }
 
 // Kinds is this Stage's register of entity kinds, which kind.Define registers with.

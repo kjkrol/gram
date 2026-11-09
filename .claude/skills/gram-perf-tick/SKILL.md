@@ -17,6 +17,27 @@ reguły, efekty, znaczniki) i planszę (grunt, wysokość, stanie).
 
 ## Niezmienniki
 
+- Rzecz stojąca na stałe (`Fixed`) ma kosztować zero na krok (2026-11-08, `f/still`): wysokość
+  części liczona przy przyjściu i przy zmianie wersji reliefu (`relief/altitude.go`), minimapa
+  chodzi po rodzajach ze znakiem, nie pyta przestrzeni o każdą encję. Warstwa nieruchoma
+  (`f/space`, 2026-11-08; aabbworld v1.21.0 `Space.RebuildStill`, komórki rzadkie): indekser
+  świata oddaje chunki `Fixed` warstwie nieruchomej raz (`Include[Fixed]`), ruchome
+  (`Exclude[Fixed]`) przebudowuje jak dotąd, motion nie krokuje `Fixed`, kolizja pomija chunki
+  `Fixed` w `rebuild` i trzyma ich caps stałe (`Write.Restill()` po przyjściu kolidera `Fixed` i
+  po zdjęciu `Collider`); 30 tys. części: krok 157 → 26 µs. Pułapka: caps pudła nieruchomego nie
+  wolno zmienić w miejscu między wywołaniami; każda taka zmiana to `Restill`.
+  Pogoda chodzi po komórkach planszy (2 ms/krok przy 640×320, niezależnie od encji). Pułapka:
+  tick robi 60 kroków/s obok klatki, najwyżej 5 na klatkę; krok ponad ~15 ms zbija klatkarz
+  spiralnie do 11–13 FPS, a adapter budżetu przesuwa tylko rysowanie, nie poziom ticku.
+- Profil Madery na L4 po rozruchu (2026-11-08, sonda `scratchpad/prof`): tick 3,8 ms, z czego ~1,4
+  ms to pogoda (`weathering.walk`: reguły `Overhead` gry na komórkę raz na sekundę gry, 205 tys.
+  komórek; 70 % tego to próbkowanie kopuły chmur na komórkę, `domeLevel.at`: cztery `cellAt` z
+  dzieleniami całkowitymi); przez pierwsze ~25 s hierarchia HPA* buduje się w budżecie `buildBudget`
+  75 000 kroków na tick (~3 ms na tick, tick 5,4 ms; większy budżet to krótszy rozruch i wyższy
+  tick, ta sama praca na każdej maszynie). Pułapka: `Finder.Reads` czyściło `flats` (krok gruntu na
+  komórkę, stemplowany przejezdnością i domeną) przy każdym `Read` routera, czyli co tick podczas
+  budowy i przy każdym pytaniu: 0,9 ms zerowania; czyści tylko przy innym terenie, wycenie lub
+  poziomach (`same`, przez `reflect`, bo interfejsy nieporównywalne panikują na `==`).
 - Spokojny tick świata, kolizji, terenu, stania i reguł (kroków ceremony) nie alokuje.
 - Przestrzeń czyta kolumny chunków goke jako przebiegi (`Run`), zbierane na nowo po `Sync`, i
   przesuwa przebieg jednym wołaniem; nic nie kopiuje `Base` (kopia do `Item` była większością
@@ -46,6 +67,27 @@ reguły, efekty, znaczniki) i planszę (grunt, wysokość, stanie).
   pętlach); zera pisane w kolejności pól struktury łączą się w mniej zapisów; strażnik `progress`
   inlinuje się, gdy odczyt mapy siedzi w `phaseOf`. `figure` ma 88 B (80 przed płachtami):
   samo to kosztuje 3–6 % na gęstych rungach, pokryte powyższym; spakowanie flag wróciłoby do 80.
+- Suche rozwinięcie (`preview.go`, `d/preview`, 2026-11-06): sektor czekający na fotografię pod
+  gołym rozciągiem pola dostaje podgląd, najwyżej `perFrame` na krok: `Unfold` idzie do reguł
+  jak przy rozwinięciu, `SpawnPart` pod podglądem zapisuje migawkę zamiast spawnu, podgląd żyje
+  dwa kroki. `World_Preview` (bench/): podgląd i publikacja sektora z 256 częściami, alokacje
+  tylko migawek. Koszt leży w regułach gry, nie w świecie: w demie Madery 512 reguł lasu i 1024
+  osady idą raz na sektor na bieg (potem kafle); kamera ortogonalna na L2 widzi wszystkie pola
+  w zasięgu `Sight` (skala stała w kadrze: ~30 tys. drzew), więc tick L2 nad wyspą to lasy.
+- Budżet rozwijania (`wholes.go`, `t/budget`, 2026-11-07): `open` rozwija najwyżej
+  `Ladder.Unfolds` odcinków na krok (zero = 16), najbliższe punktom widzenia kamer
+  (`sectors.cams`) pierwsze, krótszą drogą przez zawijaną oś; `nearest()` liczy się tylko, gdy
+  kandydatów jest więcej niż budżet, bez alokacji na ciepło; odcinek czekający nie dostaje encji
+  odcinka, `Unfolded` ani `Unfold`, migawka zostaje; sektor wracający na L4 przed kolejką nie
+  rozwija się. Zoom L4→L3 nad Maderą: 31 376 części w 17 krokach po ~1800 zamiast jednego.
+  Pułapka: najdłuższy krok zoomu (t248, ~170–250 ms w obu drzewach) to nawigacja, nie rozwinięcie:
+  jednostki schodzące z grafu abstrakcyjnego pytają o trasy naraz (`traffic.walkOn` →
+  `routing.answer` → hpastar).
+- Piętra w publikacji (`t/tiers`): tabela poziomów komórek pięter na widok i `Grid.Fit` na rzecz
+  dłuższą niż `Small` albo kawałek uchwytu; `World_Seams` (bench/, 1000 rzeczy `Fixed` na szwach
+  L3|L4, 200 z nich kawałkami 50 uchwytów): `Fit` to ~27 % publikacji na długich rzeczach (kilka
+  dzieleń całkowitych na próbowane piętro); `Fit` w O(1) z pierwszej i ostatniej kolumny i wiersza
+  sektorów pudła to dźwignia. `World_Publish` bez płacht nietknięty (dwie kolumny opcjonalne).
 - Przebieg `standing` planszy pisze `Pace.Share` z `cell.PaceOf` ze stokiem do sąsiada w kierunku
   marszu; jego cena nad reliefem (`Map.Rise` i `exp` na jednostkę na krok) przyjęta jako cena
   strategii (`gram-perf-navigation`).

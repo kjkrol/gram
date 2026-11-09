@@ -163,7 +163,25 @@ func (f *Font) Has(r rune) bool { return f.glyph(r).ok }
 // Draw draws s in the font, c its colour, its first line's top-left at (x, y) of dst, a line
 // under another at each newline.
 func (f *Font) Draw(dst *gfx.Image, s string, x, y float32, c color.Color) {
-	f.pieces = f.pieces[:0]
+	f.pieces = f.lay(f.pieces[:0], s, x, y, true)
+	if len(f.pieces) == 0 {
+		return
+	}
+	cr, cg, cb, ca := gfx.Premultiply(c)
+	gpu.DrawPieces(gfx.GPU(dst), gfx.GPU(f.ready()), f.pieces, [4]float32{cr, cg, cb, ca},
+		gpu.SourceOver)
+}
+
+// Glyphs appends to dst the glyphs of s in f, each where it lies from the top-left of the first
+// line, a line under another at each newline, and where it is on f's Sheet.
+func Glyphs(f *Font, s string, dst []gpu.Piece) []gpu.Piece { return f.lay(dst, s, 0, 0, false) }
+
+// Sheet is the image f's glyphs are drawn from, every glyph laid so far on it.
+func Sheet(f *Font) *gfx.Image { return f.ready() }
+
+// lay appends to dst the glyphs of s with the first line's top-left at (x, y), each on whole
+// pixels where snap says
+func (f *Font) lay(dst []gpu.Piece, s string, x, y float32, snap bool) []gpu.Piece {
 	pen := y + f.ascent
 	for more := true; more; {
 		var line string
@@ -176,18 +194,23 @@ func (f *Font) Draw(dst *gfx.Image, s string, x, y float32, c color.Color) {
 			}
 			g := f.glyph(r)
 			if !g.src.Empty() {
-				f.pieces = append(f.pieces, gpu.Piece{
-					DstX: float32(math.Round(float64(px + g.dx))), DstY: float32(math.Round(float64(pen + g.dy))),
-					SrcX: float32(g.src.Min.X), SrcY: float32(g.src.Min.Y), W: float32(g.src.Dx()), H: float32(g.src.Dy())})
+				dx, dy := px+g.dx, pen+g.dy
+				if snap {
+					dx, dy = float32(math.Round(float64(dx))), float32(math.Round(float64(dy)))
+				}
+				dst = append(dst, gpu.Piece{DstX: dx, DstY: dy, SrcX: float32(g.src.Min.X),
+					SrcY: float32(g.src.Min.Y), W: float32(g.src.Dx()), H: float32(g.src.Dy())})
 			}
 			px += g.advance
 			prev = r
 		}
 		pen += f.height
 	}
-	if len(f.pieces) == 0 {
-		return
-	}
+	return dst
+}
+
+// ready is the sheet holding every glyph laid so far
+func (f *Font) ready() *gfx.Image {
 	if f.sheet == nil {
 		f.sheet = gfx.NewImage(sheetSide, sheetSide)
 	}
@@ -195,8 +218,7 @@ func (f *Font) Draw(dst *gfx.Image, s string, x, y float32, c color.Color) {
 		f.sheet.WritePixels(f.pix.Pix)
 		f.written = true
 	}
-	cr, cg, cb, ca := gfx.Premultiply(c)
-	gpu.DrawPieces(gfx.GPU(dst), gfx.GPU(f.sheet), f.pieces, [4]float32{cr, cg, cb, ca}, gpu.SourceOver)
+	return f.sheet
 }
 
 func fixedToFloat(v fixed.Int26_6) float32 { return float32(v) / 64 }

@@ -36,8 +36,9 @@ type figures struct {
 // Lie figures.lies[lie-1] (0 for none), its shadow as the Lighting says; sheet, one more than the
 // sector whose sheet stands in its place from L4 on while it holds a photograph of it, 0 for
 // none; fine, whether a view draws it short of L4 all the same; banner, whether a view draws it
-// in its kind's banner where its kind declares a look; ringed, whether a view draws it, fixed by
-// a seam, finer than its middle's sector
+// in its kind's banner where its kind declares a look; ringed, whether a view draws it at another
+// level than its middle's sector's: fixed by a seam, or, where tier, a thing fixed drawn at the
+// level of the cell of the tiers at slot tier-1 (tier is read only where ringed)
 type figure struct {
 	id        uid.UID64
 	box       plane.AABB
@@ -52,6 +53,13 @@ type figure struct {
 	banner    bool
 	ringed    bool
 	shadow    render.Shadowing
+	tier      int32
+}
+
+// home is a Whole's handle and the slot of the cell of the tiers it lives in
+type home struct {
+	whole uid.UID64
+	slot  int32
 }
 
 // layer is a sprite an entity is drawn with and how far the effect its material is under has run
@@ -61,9 +69,11 @@ type layer struct {
 }
 
 func (s *renderer) Init(si *goke.SysInit) {
+	// a whole's handle has no look: its pieces are drawn
 	qb := si.NewQueryBuilder(&s.base, &s.appearance).Optional(&s.z).Optional(&s.lies).
 		Optional(&s.active).Optional(&s.keen).Optional(&s.asleep).Optional(&s.field).
-		Optional(&s.unfolded).Optional(&s.fixed)
+		Optional(&s.aggregate).Optional(&s.unfolded).Optional(&s.fixed).Optional(&s.pieceOf).
+		Optional(&s.whole)
 	if s.lighting != nil {
 		s.lighting.Join(qb)
 	}
@@ -75,6 +85,7 @@ func (s *renderer) Init(si *goke.SysInit) {
 	s.rules.Bind(qb)
 	s.renderQuery = qb.Build()
 	s.stretches = si.NewQueryBuilder(&s.stretch).Build()
+	s.handles = si.NewQueryBuilder(&s.handleBase).Include(goke.Include[Whole]()).Build()
 }
 
 // Publish settles every entity some camera sees as the rules say, for the frame drawn next.
@@ -106,17 +117,17 @@ func (s *renderer) Publish() {
 		return
 	}
 	sheeting := s.sheet.begin(&b.sheet, s.seeing)
-	s.found = false
+	s.found, s.homed = false, false
 	// what lies asleep at L6 is drawn by no camera, nor a point aggregate unfolded, its parts
-	// alone; a field is, wherever its box is; what stands where a sheet is drawn is photographed
-	// whether a camera sees it or not
+	// alone, nor a Whole's handle, its pieces alone; a field is, wherever its box is; what stands
+	// where a sheet is drawn is photographed whether a camera sees it or not
 	for s.renderQuery.All(); s.renderQuery.Next(); {
 		cur := s.renderQuery.Cursor()
 		if fields := s.field.Slice(cur); fields != nil {
 			if s.seenFields(s.base.Slice(cur), fields) {
 				s.publish(b, cur, fields, false)
 			}
-		} else if !s.asleep.Present(cur) && !s.unfolded.Present(cur) {
+		} else if !s.asleep.Present(cur) && !s.unfolded.Present(cur) && !s.whole.Present(cur) {
 			fixed := sheeting && s.fixed.Present(cur)
 			if s.seenAny(cur.IDs) || fixed && s.wantedAny(s.base.Slice(cur)) {
 				s.publish(b, cur, nil, fixed)
@@ -147,7 +158,7 @@ func (s *renderer) wantedAny(bases []Base) bool {
 func (b *figures) drop() {
 	held, kept := b.sheet.held, b.all[:0]
 	for k := range b.all {
-		if e := &b.all[k]; e.sheet == 0 || e.fine || !held[e.sheet-1] {
+		if e := &b.all[k]; e.sheet == 0 || e.fine || held[e.sheet-1] == 0 {
 			kept = append(kept, *e)
 		}
 	}
@@ -272,6 +283,11 @@ func (s *renderer) publishStandIns(b *figures, cur *goke.Cursor, fixed, keen boo
 	ruled := s.rules.ruled()
 	ws, _ := s.atlas.(*Atlas)
 	plain := !s.thinned
+	var pieces []PieceOf
+	if fixed {
+		pieces = s.pieceOf.Slice(cur)
+	}
+	aggregates := s.aggregate.Slice(cur)
 	for i, id := range ids {
 		if ruled && !s.shown[i] {
 			continue
@@ -280,27 +296,45 @@ func (s *renderer) publishStandIns(b *figures, cur *goke.Cursor, fixed, keen boo
 		if zs != nil {
 			z = zs[i]
 		}
-		sheet, alive, ringed := int32(0), false, false
+		sheet, alive, ringed, tier := int32(0), false, false, int32(0)
+		if fixed {
+			tier = s.tierOf(&bases[i], pieces, i)
+		}
 		// where no view draws a sheet, what stands is neither photographed nor left to one; what a
-		// view draws alive by a seam is drawn whole there, never thinned, and no sheet holds it
-		if fixed && s.sheet.wants(bases[i].Pos.AABB.AABB) {
-			if alive, ringed = s.alive(id, bases[i].Pos.AABB); !alive {
-				var lie *Lie
-				if lies != nil && lies[i].Length > 0 {
-					lie = &lies[i]
-				}
-				sheet = s.stand(id, &bases[i], z, lie, s.first(i, appearances), ws)
+		// view draws alive, at its cell's level or by a seam, is drawn whole there, never thinned,
+		// and no sheet holds it
+		stands := fixed && s.sheet.wants(bases[i].Pos.AABB.AABB)
+		switch {
+		case tier > 0:
+			alive, ringed = s.tieredAlive(b.sheet.tiered, id, tier), true
+			stands = stands && !alive
+		case stands:
+			alive, ringed = s.alive(id, bases[i].Pos.AABB)
+			stands = !alive
+		}
+		if stands {
+			var lie *Lie
+			if lies != nil && lies[i].Length > 0 {
+				lie = &lies[i]
 			}
+			sheet = s.stand(id, &bases[i], z, lie, s.first(i, appearances), ws)
 		}
 		bannered := false
 		if !fixed {
+			// a folded aggregate stands for its Strength
+			heads := int32(1)
+			if aggregates != nil && aggregates[i].Strength > 0 {
+				heads = int32(aggregates[i].Strength)
+			}
 			var own bool
-			if own, bannered = s.farOf(id, &bases[i], z, s.first(i, appearances), ws); !own {
+			own, bannered = s.farOf(id, &bases[i], z, s.first(i, appearances), ws, heads)
+			if !own {
 				continue
 			}
 		}
+		// what lives in a cell of the tiers is never thinned, so no whole loses a piece
 		switch {
-		case plain:
+		case plain || tier > 0:
 			if !s.sees(id) {
 				continue
 			}
@@ -314,9 +348,11 @@ func (s *renderer) publishStandIns(b *figures, cur *goke.Cursor, fixed, keen boo
 		e.dir, e.speed = bases[i].Vel.Dir, bases[i].Vel.Value
 		e.z, e.lie, e.sheet = z, 0, sheet
 		e.piece, e.fine, e.banner, e.ringed = false, false, bannered, ringed
-		e.shadow = render.Shadowing{}
+		e.shadow, e.tier = render.Shadowing{}, tier
+		// what lives in a cell of the tiers is drawn short of L4 by no view seeing it once a sheet
+		// holds it
 		if sheet > 0 {
-			if e.fine = s.fine(id, e.box); !e.fine {
+			if e.fine = tier == 0 && s.fine(id, e.box); !e.fine {
 				s.sheet.droppable++
 			}
 		}
@@ -374,6 +410,68 @@ func (s *renderer) stand(id uid.UID64, base *Base, z Z, lie *Lie, sprite render.
 	s.sheet.stand(box.AABB, signed(uint64(id), l3, z.Top(), box.TopLeft), &at)
 	mid := Position{AABB: box}.Center()
 	return int32(s.sheet.grid.Of(mid.X, mid.Y)) + 1
+}
+
+// tierOf is one more than the slot of the cell of the tiers the thing fixed over base lives in:
+// its handle's where it is a piece of one found, pieces its chunk's PieceOf (nil for none), else
+// its own where it is longer than small; 0 for one living by its middle, and where no tiers lie
+func (s *renderer) tierOf(base *Base, pieces []PieceOf, i int) int32 {
+	if s.sheet.tiers == nil {
+		return 0
+	}
+	if pieces != nil {
+		if slot, ok := s.homeOf(pieces[i].Whole); ok {
+			return slot + 1
+		}
+	}
+	box := base.Pos.AABB
+	if max(box.Size.X, box.Size.Y) <= s.sheet.small {
+		return 0
+	}
+	return s.sheet.slotOf(box.AABB) + 1
+}
+
+// homeOf is the slot of the cell of the tiers the handle whole lives in, false where no handle
+// is found
+func (s *renderer) homeOf(whole uid.UID64) (int32, bool) {
+	if !s.homed {
+		s.findHomes()
+	}
+	if whole != 0 && s.last.whole == whole {
+		return s.last.slot, true
+	}
+	k, ok := slices.BinarySearchFunc(s.homes, whole, func(h home, id uid.UID64) int {
+		return cmp.Compare(h.whole, id)
+	})
+	if !ok {
+		return 0, false
+	}
+	s.last = s.homes[k]
+	return s.last.slot, true
+}
+
+// findHomes has homes every Whole's handle with the slot of the cell it lives in, by identity
+func (s *renderer) findHomes() {
+	s.homed, s.homes, s.last = true, s.homes[:0], home{}
+	for s.handles.All(); s.handles.Next(); {
+		cur := s.handles.Cursor()
+		for i, b := range s.handleBase.Slice(cur) {
+			slot := s.sheet.slotOf(b.Pos.AABB.AABB)
+			s.homes = append(s.homes, home{whole: cur.IDs[i], slot: slot})
+		}
+	}
+	slices.SortFunc(s.homes, func(a, b home) int { return cmp.Compare(a.whole, b.whole) })
+}
+
+// tieredAlive reports whether a view seeing id draws short of L4 the cell of the tiers at slot
+// tier-1, by tiered, each view's levels of them
+func (s *renderer) tieredAlive(tiered []tierLevels, id uid.UID64, tier int32) bool {
+	for k, v := range s.seeing {
+		if v.Contains(id) && tiered[k].at(tier) < lod.Strategic {
+			return true
+		}
+	}
+	return false
 }
 
 // alive reports whether a view seeing id draws the thing fixed over box short of L4 where it draws
@@ -443,7 +541,8 @@ func levelOver(v *view.View, b geom.AABB) lod.Level {
 func (s *renderer) photographed(at *shot, box plane.AABB, dir geom.Vec, lie *Lie, z Z,
 	id render.SpriteID) {
 	mid := Position{AABB: box}.Center()
-	along, across, angle, flat := box.Size.X/2, box.Size.Y/2, float32(0), s.lying[id]
+	along, across, angle := box.Size.X/2, box.Size.Y/2, float32(0)
+	flat := s.of(id)&flagLying != 0
 	if lie != nil {
 		if dir == (geom.Vec{}) {
 			dir = geom.NewVec(1, 0)

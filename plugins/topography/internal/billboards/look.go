@@ -72,7 +72,7 @@ func (l Look) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world
 	if a.Sway > 0 { // from above the top leans as far as the entity is wide
 		sizeX, sizeY := box.Size.X, box.Size.Y
 		cx, cy := box.TopLeft.X+sizeX/2, box.TopLeft.Y+sizeY/2
-		lx, ly := l.sky.Air().Sway(f.Time(), cx, cy, a.Sway)
+		lx, ly := l.gpu.weather.Sway(f.Time(), cx, cy, a.Sway)
 		rise := max(sizeX, sizeY)
 		box = plane.NewAABB(geom.NewVec(box.TopLeft.X+(lx*rise), box.TopLeft.Y+(ly*rise)), box.Size.X, box.Size.Y)
 	}

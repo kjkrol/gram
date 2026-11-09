@@ -1198,3 +1198,27 @@ func TestSectors_KeepEveryLevelsMarkThroughASave(t *testing.T) {
 		t.Errorf("entities %v by their pace loaded, want %v", got, far)
 	}
 }
+
+func TestSectors_GoCoarserPastALevelsRingWhateverTheScale(t *testing.T) {
+	ringed := twoLevels
+	ringed.Rings[lod.L2] = 300
+	r := sectorWorld(t, ringed)
+	r.spawn(100, 550)
+	r.observe(100)
+	r.run()
+	// the near observer sees both at L2's scale within its sight; the second sector begins 412
+	// past the viewpoint, past L2's ring
+	if got := r.at(lod.L2); !same(got, 100) {
+		t.Errorf("at L2 %v, want the one at 100", got)
+	}
+	if got := r.at(lod.L3); !same(got, 550) {
+		t.Errorf("at L3 %v, want the one at 550, past L2's ring", got)
+	}
+	plain := sectorWorld(t, twoLevels)
+	plain.spawn(100, 550)
+	plain.observe(100)
+	plain.run()
+	if got := plain.at(lod.L2); !same(got, 100, 550) {
+		t.Errorf("without a ring at L2 %v, want both", got)
+	}
+}

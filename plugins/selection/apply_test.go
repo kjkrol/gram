@@ -28,6 +28,7 @@ type installCtx struct {
 	ecs     *goke.ECS
 	pending []func() []goke.System
 	pool    *parallel.Pool
+	drawn   []render.Source
 }
 
 func (c *installCtx) UseModule(m goke.Module) {
@@ -120,9 +121,9 @@ func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 	}
 }
 
-func (c *installCtx) Hosts(h ...host.Host)   { c.hosts = append(c.hosts, h...) }
-func (c *installCtx) Draws(...render.Source) {}
-func (c *installCtx) Looks(func())           {}
-func (c *installCtx) Pool() *parallel.Pool   { return c.pool }
+func (c *installCtx) Hosts(h ...host.Host)     { c.hosts = append(c.hosts, h...) }
+func (c *installCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
+func (c *installCtx) Looks(func())             {}
+func (c *installCtx) Pool() *parallel.Pool     { return c.pool }
 
 func (c *installCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

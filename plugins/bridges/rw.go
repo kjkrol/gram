@@ -30,7 +30,8 @@ func (w *Write) Spawn(level *board.Level) error {
 			b.Piers = site.Piers(gr, spans)
 		}
 		p.laid = append(p.laid, laid{t: t, plan: b, at: at, heights: heights})
-		p.worldPlugin.Write().Seed(p.parts(t, b, g)...)
+		whole, pieces := p.parts(t, b, g)
+		p.worldPlugin.Write().SeedWhole(whole, pieces...)
 		return nil
 	})
 }
