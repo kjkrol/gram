@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.20.0 — unreleased
+## v0.20.0 — 2026-11-09
 
 **Forests as a plugin, the still layer of the space, one banner for a crowd and a badge for a
 banner, a point whole at its parts' middle** (2026-11-08, branch `feat/madeira-aggregates`, parts
