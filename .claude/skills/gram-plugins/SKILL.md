@@ -70,8 +70,10 @@ keeps only what those do not.
   topography and motion/expanse have them): the supervisor runs once a tick after the clock,
   before the views. Per observer camera (`sector.Observers`, the cameras' but a `Whole` one's or
   a minimap's) it holds a level a sector from `lod.Ladder.At(camera.ScaleShown(nearest point),
-  distance from camera.Viewpoint)`, wrap-aware (`Grid.Nearest`), finer at once and coarser only
-  past `Ladder.Hold`'s hysteresis (a threshold by 10%, the Sight by half a sector), then grades
+  distance from camera.Viewpoint)`, wrap-aware (`Grid.Nearest`), coarser than a level past its
+  `Ladder.Rings[level]` (`m/rings`, 2026-11-08; widened with the Sight by the camera's), finer
+  at once and coarser only past `Ladder.Hold`'s hysteresis (a threshold by 10%, the Sight and
+  the rings by half a sector), then grades
   it so neighbours both under L6 differ by one at most (a Chebyshev transform; L6 borders
   anything, else the lift would wake rings beyond the Sight) — the camera's view reads that
   graded level. The level ticked is the finest graded level of any observer, with none the
@@ -97,6 +99,13 @@ keeps only what those do not.
   gathers them anew after every Sync (`Clock.OnSync`; the engine hands `Update`
   `Clock.Settling(rc)`) and as a tick begins where a chunk's table changed (`TableVer`). Nothing
   else tells it of spawns, despawns or marks; queries read that grid till the next rebuild.
+  Two layers (`f/space`, 2026-11-08, aabbworld v1.21.0 `RebuildStill`): the indexer runs two
+  queries, the still (`Include[Fixed]`) and the moving (`Exclude[Fixed]`), both without L6,
+  with runs and `TableVer` checks a layer; the still layer is indexed once and kept across
+  `RebuildRuns`, pairs are moving×moving and moving×still, the still never pushed; a still
+  box's Capability must not change between calls, so `Write.Restill()` has the layer taken anew
+  (the collision calls it the first tick after a `Fixed` collider spawns and when a `Collider`
+  is removed).
 - Each plugin refuses the other mode's facts (a `Z` in a flat world) where it first meets them.
 - `Scale.Figures` draws the figures bigger than life (boxes, heights, eyes); speeds and sight
   stay real.
@@ -144,6 +153,20 @@ keeps only what those do not.
   it per view). `Read.Sheet()` (perUnit 0 till a sector holds a photograph: clients skip their
   sample), `Read.Painted(i)` (a held sector holding something, frame-consistent). A unit at L5 is
   its blob as at L4, thinned by `Keep[L5]`. `sector.Grid.Of` truncates, no float64.
+  Tiles (`sheet_files.go`, `d/files`, 2026-11-06; `Config.Sheets{Dir, Keep, Version}`): the two
+  sheets in 512-texel tiles `albedo-<tx>-<ty>.png` and `relief-<tx>-<ty>.png` beside `sheets.yaml`
+  (version, per_unit, grid, sector, tile, space, the painted sectors with their signature and
+  inked), read in `open()` with the uploads deferred and the L5 halves by `darkroom.halve`; a
+  manifest of another Version, texel or world is ignored with one log line. **PNG is written
+  through `image.NRGBA` over the bytes, never `image.RGBA`**: that one is premultiplied and the
+  encoder divides every half-covered texel's colour by its alpha. With `Keep` a dirty tile (a
+  sector in it photographed) is written 2 s after its last photo, at most one a second
+  (`CopyFrom` and `ReadPixels` in the frame, `png.BestSpeed` in a goroutine, `.tmp` then rename,
+  the manifest rewritten after each). `Swap` schedules `develop` only when photos wait, so `keep`
+  re-arms the Defer fill while tiles are dirty (a workaround; `Swap`'s condition is the cleaner
+  lever). `Benchmark_World_SheetFiles` lives in `plugins/world` (it needs the store), so
+  `measure.sh` does not see it. The policy is the game's: a static world ships its tiles
+  read-only (`Keep` false), a dynamic one writes them back (the user's word, 2026-11-06).
 - Seams L3|L4 (`p/seams`, 2026-11-05): once a publish `sheets.begin` marks the sectors a view
   draws at L4–L5 with a neighbour it draws short of L4 (`sheets.ring`, the union over views,
   `tiling.Neighbours`); a `Fixed` thing is `alive` when some view draws it finer than its middle's
@@ -156,39 +179,83 @@ keeps only what those do not.
   once, exactly when the photograph changes; a hook on the ring set would have re-photographed
   unchanged sectors and, a pan moving the ring by a row (more than `perFrame`), flickered them to
   points. A world that never calls `Sheets()` draws a thing by a seam as before.
+- Tiers and the handle (`t/tiers`, 2026-11-07): `sheets.begin` builds a view a table of the
+  tiers' cells (`sheetFrame.tiered`, in the figures' double buffer; a 2×2 min climb from the
+  sectors' levels, 4/3·n entries, no allocation warm) and a `Fixed` thing longer than
+  `Read.Small` (a wall, a handle) or a piece (`PieceOf`) is drawn at its cell's level
+  (`Grid.Fit` at the publish, O(1), nothing saved; `figure.ringed` now means "drawn at its
+  cell's level") and photographed from L4 into every sector it covers; a piece takes its handle's
+  cell (`renderer.homes`, a sorted id→slot slice rebuilt lazily at the first piece met; a piece
+  whose handle is gone is judged on its own box); a handle (`Whole`) is skipped at chunk level,
+  so it is in no figure list and no photograph; nothing living in a cell is thinned by `Keep`
+  (its pieces would vanish one by one while the photograph waits); only a world with sheets uses
+  the tier rule; the small things keep the ring rule. Trap: `sheets.wants` tests a box's four
+  corners alone, so a long thing whose middle sector alone is at L4 gets no photograph there and
+  stays alive. `Fit` costs ~27 % of a publish of long things (`Benchmark_World_Seams/long`:
+  integer divisions a tier tried; an O(1) `Fit` from the box's first and last sector columns and
+  rows is the lever).
 - Banners and counts (`banners.go`, `p/far`, 2026-11-05): with `Config.Far` `Banners` (a setting,
   `ShowFar`), the loose units (no field, not `Fixed`) of one kind in one sector a view draws at
   L4–L5 whose kind declares a look at that level (`Atlas.declares`) are one group a view
-  (`figures.far`, in the double buffer: a flat id list, a centroid, the mean box and `Z`), drawn
-  by `Compose` through `s.point` as that look over the mean box, never thinned (gathered before
+  (`figures.far`, in the double buffer: a flat id list, a centroid, the mean box and `Z`), drawn by
+  `Compose` through `s.point` as that look over the mean box, never thinned (gathered before
   `kept`); a kind without the look stays points; a unit another view draws finer keeps its record
   (`figure.banner`, skipped per view). `Read.Banners(cam, dst)` appends the frame's banners (ids
-  alias the frame's buffer: valid till the next frame). Counts (`Config.Counts`, `ShowCounts`):
-  the world renderer is a `render.Glass` (`DrawGlass`), writing the count in the kind's far
-  colour (`Atlas.farColour`: the mean colour of its L4 look where it declares one, else its
-  blob's; `blobColour` renamed) at `cam.Project` of the centroid, scaled to `dst` and offset by
-  its `Bounds().Min`, a banner's count over its box, a points cluster's (≥ 2, the thinned
-  counted) at its centroid; a folded aggregate with an L4 look is a banner of one. Hover and the
-  pointed commands still hit a bannered unit at its real place; only `Select` knows banners.
+  alias the frame's buffer: valid till the next frame). Banners of a kind in neighbouring sectors
+  whose units stand within `Config.Sectors.Small` of each other are one (`farJoin`, a union-find,
+  across the torus's seam; `f/counts`, 2026-11-08). A banner is a badge (`f/badge`, 2026-11-08, the
+  user's word: a disc or a diamond in the player's colour with the number inside):
+  `world.BannerStyle{Shape, Size, Fill, Rim}` declared on the kind with `Slot.Styled`, each zero its
+  default (a disc 14 px across in the kind's far colour, `Atlas.farColour`: the mean colour of its
+  L4 look where it declares one, else its blob's; the rim a third of it), read once at `Atlas.Close`
+  into a table a sprite (`kindBanner`, `Atlas.bannered`); a style alone makes the kind bannered at
+  L4–L5 with no L4 look (the topography's rival walker). The badge stands 2 px over the top of the
+  banner's drawn box, drawn through `render.Labels` with the number centred in it, white or black by
+  the fill's luma, only with the counts on (`Config.Counts`, `ShowCounts`) and two units or more; it
+  grows to hold its digits (`render.BadgeWidth`); `Banner.Reach` is half its width in shown pixels
+  and `Banner.BadgeAt(cam)` its middle and reach in the camera's pixels; a folded aggregate with an
+  L4 look is a banner of one, a badge without a number. A kind's points two or more in a sector get
+  their count over the centroid the same way, no badge. Hover and the pointed commands still hit a
+  bannered unit at its real place; only `Select` knows banners.
 - Aggregates (`wholes.go`, 2026-11-04): `Aggregate`, `Field{Size}`, `PartOf`; the `wholes` system
   (after the moments', `lod.Steady`) reads each aggregate's level at its centre (`levelAt`, not the
-  mark swaps: a spawn mid-tick has no mark yet), keeps a world-made `stretch` entity per
-  unfolded (aggregate, sector) with the fold's due time (saved; `Unfold`'s subject, which is how
-  `SpawnPart{At}` finds the sector's `Box`), tells `Folding` to the parts whose centre lies in
-  the sector, moves a point aggregate to its parts' centroid before `Fold` (`gather`, the space's
-  runs re-gathered), and checks `Met` among the bodies carrying `sector.Abstract` only when a rule
-  handles it (`meeting` entities remember a pair). `Grid.Cover` cuts a box by sector. A field's
-  record keeps its own box plus `Size` in a side table; `renderer.over` picks per camera: the
-  level read on the field box, drawn over it from L4 (the point path scales the look), over its
-  own box short of it; seen wherever the field box meets the view, asleep too (the render query
-  keeps L6 chunks carrying `Field`); never thinned, no shadow over the field; a box over 8×8
-  texels sums its inside a run at a time and weighs its rim alone. `Unfolded` (first Unfold →
-  the step after the last Fold): a point aggregate publishes no record while it carries it, a
-  field is published as one record per covered sector (`renderer.covers`), each at its own
-  sector's level, none for an unfolded sector nor for one whose stretch is `Folded` till its
-  parts are gone (the stretch outlives the Fold one step). `Keen`/`Calm` commands are carried in
-  the despawn system. **goke's `Query.Seek` ignores a query's Exclude and tag filters**: what a
-  Seek must leave out is read as an optional column (the minimap's marks, the keeping's release).
+  mark swaps: a spawn mid-tick has no mark yet), keeps a world-made `stretch` entity per unfolded
+  (aggregate, sector) with the fold's due time (saved; `Unfold`'s subject, which is how
+  `SpawnPart{At}` finds the sector's `Box`), tells `Folding` to the parts whose centre lies in the
+  sector, moves a point aggregate to its parts' centroid before `Fold` (`gather`, the space's runs
+  re-gathered) and each step while it is `Unfolded` to the middle of its non-`Fixed` parts' joint
+  box, its own size kept (`follow`, before `unfold`; `space.Move` only past `f32.Eps`; `f/band`,
+  2026-11-08), and checks `Met` among the bodies carrying `sector.Abstract` only when a rule handles
+  it (`meeting` entities remember a pair). `Grid.Cover` cuts a box by sector. A field's record keeps
+  its own box plus `Size` in a side table; `renderer.over` picks per camera: the level read on the
+  field box, drawn over it from L4 (the point path scales the look), over its own box short of it;
+  seen wherever the field box meets the view, asleep too (the render query keeps L6 chunks carrying
+  `Field`); never thinned, no shadow over the field; a box over 8×8 texels sums its inside a run at
+  a time and weighs its rim alone. `Unfolded` (first Unfold → the step after the last Fold): a point
+  aggregate publishes no record while it carries it, a field is published as one record per covered
+  sector (`renderer.covers`), each at its own sector's level, none for an unfolded sector nor for
+  one whose stretch is `Folded` till its parts are gone (the stretch outlives the Fold one step).
+  `Keen`/`Calm` commands are carried in the despawn system. **goke's `Query.Seek` ignores a query's
+  Exclude and tag filters**: what a Seek must leave out is read as an optional column (the minimap's
+  marks, the keeping's release).
+- The preview, a dry unfold (`preview.go`, `d/preview`, 2026-11-06): a sector waiting for its
+  photo (`sheets.pending`) under a bare field stretch (no snapshot, no stretch entity: never
+  unfolded, or not since the load) gets its parts without spawning them: `wholes` opens a
+  preview (ids counted from 0xFFFF0000, at most `perFrame` a step), `Unfold` goes to the rules
+  through the same RunWhere as a real one, a `SpawnPart` under a preview records a shot (Z from
+  the kind's Spec — `ikinds.Kind.Z`, `HasZ` — Altitude `GroundAt(middle)`, the L3 sprite, Lie)
+  instead of spawning, `foldPreviews` hands them to `sheet.fold(place, shots)`; a preview lives
+  two steps; nothing is saved. **The rules cannot tell a preview from an unfolding**, so under
+  `Unfold` only `SpawnPart`: a `Forbid`, an effect or a count there would run for the preview
+  too. `Write.SetGround`/`Read.GroundAt` (the topography sets it after `SetLook`; 0 without): the
+  world knows no ground and the shot needs the part's altitude.
+- A part standing for good is set on the ground as it comes and when the relief's version
+  changes, never a step (2026-11-08, `f/still`, `relief/altitude.go`): the parts pass compares
+  each chunk's ids pointer, length, archetype and `TableVer` with the last step (the world's
+  indexer's check), grounds a grown chunk's tail, a chunk whose table had a removal whole, and
+  every part on a new relief version; `GroundAt` a part a step was 1.25–2.2 ms over 31 000
+  trees. Pieces of a handle (`PieceOf`) are not parts: a deck stands on its cell, a pier keeps
+  the bridges' altitude.
 
 ## motion, with steering
 
@@ -196,6 +263,8 @@ keeps only what those do not.
   rule of `Moving` or `Leaving` puts on or takes off lands with the next step's effects.
 - The velocity pass scales the speed by `steering.Pace`, so a speed is asked before the ground's
   share is applied (navigation's `Trail` divides by the unit's own share).
+- The move query excludes `Fixed` and so does `held` (`f/space`, 2026-11-08): what stands for
+  good is never stepped, its boxes are the space's still layer.
 
 ## light
 
@@ -206,6 +275,9 @@ keeps only what those do not.
   before the frame holds the heights plans the whole anew.
 - "Shadows follow the frame budget" (`AdaptShadows`) makes the light a `cameras.Lever`: as the
   rate falls it drops the lamps' shadows first, then bakes coarse; back the other way.
+- The blocks go a set a sector (`Lights.Casts`, `d/shade`, 2026-11-07), each with a running hash
+  and a version, so the baker bakes anew only the tiles a changed set's shadows reach; a thing
+  with a `Lie` is one lying block (a bridge's handle), so the baker joins nothing (`t/whole`).
 
 ## board
 
@@ -303,7 +375,19 @@ keeps only what those do not.
   the planner sees a cell the levelling could flatten as flat at its corners' mean; a cell
   flanking a diagonal bridge's head is barred (its corners are fixed at the deck and on the
   ground); the map is laid on a board and run a step before it is written, the old file's
-  `units:` kept.
+  `units:` kept — and `units:` alone: a hand-placed row of `entities:` goes with a regeneration.
+  Fields and settlements (`fields.go`, `settle.go`, `d/gramap`, 2026-11-06): `fields:` rows
+  `{cells, kind, grain, least}` lay a field entity a block of `grain` cells from (0, 0) over the
+  cells of a kind where at least `least` lie, written as `{kind, from: [x, y], to: [x, y],
+  cells: n}` rows of the board's `entities:` (the demo's `fieldRow`); `settlements:` `{cells,
+  sizes, default}` lays `cells` of a kind round each road place, as many as its size's word
+  names (a place `[x, y]` or `{at, size}`, `none` for a pass), by a BFS roadside first over land
+  that is not wet, road, rock, bridge or another settlement; the legend's `@`. The thresholds,
+  the words and the sizes are the game's, in its recipe, sizes in cells never in houses (the
+  user's word, 2026-11-06: gramap stays general; what stands on a built cell is the game's
+  Unfold rules). `check.go` defines `built` like soil and stand-in field kinds so the map lays
+  on a board. Madeira: 239 forests and 21 settlements over 800 sectors; a town grows in strips
+  along its roads, and the grain of 16 cuts a big town into several fields.
 - The board's field (collision's `Field`) and cover (sight's) read the cell entities whenever
   asked; nothing copies them.
 - The flat board is drawn on the GPU from an image of its cells (`look/tiles.go`): the CPU writes
@@ -319,6 +403,12 @@ keeps only what those do not.
   log. `occupancy.PlaceSystem` (before standing) moves a part or aggregate holding no cell yet,
   laid where its domain may not stand or on a held cell, to the nearest cell taking it within
   three rings: the library's answer to parts spawned by offset.
+
+- An unfolded whole holds no cell (`f/band`, 2026-11-08): the occupancy keep's release reads
+  `Unfolded` as an optional column (`leaving`; a `Seek` ignores Exclude) and treats such a whole
+  as gone; the place system, on the first cell found taken in a step, releases the cells of
+  everything gone and tries again (a fold despawns the parts in the step the whole loses
+  `Unfolded`, and the placing runs before the keep). Test `unfolded_test.go` through a real stage.
 
 ## topography
 
@@ -342,7 +432,12 @@ keeps only what those do not.
   all. The corners' facing lives in an image in the relief's order, the middle's worked out in
   the shader. A hex save of a level a cell loads, every corner at the mean of its cells. It lives
   on the plugin's own entity. `world.Z`, the relief and `Heights` are the world's heights, not
-  the view: sight reads them in a top-down game too.
+  the view: sight reads them in a top-down game too. The altitude pass has a third query
+  (`d/prelude`, 2026-11-06: `Fixed` and `PartOf`, no `cell.On`, no `unit.Mover`) setting a
+  standing part's `Altitude` to `GroundAt(middle)` when off by more than `f32.Eps`; `PartOf` is
+  required, else the bridge piers (Fixed, their Altitude the bottom they stand at) would be
+  regrounded; the plugin hands `relief.GroundAt` to `world.Write.SetGround` right after
+  `SetLook`, for the world's previews.
 - The painter paints the cells within two of a changed one anew, all of them past an eighth.
 - A kind's detail (`painter.Style.Detail`): a uniform cell's detail comes from its flags; the
   kinds sheet is read only where a cell is `painter.Dressed` (a way on it or beside it, a ground
@@ -364,11 +459,15 @@ keeps only what those do not.
   level with the uniform `AlbedoPx` (the shader reads the albedo in its pixels; `U.Px` serves the
   kinds image too, so it cannot be halved); L6 nothing; the grid at L2 alone; the skirt always L5
   in a world with sectors, L2 without. Finest first, to prime the depth. Over the ground of a
-  sector seen at L4 or L5 whose sheet is painted (`Config.Painted`), the photo mesh
-  (`terrain/photo.go`, `photo.wgsl`, one instanced draw a level after `eachLevel`, no index
-  buffer): 32 quads a side at L4, 8 at L5, never under a texel; a corner stands at the highest top
-  within a quad of it (the corner's own texel sank a thing narrower than a quad), one cell under
-  the ground where nothing stands; a fragment with alpha 0 discarded, the rest the sheet's albedo
+  sector seen at L4 or L5 whose sheet is painted (`Config.Painted`, the photograph's version),
+  the photo mesh (`terrain/photo.go`, `photo.wgsl`, one instanced draw a level after `eachLevel`,
+  no index buffer): quads of at most `photoQuad` 8 texels a side (Madeira: 8 a side at L4, 4 at
+  L5); a corner stands at the highest top within a quad of it (the corner's own texel sank a thing
+  narrower than a quad), one cell under the ground where nothing stands, read from the tops image
+  (`tops.wgsl`, a texel a corner: the f16 top and whether anything stands near) worked out anew
+  for a sector and its eight neighbours when its photograph's version changes (`photoMesh.watch`),
+  never a frame (2026-11-07: searched per vertex every frame, 32 quads a side, it ran Madeira's
+  start view at 38 FPS against `main`'s 110); a fragment with alpha 0 discarded, the rest the sheet's albedo
   lit through the relief's normal as that level's ground, clouds at L4, haze and the sight's fog;
   it never binds the ground's albedo. A hex board draws tops alone at L3 and L4 (the sheet's
   albedo flat on the L4 tops) and one quad a sector from its tops' image at L5, the sheet over
@@ -481,6 +580,10 @@ keeps only what those do not.
   (that would drop it from sight and selection till the world's next gather): the walk reads the
   mark as a column and a marked chunk goes `still()` as a far one does, Caps Plain, contacts
   cleared, a resting pair with a marked side dropped in `rest()`.
+- `Fixed` chunks are skipped in `rebuild` (`f/space`, 2026-11-08): a `Fixed` collider's caps are
+  constant from its physics (`CanCollide|Static`, `CanCollide|Sensor` for a sensor), never
+  changed in place; the first tick after a `Fixed` collider spawns, and when a `Collider` is
+  removed, the system calls `Write.Restill()` (`CountRestills` in `export_test.go`).
 
 ## navigation
 
@@ -630,10 +733,28 @@ keeps only what those do not.
   screen `frame:<group>` and `section:<group>`.
 - A click selects a banner's units (2026-11-05): `SelectionSystem.banners` (set in `Install` from
   `world.Read.Banners`, the constructor's signature unchanged) is read in a `Select` with a camera
-  and a screen rectangle; every banner whose drawn box (`Drawn(cam, b.Box, b.Z)`, at least
-  `bannerReach` 4 px round its middle) meets the rectangle adds its ids, the units drawn in
-  banners are skipped by the ordinary pick, and `applySelection` still enforces `Allow` and the
-  owner. The selection's outlines of such units stay at their real places.
+  and a screen rectangle; every banner whose drawn box (`Drawn(cam, b.Box, b.Z)`) or whose badge
+  (`Banner.BadgeAt`: a square of `Reach` round its middle; `f/badge`, 2026-11-08) meets the
+  rectangle adds its ids, the units drawn in banners are skipped by the ordinary pick, and
+  `applySelection` still enforces `Allow` and the owner. The selection's outlines of such units stay
+  at their real places. A banner's `Count` is the units its entities stand for, not the entities
+  (2026-11-09): a folded aggregate counts for its `Aggregate.Strength` (`farGroup.heads` beside
+  `count`, the entities, which slices `ids`), the world rewriting a declared Strength with the parts
+  folded in at each Fold (`wholes.gather`), so the band's banner says 30 from the start and the
+  army's its soldiers left; a kind declaring none (the caravan) counts for one.
+- A part stands for its whole (2026-11-07, the user's word: an aggregate is selected whole, never
+  its parts): `standsFor` maps every id a `Select` or a hover hits — by ids, by a box, by a
+  banner, by the pick — to its `world.PartOf` whole where the part carries no `Selectable` and the
+  whole does and obeys the issuer; `applySelection` is unchanged, so `Allow` and the owner still
+  rule; `drawnIn` is false for an `Unfolded` whole, so it is hit nowhere at the empty spot it
+  stands on; the renderer outlines each part of a selected unfolded whole (a `PartOf` query
+  walked only while one is selected), the whole alone when folded. `Pointed` keeps the part under
+  the cursor. The knob is `Allow` on the part (2026-11-08, the user's word: a group is a thing of
+  the coarse levels, one of its units seen is picked itself): a group of individuals tells its
+  parts `Allow` as it spawns them (forest-army's soldiers, the topography's band), a unit of
+  pieces does not (the caravan's wagon and porters); a whole selected before it unfolded stays
+  selected, its parts outlined, till the first pick of a part. Trap: `Chosen` of a selected caravan is the whole, which stands where it unfolded
+  while its wagon walks away, so C/V follow an empty spot (roadmap).
 
 ## dialog
 
@@ -724,10 +845,48 @@ keeps only what those do not.
   a load. The renderer draws the hands alone: a bridge confirmed in the pause is not seen until
   its step builds it.
 
-- A bridge across an L3|L4 seam (2026-11-05): its decks and piers carry `world.Fixed` (the
-  standing template; the piers in their `Define`), so from L4 the sheets hold them at their tops
-  and the pieces beside a finer sector are drawn alive at its level: the deck stays whole and
-  level across the seam, the plugin declaring nothing.
+- A bridge is on a handle (`t/whole`, 2026-11-07): `Types.Define` registers a fourth kind,
+  `<name>.whole`, over a private row, with `world.Whole`, `world.Fixed`, the box round the span
+  from head middle to head middle `spec.Width` wide (no side under `Entities.MinSize`),
+  `Velocity{Dir}` along it, `Z{Altitude: Deck, Height: Thickness}` (the light reads a lying
+  thing from its Altitude down, as a deck), `Lie`, `Shadow{Baked}`, `vision.Transparency{1}` (a
+  diagonal bridge's box would otherwise cut sight at the deck's height) and no look; `parts()`
+  returns the handle and the pieces, `build` spawns them by `SpawnWhole`, a level's bridges by
+  `SeedWhole`; the decks cast `NoShadow` (the handle casts the deck whole, the block equal to
+  what the old `joined` made), the piers keep `Baked`; the pieces carry `PieceOf` the handle
+  and take its cell's level (world), so the deck stays whole across a seam. A save from before
+  keeps its decks' `Baked` and has no handle: they cast piece by piece, within a colour step. The
+  handle sits in the spatial index with a big box: selection and hover may pick it nearest but
+  it carries no marks; vision still sees it (a `Sighted` slot).
+
+## forest
+
+- Made over the world and the board (`NewPlugin(w, brd)`), no pass of its own: the trees come and go
+  by the world's `Unfold`, `Fold` and `Folding`. `Types.Define(name, Spec)` registers a kind of tree
+  on `board.StandingTemplate` (so `Fixed`) with the plugin's `TreeRole` (its rule despawns the tree
+  at `Folding`) and the game's `Spec.Roles`; `Spec.Solid` adds a `Collider` of infinite mass; a zero
+  `Shadow` is `Baked`. The looks are declared by the plugin's own world figure: `Side` at L2, a
+  billboard, or on `Slot.Upright()` where `Spec.Body` says (one sprite on the four sides and the
+  top: a top look of its own needs the world; measured 2026-11-08: 26 000 bodies in the frame at
+  zoom 1 over Madeira cost 6–7 ms of drawing, 60 → 49–55 FPS, so the body is the kind's choice and
+  the topography's trees are billboards; the GPU scene of stage `v` is where 130 000 quads belong),
+  `Top` at L3, `.Nothing(L4)` (an L3 look counts as declaring L4, so without it `stand()` would
+  refuse the photograph; a tree draws nothing at L4 till its sector's photo is ready, and a world
+  without sheets shows no trees from L4); nil drawers are drawn of `Colours`.
+- `Stands.Define(name, Stand, rules...)` defines the role a game's forest kind (`Aggregate` +
+  `Field`) plays: one `Unfold` rule a plot. The lattice cuts a cell into k×k squares (k the
+  smallest even number with k²/2 ≥ `Density`), plots on alternate squares, jittered from a fixed
+  PCG(7, 11) table; with `Density` 1.5 and `Jitter` 0.25 the plots are the old topography demo's.
+  A plot is sown when it lies in the part, on a listed cell and `lod.Seed(forest, sector·plots+k)
+  & 0xFFFF` is under the density's share; its kind is drawn by weight (bits 16–39 of the seed)
+  among the `Share`s whose band (`From`, `To`, world height units, zero unbounded) holds the
+  ground's height at the jittered spot (the board's heights; 0 on a flat map); no band holding,
+  nothing is planted. A single share with no band spawns straight and reads no height. `Felled`
+  holds for a `Fold` with fewer parts than the stand plants in that stretch; a `Stand.When` is an
+  effect of the forest choosing between stands (forest-army's thinning).
+- The sector's side comes from the world (`Read.SectorSide`). The demos: topography's `woods`
+  (`forest.go`: laurel, pine, heather by height; `tree.go` the specs), forest-army's `forest`
+  with its felled role and two stands.
 
 ## roads, with site
 
@@ -782,8 +941,11 @@ keeps only what those do not.
 
 - The lens of a bounded world holds its centre `Reach` from an edge of an axis that does not
   wrap, at the world's middle on an axis narrower than the circle; a torus is not held
-  (2026-11-04). An aggregate carrying `world.Unfolded` draws no mark (read as an optional
-  column: `Seek` ignores Exclude).
+  (2026-11-04). The marks walk a query over `Base` and `Appearance` excluding `world.Unfolded`
+  and `sector.L6` (2026-11-08, `f/still`: a space query round the minimap and a `Seek` an entity
+  cost 2–5 ms a publish over 31 000 unmarked trees); a sprite→mark table filled lazily, an
+  unmarked entity one sprite read and no `Base`; a marked box tested against the covered box, a
+  world away round a wrapping axis.
 
 - Its lens is no camera of the cameras' (no anchor, not saved) and nothing of `ctx.Draws`: aimed
   by the ticks, drawn as published.

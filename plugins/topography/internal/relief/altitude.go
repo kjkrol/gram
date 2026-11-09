@@ -2,6 +2,7 @@ package relief
 
 import (
 	"time"
+	"unsafe"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
@@ -12,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/uid"
 )
 
 var _ goke.System = (*altitudeSystem)(nil)
@@ -33,13 +35,30 @@ type altitudeSystem struct {
 	on       goke.Comp[cell.On]
 	floor    goke.OptComp[cell.Floor]
 
+	// the parts of aggregates standing for good on no cell; not every world.Fixed off a cell, as a
+	// bridge's pier stands where its bridge put it
+	parts *goke.Query
+	// the chunks of parts as last grounded, in the order walked, and one more than the relief's
+	// version they were grounded at (0, none): all are grounded anew once it moves
+	grounded   []groundedChunk
+	groundedAt uint64
+
 	span float32 // a cell's: a body wider stands on the highest ground under its box
+}
+
+// a chunk of parts grounded: where its ids lay and how many, its table and that table's version,
+// which goke moves whenever an entity leaves a slot of it, so only an append keeps it
+type groundedChunk struct {
+	ids  *uid.UID64
+	n    int
+	arch uint32
+	ver  uint32
 }
 
 // AltitudeSystem is the goke.System keeping the movers on r at their heights, standing on what
 // surfaces says, or on r's ground where it is nil, one bigger than a cell on the highest ground
-// under its box, each as pace says (nil, all). Run it in every step of the simulation, after
-// movement and collisions.
+// under its box, and what stands on r's ground, each as pace says (nil, all). Run it in every
+// step of the simulation, after movement and collisions.
 func (r *Relief) AltitudeSystem(surfaces ground.Surfaces, pace goke.Opt) goke.System {
 	return &altitudeSystem{relief: r, surfaces: surfaces, pace: pace, span: r.grid.CellSpan()}
 }
@@ -48,11 +67,15 @@ func (s *altitudeSystem) Init(si *goke.SysInit) {
 	movers := si.NewQueryBuilder(&s.base, &s.z, &s.mover).Optional(&s.driven).Optional(&s.course).
 		Exclude(goke.Exclude[motion.Drift]())
 	standing := si.NewQueryBuilder(&s.base, &s.z, &s.on).Optional(&s.floor)
+	parts := si.NewQueryBuilder(&s.base, &s.z).
+		Include(goke.Include[world.Fixed](), goke.Include[world.PartOf]()).
+		Exclude(goke.Exclude[cell.On](), goke.Exclude[unit.Mover]())
 	if s.pace != nil {
 		movers.With(s.pace)
 		standing.With(s.pace)
 	}
-	s.query, s.standing = movers.Build(), standing.Build()
+	s.query, s.standing, s.parts = movers.Build(), standing.Build(), parts.Build()
+	s.grounded, s.groundedAt = s.grounded[:0], 0
 }
 
 func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
@@ -105,6 +128,38 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 			zs[i].Altitude = s.relief.GroundAt(bases[i].Pos.Center())
 		}
 	}
+	s.ground()
+}
+
+// ground stands the parts come since the last step on the ground, and every part once the relief
+// has changed: one standing for good costs a comparison a chunk a step
+func (s *altitudeSystem) ground() {
+	if v := s.relief.Version() + 1; v != s.groundedAt {
+		s.grounded, s.groundedAt = s.grounded[:0], v
+	}
+	k := 0
+	for s.parts.All(); s.parts.Next(); k++ {
+		cursor := s.parts.Cursor()
+		snap := s.parts.ChunkSnapshot()
+		now := groundedChunk{ids: unsafe.SliceData(cursor.IDs), n: len(cursor.IDs),
+			arch: uint32(snap.ArchID), ver: snap.TableVer}
+		from := 0
+		if k == len(s.grounded) {
+			s.grounded = append(s.grounded, groundedChunk{})
+		} else if was := s.grounded[k]; was.ids == now.ids && was.arch == now.arch &&
+			was.ver == now.ver && was.n <= now.n {
+			from = was.n
+		}
+		if from == now.n {
+			continue
+		}
+		bases, zs := s.base.Slice(cursor)[from:], s.z.Slice(cursor)[from:]
+		for i := range zs {
+			zs[i].Altitude = s.relief.GroundAt(bases[i].Pos.Center())
+		}
+		s.grounded[k] = now
+	}
+	s.grounded = s.grounded[:k]
 }
 
 // under is the highest ground at the middle and the corners on the board of the box at pos, a

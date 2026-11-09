@@ -87,6 +87,9 @@ func TestTerrainShaders_Compile(t *testing.T) {
 		if err := s.Compile(); err != nil {
 			t.Errorf("the sheets at L%d: %v", lod.Strategic+lod.Level(k), err)
 		}
+		if err := topsShaders[k].Compile(); err != nil {
+			t.Errorf("the sheets' tops at L%d: %v", lod.Strategic+lod.Level(k), err)
+		}
 	}
 }
 
@@ -477,6 +480,14 @@ type sheets = func() (_, _, _, _ *render.Image, _ float32)
 func leveledDrawWith(t *testing.T, surface Surface, cam camera.Camera, u render.Uniforms,
 	sheet sheets) (draw func(level lod.Level) ([]span, []byte)) {
 	t.Helper()
+	return paintedDraw(t, surface, cam, u, sheet, func(int) uint32 { return 1 })
+}
+
+// paintedDraw is leveledDrawWith with the version of the photograph the sheets hold as painted
+// says
+func paintedDraw(t *testing.T, surface Surface, cam camera.Camera, u render.Uniforms,
+	sheet sheets, painted func(int) uint32) (draw func(level lod.Level) ([]span, []byte)) {
+	t.Helper()
 	grid := &atLevel{}
 	v := view.NewSeen(cam, grid)
 	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 512, Height: 512, BucketSize: 128})
@@ -488,7 +499,7 @@ func leveledDrawWith(t *testing.T, surface Surface, cam camera.Camera, u render.
 	seen := func(camera.Camera) *view.View { return v }
 	cfg := Config{Seen: seen, Sheet: sheet}
 	if sheet != nil {
-		cfg.Painted = func(int) bool { return true }
+		cfg.Painted = painted
 	}
 	r := New(flatland{}, surface, noAir{}, cfg)
 	return func(level lod.Level) ([]span, []byte) {
@@ -584,29 +595,60 @@ func (slanted) Rays() (camera.RayField, bool) {
 
 func TestTerrain_StandsTheSheetsTopsOverTheGround(t *testing.T) {
 	gputest.Need(t)
-	u := render.UniformsOf(map[string]any{"LightWay": []float32{0, 0, 1},
-		"LightStrength": []float32{0}, "LightColor": []float32{1, 1, 1},
-		"Ambience": []float32{1, 1, 1}})
 	cam := slanted{cameratest.NewFromSpace(64, 64, 0)}
-	// the row the white of the dome lies at on the screen, on the mean
 	row := func(top float32) float32 {
-		_, pix := leveledDrawWith(t, &grey{}, cam, u, domed(top))(lod.L4)
-		var sum, n float32
-		for y := range 64 {
-			for x := range 64 {
-				if pix[4*(y*64+x)] > 200 {
-					sum, n = sum+float32(y), n+1
-				}
-			}
-		}
-		if n == 0 {
-			t.Fatalf("no dome seen %v high", top)
-		}
-		return sum / n
+		_, pix := leveledDrawWith(t, &grey{}, cam, unlit(), domed(top))(lod.L4)
+		return whiteRow(t, pix)
 	}
 	// the middle at 64 lies 0.75·64/10 rows nearer the top than on the ground, its rim not at all
 	if low, high := row(1), row(64); low-high < 1.5 {
 		t.Errorf("the dome's white at row %v standing 64 high, %v lying on the ground: want it "+
 			"higher on the screen", high, low)
 	}
+}
+
+func TestTerrain_StandsTheSheetsTopsAnewAsItsPhotographChanges(t *testing.T) {
+	gputest.Need(t)
+	cam := slanted{cameratest.NewFromSpace(64, 64, 0)}
+	low, high := domed(1), domed(64)
+	shown, version := low, uint32(1)
+	draw := paintedDraw(t, &grey{}, cam, unlit(),
+		func() (_, _, _, _ *render.Image, _ float32) { return shown() },
+		func(int) uint32 { return version })
+	_, pix := draw(lod.L4)
+	lying := whiteRow(t, pix)
+	shown = high
+	if _, pix = draw(lod.L4); whiteRow(t, pix) != lying {
+		t.Errorf("the dome's white at row %v with the photograph's version kept, %v before: "+
+			"want the tops worked out once", whiteRow(t, pix), lying)
+	}
+	version++
+	if _, pix = draw(lod.L4); lying-whiteRow(t, pix) < 1.5 {
+		t.Errorf("the dome's white at row %v in a photograph anew standing 64 high, %v lying on "+
+			"the ground: want it higher on the screen", whiteRow(t, pix), lying)
+	}
+}
+
+// unlit is the frame's uniforms with nothing but an ambient white light
+func unlit() render.Uniforms {
+	return render.UniformsOf(map[string]any{"LightWay": []float32{0, 0, 1},
+		"LightStrength": []float32{0}, "LightColor": []float32{1, 1, 1},
+		"Ambience": []float32{1, 1, 1}})
+}
+
+// whiteRow is the row the white of a dome lies at on the screen pix, 64 pixels a side, on the mean
+func whiteRow(t *testing.T, pix []byte) float32 {
+	t.Helper()
+	var sum, n float32
+	for y := range 64 {
+		for x := range 64 {
+			if pix[4*(y*64+x)] > 200 {
+				sum, n = sum+float32(y), n+1
+			}
+		}
+	}
+	if n == 0 {
+		t.Fatal("no dome seen")
+	}
+	return sum / n
 }

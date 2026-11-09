@@ -10,6 +10,7 @@ import (
 	cgoke "github.com/kjkrol/ceremony/goke"
 
 	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/cond"
@@ -36,10 +37,12 @@ type module struct {
 	telemetry    Telemetry
 
 	despawned map[uid.UID64]struct{}
-	runs      []aabbworld.Run
-	versions  []uint32 // each run's table version as it was gathered
+	moving    spaceLayer
+	still     spaceLayer
 
 	kinds *Kinds
+	// the ground's height under a point, the topography's; nil, the ground lies at 0
+	ground func(at geom.Vec) float32
 
 	drawing Rules
 
@@ -83,11 +86,13 @@ type module struct {
 	sectorSwitches command.Queue[SwitchSectors]
 	spawns         command.Queue[Spawn]
 	spawnParts     command.Queue[SpawnPart]
+	spawnWholes    command.Queue[SpawnWhole]
 	despawns       command.Queue[Despawn]
 	keens          command.Queue[Keen]
 	calms          command.Queue[Calm]
 
 	spawnRunnable   goke.Runnable
+	despawner       *despawnSystem
 	despawnRunnable goke.Runnable
 }
 
@@ -102,6 +107,7 @@ func newModule(cfg Config) *module {
 	w.moments = moments{clock: clk, tick: w.tick}
 	w.sectors = newSectors(w)
 	w.wholes = newWholes(w)
+	w.despawner = newDespawnSystem(w)
 	return w
 }
 
@@ -111,17 +117,26 @@ func (w *module) tick(d time.Duration) host.Tick {
 		Time: clk.Time() + d, Seed: w.config.Seed, World: clk.Entity(), Roles: w.rolesOf}
 }
 
+func (w *module) groundAt(at geom.Vec) float32 {
+	if w.ground == nil {
+		return 0
+	}
+	return w.ground(at)
+}
+
 func (w *module) RegSystems(ecs *goke.ECS) {
 	if w.spawnRunnable != nil {
 		return
 	}
 	ecs.RegComp[Fixed]()
+	ecs.RegComp[Whole]()
+	ecs.RegComp[PieceOf]()
 	// before the clock's, which finds its State on the world's own entity
 	ecs.RegSys(w.selves.system())
 	// first in a step, so its commands land with the step's effects
 	w.effectCmdsRunnable = ecs.RegSys(w.effectCmds.system())
 	w.spawnRunnable = ecs.RegSys(newSpawnSystem(w))
-	w.despawnRunnable = ecs.RegSys(newDespawnSystem(w))
+	w.despawnRunnable = ecs.RegSys(w.despawner)
 	w.indexer = &indexer{w: w}
 	ecs.RegSys(goke.SystemFn{OnInit: w.indexer.init})
 	w.clock.OnSync(w.indexer.settle)
@@ -197,6 +212,8 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[Aggregate](),
 		goke.LoadComp[Field](),
 		goke.LoadComp[PartOf](),
+		goke.LoadComp[Whole](),
+		goke.LoadComp[PieceOf](),
 		goke.LoadComp[Unfolded](),
 		goke.LoadComp[Fixed](),
 		goke.LoadComp[stretch](),
@@ -218,8 +235,10 @@ func (w *module) PostLoad() goke.System {
 }
 
 func (w *module) reindex(si *goke.SysInit) {
-	var base goke.Comp[Base]
-	w.index(heldQuery(si, &base), &base)
+	var base, stillBase goke.Comp[Base]
+	moving, still := heldQueries(si, &base, &stillBase)
+	w.index(moving, &base)
+	w.indexStill(still, &stillBase)
 }
 
 func (w *module) count(si *goke.SysInit) int {
@@ -240,6 +259,7 @@ func (w *module) despawn(cb *goke.CmdBuf, id uid.UID64) {
 	cb.RemoveOne(id)
 	w.spawnedCount--
 	w.telemetry.Count--
+	w.despawner.cascade(cb, id)
 }
 
 func (w *module) populate(k ikinds.Kind, rows []any) { w.populateEntries(k, rows, nil) }
@@ -247,8 +267,6 @@ func (w *module) populate(k ikinds.Kind, rows []any) { w.populateEntries(k, rows
 // entries, each row's own, may be nil
 func (w *module) populateEntries(k ikinds.Kind, rows []any, entries []kind.Entry) {
 	count := len(rows)
-	sp := spawnerOf(k)
-
 	w.seeds = append(w.seeds, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		for i, row := range rows {
 			if err := w.sizeOf(k.Position.Resolve(row)); err != nil {
@@ -257,12 +275,7 @@ func (w *module) populateEntries(k ikinds.Kind, rows []any, entries []kind.Entry
 		}
 		w.reserve(count)
 		w.telemetry.Count += count
-
-		var baseComp goke.Comp[Base]
-		var labelComp goke.Comp[ceremony.Label]
-		comps := append([]goke.Addable{&baseComp, &labelComp}, sp.Columns()...)
-		w.spawnRows(si.NewFactory(comps...), &baseComp, &labelComp, sp, k, rows, entries, nil,
-			nil, 0)
+		w.spawnRows(newSpawner(si, k, false), rows, entries, nil, nil, 0, 0)
 		w.reindex(si)
 	}})
 }

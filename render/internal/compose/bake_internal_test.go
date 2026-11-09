@@ -3,6 +3,7 @@ package compose
 import (
 	"image"
 	"math"
+	"slices"
 	"testing"
 
 	"github.com/kjkrol/gram/render/gputest"
@@ -82,8 +83,32 @@ func (g *ground) uniforms(way [3]float32) Uniforms {
 // frame plans and bakes a frame's shade of g under the sun the way way, with blocks standing
 func frame(t *testing.T, b *Baker, g *ground, way [3]float32, blocks ...Block) {
 	t.Helper()
-	b.Plan(g.lattice(), way, blocks)
+	b.Plan(g.lattice(), way, []BlockSet{setOf(blocks...)})
 	b.Bake(g.uniforms(way))
+}
+
+// setOf is blocks as one set, its version a hash of them: another whenever they stand otherwise
+func setOf(blocks ...Block) BlockSet {
+	set := BlockSet{Version: 1, Blocks: blocks}
+	if len(blocks) == 0 {
+		return set
+	}
+	lo := [2]float32{float32(math.Inf(1)), float32(math.Inf(1))}
+	hi := [2]float32{float32(math.Inf(-1)), float32(math.Inf(-1))}
+	h := uint64(14695981039346656037)
+	for _, b := range blocks {
+		ux, uy := float32(math.Abs(float64(b.UX))), float32(math.Abs(float64(b.UY)))
+		hx, hy := ux*b.Along+uy*b.Wide, uy*b.Along+ux*b.Wide
+		lo = [2]float32{min(lo[0], b.X-hx), min(lo[1], b.Y-hy)}
+		hi = [2]float32{max(hi[0], b.X+hx), max(hi[1], b.Y+hy)}
+		set.Top = max(set.Top, b.Top)
+		for _, v := range [8]float32{b.X, b.Y, b.UX, b.UY, b.Along, b.Wide, b.Bottom, b.Top} {
+			h = (h ^ uint64(math.Float32bits(v))) * 1099511628211
+		}
+	}
+	set.Box = [4]float32{lo[0], lo[1], hi[0] - lo[0], hi[1] - lo[1]}
+	set.Version = h | 1
+	return set
 }
 
 func bakedOver(t *testing.T, g *ground, sun [3]float32, blocks ...Block) *Baker {
@@ -106,16 +131,17 @@ func TestBaker_BakesTheShadeInStripsAsTheSunTurns(t *testing.T) {
 	gputest.Need(t)
 	// low in the east or the west
 	sun := func(x float32) [3]float32 { return [3]float32{x, 0.1, 0.3} }
-	// half a degree on: turned, not leapt
+	// a third of a degree on: turned, not leapt
 	nudged := func(x float32) [3]float32 { return [3]float32{x, 0.1 + 0.0055, 0.3} }
 	shade := func(b *Baker) []byte {
 		pix := make([]byte, 4*b.baked.Bounds().Dx()*b.baked.Bounds().Dy())
 		b.baked.ReadPixels(pix)
 		return pix
 	}
-	east := bakedOver(t, hill(), sun(0.9))
-	west := bakedOver(t, hill(), nudged(0.9))
-	want, before := shade(west), shade(east)
+	want, before := shade(bakedOver(t, hill(), nudged(0.9))), shade(bakedOver(t, hill(), sun(0.9)))
+	if string(want) == string(before) {
+		t.Fatal("the sun turned casts the same shade: the test sees nothing")
+	}
 
 	b, g := &Baker{}, hill()
 	frame(t, b, g, sun(0.9))
@@ -127,25 +153,60 @@ func TestBaker_BakesTheShadeInStripsAsTheSunTurns(t *testing.T) {
 		t.Fatal("after one frame of a turned sun the shade is not its first strip anew and the " +
 			"rest as it was")
 	}
-	for range shadeStrips - 1 {
-		frame(t, b, g, nudged(0.9))
+	if b.Plan(g.lattice(), nudged(0.9), nil); b.Pending() {
+		t.Error("the sun still, the next frame bakes a strip again")
 	}
-	if got := shade(b); string(got) != string(want) {
-		t.Error("after a round of strips the shade is not what a bake of the whole holds")
-	}
-	if string(want) == string(before) {
-		t.Fatal("the sun turned casts the same shade: the test sees nothing")
-	}
+	b.Bake(g.uniforms(nudged(0.9)))
+
 	frame(t, b, g, sun(-0.9)) // leapt to the other side
-	west = bakedOver(t, hill(), sun(-0.9))
-	if string(shade(b)) != string(shade(west)) {
-		t.Error("the sun leapt, the shade is not baked whole at once")
+	west := shade(bakedOver(t, hill(), sun(-0.9)))
+	if got := shade(b); string(got[:per]) != string(west[:per]) ||
+		string(got[per:]) == string(west[per:]) {
+		t.Error("the sun leapt, the shade is not its first strip anew alone")
 	}
+	for range shadeStrips - 1 {
+		frame(t, b, g, sun(-0.9))
+	}
+	if string(shade(b)) != string(west) {
+		t.Error("a round of frames after the sun leapt, the shade is not what a bake of the " +
+			"whole holds")
+	}
+	if b.Plan(g.lattice(), sun(-0.9), nil); b.Pending() {
+		t.Error("every strip baked anew after the leap, yet the frame bakes")
+	}
+	b.Bake(g.uniforms(sun(-0.9)))
 
 	b.Coarse(true)
 	frame(t, b, g, sun(-0.9))
 	if bakedScale(17, 17, true) != 4 || len(shade(b)) != 4*(4*16)*(4*16) {
 		t.Errorf("coarse, the baked image is %v, want 4 pixels a cell", b.baked.Bounds())
+	}
+}
+
+func TestBaker_BakesAStripEachSixteenthOfADegreeTheSunTurns(t *testing.T) {
+	gputest.Need(t)
+	// up a great circle from 45° high in the east: the ways deg apart
+	at := func(deg float64) [3]float32 {
+		a := (45 + deg) * math.Pi / 180
+		return [3]float32{float32(math.Cos(a)), 0, float32(math.Sin(a))}
+	}
+	b, g := &Baker{}, hill()
+	frame(t, b, g, at(0))
+	// a hundredth of a degree a frame: a sixteenth turned every seventh
+	var froms []int
+	for k := 1; k <= 7*shadeStrips; k++ {
+		b.Plan(g.lattice(), at(float64(k)/100), nil)
+		if b.Pending() {
+			if k%7 != 0 {
+				t.Fatalf("a strip baked %d frames on, want every seventh", k)
+			}
+			froms = append(froms, b.plan.from)
+		}
+		b.Bake(g.uniforms(at(float64(k) / 100)))
+	}
+	if len(froms) != shadeStrips || !slices.IsSorted(froms) || froms[0] != 0 {
+		t.Errorf("the strips baked begin at rows %v, want each of %d once, down the shade",
+			froms, shadeStrips)
 	}
 }
 
@@ -172,18 +233,12 @@ func TestBaker_WaitsForTheReliefsHeights(t *testing.T) {
 func TestBaker_BakesTheShadowsOfTheBlocks(t *testing.T) {
 	gputest.Need(t)
 	b, g := &Baker{}, level()
-	// a deck 64 along x either side of (256, y), 16 across, from 40 up to 50, in two pieces
-	deck := func(y float32) []Block {
-		piece := Block{UX: 1, Along: 32, Wide: 16, Bottom: 40, Top: 50, Y: y}
-		a, c := piece, piece
-		a.X, c.X = 224, 288
-		return []Block{a, c}
+	// a deck 64 along x either side of (256, y), 16 across, from 40 up to 50
+	deck := func(y float32) Block {
+		return Block{X: 256, Y: y, UX: 1, Along: 64, Wide: 16, Bottom: 40, Top: 50}
 	}
 	shadeAt := func(x, y float32) byte { return pixelAt(b, x, y)[0] }
-	frame(t, b, g, eastAt45, deck(256)...)
-	if n := b.Blocks(); n != 1 {
-		t.Errorf("the deck's two pieces are baked as %d blocks, want one", n)
-	}
+	frame(t, b, g, eastAt45, deck(256))
 	// the line to the sun rises 1 east for 1 up: from x it meets the deck over x+40 to x+50
 	if v := shadeAt(200, 256); v > 10 {
 		t.Errorf("the ground the deck hides from the sun is lit %d, want dark", v)
@@ -198,7 +253,7 @@ func TestBaker_BakesTheShadowsOfTheBlocks(t *testing.T) {
 	if v := shadeAt(200, 274); v < 25 || v > 230 {
 		t.Errorf("the ground past the shadow's edge is lit %d, want half in the penumbra", v)
 	}
-	frame(t, b, g, eastAt45, deck(320)...)
+	frame(t, b, g, eastAt45, deck(320))
 	if v := shadeAt(200, 256); v < 245 {
 		t.Errorf("the deck moved away, the ground is lit %d, want baked anew lit", v)
 	}
@@ -212,7 +267,7 @@ func TestBaker_BakesTheBlocksOnLevelGroundWithoutHeights(t *testing.T) {
 	b := &Baker{}
 	flat := Lattice{Cols: 17, Rows: 17, Cell: 32}
 	post := Block{X: 256, Y: 256, UX: 1, Along: 8, Wide: 8, Top: 40}
-	b.Plan(flat, eastAt45, []Block{post})
+	b.Plan(flat, eastAt45, []BlockSet{setOf(post)})
 	b.Bake(UniformsOf(map[string]any{"LightWay": eastAt45[:],
 		"LightStrength": []float32{1}}))
 	if v := pixelAt(b, 236, 256)[0]; v > 10 {

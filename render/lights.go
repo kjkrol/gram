@@ -42,6 +42,9 @@ type Lights = light.Lights
 // Block is a solid whose shadow the ground bakes (light.Block).
 type Block = light.Block
 
+// BlockSet is the blocks standing in one part of the world, versioned (light.BlockSet).
+type BlockSet = light.BlockSet
+
 // Lattice is the ground a shade is baked over (light.Lattice).
 type Lattice = light.Lattice
 

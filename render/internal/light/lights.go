@@ -2,18 +2,30 @@ package light
 
 // Lights are a scene's lights for a frame: the distant light, the lamps, how many lamps nearest a
 // camera cast shadows, whether the ground's shade is baked coarse, how a live shadow is cast by
-// its distance from the eye (nil: as declared), the blocks whose shadows the ground bakes, the
-// ground they are baked over (one of under two corners a side: none), and the height of the
-// ground under a point (nil: level at 0, where the lamps cast shadows too).
+// its distance from the eye (nil: as declared), the blocks whose shadows the ground bakes in sets
+// by the part of the world they stand in, the ground they are baked over (one of under two
+// corners a side: none), and the height of the ground under a point (nil: level at 0, where the
+// lamps cast shadows too).
 type Lights struct {
 	Sun         Distant
 	Lamps       []Lamp
 	LampShadows int
 	Coarse      bool
 	Policy      ShadowPolicy
-	Blocks      []Block
+	Casts       []BlockSet
 	Ground      Lattice
 	GroundAt    func(x, y float32) float32
+}
+
+// BlockSet is the blocks standing in one part of the world, their joint rectangle Box (origin and
+// size) and the highest of their tops, so the shade is baked anew only where a set changed. Its
+// Version is raised whenever its blocks stand other than before, and a set at the same place in
+// Lights.Casts is the same part from frame to frame.
+type BlockSet struct {
+	Box     [4]float32
+	Top     float32
+	Version uint64
+	Blocks  []Block
 }
 
 // Block is a solid whose shadow the ground bakes: a rectangle round (X, Y) running (UX, UY),

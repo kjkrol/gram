@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
@@ -22,6 +23,12 @@ import (
 type fordRow struct {
 	At  cell.ID `yaml:"at"`
 	Way [2]int  `yaml:"way"`
+}
+
+type fieldRow struct {
+	From  cell.ID `yaml:"from"`
+	To    cell.ID `yaml:"to"`
+	Cells int     `yaml:"cells"`
 }
 
 // check lays the map on a board as a game would and runs it a step: what a board refuses fails
@@ -50,7 +57,7 @@ func (w *chart) check(data []byte) (err error) {
 	ground := cell.Land | cell.Air
 	kinds := b.Read(0).CellKinds()
 	kinds.Define(k.Sea, cell.Kind{Pace: 1, Allows: cell.Water | cell.Air})
-	for _, name := range []string{k.Earth, k.Sand, k.Rock, k.Forest} {
+	for _, name := range k.land() {
 		kinds.Define(name, cell.Kind{Pace: 1, Allows: ground})
 	}
 	for _, name := range []string{k.Brook, k.Stream, k.River} {
@@ -72,11 +79,21 @@ func (w *chart) check(data []byte) (err error) {
 	fords := board.NewEntities(b, board.Shape{Size: float32(w.size)},
 		func(r fordRow) cell.ID { return r.At })
 	fords.Define(k.Ford, comp.Const(cell.Floor{Allows: cell.Land}))
+	// a field is a game's kind: its rows are read and taken, nothing spawned
+	for _, f := range w.r.Fields {
+		if _, _, _, ok := wp.Kinds().Lookup(f.Kind); !ok {
+			kind.Define[fieldRow](wp.Kinds(), f.Kind,
+				wp.Roster().Spec(world.EntityTemplate, comp.Const(world.Position{})))
+		}
+	}
 	level, err := b.Lay(fstest.MapFS{"map.yaml": {Data: data}}, "map.yaml")
 	if err != nil {
 		return err
 	}
 	if err := board.Spawn[fordRow](level, nil); err != nil {
+		return err
+	}
+	if err := board.Each(level, func(string, fieldRow, string) error { return nil }); err != nil {
 		return err
 	}
 	if err := br.Write().Spawn(level); err != nil {

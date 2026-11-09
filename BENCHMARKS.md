@@ -87,6 +87,33 @@ call each).
 | one sector of 64 things | 1.27 ms | 1,131 |
 | a frame of 8 sectors | 1.96 ms | 1,131 |
 
+The preview (v0.20, `Benchmark_World_Preview`): a field never unfolded is told its `Unfold` as
+though its sector came down, and the 256 parts its rules would spawn are recorded as shots for
+the sheet instead; each op is the preview and a publish.
+
+| Previewed | Time | Allocations |
+|:---|---:|---:|
+| a field of 256 parts, no look of its own at L4 | 104–117 µs | 1 (the shots, 12 KB) |
+| a field declaring an L4 look (no preview) | 18–20 µs | 0 |
+
+The sheet files (v0.20, `Benchmark_World_SheetFiles` in `plugins/world`, since it needs the
+store): one tile of 512×512 texels, the albedo and the relief, read from PNG into the sheets'
+bytes and written back (`png.BestSpeed`, in a goroutine in the game, at most a tile a second).
+
+| Tile | Time | Allocations |
+|:---|---:|---:|
+| load | 2.5 ms | 822 (2.1 MB) |
+| save | 29.4 ms | 528 (1.7 MB) |
+
+Madeira with its forests and settlements as fields (v0.20, the topography demo, a probe at
+1024×768, both builds without SIMD, Intel UHD 620): at the start view, the whole island at L4
+(736 sectors), the steady tick is 8.7 ms (11–18 ms for the first ~6 s: the previews and the
+hierarchy), the publishing 0.75 ms, the drawing 2.3 ms and the presenting 22 ms (the island in
+the sheets, 173 sectors with the photo mesh), 40 FPS; the tiles of the view are 0.9 MB. Over the
+forest at L2 the orthographic camera unfolds every field within the Sight: 24,000 trees, a tick
+of 20–30 ms (the publishing 5 ms), the drawing 5 ms, 40–50 FPS. Both are open items in the
+roadmap.
+
 0 allocs/op. The publishing walks the world and writes a record an entity in view: under 2 ns an
 entity walked and some 10 ns a record. The drawing costs the boxes in view, about 85 ns a box
 (+2–4% with the version a level picked for every layer and the level read at the middle held in
@@ -141,6 +168,22 @@ box side quadruples the population and roughly quadruples the tick; doubling the
 size quadruples the contacts and the tick alike. Of the 5×5 tick (the profile): aabbworld's pair
 sweep 27% (`visit`, `listItems`, `sort`, `add`) and its solver 34% (`Solve`, `penetration`), gram's
 resting pairs (`rest`) 7%, its contacts and resolving 9%.
+
+### Across the seams — `Benchmark_World_Seams`
+
+A world 4096 a side in 16×16 sectors of 256, a camera seeing the west half at L3 and the east
+half at L4; 1000 fixed things stand on the seams, 200 of them pieces of 50 handles, the rest 40 a
+side (`small`) or every other one 120×20 (`long`); one publish an op, the photographs never
+developed, so every publish re-photographs 8 sectors. `-cpu=1`.
+
+| Scene | Time | Allocations |
+|:---|---:|---:|
+| small | 164 µs | 0 |
+| long | 182 µs | 0 |
+
+Against the same scene before the tiers (v0.20, `dcabebe8`): small +5%, long +8%, the cost of
+`sector.Grid.Fit` for every long thing and piece (a few integer divisions a tier tried, ~27% of
+the long publish); an O(1) `Fit` would take it back.
 
 ## Levels — `Benchmark_Sectors_Expanse`
 
@@ -553,6 +596,12 @@ readback smaller too); cut into sectors of 256 every one drawn at one level of d
 pixels scaled up to the screen; in layers and through the feed the figures at the ground's
 resolution or at every pixel (sharp).
 
+The sheet's photo mesh (`iso,level=4,sheet`) since `f/photos` (2026-11-07) lays quads of at most
+8 texels a side and reads a cached top a corner: +0.34 ms here (12.9 → 13.2 ms; the bench stands
+four lone lanterns in every other sector, each raising a quad's margin round it) while Madeira's
+start view, forests in nearly every sector, goes from 38 to 123–135 FPS (`main` 106–111;
+windowed, `GRAM_VSYNC=off`).
+
 | Frame | Time | Less the readback |
 |:---|---:|---:|
 | readback alone | 9.25 ms | |
@@ -617,6 +666,22 @@ cell changed every time.
 
 Since v0.20 every bake also shrinks the albedo to a half and a quarter (`DrawImage` at 0.5, the
 changed cells' rectangles after a partial one): whole +0.1…2%, round a cell +4…6% of the median.
+
+### The shade's tiles — `Benchmark_Bake_Tile`, `Benchmark_Light_Publish`
+
+The ground's shade baked anew in one tile of 256 pixels a side as the set of 2000 posts standing
+within it changes, over level ground 1024 a side under a sun 45° high, waited for; and the light
+published over a world of 800 sectors where 30 000 entities stand with their shadows Baked and
+nothing changed since the last publish (the blocks gathered into their sectors' sets and summed).
+
+| Benchmark | Time | Allocations |
+|:---|---:|---:|
+| Bake_Tile | 4.3–4.8 ms | 613 / 27 KB |
+| Light_Publish | 0.61 ms | 0 |
+
+The tile is the GPU's: the CPU is busy ~15% of it, a frame baking nothing costs 0.20 ms, and the
+blocks' shader stretches every post's quad down to the lowest ground. The publish is the walk
+(~0.25 ms), the sector of each block (~0.18 ms, two divisions) and the hash (~0.15 ms).
 
 ### The composer's share — `Benchmark_Composer_Render` (`render/internal/compose`)
 

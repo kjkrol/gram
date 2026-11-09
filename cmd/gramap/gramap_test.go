@@ -19,6 +19,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
+	"github.com/kjkrol/gram/plugins/board/network"
 	"github.com/kjkrol/gram/plugins/board/water"
 	roadsite "github.com/kjkrol/gram/plugins/roads/site"
 )
@@ -630,4 +631,297 @@ func TestChartGround_HoldsTheWaterAndPricesTheRock(t *testing.T) {
 	if _, ok := (chartGround{r: w.roads, l: &layout{}}).Decked(w.cell(5, 2)); ok {
 		t.Error("a levelling's road runs on a deck")
 	}
+}
+
+// knoll is an island 10 km by 4 km of whole metres, rising by steps of half a cell from its
+// sandy shore through earth and forest to its rocky top, with no river and no road: its map is
+// the same whatever the machine rounds.
+func knoll(t *testing.T) (recipe, elevation) {
+	t.Helper()
+	r, err := parseRecipe([]byte(`
+area: {centre: [10, 40], cells: [20, 12], cell: 500}
+ground:
+  rock: {slope: 0.5, above: 290}
+  sand: {within: 1, below: 100, share: 1}
+  forest: {from: 200, to: 260, share: 1}
+rivers: {brook: 1000, stream: 2000, river: 3000}
+`), "knoll.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	height := func(lon, lat float64) (float64, error) {
+		x, y := metresOf(r.Area.Centre, lon, lat)
+		// half cells from the area's corner: even at a cell's corner, odd at its middle
+		kx := math.Floor(2*(x/r.Area.Cell+10) + 0.5)
+		ky := math.Floor(2*(y/r.Area.Cell+6) + 0.5)
+		return 320 - 20*max(math.Abs(kx-20), 2*math.Abs(ky-12)), nil
+	}
+	return r, height
+}
+
+// knollMap is the knoll's map as gramap wrote it before fields and settlements.
+const knollMap = `# Made by cmd/gramap. Heights: Terrain Tiles on AWS (Mapzen's Tilezen
+# terrarium) — SRTM, EU-DEM, GMTED2010, ETOPO1 and others; see
+# https://github.com/tilezen/joerd/blob/master/docs/attribution.md
+# From knoll.yaml.
+# 20 x 12 cells of 500 m; a world unit 15.625 m.
+board:
+  default: water
+  legend:
+    "~": water
+    ".": earth
+    ":": sand
+    "^": rock
+    "*": forest
+  cells: |
+    ~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~
+    ~~::::::::::::::::~~
+    ~~:..............:~~
+    ~~:.....****.....:~~
+    ~~:....**^^**....:~~
+    ~~:....**^^**....:~~
+    ~~:.....****.....:~~
+    ~~:..............:~~
+    ~~::::::::::::::::~~
+    ~~~~~~~~~~~~~~~~~~~~
+    ~~~~~~~~~~~~~~~~~~~~
+relief: # metres
+  corners: |
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 40 80 80 80 80 80 80 80 80 80 80 80 80 80 40 0 0 0
+    0 0 0 40 80 120 160 160 160 160 160 160 160 160 160 120 80 40 0 0 0
+    0 0 0 40 80 120 160 200 240 240 240 240 240 200 160 120 80 40 0 0 0
+    0 0 0 40 80 120 160 200 240 280 320 280 240 200 160 120 80 40 0 0 0
+    0 0 0 40 80 120 160 200 240 240 240 240 240 200 160 120 80 40 0 0 0
+    0 0 0 40 80 120 160 160 160 160 160 160 160 160 160 120 80 40 0 0 0
+    0 0 0 40 80 80 80 80 80 80 80 80 80 80 80 80 80 40 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ways:
+`
+
+func TestText_WithoutFieldsOrSettlementsTheMapIsAsBefore(t *testing.T) {
+	r, height := knoll(t)
+	c, err := build(r, height, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(c.text("knoll.yaml", "")); got != knollMap {
+		t.Errorf("the map\n%s\nwant\n%s", got, knollMap)
+	}
+}
+
+func TestRecipe_APlaceIsAPairOrItsPlaceAndSize(t *testing.T) {
+	r, err := parseRecipe([]byte(`
+area: {centre: [0, 0], cells: [4, 4], cell: 100}
+settlements:
+  cells: built
+  sizes: {hamlet: 3, village: 8}
+  default: village
+roads:
+  places:
+    bare: [1, 2]
+    hamlet: {at: [3, 4], size: hamlet}
+    pass: {at: [5, 6], size: none}
+    counted: {at: [7, 8], size: 5}
+`), "places.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]struct {
+		at    [2]float64
+		cells int
+	}{
+		"bare":    {[2]float64{1, 2}, 8},
+		"hamlet":  {[2]float64{3, 4}, 3},
+		"pass":    {[2]float64{5, 6}, 0},
+		"counted": {[2]float64{7, 8}, 5},
+	}
+	for name, w := range want {
+		p := r.Roads.Places[name]
+		n, err := r.Settlements.cells(p.Size)
+		if p.At != w.at || err != nil || n != w.cells {
+			t.Errorf("%s at %v on %d cells, %v; want at %v on %d", name, p.At, n, err, w.at,
+				w.cells)
+		}
+	}
+}
+
+func TestRecipe_RefusesFieldsAndSettlementsItCannotLay(t *testing.T) {
+	for _, tc := range []struct{ name, yaml string }{
+		{"a field of no cells", "fields: [{kind: forest, grain: 16, least: 4}]"},
+		{"a field of no kind", "fields: [{cells: forest, grain: 16, least: 4}]"},
+		{"a field of no grain", "fields: [{cells: forest, kind: forest, least: 4}]"},
+		{"a field of no least", "fields: [{cells: forest, kind: forest, grain: 16}]"},
+		{"a field over no kind's cells", "fields: [{cells: woods, kind: forest, grain: 4, " +
+			"least: 1}]"},
+		{"a size of no word", "roads: {places: {a: {at: [1, 2], size: city}}}"},
+		{"a default of no word", "settlements: {cells: built, default: city}"},
+		{"a place of no at", "roads: {places: {a: {size: none}}}"},
+		{"a place of another key", "roads: {places: {a: {at: [1, 2], people: 40}}}"},
+		{"a place of three numbers", "roads: {places: {a: [1, 2, 3]}}"},
+		{"settled on no land's kind", "settlements: {cells: water, sizes: {town: 4}, " +
+			"default: town}\nroads: {places: {a: [1, 2]}}"},
+	} {
+		data := "area: {centre: [0, 0], cells: [4, 4], cell: 100}\n" + tc.yaml + "\n"
+		if _, err := parseRecipe([]byte(data), "bad.yaml"); err == nil {
+			t.Errorf("%s: no error", tc.name)
+		}
+	}
+}
+
+func TestFields_ABlockOfLeastCellsIsAFieldOverThem(t *testing.T) {
+	w := strip(t, 20, 9, slices.Repeat([]float64{10}, 21))
+	w.r.Fields = []fieldCfg{
+		{Cells: w.r.Kinds.Forest, Kind: "forest", Grain: 8, Least: 3},
+		{Cells: w.r.Kinds.Sand, Kind: "dunes", Grain: 4, Least: 1},
+	}
+	lay := func(kind string, xys ...[2]int) {
+		for _, xy := range xys {
+			w.soils[xy[1]*w.cols+xy[0]] = kind
+		}
+	}
+	// two short of least in the first block, least in the second, more in the narrow last one
+	// and in the short last row
+	lay(w.r.Kinds.Forest, [2]int{1, 1}, [2]int{6, 2})
+	lay(w.r.Kinds.Forest, [2]int{9, 1}, [2]int{12, 5}, [2]int{10, 3})
+	lay(w.r.Kinds.Forest, [2]int{17, 6}, [2]int{19, 7}, [2]int{16, 2}, [2]int{18, 4})
+	lay(w.r.Kinds.Forest, [2]int{0, 8}, [2]int{3, 8}, [2]int{7, 8})
+	lay(w.r.Kinds.Sand, [2]int{2, 5})
+	want := []field{
+		{kind: "forest", from: w.cell(9, 1), to: w.cell(12, 5), cells: 3},
+		{kind: "forest", from: w.cell(16, 2), to: w.cell(19, 7), cells: 4},
+		{kind: "dunes", from: w.cell(2, 5), to: w.cell(2, 5), cells: 1},
+		{kind: "forest", from: w.cell(0, 8), to: w.cell(7, 8), cells: 3},
+	}
+	if got := w.fields(); !slices.Equal(got, want) {
+		t.Errorf("fields %v, want %v", got, want)
+	}
+	var b bytes.Buffer
+	w.writeBoard(&b)
+	rows := "  entities:\n" +
+		"    - {kind: forest, from: [9, 1], to: [12, 5], cells: 3}\n" +
+		"    - {kind: forest, from: [16, 2], to: [19, 7], cells: 4}\n" +
+		"    - {kind: dunes, from: [2, 5], to: [2, 5], cells: 1}\n" +
+		"    - {kind: forest, from: [0, 8], to: [7, 8], cells: 3}\n"
+	if !strings.HasSuffix(b.String(), rows) {
+		t.Errorf("the board\n%s\nwant its entities\n%s", b.String(), rows)
+	}
+}
+
+// settled is a strip with a road along row 4 from column 1 to 11, rock either side of column
+// 4, a bridge's span beside it at [6, 3] and a river down column 12
+func settled(t *testing.T) *chart {
+	t.Helper()
+	w := strip(t, 16, 9, slices.Repeat([]float64{10}, 17), 12)
+	node := network.Node{Kind: w.r.Kinds.Road, Width: 7}
+	for x := 1; x <= 11; x++ {
+		w.roads.net.Set(w.cell(x, 4), node)
+		if x > 1 {
+			w.roads.net.Link(w.cell(x-1, 4), w.cell(x, 4))
+		}
+	}
+	w.soils[3*w.cols+4] = w.r.Kinds.Rock
+	w.soils[5*w.cols+4] = w.r.Kinds.Rock
+	w.roads.spanOf[w.cell(6, 3)] = &span{cells: []cell.ID{w.cell(6, 3)}}
+	w.r.Settlements = settlementsCfg{Cells: w.r.Kinds.Built,
+		Sizes: map[string]int{"village": 8, "hamlet": 3}}
+	return w
+}
+
+func TestSettle_LaysASizeOfCellsBesideTheRoadOnDryFreeLand(t *testing.T) {
+	w := settled(t)
+	w.r.Roads.Places = map[string]place{
+		"village": {Size: "village"},
+		"pass":    {Size: "none"},
+		"hamlet":  {Size: "hamlet"},
+	}
+	w.roads.places = map[string]cell.ID{
+		"village": w.cell(5, 4),
+		"pass":    w.cell(9, 4),
+		"hamlet":  w.cell(14, 8),
+	}
+	w.settle()
+	if got := w.settled["pass"]; len(got) != 0 {
+		t.Errorf("a place of no size settled on %d cells", len(got))
+	}
+	built := map[cell.ID]bool{}
+	for name, n := range map[string]int{"village": 8, "hamlet": 3} {
+		cells := w.settled[name]
+		if len(cells) != n {
+			t.Errorf("%s settled on %d cells, want %d", name, len(cells), n)
+		}
+		for _, c := range cells {
+			x, y := w.xy(c)
+			_, road := w.roads.net.Node(c)
+			_, bridged := w.roads.spanOf[c]
+			soil := w.soils[y*w.cols+x]
+			if soil != w.r.Kinds.Built || w.wet(c) || road || bridged || built[c] {
+				t.Errorf("%s settled on [%d, %d]: %s, wet %v, a road %v, a bridge %v, twice %v",
+					name, x, y, soil, w.wet(c), road, bridged, built[c])
+			}
+			// the village's road has free cells beside it to spare
+			if name == "village" && !w.byRoad(c) {
+				t.Errorf("the village settled on [%d, %d], off its road", x, y)
+			}
+			built[c] = true
+		}
+	}
+	for _, xy := range [][2]int{{4, 3}, {4, 5}} {
+		if soil := w.soils[xy[1]*w.cols+xy[0]]; soil != w.r.Kinds.Rock {
+			t.Errorf("the rock at %v settled: %s", xy, soil)
+		}
+	}
+}
+
+func TestSettle_APlaceWithoutACellIsLeftUnsettled(t *testing.T) {
+	w := settled(t)
+	w.r.Roads.Places = map[string]place{"lost": {Size: "village"}}
+	w.settle()
+	if len(w.settled["lost"]) != 0 || !slices.Equal(w.unsettled, []string{"lost"}) {
+		t.Errorf("settled %v, unsettled %v; want lost unsettled", w.settled, w.unsettled)
+	}
+}
+
+func TestCheck_TakesAMapWithFieldsAndSettlements(t *testing.T) {
+	r, height := knoll(t)
+	r.Fields = []fieldCfg{
+		{Cells: r.Kinds.Forest, Kind: "forest", Grain: 4, Least: 2},
+		{Cells: r.Kinds.Built, Kind: "settlement", Grain: 4, Least: 1},
+	}
+	r.Settlements = settlementsCfg{Cells: r.Kinds.Built, Sizes: map[string]int{"town": 6}}
+	r.Roads.Places = map[string]place{"town": {At: lonLatAt(r, 5, 3), Size: "town"}}
+	c, err := build(r, height, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(c.settled["town"]); got != 6 {
+		t.Errorf("the town settled on %d cells, want 6", got)
+	}
+	data := c.text("knoll.yaml", "")
+	for _, want := range []string{
+		`"@": built`,
+		"{kind: forest, from: ",
+		"{kind: settlement, from: ",
+	} {
+		if !bytes.Contains(data, []byte(want)) {
+			t.Errorf("the map has no %s", want)
+		}
+	}
+	if err := c.check(data); err != nil {
+		t.Error(err)
+	}
+}
+
+// lonLatAt is the longitude and latitude of the middle of the cell x, y of r's area
+func lonLatAt(r recipe, x, y int) [2]float64 {
+	a := r.Area
+	east := (float64(x) + 0.5 - float64(a.Cells[0])/2) * a.Cell
+	south := (float64(y) + 0.5 - float64(a.Cells[1])/2) * a.Cell
+	lon, lat := lonLatOf(a.Centre, east, south)
+	return [2]float64{lon, lat}
 }

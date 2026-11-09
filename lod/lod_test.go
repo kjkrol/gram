@@ -102,6 +102,7 @@ func TestLadder_CheckRefusesALadderThatCannotBe(t *testing.T) {
 		"keeping no number":   {Keep: [lod.Levels]float32{float32(math.NaN())}},
 		"negative texel":      {Texel: -1},
 		"negative fold":       {Fold: -1},
+		"negative unfolds":    {Unfolds: -1},
 		"unknown fallback":    {Unobserved: lod.UnobservedL6 + 1},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -123,6 +124,7 @@ func TestLadder_CheckRefusesALadderThatCannotBe(t *testing.T) {
 		{Scales: [6]float32{0, 0, 0.5}, Sight: 1000},
 		{Keep: [lod.Levels]float32{1, 1, 1, 0.5, 0.25, 0, 1}, Texel: 8},
 		{Fold: 0.5},
+		{Unfolds: 10},
 		{Unobserved: lod.UnobservedL6},
 	} {
 		l.Check()
@@ -264,4 +266,67 @@ func TestLadder_FoldAfterIsItsSecondsThreeForNone(t *testing.T) {
 	if got := (lod.Ladder{Fold: 0.5}).FoldAfter(); got != 500*time.Millisecond {
 		t.Errorf("a Fold of 0.5 folds after %v, want 500ms", got)
 	}
+}
+
+func TestLadder_AtGoesCoarserPastALevelsRing(t *testing.T) {
+	l := lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.6, 0.4, 0.12, 0},
+		Rings: [lod.Levels - 1]float32{0, 0, 100, 400, 0, 0}}
+	for _, c := range []struct {
+		scale, dist float32
+		want        lod.Level
+	}{
+		{1, 50, lod.L2},
+		{1, 100, lod.L2},
+		{1, 101, lod.L3},
+		{1, 400, lod.L3},
+		{1, 401, lod.L4},
+		{1, 1e6, lod.L4},
+		{0.5, 50, lod.L3},
+		{0.5, 401, lod.L4},
+		{0.2, 401, lod.L4},
+		{0.01, 10, lod.L5},
+	} {
+		if got := l.At(c.scale, c.dist); got != c.want {
+			t.Errorf("At(%v, %v) = %v, want %v", c.scale, c.dist, got, c.want)
+		}
+	}
+}
+
+func TestLadder_ARingOfTheLastLevelEndsTheSight(t *testing.T) {
+	l := lod.Ladder{Rings: [lod.Levels - 1]float32{0, 0, 0, 0, 0, 300}}
+	if got := l.At(1, 301); got != lod.Omitted {
+		t.Errorf("At past lod.L5's ring = %v, want lod.Omitted", got)
+	}
+	if got := l.At(1, 300); got != lod.L2 {
+		t.Errorf("At within lod.L5's ring = %v, want lod.L2", got)
+	}
+}
+
+func TestLadder_HoldGoesPastARingOnlyByTheMargin(t *testing.T) {
+	l := lod.Ladder{Rings: [lod.Levels - 1]float32{0, 0, 100, 0, 0, 0}}
+	if got := l.Hold(lod.L2, 1, 110, 20); got != lod.L2 {
+		t.Errorf("Hold at 110 with a margin of 20 = %v, want lod.L2 held", got)
+	}
+	if got := l.Hold(lod.L2, 1, 121, 20); got != lod.L3 {
+		t.Errorf("Hold at 121 with a margin of 20 = %v, want lod.L3", got)
+	}
+	if got := l.Hold(lod.L3, 1, 100, 20); got != lod.L2 {
+		t.Errorf("Hold back within the ring = %v, want lod.L2 at once", got)
+	}
+}
+
+func TestLadder_WidenedWidensTheRingsWithTheSight(t *testing.T) {
+	l := lod.Ladder{Sight: 1000, Rings: [lod.Levels - 1]float32{0, 0, 100, 400, 0, 0}}.Widened(2)
+	if l.Sight != 2000 || l.Rings[2] != 200 || l.Rings[3] != 800 || l.Rings[4] != 0 {
+		t.Errorf("Widened(2) = sight %v rings %v, want 2000 and {0 0 200 800 0 0}", l.Sight, l.Rings)
+	}
+}
+
+func TestLadder_CheckRefusesARingWithinTheFinerLevels(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("a ring of lod.L3 within lod.L2's passed Check")
+		}
+	}()
+	lod.Ladder{Rings: [lod.Levels - 1]float32{0, 0, 400, 100, 0, 0}}.Check()
 }

@@ -10,6 +10,7 @@ import (
 	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/world/sector"
@@ -19,8 +20,10 @@ import (
 
 // Aggregate marks the kind of an entity standing for parts, a forest's trees or an army's soldiers:
 // they are the truth finer than Strategic, spawned by its rules at its Unfold, and it alone from
-// Strategic on, as they are summed into it at its Fold.
-type Aggregate struct{}
+// Strategic on, as they are summed into it at its Fold. Strength is how many units it stands for
+// folded, counted so in its banner (zero, one); the world sets a Strength declared to the parts
+// folded in at each Fold.
+type Aggregate struct{ Strength int }
 
 // Field marks an aggregate standing over a field, a forest: the box of Size round its centre,
 // each sector of it unfolding and folding apart. Its own box, within the world's sizes, is where
@@ -32,7 +35,8 @@ type Field struct{ Size geom.Vec }
 type PartOf struct{ Whole uid.UID64 }
 
 // Unfolded marks an aggregate some stretch of which is unfolded, from its first Unfold to its
-// last Fold: its parts stand for it there, and it is neither drawn nor moved for itself.
+// last Fold: its parts stand for it there, and it is neither drawn nor moved for itself, a point
+// aggregate kept by the world at the middle of its parts.
 type Unfolded struct{}
 
 // a stretch of an aggregate unfolded: its sector, the aggregate within it (a point aggregate's one
@@ -53,6 +57,9 @@ type meeting struct{ A, B uid.UID64 }
 // pairing each with every other
 const sweepPast = 64
 
+// the stretches unfolding a step at most where the ladder's Unfolds is zero
+const unfoldsPerStep = 16
+
 // tells the aggregates their Unfold and Fold as the sectors of their stretches cross between L3
 // and L4, their parts a Folding, and those on the abstract graph whom they Met
 type wholes struct {
@@ -66,6 +73,7 @@ type wholes struct {
 	all        *goke.Query
 	cols       *cgoke.Columns
 	base       goke.Comp[Base]
+	aggregate  goke.Comp[Aggregate]
 	field      goke.OptComp[Field]
 	unfolded   goke.OptComp[Unfolded]
 	look       goke.OptComp[render.Appearance]
@@ -77,12 +85,22 @@ type wholes struct {
 	unfoldedOf  goke.Comp[Base]
 	opening     *goke.Factory
 	opened      goke.Comp[stretch]
+	// the point aggregates unfolded and the parts not standing for good, asleep too: a part may
+	// walk where its whole is not; those found a step, by whole their place among them
+	points     *goke.Query
+	pointBase  goke.Comp[Base]
+	loose      *goke.Query
+	looseOf    goke.Comp[PartOf]
+	looseBase  goke.Comp[Base]
+	following  []follow
+	byFollowed map[uid.UID64]int
 	// asleep too: a fold finds them by their whole
 	parts    *goke.Query
 	partCols *cgoke.Columns
 	partOf   goke.Comp[PartOf]
 	partBase goke.Comp[Base]
 	partZ    goke.OptComp[Z]
+	partLie  goke.OptComp[Lie]
 	partLook goke.OptComp[render.Appearance]
 
 	abstract *goke.Query
@@ -93,10 +111,24 @@ type wholes struct {
 	making   *goke.Factory
 	made     goke.Comp[meeting]
 
-	// a step's stretches standing, by whole and sector, and those to make as they unfold
-	holding   []holding
-	unfolding []piece
-	cover     []sector.Part
+	// a step's stretches standing, by whole and sector, those to make as they unfold, those to
+	// preview and those told their Unfold, by place
+	holding    []holding
+	unfolding  []piece
+	previewing []piece
+	telling    []piece
+	cover      []sector.Part
+	// the most stretches unfolding a step; the observers' viewpoints, by stretch unfolding the
+	// square of its middle's distance from the nearest, and the budget nearest by their places
+	budget int
+	eyes   []geom.Vec
+	near   []float32
+	best   []int
+	// by id, the previews told their Unfold at a step, whose parts the spawning of the next one
+	// photographs and hands the sheets: a preview lives two steps and is never saved
+	previews []preview
+	// the last preview's id among the world's own
+	previewed uid.UID64
 	// the aggregates Unfolded comes off this step
 	marking []uid.UID64
 	// a step's stretches folding, by whole and sector, found by a field's place or a point's whole
@@ -111,6 +143,9 @@ type wholes struct {
 	walk    struct {
 		ids   []uid.UID64
 		bases []Base
+		// whether the sheets are photographed, and the world's atlas they are of
+		sheets bool
+		atlas  *Atlas
 		// by the i-th walked: where its moments begin, how many, and which of them is told now
 		from, n []int
 		round   int
@@ -140,6 +175,14 @@ type holding struct {
 	walked bool
 	fine   bool
 	folded bool
+}
+
+// a point aggregate unfolded as a step finds it: its box, its centre, and the box round its
+// parts' boxes laid the shorter way round from that centre, lo past hi while none is found
+type follow struct {
+	base   *Base
+	at     geom.Vec
+	lo, hi geom.Vec
 }
 
 // a stretch unfolding, and the entity made for it
@@ -182,7 +225,11 @@ type pair struct {
 var _ goke.System = (*wholes)(nil)
 
 func newWholes(w *module) *wholes {
-	s := &wholes{w: w, byPlace: map[place]int{}, byWhole: map[uid.UID64]int{}}
+	s := &wholes{w: w, byPlace: map[place]int{}, byWhole: map[uid.UID64]int{},
+		byFollowed: map[uid.UID64]int{}, budget: w.config.LOD.Unfolds}
+	if s.budget == 0 {
+		s.budget = unfoldsPerStep
+	}
 	s.unfoldAt, s.unfoldsAt = s.unfoldOf, s.told
 	s.foldAt, s.foldsAt = s.foldOf, s.told
 	s.foldingAt, s.foldedInAt = s.foldingOf, s.foldsWith
@@ -196,7 +243,7 @@ func (s *wholes) Init(si *goke.SysInit) {
 	si.RegComp[PartOf]()
 	s.unfoldedID = si.RegComp[Unfolded]()
 	steady := s.w.p.Pace(lod.Steady)
-	qb := si.NewQueryBuilder(&s.base).Include(goke.Include[Aggregate]()).Optional(&s.field).
+	qb := si.NewQueryBuilder(&s.base, &s.aggregate).Optional(&s.field).
 		Optional(&s.unfolded).Optional(&s.look)
 	s.cols = cgoke.NewColumns(qb)
 	s.unfolds.Bind(s.cols)
@@ -206,7 +253,12 @@ func (s *wholes) Init(si *goke.SysInit) {
 	s.unfoldedAll = si.NewQueryBuilder(&s.unfoldedOf).
 		Include(goke.Include[Aggregate](), goke.Include[Unfolded]()).Build()
 	s.opening = si.NewFactory(&s.opened)
-	pb := si.NewQueryBuilder(&s.partOf, &s.partBase).Optional(&s.partZ).Optional(&s.partLook)
+	s.points = si.NewQueryBuilder(&s.pointBase).
+		Include(goke.Include[Aggregate](), goke.Include[Unfolded]()).
+		Exclude(goke.Exclude[Field]()).Build()
+	s.loose = si.NewQueryBuilder(&s.looseOf, &s.looseBase).Exclude(goke.Exclude[Fixed]()).Build()
+	pb := si.NewQueryBuilder(&s.partOf, &s.partBase).Optional(&s.partZ).Optional(&s.partLie).
+		Optional(&s.partLook)
 	s.partCols = cgoke.NewColumns(pb)
 	s.foldings.Bind(s.partCols)
 	s.parts = pb.Build()
@@ -221,6 +273,7 @@ func (s *wholes) Init(si *goke.SysInit) {
 
 func (s *wholes) Update(cb *goke.CmdBuf, d time.Duration) {
 	t := s.w.tick(d)
+	s.follow()
 	s.unfold(cb, d, t)
 	if len(s.folding) > 0 {
 		s.fold(t)
@@ -235,9 +288,12 @@ func (s *wholes) Update(cb *goke.CmdBuf, d time.Duration) {
 
 // finds the stretches of the aggregates, waits out those standing at L4 or coarser, noting for fold
 // those whose wait is over, and tells Unfold of those come down to L3 or finer with none standing
-// yet; the wait begins with the step, the sectors laid as the tick began
+// yet, the budget nearest an observer, and of those the sheets wait for, previewed; the wait
+// begins with the step, the sectors laid as the tick began
 func (s *wholes) unfold(cb *goke.CmdBuf, d time.Duration, t host.Tick) {
 	s.holding, s.unfolding, s.folding = s.holding[:0], s.unfolding[:0], s.folding[:0]
+	s.previewing = s.previewing[:0]
+	s.sheeting()
 	for s.stretches.All(); s.stretches.Next(); {
 		cur := s.stretches.Cursor()
 		sts := s.stretch.Slice(cur)
@@ -267,9 +323,14 @@ func (s *wholes) unfold(cb *goke.CmdBuf, d time.Duration, t host.Tick) {
 
 // finds the stretches of the aggregates of the block cur, a point aggregate's one in the sector of
 // its centre, a field's, of the sizes given, in each sector it covers: those standing are walked,
-// those come to L3 or finer with none standing but one folded the step before unfold
+// those come to L3 or finer with none standing but one folded the step before unfold, a field's
+// coarser with none standing are bare to the sheets
 func (s *wholes) find(cur *goke.Cursor, fields []Field) {
 	sectors := s.w.sectors
+	var looks []render.Appearance
+	if fields != nil && s.walk.sheets {
+		looks = s.look.Slice(cur)
+	}
 	for i, b := range s.base.Slice(cur) {
 		id := cur.IDs[i]
 		if _, gone := s.w.despawned[id]; gone {
@@ -294,12 +355,16 @@ func (s *wholes) find(cur *goke.Cursor, fields []Field) {
 		}
 		half := geom.NewVec(fields[i].Size.X/2, fields[i].Size.Y/2)
 		s.cover = sectors.cover(geom.NewAABB(c.Sub(half), c.Add(half)), s.cover[:0])
+		kept := s.walk.sheets && s.keptBy(looks, i)
 		for _, p := range s.cover {
 			fine := sectors.levelOf(p.Sector) < lod.Strategic
-			if k := s.holdingIn(lo, hi, p.Sector); k >= 0 && !s.holding[k].folded {
+			switch k := s.holdingIn(lo, hi, p.Sector); {
+			case k >= 0 && !s.holding[k].folded:
 				s.holding[k].fine, s.holding[k].box = fine, p.Box
-			} else if fine {
+			case fine:
 				s.unfolding = append(s.unfolding, piece{whole: id, sector: p.Sector, box: p.Box})
+			case k < 0 && kept:
+				s.bare(id, p)
 			}
 		}
 	}
@@ -405,12 +470,86 @@ func (s *wholes) unfoldingOf(whole uid.UID64) bool {
 	return false
 }
 
-// makes a stretch for each unfolding, the sheets letting go of its parts, then tells their
-// aggregates their Unfold
+// makes a stretch for each unfolding, the budget nearest an observer at most, the sheets letting go
+// of its parts, and a preview for each previewing, then tells their aggregates their Unfold; those
+// left out stay folded, found again at the next step while their sectors stay finer than L4
 func (s *wholes) open(t host.Tick) {
-	if len(s.unfolding) == 0 {
+	if len(s.unfolding) > s.budget {
+		s.nearest()
+	}
+	if len(s.unfolding) > 0 {
+		s.openStretches()
+	}
+	if len(s.previewing) > 0 {
+		s.preview()
+	}
+	if s.unfolds.Empty() || len(s.unfolding)+len(s.previewing) == 0 {
 		return
 	}
+	s.telling = append(append(s.telling[:0], s.unfolding...), s.previewing...)
+	slices.SortFunc(s.telling, piecesByPlace)
+	for s.all.All(); s.all.Next(); {
+		cur := s.all.Cursor()
+		s.walk.bases = s.base.Slice(cur)
+		most := s.unfoldsOf(cur.IDs)
+		for s.walk.round = 0; s.walk.round < most; s.walk.round++ {
+			s.unfolds.RunWhere(t, s.cols.Row(cur), len(cur.IDs), s.unfoldsAt, s.unfoldAt)
+		}
+	}
+}
+
+// keeps of the stretches unfolding the budget whose middles lie nearest an observer's viewpoint, in
+// the order found, ties to the one found first; with no viewpoint, the first found
+func (s *wholes) nearest() {
+	s.eyes = s.eyes[:0]
+	for _, cam := range s.w.sectors.cams {
+		if x, y, ok := camera.Viewpoint(cam); ok {
+			s.eyes = append(s.eyes, geom.NewVec(x, y))
+		}
+	}
+	k := s.budget
+	if len(s.eyes) > 0 {
+		s.near = s.near[:0]
+		for i := range s.unfolding {
+			s.near = append(s.near, s.reach(middle(s.unfolding[i].box)))
+		}
+		s.best = s.best[:0]
+		for i, d := range s.near {
+			n := len(s.best)
+			if n == k {
+				if d >= s.near[s.best[n-1]] {
+					continue
+				}
+				n--
+			} else {
+				s.best = append(s.best, 0)
+			}
+			for ; n > 0 && d < s.near[s.best[n-1]]; n-- {
+				s.best[n] = s.best[n-1]
+			}
+			s.best[n] = i
+		}
+		slices.Sort(s.best)
+		for j, i := range s.best {
+			s.unfolding[j] = s.unfolding[i]
+		}
+	}
+	s.unfolding = s.unfolding[:k]
+}
+
+// the square of the distance from at to the nearest of the eyes, the shorter way round an axis
+// that wraps
+func (s *wholes) reach(at geom.Vec) float32 {
+	nearest := f32.Inf(1)
+	for _, eye := range s.eyes {
+		d := s.w.toward(at, eye)
+		nearest = min(nearest, d.X*d.X+d.Y*d.Y)
+	}
+	return nearest
+}
+
+// makes a stretch for each unfolding, the sheets letting go of its parts
+func (s *wholes) openStretches() {
 	for _, p := range s.unfolding {
 		s.w.p.renderer.sheet.unfold(place{whole: p.whole, sector: p.sector})
 	}
@@ -423,18 +562,6 @@ func (s *wholes) open(t host.Tick) {
 			p.stretch = id
 			made[i] = stretch{Whole: p.whole, Sector: p.sector, Box: p.box}
 			n++
-		}
-	}
-	if s.unfolds.Empty() {
-		return
-	}
-	slices.SortFunc(s.unfolding, piecesByPlace)
-	for s.all.All(); s.all.Next(); {
-		cur := s.all.Cursor()
-		s.walk.bases = s.base.Slice(cur)
-		most := s.unfoldsOf(cur.IDs)
-		for s.walk.round = 0; s.walk.round < most; s.walk.round++ {
-			s.unfolds.RunWhere(t, s.cols.Row(cur), len(cur.IDs), s.unfoldsAt, s.unfoldAt)
 		}
 	}
 }
@@ -500,18 +627,13 @@ func (s *wholes) fold(t host.Tick) {
 // has the step's shots ready for the parts of each field folding whose kind declares no look of
 // its own at L4, where the sheets are photographed: nil for the others
 func (s *wholes) snapping() {
-	r := s.w.p.renderer
-	wa, _ := r.atlas.(*Atlas)
 	for len(s.shots) < len(s.folding) {
 		s.shots = append(s.shots, nil)
 	}
 	for k, f := range s.folding {
 		s.shots[k] = nil
-		if !f.field || r.sheet.albedo == nil || r.atlas == nil || !s.all.Seek(f.whole) {
-			continue
-		}
-		if look := s.look.At(s.all.Cursor()); wa != nil && look != nil &&
-			wa.declares(look.SpriteID, lod.Strategic) {
+		if !f.field || !s.walk.sheets || !s.all.Seek(f.whole) ||
+			!s.kept(s.look.At(s.all.Cursor())) {
 			continue
 		}
 		s.shots[k] = make([]shot, 0, 8)
@@ -538,9 +660,13 @@ func (s *wholes) snap(k int, cur *goke.Cursor, i int) {
 	if zs := s.partZ.Slice(cur); zs != nil {
 		z = zs[i]
 	}
+	var lie *Lie
+	if lies := s.partLie.Slice(cur); lies != nil && lies[i].Length > 0 {
+		lie = &lies[i]
+	}
 	b := &s.partBase.Slice(cur)[i]
 	var at shot
-	r.photographed(&at, b.Pos.AABB, b.Vel.Dir, nil, z, l3)
+	r.photographed(&at, b.Pos.AABB, b.Vel.Dir, lie, z, l3)
 	s.shots[k] = append(s.shots[k], at)
 }
 
@@ -554,8 +680,62 @@ func (s *wholes) forget() {
 	}
 }
 
+// moves each point aggregate unfolded to the middle of the box round its parts, its own size kept,
+// the space gathering its runs anew, so its stretch, its sector and whoever follows it go with
+// them; one with none left stays
+func (s *wholes) follow() {
+	s.following = s.following[:0]
+	clear(s.byFollowed)
+	for s.points.All(); s.points.Next(); {
+		cur := s.points.Cursor()
+		bases := s.pointBase.Slice(cur)
+		for i, id := range cur.IDs {
+			if _, gone := s.w.despawned[id]; !gone {
+				s.byFollowed[id] = len(s.following)
+				s.following = append(s.following, follow{base: &bases[i],
+					at: bases[i].Pos.Center(), lo: geom.NewVec(f32.Inf(1), f32.Inf(1)),
+					hi: geom.NewVec(f32.Inf(-1), f32.Inf(-1))})
+			}
+		}
+	}
+	if len(s.following) == 0 {
+		return
+	}
+	for s.loose.All(); s.loose.Next(); {
+		cur := s.loose.Cursor()
+		of, bases := s.looseOf.Slice(cur), s.looseBase.Slice(cur)
+		for i := range of {
+			k, ok := s.byFollowed[of[i].Whole]
+			if !ok {
+				continue
+			}
+			if _, gone := s.w.despawned[cur.IDs[i]]; gone {
+				continue
+			}
+			f, pos := &s.following[k], &bases[i].Pos
+			c := s.w.toward(f.at, pos.Center())
+			hx, hy := pos.Size.X/2, pos.Size.Y/2
+			f.lo = geom.NewVec(min(f.lo.X, c.X-hx), min(f.lo.Y, c.Y-hy))
+			f.hi = geom.NewVec(max(f.hi.X, c.X+hx), max(f.hi.Y, c.Y+hy))
+		}
+	}
+	moved := false
+	for k := range s.following {
+		f := &s.following[k]
+		by := geom.NewVec((f.lo.X+f.hi.X)/2, (f.lo.Y+f.hi.Y)/2)
+		if f.lo.X > f.hi.X || f32.Abs(by.X) <= f32.Eps(f.at.X) && f32.Abs(by.Y) <= f32.Eps(f.at.Y) {
+			continue
+		}
+		s.w.space.Move(&f.base.Pos.AABB, by)
+		moved = true
+	}
+	if moved {
+		s.w.index(s.w.indexer.query, &s.w.indexer.base)
+	}
+}
+
 // moves each point aggregate folding with parts to their centroid, the space gathering its runs
-// anew; a field stays
+// anew, and has its Strength, where declared, their number; a field stays
 func (s *wholes) gather() {
 	moved := false
 	for k := range s.folding {
@@ -563,8 +743,12 @@ func (s *wholes) gather() {
 		if f.field || f.parts == 0 || !s.all.Seek(f.whole) {
 			continue
 		}
+		cur := s.all.Cursor()
+		if a := s.aggregate.At(cur); a.Strength > 0 {
+			a.Strength = f.parts
+		}
 		n := float32(f.parts)
-		s.w.space.Move(&s.base.At(s.all.Cursor()).Pos.AABB, geom.NewVec(f.ways.X/n, f.ways.Y/n))
+		s.w.space.Move(&s.base.At(cur).Pos.AABB, geom.NewVec(f.ways.X/n, f.ways.Y/n))
 		moved = true
 	}
 	if moved {
@@ -587,14 +771,14 @@ func (s *wholes) foldsWithin(id, whole uid.UID64, c geom.Vec) int {
 	return -1
 }
 
-// has the walk say where the stretches unfolding of each of ids begin and how many; it is the
-// most any has, each told in a round of its own
+// has the walk say where the stretches told their Unfold of each of ids begin and how many; it is
+// the most any has, each told in a round of its own
 func (s *wholes) unfoldsOf(ids []uid.UID64) (most int) {
 	s.walk.from, s.walk.n = s.walk.from[:0], s.walk.n[:0]
 	for _, id := range ids {
-		k, _ := slices.BinarySearchFunc(s.unfolding, id, pieceToWhole)
+		k, _ := slices.BinarySearchFunc(s.telling, id, pieceToWhole)
 		n := 0
-		for k+n < len(s.unfolding) && s.unfolding[k+n].whole == id {
+		for k+n < len(s.telling) && s.telling[k+n].whole == id {
 			n++
 		}
 		s.walk.from, s.walk.n = append(s.walk.from, k), append(s.walk.n, n)
@@ -623,7 +807,7 @@ func (s *wholes) foldsOf(ids []uid.UID64) (most int) {
 func (s *wholes) told(i int) bool { return s.walk.round < s.walk.n[i] }
 
 func (s *wholes) unfoldOf(i int) Unfold {
-	p := &s.unfolding[s.walk.from[i]+s.walk.round]
+	p := &s.telling[s.walk.from[i]+s.walk.round]
 	return Unfold{ID: p.whole, At: s.walk.bases[i].Pos.Center(), Sector: p.sector, Box: p.box,
 		stretch: p.stretch}
 }

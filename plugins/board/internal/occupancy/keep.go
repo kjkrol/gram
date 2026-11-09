@@ -22,8 +22,24 @@ import (
 // none. As it starts every unit holds the cell it is At.
 func KeepSystem(o cell.Occupancy, footing Footing, g grid.Grid, pace goke.Opt) goke.System {
 	s := &keepSystem{occupancy: o, footing: footing, grid: g, span: g.CellSpan(), pace: pace}
-	s.gone, s.holding = s.isGone, s.isHolding
+	s.gone, s.holding = s.leaving.gone, s.isHolding
 	return s
+}
+
+// leaving tells by identity whoever may hold no cell: gone from the world, or an aggregate its
+// parts stand for (world.Unfolded), read as a column since a Seek ignores a query's Exclude
+type leaving struct {
+	q        *goke.Query
+	base     goke.Comp[world.Base]
+	unfolded goke.OptComp[world.Unfolded]
+}
+
+func (l *leaving) init(si *goke.SysInit) {
+	l.q = si.NewQueryBuilder(&l.base).Optional(&l.unfolded).Build()
+}
+
+func (l *leaving) gone(id uid.UID64) bool {
+	return !l.q.Seek(id) || l.unfolded.Present(l.q.Cursor())
 }
 
 // Footing is the cell whoever stands at p, its feet at feet, stepping reach high, is on, whether on
@@ -50,6 +66,7 @@ type keepSystem struct {
 	held      bool      // whether holding found it
 	grid      grid.Grid
 	span      float32 // a cell's, past which a unit's footprint may be laid off its middle
+	leaving   leaving
 }
 
 func (s *keepSystem) Init(si *goke.SysInit) {
@@ -60,6 +77,7 @@ func (s *keepSystem) Init(si *goke.SysInit) {
 		qb.With(s.pace)
 	}
 	s.units = qb.Build()
+	s.leaving.init(si)
 	s.statesID = si.RegComp[tag.Tags[unit.States]]()
 	if s.occupancy != nil {
 		s.keep(s.units.All(), true)
@@ -139,5 +157,3 @@ func (s *keepSystem) enter(states []tag.Tags[unit.States], i int, id uid.UID64) 
 		s.lacking = append(s.lacking, id)
 	}
 }
-
-func (s *keepSystem) isGone(id uid.UID64) bool { return !s.units.Seek(id) }

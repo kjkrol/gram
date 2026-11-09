@@ -4,10 +4,16 @@ import (
 	"embed"
 	"flag"
 	"log"
+	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
@@ -31,6 +37,7 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
+	"github.com/kjkrol/gram/plugins/forest"
 	"github.com/kjkrol/gram/plugins/gravity"
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/minimap"
@@ -55,7 +62,22 @@ const (
 	WorldHeight  = GridHeight * CellSize
 	ScreenWidth  = 1024
 	ScreenHeight = 768
-	MaxEntCount  = 512
+	// the trees and houses unfolded round the camera and what walks among them
+	MaxEntCount = 40_000
+
+	// a sector's side in cells, gramap's fields' grain: Buckets of the space's buckets, which
+	// MaxEntCount makes 64 world units a side
+	sectorCells = 16
+	Buckets     = sectorCells * CellSize / 64
+	// seconds a sector lies at L4 before the trees, the houses and the caravans' men fold
+	FoldAfter = 3
+	// the side of a field's own box at the middle of its rectangle
+	fieldPx = 16
+	// the zoom the game starts at, raised by the camera to the one fitting the world in the window,
+	// 0.18 in 1024 by 768, 0.28 in 1920 by 1080 and 0.38 in 2560 by 1440: L4 in a window up to
+	// about 2700 pixels wide at 16:9, the forests and the settlements in the sheet, the caravans
+	// and the travellers far off
+	StartZoom = 0.15
 )
 
 //go:embed map.yaml
@@ -76,6 +98,7 @@ type arena struct {
 	gravity    *gravity.Plugin
 	topography *topography.Plugin
 	bridges    *bridges.Plugin
+	forest     *forest.Plugin
 	selection  *selection.Plugin
 	driving    *driving.Plugin
 	nav        *navigation.Plugin
@@ -105,9 +128,15 @@ func main() {
 		Title: "gram board topography",
 		Description: "Madeira in relief, its ground textured as -look says (natural or ghibli), " +
 			"the hour, the date and the weather shown as -hud says (bar: one at the top; " +
-			"widgets: apart, by the corners). Select a unit: V follows it from behind in the " +
-			"perspective (W, S, A and D walk it the way the screen lies, the mouse turns the " +
-			"camera round it and tilts it, = and - draw it in and out), again rides inside " +
+			"widgets: apart, by the corners). Its forests and settlements are photographed " +
+			"into a sheet from afar, kept between runs, and plant their trees and stand their " +
+			"houses as the camera comes near; caravans, a wagon and three porters, and " +
+			"travellers go to and fro along the roads, far off an icon of their kind a sector " +
+			"with their number over it (F10: points, the numbers off); a band of thirty " +
+			"walkers stands on the plateau, one icon far off. Select a unit: V " +
+			"follows it from behind in the perspective (W, S, A and D walk it the way the " +
+			"screen lies, the mouse turns the camera round it and tilts it, = and - draw it " +
+			"in and out), again rides inside " +
 			"(the mouse looks round, A and D strafe); Shift sprints, Space jumps; C centres " +
 			"over it, back in the view it was in. " +
 			"The minimap turns with the camera; a click on it takes the camera there.",
@@ -124,13 +153,18 @@ func main() {
 				MinSize:  2,
 				MaxSize:  CellSize,
 			},
-			Sectors: world.SectorsCfg{Buckets: 2},
+			Sectors: world.SectorsCfg{Buckets: Buckets},
 			LOD: lod.Ladder{
-				Scales: [lod.Levels - 1]float32{0, 0, 0.5, 0.25, 0.12, 0},
+				// L2 from a tree of 12 pixels, L3 down to 8, L4, the sheet, under that
+				Scales: [lod.Levels - 1]float32{0, 0, 0.6, 0.4, 0.12, 0},
 				Sight:  scale.Units(30_000),
 				Fog:    scale.Units(6_000),
+				Fold:   FoldAfter,
 			},
 			Heights: true,
+			Far:     world.Banners,
+			Counts:  true,
+			Sheets:  sheets(),
 		}).
 		Plugins(a.makePlugins).
 		Figures(a.defineFigures).
@@ -144,6 +178,16 @@ func main() {
 		Shows(MainScene, telemetry.SceneName).
 		Update(a.update)
 	gram.Run(game.New(props, mainStage))
+}
+
+// sheets is where the sheets of what stands are kept between runs, in the user's cache: none
+// where there is no cache
+func sheets() world.SheetsCfg {
+	cfg := world.SheetsCfg{Keep: true, Version: SheetsVersion}
+	if dir, err := os.UserCacheDir(); err == nil {
+		cfg.Dir = filepath.Join(dir, "gram", "topography", "sheets")
+	}
+	return cfg
 }
 
 func (a *arena) makePlugins(w *world.Plugin) {
@@ -170,6 +214,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		Reshape:   scale.Units(60),
 		High:      scale.Units(200),
 	}}).WithShaper(a.topography.Write())
+	a.forest = forest.NewPlugin(a.world, a.board)
 	a.selection = selection.NewPlugin(a.world)
 	a.driving = driving.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board)
 	a.nav = navigation.NewPlugin(a.board, a.world, a.motion, a.selection, a.driving).
@@ -277,6 +322,11 @@ func (a *arena) defineRules() {
 				And(cond.Self.If(weathering.Reaches(0.7))),
 			Then: act.Self.Put(a.world.Write().Effects().Named(GatheringEf)),
 		})
+	a.world.Roles().Define(CarrierRole, act.Branch[world.Folding]{
+		Name: "fold in",
+		When: cond.Self.If(cond.Always),
+		Then: act.Self.Do(world.Despawn{}),
+	})
 }
 
 func (a *arena) defineCommands() {
@@ -292,18 +342,76 @@ type unitRow struct {
 	Target cell.ID `yaml:"target"`
 }
 
+// fieldRow is a field of the map over the cells of a kind: the rectangle round them from cell
+// From to cell To, and how many of them it holds.
+type fieldRow struct {
+	From  cell.ID `yaml:"from"`
+	To    cell.ID `yaml:"to"`
+	Cells int     `yaml:"cells"`
+}
+
+// overField is what a field aggregate of a fieldRow is: its own box at the middle of the
+// rectangle, the rectangle its Field
+func overField(b *board.Plugin) []comp.Comp {
+	corners := func(r fieldRow) (geom.Vec, geom.Vec) {
+		bd := b.Read(0).Board()
+		return bd.CellCenter(r.From), bd.CellCenter(r.To)
+	}
+	return []comp.Comp{
+		comp.Load(func(r fieldRow) world.Position {
+			from, to := corners(r)
+			corner := geom.NewVec((from.X+to.X-fieldPx)/2, (from.Y+to.Y-fieldPx)/2)
+			return world.Position{AABB: plane.NewAABB(corner, fieldPx, fieldPx)}
+		}),
+		comp.Load(func(r fieldRow) world.Field {
+			from, to := corners(r)
+			return world.Field{Size: geom.NewVec(to.X-from.X+CellSize, to.Y-from.Y+CellSize)}
+		}),
+		comp.Const(world.Aggregate{}),
+	}
+}
+
+// unseen is the look of what is drawn for it by its parts
+func unseen(*render.Canvas, int) {}
+
+// carried is what the wagon and the porters of a caravan are told as they are made: whose they
+// are; the caravan alone is picked, through any of them
+func (a *arena) carried() []command.Command {
+	return []command.Command{players.Give{To: a.player.ID}}
+}
+
+// enlisted is what a band's walkers are told as they are made: whose they are, and that each is
+// picked itself where it stands
+func (a *arena) enlisted() []command.Command {
+	return []command.Command{players.Give{To: a.player.ID}, selection.Allow{}}
+}
+
 func (a *arena) defineFigures() {
 	a.board.Tiles(tiles()...)
 	a.board.Surfaces(surface{})
 	a.board.Figures(
 		walker{kind: UnitKind, color: playerColor, ordered: true},
-		walker{kind: PlateauKind, color: playerColor, highland: true},
-		walker{kind: RivalKind, color: rivalColor, ordered: true},
+		walker{kind: PlateauKind, color: playerColor, highland: true, member: MemberRole},
+		walker{
+			kind:    RivalKind,
+			color:   rivalColor,
+			ordered: true,
+			banner:  world.BannerStyle{Shape: render.BadgeDiamond},
+		},
 		hawk{},
 		ford{},
 		lantern{},
+		house{},
+		lamp{},
+		settlement{},
+		wagon{},
+		porter{color: playerColor},
+		caravan{color: playerColor, carried: a.carried},
+		traveller{color: playerColor},
+		band{color: playerColor, joined: a.enlisted},
 	)
 	a.bridges.Figures(bridge{})
+	a.forest.Figures(woods{})
 	a.atmosphere.Skies(earth{})
 }
 
@@ -334,14 +442,28 @@ func (a *arena) spawn() error {
 	if err := board.Spawn[lanternRow](level, nil); err != nil {
 		return err
 	}
+	if err := board.Spawn[fieldRow](level, nil); err != nil {
+		return err
+	}
 	if err := a.bridges.Write().Spawn(level); err != nil {
 		return err
 	}
-	return board.Spawn[unitRow](level, board.Sides{
-		PlayerSide:  {players.Give{To: a.player.ID}, selection.Allow{}},
+	caravans := board.Sides{ReserveSide: append(a.carried(), selection.Allow{})}
+	if err := board.Spawn[caravanRow](level, caravans); err != nil {
+		return err
+	}
+	sides := board.Sides{
+		PlayerSide:  a.enlisted(),
 		RivalSide:   {players.Give{To: a.rival.ID}, selection.Allow{}},
-		ReserveSide: {players.Give{To: a.player.ID}, selection.Allow{}},
-	})
+		ReserveSide: a.enlisted(),
+	}
+	if err := board.Spawn[travellerRow](level, sides); err != nil {
+		return err
+	}
+	if err := board.Spawn[bandRow](level, sides); err != nil {
+		return err
+	}
+	return board.Spawn[unitRow](level, sides)
 }
 
 func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {

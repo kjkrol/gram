@@ -3,6 +3,7 @@ package world
 import (
 	"image"
 	"math"
+	"slices"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/internal/f32"
@@ -45,6 +46,14 @@ type tiling interface {
 	Neighbours(i int, each func(j int))
 }
 
+// tierGrid is how a world's tiers of cells lie over its sectors, as sector.Grid lays them
+type tierGrid interface {
+	Tiers() int
+	TierLen(k int) int
+	Fit(box geom.AABB, small float32) (tier, cell int)
+	Side() float32
+}
+
 // sheets are the photographs of what stands over the whole world, perUnit texels a world unit,
 // cols by rows at L4 and half as many each way at L5, made as a renderer first asks; by sector the
 // version of what stands in it, from 1, and the version its photograph holds, 0 for none; shots,
@@ -70,6 +79,11 @@ type sheets struct {
 	seen   []lod.Level
 	ring   []bool
 	beside func(j int)
+	// the tiers of cells over the sectors, nil where the grid lays none; the longest a thing
+	// standing lives by its middle; where each tier's cells begin among a view's levels of them
+	tiers tierGrid
+	small float32
+	slots []int32
 	// what stands in the sectors wanted, a photograph's instance each, and how many records a
 	// photograph held may leave out
 	cands     []candidate
@@ -78,8 +92,15 @@ type sheets struct {
 	// whether some lie in it
 	folded  map[place][]shot
 	snapped []bool
+	// by sector whether its photograph waits for the parts of a field a preview gives, and the
+	// stretches of fields with no look declared at L4 a step found neither unfolded nor kept
+	pending []bool
+	bare    []place
 	want    func(i int, box geom.AABB, level lod.Level)
 	room    darkroom
+	files   SheetsCfg
+	// the tiles of the files read and written, nil without a folder
+	store *sheetStore
 }
 
 // signature is what stands in a sector as a publish signs it: how many, and their identities,
@@ -103,23 +124,52 @@ type shot [photoFloats]float32
 const photoFloats = 12
 
 // photo is a sector to photograph: its texels at L4, its instances among the frame's and the
-// most any reaches up or down, for the depth
+// most any reaches up or down, for the depth; what stands in it as signed and whether anything does
 type photo struct {
 	sector   int
 	rect     image.Rectangle
 	from, to int
 	span     float32
+	signed   signature
+	full     bool
 }
 
 // sheetFrame is what a publish hands the frame of the sheets: whether they are photographed, by
-// sector whether its photograph holds what stands in it now, something standing there, whether any
-// does, the photographs to develop with their instances, and whether the frame developed them
+// sector the version of its photograph where it holds what stands in it now, something standing
+// there, 0 where not, whether any does, the photographs to develop with their instances, whether
+// the frame developed them, and by view published the level it draws each cell of the tiers at
 type sheetFrame struct {
 	on, live  bool
-	held      []bool
+	held      []uint32
 	photos    []photo
 	instances []float32
 	developed bool
+	tiered    []tierLevels
+}
+
+// tierLevels is the level a view draws each cell of the tiers at, the finest of the sectors under
+// it, by its slot: the sectors first, then each tier's cells in turn; none in a view of no sectors
+type tierLevels struct {
+	v      *view.View
+	levels []lod.Level
+}
+
+// at is the level of the cell at slot tier-1, lod.Standard in a view of no sectors, as View.Level
+func (t *tierLevels) at(tier int32) lod.Level {
+	if int(tier) > len(t.levels) {
+		return lod.Standard
+	}
+	return t.levels[tier-1]
+}
+
+// tiersOf is the levels v draws the cells of the tiers at, nil where f has none of it
+func (f *sheetFrame) tiersOf(v *view.View) *tierLevels {
+	for k := range f.tiered {
+		if f.tiered[k].v == v {
+			return &f.tiered[k]
+		}
+	}
+	return nil
 }
 
 // newSheets is the sheets of a world cut by grid, none without: a texel of the ladder's Texel,
@@ -138,8 +188,13 @@ func newSheets(cfg Config, grid *sector.Grid) sheets {
 	}
 	w, h := float32(cfg.Space.Width), float32(cfg.Space.Height)
 	texel = max(texel, max(w, h)/sheetSide)
-	return sheetsOver(grid, 1/texel, min(max(int(f32.Ceil(w/texel)), 1), sheetSide),
+	s := sheetsOver(grid, 1/texel, min(max(int(f32.Ceil(w/texel)), 1), sheetSide),
 		min(max(int(f32.Ceil(h/texel)), 1), sheetSide))
+	s.files = cfg.Sheets
+	if cfg.Sectors.Small > 0 {
+		s.small = cfg.Sectors.Small
+	}
+	return s
 }
 
 // sheetsOver is the sheets of a world cut by grid, perUnit texels a world unit, cols by rows
@@ -158,6 +213,7 @@ func sheetsOver(grid tiling, perUnit float32, cols, rows int) sheets {
 		inked:    make([]bool, n),
 		wanted:   make([]bool, n),
 		snapped:  make([]bool, n),
+		pending:  make([]bool, n),
 		folded:   map[place][]shot{},
 		seen:     make([]lod.Level, n),
 		ring:     make([]bool, n),
@@ -177,6 +233,13 @@ func sheetsOver(grid tiling, perUnit float32, cols, rows int) sheets {
 			ring[j] = true
 		}
 	}
+	if t, ok := grid.(tierGrid); ok {
+		s.tiers, s.small = t, t.Side()/4
+		for k, at := 0, int32(0); k < t.Tiers(); k++ {
+			s.slots = append(s.slots, at)
+			at += int32(t.TierLen(k))
+		}
+	}
 	return s
 }
 
@@ -188,6 +251,7 @@ func (s *sheets) open() {
 	s.albedo, s.relief = render.NewImage(s.cols, s.rows), render.NewImage(s.cols, s.rows)
 	cols, rows := (s.cols+1)/2, (s.rows+1)/2
 	s.albedoL5, s.reliefL5 = render.NewImage(cols, rows), render.NewImage(cols, rows)
+	s.openFiles()
 }
 
 // bump has sector i photographed anew: what stands in it has changed
@@ -195,6 +259,13 @@ func (s *sheets) bump(i int) { s.version[i]++ }
 
 // paint has sector i hold a photograph of what stands in it now, something standing there
 func (s *sheets) paint(i int) { s.mark(i, true) }
+
+// loaded has sector i hold a photograph a file kept of what stood in it as signed, something
+// standing there where inked
+func (s *sheets) loaded(i int, signed signature, inked bool) {
+	s.signed[i] = signed
+	s.mark(i, inked)
+}
 
 // mark has sector i hold a photograph of what stands in it now, full where something does
 func (s *sheets) mark(i int, full bool) {
@@ -212,6 +283,15 @@ func (s *sheets) mark(i int, full bool) {
 // there
 func (s *sheets) holds(i int) bool {
 	return i >= 0 && i < len(s.painted) && s.painted[i] == s.version[i] && s.inked[i]
+}
+
+// held is the version of the photograph sector i holds of what stands in it now, something
+// standing there, 0 for none
+func (s *sheets) held(i int) uint32 {
+	if !s.holds(i) {
+		return 0
+	}
+	return s.painted[i]
 }
 
 // live reports whether the images are made and some sector holds a photograph of something
@@ -259,7 +339,10 @@ func (s *sheets) begin(f *sheetFrame, views []*view.View) bool {
 	clear(s.now)
 	clear(s.ring)
 	s.cands, s.droppable = s.cands[:0], 0
-	for _, v := range views {
+	f.tiered = slices.Grow(f.tiered[:0], len(views))[:len(views)]
+	for k, v := range views {
+		t := &f.tiered[k]
+		t.v, t.levels = v, t.levels[:0]
 		if v.Grid() == nil {
 			continue
 		}
@@ -272,8 +355,49 @@ func (s *sheets) begin(f *sheetFrame, views []*view.View) bool {
 				s.grid.Neighbours(i, s.beside)
 			}
 		}
+		if s.tiers != nil {
+			t.levels = s.climb(t.levels)
+		}
 	}
 	return true
+}
+
+// climb appends to dst the level the view whose sectors' levels seen holds draws each cell of the
+// tiers at, tier by tier, each the finest of the two by two cells of the tier below under it
+func (s *sheets) climb(dst []lod.Level) []lod.Level {
+	dst = append(dst, s.seen...)
+	cols := s.grid.Cols()
+	rows, from := len(s.seen)/cols, 0
+	for range len(s.slots) - 1 {
+		up, down := (cols+1)/2, (rows+1)/2
+		for r := range down {
+			for c := range up {
+				at := from + 2*r*cols + 2*c
+				right, below := 2*c+1 < cols, 2*r+1 < rows
+				l := dst[at]
+				if right {
+					l = min(l, dst[at+1])
+				}
+				if below {
+					l = min(l, dst[at+cols])
+				}
+				if right && below {
+					l = min(l, dst[at+cols+1])
+				}
+				dst = append(dst, l)
+			}
+		}
+		from += cols * rows
+		cols, rows = up, down
+	}
+	return dst
+}
+
+// slotOf is the slot among a view's levels of the cells of the tiers of the cell a thing standing
+// over box lives in (sector.Grid.Fit)
+func (s *sheets) slotOf(box geom.AABB) int32 {
+	tier, cell := s.tiers.Fit(box, s.small)
+	return s.slots[tier] + int32(cell)
 }
 
 // seams reports whether the box of a thing standing whose middle is mid crosses from a sector into
@@ -334,10 +458,11 @@ func (s *sheets) settle(f *sheetFrame) {
 	for p := range s.folded {
 		s.snapped[p.sector] = true
 	}
+	s.waiting()
 	budget := s.perFrame
 	for k := range n {
 		i := (s.next + k) % n
-		if !s.wanted[i] || s.painted[i] == s.version[i] {
+		if !s.wanted[i] || s.painted[i] == s.version[i] || s.pending[i] {
 			continue
 		}
 		full := s.now[i].n > 0 || s.snapped[i]
@@ -350,14 +475,15 @@ func (s *sheets) settle(f *sheetFrame) {
 			break
 		}
 		budget--
-		f.photos = append(f.photos, photo{sector: i, rect: s.rect(i)})
+		f.photos = append(f.photos, photo{sector: i, rect: s.rect(i), signed: s.signed[i],
+			full: full})
 		s.mark(i, full)
 	}
 	s.gather(f)
 	f.on, f.live = true, s.shots > 0
 	f.held = f.held[:0]
 	for i := range n {
-		f.held = append(f.held, s.holds(i))
+		f.held = append(f.held, s.held(i))
 	}
 }
 
@@ -392,11 +518,9 @@ func appendShot(dst []float32, at *shot, span *float32) []float32 {
 	return append(dst, at[:]...)
 }
 
-// fold keeps the parts of the stretch at as the sheets photograph them, at being photographed anew
+// fold keeps the parts of the stretch at as the sheets photograph them, none too, at being
+// photographed anew
 func (s *sheets) fold(at place, parts []shot) {
-	if len(parts) == 0 {
-		return
-	}
 	s.folded[at] = append(s.folded[at][:0], parts...)
 	s.bump(at.sector)
 }

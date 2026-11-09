@@ -17,6 +17,7 @@ const (
 	ChargeCmd = "charge"
 
 	ForestRole      = "forest"
+	ThinnedRole     = "thinned forest"
 	TreeRole        = "tree"
 	FellerRole      = "feller"
 	MortalRole      = "mortal"

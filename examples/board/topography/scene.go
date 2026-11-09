@@ -32,6 +32,7 @@ var cellColors = map[string]color.RGBA{
 	RiverCell:  {R: 90, G: 145, B: 205, A: 255},
 	RoadCell:   {R: 165, G: 135, B: 95, A: 255},
 	ForestCell: {R: 30, G: 90, B: 45, A: 255},
+	BuiltCell:  {R: 158, G: 146, B: 124, A: 255},
 }
 
 var (
@@ -41,6 +42,24 @@ var (
 	pierColor    = color.RGBA{R: 160, G: 150, B: 135, A: 255}
 	lanternGlow  = color.RGBA{R: 255, G: 200, B: 110, A: 255}
 	lanternColor = render.Light{1, 0.75, 0.4}
+	wallColor    = color.RGBA{R: 235, G: 230, B: 218, A: 255}
+	roofColor    = color.RGBA{R: 190, G: 92, B: 60, A: 255}
+	roofShade    = color.RGBA{R: 148, G: 66, B: 44, A: 255}
+	ridgeColor   = color.RGBA{R: 214, G: 132, B: 96, A: 255}
+	wagonColor   = color.RGBA{R: 120, G: 80, B: 45, A: 255}
+	wheelColor   = color.RGBA{R: 50, G: 38, B: 28, A: 255}
+)
+
+var (
+	laurelCrown   = color.RGBA{R: 30, G: 84, B: 42, A: 255}
+	laurelLeaves  = color.RGBA{R: 64, G: 122, B: 58, A: 255}
+	laurelTrunk   = color.RGBA{R: 72, G: 54, B: 38, A: 255}
+	pineCrown     = color.RGBA{R: 38, G: 90, B: 70, A: 255}
+	pineLeaves    = color.RGBA{R: 54, G: 108, B: 82, A: 255}
+	pineTrunk     = color.RGBA{R: 84, G: 58, B: 40, A: 255}
+	heatherCrown  = color.RGBA{R: 98, G: 112, B: 62, A: 255}
+	heatherLeaves = color.RGBA{R: 156, G: 160, B: 100, A: 255}
+	heatherTrunk  = color.RGBA{R: 92, G: 72, B: 52, A: 255}
 )
 
 var (
@@ -49,6 +68,7 @@ var (
 		SandCell:   {R: 238, G: 236, B: 225, A: 255},
 		RockCell:   {R: 205, G: 208, B: 212, A: 255},
 		ForestCell: {R: 150, G: 185, B: 165, A: 255},
+		BuiltCell:  {R: 226, G: 224, B: 220, A: 255},
 	}
 	iceColor = color.RGBA{R: 175, G: 210, B: 230, A: 255}
 )
@@ -63,6 +83,7 @@ func (m *mainScene) screen() *ui.Element {
 		Style(RockCell, painter.Style{Spread: 0.25, Detail: d[RockCell]}).
 		Style(ForestCell, painter.Style{Detail: d[ForestCell]}).
 		Style(RoadCell, painter.Style{Detail: d[RoadCell]}).
+		Style(BuiltCell, painter.Style{Spread: 0.3, Detail: d[RockCell]}).
 		Style(BrookCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).
 		Style(StreamCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).
 		Style(RiverCell, painter.Style{Shine: 0.9, Flow: 22, MixWith: WaterCell}).
@@ -76,7 +97,7 @@ func (m *mainScene) screen() *ui.Element {
 	a.topography.WithAtmosphere(a.atmosphere.Read(0))
 	a.vision.WithViews(world.Show(a.selection.Read(0).IsSelected))
 
-	cam := a.cameras.Write().New(cameras.Isometrically, camera.Config{})
+	cam := a.cameras.Write().New(cameras.Isometrically, camera.Config{Zoom: StartZoom})
 	return hud.Screen(hud.Deps{
 		Feed: ui.Image(render.NewFeed(cam, a.world.Read(0).Picture())).
 			Input(a.players.Through(a.player)),

@@ -20,6 +20,7 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
+	"github.com/kjkrol/gram/plugins/forest"
 	"github.com/kjkrol/gram/plugins/minimap"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/motion/steering"
@@ -28,6 +29,7 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -71,6 +73,7 @@ type arena struct {
 	motion    *motion.Plugin
 	collision *collision.Plugin
 	board     *board.Plugin
+	forest    *forest.Plugin
 	selection *selection.Plugin
 	driving   *driving.Plugin
 	nav       *navigation.Plugin
@@ -118,6 +121,8 @@ func main() {
 				Sight:  Sight,
 				Fold:   FoldAfter,
 			},
+			Far:     world.Banners,
+			Counts:  true,
 			Heights: true,
 		}).
 		Plugins(a.makePlugins).
@@ -142,6 +147,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		WithMotion(a.motion, cell.DefaultHiking).
 		WithCollision(a.collision).
 		WithLog(log.Default())
+	a.forest = forest.NewPlugin(a.world, a.board)
 	a.selection = selection.NewPlugin(a.world)
 	a.driving = driving.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board)
 	a.nav = navigation.NewPlugin(a.board, a.world, a.motion, a.selection, a.driving).
@@ -169,9 +175,8 @@ func (a *arena) enlisted() []command.Command {
 func (a *arena) defineFigures() {
 	a.board.Tiles(tiles()...)
 	a.board.Surfaces(surface{})
+	a.forest.Figures(woods{})
 	a.board.Figures(
-		forest{},
-		tree{},
 		soldier{
 			kind:    RedSoldierKind,
 			role:    RedSoldierRole,
@@ -214,6 +219,7 @@ func (a *arena) defineFigures() {
 			foeArmy:  RedArmyName,
 			soldiers: BlueSoldiersGroup,
 			color:    blueColor,
+			badge:    render.BadgeDiamond,
 			enlisted: a.enlisted,
 		},
 	)

@@ -139,7 +139,8 @@ func TestLighting_HandsEveryPartTheLampsNearestTheCamera(t *testing.T) {
 func TestLighting_BakesTheGroundsShadeFirstOfTheOpaquePass(t *testing.T) {
 	gputest.Need(t)
 	lt := &light.Lights{Sun: west,
-		Blocks: []light.Block{{X: 500, Y: 500, UX: 1, Along: 10, Wide: 10, Top: 20}},
+		Casts: []light.BlockSet{{Box: [4]float32{490, 490, 20, 20}, Top: 20, Version: 1,
+			Blocks: []light.Block{{X: 500, Y: 500, UX: 1, Along: 10, Wide: 10, Top: 20}}}},
 		Ground: light.Lattice{Cols: 9, Rows: 9, Cell: 128}}
 	c := NewComposer(items(func(f *Frame) { f.DrawOpaque() }))
 	c.Light(func() *light.Lights { return lt })
@@ -152,5 +153,23 @@ func TestLighting_BakesTheGroundsShadeFirstOfTheOpaquePass(t *testing.T) {
 	c.compose(topDown(), wholePart)
 	if o := c.frame.opaque; len(o) != 1 || o[0] == c.lit.index {
 		t.Errorf("with no ground to bake over the opaque pass draws %v, want the ground alone", o)
+	}
+}
+
+func TestLighting_LampsLightWhatTheyReachFarFromTheOrigin(t *testing.T) {
+	lamp := light.Lamp{X: 60000.5, Y: 30000.25, Z: 10, Reach: 50, Color: light.Light{1, 1, 1}}
+	lt := &light.Lights{Sun: west, Lamps: []light.Lamp{lamp}}
+	for _, d := range []float32{-50.01, -49.99, -10, 0, 49.99, 50.01} {
+		for _, at := range [][2]float32{{lamp.X + d, lamp.Y}, {lamp.X, lamp.Y + d}} {
+			var lit light.Illumination
+			c := NewComposer(items(func(f *Frame) {
+				lit = f.Lit(at[0], at[1], 10, light.TakesAll)
+			}))
+			c.Light(func() *light.Lights { return lt })
+			c.DrawWorld(nil, topDown())
+			if want, _ := lamp.Light(at[0], at[1], 10); lit.Lamps != want {
+				t.Errorf("at %v the lamps light %v, want the lamp's own %v", at, lit.Lamps, want)
+			}
+		}
 	}
 }

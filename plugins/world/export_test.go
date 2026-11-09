@@ -43,3 +43,35 @@ func (p *Plugin) SheetShots() map[int]int {
 	}
 	return out
 }
+
+// SheetAltitudes are the altitudes of the parts of the fields folded the sheets keep.
+func (p *Plugin) SheetAltitudes() []float32 {
+	var out []float32
+	for _, shots := range p.renderer.sheet.folded {
+		for _, at := range shots {
+			out = append(out, at[8])
+		}
+	}
+	return out
+}
+
+// Photographed is, by sector the frame last published photographs, how many things its
+// photograph holds, developed as a frame drawing it would.
+func (p *Plugin) Photographed() map[int]int {
+	f := &p.renderer.figures.Front().sheet
+	f.developed = true
+	out := map[int]int{}
+	for _, ph := range f.photos {
+		out[ph.sector] = (ph.to - ph.from) / photoFloats
+	}
+	return out
+}
+
+// Stretches is how many stretches of aggregates stand unfolded.
+func (p *Plugin) Stretches() int {
+	n, q := 0, p.module.wholes.stretches
+	for q.All(); q.Next(); {
+		n += len(q.Cursor().IDs)
+	}
+	return n
+}

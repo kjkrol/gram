@@ -235,6 +235,21 @@ func (h *handover) cast() (army taking, soldiers []taking) {
 	return army, soldiers
 }
 
+// amidst is the middle of the box round the soldiers' boxes, all of a size
+func amidst(soldiers []taking) geom.Vec {
+	lo, hi := soldiers[0].at, soldiers[0].at
+	for _, s := range soldiers[1:] {
+		lo = geom.NewVec(min(lo.X, s.at.X), min(lo.Y, s.at.Y))
+		hi = geom.NewVec(max(hi.X, s.at.X), max(hi.Y, s.at.Y))
+	}
+	return geom.NewVec((lo.X+hi.X)/2, (lo.Y+hi.Y)/2)
+}
+
+// nearBy says whether a lies within half a cell of b: the army follows its soldiers a step late
+func nearBy(a, b geom.Vec) bool {
+	return f32.Hypot(a.X-b.X, a.Y-b.Y) <= float32(legCellSize)/2
+}
+
 // walksOn says whether b's route is a's walked on from where a came, a step further at most
 func walksOn(a, b Path) bool {
 	return a.Length == b.Length && b.Index >= a.Index && b.Index <= a.Index+1 &&
@@ -298,8 +313,8 @@ func TestInherit_HandsTheRouteOverAtAFoldAndAnUnfold(t *testing.T) {
 	}
 	h.run(2 * 60)
 	stood, walked := h.cast()
-	if moved := stood.at.X - unfolded.at.X; moved > float32(legCellSize) {
-		t.Errorf("unfolded, the army went %v on, want it standing for its soldiers", moved)
+	if mid := amidst(walked); !nearBy(stood.at, mid) {
+		t.Errorf("unfolded, the army at %v, want at its soldiers' middle %v", stood.at, mid)
 	}
 	along := false
 	for _, s := range soldiers {
@@ -406,8 +421,9 @@ func TestHandover_AnAggregateComesDownAndStandsTillItHasFolded(t *testing.T) {
 	}
 
 	h.run(60)
-	if stood, _ := h.cast(); stood.at != down.at {
-		t.Errorf("unfolded, the army went from %v to %v, want it standing", down.at, stood.at)
+	if stood, soldiers := h.cast(); !nearBy(stood.at, amidst(soldiers)) {
+		t.Errorf("unfolded, the army went from %v to %v, want it at its soldiers' middle %v",
+			down.at, stood.at, amidst(soldiers))
 	}
 	g.EachCell(func(c cell.ID) {
 		h.occ.Holders(c, func(e uid.UID64, _ cell.Domain, _ bool) {
@@ -418,10 +434,11 @@ func TestHandover_AnAggregateComesDownAndStandsTillItHasFolded(t *testing.T) {
 	})
 	h.seen.cams = nil
 	h.run(int((foldAfter - foldAfter/4) / frame))
-	if stood, _ := h.cast(); stood.at != down.at || stood.marked || !stood.unfolded {
+	if stood, soldiers := h.cast(); !nearBy(stood.at, amidst(soldiers)) || stood.marked ||
+		!stood.unfolded {
 		t.Errorf("at L4, its soldiers yet to fold, the army went from %v to %v, marked %v, "+
-			"Unfolded %v; want it standing, unmarked, Unfolded", down.at, stood.at, stood.marked,
-			stood.unfolded)
+			"Unfolded %v; want it at its soldiers' middle %v, unmarked, Unfolded", down.at,
+			stood.at, stood.marked, stood.unfolded, amidst(soldiers))
 	}
 	gone := false
 	for range 2 * int(foldAfter/frame) {

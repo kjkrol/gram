@@ -12,7 +12,10 @@
 // or by a box, additive or not, and with a Camera the screen rectangle the player drew picks them
 // where that camera draws them; [SelectionSystem] carries it out. Where the world draws a kind's
 // loose units far off as one banner (world.Banners), a click on the banner picks them all, and
-// none where they stand.
+// none where they stand. A part of an aggregate (world.PartOf) not Selectable itself stands for
+// its whole, which while unfolded is hit through its parts alone: a Select or a Hover reaching the
+// part picks the whole where the player may select it, and the renderer outlines the parts of a
+// selected whole unfolded in the whole's Highlight.
 //
 // # Whose units
 //

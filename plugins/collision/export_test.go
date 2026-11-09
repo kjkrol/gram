@@ -56,6 +56,17 @@ func hostAll(pairs *host.PairRules[Meeting], entities *host.Rules[Struck], rules
 	return nil
 }
 
+// CountRestills has the plugin count the times it asks the world to take what stands for good
+// anew; call between Install and the ECS's Setup.
+func (p *Plugin) CountRestills() *int {
+	n, restill := new(int), p.module.restill
+	p.module.restill = func() {
+		*n++
+		restill()
+	}
+	return n
+}
+
 // BoxesView is what draws the entities' boxes.
 func (p *Plugin) BoxesView() render.Source { return p.boxesView }
 

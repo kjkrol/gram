@@ -70,11 +70,11 @@ func TestSheets_DrawWhatStandsByASeamAliveAtTheFinerLevel(t *testing.T) {
 		stood{box: box(270, 470, 20), sprite: k.dome},
 		stood{box: box(230, 700, 40), z: Z{Height: 10}, sprite: k.dome, fixed: true})
 	f := s.publish()
-	if n := instancesOf(f, 5); n != 1 || !f.sheet.held[5] {
+	if n := instancesOf(f, 5); n != 1 || f.sheet.held[5] == 0 {
 		t.Fatalf("the sector by the seam photographed of %d things, held %v; want of the one "+
 			"farther, held", n, f.sheet.held[5])
 	}
-	if n := instancesOf(f, 9); n > 0 || f.sheet.held[9] {
+	if n := instancesOf(f, 9); n > 0 || f.sheet.held[9] != 0 {
 		t.Errorf("the sector the lower one crosses into photographed of %d, held %v; want of none",
 			n, f.sheet.held[9])
 	}

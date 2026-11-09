@@ -1,6 +1,7 @@
 package world
 
 import (
+	"slices"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
@@ -52,6 +53,10 @@ func (r *Read) HasHeights() bool { return r.p.Res.Config.Heights }
 
 // Scale is how many metres a world unit spans.
 func (r *Read) Scale() Scale { return r.p.Res.Config.Scale }
+
+// GroundAt is the ground's height under the world point at, as the plugin giving the ground has
+// it (Write.SetGround); 0 in a world without one.
+func (r *Read) GroundAt(at geom.Vec) float32 { return r.p.module.groundAt(at) }
 
 // Lights are the lights the frame drawn is lit by, the light plugin's; nil without one, or before
 // a frame was published.
@@ -125,13 +130,17 @@ func (r *Read) Sheet() (albedo, relief, albedoL5, reliefL5 *render.Image, perUni
 	return s.albedo, s.relief, s.albedoL5, s.reliefL5, perUnit
 }
 
-// Painted reports whether sector i's sheet holds a photograph of what stands in it now, something
-// standing there: for what draws, as the frame drawn holds it.
-func (r *Read) Painted(i int) bool {
+// Painted is the version of the photograph of what stands in sector i now its sheet holds,
+// something standing there, 0 for none, new as the photograph changes: for what draws, as the
+// frame drawn holds it.
+func (r *Read) Painted(i int) uint32 {
 	if f := &r.p.renderer.figures.Front().sheet; f.on {
-		return i >= 0 && i < len(f.held) && f.held[i]
+		if i < 0 || i >= len(f.held) {
+			return 0
+		}
+		return f.held[i]
 	}
-	return r.p.renderer.sheet.holds(i)
+	return r.p.renderer.sheet.held(i)
 }
 
 // FarLook is how the loose units are drawn at the strategic scale: as the Settings say, else as
@@ -158,8 +167,10 @@ func (r *Read) Counts() bool {
 	return r.p.Res.Config.Counts
 }
 
-// Banner is a kind's loose units in a sector drawn as one at the strategic scale: Count of them,
-// IDs, drawn over Box round their centroid, Center, at their mean Z.
+// Banner is a kind's loose units in a sector drawn as one at the strategic scale: the entities
+// IDs, standing for Count units (an aggregate folded for its Strength), drawn over Box round their
+// centroid, Center, at their mean Z, under a badge reaching Reach shown pixels round its middle
+// (BadgeAt).
 type Banner struct {
 	Kind   kind.ID
 	Sector int
@@ -168,6 +179,14 @@ type Banner struct {
 	Count  int
 	Box    geom.AABB
 	Z      Z
+	Reach  float32
+}
+
+// BadgeAt is where cam shows b's badge, in its pixels: its middle and how far it reaches round it.
+func (b Banner) BadgeAt(cam camera.Camera) (x, y, reach float32) {
+	shown := camera.ResolutionOf(cam)
+	x, y = cam.Project(b.Center.X, b.Center.Y, b.Z.Top())
+	return x, y - badgeLift(b.Reach)*shown, b.Reach * shown
 }
 
 // Banners appends to dst the banners cam drew in the frame drawn, where the far units are drawn
@@ -189,6 +208,40 @@ func (r *Read) Banded() bool { return !r.p.Res.Settings.Unbanded }
 // LevelAt is the level the sector holding the world point (x, y) is ticked at, as the last tick
 // left it; Standard in a world of no sectors and with the levels switched off.
 func (r *Read) LevelAt(x, y float32) lod.Level { return r.p.module.sectors.levelAt(x, y) }
+
+// SectorOf is the sector holding the world point (x, y), held to the world's edges; 0 in a world
+// of no sectors.
+func (r *Read) SectorOf(x, y float32) int { return r.p.module.sectors.of(x, y) }
+
+// SectorSide is the side of the world's square sectors, in world units; 0 in a world of no
+// sectors.
+func (r *Read) SectorSide() float32 {
+	if g := r.p.module.sectors.grid; g != nil {
+		return g.Side()
+	}
+	return 0
+}
+
+// Small is the longer side a thing standing for good may have and still live by its centre
+// (Config.Sectors.Small, a quarter of a sector's side unless set); 0 in a world of no sectors.
+func (r *Read) Small() float32 {
+	g := r.p.module.sectors.grid
+	switch {
+	case g == nil:
+		return 0
+	case r.p.Res.Config.Sectors.Small > 0:
+		return r.p.Res.Config.Sectors.Small
+	}
+	return g.Side() / 4
+}
+
+// SectorsLen is how many sectors the world is cut into; 0 in a world of no sectors.
+func (r *Read) SectorsLen() int {
+	if g := r.p.module.sectors.grid; g != nil {
+		return g.Len()
+	}
+	return 0
+}
 
 // SectorsShown is what is drawn of the sectors.
 func (r *Read) SectorsShown() SectorsShown { return r.p.Res.Settings.Sectors }
@@ -213,6 +266,13 @@ type Write struct{ p *Plugin }
 // Space is the world's spatial index of its entities, indexed again as they spawn, go and move.
 func (w *Write) Space() *aabbworld.Space { return w.p.module.space }
 
+// Restill has the space take what stands for good anew once a Caps of it changed in place: its
+// still layer holds them as it found them when it was last gathered.
+func (w *Write) Restill() {
+	x := w.p.module.indexer
+	w.p.module.indexStill(x.still, &x.stillBase)
+}
+
 // Clock is the world's tactical clock, to hand what simulates and to drive.
 func (w *Write) Clock() *clock.Clock { return w.p.module.clock }
 
@@ -236,7 +296,20 @@ func (w *Write) Spawn(entries ...kind.Entry) {
 	}
 }
 
-// Despawn takes an entity out of the ECS at the end of the tick.
+// SeedWhole adds a thing standing in pieces to the entities spawned when this Stage starts fresh:
+// whole's handle and every piece, each carrying PieceOf it (SpawnWhole).
+func (w *Write) SeedWhole(whole kind.Entry, pieces ...kind.Entry) {
+	w.p.must("wholes seeded", section.Spawn)
+	w.p.wholes = append(w.p.wholes, SpawnWhole{Whole: whole, Pieces: slices.Clone(pieces)})
+}
+
+// SpawnWhole gives the command [SpawnWhole] for whole's handle and its pieces as command.Nobody.
+func (w *Write) SpawnWhole(whole kind.Entry, pieces ...kind.Entry) {
+	w.p.module.spawnWholes.Add(command.Nobody,
+		SpawnWhole{Whole: whole, Pieces: slices.Clone(pieces)})
+}
+
+// Despawn takes an entity out of the ECS at the end of the tick, a Whole's handle with its pieces.
 func (w *Write) Despawn(cb *goke.CmdBuf, id uid.UID64) { w.p.module.despawn(cb, id) }
 
 // NewView makes the View of what cam sees, kept current from the next tick on; the one made
@@ -260,6 +333,10 @@ func (w *Write) NewView(cam camera.Camera) *view.View {
 
 // SetLook has the world's entities drawn, picked and outlined by look, a view plugin's.
 func (w *Write) SetLook(look Look) { w.p.look = look }
+
+// SetGround has the ground's height under a world point read off ground (Read.GroundAt), the
+// plugin's laying the ground in relief.
+func (w *Write) SetGround(ground func(at geom.Vec) float32) { w.p.module.ground = ground }
 
 // SetLighting has the world's entities marked by l as they are published, the light plugin's.
 // Before Install.

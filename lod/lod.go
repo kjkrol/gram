@@ -42,6 +42,10 @@ type Ladder struct {
 	Scales [Levels - 1]float32
 	Sight  float32
 	Fog    float32
+	// Rings is how far from an observer the levels reach: a sector past Rings[k] is coarser than
+	// level k whatever scale it shows, a zero bounding none, so a camera seeing far at one scale,
+	// an orthographic one, does not hold the world at that scale's level.
+	Rings [Levels - 1]float32
 	// Unobserved is the level a world no camera observes is ticked at.
 	Unobserved Fallback
 	// Keep is the share of a level's entities a camera's publisher keeps, in [0, 1], zero for
@@ -56,6 +60,9 @@ type Ladder struct {
 	// folds, zero for 3: a hold past the levels' own, so one on the edge of L3 and L4 does not
 	// flicker.
 	Fold float32
+	// Unfolds is how many stretches of aggregates the world unfolds in a step at most, those
+	// nearest an observer first; zero for 16.
+	Unfolds int
 }
 
 // FoldAfter is how long an aggregate's sector lies at Strategic or coarser before it folds: Fold
@@ -104,18 +111,28 @@ func (f Fallback) Level() Level {
 }
 
 // At is the level of what a world unit spans scale shown pixels of, dist from the observer: the
-// first whose threshold the scale meets, a close one only where set, Omitted under the last or
-// past the Sight.
+// first whose threshold the scale meets, a close one only where set, or the coarser one dist
+// reaches within the Rings; Omitted under the last or past the Sight.
 func (l Ladder) At(scale, dist float32) Level {
 	if l.Sight > 0 && dist > l.Sight {
 		return Omitted
 	}
 	for k, s := range l.Scales {
 		if scale >= s && (s > 0 || Level(k) >= Standard) {
-			return Level(k)
+			return l.ringed(Level(k), dist)
 		}
 	}
 	return Omitted
+}
+
+// ringed is from, or one past the coarsest level from on whose Ring dist lies beyond
+func (l Ladder) ringed(from Level, dist float32) Level {
+	for k := int(Omitted) - 1; k >= int(from); k-- {
+		if r := l.Rings[k]; r > 0 && dist > r {
+			return Level(k + 1)
+		}
+	}
+	return from
 }
 
 // Hysteresis is the share of a threshold a scale must fall under before its level goes coarser,
@@ -132,9 +149,13 @@ func (l Ladder) Hold(from Level, scale, dist, margin float32) Level {
 	return max(from, l.At(scale/Hysteresis, dist-margin))
 }
 
-// Widened is l seeing factor times as far, its Fog kept; a Sight without end stays so.
+// Widened is l seeing factor times as far, its Rings with its Sight, its Fog kept; a Sight
+// without end stays so.
 func (l Ladder) Widened(factor float32) Ladder {
 	l.Sight *= factor
+	for k := range l.Rings {
+		l.Rings[k] *= factor
+	}
 	return l
 }
 
@@ -152,6 +173,9 @@ func (l Ladder) Check() {
 	}
 	if !(l.Texel >= 0) {
 		panic(fmt.Sprintf("lod: a texel of %v, want none negative", l.Texel))
+	}
+	if l.Unfolds < 0 {
+		panic(fmt.Sprintf("lod: %d stretches unfolding a step, want none negative", l.Unfolds))
 	}
 	// the level whose threshold the next one set must be under, -1 for none yet
 	before := -1
@@ -173,6 +197,20 @@ func (l Ladder) Check() {
 			l.Fog))
 	case l.Fog > l.Sight:
 		panic(fmt.Sprintf("lod: a fog of %v past a sight of %v", l.Fog, l.Sight))
+	}
+	// the level whose ring the next one set must reach past, -1 for none yet
+	ringed := -1
+	for k, r := range l.Rings {
+		switch {
+		case r < 0:
+			panic(fmt.Sprintf("lod: level %d's ring %v is negative", k, r))
+		case r == 0:
+			continue
+		case ringed >= 0 && r < l.Rings[ringed]:
+			panic(fmt.Sprintf("lod: level %d's ring %v is within level %d's %v", k, r, ringed,
+				l.Rings[ringed]))
+		}
+		ringed = k
 	}
 }
 

@@ -43,12 +43,15 @@ func newStandingKinds() standingKinds {
 	return k
 }
 
-// stood is an entity over a box at z, of a sprite, fixed or not
+// stood is an entity over a box at z, of a sprite, fixed or not; a Whole's handle, fixed, or a
+// piece of the one of the things added before at of-1, fixed
 type stood struct {
 	box    plane.AABB
 	z      Z
 	sprite render.SpriteID
 	fixed  bool
+	handle bool
+	of     int
 }
 
 // grid is the sectors a View sees that the sheets lay out
@@ -80,6 +83,14 @@ type sheetRig struct {
 	ua            goke.Comp[render.Appearance]
 	uz            goke.Comp[Z]
 	dense, sparse float32
+	// what makes the handles of wholes and their pieces
+	handles, pieces *goke.Factory
+	hb, pb          goke.Comp[Base]
+	ha, pa          goke.Comp[render.Appearance]
+	hz, pz          goke.Comp[Z]
+	hf, pf          goke.Comp[Fixed]
+	hw              goke.Comp[Whole]
+	po              goke.Comp[PieceOf]
 }
 
 // atL4 draws the right half at L4 and the left at L2 seen as halves through farther
@@ -104,6 +115,8 @@ func newSheetRig(t *testing.T, k standingKinds, g grid, things ...stood) *sheetR
 	goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		s.fixed = si.NewFactory(&s.mb, &s.ma, &s.mz, &s.mf)
 		s.units = si.NewFactory(&s.ub, &s.ua, &s.uz)
+		s.handles = si.NewFactory(&s.hb, &s.ha, &s.hz, &s.hf, &s.hw)
+		s.pieces = si.NewFactory(&s.pb, &s.pa, &s.pz, &s.pf, &s.po)
 		s.all = si.NewQueryBuilder(&s.base, &s.z).Build()
 		s.add(things...)
 		s.r.Init(si)
@@ -115,11 +128,19 @@ func newSheetRig(t *testing.T, k standingKinds, g grid, things ...stood) *sheetR
 func (s *sheetRig) add(things ...stood) {
 	for _, th := range things {
 		f, base, look, z := s.units, &s.ub, &s.ua, &s.uz
-		if th.fixed {
+		switch {
+		case th.handle:
+			f, base, look, z = s.handles, &s.hb, &s.ha, &s.hz
+		case th.of > 0:
+			f, base, look, z = s.pieces, &s.pb, &s.pa, &s.pz
+		case th.fixed:
 			f, base, look, z = s.fixed, &s.mb, &s.ma, &s.mz
 		}
 		f.Create(1)
 		f.Next()
+		if th.of > 0 {
+			s.po.Slice(&f.Cursor)[0] = PieceOf{Whole: s.ids[th.of-1]}
+		}
 		base.Slice(&f.Cursor)[0] = Base{Pos: Position{AABB: th.box}}
 		look.Slice(&f.Cursor)[0] = render.Appearance{SpriteID: th.sprite}
 		z.Slice(&f.Cursor)[0] = th.z
@@ -177,7 +198,7 @@ func TestSheets_PhotographWhatStandsWhereAViewDrawsL4InPlaceOfItsRecords(t *test
 		t.Errorf("the photograph lays %d things over %v, want the two of no look at L4 over %v", n,
 			p.rect, s.r.sheet.rect(1))
 	}
-	if !f.sheet.held[1] || f.sheet.held[0] || !f.sheet.live {
+	if f.sheet.held[1] == 0 || f.sheet.held[0] != 0 || !f.sheet.live {
 		t.Errorf("held %v, live %v; want the right half held alone", f.sheet.held, f.sheet.live)
 	}
 	if got := s.recorded(f); !slices.Equal(got, []int{2, 3, 4}) {
@@ -219,19 +240,19 @@ func TestSheets_HoldNothingWhereNothingStandsAndClearAnEmptiedSector(t *testing.
 	s := newSheetRig(t, k, halves{ladder: atL4},
 		stood{box: box(100, 400, 40), sprite: k.dome, fixed: true})
 	f := s.publish()
-	if len(f.sheet.photos) != 0 || f.sheet.held[1] || f.sheet.live {
+	if len(f.sheet.photos) != 0 || f.sheet.held[1] != 0 || f.sheet.live {
 		t.Fatalf("%d photographs, held %v, live %v of nothing standing; want none",
 			len(f.sheet.photos), f.sheet.held, f.sheet.live)
 	}
 	s.move(0, box(600, 400, 40), Z{})
-	if f := s.publish(); len(f.sheet.photos) != 1 || !f.sheet.held[1] {
+	if f := s.publish(); len(f.sheet.photos) != 1 || f.sheet.held[1] == 0 {
 		t.Fatalf("come into the right half, %d photographs, held %v; want one, held",
 			len(f.sheet.photos), f.sheet.held)
 	}
 	s.move(0, box(100, 400, 40), Z{})
 	f = s.publish()
 	if len(f.sheet.photos) != 1 || f.sheet.photos[0].to != f.sheet.photos[0].from ||
-		f.sheet.held[1] || f.sheet.live {
+		f.sheet.held[1] != 0 || f.sheet.live {
 		t.Errorf("gone, %v photographed, held %v, live %v; want the half photographed empty, "+
 			"held by none", f.sheet.photos, f.sheet.held, f.sheet.live)
 	}
@@ -290,7 +311,7 @@ func TestSheets_KeepTheRecordOfWhatAnotherViewDrawsShortOfL4(t *testing.T) {
 	views := map[camera.Camera]*view.View{s.cam: s.views[0], near: v}
 	s.r.views = func() map[camera.Camera]*view.View { return views }
 	f := s.publish()
-	if len(f.all) != 1 || !f.all[0].fine || f.all[0].sheet != 2 || !f.sheet.held[1] {
+	if len(f.all) != 1 || !f.all[0].fine || f.all[0].sheet != 2 || f.sheet.held[1] == 0 {
 		t.Fatalf("records %v, held %v; want one drawn fine by the near view, the right half held",
 			f.all, f.sheet.held)
 	}
@@ -453,7 +474,7 @@ func TestSheets_PhotographThePartsKeptOfAFieldFoldedTillItUnfolds(t *testing.T) 
 	s.r.sheet.fold(at, []shot{{600, 400, 10, 10}, {700, 400, 10, 10}})
 	f := s.publish()
 	if len(f.sheet.photos) != 1 || f.sheet.photos[0].to-f.sheet.photos[0].from != 2*photoFloats ||
-		!f.sheet.held[1] {
+		f.sheet.held[1] == 0 {
 		t.Fatalf("photographs %v, held %v; want the right half's of both parts, held",
 			f.sheet.photos, f.sheet.held)
 	}
@@ -461,7 +482,7 @@ func TestSheets_PhotographThePartsKeptOfAFieldFoldedTillItUnfolds(t *testing.T) 
 	s.r.sheet.unfold(at)
 	f = s.publish()
 	if len(f.sheet.photos) != 1 || f.sheet.photos[0].to != f.sheet.photos[0].from ||
-		f.sheet.held[1] {
+		f.sheet.held[1] != 0 {
 		t.Errorf("unfolded, photographs %v, held %v; want the right half's empty, held by none",
 			f.sheet.photos, f.sheet.held)
 	}

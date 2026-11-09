@@ -9,11 +9,13 @@
 // # A bridge is its parts
 //
 // A bridge is entities standing on the board, saved as any: a piece of deck on every cell from head
-// to head, a band with its railings, and over a map in relief a pier between every two spans, each
-// casting a Baked shadow (light.Shadow). [Type.Deck] and [Type.Pier] are their looks' slots for a
-// scene's atlas. They are [world.Fixed]: from L4 out the world's sheets hold them at their tops,
-// and by a sector drawn finer they are drawn alive at its level, so a bridge stays whole and level
-// across the seam.
+// to head, a band with its railings, and over a map in relief a pier between every two spans
+// casting its Baked shadow (light.Shadow). Over them stands its handle, "<name>.whole", holding no
+// cell and drawn at no level, which casts the deck's shadow whole, seen through by sight, and
+// takes its pieces with it as it goes (world.Whole). [Type.Deck] and [Type.Pier] are their looks'
+// slots for a scene's atlas. They are [world.Fixed]: from L4 out the world's sheets hold them at
+// their tops, and by a sector drawn finer they are drawn alive at its level, so a bridge stays
+// whole and level across the seam.
 //
 // # A level's bridges
 //
@@ -41,5 +43,6 @@
 //
 // # Vocabulary
 //
-// Commands, a player's with the bridge tool in hand: [Aim], [Mark], [Build], [Cancel].
+// Marks: world.Whole on a bridge's handle, world.PieceOf on its pieces. Commands, a player's with
+// the bridge tool in hand: [Aim], [Mark], [Build], [Cancel].
 package bridges

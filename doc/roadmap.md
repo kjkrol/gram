@@ -125,8 +125,7 @@ What is left to do. Take an item out when it lands.
   navigation keeps a target keen is overwritten on restore; abstract routes drawn
   (`routes/renderer.go` reads `Path`); re-checking an abstract route after a passage change; a
   right click sending `MoveTo{To}` at the entity under the cursor (navigation's click sends a
-  cell, selection exposes no hovered entity); a part standing on the board (`SpawnPart` re-lays
-  `Position` alone, not `cell.On`/`unit.At`); a Fold the moment an unfolded aggregate's last part
+  cell, selection exposes no hovered entity); a Fold the moment an unfolded aggregate's last part
   goes, or a `MoveTo` aimed at the nearest of a group, so a charge can last till the foe is gone;
   a unit told Stop in the far mode stands unmarked on no cell; a change of the finest level seen
   re-marks every awake entity in two archetype moves (goke's `Editor` would make it one); the
@@ -147,8 +146,7 @@ What is left to do. Take an item out when it lands.
 - **The sheets, what is left** (2026-11-05) — the sheet casts no shadow on the ground at L4 (the
   light's bake reads `GroundHeights` alone); a look changed under an effect, or an animated look
   on a `Fixed` kind, re-photographs its sector (the sprite is in the signature: a frame of
-  animation a frame); the snapshots of a folded field's parts are not saved, so after a load in
-  one process a stale one stays till the stretch unfolds; a thing across a wrapping world's seam
+  animation a frame); a thing across a wrapping world's seam
   is clamped in the photo, not wrapped; the minimap's `Miniature` could read the albedo's
   quarter; `lay` builds a third index set at every relief change (~12 % more indices on
   Madeira); the uniform `AlbedoSize` is read by no shader; `surface.wgsl`'s `albedo()` could read
@@ -160,6 +158,58 @@ What is left to do. Take an item out when it lands.
   would spare three draws a round; the albedo and the relief in one image another pass); hover
   and the pointed commands do not know banners, only a click does; a banner's Z is its units'
   mean, so it may sink under a hill between valley units.
+- **Madeira with aggregates, what is left** (2026-11-06) — the topography's trees carry no
+  `Collider` (`forest.Spec.Solid` gives one; forest-army's have it) and hold no cell, so units walk
+  through a forest (a decision: a collider costs the L2 tick, an occupancy the planner); a
+  settlement's lamp is in the sheet without its light (the sheet carries no light sources); the flat
+  demo reads no fields and its map is not renewed; a change to the rules planting a field is a new
+  `SheetsVersion` by hand (a sector's signature knows the kinds in it, not the rules); `Swap`
+  schedules the developing only when photos wait, so the dirty tiles re-arm the Defer themselves
+  (the condition in `Swap` is the cleaner lever); an orthographic camera at L2 sees every field
+  within the Sight (the scale is one over the whole frame: ~30 000 trees on Madeira), so the
+  island's L2 tick is the forests' (the ladder's `Rings` bound the levels by distance since
+  2026-11-08; the topography sets none yet: a decision of the picture, L3 within a radius and the
+  sheet beyond); an unfolded caravan stands at its goal till it folds (the whole learns its parts
+  arrived only at `Fold`: an effect laid under `Unfold`, safe for a point aggregate, or a moment);
+  houses as prisms at noon are dark boxes with a roof (a billboard with a facade); only two
+  settlements get a lamp (the blocks of 16 cut the big towns into fields under 16 cells; a
+  settlement as one field over its cells); a hand-placed entity row goes when gramap regenerates the
+  map (it keeps `units:` alone); the caravans stand ~20 s of game at the start till the hierarchy is
+  built. Measured and open (2026-11-06, `doc/plans-perf.md` "Wynik etapu `d`"): the island at L4
+  costs 22 ms of GPU a frame on an Intel UHD 620 (the whole island in the sheets, 173 sectors with
+  the photo mesh) and a steady tick of 8.7 ms where the old map at L2 had 2.1 ms (a CPU profile of
+  the probe is the next step); the forest at L2 is 24,000 trees and a tick of 20–30 ms before the
+  still layer and the altitude pass set once (`f/still`, `f/space`; the round's result in
+  `doc/plans-perf.md`); a tile is saved in 29 ms (`png.BestSpeed`, in a goroutine; the target was
+  10) and loaded in 2.5 ms (the target 2).
+- **The shade in tiles, what is left** (2026-11-07) — the trees' `Baked` shadow is a look
+  decision: every tree near a band of the sun's bake stretches its quad down to the lowest
+  ground (~11 000 shade pixels a tree, 4000–5400 trees a band over the forest: a band a frame
+  costs 100–300 ms of GPU as the day turns), so the lever is `far` from the ground near the
+  block in `bake_blocks.wgsl`, or `NoShadow` on the demo's trees; a tile fades not, and
+  overwrites the band's "before" where a band of the same frame overlaps it; the frame budget's
+  `Coarse` switch still bakes the whole shade (halving or doubling the old image would do);
+  `Benchmark_Bake_Tile` is 4.8 ms, GPU-bound (the target 0.5), `Benchmark_Light_Publish`
+  0.6 ms (the target 0.4: a reciprocal in `sector.Grid.Of`, or no walk when no chunk changed).
+- **Tiers and the handle, what is left** (2026-11-07) — only bridges stand on a handle: gramap's
+  walls and a settlement's long houses still live piece by piece; `sector.Grid.Fit` costs ~27 % of
+  a publish of long things (`Benchmark_World_Seams/long`), an O(1) `Fit` from the box's first
+  and last sector columns and rows would take it off; `sheets.wants` tests a box's four corners,
+  so a long thing whose middle sector alone is at L4 is photographed nowhere and stays alive;
+  the handle is seen by vision (it can take a `Sighted` slot) and may be the nearest thing a
+  hover meets, carrying no marks; a save from before the handle keeps its bridges' decks casting
+  piece by piece; a point aggregate waiting its turn to unfold is walked as a unit for those
+  steps and a `Keen`-held one gets no priority; the longest step at a zoom over Madeira (~170–250
+  ms) is navigation: the units leaving the abstract graph ask their routes at once; a persistent
+  scene on the GPU (instances in buckets a tier's cell, compute culling, `DrawIndexedIndirect`)
+  is stage `v` in `doc/plans-perf.md`; an unfolded whole asleep at L6 whose parts
+  are seen is picked but not selected; the sheets' tops pass reads up to 17×17×2 + 11×11 texels
+  a corner (a max a quad would be 4–7× fewer) and the photo mesh is drawn in every camera layer
+  (culling a layer's slice belongs to render, the ground's too); a `Fixed` collider with a
+  finite mass is still judged in `side()` as a body (the still layer never pushes it); the
+  weathering walks every cell of the board a second (2 ms a step at
+  640×320); the hierarchy's first build takes ~33 s of game (main's 25); each band of the shade
+  stretches every block's shadow down to the lowest ground (~11 000 px a tree).
 
 ## Landscape and Madeira
 
@@ -173,9 +223,14 @@ What is left to do. Take an item out when it lands.
   under a low camera.
 - **Two mouths side by side** — two rivers reaching the sea next to each other look like a "U" at
   the water: the drainage joins them by the shore.
-- **Forests come back** — with a plugin for plants; the `forest` kind stays for it. The trees are
-  to stand on the board as entities, as bridges do, so a unit walks among them in first person;
-  that needs the world parted into sectors, sparing the GPU, the memory and the CPU.
+- **The forest plugin, what is left** (2026-11-08) — `Slot.Upright` puts one sprite on the four
+  sides and the top, so a pine's top is its side (an Upright taking a top look of its own); a kind
+  declaring an L3 look counts as declaring L4 (`.Nothing(L4)` needed, a tree drawing nothing at L4
+  till its sector's photo, no trees from L4 in a world without sheets); the flat look (forest-army
+  at L2) draws the side sprite from above as an icon; a forest's composition from the map or
+  gramap's recipe (today the game's `Stand` by the ground's height alone); the far look of a forest
+  from a low eye (a field's L4 piece as a canopy card of the trees' height in the relief's Look: a
+  forest has no silhouette on the horizon).
 - **Winter without the slowdown** — snow and ice on Madeira (`weathering`) slow the game down
   badly; a lead: `weathering` asks `air.FallsAt` of every cell once a second of game time, and
   since the clouds came in two layers it works out both layers' noise on the CPU.

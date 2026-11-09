@@ -33,6 +33,15 @@ type SpawnPart struct {
 	aimed bool
 }
 
+// SpawnWhole is the command to add a thing standing in pieces to the running world at the next
+// step: the Whole's handle and every piece, each carrying PieceOf it. One refused (a handle whose
+// kind carries no Whole, an entry refused as a Spawn is, or no room for them all) spawns none of
+// them and is logged; a handle's box joins its pieces', bounded by no Entities.MaxSize.
+type SpawnWhole struct {
+	Whole  kind.Entry
+	Pieces []kind.Entry
+}
+
 // Aim tells the command the stretch of the aggregate it lies in.
 func (s *SpawnPart) Aim(who uid.UID64) { s.in, s.aimed = who, true }
 
@@ -72,6 +81,7 @@ type ShowCounts struct{ On bool }
 func (Despawn) Command()     {}
 func (Spawn) Command()       {}
 func (SpawnPart) Command()   {}
+func (SpawnWhole) Command()  {}
 func (Keen) Command()        {}
 func (Calm) Command()        {}
 func (Pause) Command()       {}
@@ -87,6 +97,7 @@ var (
 	_ command.Command = Spawn{}
 	_ command.Command = SpawnPart{}
 	_ host.Aimed      = (*SpawnPart)(nil)
+	_ command.Command = SpawnWhole{}
 	_ command.Command = Keen{}
 	_ command.Command = Calm{}
 	_ command.Command = Pause{}
@@ -122,8 +133,8 @@ func (p *Plugin) Queues() []command.CommandQueue {
 	m := p.module
 	return []command.CommandQueue{
 		&m.pauses, &m.fasters, &m.slowers, &m.tempos, &m.bandSwitches, &m.sectorSwitches,
-		&m.farLooks, &m.counts, &m.spawns, &m.spawnParts, &m.despawns, &m.keens, &m.calms,
-		&m.effectCmds.queue, &m.effectCmds.triggers,
+		&m.farLooks, &m.counts, &m.spawns, &m.spawnParts, &m.spawnWholes, &m.despawns, &m.keens,
+		&m.calms, &m.effectCmds.queue, &m.effectCmds.triggers,
 	}
 }
 

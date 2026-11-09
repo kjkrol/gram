@@ -5,6 +5,7 @@ area:
   cell: 100 # metres
   units: 32
   sea: 10 # cells of sea round the land at least: the area grows where it has fewer
+kinds: {built: built} # the settlements' cells, drawn "@"
 ground:
   rock: {slope: 0.9, above: 1600}
   sand: {within: 2, below: 20, share: 0.3}
@@ -33,24 +34,24 @@ roads:
   longest: 4 # cells a bridge spans, at most
   high: 200
   figure: 27 # metres: a man of 1.8 m as the demos draw him, 15 times bigger than life
-  places:
-    Funchal: [-16.9086, 32.6496]
-    Câmara de Lobos: [-16.977, 32.65]
-    Ribeira Brava: [-17.0636, 32.6739]
-    Ponta do Sol: [-17.1, 32.681]
+  places: # longitude, latitude and a size of the settlements'; a bare pair: the default size
+    Funchal: {at: [-16.9086, 32.6496], size: town}
+    Câmara de Lobos: {at: [-16.977, 32.65], size: town}
+    Ribeira Brava: {at: [-17.0636, 32.6739], size: town}
+    Ponta do Sol: {at: [-17.1, 32.681], size: hamlet}
     Calheta: [-17.1736, 32.7225]
-    Prazeres: [-17.205, 32.756]
+    Prazeres: {at: [-17.205, 32.756], size: hamlet}
     Porto Moniz: [-17.169, 32.867]
-    Seixal: [-17.102, 32.824]
+    Seixal: {at: [-17.102, 32.824], size: hamlet}
     São Vicente: [-17.043, 32.799]
-    Ponta Delgada: [-16.99, 32.825]
+    Ponta Delgada: {at: [-16.99, 32.825], size: hamlet}
     Santana: [-16.881, 32.806]
-    Faial: [-16.857, 32.783]
-    Machico: [-16.767, 32.718]
-    Santa Cruz: [-16.792, 32.688]
-    Caniço: [-16.848, 32.652]
-    Encumeada: [-17.019, 32.755]
-    Poiso: [-16.888, 32.712]
+    Faial: {at: [-16.857, 32.783], size: hamlet}
+    Machico: {at: [-16.767, 32.718], size: town}
+    Santa Cruz: {at: [-16.792, 32.688], size: town}
+    Caniço: {at: [-16.848, 32.652], size: town}
+    Encumeada: {at: [-17.019, 32.755], size: none}
+    Poiso: {at: [-16.888, 32.712], size: none}
   routes:
     - [Funchal, Câmara de Lobos, Ribeira Brava, Ponta do Sol, Calheta]
     - [Calheta, Prazeres, Porto Moniz]
@@ -58,6 +59,13 @@ roads:
     - [Faial, Machico, Santa Cruz, Caniço, Funchal]
     - [Ribeira Brava, Encumeada, São Vicente]
     - [Funchal, Poiso, Faial]
+fields: # a field over the cells of a kind in each block of 16 cells a side, a sector of the world
+  - {cells: forest, kind: forest, grain: 16, least: 4}
+  - {cells: built, kind: settlement, grain: 16, least: 1}
+settlements:
+  cells: built # the cell kind laid round a place
+  sizes: {hamlet: 3, village: 8, town: 16} # cells
+  default: village
 flat: # the simple map's own: cells of 50, roads two figures of 20 wide, a deck with its railings
   units: 50
   road: 44

@@ -63,6 +63,17 @@ no world and a modal panel over the ticking world: `examples/start/scenes`.
   and the strength written back (effects hold sums, 8 an entity); `Folding` on a part → sum into
   the whole (`act.Other`) and despawn; `Met` → the abstract fight. Its own look is blank
   below L4 (a clear sprite), `Slot.At(L4, …)` the sheet stretched over the field.
+- A field of the map (board/topography, 2026-11-06): gramap's `fields:` rows load as the demo's
+  `fieldRow{From, To cell.ID; Cells int}` (`board.Spawn[fieldRow]`), its kind
+  `kind.Define[fieldRow]` over `overField(b)` (`comp.Load` giving the `Position` at the
+  rectangle's middle and `Field{Size}`); the plots are quarter-cells over the block, a rule each
+  (512 a forest, 1024 a settlement), gated by a board word reading the cell under the plot
+  (`Bare`) and `lod.Seed`; **under `Unfold` only `SpawnPart`**: the world previews a field never
+  unfolded with the same rules, spawning nothing. The sheets are kept in
+  `os.UserCacheDir()/gram/<demo>/sheets` with `SheetsCfg{Keep: true, Version}`, the Version a
+  constant in `names.go` bumped when the planting changes. `Buckets` follows `MaxEntCount`: the
+  space's bucket shrinks as the count grows (40 000 → 64 units a side), so a sector of 16 cells
+  is `Buckets = 16·CellSize/64`, and the sector must match gramap's `grain`.
 - The arena holds handles and no state: the plugins in the order made, then, a blank line
   apart, the players, the game's resources (`*treasury`, a struct of exported fields given to
   the chain's `Keeps`, saved whole with the game), a telemetry count (`collision.ContactStats`)

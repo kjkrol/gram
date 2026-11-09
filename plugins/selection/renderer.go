@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/uid"
 )
 
 // Highlight is how a Selected entity of a kind is outlined: its footprint, the ground under it on
@@ -61,14 +62,24 @@ type Renderer struct {
 	marks    goke.Comp[tag.Tags[Family]]
 	app      goke.OptComp[render.Appearance]
 	z        goke.OptComp[world.Z]
+	unfolded goke.OptComp[world.Unfolded]
 	selected tag.Tag[Family]
+
+	// the parts, outlined in their whole's Highlight where it is Selected and unfolded, as
+	// wholes holds it by its id
+	parts     *goke.Query
+	partOf    goke.Comp[world.PartOf]
+	partBase  goke.Comp[world.Base]
+	partZ     goke.OptComp[world.Z]
+	partMarks goke.OptComp[tag.Tags[Family]]
+	wholes    map[uid.UID64]Highlight
 }
 
 var _ render.Source = (*Renderer)(nil)
 var _ render.Overlying = (*Renderer)(nil)
 
-// outlined is what the Renderer draws: every Selected entity's box, height and Highlight, and the
-// boxes being dragged
+// outlined is what the Renderer draws: every Selected entity's box, height and Highlight, an
+// unfolded one's parts' in its stead, and the boxes being dragged
 type outlined struct {
 	all      []highlit
 	marquees marquees
@@ -89,22 +100,31 @@ func NewRenderer(
 }
 
 func (r *Renderer) Init(si *goke.SysInit) {
-	r.query = si.NewQueryBuilder(&r.base, &r.marks).Optional(&r.app).Optional(&r.z).Build()
+	r.query = si.NewQueryBuilder(&r.base, &r.marks).Optional(&r.app, &r.z, &r.unfolded).Build()
+	r.parts = si.NewQueryBuilder(&r.partOf, &r.partBase).Optional(&r.partZ, &r.partMarks).Build()
 }
 
 // Overlies: drawn over the figures' ground (render.Overlying).
 func (*Renderer) Overlies() {}
 
-// Publish takes every Selected entity and the boxes being dragged, for the frame drawn next.
+// Publish takes every Selected entity, the parts of one unfolded in its stead, and the boxes
+// being dragged, for the frame drawn next.
 func (r *Renderer) Publish() {
 	b := r.drawn.Back()
 	b.all = b.all[:0]
+	if len(r.wholes) > 0 {
+		clear(r.wholes)
+	}
 	var styles *render.Styles
 	if r.styles != nil {
 		styles = r.styles()
 	}
 	for r.query.All(); r.query.Next(); {
 		cursor := r.query.Cursor()
+		if r.unfolded.Present(cursor) {
+			r.unfoldedIn(cursor, styles)
+			continue
+		}
 		bases, marks := r.base.Slice(cursor), r.marks.Slice(cursor)
 		apps, zs := r.app.Slice(cursor), r.z.Slice(cursor)
 		for i := range cursor.IDs {
@@ -123,8 +143,51 @@ func (r *Renderer) Publish() {
 			b.all = append(b.all, e)
 		}
 	}
+	if len(r.wholes) > 0 {
+		r.partsOf(b)
+	}
 	if r.marquees != nil {
 		r.marquees.copyInto(&b.marquees)
+	}
+}
+
+// unfoldedIn notes the Highlight of every Selected whole of the block cursor, unfolded
+func (r *Renderer) unfoldedIn(cursor *goke.Cursor, styles *render.Styles) {
+	marks, apps := r.marks.Slice(cursor), r.app.Slice(cursor)
+	for i, id := range cursor.IDs {
+		if !marks[i].Has(r.selected) {
+			continue
+		}
+		h := DefaultHighlight
+		if apps != nil {
+			if st, ok := render.StyleOf[Highlight](styles, apps[i].SpriteID); ok {
+				h = st
+			}
+		}
+		if r.wholes == nil {
+			r.wholes = map[uid.UID64]Highlight{}
+		}
+		r.wholes[id] = h
+	}
+}
+
+// partsOf has b outline the parts of the wholes noted, but those Selected themselves
+func (r *Renderer) partsOf(b *outlined) {
+	for r.parts.All(); r.parts.Next(); {
+		cursor := r.parts.Cursor()
+		of, bases := r.partOf.Slice(cursor), r.partBase.Slice(cursor)
+		zs, marks := r.partZ.Slice(cursor), r.partMarks.Slice(cursor)
+		for i := range of {
+			h, ok := r.wholes[of[i].Whole]
+			if !ok || marks != nil && marks[i].Has(r.selected) {
+				continue
+			}
+			e := highlit{box: bases[i].Pos.AABB.AABB, h: h}
+			if zs != nil {
+				e.alt = zs[i].Altitude
+			}
+			b.all = append(b.all, e)
+		}
 	}
 }
 

@@ -15,6 +15,14 @@
 // keeps its sector and the eight round it ticked at its level at most, so those asleep there wake
 // before it comes.
 //
+// # Tiers
+//
+// Over the sectors the [Grid] has tiers: tier 0 the sectors, a cell of tier k 2ᵏ×2ᵏ of them from
+// the grid's corner, the highest one cell over the whole world. A thing standing for good lives
+// in a cell ([Grid.Fit]): one no longer than the world's small side by its centre whatever it
+// overlaps, a longer one in the lowest tier a cell of which holds it whole; its level is the
+// finest of the sectors under that cell ([Grid.Under]).
+//
 // # Paces
 //
 // A system goes at the levels as the plugin owning it says (lod.Paces); world.Plugin.Pace is the

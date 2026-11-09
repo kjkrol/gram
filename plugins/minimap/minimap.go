@@ -5,7 +5,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
@@ -13,10 +12,9 @@ import (
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/view"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
-	"github.com/kjkrol/uid"
 )
 
 var outlineColor = color.RGBA{R: 240, G: 240, B: 240, A: 230}
@@ -213,18 +211,16 @@ func (g *groundView) Draw(t render.Target, _ camera.Camera, _ render.Uniforms) {
 // marksView draws a dot for every entity round the minimap whose kind has a Mark, as published,
 // but an aggregate its parts stand for (world.Unfolded), whose parts are dotted for it
 type marksView struct {
-	m     *minimap
+	m *minimap
+	// what the world's space holds but the aggregates unfolded, walked whole and told apart by
+	// sprite before anything else is read: most of it stands unmarked, the trees and the houses
 	q     *goke.Query
 	base  goke.Comp[world.Base]
 	app   goke.Comp[render.Appearance]
-	found view.EntitySet
-	ids   []uid.UID64
 	marks []knownMark // by sprite
 	drawn render.Buffered[dots]
 	due   time.Time
 	fresh bool // published since the last swap
-	// read off whoever q seeks: a Seek heeds no filter of a query's
-	unfolded goke.OptComp[world.Unfolded]
 }
 
 // dots are the marks round a minimap where they stand, where it looks and how far, and the ground
@@ -244,7 +240,8 @@ type dot struct {
 }
 
 func (v *marksView) Init(si *goke.SysInit) {
-	v.q = si.NewQueryBuilder(&v.base, &v.app).Optional(&v.unfolded).Build()
+	v.q = si.NewQueryBuilder(&v.base, &v.app).
+		Exclude(goke.Exclude[world.Unfolded](), goke.Exclude[sector.L6]()).Build()
 }
 
 // publish takes the marks round the minimap once their time comes
@@ -265,27 +262,46 @@ func (v *marksView) publish(now time.Time, marked bool) {
 	if styles == nil {
 		return
 	}
-	v.found.Clear()
-	v.ids = v.ids[:0]
-	// a box across a seam is met once a piece
-	v.m.p.w.Read(0).Space().Query(v.m.covered(), aabbworld.AnyCapability, func(id uid.UID64) {
-		if !v.found.Has(id) {
-			v.found.Add(id)
-			v.ids = append(v.ids, id)
-		}
-	})
-	for _, id := range v.ids {
-		if !v.q.Seek(id) || v.unfolded.Present(v.q.Cursor()) {
-			continue
-		}
+	covered, l := v.m.covered(), v.m.lens
+	for v.q.All(); v.q.Next(); {
 		cur := v.q.Cursor()
-		mark, ok := v.markOf(styles, v.app.At(cur).SpriteID)
-		if !ok || mark.Size <= 0 {
-			continue
+		var bases []world.Base
+		for i, app := range v.app.Slice(cur) {
+			if id := int(app.SpriteID); id >= len(v.marks) || !v.marks[id].known {
+				v.learn(styles, app.SpriteID)
+			}
+			mark := &v.marks[app.SpriteID]
+			if !mark.ok {
+				continue
+			}
+			if bases == nil {
+				bases = v.base.Slice(cur)
+			}
+			box := &bases[i].Pos
+			if !meets(covered.TopLeft.X, covered.BottomRight.X, box.TopLeft.X,
+				box.BottomRight.X, l.world.X, l.wrapX) ||
+				!meets(covered.TopLeft.Y, covered.BottomRight.Y, box.TopLeft.Y,
+					box.BottomRight.Y, l.world.Y, l.wrapY) {
+				continue
+			}
+			c := box.Center()
+			b.all = append(b.all, dot{x: c.X, y: c.Y, mark: mark.mark})
 		}
-		c := v.base.At(cur).Pos.Center()
-		b.all = append(b.all, dot{x: c.X, y: c.Y, mark: mark})
 	}
+}
+
+// meets reports whether lo..hi meets a..b along an axis of length size, a world away round it
+// where it wraps
+func meets(lo, hi, a, b, size float32, wraps bool) bool {
+	switch {
+	case a <= hi && b >= lo:
+		return true
+	case !wraps:
+		return false
+	case hi-lo >= size:
+		return true
+	}
+	return a-size <= hi && b-size >= lo || a+size <= hi && b+size >= lo
 }
 
 func (v *marksView) swap() {
@@ -314,19 +330,17 @@ func (v *marksView) Compose(f *render.Frame, _ camera.Camera) {
 	}
 }
 
-// the mark of the sprite id, looked up once: the styles stay as the atlas closed them
-func (v *marksView) markOf(styles *render.Styles, id render.SpriteID) (Mark, bool) {
+// learn looks the mark of the sprite id up once, as the styles stay as the atlas closed them
+func (v *marksView) learn(styles *render.Styles, id render.SpriteID) {
 	for int(id) >= len(v.marks) {
 		v.marks = append(v.marks, knownMark{})
 	}
 	k := &v.marks[id]
-	if !k.known {
-		k.mark, k.ok = render.StyleOf[Mark](styles, id)
-		k.known = true
-	}
-	return k.mark, k.ok
+	k.mark, k.ok = render.StyleOf[Mark](styles, id)
+	k.ok, k.known = k.ok && k.mark.Size > 0, true
 }
 
+// ok where the sprite has a mark to draw
 type knownMark struct {
 	mark      Mark
 	ok, known bool

@@ -96,7 +96,7 @@ func TestSheets_MakesTheImagesOverTheWorldInTexelsOfTheLadderAtMost4096ASide(t *
 				t.Errorf("%v texels a world unit, read as %v holding no photograph; want %v, 0",
 					perUnit, held, c.perUnit)
 			}
-			if w.Read(0).Painted(0) {
+			if w.Read(0).Painted(0) != 0 {
 				t.Error("a sector painted before any photograph, want none")
 			}
 		})
@@ -116,7 +116,7 @@ func TestSheets_NoneWithoutSectors(t *testing.T) {
 		t.Errorf("a sheet %v, %v a world unit in a world of no sectors; want none", albedo,
 			perUnit)
 	}
-	if w.Read(0).Painted(0) {
+	if w.Read(0).Painted(0) != 0 {
 		t.Error("a sector painted in a world of no sectors")
 	}
 }

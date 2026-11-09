@@ -2,8 +2,9 @@ package compose
 
 // The ground's shade (GroundShade) baked for every shader of a frame to read: the shadows of the
 // relief, from the heights the frame holds (GroundHeights), and those of the blocks standing on
-// it, over level ground without them. It is baked anew as the light turns, a strip a frame, each
-// strip fading from the shade it held before into its own.
+// it, over level ground without them. It is baked anew as the light turns, a strip each sixteenth
+// of a degree, each strip fading from the shade it held before into its own, and where a set of
+// blocks changed, a few tiles a frame at once.
 
 import (
 	"embed"
@@ -11,7 +12,6 @@ import (
 	"image"
 	"image/color"
 	"math"
-	"slices"
 	"strings"
 
 	"github.com/kjkrol/gram/render/internal/gfx"
@@ -56,21 +56,30 @@ const (
 	maxBaked = 8192
 )
 
-// dot products of the light's ways: a tenth of a degree turned bakes the shade anew in
-// shadeStrips strips, one a frame; a degree leapt bakes all of it at once
+// how far the light turns, in radians, before the next strip is baked anew, so no strip lags a
+// degree behind; a leap of a degree since the last strip bakes every strip anew, a strip a frame
 const (
-	shadeTurn   = 0.9999985
 	shadeStrips = ShadeBands
-	shadeLeap   = 0.99985
+	shadeStep   = math.Pi / 180 / shadeStrips
+	shadeLeap   = math.Pi / 180
+)
+
+// the side of the tiles the shade is baked anew in where a set of blocks changed, in pixels, and
+// how many of them a frame bakes at most
+const (
+	shadeTile     = 256
+	tilesPerFrame = 8
 )
 
 // shaders/bake_ground.wgsl's: how wide a shadow's penumbra is per unit towards the light
 const shadowSoft = 0.08
 
-// the ground the shade is baked over, and a solid whose shadow it bakes (light.Lattice, Block)
+// the ground the shade is baked over, a solid whose shadow it bakes, and the solids of a part of
+// the world (light.Lattice, Block, BlockSet)
 type (
-	Lattice = light.Lattice
-	Block   = light.Block
+	Lattice  = light.Lattice
+	Block    = light.Block
+	BlockSet = light.BlockSet
 )
 
 // Baker bakes the shade of one ground.
@@ -83,22 +92,39 @@ type Baker struct {
 	fresh     bool // neither filled yet
 	shown     bool // baked once since they were made
 	shade     GroundShade
-	frames    uint64                 // Plan calls
-	bakedAt   [shadeStrips]uint64    // the frame each band was last baked in
-	plan      struct{ from, to int } // the rows the frame's Bake bakes
-	planWay   [3]float32             // the light's way they are baked under
+	frames    uint64              // Plan calls
+	bakedAt   [shadeStrips]uint64 // the frame each band was last baked in
+	plan      bakePlan            // what the frame's Bake bakes
+	planWay   [3]float32          // the light's way it is baked under
 	shadeAt   uint64
-	shadeSun  [3]float32
+	shadeSun  [3]float32 // the light's way the last strip was baked under
 	strip     int
+	hurry     int // strips left to bake one a frame since the light leapt
 	coarse    bool
 	baking    gfx.DrawTrianglesShaderOptions
 	blocking  gfx.DrawMeshOptions
 	bakeVerts []Vertex
 	own       map[string][]float32 // the bake's own uniforms, a slice a name kept between bakes
 
-	blocks   []float32
-	near     []float32
-	blocksAt uint64 // a hash of the blocks as last found; 0 none
+	sets   []bakedSet // the blocks as last gathered, a set by its place in Lights.Casts
+	tiles  [2]int     // how many tiles lie across the shade and down it
+	queue  []int      // the tiles to bake anew, the longest waiting first
+	queued []bool     // by tile
+	near   []float32
+}
+
+// the rows of the shade a frame's Bake bakes, and its tiles
+type bakePlan struct {
+	from, to int
+	tiles    []int
+}
+
+// a set of blocks as the baker last gathered it (BlockSet)
+type bakedSet struct {
+	version uint64
+	box     [4]float32
+	top     float32
+	blocks  []Block
 }
 
 // Coarse has the shade baked half as fine a side from the next frame on, or as fine as ever
@@ -109,14 +135,14 @@ func (b *Baker) Coarse(on bool) { b.coarse = on }
 func (b *Baker) Coarsened() bool { return b.coarse }
 
 // Plan settles what of the shade over lat the frame's Bake bakes under the light the way sun, with
-// blocks standing on the ground, and how far each band has faded from the shade before into its
-// own since it was last baked. It is the frame's shade, false before any is baked.
-func (b *Baker) Plan(lat Lattice, sun [3]float32, blocks []Block) (GroundShade, bool) {
+// the sets of blocks casts standing on the ground, and how far each band has faded from the shade
+// before into its own since it was last baked. It is the frame's shade, false before any is baked.
+func (b *Baker) Plan(lat Lattice, sun [3]float32, casts []BlockSet) (GroundShade, bool) {
 	b.frames++
-	if b.plan.from < b.plan.to { // planned, never drawn: what it would have baked is missing
+	if b.Pending() { // planned, never drawn: what it would have baked is missing
 		b.shadeAt = 0
 	}
-	b.plan.from, b.plan.to = 0, 0
+	b.plan.from, b.plan.to, b.plan.tiles = 0, 0, b.plan.tiles[:0]
 	if lat.Cols < 2 || lat.Rows < 2 || lat.Cell <= 0 {
 		b.shown = false
 		return GroundShade{}, false
@@ -133,6 +159,8 @@ func (b *Baker) Plan(lat Lattice, sun [3]float32, blocks []Block) (GroundShade, 
 		b.fresh, b.shown, b.shadeAt = true, false, 0
 		b.bakeVerts = make([]Vertex, 4)
 		b.baking.Uniforms, b.own = map[string]any{}, map[string][]float32{}
+		b.tiles = [2]int{(ws + shadeTile - 1) / shadeTile, (h + shadeTile - 1) / shadeTile}
+		b.queue, b.queued = b.queue[:0], make([]bool, b.tiles[0]*b.tiles[1])
 	}
 	per := (h + shadeStrips - 1) / shadeStrips
 	b.shade.Now, b.shade.Was = b.baked, b.was
@@ -144,21 +172,29 @@ func (b *Baker) Plan(lat Lattice, sun [3]float32, blocks []Block) (GroundShade, 
 		return b.shade, b.shown
 	}
 	way := [3]float32{sun[0] / n, sun[1] / n, sun[2] / n}
-	turned := way[0]*b.shadeSun[0] + way[1]*b.shadeSun[1] + way[2]*b.shadeSun[2]
-	moved := b.gather(blocks)
+	turned := chord(way, b.shadeSun)
+	b.gather(casts, way)
+	span := b.shadeSpan()
+	whole := b.shadeAt != lat.Version+1 || span != b.shade.Span
+	if whole || turned > shadeLeap {
+		// every strip is baked anew: the tiles waiting with them
+		for _, t := range b.queue {
+			b.queued[t] = false
+		}
+		b.queue = b.queue[:0]
+	}
 	switch {
-	case b.shadeAt != lat.Version+1 || turned < shadeLeap || moved:
-		b.shadeAt, b.shadeSun, b.strip = lat.Version+1, way, 0
+	case whole:
+		b.shadeAt, b.shadeSun, b.strip, b.hurry = lat.Version+1, way, 0, 0
 		b.plan.from, b.plan.to = 0, h
 		for k := range b.bakedAt {
 			b.bakedAt[k] = b.frames
 		}
-	case b.strip == 0 && turned > shadeTurn:
-		return b.shade, b.shown
-	default:
-		if b.strip == 0 {
-			b.shadeSun = way
-		}
+	case turned > shadeLeap: // down from the top, each strip a frame behind the one over it
+		b.hurry, b.strip = shadeStrips, 0
+		fallthrough
+	case b.hurry > 0 || turned >= shadeStep:
+		b.shadeSun, b.hurry = way, max(b.hurry-1, 0)
 		b.plan.from, b.plan.to = min(b.strip*per, h), min((b.strip+1)*per, h)
 		b.bakedAt[b.strip] = b.frames
 		b.strip = (b.strip + 1) % shadeStrips
@@ -168,9 +204,21 @@ func (b *Baker) Plan(lat Lattice, sun [3]float32, blocks []Block) (GroundShade, 
 			b.bakedAt[k] = b.frames - shadeStrips
 		}
 	}
+	k := min(tilesPerFrame, len(b.queue))
+	b.plan.tiles = append(b.plan.tiles, b.queue[:k]...)
+	for _, t := range b.plan.tiles {
+		b.queued[t] = false
+	}
+	b.queue = b.queue[:copy(b.queue, b.queue[k:])]
 	b.planWay = way
-	b.shade.Span = b.shadeSpan()
+	b.shade.Span = span
 	return b.shade, b.shown
+}
+
+// chord is how far apart the unit ways a and b are, about the angle between them in radians
+func chord(a, b [3]float32) float64 {
+	dx, dy, dz := float64(a[0]-b[0]), float64(a[1]-b[1]), float64(a[2]-b[2])
+	return math.Sqrt(dx*dx + dy*dy + dz*dz)
 }
 
 // fade has each band fade from the shade before into its own over shadeStrips frames since it was
@@ -190,7 +238,7 @@ func (b *Baker) Bake(u Uniforms) {
 		return
 	}
 	if lat := u.Get("GroundLattice"); b.lat.Span > 0 && (len(lat) < 4 || lat[3] < 0.5) {
-		b.plan.from, b.plan.to, b.shadeAt = 0, 0, 0
+		b.plan.from, b.plan.to, b.plan.tiles, b.shadeAt = 0, 0, b.plan.tiles[:0], 0
 		return
 	}
 	if b.fresh {
@@ -199,16 +247,13 @@ func (b *Baker) Bake(u Uniforms) {
 		b.was.Fill(color.RGBA{R: 255, B: 255, A: 255})
 		b.fresh = false
 	}
-	y0, y1 := b.plan.from, b.plan.to
-	b.plan.from, b.plan.to = 0, 0
-	if y0 >= y1 {
+	y0, y1, tiles := b.plan.from, b.plan.to, b.plan.tiles
+	b.plan.from, b.plan.to, b.plan.tiles = 0, 0, tiles[:0]
+	if y0 >= y1 && len(tiles) == 0 {
 		return
 	}
 	b.shown = true
 	ws, h := b.baked.Bounds().Dx(), b.baked.Bounds().Dy()
-	size := [2]float32{b.shade.Area[2], b.shade.Area[3]}
-	rows0 := image.Rect(0, y0, ws, y1)
-	b.was.SubImage(rows0).CopyFrom(b.baked.SubImage(rows0))
 	u.Into(b.baking.Uniforms)
 	// the images baked into are never read while baked
 	delete(b.baking.Uniforms, "GroundShade")
@@ -217,18 +262,41 @@ func (b *Baker) Bake(u Uniforms) {
 	b.set("ShadeSpan", b.shade.Span)
 	b.blocking.Uniforms = b.baking.Uniforms
 	b.blocking.Vertices, b.blocking.Darkest = 6, true
-	per := (h + shadeStrips - 1) / shadeStrips
-	for y := y0; y < y1; y += per {
-		from := [2]float32{0, float32(y) / float32(h) * size[1]}
-		part := [2]float32{size[0], float32(min(y+per, y1)-y) / float32(h) * size[1]}
-		at := image.Rect(0, y, ws, min(y+per, y1))
-		b.bakeInto(at, from, part)
-		if near := b.shading(from[1], from[1]+part[1], b.planWay); len(near) > 0 {
-			b.set("Strip", from[0], from[1], part[0], part[1])
-			b.blocking.Instances = near
-			b.baked.SubImage(at).DrawMesh(nil, bakeBlocks, &b.blocking)
+	if y0 < y1 {
+		rows0 := image.Rect(0, y0, ws, y1)
+		b.was.SubImage(rows0).CopyFrom(b.baked.SubImage(rows0))
+		per := (h + shadeStrips - 1) / shadeStrips
+		for y := y0; y < y1; y += per {
+			b.bakeRect(image.Rect(0, y, ws, min(y+per, y1)))
 		}
 	}
+	// a tile of a band fading reads the shade it is baked over as the band's before
+	for _, t := range tiles {
+		at := b.tileRect(t)
+		b.was.SubImage(at).CopyFrom(b.baked.SubImage(at))
+		b.bakeRect(at)
+	}
+}
+
+// bakeRect bakes the shade's pixels at, the relief's shadows and the blocks' over them
+func (b *Baker) bakeRect(at image.Rectangle) {
+	ws, h := float32(b.baked.Bounds().Dx()), float32(b.baked.Bounds().Dy())
+	size := [2]float32{b.shade.Area[2], b.shade.Area[3]}
+	from := [2]float32{float32(at.Min.X) / ws * size[0], float32(at.Min.Y) / h * size[1]}
+	part := [2]float32{float32(at.Dx()) / ws * size[0], float32(at.Dy()) / h * size[1]}
+	b.bakeInto(at, from, part)
+	r := [4]float32{from[0], from[1], from[0] + part[0], from[1] + part[1]}
+	if near := b.shading(r, b.planWay); len(near) > 0 {
+		b.set("Strip", from[0], from[1], part[0], part[1])
+		b.blocking.Instances = near
+		b.baked.SubImage(at).DrawMesh(nil, bakeBlocks, &b.blocking)
+	}
+}
+
+// tileRect is tile t's pixels
+func (b *Baker) tileRect(t int) image.Rectangle {
+	x, y := t%b.tiles[0]*shadeTile, t/b.tiles[0]*shadeTile
+	return image.Rect(x, y, x+shadeTile, y+shadeTile).Intersect(b.baked.Bounds())
 }
 
 // set is the bake's uniform name, vals copied into the slice kept for it: a draw packs its
@@ -244,7 +312,7 @@ func (b *Baker) set(name string, vals ...float32) {
 }
 
 // Pending reports whether the frame's Plan left anything for its Bake to bake.
-func (b *Baker) Pending() bool { return b.plan.from < b.plan.to }
+func (b *Baker) Pending() bool { return b.plan.from < b.plan.to || len(b.plan.tiles) > 0 }
 
 // Drop lets the shade go: nothing to bake it over any more.
 func (b *Baker) Drop() {
@@ -253,108 +321,126 @@ func (b *Baker) Drop() {
 		b.was.Deallocate()
 	}
 	b.baked, b.was, b.shown, b.shadeAt = nil, nil, false, 0
-	b.plan.from, b.plan.to = 0, 0
+	b.plan.from, b.plan.to, b.plan.tiles = 0, 0, b.plan.tiles[:0]
+	b.sets, b.queue = b.sets[:0], b.queue[:0]
 }
 
 // Shade is the shade as last baked, for a test to read: the image and its area in the world.
 func (b *Baker) Shade() GroundShade { return b.shade }
 
-// Blocks is how many blocks the shade is baked with, a bridge's deck one however many pieces it
-// is laid in.
-func (b *Baker) Blocks() int { return len(b.blocks) / 8 }
+// Blocks is how many blocks the shade is baked with, as the sets last gathered hold them.
+func (b *Baker) Blocks() int {
+	n := 0
+	for i := range b.sets {
+		n += len(b.sets[i].blocks)
+	}
+	return n
+}
 
 // shadeSpan is how high over the ground a shadow may reach: up the relief, or to the top of the
 // highest block over its lowest ground
 func (b *Baker) shadeSpan() float32 {
 	span := max(b.lat.Span, 1)
-	for k := 7; k < len(b.blocks); k += 8 {
-		span = max(span, b.blocks[k]-b.lat.Low)
+	for i := range b.sets {
+		if len(b.sets[i].blocks) > 0 {
+			span = max(span, b.sets[i].top-b.lat.Low)
+		}
 	}
 	return span
 }
 
-func (b *Baker) shading(y0, y1 float32, sun [3]float32) []float32 {
+// gather takes the sets of blocks as found, and has the tiles baked anew where the shadows of a
+// set changed may have fallen before and may fall now, under the light the way sun
+func (b *Baker) gather(casts []BlockSet, sun [3]float32) {
+	for i := len(casts); i < len(b.sets); i++ {
+		b.dirty(&b.sets[i], sun)
+	}
+	b.sets = b.sets[:min(len(b.sets), len(casts))]
+	for len(b.sets) < len(casts) {
+		b.sets = append(b.sets, bakedSet{})
+	}
+	for i := range casts {
+		c, s := &casts[i], &b.sets[i]
+		if c.Version == s.version {
+			continue
+		}
+		b.dirty(s, sun)
+		s.version, s.box, s.top = c.Version, c.Box, c.Top
+		s.blocks = append(s.blocks[:0], c.Blocks...)
+		b.dirty(s, sun)
+	}
+}
+
+// dirty queues the tiles the shadows of s may fall on under the light the way sun
+func (b *Baker) dirty(s *bakedSet, sun [3]float32) {
+	if len(s.blocks) == 0 {
+		return
+	}
+	r, size := b.reach(s.box, s.top, sun), b.shade.Area
+	if !(r[2] >= 0 && r[0] <= size[2] && r[3] >= 0 && r[1] <= size[3]) {
+		return
+	}
+	// tiles a world unit across and down
+	tx := float32(b.baked.Bounds().Dx()) / size[2] / shadeTile
+	ty := float32(b.baked.Bounds().Dy()) / size[3] / shadeTile
+	x0, x1 := int(max(r[0], 0)*tx), min(int(min(r[2], size[2])*tx), b.tiles[0]-1)
+	y0, y1 := int(max(r[1], 0)*ty), min(int(min(r[3], size[3])*ty), b.tiles[1]-1)
+	for y := y0; y <= y1; y++ {
+		for x := x0; x <= x1; x++ {
+			if t := y*b.tiles[0] + x; !b.queued[t] {
+				b.queued[t] = true
+				b.queue = append(b.queue, t)
+			}
+		}
+	}
+}
+
+// reach is the world rectangle (x0, y0, x1, y1) the shadows of what stands within box (its
+// origin and size) up to top may fall on under the light the way sun, down to the lowest ground:
+// where the blocks' shader draws them
+func (b *Baker) reach(box [4]float32, top float32, sun [3]float32) [4]float32 {
+	far := (top - b.lat.Low) / max(sun[2], 1e-3)
+	spare := far*shadowSoft + b.lat.Cell
+	cx, cy := -sun[0]*far, -sun[1]*far
+	return [4]float32{
+		box[0] + min(cx, 0) - spare,
+		box[1] + min(cy, 0) - spare,
+		box[0] + box[2] + max(cx, 0) + spare,
+		box[1] + box[3] + max(cy, 0) + spare,
+	}
+}
+
+// shading is the blocks whose shadows may fall on the world rectangle r (x0, y0, x1, y1) under the
+// light the way sun, as the blocks' shader takes them, a set's skipped whole where its shadows fall
+// wide of r
+func (b *Baker) shading(r [4]float32, sun [3]float32) []float32 {
 	b.near = b.near[:0]
-	for k := 0; k+8 <= len(b.blocks); k += 8 {
-		bl := b.blocks[k : k+8]
-		far := (bl[7] - b.lat.Low) / sun[2]
-		spare := far*shadowSoft + b.lat.Cell
-		half := float32(math.Abs(float64(bl[3])))*bl[4] + float32(math.Abs(float64(bl[2])))*bl[5]
-		cast := -sun[1] * far
-		top, bottom := bl[1]-half+min(cast, 0)-spare, bl[1]+half+max(cast, 0)+spare
-		if bottom >= y0 && top <= y1 {
-			b.near = append(b.near, bl...)
+	low, cell, z := b.lat.Low, b.lat.Cell, max(sun[2], 1e-3)
+	for i := range b.sets {
+		s := &b.sets[i]
+		if len(s.blocks) == 0 || !meets(b.reach(s.box, s.top, sun), r) {
+			continue
+		}
+		// reach's of each block, by hand: a call a block was a fifth of the time
+		for _, bl := range s.blocks {
+			ux, uy := float32(math.Abs(float64(bl.UX))), float32(math.Abs(float64(bl.UY)))
+			far := (bl.Top - low) / z
+			spare := far*shadowSoft + cell
+			hx, hy := ux*bl.Along+uy*bl.Wide+spare, uy*bl.Along+ux*bl.Wide+spare
+			cx, cy := -sun[0]*far, -sun[1]*far
+			if bl.X+hx+max(cx, 0) >= r[0] && bl.X-hx+min(cx, 0) <= r[2] &&
+				bl.Y+hy+max(cy, 0) >= r[1] && bl.Y-hy+min(cy, 0) <= r[3] {
+				b.near = append(b.near, bl.X, bl.Y, bl.UX, bl.UY, bl.Along, bl.Wide, bl.Bottom,
+					bl.Top)
+			}
 		}
 	}
 	return b.near
 }
 
-// gather takes the blocks as found, joined; it reports whether they stand other than before
-func (b *Baker) gather(found []Block) bool {
-	at := hashed(found)
-	if at == b.blocksAt {
-		return false
-	}
-	b.blocksAt = at
-	b.blocks = b.blocks[:0]
-	for _, bl := range joined(slices.Clone(found)) {
-		b.blocks = append(b.blocks, bl.X, bl.Y, bl.UX, bl.UY, bl.Along, bl.Wide, bl.Bottom, bl.Top)
-	}
-	return true
-}
-
-// never 0
-func hashed(bs []Block) uint64 {
-	h := uint64(14695981039346656037)
-	for _, b := range bs {
-		for _, v := range [8]float32{b.X, b.Y, b.UX, b.UY, b.Along, b.Wide, b.Bottom, b.Top} {
-			h = (h ^ uint64(math.Float32bits(v))) * 1099511628211
-		}
-	}
-	return max(h, 1)
-}
-
-// a bridge's deck is one block however many pieces it is laid in
-func joined(bs []Block) []Block {
-	for i := range bs {
-		if bs[i].UX < 0 || bs[i].UX == 0 && bs[i].UY < 0 {
-			bs[i].UX, bs[i].UY = -bs[i].UX, -bs[i].UY
-		}
-	}
-	for again := true; again; {
-		again = false
-		for i := 0; i < len(bs); i++ {
-			for j := i + 1; j < len(bs); j++ {
-				if b, ok := join(bs[i], bs[j]); ok {
-					bs[i], again = b, true
-					bs = slices.Delete(bs, j, j+1)
-					j--
-				}
-			}
-		}
-	}
-	return bs
-}
-
-func join(a, b Block) (Block, bool) {
-	const near = 0.01
-	apart := func(x, y float32) bool { return math.Abs(float64(x-y)) > near }
-	if apart(a.UX, b.UX) || apart(a.UY, b.UY) || apart(a.Wide, b.Wide) ||
-		apart(a.Bottom, b.Bottom) || apart(a.Top, b.Top) {
-		return a, false
-	}
-	dx, dy := b.X-a.X, b.Y-a.Y
-	if apart(dx*a.UY-dy*a.UX, 0) {
-		return a, false
-	}
-	s := dx*a.UX + dy*a.UY
-	if s-b.Along > a.Along+near || s+b.Along < -a.Along-near {
-		return a, false
-	}
-	lo, hi := min(-a.Along, s-b.Along), max(a.Along, s+b.Along)
-	mid := (lo + hi) / 2
-	a.X, a.Y, a.Along = a.X+a.UX*mid, a.Y+a.UY*mid, (hi-lo)/2
-	return a, true
+// meets reports whether the world rectangles q and r (x0, y0, x1, y1) meet
+func meets(q, r [4]float32) bool {
+	return q[2] >= r[0] && q[0] <= r[2] && q[3] >= r[1] && q[1] <= r[3]
 }
 
 // each pixel handed its point of the world in its custom values

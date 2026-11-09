@@ -23,6 +23,8 @@
 // workers read the world at once; Write is the game's goroutine's. Read(w).Space() queries the
 // spatial index, Read(w).Clock() reads the clock and Read(w).Effects() which effects the entities
 // are under; Write() spawns, writes the space, drives the clock and casts the effects.
+// Read(w).GroundAt is the ground's height under a point as the plugin laying the ground in relief
+// gives it ([Write.SetGround], the topography's), 0 in a world without one.
 //
 // # Base, Position and Velocity
 //
@@ -102,9 +104,12 @@
 // the same each frame, sparing the sector.Keen, a kind [Slot.Always] and one drawn in a look
 // declared there. As Config.Far and the settings say ([ShowFar], [Read.FarLook]), a kind's loose
 // units in a sector drawn from L4 on are a point each or, where the kind declares a look there,
-// one [Banner] at their centroid ([Read.Banners]), never thinned; with the counts drawn
-// ([ShowCounts], [Read.Counts]) the number of a banner's units, and of a kind's points two or
-// more in a sector, stands over them on the glass in the kind's colour. A camera riding inside
+// one [Banner] at their centroid ([Read.Banners]), never thinned, drawn as a badge over their
+// top ([BannerStyle]: a disc or a diamond in the kind's far colour, a kind's own by
+// [Slot.Styled], and a style alone has a kind bannered there); with the counts drawn
+// ([ShowCounts], [Read.Counts]) the number of a banner's units from two on stands inside its
+// badge, and of a kind's points two or more in a sector over their centroid, in the picture as
+// deep as they stand. A camera riding inside
 // an entity (camera.Inside) draws none of its figure, its shadow still. [Plugin.WithFog] is the
 // fog's colour in a world without an atmosphere. The entities are published once a frame, after its
 // ticks: the looks' rules settle every one some camera sees, the Lighting marks it, each camera's
@@ -116,6 +121,13 @@
 // standing entities are no record, the renderer drawing the sheet as the ground's relief, and a
 // unit there is its blob. A standing entity cut by a sector's edge, or beside a sector seen finer
 // than L4, is drawn alive at the finer level, never thinned, and photographed nowhere.
+//
+// Config.Sheets ([SheetsCfg]) keeps the sheets between runs: they are read from the tiles in its
+// Dir as they are made, so a sector photographed in an earlier run is photographed again only once
+// what stands in it changes, and with Keep the tiles a sector was photographed in are written back
+// there as they settle, a tile a second; without Keep the folder is only read. Tiles of another
+// Version, texel or world are not read. What a field's folded parts look like is not in what a
+// sector is signed by, so a game changing how it plants its fields changes Version.
 //
 // [Read.Picture] is everything the Stage's plugins draw (plugin.Installer.Draws), one picture
 // for every scene; a scene shows it through a camera, ui.Image(render.NewFeed(camera, it)).
@@ -145,13 +157,18 @@
 //
 // An [Aggregate] is a kind of entity standing for parts, a forest's trees or an army's soldiers:
 // they are the truth while its sector is ticked finer than L4 (lod.Strategic), it alone from L4 on.
-// It is told [Unfold] once as its sector comes down finer than L4, when its rules spawn the parts
+// It is told [Unfold] once as its sector comes down finer than L4 (the world unfolding at most
+// lod.Ladder.Unfolds stretches a step, those nearest an observer first, the others waiting folded
+// as they are), when its rules spawn the parts
 // ([SpawnPart]), each carrying [PartOf] it, and [Fold] once its sector has lain at L4 or coarser
 // for the ladder's Fold seconds, with the [Parts] it has, each part told a [Folding] to sum itself
 // into it and go; the wait is the stretch's, an entity the world keeps while it is unfolded, saved
 // with the game. From its first Unfold till the step after its last Fold, its parts gone, it
 // carries [Unfolded], saved too: its parts are drawn for it and what moves it stands it, at any
-// level.
+// level, and a point aggregate stands each step at the middle of its parts, its own size kept,
+// so its sector, its banner and whatever follows it go with them. Folded, it counts in its banner
+// for its Strength where its kind declares one, which the world sets to the parts folded in at
+// each Fold; without, for one.
 // Before a point aggregate's Fold is told the world moves it to the centroid of its parts'
 // centres, so what sums them finds it where they stood; with no part left it stays. What the
 // parts are and what has changed of them is the game's: lod.Seed is the number a place of the
@@ -172,6 +189,13 @@
 // from L4 in the sector's sheet where it declares none; a sector it is unfolded in has its
 // parts drawn alone, till they have gone the step after its Fold. Drawn so, it lies on the ground,
 // under the figures standing over it.
+//
+// A field's stretch a sheet draws, of a kind declaring no look of its own at L4, with none of its
+// parts kept (never unfolded, or not since the game was loaded), is previewed before its sector
+// is photographed: told its Unfold as though it unfolded, it has the parts its rules give there
+// photographed where they would stand, on the ground the world is given ([Write.SetGround]), and
+// kept as a Fold keeps them; none is spawned, no stretch is made, nothing is saved. Its rules
+// cannot tell a preview from an unfolding, so whatever else they do under Unfold is done then too.
 //
 // # Views
 //
@@ -202,10 +226,14 @@
 // subject the aggregate), [Met] (a pair of aggregates on the abstract graph, host.Met). Marks:
 // [Aggregate] and [Field] (on a kind), [PartOf] (on a part), [Unfolded] (on an aggregate, for the
 // plugins: a rule reads no component), [Fixed] (on a kind standing for good, what the sheets of
-// the strategic scale are photographed of). Knobs, for an effect's Alter:
+// the strategic scale are photographed of), [Whole] (on the kind of the handle of a thing standing
+// in pieces, its joint box and no sprite, despawning its pieces as it goes), [PieceOf] (on a
+// piece, its handle's). A thing standing for good lives in a tier of sectors (sector.Grid.Fit):
+// one no longer than [SectorsCfg] Small by its centre, a longer one in the lowest holding it whole.
+// Knobs, for an effect's Alter:
 // render.Appearance, the look's.
 // Commands: [Spawn] (a player's or an entity's own); [SpawnPart] (an aggregate's own, aimed at
-// the stretch of an Unfold);
+// the stretch of an Unfold); [SpawnWhole] (a handle and its pieces in one step, as [Spawn]);
 // [Despawn], [Keen], [Calm] (an entity's own); [Pause],
 // [Faster], [Slower], [Tempo], [SwitchSectors], [SwitchBands], [ShowFar], [ShowCounts] (a
 // player's). Settings ([Settings], saved with the game, in [Resources]): the sectors drawn, their

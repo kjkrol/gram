@@ -60,8 +60,16 @@ func (v *View) Fog(x, y float32) float32 {
 		return 0
 	}
 	from := v.sight - v.fog
-	t := (f32.Hypot(x-v.from.X, y-v.from.Y) - from) / v.fog
-	t = min(max(t, 0), 1)
+	dx, dy := x-v.from.X, y-v.from.Y
+	d2 := dx*dx + dy*dy
+	// the root only within the band: most of a frame lies short of it
+	if d2 <= from*from {
+		return 0
+	}
+	if d2 >= v.sight*v.sight {
+		return 1
+	}
+	t := (f32.Sqrt(d2) - from) / v.fog
 	return t * t * (3 - 2*t)
 }
 

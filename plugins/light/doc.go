@@ -9,7 +9,8 @@
 // by it, and runs it after the world ([Plugin.RunPlan]). From then on the world's entities are
 // marked by it as they are published (world.Lighting) and the world's picture is lit by what it
 // publishes ([Plugin.Publish]: the sun and the lamps, how it is set, the blocks the ground bakes
-// the shadows of, the ground under them; world.Read.Lights for what draws). Its state is read
+// the shadows of, a set a sector, versioned so the shade is baked anew only where a set changed,
+// the ground under them; world.Read.Lights for what draws). Its state is read
 // through [Plugin.Read], the same on every goroutine: the sources as the clock's Replay left them,
 // taken as each Replay ends (clock.Clock.Replayed). It is changed through [Plugin.Write], the
 // game's goroutine's.
