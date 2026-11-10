@@ -52,13 +52,15 @@ type sprites struct {
 	haze    air.Hazer
 	hazed   bool
 	fog     float32 // how far into the fog before the camera's sight what is laid next lies
+	cutout  bool    // the billboards added next are drawn in the cutout pass
 	opts    render.DrawMeshOptions
 	own     map[string]any
 }
 
 type spriteBatch struct {
-	atlas render.AtlasSource
-	inst  []float32
+	atlas  render.AtlasSource
+	cutout bool
+	inst   []float32
 }
 
 func newSprites(sky Sky, drawn func() (*relief.Relief, bool)) *sprites {
@@ -98,7 +100,7 @@ func (s *sprites) add(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 	haze := s.hazeAt(cx, cy, alt)
 	u0, v0, u1, v1 := atlas.UV(id)
 	l := lit.Light
-	b := batchOf(&s.batches, atlas)
+	b := batchOf(&s.batches, atlas, s.cutout)
 	b.inst = append(b.inst, cx, cy, alt, h, x1-x0, lx*h, ly*h, haze, u0, v0, u1, v1,
 		l[0], l[1], l[2], s.up, s.groundAt(cx, cy), float32(lit.Takes), 0, 0)
 }
@@ -111,7 +113,7 @@ func (s *sprites) lay(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 	sin, cos := f32.Sincos(angle * math.Pi / 180)
 	s32, c32 := sin, cos
 	alt := z.Altitude
-	b := batchOf(&s.lain, atlas)
+	b := batchOf(&s.lain, atlas, false)
 	for _, k := range [4][2]float32{{-hw, -hh}, {hw, -hh}, {-hw, hh}, {hw, hh}} {
 		x, y := cx+k[0]*c32+k[1]*s32, cy+k[1]*c32-k[0]*s32
 		ground := s.groundAt(x, y)
@@ -133,7 +135,7 @@ const (
 // c is top-left, top-right, bottom-left, bottom-right
 func (s *sprites) level(cam camera.Camera, c [4]geom.Vec, alt float32, atlas render.AtlasSource,
 	id render.SpriteID, lit render.Illumination) {
-	b := batchOf(&s.lain, atlas)
+	b := batchOf(&s.lain, atlas, false)
 	for _, p := range c {
 		x, y := p.X, p.Y
 		b.inst = append(b.inst, x, y, alt, s.groundAt(x, y))
@@ -153,7 +155,7 @@ func (s *sprites) upright(cam camera.Camera, a, b geom.Vec, alt, high float32,
 	if high <= 0 {
 		return
 	}
-	bt := batchOf(&s.lain, atlas)
+	bt := batchOf(&s.lain, atlas, false)
 	ax, ay, bx, by := a.X, a.Y, b.X, b.Y
 	top := alt + high
 	ga, gb := s.groundAt(ax, ay), s.groundAt(bx, by)
@@ -167,13 +169,13 @@ func (s *sprites) upright(cam camera.Camera, a, b geom.Vec, alt, high float32,
 		directShare(s.beam, -dy/n, dx/n, 0), uprightSoft*high, float32(lit.Takes), 0)
 }
 
-func batchOf(batches *[]spriteBatch, atlas render.AtlasSource) *spriteBatch {
+func batchOf(batches *[]spriteBatch, atlas render.AtlasSource, cutout bool) *spriteBatch {
 	for i := range *batches {
-		if (*batches)[i].atlas == atlas {
+		if (*batches)[i].atlas == atlas && (*batches)[i].cutout == cutout {
 			return &(*batches)[i]
 		}
 	}
-	*batches = append(*batches, spriteBatch{atlas: atlas})
+	*batches = append(*batches, spriteBatch{atlas: atlas, cutout: cutout})
 	return &(*batches)[len(*batches)-1]
 }
 
@@ -205,13 +207,19 @@ func (s *sprites) draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	s.set("Look", f.Dir[:]...)
 	s.set("Perspective", persp)
 	s.opts.Depth = t.Depth
-	s.drawAll(t, lyings, s.lain)
-	s.drawAll(t, boards, s.batches)
+	// the cutouts in their pass, before what is seen through; a billboard is cut at half its
+	// alpha either way, so the pass decides its order alone
+	cutting := t.Pass == render.Cutout
+	if !cutting {
+		s.drawAll(t, lyings, s.lain, false)
+	}
+	s.drawAll(t, boards, s.batches, cutting)
 }
 
-func (s *sprites) drawAll(t render.Target, shader *render.Shader, batches []spriteBatch) {
+func (s *sprites) drawAll(t render.Target, shader *render.Shader, batches []spriteBatch,
+	cutouts bool) {
 	for _, b := range batches {
-		if len(b.inst) == 0 {
+		if len(b.inst) == 0 || b.cutout != cutouts {
 			continue
 		}
 		s.opts.Images[0], s.opts.Instances = b.atlas.Atlas(), b.inst

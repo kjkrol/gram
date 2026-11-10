@@ -421,3 +421,109 @@ func TestRenderer_Compose_DrawsNothingAsleepEvenUnculled(t *testing.T) {
 			len(look.sprites))
 	}
 }
+
+// a look noting how much of each figure laid next is seen through
+type veiling struct {
+	*counting
+	veils []float32
+}
+
+func (v *veiling) Veil(opacity float32) {
+	v.veils = append(v.veils, opacity)
+	v.counting.Look.(CanopyLook).Veil(opacity)
+}
+
+type reliefCamera struct{ camera.Camera }
+
+func (reliefCamera) Projection() camera.Projection { return reliefProjection{} }
+
+type reliefProjection struct{ camera.TopDown }
+
+func (reliefProjection) Sorts() bool { return true }
+
+// canopied draws a fixed tree of the sprite crown standing over a moving unit through cam, the
+// canopies on as on says, the crown a canopy where flagged
+func canopied(t *testing.T, cam camera.Camera, on, flagged bool) *veiling {
+	t.Helper()
+	const crown render.SpriteID = 2
+	look := &veiling{counting: &counting{Look: ilook.NewFlat(1000, 1000, false, false)}}
+	r := newRenderer(flatAtlas{}, seenBy(cam, &view.View{}), &Rules{}, func() Look { return look })
+	r.shade(nil, nil)
+	if flagged {
+		r.mark(map[render.SpriteID]bool{crown: true}, nil)
+	}
+	r.canopies = func() bool { return on }
+	type standing struct {
+		id  uid.UID64
+		box geom.AABB
+	}
+	var stood []standing
+	r.query = func(box geom.AABB, fn func(uid.UID64)) {
+		for _, s := range stood {
+			if s.box.Intersects(box) {
+				fn(s.id)
+			}
+		}
+	}
+	var base goke.Comp[Base]
+	var appearance goke.Comp[render.Appearance]
+	var fixed goke.Comp[Fixed]
+	ecs := goke.New()
+	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		tree := si.NewFactory(&base, &appearance, &fixed)
+		tree.Create(1)
+		tree.Next()
+		box := plane.NewAABB(geom.NewVec(100, 100), 20, 20)
+		base.Slice(&tree.Cursor)[0] = Base{Pos: Position{AABB: box}}
+		appearance.Slice(&tree.Cursor)[0] = render.Appearance{SpriteID: crown}
+		stood = append(stood, standing{tree.Cursor.IDs[0], box.AABB})
+		unit := si.NewFactory(&base, &appearance)
+		unit.Create(1)
+		unit.Next()
+		base.Slice(&unit.Cursor)[0] = Base{Pos: Position{AABB: plane.NewAABB(geom.NewVec(108, 108), 4, 4)}}
+		appearance.Slice(&unit.Cursor)[0] = render.Appearance{SpriteID: 1}
+		r.Init(si)
+	}})
+	composed(r, cam)
+	return look
+}
+
+func TestRenderer_Compose_ACanopyShowsTheUnitUnderItFromAboveAlone(t *testing.T) {
+	above := cameratest.NewFromSpace(1000, 1000, 0)
+	if look := canopied(t, above, true, true); !slices.Equal(look.veils, []float32{canopyOpacity, 1}) ||
+		len(look.sprites) != 2 {
+		t.Errorf("from above the crown over a unit is veiled %v among %d sprites, want %v and 2",
+			look.veils, len(look.sprites), []float32{canopyOpacity, 1})
+	}
+	for name, c := range map[string]struct {
+		cam         camera.Camera
+		on, flagged bool
+	}{
+		"in relief":            {reliefCamera{above}, true, true},
+		"with the setting off": {above, false, true},
+		"a crown no canopy":    {above, true, false},
+	} {
+		if look := canopied(t, c.cam, c.on, c.flagged); len(look.veils) != 0 || len(look.sprites) != 2 {
+			t.Errorf("%s: veiled %v among %d sprites, want none and 2", name, look.veils,
+				len(look.sprites))
+		}
+	}
+}
+
+func TestRenderer_Compose_ACutoutTakesNoPlaceAmongWhatIsSeenThrough(t *testing.T) {
+	look := ilook.NewFlat(1000, 1000, false, false)
+	places := func(ready func(*renderer)) []render.Pass {
+		f := drawAs(t, look, ready, nil, nil, geom.NewVec(1, 0), quarters...)
+		var got []render.Pass
+		f.Places(func(p render.Pass, _ render.At) { got = append(got, p) })
+		return got
+	}
+	if got := places(func(r *renderer) { r.mark(nil, map[render.SpriteID]bool{1: true}) }); !slices.Equal(got,
+		[]render.Pass{render.Cutout}) {
+		t.Errorf("figures all cutouts take the places %v, want the cutout pass alone", got)
+	}
+	if got := places(func(*renderer) {}); !slices.Equal(got, []render.Pass{render.SeeThrough}) {
+		t.Errorf("figures seen through take the places %v, want one among what is seen through",
+			got)
+	}
+}

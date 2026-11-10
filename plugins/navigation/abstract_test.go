@@ -44,7 +44,8 @@ func (o *observed) Observers(each func(cam camera.Camera)) {
 // look has a camera look at (x, y) a pixel a world unit, zoomed out by out: under abstractLadder
 // every sector L2 at 1, L3 at 2.2
 func (o *observed) look(x, y, out float32) {
-	cam := cameratest.NewFromSpace(o.w, o.h, 0)
+	// its picture shows every sector: the levels go by the scale and the distance alone
+	cam := cameratest.Showing(cameratest.NewFromSpace(o.w, o.h, 0))
 	cam.SetViewport(2, 2)
 	if out > 1 {
 		cam.ZoomOut(out, 0, 0)

@@ -19,7 +19,8 @@ var (
 )
 
 func photoLeveled(level lod.Level) *render.Shader {
-	src := render.Files(shaders, "shaders/lattice.wgsl", "shaders/light.wgsl", "shaders/photo.wgsl")
+	src := render.Files(shaders, "shaders/lattice.wgsl", "shaders/light.wgsl",
+		"shaders/sheet.wgsl", "shaders/photo.wgsl")
 	src = append([]byte(fmt.Sprintf("const LEVEL: u32 = %du;\n", level)), src...)
 	return render.NewMeshShaderWith(fmt.Sprintf("terrain-sheet-level%d", level), src,
 		[]render.Uniform{
@@ -46,9 +47,10 @@ func topsLeveled(level lod.Level) *render.Shader {
 // margin round a small thing standing alone
 const photoQuad = 8
 
-// photoMesh draws the sheets of what stands over the ground at L4 and L5: a lattice over each
-// sector seen there whose sheet holds a photograph of something, its corners at the tops it holds,
-// worked out as a photograph changes
+// photoMesh draws the sheets of what stands over the ground at L4 and L5 from above: a lattice
+// over each sector seen there whose sheet holds a photograph of something, its corners at the
+// tops it holds, worked out as a photograph changes; a camera with an eye sees no sheet, the
+// world drawing what stands as points for it
 type photoMesh struct {
 	opts, working render.DrawMeshOptions
 	painted       func(i int) uint32
@@ -76,7 +78,7 @@ func (p *photoMesh) init(painted func(i int) uint32) {
 		if level < lod.Strategic || level > lod.L5 || p.held[i] == 0 {
 			return
 		}
-		k := level - lod.Strategic
+		k := int(level - lod.Strategic)
 		n := p.quads[k]
 		x, y := float32(i%p.cols*n), float32(i/p.cols*n)
 		p.boxes[k] = append(p.boxes[k], box.TopLeft.X, box.TopLeft.Y, box.BottomRight.X,
@@ -93,7 +95,7 @@ func (p *photoMesh) init(painted func(i int) uint32) {
 // at L4 or L5 whose sheet holds a photograph of something, under the ground's uniforms
 func (r *Renderer) drawPhotos(t render.Target, cam camera.Camera) {
 	p := &r.photo
-	if r.cfg.Sheet == nil || p.painted == nil || r.grid == nil {
+	if r.cfg.Sheet == nil || p.painted == nil || r.grid == nil || eyed(cam) {
 		return
 	}
 	albedo, relief, albedoL5, reliefL5, perUnit := r.cfg.Sheet()
@@ -130,6 +132,18 @@ func (r *Renderer) drawPhotos(t render.Target, cam camera.Camera) {
 		p.opts.Instances = p.boxes[k]
 		t.Screen.DrawMesh(p.latticeOf(k), photoShaders[k], &p.opts)
 	}
+}
+
+// eyed reports whether cam has an eye: a camera in the perspective, riding or free, which sees
+// the sheet, a photograph from above, from the side, where its trees would hang as discs in the
+// air; the world draws what stands as points for it instead
+func eyed(cam camera.Camera) bool {
+	e, ok := cam.(camera.Eyed)
+	if !ok {
+		return false
+	}
+	_, _, _, ok = e.Eye()
+	return ok
 }
 
 // watch has the tops of the sectors round one whose photograph changed worked out anew, a corner's

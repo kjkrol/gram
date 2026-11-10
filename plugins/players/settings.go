@@ -139,6 +139,7 @@ var sharedSections = []string{
 	control.PictureShadows,
 	control.PictureAreas,
 	control.Graphics,
+	control.Game,
 }
 
 // tree is the sections in order: those the plugins share first, then a plugin's own, each

@@ -32,15 +32,14 @@ fn vs_main(
     return out;
 }
 
-// topAt is the top the corner at among the tops stands at, xy in the world, a cell under the
-// ground there where nothing stands near it.
+// topAt is the top the corner at among the tops stands at, xy in the world, or a cell under the
+// ground where nothing stands near it.
 fn topAt(at: vec2<f32>, xy: vec2<f32>) -> f32 {
-    let t = imageSrc3At(imageSrc3Origin() + at + 0.5);
-    if t.b < 0.5 {
+    let top = sheetTop(at);
+    if top.y < 0.5 {
         return height(xy) - U.Cell;
     }
-    let bits = u32(t.r * 255.0 + 0.5) | (u32(t.g * 255.0 + 0.5) << 8u);
-    return unpack2x16float(bits).x;
+    return top.x;
 }
 
 @fragment
@@ -52,48 +51,5 @@ fn fs_main(g: Photo) -> @location(0) vec4<f32> {
     }
     let xy = imageSrc2Linear(imageSrc2Origin() + t).ba * 2.0 - 1.0;
     let n = vec3<f32>(xy, sqrt(max(1.0 - dot(xy, xy), 0.0)));
-    let sun = lightWay();
-    var lit = 0.0;
-    if sun.z > 0.0 {
-        lit = 1.0;
-    }
-    var diffuse = max(dot(n, sun), 0.0);
-    if U.Bands > 0.5 {
-        diffuse = banded(diffuse, U.Bands);
-    }
-    var sunColor = U.LightColor;
-    if U.Warmth > 0.0 {
-        sunColor = mix(U.LightColor, U.LightColor * vec3<f32>(1.08, 0.92, 0.7), U.Warmth);
-    }
-    let shade = 1.0 - diffuse * lit;
-    var light = U.Ambience * mix(vec3<f32>(1.0), U.ShadowTint, shade);
-    light += sunColor * diffuse * lit * U.LightStrength;
-    var rgb = albedo.rgb * light;
-    if g.cloud > 0.0 {
-        rgb *= 1.0 - cloudShade(g.cloud);
-    }
-    // the fog over a colour premultiplied
-    let fog = U.Fog * albedo.a;
-    if U.Visibility > 0.0 {
-        rgb = mix(rgb, fog, 1.0 - exp(-hazeDepth(g.world) / U.Visibility));
-    }
-    if U.Sight.w > 0.0 {
-        rgb = mix(rgb, fog, smoothstep(U.Sight.z, U.Sight.w, distance(g.world.xy, U.Sight.xy)));
-    }
-    return vec4<f32>(rgb, albedo.a);
-}
-
-// banded is the light d quantised into bands steps, each edge softened a little, as the ground's.
-fn banded(d: f32, bands: f32) -> f32 {
-    let b = d * bands;
-    let k = floor(b);
-    return (k + smoothstep(0.42, 0.58, b - k)) / bands;
-}
-
-// hazeDepth is how much air lies between the eye and p, as the ground's.
-fn hazeDepth(p: vec3<f32>) -> f32 {
-    if U.HazeUp <= 0.0 {
-        return distance(U.Eye, p);
-    }
-    return max(U.HazeUp - p.z, 0.0) / max(-U.HazeWay.z, 0.05);
+    return sheetSeen(albedo.rgb * sheetLight(n), albedo.a, g.world, g.cloud);
 }

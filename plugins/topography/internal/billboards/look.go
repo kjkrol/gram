@@ -23,6 +23,8 @@ func inRelief(cam camera.Camera) bool { return cam.Projection().Sorts() }
 var (
 	_ world.DirectLook = Look{}
 	_ world.LyingLook  = Look{}
+	_ world.CanopyLook = Look{}
+	_ world.CutoutLook = Look{}
 )
 
 // Look lays the world's entities on the GPU: billboards standing upright in the views in relief,
@@ -44,6 +46,22 @@ func (l Look) Fog(amount float32) {
 	l.gpu.fog = amount
 	if f, ok := l.flat.(world.FoggyLook); ok {
 		f.Fog(amount)
+	}
+}
+
+// Veil has the flat sprites laid next show what lies under them through, as much as opacity says;
+// a billboard stands whole.
+func (l Look) Veil(opacity float32) {
+	if c, ok := l.flat.(world.CanopyLook); ok {
+		c.Veil(opacity)
+	}
+}
+
+// Cutout has the billboards and the flat sprites laid next drawn in the cutout pass, or not.
+func (l Look) Cutout(on bool) {
+	l.gpu.cutout = on
+	if c, ok := l.flat.(world.CutoutLook); ok {
+		c.Cutout(on)
 	}
 }
 

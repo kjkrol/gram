@@ -824,6 +824,96 @@ under its budget (the band 0.92–0.98 of 60 FPS), the drawing 2.5 ms a frame in
 1.5 whole. Fullscreen costs a sixth on this desktop, the compositor's fullscreen path on the same
 GPU.
 
+## The forests in view — the cutout pass and the sheets' walls
+
+board/topography in the perspective over Madeira's densest forest (a probe centring the camera
+on it at the second second, looking from 1100 units south and 220 up at its middle: billboards
+near, the sheets far), `GRAM_VSYNC=off`, the medians of 14–24 s after 10 of warm-up, the tree
+before each change and the tree with it alternately, 2026-11-09:
+
+| Change | 1024×768 | 1920×1080 |
+|:---|---:|---:|
+| the cutout pass (`render.Cutout`): before → with | 154/176 → 154/179 FPS | 95/96 → 96/96 FPS |
+| far trees as points for a camera with an eye (no sheet, no walls): the sheet with walls → points | 163/181 → 213/201 FPS, presenting 2.0/1.7 → 0.9 ms | 104 → 107 FPS |
+| tried and dropped the same day: the sheet's walls down its sides, one colour a wall | 221 → 192 FPS, presenting 0.8 → 1.6 ms | 93/95 → 93/95 FPS |
+| … the walls cut into the trees along the edge, up to 8 texels a point | 156/143 → 128/131 FPS, presenting +1.5 ms | — |
+| … the walls for the pitched orthographic too: the demo's start view | 155/151 → 122/118 FPS, presenting +1.8 ms | — |
+
+What it says: the cutout pass changes no frame time here — the billboards already wrote the
+depth and cut at half their alpha, so what it brings is the order's independence and a unit
+hidden under a crown in relief. A camera with an eye drawing what stands far off as points in
+place of the sheet (some 30 000 instances over Madeira, one Point call each in Compose) is
+cheaper than the sheet it replaces, whose raised quads and walls were the GPU's cost; the walls,
+tried three ways, were dropped for the picture as much as the cost. The pictures with and without
+the cutout pass agree pixel for pixel below the telemetry panel.
+
+## The sectors off the picture
+
+board/topography swept by a probe: the picture stilled, six stops round Madeira every 2.5 s,
+each centred on and zoomed in by 4 then out, in the perspective (Tab at the second second) and
+from above, 1024×768, `GRAM_VSYNC=off`, the medians of a minute after 12 s of warm-up and the
+worst second, the tree before the change (v0.20.0) and with it, 2026-11-09:
+
+| Sweep | Fine sectors held, shown | Entities | FPS median, worst | Tick median, worst |
+|:---|---:|---:|---:|---:|
+| perspective, before | 146–201, 0–24 | 18 000–26 800 | 179, 116 | 4.7 ms, 8.3 ms |
+| perspective, with | 20–55 | 5 000–13 600 | 218, 144 | 3.4 ms, 5.8 ms |
+| from above, before | 562–723, 30–33 | 29 000–31 600 | 130, 89 | 7.3 ms, 10.9 ms |
+| from above, with | 96 | 5 800–15 400 | 182, 145 | 4.3 ms, 6.2 ms |
+
+What it says: the levels were held from the scale shown and the distance alone, so a camera held
+a disc of fine sectors round its viewpoint where it showed a wedge, or a strip of the whole island
+from above, and every forest in them unfolded; what a tree costs a frame (the publish walking the
+fixed things under the sheets, the hierarchy rebuilt as the passability changes, the tick itself)
+is paid by the trees held, not the trees shown. A sector off the picture is now Strategic or
+coarser, but for the nine round the viewpoint; a ring of sectors graded a level finer round the
+picture remains, and the hysteresis' half sector.
+
+## The shadows' reach, the standers and the hierarchy kept
+
+The same sweep of Madeira (the probe above), the tree with the sectors off the picture (`40dbc7ba`)
+against the tree with each change, 2026-11-10, medians of 50 s after 10 s and the worst second.
+
+**The shadows' reach.** The light frozen at 18:30 (the sun 3° high): before, the bake of a tile
+of the shade drew every tree of the island, each as a quad from its top to the map's lowest
+ground, and the run ended in 30 s with `vkQueueSubmit failed: -4` (the device lost); with every
+shadow reaching at most `render.ShadowReach` heights and the block's quad ending at the ground:
+
+| Sweep, 18:30 | FPS median, worst | Tick median | Presenting |
+|:---|---:|---:|---:|
+| perspective, before | 42 and 32, 0.2–0.7 (crashed at 30 s) | 5.4–5.7 ms | 10.7–20.6 ms |
+| perspective, with | 190 and 187, 57–128 | 4.1 ms | 1.0 ms |
+
+At noon the two trees run alike (194 against 205 FPS, the tick 4.2 against 4.0 ms). The tile
+bake (`Benchmark_Bake_Tile`, 2000 posts 10–20 high on level ground 1024 a side, 256 px):
+
+| Tile | Before | With |
+|:---|---:|---:|
+| noon, the sun 45° high | 4.4–4.5 ms | 4.6–4.7 ms |
+| sunset, the sun 3° high | 22.8 ms | 9.7 ms |
+
+**The standers.** At noon, with what stands for good kept between frames in the world and the
+light:
+
+| Sweep, noon | FPS median | Tick median | Light_Publish, nothing changed |
+|:---|---:|---:|---:|
+| perspective, before | 194 and 206 | 3.9–4.2 ms | 0.59 ms |
+| perspective, with | 227 and 212 | 3.1–3.4 ms | 2.8 µs |
+| from above, before | 183 | 4.6 ms | |
+| from above, with | 204 | 2.9 ms | |
+
+**The hierarchy kept.** The same sweep, the probe's cache folder empty (`XDG_CACHE_HOME`) for the
+first run and holding the two domains' files for the second:
+
+| Run | The first far route climbed | Clusters built | Files | Loaded in |
+|:---|---:|---:|---:|---:|
+| the first, building | tick ~1400 (23 s of game) | 1712 over 38 s | 16.4 MB and 6.0 MB written | |
+| the next, loading | tick 2 | 0 | | 204 ms and 170 ms |
+
+The load is the file read and decoded and every cluster's cells fingerprinted (205 000 cells, by
+hand, not reflection: 480 ms before); hpastar's own `Save`/`Load` of a 1024² map are 64 and
+75–86 ms (its `BENCHMARKS.md`, v1.6.0).
+
 ## What they say
 
 - **A tick is the plugins' RunPlan and nothing else.** The engine adds no work of its own per

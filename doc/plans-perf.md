@@ -4061,10 +4061,20 @@ komórek na tick.
   z wersji sektorów i diffu; O(zmian)); `navigation.Config.Cache{Dir, Keep}`: plik
   `hierarchy-<domain>.bin` z nagłówkiem {wersja kafli, odcisk wyceny (tabela rodzajów: `PaceFor`,
   `Allows`, `Solid`; `Hiking`; `Classes`; `Side`), opcje}; brak pliku = budowa w budżecie jak
-  dziś (dema 100 m bez zmiany); zapis atomowy po gotowości, gdy `Keep`; `flats` po stronie.
+  dziś (dema 100 m bez zmiany); zapis atomowy po gotowości, gdy `Keep`, a potem porcjami: klaster
+  przebudowany po `Stale` zrzucany sam, w tle, nie cały plik (użytkownik, 2026-11-09: struktura
+  budowana raz, zapisywana, zrzucana małymi porcjami, gdy się zmieniła; gdzie i czy decyduje
+  twórca gry); `flats` po stronie.
   `navigation.Prepare(board, dir)` publiczne wejście; demo z flagą `-prepare` woła je przed
   `gram.Run`. Bench `Navigation_Stale/10m` (droga 1 km ≤ 20 klastrów w budżecie jednego ticku),
   `Navigation_Load` (≤ 1 s), `Navigation_Prepare` (do zmierzenia; cel ≤ 10 min jednowątkowo).
+  **Zrobione 2026-11-10 w PR #58** (słowo użytkownika): hpastar v1.6.0 `Save`/`Load`/`Dump`
+  (rekordy klastrów z CRC, stany z `graph.Implicit.Of`), `navigation.Cache{Dir, Keep, Version}`
+  i `WithCache`, plik `hierarchy-<domain>.bin` z odciskiem komórek każdego klastra zamiast wersji
+  kafli (`BoardRead.CellFingerprint`; klaster nad zmienionymi komórkami `StaleCluster` po
+  wczytaniu, reszta gotowa), zrzut co 5 s klastrów przebudowanych i odcisków w miejsce,
+  `Counts.Loaded`, Madera trzyma hierarchię w `~/.cache/gram/topography/hierarchy`. Zostają tu:
+  `Stale` z listy zmian, `-prepare`/`Prepare`, benchmarki 10 m.
 - **`m/madeira10` (demo `examples/board/madeira`):** receptura `cmd/gramap/madeira10.yaml`
   (komórka 10, 6400×3200, zoom 14, `grain` 64, `work` 50), zestaw topografii, skala 3× (jednostka
   0,25 m, komórka 40), `Sectors` 64, `Rings` (L3 ~3 km, L4 ~12 km), `make madeira10-map` (gramap

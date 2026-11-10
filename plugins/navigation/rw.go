@@ -38,6 +38,7 @@ func (r *Read) Counts() Counts {
 		Fills:      c.Fills() + f.Fills(),
 		Climbs:     c.Climbs() + f.Climbs(),
 		Builds:     c.Builds() + f.Builds(),
+		Loaded:     c.Loaded(),
 		Expansions: c.Expansions() + f.Expansions(),
 		Abstracts:  t.Abstracts(),
 		Snaps:      t.Snaps(),

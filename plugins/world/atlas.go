@@ -26,6 +26,8 @@ type Atlas struct {
 	phased   map[render.SpriteID]phase     // by the twin under the effect
 	lying    map[render.SpriteID]bool
 	upright  map[render.SpriteID]bool
+	canopy   map[render.SpriteID]bool
+	cutout   map[render.SpriteID]bool
 	edges    map[render.SpriteID]render.SpriteID
 	twins    map[tag.Tag[effect.States]]map[render.SpriteID]render.SpriteID // under an effect
 	// the effects in the order first looked under: the last wins
@@ -43,6 +45,10 @@ type Atlas struct {
 	unthinned []bool
 	// after Close: by sprite, the levels it is drawn at in a look its kind declared, a bit each
 	declaring []uint8
+	// the blob of each kind's own look, by the kind's own sprite, and after Close by every sprite
+	// drawn in its place: what stands in for the kind far off where its look there is not drawn
+	blobs  map[render.SpriteID]render.SpriteID
+	blobOf []render.SpriteID
 	// after Close: by sprite, the straight colour its kind is drawn in far off, clear for none
 	colours [][4]uint8
 	// after Close: by sprite, its kind's banners
@@ -134,10 +140,13 @@ func (p *Plugin) NewAtlas() *Atlas {
 		phased:   map[render.SpriteID]phase{},
 		lying:    map[render.SpriteID]bool{},
 		upright:  map[render.SpriteID]bool{},
+		canopy:   map[render.SpriteID]bool{},
+		cutout:   map[render.SpriteID]bool{},
 		edges:    map[render.SpriteID]render.SpriteID{},
 		twins:    map[tag.Tag[effect.States]]map[render.SpriteID]render.SpriteID{},
 		declared: map[render.SpriteID][]leveled{},
 		always:   map[render.SpriteID]bool{},
+		blobs:    map[render.SpriteID]render.SpriteID{},
 		versions: map[render.SpriteID][lod.Levels]version{},
 	}
 }
@@ -353,6 +362,15 @@ func (a *Atlas) isAlways(id render.SpriteID) bool {
 
 // declares reports whether the sprite id is drawn at level in a look its kind declared for it
 // (Slot.At), once the atlas is closed
+// blob is the blob of the kind the sprite id is drawn in the place of, once the atlas is closed,
+// whether its kind is drawn as it far off or not; false for a sprite of no kind.
+func (a *Atlas) blob(id render.SpriteID) (render.SpriteID, bool) {
+	if int(id) < len(a.blobOf) && a.blobOf[id] != 0 {
+		return a.blobOf[id], true
+	}
+	return 0, false
+}
+
 func (a *Atlas) declares(id render.SpriteID, level lod.Level) bool {
 	return int(id) < len(a.declaring) && a.declaring[id]&(1<<level) != 0
 }
@@ -402,6 +420,23 @@ func (s Slot) Lying() Slot {
 // twins stand so too.
 func (s Slot) Upright() Slot {
 	s.a.upright[s.id] = true
+	return s
+}
+
+// Canopy has the sprite show a unit standing under its entity through it in a view from above,
+// where the world's Canopies setting says (Read.Canopies): a tree's crown. Its looks under
+// effects, its frames and its twins do too; in a view in relief it stands whole.
+func (s Slot) Canopy() Slot {
+	s.a.canopy[s.id] = true
+	return s
+}
+
+// Cutout has the sprite drawn in the cutout pass where its look is whole: cut at half its alpha,
+// writing the depth, in no order, so what stands behind it or under it is hidden by the depth
+// (render.Cutout). Its looks under effects, its frames and its twins too; a canopy seen through
+// is not.
+func (s Slot) Cutout() Slot {
+	s.a.cutout[s.id] = true
 	return s
 }
 
@@ -510,6 +545,10 @@ func (a *Atlas) lain() map[render.SpriteID]bool { return a.withKin(a.lying) }
 
 func (a *Atlas) stood() map[render.SpriteID]bool { return a.withKin(a.upright) }
 
+func (a *Atlas) canopies() map[render.SpriteID]bool { return a.withKin(a.canopy) }
+
+func (a *Atlas) cutouts() map[render.SpriteID]bool { return a.withKin(a.cutout) }
+
 // kin visits id and every sprite drawn in its place: its twins under effects, its directional
 // twins, its frames, its looks at the levels once closed, and theirs.
 func (a *Atlas) kin(id render.SpriteID, visit func(render.SpriteID)) {
@@ -555,9 +594,16 @@ func (a *Atlas) level() {
 		declaring := a.declaredLevels(own.id)
 		colour := a.farColourOf(own)
 		banner := a.bannerOf(own.id, of, declaring)
+		blob, blobbed := a.blobs[own.id]
 		a.kin(own.id, func(k render.SpriteID) {
 			for int(k) >= len(a.levels) {
 				a.levels = append(a.levels, itself(render.SpriteID(len(a.levels))))
+			}
+			if blobbed {
+				for int(k) >= len(a.blobOf) {
+					a.blobOf = append(a.blobOf, 0)
+				}
+				a.blobOf[k] = blob
 			}
 			for l, v := range of {
 				if v.drawn && v.id == own.id {
@@ -650,10 +696,16 @@ func (a *Atlas) versionsOf(own owned) [lod.Levels]version {
 	of := [lod.Levels]version{self, self, self, self, self}
 	declared := a.declared[own.id]
 	slices.SortFunc(declared, func(x, y leveled) int { return int(x.from) - int(y.from) })
-	if far := beyond(declared); own.draw != nil && (len(far) == 0 || far[0].from > lod.Strategic) {
+	// a blob of the kind's own look where it declares none drawn at L4: drawn there unless it
+	// declares nothing, kept for what stands in for the kind far off either way
+	if far := beyond(declared); own.draw != nil &&
+		(len(far) == 0 || far[0].from > lod.Strategic || far[0].version.id == 0) {
 		blob := a.p.Kinds().NewSprite()
 		a.atlas.Add(blob, own.size, render.Blob(own.draw))
-		of[lod.Strategic] = version{id: blob, drawn: true}
+		a.blobs[own.id] = blob
+		if len(far) == 0 || far[0].from > lod.Strategic {
+			of[lod.Strategic] = version{id: blob, drawn: true}
+		}
 	}
 	of[lod.L5] = of[lod.Strategic]
 	for i, d := range declared {

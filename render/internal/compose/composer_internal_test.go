@@ -443,6 +443,30 @@ func TestFrame_AGlazeShowsAsMuchAsItsOpacity(t *testing.T) {
 	}
 }
 
+func TestFrame_GlazedShowsTheLastSpriteAsMuchAsItsOpacity(t *testing.T) {
+	var f Frame
+	f.Reset(topDown())
+	square := Corners{{0, 0}, {10, 0}, {0, 10}, {10, 10}}
+	f.Sprite(h(0), sheet{}, 0, square, even(1))
+	f.SpriteRectUV(h(1), sheet{}, 0, 100, 100, 200, 200, 0, 0, 1, 1, even(0.8))
+	f.Glazed(0.75)
+	if len(f.verts) < 8 {
+		t.Fatalf("%d vertices, want the sprite's 4 and the rectangle's", len(f.verts))
+	}
+	for k, v := range f.verts[:4] {
+		if v.ColorA != 1 || v.ColorR != 1 {
+			t.Errorf("corner %d of the sprite before glazed: %v, alpha %v; want untouched", k,
+				v.ColorR, v.ColorA)
+		}
+	}
+	for k, v := range f.verts[4:] {
+		if v.ColorA != 0.75 || math.Abs(float64(v.ColorR-0.6)) > 1e-6 {
+			t.Errorf("corner %d of the rectangle glazed %v, alpha %v; want 0.6, 0.75", k, v.ColorR,
+				v.ColorA)
+		}
+	}
+}
+
 func TestFrame_APartOfASheetSamplesThePixelsAskedFor(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
@@ -524,6 +548,7 @@ func TestComposer_HandsTheShaderTheFramesUniformsAndZeroesTheStale(t *testing.T)
 
 type direct struct {
 	opaque bool
+	cutout bool
 	at     *At
 	ground bool
 	after  *int
@@ -535,6 +560,9 @@ type direct struct {
 func (d *direct) Compose(f *Frame, _ camera.Camera) {
 	if d.opaque {
 		f.DrawOpaque()
+	}
+	if d.cutout {
+		f.DrawCutout()
 	}
 	if d.at != nil {
 		f.DrawAt(*d.at)
@@ -555,7 +583,7 @@ func TestComposer_ADirectDrawsWhereItAskedAndOnlyThere(t *testing.T) {
 	sky, rain := Furthest, Nearest
 	ground := &direct{opaque: true, after: &calls}
 	views := &direct{at: &[]At{h(0.25)}[0], after: &calls}
-	figures := &direct{at: &[]At{h(2)}[0], after: &calls}
+	figures := &direct{cutout: true, at: &[]At{h(2)}[0], after: &calls}
 	nothing := &direct{after: &calls}
 	c := NewComposer(figures, &direct{at: &rain, after: &calls}, items(func(f *Frame) {
 		f.Sprite(h(0.75), a, 0, unit, even(1))  // a route
@@ -574,11 +602,16 @@ func TestComposer_ADirectDrawsWhereItAskedAndOnlyThere(t *testing.T) {
 		t.Errorf("the ground drew after %v calls in %v, want once before all, in the opaque pass",
 			got, ground.passes)
 	}
+	if got := figures.drawn; len(got) != 2 || got[0] != 0 || figures.passes[0] != Cutout ||
+		figures.passes[1] != SeeThrough {
+		t.Errorf("the figures drew after %v calls in %v, want the cutouts before anything seen "+
+			"through, then among it", got, figures.passes)
+	}
 	if got := views.drawn; len(got) != 1 || got[0] != 0 || views.passes[0] != SeeThrough {
 		t.Errorf("the views drew after %v calls in %v, want once before the route's",
 			got, views.passes)
 	}
-	if got := figures.drawn; len(got) != 1 || got[0] != 1 {
+	if got := figures.drawn; got[1] != 1 {
 		t.Errorf(
 			"the figures drew after %v calls, want after the route's, before the material's", got)
 	}
@@ -594,9 +627,10 @@ func TestComposer_ADirectDrawsWhereItAskedAndOnlyThere(t *testing.T) {
 	}
 	var places []Pass
 	c.frame.Places(func(p Pass, _ At) { places = append(places, p) })
-	if len(places) != 5 || places[0] != Opaque {
-		t.Errorf("the frame holds the places %v, want the ground's opaque one and four seen "+
-			"through", places)
+	if !slices.Equal(places, []Pass{Opaque, Cutout, SeeThrough, SeeThrough, SeeThrough,
+		SeeThrough}) {
+		t.Errorf("the frame holds the places %v, want the ground's opaque one, the figures' "+
+			"cutout and four seen through", places)
 	}
 }
 
@@ -663,6 +697,7 @@ func (overlyingDirect) Overlies() {}
 type staged struct {
 	name     string
 	opaque   bool
+	cutout   bool
 	draws    bool
 	at       At
 	ground   bool
@@ -679,6 +714,9 @@ func (s *staged) Compose(f *Frame, _ camera.Camera) {
 	*s.log = append(*s.log, s.name+" composed")
 	if s.opaque {
 		f.DrawOpaque()
+	}
+	if s.cutout {
+		f.DrawCutout()
 	}
 	if s.draws {
 		f.DrawAt(s.at)
@@ -702,7 +740,7 @@ func TestComposer_LayAndDrawOverComposeEachSourceOnceInItsPart(t *testing.T) {
 	var log []string
 	ground := &staged{name: "ground", opaque: true, log: &log}
 	route := &staged{name: "route", draws: true, at: h(0.75), log: &log}
-	figures := &staged{name: "figures", draws: true, at: h(2), log: &log}
+	figures := &staged{name: "figures", cutout: true, draws: true, at: h(2), log: &log}
 	rain := &staged{name: "rain", opaque: true, draws: true, at: Nearest, log: &log}
 	c := NewComposer(ground, overlyingDirect{figures}, route, overlyingDirect{rain})
 	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) {}
@@ -713,7 +751,7 @@ func TestComposer_LayAndDrawOverComposeEachSourceOnceInItsPart(t *testing.T) {
 			want)
 	}
 	want := []string{"ground composed", "route composed", "ground drawn", "route drawn",
-		"figures composed", "rain composed", "figures drawn", "rain drawn"}
+		"figures composed", "rain composed", "figures drawn", "figures drawn", "rain drawn"}
 	if !slices.Equal(log, want) {
 		t.Errorf("the frame went %v, want %v: the ground's sources composed and drawn, then the "+
 			"ones over the figures", log, want)
@@ -728,11 +766,11 @@ func TestComposer_LayAndDrawOverComposeEachSourceOnceInItsPart(t *testing.T) {
 		t.Errorf("the ground drew in %v and the route in %v, want the opaque pass and the one "+
 			"seen through", ground.passes, route.passes)
 	}
-	if !slices.Equal(figures.passes, []Pass{SeeThrough}) ||
+	if !slices.Equal(figures.passes, []Pass{Cutout, SeeThrough}) ||
 		!slices.Equal(rain.passes, []Pass{SeeThrough}) {
-		t.Errorf("over the figures the figures drew in %v and the rain in %v, want once each "+
-			"seen through: a source over the figures asking for the opaque pass is not heard",
-			figures.passes, rain.passes)
+		t.Errorf("over the figures the figures drew in %v and the rain in %v, want the cutouts "+
+			"then seen through, and once seen through: a source over the figures asking for the "+
+			"opaque pass is not heard", figures.passes, rain.passes)
 	}
 	log = log[:0]
 	c.Lay(cam, false)

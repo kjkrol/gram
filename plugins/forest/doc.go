@@ -12,7 +12,10 @@
 // part of its forest standing for good (world.Fixed), going as its sector folds. At L2 it stands
 // in relief as a billboard of its Side, or as a body of it on the four sides and over the top of
 // its box where its Spec says Body, at L3 as a billboard of its Top; from L4 out the world's
-// sheets hold it as planted. A look left out is drawn of its [Colours].
+// sheets hold it as planted. A look left out is drawn of its [Colours]. Its looks are whole,
+// drawn in render's cutout pass (world.Slot.Cutout), and canopies (world.Slot.Canopy): from
+// above a unit standing under a tree shows through its crown where the world's Canopies setting
+// says, in relief the crown hides it.
 //
 // # Stands
 //

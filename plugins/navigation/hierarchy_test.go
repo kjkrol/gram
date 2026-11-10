@@ -2,6 +2,8 @@ package navigation
 
 import (
 	"math"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -47,10 +49,23 @@ func climbers(starts []cell.ID) []climber {
 	return out
 }
 
+// withCache is a rig's prepare having the navigation made over the world keep its hierarchies
+// as c says
+func withCache(c Cache) func(*world.Plugin, *board.Plugin) {
+	return func(w *world.Plugin, _ *board.Plugin) {
+		for _, p := range w.Made().All() {
+			if nav, ok := p.(*Plugin); ok {
+				nav.WithCache(c)
+			}
+		}
+	}
+}
+
 // newRig is a board of side cells a side, each of cellSize, the units standing as given, laid by
-// lay, the plugin planning the long routes as h says
+// lay, the plugin planning the long routes as h says and prepared further by prepares
 func newRig(t testing.TB, pool *parallel.Pool, h Hierarchy, side, cellSize uint32,
-	units []climber, lay func(nw *navWorld)) *groupRig {
+	units []climber, lay func(nw *navWorld),
+	prepares ...func(*world.Plugin, *board.Plugin)) *groupRig {
 	t.Helper()
 	g := grid.DefaultGrids{}.Square(side, side, cellSize)
 	placed := make([]navUnit, len(units))
@@ -58,8 +73,14 @@ func newRig(t testing.TB, pool *parallel.Pool, h Hierarchy, side, cellSize uint3
 		placed[i] = navUnit{box: cellBox(g, u.at, u.side), at: u.at, order: &MoveOrder{}}
 	}
 	r := &groupRig{}
+	prepare := func(w *world.Plugin, b *board.Plugin) {
+		withHierarchy(h)(w, b)
+		for _, p := range prepares {
+			p(w, b)
+		}
+	}
 	r.nw = newNavWorldIn(t, pool, side, side, cellSize, placed, world.SectorsCfg{}, lod.Ladder{},
-		withHierarchy(h), goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		prepare, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 			r.ordered = si.NewQueryBuilder(&r.orders, &r.at).Build()
 		}})
 	r.coord = r.nw.nav.module.navigationSystem.Routing.(*routing.Coordinator)
@@ -87,12 +108,19 @@ func longGrid() grid.Grid { return grid.DefaultGrids{}.Square(routeSide, routeSi
 func newLongRig(t testing.TB, pool *parallel.Pool, h Hierarchy, units []climber,
 	keep ...cell.ID) *groupRig {
 	t.Helper()
+	return newKeptLongRig(t, pool, h, Cache{}, units, keep...)
+}
+
+// newKeptLongRig is newLongRig with the hierarchies kept as c says
+func newKeptLongRig(t testing.TB, pool *parallel.Pool, h Hierarchy, c Cache, units []climber,
+	keep ...cell.ID) *groupRig {
+	t.Helper()
 	for _, u := range units {
 		keep = append(keep, u.at)
 	}
 	return newRig(t, pool, h, routeSide, routeCell, units, func(nw *navWorld) {
 		layRoutes(nw, keep)
-	})
+	}, withCache(c))
 }
 
 // sendEach gives each unit a MoveTo of its own to goal, as send does
@@ -635,5 +663,145 @@ func TestRouting_LongRoutesOnAPoolAreTheRoutesOfOneGoroutine(t *testing.T) {
 	}
 	if !slices.ContainsFunc(one, func(p Path) bool { return p.Length == MaxPathLength }) {
 		t.Error("no route a chunk long")
+	}
+}
+
+// the hierarchy built by one run is kept in the cache's file and read by the next, which builds
+// nothing and climbs the same routes; a file of another version is built anew
+func TestRouting_TheHierarchyKeptInTheCacheIsLoadedByTheNextRun(t *testing.T) {
+	cache := Cache{Dir: filepath.Join(t.TempDir(), "routes"), Keep: true, Version: "t"}
+	g := longGrid()
+	start, goal := g.At(2, 2), g.At(routeSide-3, routeSide-3)
+	units := []climber{{at: start, side: 12}}
+	warm := g.At(2, routeSide-3)
+	r := newKeptLongRig(t, nil, Hierarchy{}, cache, units, goal, warm)
+	r.sendEach(warm, 0)
+	r.built(t)
+	r.update()
+	r.coord.Hierarchies().Flush()
+	file := filepath.Join(cache.Dir, "hierarchy-1.bin")
+	info, err := os.Stat(file)
+	if err != nil {
+		t.Fatalf("the hierarchy built is not kept: %v", err)
+	}
+	// the route to the goal, climbed now the hierarchy is built
+	r.sendEach(goal, 0)
+	r.update()
+	path := r.paths()[0]
+	if path.Length == 0 || r.coord.Climbs() != 1 {
+		t.Fatal("no route climbed by the run that built")
+	}
+
+	again := newKeptLongRig(t, nil, Hierarchy{}, cache, units, goal, warm)
+	again.sendEach(goal, 0)
+	again.update()
+	if c := again.nw.nav.Read(0).Counts(); c.Loaded != 1 || c.Builds != 0 || c.Climbs != 1 {
+		t.Fatalf("the next run counts %+v; want the hierarchy loaded, nothing built, the route "+
+			"climbed", c)
+	}
+	if got := again.paths()[0]; !slices.Equal(got.Steps[:got.Length], path.Steps[:path.Length]) {
+		t.Errorf("the next run climbs %v, the run that built %v", got.Steps[:got.Length],
+			path.Steps[:path.Length])
+	}
+	again.update()
+	again.coord.Hierarchies().Flush()
+	if after, err := os.Stat(file); err != nil || after.Size() != info.Size() {
+		t.Errorf("the next run wrote the file anew (%v, %v), want it as it was", after, err)
+	}
+
+	other := Cache{Dir: cache.Dir, Keep: false, Version: "u"}
+	fresh := newKeptLongRig(t, nil, Hierarchy{}, other, units, goal, warm)
+	fresh.sendEach(goal, 0)
+	fresh.update()
+	if c := fresh.nw.nav.Read(0).Counts(); c.Loaded != 0 || c.Builds == 0 {
+		t.Errorf("a run of another version counts %+v; want the hierarchy built anew", c)
+	}
+	fresh.built(t)
+	fresh.update()
+	fresh.coord.Hierarchies().Flush()
+	if after, err := os.Stat(file); err != nil || after.Size() != info.Size() {
+		t.Errorf("a run keeping nothing wrote the file (%v, %v), want it as it was", after, err)
+	}
+}
+
+// a cluster built again after a change is dumped to the file in its turn, and the next run
+// loads the base with the dumps; a file cut short is built anew
+func TestRouting_TheHierarchyDumpsWhatItBuiltAgainAndLoadsNothingSpoilt(t *testing.T) {
+	cache := Cache{Dir: t.TempDir(), Keep: true, Version: "t"}
+	g := longGrid()
+	start, goal := g.At(2, 2), g.At(routeSide-3, routeSide-3)
+	units := []climber{{at: start, side: 12}}
+	r := newKeptLongRig(t, nil, Hierarchy{}, cache, units, goal)
+	r.sendEach(goal, 0)
+	r.built(t)
+	r.update()
+	r.coord.Hierarchies().Flush()
+	file := filepath.Join(cache.Dir, "hierarchy-1.bin")
+	base, err := os.Stat(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.toggled(g.At(56, 56))
+	r.update()
+	r.coord.Hierarchies().DumpEvery(0)
+	r.update()
+	r.coord.Hierarchies().Flush()
+	if after, err := os.Stat(file); err != nil || after.Size() <= base.Size() {
+		t.Fatalf("after a cluster built again the file is %v (%v), want the dump appended to %d",
+			after, err, base.Size())
+	}
+	r.sendEach(goal, 0)
+	r.update()
+	path := r.paths()[0]
+
+	again := newKeptLongRig(t, nil, Hierarchy{}, cache, units, goal)
+	again.toggled(g.At(56, 56))
+	again.sendEach(goal, 0)
+	again.update()
+	if c := again.nw.nav.Read(0).Counts(); c.Loaded != 1 || c.Builds != 0 {
+		t.Fatalf("the next run counts %+v; want the base and the dump loaded, nothing built", c)
+	}
+	if got := again.paths()[0]; !slices.Equal(got.Steps[:got.Length], path.Steps[:path.Length]) {
+		t.Errorf("the next run climbs %v, the run that dumped %v", got.Steps[:got.Length],
+			path.Steps[:path.Length])
+	}
+	// a run over the board as laid finds the dumped cluster's cells otherwise and builds it again
+	original := newKeptLongRig(t, nil, Hierarchy{Side: 16}, Cache{Dir: cache.Dir, Version: "t"},
+		units, goal)
+	original.sendEach(goal, 0)
+	original.update()
+	if c := original.nw.nav.Read(0).Counts(); c.Loaded != 1 || c.Builds == 0 || c.Builds > 20 {
+		t.Errorf("a run over the board as laid counts %+v; want the file loaded and the "+
+			"changed cell's clusters alone built again", c)
+	}
+
+	data, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, data[:len(data)*2/3], 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cut := newKeptLongRig(t, nil, Hierarchy{}, cache, units, goal)
+	cut.sendEach(goal, 0)
+	cut.update()
+	if c := cut.nw.nav.Read(0).Counts(); c.Loaded != 0 || c.Builds == 0 {
+		t.Errorf("a run over a file cut short counts %+v; want the hierarchy built anew", c)
+	}
+}
+
+func TestBoard_FingerprintsWhatTheStepsReadOfACell(t *testing.T) {
+	g := longGrid()
+	units := []climber{{at: g.At(2, 2), side: 12}}
+	a := newLongRig(t, nil, Hierarchy{}, units)
+	b := newLongRig(t, nil, Hierarchy{}, units)
+	c, other := g.At(56, 56), g.At(57, 56)
+	if a.nw.board.CellFingerprint(c) != b.nw.board.CellFingerprint(c) {
+		t.Error("two boards laid alike have other fingerprints of a cell")
+	}
+	was, beside := a.nw.board.CellFingerprint(c), a.nw.board.CellFingerprint(other)
+	a.toggled(c)
+	if a.nw.board.CellFingerprint(c) == was || a.nw.board.CellFingerprint(other) != beside {
+		t.Error("a cell changed, its fingerprint is as it was or its neighbour's moved")
 	}
 }

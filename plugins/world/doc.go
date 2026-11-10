@@ -84,7 +84,8 @@
 //
 // How entities are drawn is declared on the world's [Atlas] by the figures' Looks, gathered once
 // the Stage is set up, before its scenes: a kind's look, its look Under an effect, Turning,
-// Facing, Animated, Lying, Upright, Edges, and Styled: how another plugin draws about the kind
+// Facing, Animated, Lying, Upright, Canopy, Cutout, Edges, and Styled: how another plugin draws
+// about the kind
 // (an outline, a cone, a route), a render.Style of that plugin's, read off [Read.Styles].
 // Closing the atlas hands it to the world ([Write.SetAtlas]), which gives it the entity renderer
 // and applies what was declared; a game declaring looks by hand closes its own
@@ -92,7 +93,14 @@
 // entity is laid on the screen by the world's [Look] ([Read.Look], [Write.SetLook]), flat
 // from above unless a view plugin sets its own; a [DirectLook] draws the sprites itself on the
 // GPU, a [LyingLook] lays some flat, an [UprightLook] stands some true, a [FoggyLook] fades one
-// into the fog before a camera's sight. Each is marked by the [Lighting], the light plugin's
+// into the fog before a camera's sight, a [CanopyLook] shows a unit through the canopy over it
+// and a [CutoutLook] draws what is whole in the cutout pass. A kind's look declared [Slot.Canopy]
+// (a tree's crown) shows a unit standing under its entity through it at three quarters, in a view
+// from above alone, where the Canopies setting says ([ShowCanopies], [Read.Canopies], under the
+// settings' section Game; Config.Canopies its start); one declared [Slot.Cutout] is drawn whole
+// in render's cutout pass, cut at half its alpha and writing the depth, so a unit under a crown
+// is hidden in a view in relief and the crowns need no order; a canopy seen through is laid among
+// what is seen through instead. Each is marked by the [Lighting], the light plugin's
 // ([Write.SetLighting]), and lit as the frame says (render.Frame.Lit) by the lights the picture
 // is given ([Write.SetLights], [Read.Lights]), in white light without them. An entity is drawn in
 // its kind's look at the level its camera sees it at: its own at L2 (lod.Standard) and the close
@@ -109,7 +117,9 @@
 // [Slot.Styled], and a style alone has a kind bannered there); with the counts drawn
 // ([ShowCounts], [Read.Counts]) the number of a banner's units from two on stands inside its
 // badge, and of a kind's points two or more in a sector over their centroid, in the picture as
-// deep as they stand. A camera riding inside
+// deep as they stand. What stands for good where a sheet is drawn from L4 is left to the sheet
+// from above, and drawn as a point of its look there or its blob through a camera with an eye,
+// which sees no sheet (a photograph from above). A camera riding inside
 // an entity (camera.Inside) draws none of its figure, its shadow still. [Plugin.WithFog] is the
 // fog's colour in a world without an atmosphere. The entities are published once a frame, after its
 // ticks: the looks' rules settle every one some camera sees, the Lighting marks it, each camera's
@@ -119,7 +129,8 @@
 // [Read.Sheet], an albedo and a relief over the whole world ([SheetImage], [SheetReliefImage], at
 // L5 in half), a few sectors a frame as their content changes; once a sector's sheet is painted its
 // standing entities are no record, the renderer drawing the sheet as the ground's relief, and a
-// unit there is its blob. A standing entity cut by a sector's edge, or beside a sector seen finer
+// unit there is its blob. What stands is signed into its sector as its chunk comes, goes or has
+// its table moved, or as [Write.Restill] says of a change in place, never walked frame by frame. A standing entity cut by a sector's edge, or beside a sector seen finer
 // than L4, is drawn alive at the finer level, never thinned, and photographed nowhere.
 //
 // Config.Sheets ([SheetsCfg]) keeps the sheets between runs: they are read from the tiles in its
@@ -136,7 +147,9 @@
 //
 // Config.Sectors cuts the world into sectors, each ticked at the fullest level Config.LOD (a
 // lod.Ladder) says one of the observers sees it at ([Write.Observe]; the cameras plugin gives its
-// cameras) or a sector.Keen entity in it or beside it keeps it at, and marks each entity with its
+// cameras; a sector off a camera's picture at lod.Strategic or coarser, but for the sector its
+// viewpoint lies in and the eight round it, whole whichever way the camera looks) or a
+// sector.Keen entity in it or beside it keeps it at, and marks each entity with its
 // sector's level and how many levels coarser that is than the finest any observer sees (package
 // sector); what lies at L6 (lod.Omitted) is out of the space. An entity gives itself [Keen] to keep
 // its sector so, [Calm] to keep it so no more. With no observer every sector is ticked at the

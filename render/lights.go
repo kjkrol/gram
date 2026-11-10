@@ -35,6 +35,9 @@ const (
 	NoShadow   = light.NoShadow
 )
 
+// ShadowReach is how many times its caster's height any shadow reaches at most (light.ShadowReach).
+const ShadowReach = light.ShadowReach
+
 // Lights are a scene's lights for a frame, which a Composer lights its frames by
 // (Composer.Light; light.Lights).
 type Lights = light.Lights

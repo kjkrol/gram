@@ -74,10 +74,12 @@ type sheets struct {
 	inked, wanted []bool
 	// the sector the next round of photographs begins from
 	next int
-	// by sector: the level the view being read draws it at, and whether some view draws it at L4
-	// or coarser beside one it draws finer, a seam; beside marks a neighbour of a finer sector
+	// by sector: the level the view being read draws it at, whether some view draws it at L4
+	// or coarser beside one it draws finer, a seam, and whether some view draws it finer than
+	// L4; beside marks a neighbour of a finer sector
 	seen   []lod.Level
 	ring   []bool
+	finer  []bool
 	beside func(j int)
 	// the tiers of cells over the sectors, nil where the grid lays none; the longest a thing
 	// standing lives by its middle; where each tier's cells begin among a view's levels of them
@@ -217,6 +219,7 @@ func sheetsOver(grid tiling, perUnit float32, cols, rows int) sheets {
 		folded:   map[place][]shot{},
 		seen:     make([]lod.Level, n),
 		ring:     make([]bool, n),
+		finer:    make([]bool, n),
 	}
 	for i := range s.version {
 		s.version[i] = 1
@@ -338,6 +341,7 @@ func (s *sheets) begin(f *sheetFrame, views []*view.View) bool {
 	clear(s.wanted)
 	clear(s.now)
 	clear(s.ring)
+	clear(s.finer)
 	s.cands, s.droppable = s.cands[:0], 0
 	f.tiered = slices.Grow(f.tiered[:0], len(views))[:len(views)]
 	for k, v := range views {
@@ -352,6 +356,7 @@ func (s *sheets) begin(f *sheetFrame, views []*view.View) bool {
 		v.Sectors(s.want)
 		for i, level := range s.seen {
 			if level < lod.Strategic {
+				s.finer[i] = true
 				s.grid.Neighbours(i, s.beside)
 			}
 		}
@@ -445,10 +450,16 @@ func signed(id uint64, sprite render.SpriteID, top float32, at geom.Vec) uint64 
 
 // settle has the sectors wanted whose signature changed photographed anew and hands f the
 // photographs of this frame, perFrame at most, those wanted first from where the last round
-// ended; a sector emptied of what never held anything holds its photograph at once
-func (s *sheets) settle(f *sheetFrame) {
+// ended; a sector emptied of what never held anything holds its photograph at once. The
+// signature of a sector no view draws beside a finer one takes in what kept, the standers, keep
+// of it, over what was signed as the publish walked it.
+func (s *sheets) settle(f *sheetFrame, kept *standers) {
 	n := len(s.version)
 	for i := range n {
+		if s.wanted[i] && !s.ring[i] && kept != nil && i < len(kept.sig) {
+			s.now[i].n += kept.sig[i].n
+			s.now[i].mix ^= kept.sig[i].mix
+		}
 		if s.wanted[i] && s.now[i] != s.signed[i] {
 			s.signed[i] = s.now[i]
 			s.version[i]++
@@ -479,7 +490,7 @@ func (s *sheets) settle(f *sheetFrame) {
 			full: full})
 		s.mark(i, full)
 	}
-	s.gather(f)
+	s.gather(f, kept)
 	f.on, f.live = true, s.shots > 0
 	f.held = f.held[:0]
 	for i := range n {
@@ -487,9 +498,10 @@ func (s *sheets) settle(f *sheetFrame) {
 	}
 }
 
-// gather lays the instances of f's photographs: what stands in each sector and the parts folded
-// there
-func (s *sheets) gather(f *sheetFrame) {
+// gather lays the instances of f's photographs: what stands in each sector, as the publish
+// signed it and as kept, the standers, keep it in a sector beside no finer one, and the parts
+// folded there
+func (s *sheets) gather(f *sheetFrame, kept *standers) {
 	for k := range f.photos {
 		p := &f.photos[k]
 		p.from, p.span = len(f.instances), 1
@@ -497,6 +509,9 @@ func (s *sheets) gather(f *sheetFrame) {
 			if s.cands[c].sector == p.sector {
 				f.instances = appendShot(f.instances, &s.cands[c].inst, &p.span)
 			}
+		}
+		if kept != nil && !s.ring[p.sector] {
+			f.instances = kept.shots(p.sector, f.instances, &p.span)
 		}
 		if s.snapped[p.sector] {
 			for at, shots := range s.folded {

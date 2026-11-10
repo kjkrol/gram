@@ -88,7 +88,9 @@
 // routes drawn are planned as before, and a target no route reaches is given up without a search
 // for every cell round it.
 // [Plugin.WithHierarchy] sets the regions' side and the distance, or has every route searched;
-// [Read.Hierarchy] says what was decided.
+// [Read.Hierarchy] says what was decided. [Plugin.WithCache] keeps the hierarchies in files
+// between runs ([Cache]): read as a domain's is first asked for, written once built and
+// appended to as regions are built again, so a run climbs its long routes from its first tick.
 //
 // # Levels
 //

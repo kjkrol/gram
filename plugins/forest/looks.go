@@ -12,7 +12,6 @@ func crown(c Colours) render.SpriteDrawer {
 		half := float32(size) / 2
 		dst.FillCircle(half, half, half, c.Crown)
 		dst.FillCircle(half*0.75, half*0.75, half*0.45, c.Leaves)
-		seeThrough(dst)
 	}
 }
 
@@ -26,7 +25,6 @@ func standing(c Colours, trunk float32) render.SpriteDrawer {
 		capsule(dst, 0, 0, s, high, c.Crown)
 		r := min(s, high) / 2
 		dst.FillCircle(s*0.35, min(high*0.35, r), r*0.45, c.Leaves)
-		seeThrough(dst)
 		if trunk > 0 {
 			wide := max(s/8, 1)
 			dst.FillRect((s-wide)/2, high-1, wide, s-high+1, c.Trunk)
@@ -52,13 +50,5 @@ func capsule(dst *render.Canvas, x, y, w, h float32, col color.RGBA) {
 		if d >= along {
 			return
 		}
-	}
-}
-
-// seeThrough has the sprite three quarters opaque, what walks under it showing through:
-// premultiplied, every channel scaled alike
-func seeThrough(dst *render.Canvas) {
-	for i := range dst.Pix {
-		dst.Pix[i] = uint8(uint16(dst.Pix[i]) * 3 / 4)
 	}
 }

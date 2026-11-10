@@ -394,10 +394,11 @@ func (p *Plugin) Name() string { return "gram.topography" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	pace := p.worldPlugin.Pace(lod.Steady)
 	p.module = &module{
-		heights:  p.relief.HeightsSystem(),
-		shaping:  p.shaper.system(),
-		altitude: p.relief.AltitudeSystem(p.boardPlugin.Read(0).Footing(), pace),
-		clock:    p.worldPlugin.Write().Clock(),
+		heights: p.relief.HeightsSystem(),
+		shaping: p.shaper.system(),
+		altitude: p.relief.AltitudeSystem(p.boardPlugin.Read(0).Footing(), pace,
+			p.worldPlugin.Write().Restill),
+		clock: p.worldPlugin.Write().Clock(),
 	}
 	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)

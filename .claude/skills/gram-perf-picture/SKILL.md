@@ -86,10 +86,21 @@ Protokół i pułapki pomiaru: `gram-perf`; jak się rysuje: `gram-render`. Licz
   (`level=4,sheet` ≈ +1,4 ms nad `level=4`) to raster podniesionej geometrii: marginesy wokół
   szczytów i ściany od szczytu do komórki pod gruntem (912 tys. pikseli na 1440p przy kilku
   tysiącach pikseli latarni); shader fragmentów tylko z `discard` kosztuje tyle samo. Dźwignie
-  dalej: odrzucić trójkąty z zatopionym narożnikiem albo topić dalsze narożniki głębiej (zmienia
-  obraz: półprzezroczysty obrys pod szczytem to frędzel albedo na ścianach), blend kopiujący w
-  `DrawMeshOptions` (3 draw mniej na rundę), albedo i relief w jednym obrazie (zmienia
-  `Read.Sheet`).
+  dalej: odrzucić trójkąty z zatopionym narożnikiem, blend kopiujący w `DrawMeshOptions` (3 draw
+  mniej na rundę), albedo i relief w jednym obrazie (zmienia `Read.Sheet`). Głębsze topienie
+  narożnika bez szczytu (pod najniższy grunt) sprawdzone 2026-11-09 i cofnięte: w FPS bez
+  różnicy (skos i tak chował się za gruntem), a na grzbiecie, za którym grunt opada, skos wisiał
+  jak kurtyna od korony w dół na tle nieba. Ścianki płacht (drugi draw instancjonowany na
+  krawędziach kratki, 2026-11-09) sprawdzone i porzucone: w oknie 1024×768 kosztowały 0,7 ms
+  klatki jako prostokąty i ~2,2 ms cięte drzewo po drzewie (8 tekseli szukania na fragment), w
+  pochylonej orto widoku startowego 1,8 ms; i tak wyglądały źle. Kamera z okiem nie rysuje
+  płacht wcale: stojące rzeczy sektorów L4/L5 idą dla niej jako punkty (`renderer.standIn`, ta
+  sama ścieżka `render.Sprites.Point` co luźne jednostki z daleka); koszt w perspektywie nad
+  lasem Madery: patrz BENCHMARKS.md „The forests in view"
+  (tam klatkę ogranicza tick). Przebieg `Cutout` (render, 2026-11-09: figury całe z zapisem głębi
+  i odcięciem alfy 0,5, bez sortowania) w tym samym reżimie nic nie zmienia (billboardy już pisały
+  głębię i odcinały alfę): zysk jest w poprawności, nie w klatce; większa dźwignia to głębia drzew
+  przed przebiegiem koloru gruntu (roadmap).
 - Kafle płacht (`sheet_files.go`, `d/files`, 2026-11-06): kafel 512 tekseli, PNG przez
   `image.NRGBA` nad bajtami (pułapka: `image.RGBA` jest premultiplied i koder dzieli kolor
   każdego półprzykrytego teksela przez alfę); brudny kafel pisany 2 s po ostatniej fotografii w
@@ -108,10 +119,12 @@ Protokół i pułapki pomiaru: `gram-perf`; jak się rysuje: `gram-render`. Licz
   jego uchwytu (`world.Whole` z `Lie`; `t/whole`), baker nic nie skleja (`joined` odeszło; przed
   uchwytem sklejanie całego świata stawiało Maderę na ~26 s). Pułapki: przełącznik
   `Coarse` z dźwigni budżetu klatki wciąż piecze cały cień (~42 000 draw po 16 pasach), bo obraz
-  trzyma wysokości względem rozpiętości; zmiana rozpiętości (najwyższy szczyt) też. `Bake_Tile`
-  ~4,8 ms to GPU: `bake_blocks.wgsl` rozciąga czworokąt każdego bloku do najniższego gruntu
-  (~11 000 px na drzewo), dźwignia to `far` od gruntu przy bloku zamiast najniższego i bez
-  zapasu komórki na równym gruncie; pas słońca nad lasem to 4000–5400 drzew na pas.
+  trzyma wysokości względem rozpiętości; zmiana rozpiętości (najwyższy szczyt) też. Czworokąt
+  bloku w `bake_blocks.wgsl` kończy się tam, gdzie linia cienia spotyka grunt (marsz po ¾
+  komórki jak w cieniu reliefu), nie dalej niż `render.ShadowReach` (6) wysokości bloku — to
+  reguła domu dla każdego cienia (CLAUDE.md, 2026-11-10), ta sama w `reach`/`shading` po stronie
+  CPU; przedtem sięgał do najniższego gruntu mapy (Madera o 18:30: 28 km, każdy kafelek widział
+  każde drzewo, klatka stawała), a ograniczenie żyło w trzech miejscach pod trzema nazwami.
 - Płaska plansza: CPU pisze dane komórek, shadery liczą kształty; wypiek paintera idzie na GPU.
 - Plansza, relief, pogoda, światło i znaki minimapy publikowane raz na klatkę; renderery czytają
   kopię, nigdy żywy stan.

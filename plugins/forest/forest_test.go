@@ -18,6 +18,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/internal/engine"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -169,7 +170,8 @@ func newGrove(t *testing.T, f woods, lay func(b *board.Plugin)) *grove {
 	for _, tr := range f.trees {
 		g.kinds = append(g.kinds, tr.name)
 	}
-	g.cam = cameratest.NewFromSpace(width, height, 0)
+	// its picture shows the whole grove: the levels go by the zoom alone
+	g.cam = cameratest.Showing(cameratest.NewFromSpace(width, height, 0))
 	g.cam.SetViewport(100, 100)
 	g.zoom(0.5)
 	st := stage.New("grove").
@@ -324,6 +326,53 @@ func TestStands_EachKindGrowsWithinItsBand(t *testing.T) {
 				t.Fatalf("a tree at %v on ground %v high, where no kind grows", p, h)
 			}
 		}
+	}
+}
+
+func TestStands_PlantNoTreeOnARoadNorWithinItsMargin(t *testing.T) {
+	// a road 6 wide along the middle row, west to east
+	const row, wide = rows / 2, 6
+	road := func(b *board.Plugin) {
+		bd := b.Read(0).Board()
+		for x := range uint32(cols) {
+			c := bd.Grid.At(x, row)
+			var links cell.Links
+			for _, nx := range []uint32{x - 1, x + 1} {
+				if nx >= cols {
+					continue
+				}
+				if l, ok := grid.Link(bd.Grid, c, bd.Grid.At(nx, row)); ok {
+					links |= l
+				}
+			}
+			b.Write().Board().SetWay(c, cell.Way{
+				Kind:  cell.Kind{Name: cell.Named("road"), Pace: 1, Allows: cell.Land},
+				Width: wide,
+				Links: links,
+			})
+		}
+	}
+	g := newGrove(t, planting(forest.Stand{
+		Density: 3,
+		Jitter:  0.25,
+		Mix:     []forest.Share{{Tree: "oak"}},
+	}, tree{"oak", oak}), road)
+	g.run(2)
+	axis := float32(row*cellSize + cellSize/2)
+	margin := float32(wide)/2 + float32(wide)/4 + oak.Crown/2
+	// the band runs from the first cell's middle to the last's: past them only its hubs
+	beside := 0
+	for _, p := range g.planted()["oak"] {
+		d := f32.Abs(p.Y - axis)
+		if d <= margin && p.X >= cellSize/2 && p.X <= width-cellSize/2 {
+			t.Fatalf("an oak at %v, %v from the road's axis, within its margin %v", p, d, margin)
+		}
+		if d <= margin+cellSize {
+			beside++
+		}
+	}
+	if beside == 0 {
+		t.Error("no oak within a cell beyond the road's margin: the margin is too wide")
 	}
 }
 

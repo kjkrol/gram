@@ -3,6 +3,7 @@ package forest
 import (
 	"fmt"
 	"math/rand/v2"
+	"slices"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/act"
@@ -10,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/lod"
+	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
@@ -22,6 +24,8 @@ const DefaultDensity = 1.5
 // strays from its plot, and which kinds of trees at which heights of the ground.
 type Stand struct {
 	// Cells are the names of the kinds of cells its trees grow on; every cell where it names none.
+	// No tree stands on a way's band or under a deck, nor within half the widest crown of the Mix
+	// and a quarter of the way's width of its band.
 	Cells []string
 	// Density is how many trees a cell it plants, DefaultDensity where it is zero.
 	Density float32
@@ -104,6 +108,7 @@ type planting struct {
 	shaken []geom.Vec
 	mix    []Share
 	banded bool
+	crown  float32 // the widest crown of the mix, read once the kinds are defined
 }
 
 func (s *Stands) planting(name string, stand Stand) *planting {
@@ -198,11 +203,13 @@ func (pl *planting) plants(k int) act.Step {
 	return act.OneOf(kinds...)
 }
 
-// sown reports whether the k-th plot of the forest whole's part box of sector holds a tree: in
-// the part, on a cell it grows on, picked by the forest's seed
+// sown reports whether the k-th plot of the forest whole's part box of sector holds a tree: the
+// plot in the part, the tree's spot on a cell it grows on and off every road and deck, picked by
+// the forest's seed
 func (pl *planting) sown(whole uid.UID64, sector int, box geom.AABB, k int) bool {
-	at := middle(box).Add(pl.plots[k])
-	return within(box, at) && pl.on(at) && pl.seed(whole, sector, k)&(1<<16-1) < pl.share
+	mid := middle(box)
+	return within(box, mid.Add(pl.plots[k])) && pl.grows(mid.Add(pl.shaken[k])) &&
+		pl.seed(whole, sector, k)&(1<<16-1) < pl.share
 }
 
 // drawn is the share of the Mix whose tree stands on the k-th plot of the forest whole's part box
@@ -233,23 +240,65 @@ func (pl *planting) seed(whole uid.UID64, sector, k int) uint64 {
 	return lod.Seed(whole, uint64(sector*len(pl.plots)+k))
 }
 
-// on reports whether at lies on a cell of a kind the trees grow on
-func (pl *planting) on(at geom.Vec) bool {
-	if len(pl.cells) == 0 {
-		return true
-	}
+// grows reports whether a tree stands at at: on a cell of a kind the trees grow on, clear of the
+// ways running across that cell and its neighbours by half its crown and a quarter of the way's
+// width, and under no deck
+func (pl *planting) grows(at geom.Vec) bool {
 	bd := pl.p.board.Read(0).Board()
 	c, ok := bd.Grid.CellAt(at)
 	if !ok {
 		return false
 	}
-	n := bd.Bare(c).Name
-	for _, want := range pl.cells {
-		if n == want {
+	if len(pl.cells) > 0 && !slices.Contains(pl.cells, bd.Bare(c).Name) {
+		return false
+	}
+	q := at.Sub(bd.Grid.CellCenter(c))
+	if pl.onWay(bd, bd.Way(c), q) {
+		return false
+	}
+	for j := range bd.Grid.Directions() {
+		if m, ok := bd.Grid.Toward(c, j); ok && pl.onWay(bd, bd.Way(m), q.Sub(bd.Grid.Step(j))) {
+			return false
+		}
+	}
+	decked := false
+	bd.DecksOver(at, func(cell.ID, cell.Floor) { decked = true })
+	return !decked
+}
+
+// onWay reports whether q, seen from the middle of the cell way runs across, lies within the
+// stand's margin of the way's band: its hub and the strip out to each neighbour it links
+func (pl *planting) onWay(bd *board.BoardRead, way cell.Way, q geom.Vec) bool {
+	if !way.Runs() {
+		return false
+	}
+	half := way.Width/2 + way.Width/4 + pl.widest()/2
+	if q.X*q.X+q.Y*q.Y <= half*half {
+		return true
+	}
+	for i := range bd.Grid.Directions() {
+		if !way.Links.Has(i) {
+			continue
+		}
+		s := bd.Grid.Step(i)
+		l := f32.Hypot(s.X, s.Y)
+		ux, uy := s.X/l, s.Y/l
+		along := q.X*ux + q.Y*uy
+		if along >= 0 && along <= l/2 && f32.Abs(q.Y*ux-q.X*uy) <= half {
 			return true
 		}
 	}
 	return false
+}
+
+// widest is the widest crown among the stand's kinds of trees
+func (pl *planting) widest() float32 {
+	if pl.crown == 0 {
+		for _, sh := range pl.mix {
+			pl.crown = max(pl.crown, pl.p.types.specs[sh.Tree].Crown)
+		}
+	}
+	return pl.crown
 }
 
 // pick is the share of mix a plot on ground h high draws by seed among those growing there, -1

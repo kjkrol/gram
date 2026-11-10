@@ -62,6 +62,7 @@ type Frame struct {
 	overs    int     // the pieces lying over the figures
 	source   int32   // the source composing, one more than its index; 0 none
 	opaque   []int32 // the sources drawing in the opaque pass, one more than their index
+	cutout   []int32 // the sources drawing in the cutout pass, one more than their index
 	lighting *lighting
 }
 
@@ -83,7 +84,7 @@ func (f *Frame) Len() int { return f.count }
 func (f *Frame) Reset(cam camera.Camera) {
 	f.cam, f.items, f.verts, f.order, f.count = cam, f.items[:0], f.verts[:0], f.order[:0], 0
 	f.uniforms, f.ground, f.opaque, f.overs = f.uniforms[:0], false, f.opaque[:0], 0
-	f.images, f.lighting = f.images[:0], nil
+	f.images, f.lighting, f.cutout = f.images[:0], nil, f.cutout[:0]
 }
 
 // Lit is the light on what stands at (x, y, z) taking take (zero: every shade, Shines: none), as
@@ -112,6 +113,10 @@ func (f *Frame) Cast(box geom.AABB, alt, height float32, s light.Shadowing, atla
 // depth and writing it, before anything seen through.
 func (f *Frame) DrawOpaque() { f.opaque = append(f.opaque, f.source) }
 
+// DrawCutout has the composing Direct draw in the cutout pass: after the ground, tested against
+// the depth and writing it, what it draws cut at half its alpha, before anything seen through.
+func (f *Frame) DrawCutout() { f.cutout = append(f.cutout, f.source) }
+
 // DrawAt has the composing Direct draw among what is seen through, back to front, at at.
 func (f *Frame) DrawAt(at At) {
 	f.items = append(f.items, item{at: at, first: int32(len(f.verts)), direct: f.source})
@@ -121,6 +126,9 @@ func (f *Frame) DrawAt(at At) {
 func (f *Frame) Places(fn func(p Pass, at At)) {
 	for range f.opaque {
 		fn(Opaque, At{})
+	}
+	for range f.cutout {
+		fn(Cutout, At{})
 	}
 	for _, it := range f.items {
 		if it.count == 0 {
@@ -513,6 +521,16 @@ func (f *Frame) fog(v []Vertex, amount [4]float32) {
 
 // a fogged sprite's alpha stays under an overlay's mark, which the shader tells apart at 1.5
 const fogSpan = 0.49
+
+// Glazed has the last sprite added, every piece of a rectangle's, show as much as opacity says, 0
+// to 1, over what lies under it.
+func (f *Frame) Glazed(opacity float32) {
+	o := min(max(opacity, 0), 1)
+	for i := f.lastFirst; i < len(f.verts); i++ {
+		v := &f.verts[i]
+		v.ColorR, v.ColorG, v.ColorB, v.ColorA = v.ColorR*o, v.ColorG*o, v.ColorB*o, o
+	}
+}
 
 // Material lays o on its own, the screen quad dst for o's material to work out.
 func (f *Frame) Material(at At, dst Corners, o *Overlay) {

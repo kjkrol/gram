@@ -43,7 +43,7 @@ func (l Lamp) ShadowOf(box geom.AABB, alt, height float32, shape bool) (Umbra, b
 	}
 	// a point h high at d from the lamp's foot shadows the ground at d·L/(L−h) from it
 	start := d * low / (l.Z - low)
-	most := height * maxShadowReach
+	most := height * ShadowReach
 	length := most
 	if top < l.Z {
 		length = min(d*top/(l.Z-top)-start, most)

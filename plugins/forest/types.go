@@ -148,7 +148,7 @@ func (t Type) look(a *world.Atlas) {
 	if side == nil {
 		side = standing(t.spec.Colours, t.spec.Trunk)
 	}
-	s := a.Add(t.kind, spritePx, side)
+	s := a.Add(t.kind, spritePx, side).Canopy().Cutout()
 	if t.spec.Body {
 		s = s.Upright()
 	}

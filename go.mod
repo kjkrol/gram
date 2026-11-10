@@ -11,8 +11,8 @@ require (
 	github.com/kjkrol/aabbworld v1.21.1
 	github.com/kjkrol/ceremony v0.3.2
 	github.com/kjkrol/goke/v3 v3.6.0
-	github.com/kjkrol/hpastar v1.5.0
-	github.com/kjkrol/uid v0.3.0
+	github.com/kjkrol/hpastar v1.5.1-0.20261110095246-e1b36dc18376
+	github.com/kjkrol/uid v1.3.0
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/image v0.46.0
 )

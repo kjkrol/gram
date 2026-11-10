@@ -2,6 +2,7 @@ package pathfind
 
 import (
 	"fmt"
+	"io"
 	"math"
 
 	"github.com/kjkrol/hpastar"
@@ -39,6 +40,8 @@ type Hierarchy struct {
 	// none stands on; written by the builder alone, read by every Search
 	on   []uint8
 	laid bool
+	// by ordinal, the cell: the node of a key a file holds stood again
+	cells []cell.ID
 	// by cluster of level 1, the Stale that counted it
 	counted []uint32
 	stale   uint32
@@ -72,11 +75,21 @@ func (p *Finder) NewHierarchy(key Key, side int, classes []Body) *Hierarchy {
 	h.cols, h.rows = int(shape.Cols), int(shape.Rows)
 	h.across = (h.cols + h.side - 1) / h.side
 	h.on = make([]uint8, 2*p.grid.CellCount())
+	h.cells = make([]cell.ID, p.grid.CellCount())
+	for y := range h.rows {
+		for x := range h.cols {
+			c := p.grid.At(uint32(x), uint32(y))
+			if o, ok := p.grid.Ordinal(c); ok {
+				h.cells[o] = c
+			}
+		}
+	}
 	forward, backward := h.steps(p)
 	h.h = hpastar.NewSolver(graph.Implicit[node]{
 		Forward:   forward,
 		Heuristic: h.distance,
 		Index:     p.nodeSlot,
+		Of:        h.nodeOf,
 		Size:      2*p.grid.CellCount() + 2,
 		Layout: &graph.Layout[node]{
 			Coords:   h.coords,
@@ -110,6 +123,36 @@ func (h *Hierarchy) Side() int { return h.side }
 
 // Ready says no cluster of h is stale.
 func (h *Hierarchy) Ready() bool { return h.h != nil && h.h.Ready() }
+
+// Clusters is how many clusters of level 1 h is cut into, a row of them cols/side wide.
+func (h *Hierarchy) Clusters() int { return h.across * ((h.rows + h.side - 1) / h.side) }
+
+// ClusterOf is the cluster of level 1 the cell c lies in, -1 off the grid.
+func (h *Hierarchy) ClusterOf(c cell.ID) int {
+	x, y, ok := h.grid.Coords(c)
+	if !ok {
+		return -1
+	}
+	return int(y)/h.side*h.across + int(x)/h.side
+}
+
+// EachCell calls fn with every cell of cluster k of level 1, row by row.
+func (h *Hierarchy) EachCell(k int, fn func(c cell.ID)) {
+	x0, y0 := k%h.across*h.side, k/h.across*h.side
+	for y := y0; y < min(y0+h.side, h.rows); y++ {
+		for x := x0; x < min(x0+h.side, h.cols); x++ {
+			fn(h.grid.At(uint32(x), uint32(y)))
+		}
+	}
+}
+
+// nodeOf is the node Finder.nodeSlot gives key: a file's node stood again
+func (h *Hierarchy) nodeOf(key int) node {
+	if o := key / 2; o < len(h.cells) {
+		return node{c: h.cells[o], level: uint8(key % 2)}
+	}
+	return node{c: offGrid, level: goal}
+}
 
 // the Layout reads the grid and the nodes alone: every Search asks it at once
 func (h *Hierarchy) coords(n node) (int, int, bool) {
@@ -408,6 +451,56 @@ func (p *Finder) Reaches(h *Hierarchy, domain cell.Domain, body Body, from, to c
 	s := p.searchOf(h, k)
 	p.goal, p.end = to, Either
 	return s.Reaches(start, node{to, goal})
+}
+
+// Load reads into h the hierarchy a file holds, written by Save of one over the same cells
+// (hpastar.Solver.Load): h is then as built whole, nothing to build, stale against the board's
+// passage as it is; whatever Load fails with, h stands as before.
+func (p *Finder) Load(h *Hierarchy, r io.Reader) error {
+	if h.h == nil {
+		return hpastar.ErrNotReady
+	}
+	expanded := p.expansions
+	defer p.keepExpansions(expanded)
+	p.building(h)
+	if !h.laid {
+		p.lay(h)
+	}
+	return h.h.Load(r)
+}
+
+// StaleCluster marks cluster k of level 1 of h, and what lies across its borders, to be built
+// again: a file's cluster whose cells stand otherwise than when it was written.
+func (p *Finder) StaleCluster(h *Hierarchy, k int) {
+	if h.h == nil || k < 0 || k >= h.Clusters() {
+		return
+	}
+	expanded := p.expansions
+	defer p.keepExpansions(expanded)
+	p.building(h)
+	if !h.laid {
+		p.lay(h)
+	}
+	h.EachCell(k, func(c cell.ID) { p.staleAt(h, c) })
+}
+
+// Save writes h whole to w, to be loaded by another run's Hierarchy over the same cells; it
+// fails while h is not Ready (hpastar.Solver.Save).
+func (p *Finder) Save(h *Hierarchy, w io.Writer) error {
+	if h.h == nil {
+		return hpastar.ErrNotReady
+	}
+	return h.h.Save(w)
+}
+
+// Dump appends to w what was built of h since Save or Dump last wrote, and reports how many
+// clusters: a file Save wrote with the Dumps appended loads as h stood after the last
+// (hpastar.Solver.Dump).
+func (p *Finder) Dump(h *Hierarchy, w io.Writer) (int, error) {
+	if h.h == nil {
+		return 0, nil
+	}
+	return h.h.Dump(w)
 }
 
 // answers is the index of the class of h body is, where h answers p for it moving in domain:

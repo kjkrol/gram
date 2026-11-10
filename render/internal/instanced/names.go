@@ -20,4 +20,7 @@ type (
 )
 
 // TakesAll takes every shade and the lamps' light, as a zero Taking does.
-const TakesAll = compose.TakesAll
+const (
+	TakesAll = compose.TakesAll
+	Cutout   = compose.Cutout
+)

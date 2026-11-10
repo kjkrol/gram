@@ -69,6 +69,21 @@ type FoggyLook interface {
 	Fog(amount float32)
 }
 
+// CanopyLook is a Look showing what lies under the figure it lays next through it as much as
+// opacity says, 0 to 1 whole: a tree's crown over a unit, in a view from above (Slot.Canopy,
+// Read.Canopies).
+type CanopyLook interface {
+	Look
+	Veil(opacity float32)
+}
+
+// CutoutLook is a Look drawing the figures it lays next in the cutout pass while on: whole, cut at
+// half their alpha, writing the depth, in no order (Slot.Cutout).
+type CutoutLook interface {
+	Look
+	Cutout(on bool)
+}
+
 // FigureLift is how far over its height a figure lies among what is drawn back to front: over
 // whatever a plugin lays on the ground beneath it, at a lift of its own below this one.
 const FigureLift = ilook.FigureLift
@@ -77,4 +92,6 @@ var (
 	_ DirectLook = (*ilook.Flat)(nil)
 	_ LyingLook  = (*ilook.Flat)(nil)
 	_ FoggyLook  = (*ilook.Flat)(nil)
+	_ CanopyLook = (*ilook.Flat)(nil)
+	_ CutoutLook = (*ilook.Flat)(nil)
 )

@@ -114,6 +114,16 @@ func (c *Coordinator) Hierarchy(side int, from float64) *Coordinator {
 	return c
 }
 
+// Cache has the hierarchies kept between runs in k's files (navigation.Cache). Call before the
+// first Update.
+func (c *Coordinator) Cache(k spacing.Cache) *Coordinator {
+	c.hierarchies.Keep(k)
+	return c
+}
+
+// Loaded counts the hierarchies read from the Cache's files, none of their clusters built.
+func (c *Coordinator) Loaded() uint64 { return c.hierarchies.Loaded() }
+
 // Fills counts the fields the routers filled since they were made.
 func (c *Coordinator) Fills() uint64 {
 	var n uint64
@@ -282,7 +292,7 @@ func (c *Coordinator) expect() bool {
 // climb has the hierarchy serving the class of every unit asking far expected, where expect says
 // one does, then the hierarchies staled and built through the first router, reading the board as
 // the caller's goroutine does, before any ask is answered; an Update with nothing to stale or
-// build and none expected reads nothing
+// build and none expected reads nothing; the hierarchies are stored in their files either way
 func (c *Coordinator) climb(expect bool) {
 	if !c.hierarchies.On() {
 		return
@@ -296,6 +306,7 @@ func (c *Coordinator) climb(expect bool) {
 			c.hierarchies.Expect(key)
 		}
 	}
+	defer c.hierarchies.Store()
 	due := c.hierarchies.Due()
 	if !due && !expect {
 		return

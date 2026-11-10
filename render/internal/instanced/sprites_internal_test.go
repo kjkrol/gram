@@ -24,7 +24,7 @@ func TestSprites_DrawsTheLowerFirstAndAtOneHeightTheLyingFirst(t *testing.T) {
 	add(2, 32, false) // a walker 32 tall
 	add(3, 0, true)   // a trapdoor under him
 	add(4, 32, true)  // a deck as high as his head
-	drawn, runs := s.byLayer()
+	drawn, runs := s.byLayer(false)
 	var got []float32
 	for k := 0; k < len(drawn); k += spriteFloats {
 		got = append(got, drawn[k])
@@ -35,8 +35,40 @@ func TestSprites_DrawsTheLowerFirstAndAtOneHeightTheLyingFirst(t *testing.T) {
 	if len(runs) != 1 || runs[0].count != 4 {
 		t.Errorf("runs %+v, want one of the four", runs)
 	}
-	if n := testing.AllocsPerRun(100, func() { s.byLayer() }); n != 0 {
+	if n := testing.AllocsPerRun(100, func() { s.byLayer(false) }); n != 0 {
 		t.Errorf("%v allocations a frame, want none", n)
+	}
+}
+
+func TestSprites_TheCutoutsGoFrontToBackApartFromTheRest(t *testing.T) {
+	var s Sprites
+	var f compose.Frame
+	add := func(mark, z float32, cutout bool) {
+		s.Layer(f.At(0, 0, z), false)
+		s.Cutout(cutout)
+		s.piece(nil)
+		s.instances = append(s.instances, mark, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, z, 0, 0, 0)
+	}
+	add(1, 40, true)  // a tree's top
+	add(2, 32, false) // a walker
+	add(3, 50, true)  // a taller tree
+	add(4, 0, false)  // a trapdoor
+	marks := func(drawn []float32) []float32 {
+		var got []float32
+		for k := 0; k < len(drawn); k += spriteFloats {
+			got = append(got, drawn[k])
+		}
+		return got
+	}
+	if cut, _ := s.byLayer(true); !slices.Equal(marks(cut), []float32{3, 1}) {
+		t.Errorf("the cutouts drawn %v, want the taller tree first, then the other", marks(cut))
+	}
+	if seen, _ := s.byLayer(false); !slices.Equal(marks(seen), []float32{4, 2}) {
+		t.Errorf("the rest drawn %v, want the trapdoor, then the walker", marks(seen))
+	}
+	s.Reset()
+	if s.anyCut || len(s.cutouts) != 0 {
+		t.Error("a Reset keeps the cutouts")
 	}
 }
 

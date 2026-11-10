@@ -181,10 +181,16 @@ func standingHalf(ctx *headless) {
 }
 
 // Benchmark_Bake_Tile bakes anew a tile of the ground's shade, 256 pixels a side, as the set of
-// 2000 posts standing within it changes, over level ground 1024 a side lit by a sun 45° high,
-// waited for: the shadows of the posts near the tile found and drawn over the ground's.
+// 2000 posts standing within it changes, over level ground 1024 a side lit by a sun 45° high
+// (noon) or 3° high (sunset, every shadow as long as a shadow reaches), waited for: the shadows
+// of the posts near the tile found and drawn over the ground's.
 func Benchmark_Bake_Tile(b *testing.B) {
 	gputest.Need(b)
+	b.Run("noon", func(b *testing.B) { bakeTile(b, [3]float32{0.7071, 0, 0.7071}) })
+	b.Run("sunset", func(b *testing.B) { bakeTile(b, [3]float32{0.9986, 0, 0.0523}) })
+}
+
+func bakeTile(b *testing.B, sun [3]float32) {
 	rng := rand.New(rand.NewPCG(0x5eed, 0xc0ffee))
 	tall := render.Block{X: 100, Y: 900, UX: 1, Along: 4, Wide: 4, Top: 40}
 	// within tile (2, 2), their shadows too: 20 west of a post at most, and the penumbra
@@ -194,7 +200,7 @@ func Benchmark_Bake_Tile(b *testing.B) {
 			Along: 2, Wide: 2, Top: 10 + rng.Float32()*10}
 	}
 	lights := &render.Lights{
-		Sun:    render.Distant{Dir: [3]float32{0.7071, 0, 0.7071}, Strength: 1, Ambient: 0.3},
+		Sun:    render.Distant{Dir: sun, Strength: 1, Ambient: 0.3},
 		Ground: render.Lattice{Cols: 129, Rows: 129, Cell: 8},
 		Casts: []render.BlockSet{
 			{Box: [4]float32{96, 896, 8, 8}, Top: 40, Version: 1, Blocks: []render.Block{tall}},

@@ -119,12 +119,13 @@ type bakePlan struct {
 	tiles    []int
 }
 
-// a set of blocks as the baker last gathered it (BlockSet)
+// a set of blocks as the baker last gathered it (BlockSet), and the tallest of them from its
+// bottom, as far as their shadows reach
 type bakedSet struct {
-	version uint64
-	box     [4]float32
-	top     float32
-	blocks  []Block
+	version   uint64
+	box       [4]float32
+	top, rise float32
+	blocks    []Block
 }
 
 // Coarse has the shade baked half as fine a side from the next frame on, or as fine as ever
@@ -365,8 +366,11 @@ func (b *Baker) gather(casts []BlockSet, sun [3]float32) {
 			continue
 		}
 		b.dirty(s, sun)
-		s.version, s.box, s.top = c.Version, c.Box, c.Top
+		s.version, s.box, s.top, s.rise = c.Version, c.Box, c.Top, 0
 		s.blocks = append(s.blocks[:0], c.Blocks...)
+		for _, bl := range s.blocks {
+			s.rise = max(s.rise, bl.Top-bl.Bottom)
+		}
 		b.dirty(s, sun)
 	}
 }
@@ -376,7 +380,7 @@ func (b *Baker) dirty(s *bakedSet, sun [3]float32) {
 	if len(s.blocks) == 0 {
 		return
 	}
-	r, size := b.reach(s.box, s.top, sun), b.shade.Area
+	r, size := b.reach(s.box, s.top, s.rise, sun), b.shade.Area
 	if !(r[2] >= 0 && r[0] <= size[2] && r[3] >= 0 && r[1] <= size[3]) {
 		return
 	}
@@ -396,10 +400,10 @@ func (b *Baker) dirty(s *bakedSet, sun [3]float32) {
 }
 
 // reach is the world rectangle (x0, y0, x1, y1) the shadows of what stands within box (its
-// origin and size) up to top may fall on under the light the way sun, down to the lowest ground:
-// where the blocks' shader draws them
-func (b *Baker) reach(box [4]float32, top float32, sun [3]float32) [4]float32 {
-	far := (top - b.lat.Low) / max(sun[2], 1e-3)
+// origin and size) up to top, none taller than rise, may fall on under the light the way sun:
+// as far as a shadow reaches, where the blocks' shader draws them at most
+func (b *Baker) reach(box [4]float32, top, rise float32, sun [3]float32) [4]float32 {
+	far := b.shadowFar(top, rise, sun)
 	spare := far*shadowSoft + b.lat.Cell
 	cx, cy := -sun[0]*far, -sun[1]*far
 	return [4]float32{
@@ -410,21 +414,37 @@ func (b *Baker) reach(box [4]float32, top float32, sun [3]float32) [4]float32 {
 	}
 }
 
+// shadowFar is how far along the light's way the shadow of something rise tall with its top at
+// top reaches at most, the light the way sun: down to the lowest ground, and never past
+// light.ShadowReach times rise over the ground, as a light near the horizon would take it
+func (b *Baker) shadowFar(top, rise float32, sun [3]float32) float32 {
+	far := (top - b.lat.Low) / max(sun[2], 1e-3)
+	if across := math.Hypot(float64(sun[0]), float64(sun[1])); across > 1e-6 {
+		far = min(far, light.ShadowReach*rise/float32(across))
+	}
+	return far
+}
+
 // shading is the blocks whose shadows may fall on the world rectangle r (x0, y0, x1, y1) under the
 // light the way sun, as the blocks' shader takes them, a set's skipped whole where its shadows fall
 // wide of r
 func (b *Baker) shading(r [4]float32, sun [3]float32) []float32 {
 	b.near = b.near[:0]
 	low, cell, z := b.lat.Low, b.lat.Cell, max(sun[2], 1e-3)
+	across := float32(math.Hypot(float64(sun[0]), float64(sun[1])))
+	per := float32(math.Inf(1))
+	if across > 1e-6 {
+		per = light.ShadowReach / across
+	}
 	for i := range b.sets {
 		s := &b.sets[i]
-		if len(s.blocks) == 0 || !meets(b.reach(s.box, s.top, sun), r) {
+		if len(s.blocks) == 0 || !meets(b.reach(s.box, s.top, s.rise, sun), r) {
 			continue
 		}
-		// reach's of each block, by hand: a call a block was a fifth of the time
+		// shadowFar's of each block, by hand: a call a block was a fifth of the time
 		for _, bl := range s.blocks {
 			ux, uy := float32(math.Abs(float64(bl.UX))), float32(math.Abs(float64(bl.UY)))
-			far := (bl.Top - low) / z
+			far := min((bl.Top-low)/z, (bl.Top-bl.Bottom)*per)
 			spare := far*shadowSoft + cell
 			hx, hy := ux*bl.Along+uy*bl.Wide+spare, uy*bl.Along+ux*bl.Wide+spare
 			cx, cy := -sun[0]*far, -sun[1]*far

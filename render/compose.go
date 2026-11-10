@@ -27,9 +27,11 @@ type Target = compose.Target
 // Pass is which part of the picture a Direct draws in.
 type Pass = compose.Pass
 
-// The passes: the opaque ground first, then what is seen through, back to front.
+// The passes: the opaque ground first, then the cutouts, what stands whole cut at half its alpha
+// and writing the depth, then what is seen through, back to front.
 const (
 	Opaque     = compose.Opaque
+	Cutout     = compose.Cutout
 	SeeThrough = compose.SeeThrough
 )
 

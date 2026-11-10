@@ -1540,3 +1540,4 @@ units:
   - {kind: traveller, side: reserve, start: [478, 222], target: [500, 190]} # Santa Cruz and Machico
   # on the plateau of Paul da Serra
   - {kind: band, side: reserve, start: [195, 133]}
+  - {kind: lookout, side: player, start: [217, 133]} # standing at Paul da Serra's eastern edge, facing the peaks

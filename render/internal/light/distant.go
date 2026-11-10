@@ -73,8 +73,10 @@ func (s Distant) Frame(f Uniformer) {
 	f.Uniform("Ambience", s.Ambient*sky[0], s.Ambient*sky[1], s.Ambient*sky[2])
 }
 
-// a light on the horizon would cast a shadow for ever
-const maxShadowReach = 6
+// ShadowReach is how many times its caster's height a shadow reaches at most, whatever casts it
+// (a unit, a baked block, a cloud) and under whatever light: a light on the horizon would cast a
+// shadow for ever. Every shadow in gram keeps to it; nothing caps a shadow of its own.
+const ShadowReach = 6
 
 const (
 	shadowVeil = 110
@@ -106,7 +108,7 @@ func (s Distant) ShadowOf(box geom.AABB, alt, height float32,
 	if across > 0 {
 		ux, uy = -sx/across, -sy/across
 	}
-	reach := min(across/sz, maxShadowReach)
+	reach := min(across/sz, ShadowReach)
 	above := max(alt-ground, 0)
 	start, length := above*reach, height*reach
 	mid := start + length/2
@@ -133,7 +135,7 @@ func (s Distant) SilhouetteOf(box geom.AABB, alt, height float32,
 		return Umbra{}, false
 	}
 	sx, sy, sz := s.Dir[0], s.Dir[1], s.Dir[2]
-	reach := min(f32.Hypot(sx, sy)/sz, maxShadowReach)
+	reach := min(f32.Hypot(sx, sy)/sz, ShadowReach)
 	cx, cy := (box.TopLeft.X+box.BottomRight.X)/2, (box.TopLeft.Y+box.BottomRight.Y)/2
 	ground := float32(0)
 	if groundAt != nil {

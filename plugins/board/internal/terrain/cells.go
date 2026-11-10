@@ -1,7 +1,10 @@
 package terrain
 
 import (
+	"encoding/binary"
+	"hash/fnv"
 	"hash/maphash"
+	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
@@ -406,6 +409,10 @@ func (t *Cells) CellPassage(c cell.ID) uint64 {
 // once: while it stays as it was, no cell's passage changed. It only grows.
 func (t *Cells) Passage() uint64 { return t.passages }
 
+// CellFingerprint is a number of what a step over c reads of it, the same on every run for the
+// same cell.
+func (r *Read) CellFingerprint(c cell.ID) uint64 { return r.t.CellFingerprint(c) }
+
 // CellPassage is the Passage at which c's passage last changed; it only grows.
 func (r *Read) CellPassage(c cell.ID) uint64 { return r.t.CellPassage(c) }
 
@@ -489,6 +496,71 @@ func strideOf(k *cell.Kind) stride {
 // passageOf hashes the passage of c, of ordinal i, as its parts stand: read whole, not as the
 // gathered counts say, which the gathering of what is built sets after it changed the cells
 func (t *Cells) passageOf(i int, c cell.ID) uint64 {
+	return maphash.Comparable(t.hashing, t.passageAt(i, c))
+}
+
+// CellFingerprint is a number of what a step over c reads of it, the same on every run for the
+// same cell; 0 off the cells. A file kept of what was worked out over the cells is good where
+// they match.
+func (t *Cells) CellFingerprint(c cell.ID) uint64 {
+	i, ok := t.Ordinal(c)
+	if !ok {
+		return 0
+	}
+	p := t.passageAt(i, c)
+	return p.fingerprint()
+}
+
+// fingerprint is p mixed into a number, the same on every run, field by field: a stride's kind
+// as a step meets it, the way, what is built
+func (p *passage) fingerprint() uint64 {
+	h := fnv.New64a()
+	var buf [8]byte
+	u64 := func(v uint64) {
+		binary.LittleEndian.PutUint64(buf[:], v)
+		h.Write(buf[:])
+	}
+	f64 := func(v float64) { u64(math.Float64bits(v)) }
+	f32 := func(v float32) { u64(uint64(math.Float32bits(v))) }
+	bits := func(bs ...bool) {
+		var v uint64
+		for i, b := range bs {
+			if b {
+				v |= 1 << i
+			}
+		}
+		u64(v)
+	}
+	for _, s := range [2]*stride{&p.ground, &p.way} {
+		u64(uint64(s.allows))
+		bits(s.solid, s.graded)
+		f64(s.pace)
+		for _, v := range s.paces {
+			f64(v)
+		}
+	}
+	h.Write(p.wayName[:])
+	f32(p.width)
+	u64(uint64(p.links))
+	b := &p.built
+	u64(uint64(b.Floor.Allows) | uint64(b.Floor.Links)<<8)
+	f32(b.Floor.Height)
+	f32(b.Floor.Thickness)
+	f32(b.Floor.Load)
+	f64(b.Floor.Pace)
+	bits(b.Floor.Graded)
+	f32(b.Floor.Width)
+	u64(uint64(b.Wall.Keeps))
+	f32(b.Wall.Height)
+	f32(b.Wall.Gap.Width)
+	f32(b.Wall.Gap.Height)
+	u64(uint64(b.Rail.Keeps))
+	f32(b.Rail.Height)
+	return h.Sum64()
+}
+
+// passageAt is the passage of c, of ordinal i, as its parts stand
+func (t *Cells) passageAt(i int, c cell.ID) passage {
 	var p passage
 	var ground *cell.Kind
 	var way cell.Way
@@ -503,7 +575,7 @@ func (t *Cells) passageOf(i int, c cell.ID) uint64 {
 	}
 	p.ground, p.way, p.wayName = strideOf(ground), strideOf(&way.Kind), way.Kind.Name
 	p.width, p.links = way.Width, way.Links
-	return maphash.Comparable(t.hashing, p)
+	return p
 }
 
 func (t *Cells) made(st *store) {
