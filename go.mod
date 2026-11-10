@@ -8,9 +8,9 @@ require (
 	github.com/gogpu/gputypes v0.8.0
 	github.com/gogpu/naga v0.20.5
 	github.com/gogpu/wgpu v0.34.6
-	github.com/kjkrol/aabbworld v1.21.1
-	github.com/kjkrol/ceremony v0.3.2
-	github.com/kjkrol/goke/v3 v3.6.0
+	github.com/kjkrol/aabbworld v1.21.2
+	github.com/kjkrol/ceremony v0.3.3
+	github.com/kjkrol/goke/v3 v3.6.1
 	github.com/kjkrol/hpastar v1.5.1-0.20261110095246-e1b36dc18376
 	github.com/kjkrol/uid v1.3.0
 	go.yaml.in/yaml/v3 v3.0.5
