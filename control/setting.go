@@ -11,7 +11,7 @@ type Setting interface{ setting() }
 
 // The sections of the settings screen the plugins share: the picture, how it is drawn in a
 // tactical view and riding in first person and the layers of each, the areas shown, the
-// graphics.
+// graphics, and the game: what a player sees of the world's own rules.
 const (
 	Picture               = "Picture"
 	PictureTactical       = "Picture/Tactical"
@@ -21,6 +21,7 @@ const (
 	PictureShadows        = "Picture/Shadows"
 	PictureAreas          = "Picture/Areas"
 	Graphics              = "Picture/Graphics"
+	Game                  = "Game"
 )
 
 // SectionOf is the section s is listed under; empty for the plugin's own.

@@ -124,15 +124,16 @@ func TestSeen_HoldsTheEntitiesAcrossTheSeamOfATorus(t *testing.T) {
 	}
 }
 
-func TestSeen_ASectorOffThePictureIsNothingToTheViewWhileItIsTicked(t *testing.T) {
+func TestSeen_ASectorOffThePictureIsNothingToTheViewAndTickedAtStrategic(t *testing.T) {
 	r, v := seeing(t, lod.Ladder{Sight: 3000}, 100, 2500)
 	// the picture ends at 1600; the fifth sector, from 2048, lies within the sight
 	if l := v.Level(2505, 255); l != lod.L6 {
 		t.Errorf("the one at 2505, off the picture, is drawn at %v, want L6", l)
 	}
-	if !same(r.at(lod.L2), 100, 2500) || !r.held(2500) {
-		t.Errorf("at L2 %v, the one off the picture held %v; want both ticked at L2",
-			r.at(lod.L2), r.held(2500))
+	// Strategic off the picture, graded a level finer beside the last sector shown
+	if !same(r.at(lod.L2), 100) || !same(r.at(lod.L3), 2500) || !r.held(2500) {
+		t.Errorf("at L2 %v, at L3 %v, the one off the picture held %v; want it awake at L3",
+			r.at(lod.L2), r.at(lod.L3), r.held(2500))
 	}
 }
 

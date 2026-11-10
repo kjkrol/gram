@@ -31,6 +31,9 @@ type Config struct {
 	Far FarLook
 	// Counts has the number of a kind's units in a sector drawn by them at the strategic scale.
 	Counts bool
+	// Canopies has a canopy (Slot.Canopy) show the unit standing under it through, in a view from
+	// above.
+	Canopies bool
 	// Sheets is where the sheets of what stands are kept between runs; zero, they are made anew
 	// each run and live in memory alone.
 	Sheets SheetsCfg
@@ -61,8 +64,8 @@ const (
 	Banners
 )
 
-// AsConfig is a setting left as the Config says (Settings.Far, Settings.Counts): the zero an older
-// save loads such a setting as.
+// AsConfig is a setting left as the Config says (Settings.Far, Settings.Counts,
+// Settings.Canopies): the zero an older save loads such a setting as.
 const AsConfig = 0
 
 // SectorsCfg is the world's sectors: Buckets of the space's buckets a side, the world cut into

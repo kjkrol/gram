@@ -19,6 +19,8 @@ type Counts struct {
 	Climbs uint64
 	// Builds are the regions of the hierarchies built, again where the board changed under them.
 	Builds uint64
+	// Loaded are the hierarchies read from the Cache's files, none of their regions built.
+	Loaded uint64
 	// Expansions are the nodes the searches expanded: the work they did.
 	Expansions uint64
 	// Abstracts are the units come into the far mode (from L4), once an entry.

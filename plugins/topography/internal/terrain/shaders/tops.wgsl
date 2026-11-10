@@ -1,8 +1,8 @@
 // The tops the corners of the sheets' lattices (terrain's photo.go) stand at, at LEVEL, L4 or L5:
 // an instance a sector, the texels of its corners among the tops (x0, y0, x1, y1), U.SheetQuads + 1
 // a side, and its box (x0, y0, x1, y1). A corner's texel holds the highest top the relief (the
-// third image, U.SheetPx texels a world unit, a float16 in red and green) holds within
-// U.SheetReach texels of it, a float16 in red and green and 1 in blue, or 0 in blue where nothing
+// third image, U.SheetPx texels a world unit, a float16 in red and green) holds nearest to it
+// within U.SheetReach texels, a float16 in red and green and 1 in blue, or 0 in blue where nothing
 // stands so near, sought at L4 first in the albedo at L5 (the fourth image); its alpha 1, so it
 // lays over what was there.
 
@@ -37,8 +37,11 @@ fn fs_main(g: Corner) -> @location(0) vec4<f32> {
     return vec4<f32>(f32(bits & 0xffu) / 255.0, f32((bits >> 8u) & 0xffu) / 255.0, 1.0, 1.0);
 }
 
-// topNear is the highest top the relief holds within U.SheetReach texels of p, below -1e38 where
-// nothing stands so near: a quad over a thing narrower than it stands at its top at every corner.
+// topNear is the top of what stands nearest p within U.SheetReach texels, the highest of those
+// equally near, below -1e38 where nothing stands so near: a quad over a thing narrower than it
+// stands at its top at every corner, and over a forest on a slope a corner stands at the trees
+// beside it, not at the highest within its reach, which left the sheet a terrace over the lower
+// trees with the sky under its lip from the side.
 fn topNear(p: vec2<f32>) -> f32 {
     let at = floor(p * U.SheetPx);
     let reach = i32(U.SheetReach);
@@ -46,13 +49,24 @@ fn topNear(p: vec2<f32>) -> f32 {
     if LEVEL == 4u && !coarselyNear(at, reach) {
         return top;
     }
+    var nearest = reach + 1;
     for (var dy = -reach; dy <= reach; dy++) {
         for (var dx = -reach; dx <= reach; dx++) {
+            let d = max(abs(dx), abs(dy));
+            if d > nearest {
+                continue;
+            }
             let t = at + vec2<f32>(f32(dx), f32(dy)) + 0.5;
             if imageSrc1At(imageSrc1Origin() + t).a > 0.0 {
                 let r = imageSrc2At(imageSrc2Origin() + t);
                 let bits = u32(r.r * 255.0 + 0.5) | (u32(r.g * 255.0 + 0.5) << 8u);
-                top = max(top, unpack2x16float(bits).x);
+                let h = unpack2x16float(bits).x;
+                if d < nearest {
+                    nearest = d;
+                    top = h;
+                } else {
+                    top = max(top, h);
+                }
             }
         }
     }

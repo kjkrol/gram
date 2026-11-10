@@ -20,6 +20,7 @@ type Flat struct {
 	quads          []camera.Quad
 	sprites        render.Sprites
 	direct         bool
+	hidden         float32 // how much of the sprites laid next is seen through, 0 none
 }
 
 // FigureLift is how far over its height a figure lies among what is drawn back to front: over
@@ -41,10 +42,28 @@ func NewFlat(width, height float32, wrapX, wrapY bool) *Flat {
 // Fog has the sprites laid next turn into the fog by amount.
 func (l *Flat) Fog(amount float32) { l.sprites.Fog(amount) }
 
+// Veil has the sprites laid next show what lies under them through, as much as opacity says: laid
+// in the frame, over what they cover, not among the GPU's.
+func (l *Flat) Veil(opacity float32) { l.hidden = 1 - opacity }
+
+// Cutout has the sprites laid next drawn in the cutout pass, or among what is seen through.
+func (l *Flat) Cutout(on bool) { l.sprites.Cutout(on) }
+
 // Begin readies the look to gather the frame's sprites for the GPU.
 func (l *Flat) Begin(*render.Frame, camera.Camera) {
 	l.sprites.Reset()
 	l.direct = true
+	l.hidden = 0
+}
+
+// whole reports whether the sprites laid next go to the GPU as they are
+func (l *Flat) whole() bool { return l.direct && l.hidden <= 0 }
+
+// veiled lays the last sprite's opacity over it where it is seen through
+func (l *Flat) veiled(f *render.Frame) {
+	if l.hidden > 0 {
+		f.Glazed(1 - l.hidden)
+	}
 }
 
 // DrawSprites draws the sprites gathered since Begin, as often as a frame laid in layers asks.
@@ -112,7 +131,7 @@ func around(m geom.Vec, w, h float32) plane.AABB {
 
 func (l *Flat) lay(f *render.Frame, cam camera.Camera, at render.At, box plane.AABB,
 	atlas render.AtlasSource, a render.Appearance, light render.Light) {
-	if a.Angle != 0 || !l.direct && !cam.Projection().Wraps() {
+	if a.Angle != 0 || !l.whole() && !cam.Projection().Wraps() {
 		l.turned(f, cam, at, box, atlas, a, light)
 		return
 	}
@@ -123,10 +142,11 @@ func (l *Flat) lay(f *render.Frame, cam camera.Camera, at render.At, box plane.A
 		x1, y1 := img.BottomRight.X, img.BottomRight.Y
 		u0, u1 := uvSpan(x1-x0, sizeX, dx)
 		v0, v1 := uvSpan(y1-y0, sizeY, dy)
-		if l.direct {
+		if l.whole() {
 			l.sprites.Rect(atlas, id, x0, y0, x1, y1, u0, v0, u1, v1, light)
 		} else {
 			f.SpriteRectUV(at, atlas, id, x0, y0, x1, y1, u0, v0, u1, v1, render.Lit(light))
+			l.veiled(f)
 		}
 		return true
 	})
@@ -138,7 +158,7 @@ func (l *Flat) turned(f *render.Frame, cam camera.Camera, at render.At, box plan
 	rad := a.Angle * math.Pi / 180
 	x0, y0 := box.TopLeft.X, box.TopLeft.Y
 	x1, y1 := box.BottomRight.X, box.BottomRight.Y
-	if l.direct {
+	if l.whole() {
 		l.sprites.Turned(atlas, a.SpriteID, x0, y0, x1, y1, rad, light)
 		return
 	}
@@ -152,6 +172,7 @@ func (l *Flat) turned(f *render.Frame, cam camera.Camera, at render.At, box plan
 			dst[i][0], dst[i][1] = cam.Project(cx+ox*cos+oy*sin, cy+oy*cos-ox*sin, 0)
 		}
 		f.SpritePart(at, atlas, [4]float32{sx0, sy0, sx1, sy1}, dst, render.Lit(light))
+		l.veiled(f)
 		return
 	}
 	l.quads = cam.ToScreenQuads(x0, y0, x1, y1, l.quads[:0])
@@ -163,6 +184,7 @@ func (l *Flat) turned(f *render.Frame, cam camera.Camera, at render.At, box plan
 		}
 		dst := render.Corners{turn(q.X0, q.Y0), turn(q.X1, q.Y0), turn(q.X0, q.Y1), turn(q.X1, q.Y1)}
 		f.SpritePart(at, atlas, [4]float32{sx0, sy0, sx1, sy1}, dst, render.Lit(light))
+		l.veiled(f)
 	}
 }
 

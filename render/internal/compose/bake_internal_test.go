@@ -8,6 +8,7 @@ import (
 
 	"github.com/kjkrol/gram/render/gputest"
 	"github.com/kjkrol/gram/render/internal/gfx"
+	"github.com/kjkrol/gram/render/internal/light"
 )
 
 // a ground of 17 by 17 corners 32 apart, its heights as a test raises them
@@ -311,6 +312,72 @@ func TestBaker_BakesOverlappingShadowsAsTheDarkerOfThem(t *testing.T) {
 					"their shadows alone, %d", x, y, got, want)
 			}
 		}
+	}
+}
+
+// a pit 1000 deep at the north-western corner, level ground everywhere else: the lowest ground far
+// below what stands on the level
+func pit() *ground {
+	return groundOf(func(x, y int) float32 {
+		if x == 0 && y == 0 {
+			return -1000
+		}
+		return 0
+	})
+}
+
+// the sun 3° over the eastern horizon
+var eastAt3 = [3]float32{0.9986, 0, 0.0523}
+
+func TestBaker_ReachesNoFartherThanAnyShadowUnderALowSun(t *testing.T) {
+	gputest.Need(t)
+	post := Block{X: 400, Y: 256, UX: 1, Along: 4, Wide: 4, Bottom: 0, Top: 40}
+	b := bakedOver(t, pit(), eastAt3, post)
+	// the line from the post's top meets the level ground 765 west; a shadow reaches six heights
+	if v := pixelAt(b, 200, 256)[0]; v > 10 {
+		t.Errorf("200 west of the post the ground is lit %d, want in its shadow", v)
+	}
+	if v := pixelAt(b, 100, 256)[0]; v < 245 {
+		t.Errorf("300 west of the post the ground is lit %d, want lit: a shadow reaches %d "+
+			"heights and no farther", v, light.ShadowReach)
+	}
+	if v := pixelAt(b, 440, 256)[0]; v < 245 {
+		t.Errorf("east of the post the ground is lit %d, want all of it", v)
+	}
+}
+
+func TestBaker_ReachesToTheLowestGroundAndNoFartherThanAnyShadow(t *testing.T) {
+	b := &Baker{lat: Lattice{Cols: 17, Rows: 17, Cell: 32, Low: -1000, Span: 1000}}
+	box := [4]float32{396, 252, 8, 8}
+	// a post 40 tall with the lowest ground 1000 below: under the sun 45° high its shadow would
+	// come down to it 1040 west, under the sun 3° high 20 000 west; a shadow reaches six heights,
+	// 240 west, and a cell and the penumbra more
+	for _, sun := range [][3]float32{eastAt45, eastAt3} {
+		if r := b.reach(box, 40, 40, sun); r[0] < 396-240-32-30 || r[0] > 396-240-32 {
+			t.Errorf("under the sun %v the shadows reach west to %v, want about %v", sun, r[0],
+				396-240-32-20)
+		}
+	}
+	// on level ground the shadow comes down 40 west under the sun 45° high, short of six heights
+	b.lat.Low, b.lat.Span = 0, 1
+	if r := b.reach(box, 40, 40, eastAt45); r[0] < 396-40-32-5 || r[0] > 396-40-32 {
+		t.Errorf("on level ground the shadows reach west to %v, want about %v", r[0], 396-40-32-3)
+	}
+	b.lat.Low, b.lat.Span = -1000, 1000
+	if r := b.reach(box, 40, 40, [3]float32{0, 0, 1}); r[0] < 396-32-1040*shadowSoft-1 ||
+		r[2] > 404+32+1040*shadowSoft+1 {
+		t.Errorf("under the sun overhead the shadows reach %v, want the box, a cell and the "+
+			"penumbra", r)
+	}
+	// shading takes each block by the same measure
+	near := b.shading([4]float32{0, 0, 300, 512}, eastAt3)
+	b.sets = []bakedSet{{box: box, top: 40, rise: 40,
+		blocks: []Block{{X: 400, Y: 256, UX: 1, Along: 4, Wide: 4, Top: 40}}}}
+	if near = b.shading([4]float32{0, 0, 300, 512}, eastAt3); len(near) == 0 {
+		t.Errorf("the post's shadow, 240 long, misses the ground within 300 of the west edge")
+	}
+	if near = b.shading([4]float32{0, 0, 100, 512}, eastAt3); len(near) != 0 {
+		t.Errorf("the post's shadow, 240 long, falls on the ground within 100 of the west edge")
 	}
 }
 

@@ -73,6 +73,8 @@ type sheetRig struct {
 	all   *goke.Query
 	base  goke.Comp[Base]
 	z     goke.Comp[Z]
+	// how many times what stands was changed in place (Write.Restill)
+	stills uint64
 	// what makes what stands
 	units, fixed  *goke.Factory
 	mb            goke.Comp[Base]
@@ -104,6 +106,7 @@ func newSheetRig(t *testing.T, k standingKinds, g grid, things ...stood) *sheetR
 	s := &sheetRig{r: newRenderer(k.a, seenBy(cam, v), &Rules{}, func() Look { return look }),
 		look: look, cam: cam, views: []*view.View{v}}
 	readied(k.a)(s.r)
+	s.r.restills = func() uint64 { return s.stills }
 	s.r.space = SpaceCfg{Width: 1024, Height: 1000}
 	s.r.sheet = sheetsOver(g, 1.0/8, 128, 125)
 	s.r.sheet.open()
@@ -150,8 +153,14 @@ func (s *sheetRig) add(things ...stood) {
 	}
 }
 
-// move has the k-th thing added stand over box at z
+// move has the k-th thing added stand over box at z, and the world told so (Write.Restill)
 func (s *sheetRig) move(k int, box plane.AABB, z Z) {
+	s.moveQuietly(k, box, z)
+	s.stills++
+}
+
+// moveQuietly has the k-th thing added stand over box at z with the world told nothing of it
+func (s *sheetRig) moveQuietly(k int, box plane.AABB, z Z) {
 	if s.all.Seek(s.ids[k]) {
 		cur := s.all.Cursor()
 		s.base.At(cur).Pos.AABB = box
@@ -232,6 +241,69 @@ func TestSheets_PhotographASectorAnewOnlyAsWhatStandsInItChanges(t *testing.T) {
 	if f := s.publish(); len(f.sheet.photos) != 1 || s.r.sheet.version[1] != v+2 {
 		t.Errorf("raised, %d photographs and version %d; want one, %d", len(f.sheet.photos),
 			s.r.sheet.version[1], v+2)
+	}
+}
+
+func TestSheets_KeepWhatStandsBetweenFramesTillItsChunkOrTheWorldsRestillsMove(t *testing.T) {
+	k := newStandingKinds()
+	var things []stood
+	for i := range 16 {
+		x, y := float32(i%4)*256+100, float32(i/4)*250+100
+		things = append(things, stood{box: box(x, y, 40), z: Z{Height: 10}, sprite: k.dome,
+			fixed: true})
+	}
+	s := newSheetRig(t, k, everywhere{w: 1024, h: 1000, level: lod.L4}, things...)
+	s.r.sheet.perFrame = 16
+	// a publish, its photographs developed as a frame would
+	shoot := func() *figures {
+		f := s.publish()
+		f.sheet.developed = true
+		return f
+	}
+	if f := shoot(); len(f.sheet.photos) != 16 {
+		t.Fatalf("%d photographs, want one a sector", len(f.sheet.photos))
+	}
+	rebuilds, v := s.r.standers.rebuilds, slices.Clone(s.r.sheet.version)
+	shoot()
+	if f := shoot(); s.r.standers.rebuilds != rebuilds || len(f.sheet.photos) != 0 {
+		t.Errorf("published twice more unchanged, the standers were walked %d times and %d "+
+			"sectors photographed; want %d, none: what stands is kept between frames",
+			s.r.standers.rebuilds, len(f.sheet.photos), rebuilds)
+	}
+	s.moveQuietly(3, box(868, 100, 40), Z{Altitude: 30, Height: 10})
+	if f := shoot(); len(f.sheet.photos) != 0 || s.r.standers.rebuilds != rebuilds {
+		t.Errorf("one raised in place with the world told nothing, %d photographs after %d "+
+			"walks; want none, %d: a change in place is told by Restill", len(f.sheet.photos),
+			s.r.standers.rebuilds, rebuilds)
+	}
+	s.stills++
+	f := shoot()
+	if len(f.sheet.photos) != 1 || f.sheet.photos[0].sector != 3 ||
+		s.r.sheet.version[3] != v[3]+1 || s.r.standers.rebuilds != rebuilds+1 {
+		t.Errorf("the world told, photographs %v, version %d after %d walks; want sector 3's, "+
+			"%d, %d", f.sheet.photos, s.r.sheet.version[3], s.r.standers.rebuilds, v[3]+1,
+			rebuilds+1)
+	}
+	if at := f.sheet.instances[f.sheet.photos[0].from:f.sheet.photos[0].to]; len(at) != photoFloats ||
+		at[8] != 30 {
+		t.Errorf("laid %v, want the one raised, 30 up", at)
+	}
+	s.add(stood{box: box(356, 350, 40), sprite: k.flat, fixed: true})
+	if f := shoot(); len(f.sheet.photos) != 1 || f.sheet.photos[0].sector != 5 ||
+		f.sheet.photos[0].to-f.sheet.photos[0].from != 2*photoFloats {
+		t.Errorf("one more spawned in sector 5, %v; want its photograph of both", f.sheet.photos)
+	}
+	views := map[camera.Camera]*view.View{s.cam: s.views[0]}
+	s.r.views = func() map[camera.Camera]*view.View { return views }
+	publish := func() {
+		s.r.Publish()
+		s.r.Swap()
+		s.r.figures.Front().sheet.developed = true
+	}
+	publish()
+	publish()
+	if n := testing.AllocsPerRun(20, publish); n != 0 {
+		t.Errorf("a publish of what stands unchanged allocates %v times, want none", n)
 	}
 }
 
@@ -547,5 +619,37 @@ func TestSheets_DevelopARoundOfSectorsAsEachAlone(t *testing.T) {
 	// the texel (32, 26) at L5, 64 wide, over (64, 52) and (65, 52)
 	if a := round[2][4*(26*64+32)+3]; a < 126 || a > 129 {
 		t.Errorf("the texel at L5 the sectors share is %d covered, want half", a)
+	}
+}
+
+// a camera from above with an eye: one in the perspective
+type eyedFarther struct{ camera.Camera }
+
+func (eyedFarther) Eye() (x, y, z float32, ok bool) { return 0, 500, 100, true }
+
+func TestSheets_WhatASheetStandsInForIsAPointThroughACameraWithAnEyeAlone(t *testing.T) {
+	k := newStandingKinds()
+	s := newSheetRig(t, k, halves{ladder: atL4},
+		stood{box: box(600, 400, 88), z: Z{Altitude: 10, Height: 40}, sprite: k.dome, fixed: true})
+	places := func(cam camera.Camera) int {
+		s.r.views = seenBy(cam, s.views[0])
+		f := s.publish()
+		if f.sheet.held[1] == 0 {
+			t.Fatal("the right half's sheet holds nothing, want the dome photographed")
+		}
+		var fr render.Frame
+		fr.Reset(cam)
+		s.r.Compose(&fr, cam)
+		n := 0
+		fr.Places(func(render.Pass, render.At) { n++ })
+		return n
+	}
+	if n := places(s.cam); n != 0 {
+		t.Errorf("from above the dome a sheet stands in for takes %d places, want none: the sheet "+
+			"is drawn", n)
+	}
+	if n := places(eyedFarther{s.cam}); n != 1 {
+		t.Errorf("through a camera with an eye the dome takes %d places, want one: a point of its "+
+			"blob, the sheet unseen", n)
 	}
 }

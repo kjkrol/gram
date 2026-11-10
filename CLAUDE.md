@@ -282,7 +282,10 @@ Decisions the user has made; they are not up for revisiting in passing.
   (`lod.Omitted`: neither ticked nor drawn), from the shown pixels a world
   unit spans there through each observer's camera and its distance: within the ladder's Sight,
   and coarser than a level past that level's ring (`Ladder.Rings`, 2026-11-08: a camera seeing
-  far at one scale, the orthographic one, does not hold the world at that scale's level)
+  far at one scale, the orthographic one, does not hold the world at that scale's level), and no
+  finer than `Strategic` off the camera's picture but for the sector of its viewpoint and the
+  eight round it (2026-11-09: what is round the unit ridden is simulated whole whichever way the
+  camera looks, as a game's simulation bubble; the rest of the sight is the strategic scale)
   (`world.Config.LOD`), the same level for everything in the sector; an entity's mark is the
   level ticked, the finest any observer sees (the ladder's `Unobserved` with none, L4 by
   default), held awake by a `sector.Keen` entity in it (a shot in flight); each camera's view
@@ -336,7 +339,10 @@ Decisions the user has made; they are not up for revisiting in passing.
   **Behaviour keeps to the ladder too** (the user's word, 2026-11-04): below `Strategic` a unit
   walks cells with the occupancy; from L4 it walks the same refined route the HPA* hierarchy
   gives, out of the occupancy, the queue and the collision (`sector.Abstract`), never a straight
-  line from gate to gate, and an aggregate (`world.Aggregate`, a `Field` by sector)
+  line from gate to gate, the hierarchy the game's cache where it says (`navigation.Cache`,
+  2026-11-10: a run starts with its long routes climbed, the regions over changed cells built
+  again alone, the file appended to as regions are built again), and an aggregate
+  (`world.Aggregate`, a `Field` by sector)
   is its parts at L0–L3 and itself alone from L4, the game's rules to `Unfold`, `Fold`,
   `Folding` and `Met` saying what each becomes; an aggregate is selected as a whole (the user's
   word, 2026-11-07): a click, a marquee or a hover on a part without `selection.Allow` selects
@@ -363,7 +369,11 @@ Decisions the user has made; they are not up for revisiting in passing.
   camera's lamps, lights what the sources draw (`render.Frame.Lit`), lays the shadows they say
   cast (`Frame.Cast`) once they have all composed, and bakes the ground's shade; a ground draws
   itself in the frame's light, shade and lamps (`render.GroundShade`, `lightWay`, `lampLightAt`),
-  never working light out of its own.
+  never working light out of its own. **A shadow reaches at most `render.ShadowReach` (6) times
+  its caster's height** (the user's word, 2026-11-10), whatever casts it — a unit, a baked block,
+  a cloud, anything to come — and under whatever light, the sun or a lamp: a light on the horizon
+  would cast a shadow for ever. One constant, read by every shadow; no shader or plugin keeps a
+  cap of its own, and a cost that grows as the light sinks is this rule missing somewhere.
 - **What is drawn over what is Z's alone**, never a layer, the order of adding or the order a
   plugin registers in: every piece of the world lies at a height (`render.At`; what lies on a
   surface at a small lift over it — a cell held, a bridge in hand, a field's piece at

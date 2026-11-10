@@ -37,7 +37,6 @@ func laurelTop(dst *render.Canvas, size int) {
 	dst.FillCircle(s*0.36, s*0.36, s*0.18, laurelLeaves)
 	dst.FillCircle(s*0.64, s*0.32, s*0.12, laurelLeaves)
 	dst.FillCircle(s*0.32, s*0.64, s*0.1, laurelLeaves)
-	seeThrough(dst)
 }
 
 func laurelSide(dst *render.Canvas, size int) {
@@ -47,7 +46,6 @@ func laurelSide(dst *render.Canvas, size int) {
 	dst.FillCircle(s*0.5, s*0.3, s*0.3, laurelCrown)
 	dst.FillCircle(s*0.36, s*0.24, s*0.12, laurelLeaves)
 	dst.FillCircle(s*0.64, s*0.38, s*0.09, laurelLeaves)
-	seeThrough(dst)
 	dst.FillRect(s*0.45, s*0.68, s*0.1, s*0.32, laurelTrunk)
 }
 
@@ -60,7 +58,6 @@ func pineTop(dst *render.Canvas, size int) {
 			pineLeaves)
 	}
 	dst.FillCircle(s/2, s/2, s*0.1, pineLeaves)
-	seeThrough(dst)
 }
 
 func pineSide(dst *render.Canvas, size int) {
@@ -71,7 +68,6 @@ func pineSide(dst *render.Canvas, size int) {
 		dst.FillCircle(s/2, y, s*r, pineCrown)
 		dst.FillCircle(s/2-s*r/3, y-s*r/3, s*r/3, pineLeaves)
 	}
-	seeThrough(dst)
 	dst.FillRect(s*0.46, s*0.86, s*0.08, s*0.14, pineTrunk)
 }
 
@@ -84,7 +80,6 @@ func heatherTop(dst *render.Canvas, size int) {
 	}
 	dst.FillCircle(s*0.38, s*0.36, s*0.12, heatherLeaves)
 	dst.FillCircle(s*0.62, s*0.6, s*0.08, heatherLeaves)
-	seeThrough(dst)
 }
 
 func heatherSide(dst *render.Canvas, size int) {
@@ -96,15 +91,6 @@ func heatherSide(dst *render.Canvas, size int) {
 	dst.FillCircle(s*0.4, s*0.3, s*0.1, heatherLeaves)
 	dst.FillCircle(s*0.66, s*0.48, s*0.08, heatherLeaves)
 	dst.FillCircle(s*0.24, s*0.52, s*0.07, heatherLeaves)
-	seeThrough(dst)
 	dst.StrokeLine(s*0.45, s*0.84, s*0.4, s, s*0.07, heatherTrunk)
 	dst.StrokeLine(s*0.55, s*0.84, s*0.62, s, s*0.07, heatherTrunk)
-}
-
-// seeThrough has a crown three quarters opaque, what walks under it showing through:
-// premultiplied, every channel scaled alike
-func seeThrough(dst *render.Canvas) {
-	for i := range dst.Pix {
-		dst.Pix[i] = uint8(uint16(dst.Pix[i]) * 3 / 4)
-	}
 }

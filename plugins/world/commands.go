@@ -78,19 +78,24 @@ type ShowFar struct{ Look FarLook }
 // or not (Settings.Counts). The settings screen alone, in a world cut into sectors.
 type ShowCounts struct{ On bool }
 
-func (Despawn) Command()     {}
-func (Spawn) Command()       {}
-func (SpawnPart) Command()   {}
-func (SpawnWhole) Command()  {}
-func (Keen) Command()        {}
-func (Calm) Command()        {}
-func (Pause) Command()       {}
-func (Faster) Command()      {}
-func (Slower) Command()      {}
-func (Tempo) Command()       {}
-func (SwitchBands) Command() {}
-func (ShowFar) Command()     {}
-func (ShowCounts) Command()  {}
+// ShowCanopies has a canopy (Slot.Canopy) show the unit standing under it through in a view from
+// above, or stand whole (Settings.Canopies). The settings screen alone, under Game.
+type ShowCanopies struct{ On bool }
+
+func (Despawn) Command()      {}
+func (Spawn) Command()        {}
+func (SpawnPart) Command()    {}
+func (SpawnWhole) Command()   {}
+func (Keen) Command()         {}
+func (Calm) Command()         {}
+func (Pause) Command()        {}
+func (Faster) Command()       {}
+func (Slower) Command()       {}
+func (Tempo) Command()        {}
+func (SwitchBands) Command()  {}
+func (ShowFar) Command()      {}
+func (ShowCounts) Command()   {}
+func (ShowCanopies) Command() {}
 
 var (
 	_ command.Command = Despawn{}
@@ -107,16 +112,18 @@ var (
 	_ command.Command = SwitchBands{}
 	_ command.Command = ShowFar{}
 	_ command.Command = ShowCounts{}
+	_ command.Command = ShowCanopies{}
 )
 
 // Settings is what the world lets the players adjust, saved with the game: the looks of the
-// sectors, whether their levels are ticked and how the loose units are drawn far off. The tempo
-// and the pause are the clock's (clock.State).
+// sectors, whether their levels are ticked, how the loose units are drawn far off and whether a
+// canopy shows the unit under it. The tempo and the pause are the clock's (clock.State).
 type Settings struct {
 	Sectors  SectorsShown
 	Unbanded bool
 	Far      FarLook
 	Counts   Shown
+	Canopies Shown
 }
 
 // Shown is whether a setting has something drawn, or AsConfig.
@@ -133,16 +140,22 @@ func (p *Plugin) Queues() []command.CommandQueue {
 	m := p.module
 	return []command.CommandQueue{
 		&m.pauses, &m.fasters, &m.slowers, &m.tempos, &m.bandSwitches, &m.sectorSwitches,
+		&m.canopies,
 		&m.farLooks, &m.counts, &m.spawns, &m.spawnParts, &m.spawnWholes, &m.despawns, &m.keens,
 		&m.calms, &m.effectCmds.queue, &m.effectCmds.triggers,
 	}
 }
 
-// Settings are the tempo, with more than one to choose from, and, in a world cut into sectors,
-// what is drawn of them, whether their levels are ticked and how the loose units are drawn far
-// off (plugin.Tunable).
+// Settings are the tempo, with more than one to choose from, whether a canopy shows the unit
+// under it (under Game) and, in a world cut into sectors, what is drawn of them, whether their
+// levels are ticked and how the loose units are drawn far off (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {
-	var out []control.Setting
+	out := []control.Setting{control.Switch{
+		Label:   "Canopies show the units under them",
+		Section: control.Game,
+		Get:     p.read.Canopies,
+		Set:     func(on bool) command.Command { return ShowCanopies{On: on} },
+	}}
 	if tempos := p.module.clock.Read().Tempos(); len(tempos) > 1 {
 		options := make([]string, len(tempos))
 		for i, t := range tempos {

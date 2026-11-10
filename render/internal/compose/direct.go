@@ -5,7 +5,8 @@ import (
 )
 
 // Direct is a Source that draws a part of the picture itself, with a shader of its own, in the
-// passes its Compose asked for (Frame.DrawOpaque, Frame.DrawAt): Draw is handed which, and runs
+// passes its Compose asked for (Frame.DrawOpaque, Frame.DrawCutout, Frame.DrawAt): Draw is handed
+// which, and runs
 // once a layer of a picture in layers, so what Compose gathered serves every Draw till the next
 // Compose. A Direct asking for none is not drawn.
 type Direct interface {
@@ -13,18 +14,20 @@ type Direct interface {
 	Draw(t Target, cam camera.Camera, u Uniforms)
 }
 
-// Pass is which part of the picture a Direct draws in: the opaque ground first, then what is seen
+// Pass is which part of the picture a Direct draws in: the opaque ground first, then the cutouts,
+// what stands whole cut at half its alpha and writing the depth, in no order, then what is seen
 // through, back to front.
 type Pass uint8
 
 const (
 	Opaque Pass = iota
 	SeeThrough
+	Cutout
 )
 
 // Target is where a Direct source draws: the screen, nil in a test; the depth buffer every mesh of
 // the frame shares, nil in a frame without a ground; the ground's depth alone for a source that
-// asked for it (Frame.ReadGround), nil in the opaque pass; and the pass.
+// asked for it (Frame.ReadGround), nil in the opaque pass and the cutouts'; and the pass.
 type Target struct {
 	Screen *Image
 	Depth  *Depth

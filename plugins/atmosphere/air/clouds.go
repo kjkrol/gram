@@ -387,7 +387,8 @@ func (w Weather) Shade(x, y, z float32, sun [3]float32) float32 {
 	var ax, ay float32 // across a world unit up the way to the sun
 	n := float32(math.Sqrt(float64(sun[0]*sun[0] + sun[1]*sun[1] + sun[2]*sun[2])))
 	if n > 0 && !w.OneLayer {
-		slant := max(sun[2]/n, lowSun) * n
+		across := float32(math.Hypot(float64(sun[0]), float64(sun[1])))
+		slant := max(sun[2], across/render.ShadowReach)
 		ax, ay = sun[0]/slant, sun[1]/slant
 	}
 	clear := float32(1)
@@ -410,9 +411,6 @@ func (w Weather) Shade(x, y, z float32, sun [3]float32) float32 {
 	}
 	return 1 - clear
 }
-
-// the sun lower than this casts the clouds' shadows as far as at it
-const lowSun = 0.25
 
 // how thick the clouds of the layer l are over the world point (x, y)
 func (w Weather) cover(l Layer, x, y float32) float32 {

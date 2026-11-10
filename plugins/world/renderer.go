@@ -78,14 +78,21 @@ type renderer struct {
 	shaded   map[render.SpriteID]render.MaterialID
 	lying    map[render.SpriteID]bool
 	standing map[render.SpriteID]bool
+	canopy   map[render.SpriteID]bool
+	cutout   map[render.SpriteID]bool
 	edges    map[render.SpriteID]render.SpriteID
-	// the four by sprite, for the frame's loop: a map a layer an entity was a fifth of Compose
+	// the six by sprite, for the frame's loop: a map a layer an entity was a fifth of Compose
 	flags    []spriteFlag
 	shadedOf []render.MaterialID
 	edgeOf   []render.SpriteID
 	quads    []camera.Quad
 	// by sprite, whether it is a material: shaded's keys
 	materials []bool
+	// whether a canopy shows the unit under it, and what the space holds over a point, both nil
+	// where the world has no canopies; whether a camera with an eye saw the last publish
+	canopies func() bool
+	query    func(box geom.AABB, fn func(uid.UID64))
+	eyedSeen bool
 	// what stands at L4, a point a figure, and the light they are drawn in; the counts by them
 	points render.Sprites
 	litFor pointLight
@@ -96,6 +103,9 @@ type renderer struct {
 	// developed as a draw first reads them
 	sheet      sheets
 	developing func(*render.Image)
+	// what stands for good as last walked, and the world's Restills, nil where none counts them
+	standers standers
+	restills func() uint64
 	// how the loose units are gathered at the strategic scale, in banners and counted
 	far farring
 }
@@ -129,6 +139,12 @@ func (s *renderer) lie(lying map[render.SpriteID]bool, edges map[render.SpriteID
 	s.table()
 }
 
+// mark names the sprites showing a unit under them through and those drawn as cutouts
+func (s *renderer) mark(canopy, cutout map[render.SpriteID]bool) {
+	s.canopy, s.cutout = canopy, cutout
+	s.table()
+}
+
 type spriteFlag uint8
 
 const (
@@ -136,9 +152,11 @@ const (
 	flagLying
 	flagStanding
 	flagEdged
+	flagCanopy
+	flagCutout
 )
 
-// table lays shaded, lying, standing and edges out by sprite
+// table lays shaded, lying, standing, canopy, cutout and edges out by sprite
 func (s *renderer) table() {
 	clear(s.flags)
 	clear(s.shadedOf)
@@ -155,6 +173,16 @@ func (s *renderer) table() {
 	for id, on := range s.standing {
 		if on {
 			s.flag(id, flagStanding)
+		}
+	}
+	for id, on := range s.canopy {
+		if on {
+			s.flag(id, flagCanopy)
+		}
+	}
+	for id, on := range s.cutout {
+		if on {
+			s.flag(id, flagCutout)
 		}
 	}
 	for id, e := range s.edges {
@@ -219,6 +247,9 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	lies, _ := look.(LyingLook)
 	uprights, _ := look.(UprightLook)
 	foggy, _ := look.(FoggyLook)
+	canopy, _ := look.(CanopyLook)
+	cutouts, _ := look.(CutoutLook)
+	cutAny := false
 	held := figs.sheet.held
 	v := figs.views[camera.OriginOf(cam)]
 	tiered := figs.sheet.tiersOf(v)
@@ -229,6 +260,10 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	}
 	// a view sorting by height alone has the frame asked where a figure lies only when it is lower
 	sorts := cam.Projection().Sorts()
+	// a camera with an eye sees no sheet: what a sheet stands in for is a point of its blob to it
+	eyed := hasEye(cam)
+	// a canopy shows a unit under it through from above alone, where the frame's publish found one
+	veiling := canopy != nil && figs.canopies && !sorts
 	rider, inside := ridden(cam)
 	lowest, low, any, drew := render.Nearest, float32(0), false, false
 	for k := range figs.all {
@@ -258,6 +293,17 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			}
 		}
 		if e.sheet > 0 && level >= lod.Strategic && held[e.sheet-1] != 0 {
+			if eyed && wa != nil {
+				mid := Position{AABB: box}.Center()
+				if !any || sorts || z.Altitude < low {
+					if at := f.Lifted(mid.X, mid.Y, z.Altitude, lifted(e)); !any ||
+						at.Before(lowest) {
+						lowest, low, any = at, z.Altitude, true
+					}
+				}
+				drew = s.standIn(f, e, box, figs.layers[e.from], levels, level, wa,
+					v.Fog(mid.X, mid.Y)) || drew
+			}
 			continue
 		}
 		if e.banner && bannerAt(wa, figs.layers[e.from].SpriteID, level) {
@@ -275,7 +321,16 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 		if inside && e.id == rider {
 			continue
 		}
-		if !any || sorts || z.Altitude < low {
+		// coarsely: no edges, flat where it would stand
+		coarse := level > lod.Standard
+		veiled := veiling && e.fixed && figs.veiled.Has(e.id)
+		// a figure whole in every layer, a canopy seen through apart, is a cutout: it takes no
+		// place among what is seen through
+		cut := cutouts != nil && !pointing && !wide && !coarse && !veiled &&
+			s.allCut(layers, levels, level)
+		if cut {
+			cutAny = true
+		} else if !any || sorts || z.Altitude < low {
 			if at := f.Lifted(mid.X, mid.Y, z.Altitude, lifted(e)); !any || at.Before(lowest) {
 				lowest, low, any = at, z.Altitude, true
 			}
@@ -284,10 +339,11 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			drew = s.point(f, cam, e, box, layers, levels, level, v.Fog(mid.X, mid.Y)) || drew
 			continue
 		}
-		// coarsely: no edges, flat where it would stand
-		coarse := level > lod.Standard
 		if foggy != nil {
 			foggy.Fog(v.Fog(mid.X, mid.Y))
+		}
+		if cut {
+			cutouts.Cutout(true)
 		}
 		lit := f.Lit(mid.X, mid.Y, z.Altitude, e.shadow.Take)
 		for _, l := range layers {
@@ -317,7 +373,16 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 				uprights.Upright(f, cam, box, z, s.atlas, a, lit)
 				continue
 			}
+			if veiled && fl&flagCanopy != 0 {
+				canopy.Veil(canopyOpacity)
+				look.Sprite(f, cam, box, z, s.atlas, a, lit)
+				canopy.Veil(1)
+				continue
+			}
 			look.Sprite(f, cam, box, z, s.atlas, a, lit)
+		}
+		if cut {
+			cutouts.Cutout(false)
 		}
 	}
 	if v != nil && len(figs.far.groups) > 0 {
@@ -327,10 +392,26 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	if foggy != nil {
 		foggy.Fog(0)
 	}
+	if cutAny && direct {
+		f.DrawCutout()
+	}
 	if any && (direct || drew) {
 		f.DrawAt(lowest) // the figures come after what lies beneath the lowest of them
 	}
 }
+
+// allCut reports whether every layer drawn at level is a cutout
+func (s *renderer) allCut(layers []layer, levels byLevel, level lod.Level) bool {
+	for _, l := range layers {
+		if id, ok := levels.at(l.SpriteID, level); ok && s.of(id)&flagCutout == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// canopyOpacity is how much of a canopy is seen over the unit under it
+const canopyOpacity = 0.75
 
 // drawnAsPoint reports whether a figure of the sprite id seen at level is drawn as a point: at
 // L4, and at L5 in no look its kind declared there (wa's)
@@ -388,6 +469,29 @@ func (s *renderer) point(f *render.Frame, cam camera.Camera, e *figure, box plan
 		}
 	}
 	return pointed
+}
+
+// standIn draws the thing fixed e, which a sheet stands in for from above, as a point of its
+// kind's look at level, or of its blob where it declares none drawn there, for a camera with an
+// eye, which sees no sheet; false for a kind of neither
+func (s *renderer) standIn(f *render.Frame, e *figure, box plane.AABB, first layer,
+	levels byLevel, level lod.Level, wa *Atlas, fog float32) bool {
+	id, ok := levels.at(first.SpriteID, level)
+	if !ok {
+		id, ok = wa.blob(first.SpriteID)
+	}
+	if !ok {
+		return false
+	}
+	lit := s.pointLit(f, e.shadow.Take)
+	s.points.Fog(fog)
+	s.points.Take(lit.Takes)
+	s.points.Direct(lit.Direct)
+	mid := Position{AABB: box}.Center()
+	z := e.z
+	s.points.Point(s.atlas, id, mid.X, mid.Y, box.Size.X, box.Size.Y, z.Altitude+z.Height/2,
+		z.Top()+FigureLift, lit.Light)
+	return true
 }
 
 // pointLight is the light the points taking take are drawn in this frame, while ok
@@ -542,6 +646,9 @@ func (b byLevel) anyAt(layers []layer, level lod.Level) bool {
 func (s *renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if d, ok := s.look().(DirectLook); ok {
 		d.DrawSprites(t, cam, u)
+	}
+	if t.Pass == render.Cutout {
+		return
 	}
 	s.points.Draw(t, cam, u)
 	s.labels.Draw(t, cam, u)

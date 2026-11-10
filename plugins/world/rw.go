@@ -167,6 +167,18 @@ func (r *Read) Counts() bool {
 	return r.p.Res.Config.Counts
 }
 
+// Canopies reports whether a canopy (Slot.Canopy) shows the unit standing under it through, in a
+// view from above: as the Settings say, else as the Config does.
+func (r *Read) Canopies() bool {
+	switch r.p.Res.Settings.Canopies {
+	case On:
+		return true
+	case Off:
+		return false
+	}
+	return r.p.Res.Config.Canopies
+}
+
 // Banner is a kind's loose units in a sector drawn as one at the strategic scale: the entities
 // IDs, standing for Count units (an aggregate folded for its Strength), drawn over Box round their
 // centroid, Center, at their mean Z, under a badge reaching Reach shown pixels round its middle
@@ -235,6 +247,10 @@ func (r *Read) Small() float32 {
 	return g.Side() / 4
 }
 
+// Restills is how many times what stands for good was taken anew in place (Write.Restill):
+// whoever keeps something of the standing things between frames takes them anew as it moves.
+func (r *Read) Restills() uint64 { return r.p.module.stills }
+
 // SectorsLen is how many sectors the world is cut into; 0 in a world of no sectors.
 func (r *Read) SectorsLen() int {
 	if g := r.p.module.sectors.grid; g != nil {
@@ -266,11 +282,14 @@ type Write struct{ p *Plugin }
 // Space is the world's spatial index of its entities, indexed again as they spawn, go and move.
 func (w *Write) Space() *aabbworld.Space { return w.p.module.space }
 
-// Restill has the space take what stands for good anew once a Caps of it changed in place: its
-// still layer holds them as it found them when it was last gathered.
+// Restill has what stands for good taken anew once something of it changed in place, a Caps, an
+// Altitude or a look: the space's still layer, the sheets' signatures of the sectors and the
+// shadows baked hold what stands as they found it when it came or went, and the frames between
+// pay nothing for it.
 func (w *Write) Restill() {
 	x := w.p.module.indexer
 	w.p.module.indexStill(x.still, &x.stillBase)
+	w.p.module.stills++
 }
 
 // Clock is the world's tactical clock, to hand what simulates and to drive.
@@ -364,9 +383,11 @@ func (w *Write) SetAtlas(atlas render.AtlasSource) {
 	p.renderer.atlas = atlas
 	p.renderer.shade(nil, nil)
 	p.renderer.lie(nil, nil, nil)
+	p.renderer.mark(nil, nil)
 	if wa, ok := atlas.(*Atlas); ok {
 		p.renderer.shade(wa.shaded, wa.phased)
 		p.renderer.lie(wa.lain(), wa.edged(), wa.stood())
+		p.renderer.mark(wa.canopies(), wa.cutouts())
 		p.styles = &wa.styles
 	}
 }
@@ -401,5 +422,14 @@ func (w *Write) ShowCounts(on bool) {
 	w.p.Res.Settings.Counts = Off
 	if on {
 		w.p.Res.Settings.Counts = On
+	}
+}
+
+// ShowCanopies has the canopies show the units under them through in a view from above, or not
+// (ShowCanopies, Settings.Canopies).
+func (w *Write) ShowCanopies(on bool) {
+	w.p.Res.Settings.Canopies = Off
+	if on {
+		w.p.Res.Settings.Canopies = On
 	}
 }

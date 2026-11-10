@@ -133,7 +133,8 @@ func main() {
 			"houses as the camera comes near; caravans, a wagon and three porters, and " +
 			"travellers go to and fro along the roads, far off an icon of their kind a sector " +
 			"with their number over it (F10: points, the numbers off); a band of thirty " +
-			"walkers stands on the plateau, one icon far off. Select a unit: V " +
+			"walkers stands on the plateau, one icon far off, and a lookout at its eastern " +
+			"edge faces the peaks. Select a unit: V " +
 			"follows it from behind in the perspective (W, S, A and D walk it the way the " +
 			"screen lies, the mouse turns the camera round it and tilts it, = and - draw it " +
 			"in and out), again rides inside " +
@@ -161,10 +162,11 @@ func main() {
 				Fog:    scale.Units(6_000),
 				Fold:   FoldAfter,
 			},
-			Heights: true,
-			Far:     world.Banners,
-			Counts:  true,
-			Sheets:  sheets(),
+			Heights:  true,
+			Far:      world.Banners,
+			Counts:   true,
+			Canopies: true,
+			Sheets:   sheets(),
 		}).
 		Plugins(a.makePlugins).
 		Figures(a.defineFigures).
@@ -186,6 +188,16 @@ func sheets() world.SheetsCfg {
 	cfg := world.SheetsCfg{Keep: true, Version: SheetsVersion}
 	if dir, err := os.UserCacheDir(); err == nil {
 		cfg.Dir = filepath.Join(dir, "gram", "topography", "sheets")
+	}
+	return cfg
+}
+
+// routes is where the hierarchies the long routes are climbed through are kept between runs, in
+// the user's cache: none where there is no cache
+func routes() navigation.Cache {
+	cfg := navigation.Cache{Keep: true, Version: RoutesVersion}
+	if dir, err := os.UserCacheDir(); err == nil {
+		cfg.Dir = filepath.Join(dir, "gram", "topography", "hierarchy")
 	}
 	return cfg
 }
@@ -220,7 +232,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.nav = navigation.NewPlugin(a.board, a.world, a.motion, a.selection, a.driving).
 		WithCollision(a.collision).
 		WithSpacing(navigation.BodySpacing).
-		WithHierarchy(navigation.Hierarchy{From: 32})
+		WithHierarchy(navigation.Hierarchy{From: 32}).
+		WithCache(routes())
 	a.vision = vision.NewPlugin(a.world).WithBoard(a.board).WithFrequency(15)
 	a.atmosphere = atmosphere.NewPlugin(a.world, a.light, atmosphere.Config{
 		Calendar: calendar.Config{
@@ -392,6 +405,7 @@ func (a *arena) defineFigures() {
 	a.board.Figures(
 		walker{kind: UnitKind, color: playerColor, ordered: true},
 		walker{kind: PlateauKind, color: playerColor, highland: true, member: MemberRole},
+		walker{kind: LookoutKind, color: playerColor, highland: true},
 		walker{
 			kind:    RivalKind,
 			color:   rivalColor,

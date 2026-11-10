@@ -244,6 +244,7 @@ func Benchmark_World_Sheet(b *testing.B) {
 					}
 				}
 				rise = -rise
+				ctx.world.Write().Restill()
 				ctx.publish()
 				picture.DrawWorld(nil, ctx.cam)
 				// read as a draw reads it, the sheet has the frame's photographs developed

@@ -345,9 +345,25 @@ func (c *Composer) render(screen *Image, apart bool, layer int) (ground *Depth) 
 			}
 		}
 	}
+	c.cutouts(&t)
 	t.Pass = SeeThrough
 	c.paint(screen, t)
 	return ground
+}
+
+// cutouts draws the Directs asking for the cutout pass into t's depth, after the ground's depth
+// is kept apart for what lies over the figures, before anything seen through
+func (c *Composer) cutouts(t *Target) {
+	f := &c.frame
+	if len(f.cutout) == 0 {
+		return
+	}
+	t.Pass = Cutout
+	for _, i := range f.cutout {
+		if i > 0 && c.directs[i-1] != nil {
+			c.directs[i-1].Draw(*t, f.cam, Uniforms{c.boxed})
+		}
+	}
 }
 
 // renderOver draws the frame composed of what lies over the figures onto screen, tested against
@@ -378,6 +394,8 @@ func (c *Composer) renderOver(screen *Image) {
 		}
 		c.seen = c.sightOf(f.cam)
 	}
+	c.cutouts(&t)
+	t.Pass = SeeThrough
 	c.paint(screen, t)
 }
 

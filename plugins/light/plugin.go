@@ -5,6 +5,7 @@ import (
 	"math"
 	"slices"
 	"time"
+	"unsafe"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
@@ -88,6 +89,15 @@ type Plugin struct {
 	casts   []cast                // each sector's blocks as last published
 	swapped bool                  // a frame's light published
 	drawnFn func() *render.Lights // drawn, bound once
+	// the chunks of blocks as last gathered and the world's Restills then; how many times they
+	// were found changed, the change each frame's Lights holds the blocks of, and whether any
+	// block stands
+	chunks   []blockChunk
+	restills uint64
+	changes  uint64
+	stamps   [2]lightsStamp
+	stands   bool
+	gathers  int
 
 	coarses      command.Queue[CoarseShadows]
 	adapts       command.Queue[AdaptShadows]
@@ -319,10 +329,26 @@ type cast struct {
 	top               float32
 }
 
+// a chunk of blocks as last gathered: where its ids lay and how many, and its table's version,
+// which goke moves whenever an entity leaves a slot of it
+type blockChunk struct {
+	ids *uid.UID64
+	n   int
+	ver uint32
+}
+
+// a frame's Lights and which change of the blocks its sets hold
+type lightsStamp struct {
+	b  *render.Lights
+	at uint64
+}
+
 // standing puts every Baked block on the ground into b's set of the sector its middle lies in, one
 // lying along (a bridge's handle) over its Lie from its Altitude down its Height, anything else
 // over its box from its Altitude up, and raises the version of each set standing other than at the
-// last publish; it reports whether any block stands
+// last publish; it reports whether any block stands. The blocks are gathered anew only as a chunk
+// of them came, went or moved or the world's Restills moved: in the frames between, b keeps
+// the blocks it holds and takes the sets' versions as they stand.
 func (p *Plugin) standing(b *render.Lights) bool {
 	r := p.w.Read(0)
 	n := max(r.SectorsLen(), 1)
@@ -332,21 +358,61 @@ func (p *Plugin) standing(b *render.Lights) bool {
 	for len(p.casts) < n {
 		p.casts = append(p.casts, cast{version: 1})
 	}
-	for i := range b.Casts {
-		b.Casts[i].Blocks = b.Casts[i].Blocks[:0]
-		p.casts[i].now = 0
+	if p.blocks != nil && (p.moved() || r.Restills() != p.restills) {
+		p.restills = r.Restills()
+		p.changes++
 	}
-	stands := p.blocks != nil && p.gather(b, r, n)
+	// b's stamp, else a free one, else the other frame's
+	stamp := &p.stamps[0]
+	if stamp.b != b && (p.stamps[1].b == b || stamp.b != nil) {
+		stamp = &p.stamps[1]
+	}
+	if stamp.b != b || stamp.at != p.changes {
+		stamp.b, stamp.at = b, p.changes
+		for i := range b.Casts {
+			b.Casts[i].Blocks = b.Casts[i].Blocks[:0]
+			p.casts[i].now = 0
+		}
+		p.stands = p.blocks != nil && p.gather(b, r, n)
+		p.gathers++
+		for i := range b.Casts {
+			c, was := &b.Casts[i], &p.casts[i]
+			if was.now != was.sum {
+				was.sum = was.now
+				was.version++
+				was.box, was.top = bounds(c.Blocks)
+			}
+		}
+	}
 	for i := range b.Casts {
 		c, was := &b.Casts[i], &p.casts[i]
-		if was.now != was.sum {
-			was.sum = was.now
-			was.version++
-			was.box, was.top = bounds(c.Blocks)
-		}
 		c.Box, c.Top, c.Version = was.box, was.top, was.version
 	}
-	return stands
+	return p.stands
+}
+
+// moved reports whether a chunk the blocks' query walks has come, gone, grown or shrunk since
+// they were last gathered, or goke has moved entities of its table between slots, and keeps the
+// chunks as they are now
+func (p *Plugin) moved() bool {
+	moved, k := false, 0
+	for p.blocks.All(); p.blocks.Next(); k++ {
+		ids := p.blocks.Cursor().IDs
+		now := blockChunk{ids: unsafe.SliceData(ids), n: len(ids),
+			ver: p.blocks.ChunkSnapshot().TableVer}
+		if k == len(p.chunks) {
+			p.chunks = append(p.chunks, now)
+			moved = true
+		} else if p.chunks[k] != now {
+			p.chunks[k] = now
+			moved = true
+		}
+	}
+	if k != len(p.chunks) {
+		p.chunks = p.chunks[:k]
+		moved = true
+	}
+	return moved
 }
 
 // gather puts every Baked block into b's set of the sector its middle lies in, n of them, summing

@@ -27,7 +27,9 @@ type observers [2]camera.Camera
 var _ sector.Observers = (*observers)(nil)
 
 func newObservers(w, h uint32, x, y float32) *observers {
-	o := &observers{cameratest.NewFromSpace(w, h, 0), cameratest.NewFromSpace(w, h, 0)}
+	// their pictures show every sector: the scale and the distance alone are under test
+	o := &observers{cameratest.Showing(cameratest.NewFromSpace(w, h, 0)),
+		cameratest.Showing(cameratest.NewFromSpace(w, h, 0))}
 	for _, cam := range o {
 		cam.SetViewport(2, 2)
 	}

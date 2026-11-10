@@ -73,7 +73,8 @@ var twoLevels = lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.5}, Sight: 60
 
 // a world 4096x512 cut into sectors 512 a side, its ladder as given, and two observers both
 // looking at (100, 256): one a pixel a world unit, the other a quarter of a pixel seeing twice as
-// far
+// far, their pictures showing every sector (the picture's bound is under test in
+// TestSectors_HoldASectorOffThePictureAtStrategicButRoundTheViewpoint alone)
 func sectorWorld(t *testing.T, ladder lod.Ladder) *sectorRig {
 	t.Helper()
 	return sectorWorldOf(t, 0, 2, ladder)
@@ -89,13 +90,9 @@ func sectorWorldOf(t *testing.T, edges aabbworld.Edges, buckets int, ladder lod.
 
 // the rig's plugin and observers, its ECS not yet made
 func newSectorRig(edges aabbworld.Edges, buckets int, ladder lod.Ladder) *sectorRig {
-	near := cameratest.NewFromSpace(4096, 512, edges)
-	far := cameratest.NewFromSpace(4096, 512, edges)
-	near.SetViewport(100, 100)
-	far.SetViewport(100, 100)
-	far.ZoomOut(4, 0, 0)
-	far.(interface{ See(factor float32) }).See(2)
-	r := &sectorRig{watch: &watchers{cams: []camera.Camera{near, far}}}
+	near, far := rigCams(edges)
+	r := &sectorRig{watch: &watchers{cams: []camera.Camera{cameratest.Showing(near),
+		cameratest.Showing(far)}}}
 	r.observe(100)
 	r.p = NewPlugin(Config{
 		Space:    SpaceCfg{Width: 4096, Height: 512, Edges: edges},
@@ -120,6 +117,17 @@ func newSectorRig(edges aabbworld.Edges, buckets int, ladder lod.Ladder) *sector
 	r.things = kind.Named[thing](r.p.Kinds(), "thing")
 	r.keens = kind.Named[keenThing](r.p.Kinds(), "keen")
 	return r
+}
+
+// the rig's two observers over pictures 100 pixels square, bounded as a camera's is
+func rigCams(edges aabbworld.Edges) (near, far camera.Camera) {
+	near = cameratest.NewFromSpace(4096, 512, edges)
+	far = cameratest.NewFromSpace(4096, 512, edges)
+	near.SetViewport(100, 100)
+	far.SetViewport(100, 100)
+	far.ZoomOut(4, 0, 0)
+	far.(interface{ See(factor float32) }).See(2)
+	return near, far
 }
 
 // makes the rig's ECS, from the save at load where one is given
@@ -1196,6 +1204,39 @@ func TestSectors_KeepEveryLevelsMarkThroughASave(t *testing.T) {
 	}
 	if got := loaded.byFar(); !sameLevels(got, far) {
 		t.Errorf("entities %v by their pace loaded, want %v", got, far)
+	}
+}
+
+func TestSectors_HoldASectorOffThePictureAtStrategicButRoundTheViewpoint(t *testing.T) {
+	wide := twoLevels
+	wide.Sight = 4096
+	r := sectorWorld(t, wide)
+	near, far := rigCams(0)
+	r.watch.cams = []camera.Camera{near, far}
+	// the pictures end at 150 and 300: the viewpoint's sector and the second round it are held at
+	// the near observer's L2, the rest, within both sights but off both pictures, at Strategic,
+	// the third graded a level finer beside the second
+	r.spawn(100, 550, 1100, 1600)
+	r.observe(100)
+	r.run()
+	if got := r.at(lod.L2); !same(got, 100, 550) {
+		t.Errorf("at L2 %v, want those at 100 and 550, round the viewpoint", got)
+	}
+	if got := r.at(lod.L3); !same(got, 1100) {
+		t.Errorf("at L3 %v, want the one at 1100, beside a sector at L2", got)
+	}
+	if got := r.at(lod.L4); !same(got, 1600) {
+		t.Errorf("at L4 %v, want the one at 1600, off both pictures", got)
+	}
+	// from 1700 the fourth sector is the viewpoint's and the third round it; the first two are
+	// off the pictures, the second graded finer beside the third
+	r.observe(1700)
+	r.run()
+	if got := r.at(lod.L2); !same(got, 1100, 1600) {
+		t.Errorf("looked at from 1700, at L2 %v, want those at 1100 and 1600", got)
+	}
+	if got := r.at(lod.L4); !same(got, 100) {
+		t.Errorf("looked at from 1700, at L4 %v, want the one at 100, off the pictures", got)
 	}
 }
 

@@ -3,10 +3,12 @@ package light_test
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
@@ -226,5 +228,65 @@ func TestPlugin_SaysTheSunsShareOfTheLight(t *testing.T) {
 	}
 	if lit := render.WhiteLight; lit.Direct != 0 {
 		t.Error("white light has a sun's share: a shadow would darken it")
+	}
+}
+
+func TestPlugin_GathersTheBlocksAnewOnlyAsTheirChunksOrTheWorldsRestillsMove(t *testing.T) {
+	cfg := levelWorld
+	cfg.Sectors = world.SectorsCfg{Buckets: 8}
+	var tower kind.Of[spot]
+	r := &raiser{}
+	w, p, tick := litWorldIn(t, cfg, light.Config{}, func(w *world.Plugin, p *light.Plugin) {
+		tower = castKind(w, "tower", light.Baked)
+		w.Write().Seed(tower.Entry(spot{100, 100}), tower.Entry(spot{900, 100}))
+	}, r)
+	tick()
+	lightsOf(w, p)
+	lightsOf(w, p)
+	gathers := light.Gathers(p)
+	before := versionsOf(lightsOf(w, p))
+	lightsOf(w, p)
+	if got := light.Gathers(p); got != gathers {
+		t.Errorf("published twice more unchanged, the blocks were gathered %d times, want %d: "+
+			"both frames' lights hold them", got, gathers)
+	}
+	// a tower raised in place: nothing of it tells the light till the world is told
+	r.raise(5)
+	if after := versionsOf(lightsOf(w, p)); !slices.Equal(after, before) {
+		t.Errorf("a tower raised in place with the world told nothing, the versions are %v, "+
+			"were %v", after, before)
+	}
+	w.Write().Restill()
+	after := versionsOf(lightsOf(w, p))
+	if slices.Equal(after, before) {
+		t.Errorf("a tower raised in place and the world told, the versions are %v still", after)
+	}
+	if got := light.Gathers(p); got != gathers+1 {
+		t.Errorf("the blocks were gathered %d times, want %d: once more for the Restill", got,
+			gathers+1)
+	}
+	w.Write().Spawn(tower.Entry(spot{600, 620}))
+	tick()
+	if lit := lightsOf(w, p); len(lit.Casts[10].Blocks) != 1 || light.Gathers(p) != gathers+2 {
+		t.Errorf("a tower spawned, its sector's set holds %d blocks after %d gathers; want 1, %d",
+			len(lit.Casts[10].Blocks), light.Gathers(p), gathers+2)
+	}
+}
+
+// raiser raises every Z of the world in place, as a relief shaped under what stands would
+type raiser struct {
+	q *goke.Query
+	z goke.Comp[world.Z]
+}
+
+func (r *raiser) Init(si *goke.SysInit) { r.q = si.NewQueryBuilder(&r.z).Build() }
+
+func (r *raiser) Update(*goke.CmdBuf, time.Duration) {}
+
+func (r *raiser) raise(by float32) {
+	for r.q.All(); r.q.Next(); {
+		for i := range r.z.Slice(r.q.Cursor()) {
+			r.z.Slice(r.q.Cursor())[i].Altitude += by
+		}
 	}
 }

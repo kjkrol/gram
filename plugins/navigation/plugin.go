@@ -65,6 +65,7 @@ type Plugin struct {
 	spacing      Spacing
 	routers      int
 	hierarchy    Hierarchy
+	cache        Cache
 	handKeeping  traffic.HandKeeping
 	read         Read
 	write        Write
@@ -152,6 +153,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	}
 	if p.hierarchy = p.hierarchy.resolve(p.worldPlugin, brd); !p.hierarchy.Off {
 		coordinator.Hierarchy(int(p.hierarchy.Side), float64(p.hierarchy.From))
+		coordinator.Cache(spacing.Cache(p.cache))
 	}
 	p.finder, p.coordinator = finder, coordinator
 	p.pathRenderer.Finder = finder
@@ -272,6 +274,24 @@ func sectorSide(w *world.Plugin, b *board.BoardRead) uint16 {
 // before Use.
 func (p *Plugin) WithHierarchy(h Hierarchy) *Plugin {
 	p.hierarchy = h
+	return p
+}
+
+// Cache is where the hierarchies the long routes are climbed through are kept between runs, a
+// file a domain in Dir: read as a domain's hierarchy is first asked for, so a run starts with
+// its routes climbed at once, and, where Keep, written once built and appended to as regions
+// are built again. Version names how the game prices its steps, its kinds' paces and its
+// classes: a change to them is a new Version, or the file kept shows the old prices. An empty
+// Dir keeps no files; a file of another board, version or shape is built anew.
+type Cache struct {
+	Dir     string
+	Keep    bool
+	Version string
+}
+
+// WithCache has the hierarchies kept between runs as c says, none by default. Call before Use.
+func (p *Plugin) WithCache(c Cache) *Plugin {
+	p.cache = c
 	return p
 }
 

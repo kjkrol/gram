@@ -73,7 +73,13 @@ keeps only what those do not.
   distance from camera.Viewpoint)`, wrap-aware (`Grid.Nearest`), coarser than a level past its
   `Ladder.Rings[level]` (`m/rings`, 2026-11-08; widened with the Sight by the camera's), finer
   at once and coarser only past `Ladder.Hold`'s hysteresis (a threshold by 10%, the Sight and
-  the rings by half a sector), then grades
+  the rings by half a sector), and no finer than Strategic where `cam.Visible` shows no part of
+  the sector grown by that margin, but for the viewpoint's sector and its eight neighbours
+  (2026-11-09: the perspective's scale falls with the distance all round the eye, a point behind
+  it counted as one as far before it, and the orthographic one is one over the frame, so without
+  the picture's bound a camera held a disc of fine sectors round its viewpoint, 150–700 on
+  Madeira where it showed 25–35, and every forest in them unfolded: 20 000–30 000 trees), then
+  grades
   it so neighbours both under L6 differ by one at most (a Chebyshev transform; L6 borders
   anything, else the lift would wake rings beyond the Sight) — the camera's view reads that
   graded level. The level ticked is the finest graded level of any observer, with none the
@@ -278,6 +284,12 @@ keeps only what those do not.
 - The blocks go a set a sector (`Lights.Casts`, `d/shade`, 2026-11-07), each with a running hash
   and a version, so the baker bakes anew only the tiles a changed set's shadows reach; a thing
   with a `Lie` is one lying block (a bridge's handle), so the baker joins nothing (`t/whole`).
+- Every shadow keeps to `render.ShadowReach` (CLAUDE.md, 2026-11-10): the live ones in
+  `Distant.ShadowOf` and `Lamp.ShadowOf`, the baked blocks in `bake_blocks.wgsl` (the quad walks
+  the shadow's line to the ground as the relief's march does, never past six heights), the
+  clouds' slant in `air`. Before the rule the blocks' quads ran to the map's lowest ground
+  (28 km at sunset on Madeira: the bake stalled the frame at 18:30) and the cap lived in three
+  places under three names.
 
 ## board
 
@@ -462,14 +474,34 @@ keeps only what those do not.
   sector seen at L4 or L5 whose sheet is painted (`Config.Painted`, the photograph's version),
   the photo mesh (`terrain/photo.go`, `photo.wgsl`, one instanced draw a level after `eachLevel`,
   no index buffer): quads of at most `photoQuad` 8 texels a side (Madeira: 8 a side at L4, 4 at
-  L5); a corner stands at the highest top within a quad of it (the corner's own texel sank a thing
-  narrower than a quad), one cell under the ground where nothing stands, read from the tops image
+  L5); a corner stands at the top of what stands nearest it within a quad (the corner's own texel
+  sank a thing narrower than a quad; the highest within the reach, till 2026-11-09, made a forest
+  on a slope a terrace floating over its downhill trees, sky under its lip from the side), one
+  cell under the ground where nothing stands, read from the tops image
   (`tops.wgsl`, a texel a corner: the f16 top and whether anything stands near) worked out anew
   for a sector and its eight neighbours when its photograph's version changes (`photoMesh.watch`),
   never a frame (2026-11-07: searched per vertex every frame, 32 quads a side, it ran Madeira's
   start view at 38 FPS against `main`'s 110); a fragment with alpha 0 discarded, the rest the sheet's albedo
   lit through the relief's normal as that level's ground, clouds at L4, haze and the sight's fog;
-  it never binds the ground's albedo. A hex board draws tops alone at L3 and L4 (the sheet's
+  it never binds the ground's albedo. A corner where nothing stands near sinks one cell under
+  the ground, no deeper (tried 2026-11-09: sunk under the lowest ground, the quad between a
+  standing corner and a sunk one hung as a curtain under a crown on a ridge, against the sky
+  where the ground falls away behind). That quad holds nothing (`reach` ≥ a quad's side, so
+  every texel with something raises all four corners of its quad). A camera with an eye
+  (`eyed`: `camera.Eyed` and `Eye()` ok, the perspective riding or free) gets no sheet at all:
+  `drawPhotos` returns, and the world draws what the sheet stands in for as points
+  (`renderer.standIn`: the kind's look at the level or its blob, `Atlas.blob`, kept for every
+  kind drawn of a look, declared nothing at L4 or not). A sheet is a photograph from above: from
+  the side its trees hang as discs in the air, over a slope a terrace at the uphill trees' tops.
+  Tried and dropped 2026-11-09 (the user's eye, from the lookout at Paul da Serra's eastern edge):
+  walls down the sheet's sides as a second instanced draw, one colour a wall, then cut texel by
+  texel into the trees along the edge; a deeper sink of the sunk corners; the sheet solid in the
+  perspective (a fragment seen through writes the depth and holds the backdrop, drawn at
+  `Furthest` later, out of the hole, which shows the clear colour); every variant left rectangles,
+  curtains or confetti nothing like the trees that grow at a zoom. Lesson: a top photograph has
+  no side; far trees from the side are points now and billboards of the kinds' Side later (stage
+  `v`). A hex board draws tops alone at L3 and L4
+  (the sheet's
   albedo flat on the L4 tops) and one quad a sector from its tops' image at L5, the sheet over
   it. No care rings, no care settings (the user's rule: one level a sector).
 - The billboards stand upright across the screen's level right, as tall on the screen as their
@@ -590,7 +622,8 @@ keeps only what those do not.
 - **Levels** (2026-11-04, second design): a unit's `bodies.Member.Level` is its own sector's
   mark (`bodies.Levels`, once a chunk). At L4 or coarser the unit walks the same refined route of
   cells the climb gives (`Finder.Climb`, 64 steps, re-asked when spent; the hierarchy not ready →
-  the ask waits: Madeira's first build ~20 s of game) in the **far mode** (`traffic/far.go`):
+  the ask waits: Madeira's first build ~20 s of game, the runs after load it from
+  `navigation.Cache`'s file, 2026-11-10) in the **far mode** (`traffic/far.go`):
   `goFar` releases the Leg, leaves the cells and puts `sector.Abstract`; `tailFar`/`driveFar` is
   pure path-following (waypoint, lookahead, `passed`, `turnFactor`, `approach`, `Index++`,
   `keep.Watch`) without `reserveLeg`, the occupancy, `keep.Steer`, the queue or the formation,
@@ -861,6 +894,19 @@ keeps only what those do not.
 
 ## forest
 
+- A kind's look `Slot.Canopy()` shows a unit standing under the entity through it, at
+  `canopyOpacity` 0.75, in a view from above alone (`!cam.Projection().Sorts()`), with the setting
+  `Canopies` on (`ShowCanopies`, `Read.Canopies`, `Config.Canopies`; `control.Switch` under
+  `control.Game`, a new shared section listed in `players.sharedSections`): Publish marks
+  `figure.fixed` from the chunk's `Fixed` and queries the space ±0.5 round every moving figure's
+  middle into `figures.veiled`; Compose veils a `Fixed` figure of a `flagCanopy` look in that set
+  through `CanopyLook.Veil`. `Slot.Cutout()` has a look drawn in render's cutout pass
+  (`flagCutout`, `CutoutLook`), both spread to kin like `Lying`; `renderer.mark(canopies,
+  cutouts)` from `SetAtlas`. The user's word (2026-11-09): crowns see-through only over a unit,
+  never in the perspective, a Game checkbox.
+
+## forest
+
 - Made over the world and the board (`NewPlugin(w, brd)`), no pass of its own: the trees come and go
   by the world's `Unfold`, `Fold` and `Folding`. `Types.Define(name, Spec)` registers a kind of tree
   on `board.StandingTemplate` (so `Fixed`) with the plugin's `TreeRole` (its rule despawns the tree
@@ -884,6 +930,16 @@ keeps only what those do not.
   nothing is planted. A single share with no band spawns straight and reads no height. `Felled`
   holds for a `Fold` with fewer parts than the stand plants in that stretch; a `Stand.When` is an
   effect of the forest choosing between stands (forest-army's thinning).
+- Every tree's look is `.Canopy().Cutout()` (2026-11-09): whole sprites (the `seeThrough` of
+  3/4 opacity baked into the pixels is gone from the plugin's `crown`/`standing` and the
+  topography's drawers; it made the trees translucent in every view and in the sheets), seen
+  through only over a unit from above, drawn in the cutout pass otherwise.
+- A stand tests the spot the tree stands on, shaken (`shaken[k]`, where it spawns and reads the
+  height), not the plot: `grows(at)` is the cell's bare kind among `Cells`, no way's band of the
+  cell or of a neighbour reaching it (`onWay`: the hub of `Width/2` and a strip to `Step(i)/2` per
+  `Links` bit, the geometry of `terrain/decks.go` `inBand`, widened by `Width/4 + widest crown/2`,
+  the widest crown of the Mix read lazily from the Types, defined after the Rules section) and no
+  deck over it (`DecksOver`). A road built later through a standing forest is issue #57.
 - The sector's side comes from the world (`Read.SectorSide`). The demos: topography's `woods`
   (`forest.go`: laurel, pine, heather by height; `tree.go` the specs), forest-army's `forest`
   with its felled role and two stands.

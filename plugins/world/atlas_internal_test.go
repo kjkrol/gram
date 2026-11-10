@@ -553,3 +553,29 @@ func TestAtlas_DrawsEachLevelsVersionOverTheEntitysBoxAtItsZ(t *testing.T) {
 		})
 	}
 }
+
+func TestAtlas_CanopyReachesEverySpriteDrawnInTheKindsPlace(t *testing.T) {
+	p := NewPlugin(Config{
+		Space:    SpaceCfg{Width: 100, Height: 100},
+		Entities: EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+	p.write.Effects().Define("wet", effect.Spec{})
+	wet := p.write.Effects().Named("wet")
+	red := render.Solid(color.RGBA{R: 255, A: 255})
+	tree, deck := p.Kinds().NewSprite(), p.Kinds().NewSprite()
+	a := p.NewAtlas()
+	a.Add(tree, 8, red).Canopy().Under(wet, red).At(lod.L3, red)
+	a.Add(deck, 8, red).Under(wet, red)
+	a.Close()
+	canopies := a.canopies()
+	for _, id := range []render.SpriteID{tree, a.twins[wet.Mark()][tree], a.versions[tree][lod.L3].id} {
+		if !canopies[id] {
+			t.Errorf("sprite %d in the tree's place is no canopy, want one", id)
+		}
+	}
+	for _, id := range []render.SpriteID{deck, a.twins[wet.Mark()][deck]} {
+		if canopies[id] {
+			t.Errorf("sprite %d in the deck's place is a canopy, want none", id)
+		}
+	}
+}

@@ -165,32 +165,36 @@ What is left to do. Take an item out when it lands.
   demo reads no fields and its map is not renewed; a change to the rules planting a field is a new
   `SheetsVersion` by hand (a sector's signature knows the kinds in it, not the rules); `Swap`
   schedules the developing only when photos wait, so the dirty tiles re-arm the Defer themselves
-  (the condition in `Swap` is the cleaner lever); an orthographic camera at L2 sees every field
-  within the Sight (the scale is one over the whole frame: ~30 000 trees on Madeira), so the
-  island's L2 tick is the forests' (the ladder's `Rings` bound the levels by distance since
-  2026-11-08; the topography sets none yet: a decision of the picture, L3 within a radius and the
-  sheet beyond); an unfolded caravan stands at its goal till it folds (the whole learns its parts
-  arrived only at `Fold`: an effect laid under `Unfold`, safe for a point aggregate, or a moment);
-  houses as prisms at noon are dark boxes with a roof (a billboard with a facade); only two
-  settlements get a lamp (the blocks of 16 cut the big towns into fields under 16 cells; a
-  settlement as one field over its cells); a hand-placed entity row goes when gramap regenerates the
-  map (it keeps `units:` alone); the caravans stand ~20 s of game at the start till the hierarchy is
-  built. Measured and open (2026-11-06, `doc/plans-perf.md` "Wynik etapu `d`"): the island at L4
-  costs 22 ms of GPU a frame on an Intel UHD 620 (the whole island in the sheets, 173 sectors with
-  the photo mesh) and a steady tick of 8.7 ms where the old map at L2 had 2.1 ms (a CPU profile of
-  the probe is the next step); the forest at L2 is 24,000 trees and a tick of 20–30 ms before the
-  still layer and the altitude pass set once (`f/still`, `f/space`; the round's result in
-  `doc/plans-perf.md`); a tile is saved in 29 ms (`png.BestSpeed`, in a goroutine; the target was
-  10) and loaded in 2.5 ms (the target 2).
+  (the condition in `Swap` is the cleaner lever); a sector off a camera's picture is Strategic since
+  2026-11-09, so a zoom to L2 unfolds the forests shown and a ring of sectors round them, not every
+  field within the Sight (~30 000 trees on Madeira before); the ladder's `Rings` stay unset in the
+  topography, a decision of the picture (L3 within a radius of the viewpoint, the sheet beyond); the
+  unfolded caravan stands at its goal till it folds (the whole learns its parts arrived only at
+  `Fold`: an effect laid under `Unfold`, safe for a point aggregate, or a moment); houses as prisms
+  at noon are dark boxes with a roof (a billboard with a facade); only two settlements get a lamp
+  (the blocks of 16 cut the big towns into fields under 16 cells; a settlement as one field over its
+  cells); a hand-placed entity row goes when gramap regenerates the map (it keeps `units:` alone);
+  the caravans stand ~20 s of game at the first start till the hierarchy is built, the runs after
+  load it from the cache. Measured and open
+  (2026-11-06, `doc/plans-perf.md` "Wynik etapu `d`"): the island at L4 costs 22 ms of GPU a frame
+  on an Intel UHD 620 (the whole island in the sheets, 173 sectors with the photo mesh) and a steady
+  tick of 8.7 ms where the old map at L2 had 2.1 ms (a CPU profile of the probe is the next step);
+  the forest at L2 is 24,000 trees and a tick of 20–30 ms before the still layer and the altitude
+  pass set once (`f/still`, `f/space`; the round's result in `doc/plans-perf.md`); a tile is saved
+  in 29 ms (`png.BestSpeed`, in a goroutine; the target was 10) and loaded in 2.5 ms (the target 2).
+- **The forests in view, what is left** (2026-11-09) — the trees' depth before the ground's
+  colour pass, so the ground under a forest is not shaded where a crown hides it (the terrain's
+  prime and colour phases split across passes without polluting the ground's readable depth: the
+  bigger lever the cutout pass left); the board's standing things (houses) as cutouts, measured;
+  what stands far off through a camera with an eye as billboards of the kinds' Side sprites in
+  place of points (the GPU scene of stage `v`); a road built through a standing forest felling
+  its trees (#57).
 - **The shade in tiles, what is left** (2026-11-07) — the trees' `Baked` shadow is a look
-  decision: every tree near a band of the sun's bake stretches its quad down to the lowest
-  ground (~11 000 shade pixels a tree, 4000–5400 trees a band over the forest: a band a frame
-  costs 100–300 ms of GPU as the day turns), so the lever is `far` from the ground near the
-  block in `bake_blocks.wgsl`, or `NoShadow` on the demo's trees; a tile fades not, and
-  overwrites the band's "before" where a band of the same frame overlaps it; the frame budget's
-  `Coarse` switch still bakes the whole shade (halving or doubling the old image would do);
-  `Benchmark_Bake_Tile` is 4.8 ms, GPU-bound (the target 0.5), `Benchmark_Light_Publish`
-  0.6 ms (the target 0.4: a reciprocal in `sector.Grid.Of`, or no walk when no chunk changed).
+  decision (`NoShadow` on the demo's trees is the other); a tile fades not, and overwrites the
+  band's "before" where a band of the same frame overlaps it; the frame budget's `Coarse`
+  switch still bakes the whole shade (halving or doubling the old image would do);
+  `Benchmark_Light_Publish` 0.6 ms (the target 0.4: a reciprocal in `sector.Grid.Of`, or no walk
+  when no chunk changed).
 - **Tiers and the handle, what is left** (2026-11-07) — only bridges stand on a handle: gramap's
   walls and a settlement's long houses still live piece by piece; `sector.Grid.Fit` costs ~27 % of
   a publish of long things (`Benchmark_World_Seams/long`), an O(1) `Fit` from the box's first

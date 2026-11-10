@@ -66,7 +66,8 @@ func newStrip(t *testing.T, unfolds int, seen bool) *strip {
 	s := &strip{}
 	ladder := lod.Ladder{Scales: [lod.Levels - 1]float32{0, 0, 0.8, 0.4}, Unfolds: unfolds}
 	if seen {
-		s.cam = cameratest.NewFromSpace(stripWidth, sectorSide, 0)
+		// its picture shows the whole strip: the budget goes by the distance alone
+		s.cam = cameratest.Showing(cameratest.NewFromSpace(stripWidth, sectorSide, 0))
 		s.cam.SetViewport(100, 100)
 		s.cam.ZoomOut(4, 0, 0)
 		s.cam.CenterOn(stripWidth, sectorSide/2, 0)

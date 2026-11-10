@@ -29,7 +29,15 @@ wynik etapów: `doc/plans-perf.md` (Etap 2, Fale 3–5, „Udziały tempa", „K
   je ma, gram ich nie woła. Bench `Navigation_Tick/abstract,1000` (świat bez kamery: L4, pełny
   krok) obok `open,1000`: ~0,54 ms vs 2,8 ms (routing liczy 3× mniej węzłów: odpowiedzi
   pamiętane). Pierwsza trasa czeka na pierwszą budowę hierarchii (Madera ~20 s gry): jednostki
-  stoją; przyspieszenie budowy to otwarty punkt.
+  stoją; od 2026-11-10 hierarchia jest pamięcią podręczną gry (`navigation.Cache`,
+  `spacing/hierarchies.go`): zapis po gotowości, zrzut co 5 s klastrów przebudowanych
+  (`hpastar.Solver.Save/Load/Dump`), wczytanie przy pierwszej prośbie o domenę; nagłówek to
+  wersja gry, odcisk klas, bok i liczba klastrów, potem odcisk komórek każdego klastra
+  (`BoardRead.CellFingerprint`: przejezdność i wysokość środka), więc klaster nad zmienionymi
+  komórkami idzie `StaleCluster` i buduje się sam, reszta wczytana. Odciski wpisywane w miejsce
+  dopiero, gdy hierarchia gotowa, inaczej plik mówiłby o klastrze, którego jeszcze nie zrzucił.
+  Zapis na jednej gorutynie z kanału, w kolejności; pierwszy błąd kończy zapisy. `Stale` z listy
+  zmian i `-prepare` zostają w etapie `m`.
 
 ## Niezmienniki
 

@@ -23,6 +23,7 @@ type altitudeSystem struct {
 	relief   *Relief
 	surfaces ground.Surfaces
 	pace     goke.Opt
+	restill  func() // the world told what stands for good was moved in place (Write.Restill)
 
 	query  *goke.Query
 	base   goke.Comp[world.Base]
@@ -58,9 +59,12 @@ type groundedChunk struct {
 // AltitudeSystem is the goke.System keeping the movers on r at their heights, standing on what
 // surfaces says, or on r's ground where it is nil, one bigger than a cell on the highest ground
 // under its box, and what stands on r's ground, each as pace says (nil, all). Run it in every
-// step of the simulation, after movement and collisions.
-func (r *Relief) AltitudeSystem(surfaces ground.Surfaces, pace goke.Opt) goke.System {
-	return &altitudeSystem{relief: r, surfaces: surfaces, pace: pace, span: r.grid.CellSpan()}
+// step of the simulation, after movement and collisions. It tells restill (nil, none) when it
+// stands what stands for good on the relief anew, the relief having changed (world.Write.Restill).
+func (r *Relief) AltitudeSystem(surfaces ground.Surfaces, pace goke.Opt,
+	restill func()) goke.System {
+	return &altitudeSystem{relief: r, surfaces: surfaces, pace: pace, restill: restill,
+		span: r.grid.CellSpan()}
 }
 
 func (s *altitudeSystem) Init(si *goke.SysInit) {
@@ -136,6 +140,9 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 func (s *altitudeSystem) ground() {
 	if v := s.relief.Version() + 1; v != s.groundedAt {
 		s.grounded, s.groundedAt = s.grounded[:0], v
+		if s.restill != nil && v > 1 {
+			defer s.restill()
+		}
 	}
 	k := 0
 	for s.parts.All(); s.parts.Next(); k++ {

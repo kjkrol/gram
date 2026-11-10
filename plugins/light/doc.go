@@ -29,7 +29,8 @@
 //
 // Every entity casts and takes as its [Shadow] says, a knob its kind declares and an effect may
 // turn: a [Patch] or the [Silhouette] of its sprite laid over the ground every frame, a [Baked]
-// block whose shadow the ground's shade holds, or [NoShadow]; and which shade it takes
+// block whose shadow the ground's shade holds, gathered anew as its chunk changes or the world's
+// Restills move and standing where it was baked meanwhile, or [NoShadow]; and which shade it takes
 // (render.Taking), all unless it says. A kind declaring none casts a Patch taking all; what the
 // board stands is Baked. The shade of the ground — the relief's shadows over a [Relief] the
 // topography gives ([Plugin.OverRelief]), level ground without one, and the Baked blocks' on
@@ -38,7 +39,9 @@
 // [CoarseShadows] bakes it half as fine. render lays the live shadows over whatever ground the
 // frame drew, read off its depth, as a [ShadowPolicy] turns them by the distance from the eye
 // ([Plugin.WithShadowPolicy]): the distant light's everywhere, and on level ground the lamps' too,
-// from the lamps nearest the camera, as many as the Config says or none ([LampShadows]).
+// from the lamps nearest the camera, as many as the Config says or none ([LampShadows]). Every
+// shadow, live or baked, the sun's or a lamp's, reaches at most render.ShadowReach times its
+// caster's height: a light on the horizon would cast a shadow for ever.
 //
 // # Light on things
 //

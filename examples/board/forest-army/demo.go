@@ -121,9 +121,10 @@ func main() {
 				Sight:  Sight,
 				Fold:   FoldAfter,
 			},
-			Far:     world.Banners,
-			Counts:  true,
-			Heights: true,
+			Far:      world.Banners,
+			Counts:   true,
+			Canopies: true,
+			Heights:  true,
 		}).
 		Plugins(a.makePlugins).
 		Figures(a.defineFigures).

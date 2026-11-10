@@ -131,7 +131,11 @@ fn fs_main(p: Piece) -> @location(0) vec4<f32> {
         c = vec4<f32>(c.rgb * (1.0 - p.shade.y * (1.0 - lit)), c.a);
     }
     c = vec4<f32>(mix(c.rgb, U.Fog * c.a, p.fog), c.a);
-    if U.Deep > 0.5 && c.a < 0.5 / 255.0 {
+    if U.Cut > 0.5 {
+        if c.a < 0.5 {
+            discard; // a cutout: what is less than half there is left out, the depth kept for what shows
+        }
+    } else if U.Deep > 0.5 && c.a < 0.5 / 255.0 {
         discard; // writing no depth where nothing shows
     }
     return c;

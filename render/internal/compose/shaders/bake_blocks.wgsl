@@ -18,8 +18,7 @@ fn vs_main(
     @location(1) size: vec4<f32>,
 ) -> Cast {
     let sun = lightWay();
-    // the lowest ground the block's shadow falls on lies this far from it, away from the light
-    let far = (size.w - bakedLow()) / max(sun.z, 1e-3);
+    let far = shadowFar(at, size, sun);
     let reach = -sun.xy * far;
     let across = vec2<f32>(-at.w, at.z);
     var lo = vec2<f32>(1e30, 1e30);
@@ -46,6 +45,35 @@ fn vs_main(
     return c;
 }
 
+// shadowFar is how far along the light's way the block's shadow reaches: where the line from its
+// top, the way sun, meets the ground, walked in steps of three quarters of a cell as the relief's
+// shadows are, down to the lowest ground at most, and never past shadowReach times the block's
+// height over the ground, as a light near the horizon would take it (light.ShadowReach in Go).
+fn shadowFar(at: vec4<f32>, size: vec4<f32>, sun: vec3<f32>) -> f32 {
+    let z = max(sun.z, 1e-3);
+    var most = (size.w - bakedLow()) / z;
+    let across = length(sun.xy);
+    if across > 1e-6 {
+        most = min(most, shadowReach * (size.w - size.z) / across);
+    }
+    let stride = U.BakeCell * 0.75;
+    var t = 0.0;
+    for (var k = 0; k < shadowSteps; k++) {
+        let next = t + stride;
+        if next >= most {
+            return most;
+        }
+        let q = at.xy - sun.xy * next;
+        if size.w - z * next <= bakedHeight(q) {
+            return next;
+        }
+        t = next;
+    }
+    return most;
+}
+
+const shadowReach: f32 = 6.0;
+
 @fragment
 fn fs_main(c: Cast) -> @location(0) vec4<f32> {
     let sun = lightWay();
@@ -55,9 +83,9 @@ fn fs_main(c: Cast) -> @location(0) vec4<f32> {
     return vec4<f32>(lit, 1.0, 1.0 - sqrt(clamp(top / U.ShadeSpan, 0.0, 1.0)), lit);
 }
 
-// blockedBy is how much of the light, the way sun, reaches p past the block at, size: none where the
-// line to the light passes through it, fading in over the penumbra as the relief's shadows do — how
-// far the line passes by against how far along it the block lies.
+// blockedBy is how much of the light, the way sun, reaches p past the block at, size: none where
+// the line to the light passes through it, fading in over the penumbra as the relief's shadows do
+// — how far the line passes by against how far along it the block lies.
 fn blockedBy(p: vec3<f32>, sun: vec3<f32>, at: vec4<f32>, size: vec4<f32>) -> f32 {
     if sun.z <= 0.0 || p.z >= size.w {
         return 1.0;

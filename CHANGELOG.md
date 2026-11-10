@@ -1,5 +1,94 @@
 # Changelog
 
+## v0.21.0 — unreleased
+
+**Added**
+- `world.Slot.Canopy`: a look showing the unit standing under its entity through it, at three
+  quarters, in a view from above alone; the world's setting `Canopies` (`ShowCanopies`,
+  `Read.Canopies`, `Config.Canopies`), a switch under the settings' new section **Game**
+  (`control.Game`). Publish asks the space what stands over every moving figure's middle, Compose
+  veils the canopies among them through the `CanopyLook` seam (`Veil`), the flat look laying such
+  a sprite in the frame glazed (`render.Frame.Glazed`); a camera in relief never does. The
+  forest's trees are canopies; the topography and forest-army start with the setting on.
+- `render.Cutout`, a pass between the opaque ground and what is seen through: a Direct asking
+  `Frame.DrawCutout` draws there, tested against the depth and writing it, what it draws cut at
+  half its alpha, in no order. `world.Slot.Cutout` has a kind's look drawn so where it is whole
+  (`CutoutLook`, `render.Sprites.Cutout`; the topography's billboards partitioned alike), so a
+  unit under a crown is hidden in a view in relief and the crowns need no order; the forest's
+  trees are cutouts.
+- A camera with an eye, riding or free in the perspective, sees no sheet of what stands: the
+  sheet is a photograph from above, and from the side its trees hung as discs in the air (a
+  terrace at the uphill trees' tops over a forest on a slope; walls tried down its sides and
+  dropped: rectangles, then columns, nothing like the trees that grow at a zoom). What a sheet
+  stands in for is drawn for such a camera as the loose units are far off, a point of its look at
+  that level or of its kind's blob (`Atlas` keeps a blob for every kind drawn of a look, declared
+  nothing at L4 or not): a forest far off is a mass of dots standing on the ground, each the tree
+  that grows there at a zoom. From above and in the pitched orthographic the sheet is drawn as
+  before.
+- The topography's `lookout`: a walker standing for good at Paul da Serra's eastern edge, facing
+  the peaks, to select and ride (V, twice for its eyes) for the panorama of the far forests.
+- `navigation.Cache` (`WithCache`): the hierarchies the long routes are climbed through kept
+  between runs, a file a domain in a folder the game names, read as a domain's hierarchy is
+  first asked for and, where `Keep`, written once built and appended to every few seconds with
+  the regions built again since; a `Version` names how the game prices its steps. The file
+  carries a fingerprint of every region's cells (`board.BoardRead.CellFingerprint`, what a step
+  reads of a cell and the height under it), so a run over a board changed since builds the
+  regions over the changed cells again alone and loads the rest; a file of another version or
+  shape, or cut short, is built anew. `Counts.Loaded` counts the hierarchies loaded. The
+  topography keeps Madeira's in `~/.cache/gram/topography/hierarchy` (`RoutesVersion`): the
+  caravans set off at the first tick (the two domains' files, 16 and 6 MB, loaded in ~0.2 s
+  each), where the first run had them stand ~20 s of game. Built on hpastar's `Solver.Save`,
+  `Load` and `Dump` (v1.6.0).
+- `render.ShadowReach`: a shadow reaches at most six times its caster's height, whatever casts it
+  and under whatever light, the one rule for the live shadows, the baked blocks and the clouds
+  (the cap stood three times over under three names before, and not at all for the blocks).
+- `world.Read.Restills`, counting `Write.Restill`: the still layer, the sheets' signatures and
+  the baked shadows take what stands for good anew once it changed in place.
+
+**Fixed**
+- A tree's baked shadow ran from its top to the lowest ground of the map (`bake_blocks.wgsl`):
+  1.5 km at noon on Paul da Serra, 28 km at 18:30, every tile of the shade drawn over by every
+  tree of the island till the GPU gave the device up. The block's quad ends where its shadow's
+  line meets the ground, walked as the relief's shadows are, and at `ShadowReach` heights at the
+  most; the sweep of the island at 18:30 runs at 190 FPS where it crashed, `Bake_Tile/sunset`
+  9.7 ms in place of 22.8.
+- A forest's stand plants no tree on a road's band or under a deck: it tests the spot the tree
+  stands on, shaken, not the plot, and keeps off the ways running across that cell and its
+  neighbours by half the widest crown of its Mix and a quarter of the way's width (Madeira's roads
+  run through 272 forest cells; its `SheetsVersion` is `madeira-3`).
+- The tree sprites are whole: the three quarters' opacity baked into every one (the forest's looks
+  and the topography's) made the trees translucent in every view, in the relief too, and the
+  sheets photograph a translucent forest.
+- A corner of a sheet's lattice stands at the top of what stands nearest it within its reach, the
+  highest of those equally near, not at the highest within the reach: over a forest on a slope
+  the sheet was a terrace at the uphill trees' tops, floating over the downhill ones.
+- A sector a camera's picture does not show is ticked at Strategic or coarser, but for the sector
+  the camera's viewpoint lies in and the eight round it, simulated whole whichever way the camera
+  looks: the levels were held from the scale shown and the distance alone, so a camera from above
+  zoomed to L2 held every sector within its Sight at L2 (562–723 on Madeira, 30 000 trees
+  unfolded, where it showed 30) and one in the perspective a disc round its eye, a point behind
+  the eye counted as one as far before it (146–201 fine sectors where it showed 0–24, 25 000
+  trees); a sweep of the island with zooms held 5 000–15 000 trees in place of 25 000–31 000 and
+  the tick 3.4/4.3 ms in place of 4.7/7.3 (the perspective/from above, medians; `cameratest.Showing`
+  is a camera whose picture shows every box, for a test of the scale and the distance alone).
+
+**Changed**
+- uid v1.3.0: uid's v1.2.0 was tagged by mistake from code older than v0.2.1 and stays in the
+  module proxy, so `go get -u` raised uid to a version goke does not compile against
+  (kjkrol/uid#2); v1.3.0 is v0.3.0's code and retracts v1.2.0. hpastar at the commit of its PR #9
+  (`Save`, `Load`, `Dump`) till v1.6.0 is tagged.
+
+**Improved**
+- What stands for good is kept between frames: the publish signed every tree under a sheet into
+  its sector and the light hashed every baked block each frame (~2.8 ms for 20 000 trees) though
+  what stands changes only as a stretch unfolds or folds. The standers keep a sector's signature
+  and its photograph's instances by chunk, walked anew as a chunk comes, goes or has its table
+  moved or as `Write.Restill` says, and the light gathers its blocks on the same terms; a sweep
+  of Madeira in the perspective ticks in 3.1–3.4 ms in place of 3.9–4.2, from above 2.9 in place
+  of 4.6, `Light_Publish` 2.8 µs in place of 0.6 ms with nothing changed. A thing standing for
+  good moved in place (its altitude by a relief reshaped, its caps) is told by `Restill`, as the
+  still layer asked already; the topography tells it as a relief change regrounds what stands.
+
 ## v0.20.0 — 2026-11-09
 
 **Forests as a plugin, the still layer of the space, one banner for a crowd and a badge for a

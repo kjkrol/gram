@@ -33,6 +33,8 @@ type sectors struct {
 	graded [][]lod.Level
 	// the sectors graded finer than their raw levels at the last pass, over every observer
 	lifts int
+	// the sector an observer's viewpoint lies in and the eight round it, as hold walks a row
+	round []int
 	// the observer seenBy last found, looked at first: the views refresh one after another
 	last int
 	// by sector: the fullest level a Keen entity in it or round it keeps it at, Omitted for none
@@ -319,11 +321,19 @@ func (s *sectors) take(j int, cam camera.Camera) {
 }
 
 // the level cam sees every sector at, from the scale shown at the sector's point nearest its
-// viewpoint and how far that lies, a coarser one than row had only half a sector past it
+// viewpoint and how far that lies, a coarser one than row had only half a sector past it; a
+// sector the picture does not show, grown by that margin, no finer than Strategic, but for the
+// viewpoint's sector and the eight round it, which go on whole whichever way the camera looks
 func (s *sectors) hold(cam camera.Camera, row []lod.Level) {
 	ladder := s.ladder.Widened(camera.SightOf(cam))
 	margin := s.grid.Side() / 2
 	x, y, ok := camera.Viewpoint(cam)
+	s.round = s.round[:0]
+	if ok {
+		home := s.grid.Of(x, y)
+		s.round = append(s.round, home)
+		s.grid.Neighbours(home, func(j int) { s.round = append(s.round, j) })
+	}
 	for i, from := range row {
 		nx, ny, dist := s.grid.Nearest(i, x, y)
 		if !ok {
@@ -331,8 +341,19 @@ func (s *sectors) hold(cam camera.Camera, row []lod.Level) {
 			nx, ny = (box.TopLeft.X+box.BottomRight.X)/2, (box.TopLeft.Y+box.BottomRight.Y)/2
 			dist = 0
 		}
-		row[i] = ladder.Hold(from, camera.ScaleShown(cam, nx, ny, 0), dist, margin)
+		level := ladder.Hold(from, camera.ScaleShown(cam, nx, ny, 0), dist, margin)
+		if level < lod.Strategic && !slices.Contains(s.round, i) && !s.shown(cam, i, margin) {
+			level = lod.Strategic
+		}
+		row[i] = level
 	}
+}
+
+// whether cam's picture shows the sector i grown by margin
+func (s *sectors) shown(cam camera.Camera, i int, margin float32) bool {
+	box := s.grid.Box(i)
+	m := geom.NewVec(margin, margin)
+	return cam.Visible(geom.NewAABB(box.TopLeft.Sub(m), box.BottomRight.Add(m)))
 }
 
 // has graded raw with no sector drawn more than a level coarser than one drawn beside it, each

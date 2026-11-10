@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/plan"
@@ -23,6 +25,7 @@ import (
 	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/uid"
 )
 
 // Resources is what the world publishes: its Config, its Telemetry and its Settings.
@@ -95,11 +98,16 @@ func NewPlugin(cfg Config) *Plugin {
 	p.sectors = newSectorsView(p)
 	p.renderer.clock = m.clock.Read().Shown
 	p.renderer.space = cfg.Space
+	p.renderer.canopies = p.read.Canopies
+	p.renderer.query = func(box geom.AABB, fn func(uid.UID64)) {
+		m.space.Read().Query(box, aabbworld.AnyCapability, fn)
+	}
 	if m.sectors.grid != nil {
 		p.renderer.covers = m.sectors.cover
 		p.renderer.far.look, p.renderer.far.counted = p.read.FarLook, p.read.Counts
 	}
 	p.renderer.sheet = newSheets(cfg, m.sectors.grid)
+	p.renderer.restills = func() uint64 { return m.stills }
 	return p
 }
 

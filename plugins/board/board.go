@@ -1,6 +1,10 @@
 package board
 
 import (
+	"encoding/binary"
+	"hash/fnv"
+	"math"
+
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/tag"
@@ -212,6 +216,23 @@ func (r *BoardRead) Passage() uint64 { return r.cells.Passage() }
 
 // CellPassage is the Passage at which c's passage last changed; it only grows.
 func (r *BoardRead) CellPassage(c cell.ID) uint64 { return r.cells.CellPassage(c) }
+
+// CellFingerprint is a number of what a step over c reads of it, its passage and the height
+// under its middle, the same on every run for the same cell: a file kept of what was worked
+// out over the board, a hierarchy of its routes, is good where its cells match.
+func (r *BoardRead) CellFingerprint(c cell.ID) uint64 {
+	f := r.cells.CellFingerprint(c)
+	heights := r.Map().Heights()
+	if heights == nil {
+		return f
+	}
+	var buf [12]byte
+	binary.LittleEndian.PutUint64(buf[:], f)
+	binary.LittleEndian.PutUint32(buf[8:], math.Float32bits(heights.At(r.CellCenter(c))))
+	h := fnv.New64a()
+	h.Write(buf[:])
+	return h.Sum64()
+}
 
 // Map is what the board is drawn and priced by, its cells' kinds read through r: the plugin's,
 // or the simple map on a board no plugin runs.

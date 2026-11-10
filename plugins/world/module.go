@@ -39,6 +39,7 @@ type module struct {
 	despawned map[uid.UID64]struct{}
 	moving    spaceLayer
 	still     spaceLayer
+	stills    uint64 // how many times what stands for good was taken anew in place (Restill)
 
 	kinds *Kinds
 	// the ground's height under a point, the topography's; nil, the ground lies at 0
@@ -81,6 +82,7 @@ type module struct {
 	bandSwitches command.Queue[SwitchBands]
 	farLooks     command.Queue[ShowFar]
 	counts       command.Queue[ShowCounts]
+	canopies     command.Queue[ShowCanopies]
 	// what is drawn of the sectors, switched by sectorSwitches
 	sectorsShown   SectorsShown
 	sectorSwitches command.Queue[SwitchSectors]
@@ -157,6 +159,7 @@ func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	w.bandSwitches.Drain(func(i command.Issued[SwitchBands]) { w.p.write.SetBanded(i.Command.On) })
 	w.farLooks.Drain(func(i command.Issued[ShowFar]) { w.p.write.ShowFar(i.Command.Look) })
 	w.counts.Drain(func(i command.Issued[ShowCounts]) { w.p.write.ShowCounts(i.Command.On) })
+	w.canopies.Drain(func(i command.Issued[ShowCanopies]) { w.p.write.ShowCanopies(i.Command.On) })
 	w.switchSectors()
 	ctx.Run(w.clockRunnable, d)
 	ctx.Run(w.sectorsRunnable, d)

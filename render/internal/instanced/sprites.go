@@ -21,6 +21,7 @@ var spritesShader = gfx.NewMeshShaderWith("sprites", []byte(spritesWGSL+"\n"),
 		{Name: "Wrap", Size: 4},
 		{Name: "Window", Size: 4},
 		{Name: "Deep", Size: 1},
+		{Name: "Cut", Size: 1},
 	}).Instanced(4)
 
 var pointsShader = gfx.NewMeshShaderWith("points", []byte(pointsWGSL+"\n"),
@@ -48,12 +49,15 @@ type Sprites struct {
 
 	layer   layer
 	layered bool
+	cutout  bool
 	fog     float32
 	takes   Taking
 	sun     float32
 	// by piece
 	layers  []layer
 	atlases []AtlasSource
+	cutouts []bool
+	anyCut  bool
 	// the pieces as drawn by layer, kept from frame to frame
 	order     []int32
 	drawn     []float32
@@ -99,12 +103,18 @@ func (s *Sprites) Layer(at At, under bool) {
 	s.layer, s.layered = layer{at: at, under: under}, true
 }
 
+// Cutout has the pieces added next drawn in the cutout pass: whole, cut at half their alpha,
+// writing the depth, front to back; off, among what is seen through.
+func (s *Sprites) Cutout(on bool) { s.cutout = on }
+
 func (s *Sprites) piece(atlas AtlasSource) {
 	if n := len(s.runs); n == 0 || s.runs[n-1].atlas != atlas {
 		s.runs = append(s.runs, spriteRun{atlas: atlas, first: len(s.instances) / spriteFloats})
 	}
 	s.runs[len(s.runs)-1].count++
 	s.layers, s.atlases = append(s.layers, s.layer), append(s.atlases, atlas)
+	s.cutouts = append(s.cutouts, s.cutout)
+	s.anyCut = s.anyCut || s.cutout
 }
 
 // Rect adds the part u0..u1, v0..v1 of sprite id of atlas over the world rectangle (x0, y0)-(x1,
@@ -160,17 +170,19 @@ const spriteFloats = 16
 // Reset drops what was gathered.
 func (s *Sprites) Reset() {
 	s.runs, s.instances = s.runs[:0], s.instances[:0]
-	s.layers, s.atlases = s.layers[:0], s.atlases[:0]
+	s.layers, s.atlases, s.cutouts, s.anyCut = s.layers[:0], s.atlases[:0], s.cutouts[:0], false
 	s.points, s.pointRuns = s.points[:0], s.pointRuns[:0]
-	s.layer, s.layered, s.fog, s.takes, s.sun = layer{}, false, 0, TakesAll, 0
+	s.layer, s.layered, s.cutout, s.fog, s.takes, s.sun = layer{}, false, false, 0, TakesAll, 0
 }
 
 // Draw draws the gathered sprites into the target's screen, a viewport cam's size, as cam lays
 // them under the frame's uniforms u, keeping them for another draw till Reset; into the target's
-// depth, where it has one, each at its height, what shows of it written. A camera that cannot
-// say its lines of sight draws none.
+// depth, where it has one, each at its height, what shows of it written. In the cutout pass the
+// pieces added under Cutout alone, cut at half their alpha, front to back; in the pass seen
+// through the rest and the points. A camera that cannot say its lines of sight draws none.
 func (s *Sprites) Draw(t Target, cam camera.Camera, u Uniforms) {
-	if t.Screen == nil || len(s.runs) == 0 && len(s.pointRuns) == 0 {
+	cutting := t.Pass == Cutout
+	if t.Screen == nil || len(s.runs) == 0 && len(s.pointRuns) == 0 || cutting && !s.anyCut {
 		return
 	}
 	rays, ok := cam.(camera.Rays)
@@ -197,18 +209,19 @@ func (s *Sprites) Draw(t Target, cam camera.Camera, u Uniforms) {
 	s.set("Window", f.Origin[0], f.Origin[1], w*f.DX[0], h*f.DY[1])
 	s.opts.Depth, s.opts.WriteDepth = t.Depth, t.Depth != nil
 	s.set("Deep", flag(t.Depth != nil))
+	s.set("Cut", flag(cutting && t.Depth != nil))
 	// six vertices a copy of the world a piece may show in: one, or one past each seam it wraps at
 	s.opts.Vertices = 6 * (1 + int(s.wrap[2])) * (1 + int(s.wrap[3]))
 	instances, runs := s.instances, s.runs
-	if s.layered {
-		instances, runs = s.byLayer()
+	if s.layered || s.anyCut {
+		instances, runs = s.byLayer(cutting)
 	}
 	for _, r := range runs {
 		s.opts.Images[0] = r.atlas.Atlas()
 		s.opts.Instances = instances[spriteFloats*r.first : spriteFloats*(r.first+r.count)]
 		t.Screen.DrawMesh(nil, spritesShader, &s.opts)
 	}
-	if len(s.pointRuns) == 0 {
+	if len(s.pointRuns) == 0 || cutting {
 		return
 	}
 	s.set("Eye", tr.Eye[:]...)
@@ -231,12 +244,15 @@ func (s *Sprites) set(name string, v ...float32) {
 	copy(u, v)
 }
 
-// the pieces in the order of their layers and the runs of one atlas they make, as they came where
-// they lie in order already
-func (s *Sprites) byLayer() ([]float32, []spriteRun) {
+// the pieces of the pass, the cutouts or the rest, in the order of their layers, the cutouts front
+// to back, and the runs of one atlas they make; as they came where they are all the pass's and
+// lie in order already
+func (s *Sprites) byLayer(cutouts bool) ([]float32, []spriteRun) {
 	s.order = s.order[:0]
 	for i := range s.layers {
-		s.order = append(s.order, int32(i))
+		if !s.anyCut || s.cutouts[i] == cutouts {
+			s.order = append(s.order, int32(i))
+		}
 	}
 	before := func(a, b int32) int {
 		x, y := s.layers[a], s.layers[b]
@@ -248,7 +264,11 @@ func (s *Sprites) byLayer() ([]float32, []spriteRun) {
 		}
 		return 0
 	}
-	if slices.IsSortedFunc(s.order, before) {
+	if cutouts {
+		order := before
+		before = func(a, b int32) int { return -order(a, b) }
+	}
+	if len(s.order) == len(s.layers) && slices.IsSortedFunc(s.order, before) {
 		return s.instances, s.runs
 	}
 	slices.SortStableFunc(s.order, before)

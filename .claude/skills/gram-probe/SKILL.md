@@ -69,8 +69,16 @@ Each script's header says its arguments and variables.
 4. **Pictures**: `GRAM_SHOT` with the probe, compared per pixel (max difference, pixels
    differing): a steady state gives the same picture ±1, every other difference is named in the
    report. Each view the change touches.
-5. **Frame rate**: `GRAM_FPS_LOG=1 GRAM_VSYNC=off`, 35 s a run, after ~8 s of warm-up or over
-   the seconds a passing regime lasts; steady and the moment it works hardest. A slow draw drags
+5. **Frame rate**: `GRAM_FPS_LOG=1 GRAM_VSYNC=off`, 35 s a run, after the warm-up or over
+   the seconds a passing regime lasts; steady and the moment it works hardest. The warm-up is
+   not a fixed 8 s: on a board with far routes the navigation builds its hierarchy in budget on
+   its own goroutine (~2.5 ms a tick till it is done, Madeira 100 m ~33 s of game) the first
+   time, and loads it from the game's cache after (`navigation.Cache`, 2026-11-10; the
+   topography's in `~/.cache/gram/topography/hierarchy`): a probe of a demo keeping one points
+   `XDG_CACHE_HOME` at the scratchpad, runs once to fill it and measures the runs after, or
+   reads `navigation.Read.Counts().Builds` (the "Routes" line's `builds`) and starts once it
+   stops growing; a comparison of two trees over the same window is fair meanwhile, the
+   absolute numbers are not. A slow draw drags
    the tick with it: look for the first of the two to go. The probe stills the adapter whole:
    the resolution (`Adapt{Still}`, `Picture`), the levers and the level shift
    (`cameras.Detail{Follows: false}`), else the picture moves under the budget as it runs. The

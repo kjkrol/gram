@@ -72,8 +72,12 @@ reguły, efekty, znaczniki) i planszę (grunt, wysokość, stanie).
   jak przy rozwinięciu, `SpawnPart` pod podglądem zapisuje migawkę zamiast spawnu, podgląd żyje
   dwa kroki. `World_Preview` (bench/): podgląd i publikacja sektora z 256 częściami, alokacje
   tylko migawek. Koszt leży w regułach gry, nie w świecie: w demie Madery 512 reguł lasu i 1024
-  osady idą raz na sektor na bieg (potem kafle); kamera ortogonalna na L2 widzi wszystkie pola
-  w zasięgu `Sight` (skala stała w kadrze: ~30 tys. drzew), więc tick L2 nad wyspą to lasy.
+  osady idą raz na sektor na bieg (potem kafle). Do 2026-11-09 kamera ortogonalna na L2
+  trzymała wszystkie pola w zasięgu `Sight` (skala stała w kadrze: ~30 tys. drzew), a
+  perspektywiczna koło wokół oka (punkt za okiem liczy się jak przed nim: 150–200 sektorów fine
+  przy 25 pokazanych, 20–25 tys. drzew); od tego dnia sektor poza kadrem (plus pół sektora) nie
+  schodzi poniżej L4 poza sektorem punktu widzenia i ośmioma wokół, więc tick L2 nad wyspą to
+  lasy w kadrze i pierścień sektorów wokół nich (stopniowanie o jeden poziom).
 - Budżet rozwijania (`wholes.go`, `t/budget`, 2026-11-07): `open` rozwija najwyżej
   `Ladder.Unfolds` odcinków na krok (zero = 16), najbliższe punktom widzenia kamer
   (`sectors.cams`) pierwsze, krótszą drogą przez zawijaną oś; `nearest()` liczy się tylko, gdy

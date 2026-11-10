@@ -21,10 +21,16 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
 - A feed draws, crops and pins through the camera's copy (`camera.Snapped`, taken as the feed is
   laid out on the barrier); the camera the ticks move is never cropped; what is keyed by a camera
   is looked up by `camera.OriginOf(cam)`.
-- Passes: the **opaque** ground (depth written, any order); the world **seen through**, back to
-  front by key, depth-tested (its depth worked out on the GPU from its height; a piece across
-  cells at its nearest end's place); what is `At.OverFigures()`; the **marks** by level,
-  untested, at one level in the order added.
+- Passes: the **opaque** ground (depth written, any order); the **cutouts** (`render.Cutout`,
+  `Frame.DrawCutout`, 2026-11-09: Directs drawing what stands whole, depth written, cut at half
+  the alpha, any order; after the ground's depth is copied for what lies over the figures, so a
+  tree never hides an `OverFigures` piece, and in `DrawOver` too); the world **seen through**,
+  back to front by key, depth-tested (its depth worked out on the GPU from its height; a piece
+  across cells at its nearest end's place); what is `At.OverFigures()`; the **marks** by level,
+  untested, at one level in the order added. `render.Sprites.Cutout(on)` names the pieces of the
+  cutout pass; `Draw` partitions by `Target.Pass`, the cutouts front to back for early Z, the
+  points in the pass seen through alone; `Cut` in `sprites.wgsl` is the half-alpha test, only
+  with a depth. The billboards partition their batches the same (`batchOf(atlas, cutout)`).
 - Lifts over a surface, low to high: a ground dressing 0.02, board materials 0.05, grid 0.1,
   holds 0.15, sight 0.25, a field's piece 0.5, a bridge in hand 0.9 (routes and goals are
   marks `OnTop` 0.5/0.75 since 2026-11-04), figures
@@ -38,8 +44,12 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   unheard asking `DrawOpaque`.
 - One shader, `compose.wgsl` over the library and the registered materials, draws every piece;
   `render.Sprites` lays the figures' rectangles on the GPU, copies at a wrap's seams.
-- A `Direct` asks in Compose where it draws: `DrawOpaque`, `DrawAt(at)`, `ReadGround` (it gets
-  `Target.Ground` and writes `frag_depth` = the ground's own); one asking nothing is not drawn.
+- A `Direct` asks in Compose where it draws: `DrawOpaque`, `DrawCutout`, `DrawAt(at)`,
+  `ReadGround` (it gets `Target.Ground` and writes `frag_depth` = the ground's own); one asking
+  nothing is not drawn. The world renderer asks `DrawCutout` once any figure is a cutout (every
+  drawn layer `Slot.Cutout`, not coarse, not a canopy veiled this frame) and `DrawAt(lowest)` for
+  the rest; cutouts never move `lowest`; `Draw` in the cutout pass draws the sprites alone, no
+  points or labels.
 - The ground's shade (`compose/bake.go`) is one image over the whole relief, baked by two lanes
   into the same pixels: the sun's turn by 16 bands with a fade (`GroundShadeMix`), a band once
   the sun has turned 1/16° since the last (`shadeStep`), at most one a frame, a leap over 1° (the
@@ -49,7 +59,11 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   where the shadows of a changed set of blocks (`Lights.Casts`, a set a sector, versioned by the
   light) reached before and reach now, at most 8 a frame, no fade. A shader reading the shade
   reads one image and the bands' mixes, so a change of the bake changes no shader. A lying thing
-  (a bridge's handle) is one block (2026-11-07). The distant light on a surface facing up and
+  (a bridge's handle) is one block (2026-11-07). Every shadow — live, baked, a cloud's, the sun's
+  or a lamp's — reaches at most `render.ShadowReach` (6) heights of its caster (2026-11-10, a
+  rule of the house): the one constant, in Go and as `shadowReach` in the shaders that need it;
+  a baked block's quad also ends where its shadow's line meets the ground, found by a march like
+  the relief's, never at the map's lowest point. The distant light on a surface facing up and
   its share are worked out once a frame in `lighting.begin`, the lamps per sprite only within
   the box of their reach (2026-11-08).
 - Frame images (`render.RegisterImage`, `f.Image` in Compose) are read in WGSL by name through
@@ -66,6 +80,15 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
 - Navigation's route line and goal are marks `OnTop` (route < goal < the selection's outline),
   never lifts in the world (2026-11-04); the GPU route lines `Untested` with `ReadGround` kept,
   so the ground still hides a route behind a hill while figures and a canopy do not.
+- The Look seams beside `Sprite`: `FoggyLook.Fog`, `CanopyLook.Veil(opacity)` (a tree's crown
+  over a unit from above: Flat takes the frame path, `SpriteRectUV`/`SpritePart` then
+  `Frame.Glazed`, since `render.Sprites` has no free float for an opacity; `Frame.fog` skips a
+  glazed sprite, so a veiled crown takes no sight fog) and `CutoutLook.Cutout(on)`, each set
+  before a figure and reset after it, the zero value whole (a look never begun must draw whole:
+  the flat look's `hidden` is 0, not an opacity of 1). The veiled set is the publish's
+  (`figures.veiled`: a point query of the space over every moving figure's middle when a camera
+  sees from above and the setting is on), never worked out in Compose, which reads the front
+  alone.
 - A field aggregate's piece (a canopy sheet at L4) lies on the ground at `look.PieceLift` (0.5),
   under every figure (`FigureLift` 2): the point and material paths place it so; through a Look it
   goes `Lie`, never `Upright`/`Lay`, still at the Look's own lift (an interface change to pass a

@@ -72,17 +72,18 @@ fn cloudOverCover(c: CloudOver) -> f32 {
     return cloudCoverSoft(c.field.x, c.field.y, c.mass);
 }
 
-// cloudSunSlant is how far across the way to the sun goes for every world unit up, as far as at
-// cloudLowSun for a sun lower than that; with U.CloudsOneLayer none, the shadows straight under.
+// cloudSunSlant is how far across the way to the sun goes for every world unit up, never more
+// than shadowReach, as far as any shadow reaches (light.ShadowReach); with U.CloudsOneLayer none,
+// the shadows straight under.
 fn cloudSunSlant() -> vec2<f32> {
     if U.CloudsOneLayer > 0.5 {
         return vec2<f32>(0.0);
     }
     let sun = lightWay();
-    return sun.xy / max(sun.z, cloudLowSun);
+    return sun.xy / max(sun.z, length(sun.xy) / shadowReach);
 }
 
-const cloudLowSun: f32 = 0.25;
+const shadowReach: f32 = 6.0;
 
 // cloudShade is how much the clouds darken the ground under a cover of cover: as much as they take
 // of the sun, more under a strong one.
