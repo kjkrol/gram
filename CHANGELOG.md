@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.21.0 — unreleased
+## v0.21.0 — 2026-11-10
 
 **Added**
 - `world.Slot.Canopy`: a look showing the unit standing under its entity through it, at three
