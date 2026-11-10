@@ -64,7 +64,7 @@ make demo-rules-vision                                          # sight, avoidan
 make demo-rules-guard                                           # guards on a plan: patrol, step aside, rest, run to the gate while the alarm (A) is on
 make demo-board-atlas                                           # a small flat board from the game's own atlas, the water a material
 make demo-board-flat                                            # Madeira on the simple map: a flat board, bands for the ways, bridges and fords
-make demo-board-roads                                           # two villages either side of a river: roads laid with Shift+R, planned, priced and built; I brings the winter
+make demo-board-roads                                           # two villages either side of a river: roads laid with Shift+R, planned, priced and built; an old tunnel under the hill, Shift+T digs another; I brings the winter
 make demo-board-topography                                      # Madeira in relief: light, water, roads, bridges, the camera on a stick (Q/E, R/F, Tab), the weather; the ground textured from photographs; forests and settlements as fields, caravans on the roads, far off in the sheets kept between runs
 make demo-board-topography-ghibli                               # the same ground painted, the light in bands (-look ghibli)
 make demo-board-topography-widgets                              # the hour, the date and the weather apart by the corners, not in a bar (-hud widgets)
@@ -191,8 +191,8 @@ Decisions the user has made; they are not up for revisiting in passing.
   tactical pause, Shift+Esc quits, K the controls screen, F10 the settings screen, ~ the telemetry panel (the
   basics, everything, hidden, in turn), F5 saves, F9 loads, F11 full screen (on a Mac the
   window's own Ctrl+Cmd+F, the system keeping F11), ] and [ the tempo,
-  Shift+B the bridge tool, Shift+R the road tool, Space jumps riding and behind, C follows the
-  selected unit and V
+  Shift+B the bridge tool, Shift+T the tunnel tool, Shift+R the road tool, Space jumps riding
+  and behind, C follows the selected unit and V
   rides it, in the perspective alone (behind, on the arm the game's `cameras.Config.Arm` sets:
   W/S/A/D walk the way the screen lies, the mouse turns the camera round it and tilts it where
   the arm lets, = and - draw it in and out where it lets; inside; over it again, in the view it
@@ -272,7 +272,13 @@ Decisions the user has made; they are not up for revisiting in passing.
 - **A map is a file** (`map.yaml` beside a demo's code). Entities standing on the board are
   entities, listed one by one, never placed by a legend's character. Kinds stay in Go.
 - **What stands on the board is an entity, not terrain**: a lever, a trapdoor, a gate, a plate.
-- **Terrain is never an entity in the space**; a bridge is an entity a cell.
+- **Terrain is never an entity in the space**; a bridge is an entity a cell, and so is what lies
+  under the ground, a tunnel or a chamber.
+- **A cell has levels** (the user's word, 2026-11-10: a sensible small number, not to kill the
+  performance): its ground and up to three storeys (`cell.Levels` 4), each a `cell.Floor` raised
+  over the cell or sunk under it with the room over it, naming its `Storey`; a level is a
+  `cell.Level` wherever a unit is held, routed or stepped (the occupancy, a route's steps, the
+  hierarchy's nodes), never a "deck or not". A tunnel runs under a road, a bridge over a tunnel.
 - **One ladder of LOD** (the user's word, 2026-11-03): the world gives every sector one level,
   `lod.L0`..`lod.L6`, three scales of two rungs each, exact and coarse, and the omission (the
   user's word, 2026-11-05): L0–L1 the close scale (`lod.Close`: needles, pores; a game enters it
@@ -426,7 +432,9 @@ lamps, the shadows baked and cast; made before the board and the topography, whi
 `cmd/gramap` makes maps of the
 Earth), `topography` (a map in relief, the cameras' cage), `atmosphere` (the time of day, the
 climate, the weather), `collision`, `navigation`, `selection`, `dialog`, `players` (with
-`players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`, `forest` (forests
+`players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`, `underground` (tunnels
+and chambers dug under the ground by `underground/site`'s rules, walked and ridden through, drawn
+from inside), `forest` (forests
 planted over the board's cells: kinds of trees, stands by the ground's height), `roads` (roads laid
 with a tool: planned, priced, judged by the game's rules and built, by `roads/site`'s rules, which
 `cmd/gramap` plans its roads by too), `bullet`, `minimap`

@@ -2,13 +2,17 @@ package cell
 
 import "fmt"
 
-// Level is which of a cell's two levels a step is on: the ground, or a raised deck over it.
+// Level is which of a cell's levels a step is on: the ground, or one of the storeys built over
+// or under it, the first OnDeck.
 type Level uint8
 
 const (
 	OnGround Level = iota
 	OnDeck
 )
+
+// Levels is how many levels a cell has at most: the ground and three storeys.
+const Levels = 4
 
 // Step is one step a unit moving in Domain takes onto To's Kind on its Level, from a neighbour
 // or from To itself, over Slope: the rise over the run between the two cells' middles, 0 under

@@ -11,7 +11,7 @@ import (
 
 // railings says whether a railing keeping d off runs along a cell's band, as a board's read does
 type railings interface {
-	Railed(c cell.ID, d cell.Domain, deck bool) bool
+	Railed(c cell.ID, d cell.Domain, level cell.Level) bool
 }
 
 // cellPassages says at which of the board's passages a cell's last changed, as a board's read does
@@ -30,7 +30,7 @@ type footprint struct {
 	side    int
 	window  []outward // laid from a node
 	turned  []outward // the nodes whose windows hold a cell
-	stands  []bool    // by node slot: a cell's ordinal twice, plus its level
+	stands  []bool    // by node slot: a cell's ordinal by the levels, plus its level
 	passage uint64
 	asked   uint64
 }
@@ -91,12 +91,12 @@ func (p *Finder) footprintOf(body Body) *footprint {
 // standsOn says whether fp's body stands on c on level
 func (p *Finder) standsOn(fp *footprint, c cell.ID, level uint8) bool {
 	o, ok := p.grid.Ordinal(c)
-	return ok && fp.stands[2*o+int(level)]
+	return ok && fp.stands[cell.Levels*o+int(level)]
 }
 
 // layPrint reads anew where fp's body stands, on every node
 func (p *Finder) layPrint(fp *footprint) {
-	n := 2 * p.grid.CellCount()
+	n := cell.Levels * p.grid.CellCount()
 	if cap(fp.stands) < n {
 		fp.stands = make([]bool, n)
 	}
@@ -119,8 +119,11 @@ func (p *Finder) restand(fp *footprint, c cell.ID) {
 	if !ok {
 		return
 	}
-	fp.stands[2*o+int(ground)] = p.stands(fp, c, ground)
-	fp.stands[2*o+int(deck)] = len(p.levelsOf(p.at(c))) > 1 && p.stands(fp, c, deck)
+	s := fp.stands[cell.Levels*o : cell.Levels*o+cell.Levels]
+	clear(s)
+	for _, l := range p.levelsOf(p.at(c)) {
+		s[l] = p.stands(fp, c, l)
+	}
 }
 
 // keep has fp stand as the board's passage has it now: the nodes whose windows hold a cell whose
@@ -188,15 +191,11 @@ func (p *Finder) stands(fp *footprint, c cell.ID, level uint8) bool {
 		return false
 	}
 	var top float32
-	if level == deck {
-		if p.levels == nil {
+	if level != ground {
+		if p.levels == nil || !p.has(p.at(c), level) {
 			return false
 		}
-		t, _, carries, raised := p.deckOf(p.at(c))
-		if !raised || carries&p.domain == 0 {
-			return false
-		}
-		top = t
+		top = p.floorOf(p.at(c), level).Top
 	}
 	for _, m := range p.ball {
 		if !p.takesPart(fp, p.at(m), level, top) {
@@ -211,10 +210,11 @@ func (p *Finder) stands(fp *footprint, c cell.ID, level uint8) bool {
 // it is tall; on a deck, a deck carrying it a step from top at most, admitting and bearing it;
 // and no railing along the cell's band on the level
 func (p *Finder) takesPart(fp *footprint, r *read, level uint8, top float32) bool {
-	if level == deck {
-		t, _, carries, raised := p.deckOf(r)
-		if !raised || carries&p.domain == 0 || f32.Abs(t-top) > fp.body.Step+reachSlack ||
-			!p.stepAt(r, deck).admits || p.limited && !p.borne(r, deck, &fp.body) {
+	if level != ground {
+		if !p.has(r, level) ||
+			f32.Abs(p.floorOf(r, level).Top-top) > fp.body.Step+reachSlack ||
+			!p.roomy(r, level, &fp.body) ||
+			!p.stepAt(r, level).admits || p.limited && !p.borne(r, level, &fp.body) {
 			return false
 		}
 	} else {
@@ -222,7 +222,7 @@ func (p *Finder) takesPart(fp *footprint, r *read, level uint8, top float32) boo
 			return false
 		}
 		if p.levels != nil {
-			_, under, _, raised := p.deckOf(r)
+			under, raised := p.lowest(r)
 			if raised && under-p.levels.Ground(p.grid.CellCenter(r.c)) < fp.body.Height {
 				return false
 			}
@@ -239,7 +239,7 @@ func (p *Finder) railedOn(r *read, level uint8) bool {
 	}
 	read, on := hasRailing<<level, railing<<level
 	if r.has&read == 0 {
-		if r.has |= read; p.railings.Railed(r.c, p.domain, level == deck) {
+		if r.has |= read; p.railings.Railed(r.c, p.domain, cell.Level(level)) {
 			r.has |= on
 		}
 	}

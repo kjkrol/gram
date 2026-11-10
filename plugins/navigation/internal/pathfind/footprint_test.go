@@ -272,6 +272,28 @@ func (p platform) on(c cell.ID) bool {
 	return x >= 3 && x <= 7 && y >= 3 && y <= 7
 }
 
+func (p platform) Storeys(c cell.ID, dst *[cell.Storeys]Storey) (made, sunk uint8) {
+	for s := range uint8(cell.Storeys) {
+		if top, bound, under, carries, ok := p.Storey(c, s); ok {
+			dst[s] = Storey{Top: top, Bound: bound, Carries: carries}
+			made |= 1 << s
+			if under {
+				sunk |= 1 << s
+			}
+		}
+	}
+	return made, sunk
+}
+
+func (p platform) Storey(c cell.ID, s uint8) (top, bound float32, sunk bool,
+	carries cell.Domain, ok bool) {
+	if s != 0 {
+		return 0, 0, false, 0, false
+	}
+	top, bound, carries, ok = p.Deck(c)
+	return top, bound, false, carries, ok
+}
+
 func (p platform) Deck(c cell.ID) (top, under float32, carries cell.Domain, ok bool) {
 	if !p.on(c) {
 		return 0, 0, 0, false
@@ -293,7 +315,8 @@ func (p platform) Over(at geom.Vec) (float32, bool) {
 	return 0, false
 }
 
-func (p platform) KindAt(c cell.ID, deck bool) cell.Kind {
+func (p platform) KindAt(c cell.ID, level cell.Level) cell.Kind {
+	deck := level != cell.OnGround
 	if deck && p.on(c) {
 		return cell.Kind{Pace: 1, Allows: cell.Land}
 	}
@@ -406,7 +429,7 @@ func TestFootprint_ACellChangedIsReadAnewOnTheNodesWhoseWindowsHoldItAlone(t *te
 				// a mark the fix would overwrite, past those nodes where it must not
 				g.EachCell(func(c cell.ID) {
 					if o, _ := g.Ordinal(c); !near[c] {
-						fp.stands[2*o] = !fp.stands[2*o]
+						fp.stands[cell.Levels*o] = !fp.stands[cell.Levels*o]
 					}
 				})
 				if terrain.Kind(changed).Admits(cell.Land) {
@@ -424,10 +447,10 @@ func TestFootprint_ACellChangedIsReadAnewOnTheNodesWhoseWindowsHoldItAlone(t *te
 				g.EachCell(func(c cell.ID) {
 					o, _ := g.Ordinal(c)
 					switch {
-					case near[c] && fp.stands[2*o] != want.stands[2*o]:
+					case near[c] && fp.stands[cell.Levels*o] != want.stands[cell.Levels*o]:
 						t.Errorf("side %d: %v within it %v, laid afresh %v", fp.side, c,
-							fp.stands[2*o], want.stands[2*o])
-					case !near[c] && fp.stands[2*o] == want.stands[2*o]:
+							fp.stands[cell.Levels*o], want.stands[cell.Levels*o])
+					case !near[c] && fp.stands[cell.Levels*o] == want.stands[cell.Levels*o]:
 						t.Errorf("side %d: %v past it read anew", fp.side, c)
 					}
 				})
@@ -525,7 +548,8 @@ type railedTerrain struct {
 	rails map[cell.ID]bool // by cell, whether its railing is raised
 }
 
-func (r railedTerrain) Railed(c cell.ID, d cell.Domain, deck bool) bool {
+func (r railedTerrain) Railed(c cell.ID, d cell.Domain, level cell.Level) bool {
+	deck := level != cell.OnGround
 	raised, ok := r.rails[c]
 	return ok && raised == deck && d&cell.Land != 0
 }

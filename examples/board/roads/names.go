@@ -10,6 +10,7 @@ const (
 
 	SettlementKind = "settlement"
 	BridgeKind     = "bridge"
+	TunnelKind     = "tunnel"
 
 	BuilderRole = "builder"
 

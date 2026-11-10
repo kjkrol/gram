@@ -39,12 +39,13 @@ type Keeping interface {
 	Steer(m bodies.Member, st steering.Helm, dir geom.Vec, speed float32)
 	Watch(m bodies.Member, o *order.MoveOrder, toward cell.ID, want geom.Vec, d time.Duration)
 	Bump(m bodies.Member, o *order.MoveOrder) BumpAnswer
-	Blocked(m bodies.Member, o *order.MoveOrder, c cell.ID, deck bool,
+	Blocked(m bodies.Member, o *order.MoveOrder, c cell.ID, level cell.Level,
 		d time.Duration) (holder uid.UID64, known bool)
 	Within(m bodies.Member) float32
 	On(m bodies.Member, c cell.ID, level order.Level) bool
 	// near is the caller's scratch for the bodies near, nil for the keeping's own
-	MayStep(m bodies.Member, ahead cell.ID, deck bool, heading geom.Vec, near *bodies.Nearby) bool
+	MayStep(m bodies.Member, ahead cell.ID, level cell.Level, heading geom.Vec,
+		near *bodies.Nearby) bool
 	// true: by their boxes striking; false: by a step into a held cell refused
 	ByContact() bool
 
@@ -61,7 +62,7 @@ type Keeping interface {
 const YieldShare = 1.0 / 3
 
 type holders interface {
-	Holder(c cell.ID, deck bool, d cell.Domain) (uid.UID64, bool)
+	Holder(c cell.ID, level cell.Level, d cell.Domain) (uid.UID64, bool)
 }
 
 // BumpAnswer is what a unit does after it struck someone: stop and plan, carry on or give up.
@@ -244,7 +245,7 @@ type CellKeeping struct {
 	// whom held answers for, through the method value bound once
 	holder   uid.UID64
 	holderIn cell.Domain
-	heldBy   func(c cell.ID, deck bool) bool
+	heldBy   func(c cell.ID, level cell.Level) bool
 	asides   [8]scored
 }
 
@@ -335,13 +336,13 @@ func (k *CellKeeping) Route(m bodies.Member, from cell.ID, o *order.MoveOrder) (
 	return k.avoid.route(k.finder, m, from, o)
 }
 
-func (k *CellKeeping) held(m bodies.Member) func(c cell.ID, deck bool) bool {
+func (k *CellKeeping) held(m bodies.Member) func(c cell.ID, level cell.Level) bool {
 	k.holder, k.holderIn = m.ID, m.Domain
 	return k.heldBy
 }
 
-func (k *CellKeeping) isHeld(c cell.ID, deck bool) bool {
-	return !k.occ.CanEnter(c, deck, k.holder, k.holderIn)
+func (k *CellKeeping) isHeld(c cell.ID, level cell.Level) bool {
+	return !k.occ.CanEnter(c, level, k.holder, k.holderIn)
 }
 
 func (k *CellKeeping) Lost(
@@ -390,7 +391,7 @@ func (k *CellKeeping) Watch(m bodies.Member, o *order.MoveOrder, _ cell.ID, _ ge
 // Held after stallAfter is the last word against rules that never move the unit; a wait on one
 // it trails, while they are under way, on the one ahead of it in its formation, under their
 // order still, or while its formation's head waits, is no stall
-func (k *CellKeeping) Blocked(m bodies.Member, o *order.MoveOrder, c cell.ID, deck bool,
+func (k *CellKeeping) Blocked(m bodies.Member, o *order.MoveOrder, c cell.ID, level cell.Level,
 	d time.Duration) (uid.UID64, bool) {
 	if o.Toward != c {
 		o.Toward, o.Stalled, o.Trailed = c, 0, 0
@@ -398,7 +399,7 @@ func (k *CellKeeping) Blocked(m bodies.Member, o *order.MoveOrder, c cell.ID, de
 	var holder uid.UID64
 	known := false
 	if k.who != nil {
-		holder, known = k.who.Holder(c, deck, m.Domain)
+		holder, known = k.who.Holder(c, level, m.Domain)
 	}
 	if trailing(&k.index, o) {
 		o.Trailed += d
@@ -438,9 +439,9 @@ func (k *CellKeeping) Bump(m bodies.Member, o *order.MoveOrder) BumpAnswer {
 
 func (k *CellKeeping) Within(bodies.Member) float32 { return ArrivalEpsilon }
 
-func (k *CellKeeping) MayStep(m bodies.Member, ahead cell.ID, deck bool, _ geom.Vec,
+func (k *CellKeeping) MayStep(m bodies.Member, ahead cell.ID, level cell.Level, _ geom.Vec,
 	_ *bodies.Nearby) bool {
-	return ahead == m.Cell || k.occ.CanEnter(ahead, deck, m.ID, m.Domain)
+	return ahead == m.Cell || k.occ.CanEnter(ahead, level, m.ID, m.Domain)
 }
 
 func (k *CellKeeping) Other(id uid.UID64) (bodies.Body, bool) { return k.index.Of(id) }
@@ -506,7 +507,7 @@ func (k *CellKeeping) StepAside(m bodies.Member, of bodies.Body) (order.MoveOrde
 		if !terrain.Kind(c).Admits(m.Domain) {
 			continue
 		}
-		if deck, ok := k.finder.stepsAside(m, c); !ok || !k.occ.CanEnter(c, deck, m.ID, m.Domain) {
+		if on, ok := k.finder.stepsAside(m, c); !ok || !k.occ.CanEnter(c, on, m.ID, m.Domain) {
 			continue
 		}
 		o := order.MoveOrder{Target: c, GivingWay: true}

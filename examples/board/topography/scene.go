@@ -106,8 +106,8 @@ func (m *mainScene) screen() *ui.Element {
 		Clock:      a.world.Read(0).Clock().HUD(),
 		Paused:     func() bool { return a.world.Read(0).Clock().State().Paused },
 		Atmosphere: a.atmosphere,
-		Reason:     a.bridges.Reason(),
-		Window:     a.bridges.Window(),
+		Reasons:    []*ui.Element{a.bridges.Reason(), a.tunnels.Reason()},
+		Windows:    []*ui.Element{a.bridges.Window(), a.tunnels.Window()},
 		Widgets:    a.hud == WidgetsHUD,
 	})
 }

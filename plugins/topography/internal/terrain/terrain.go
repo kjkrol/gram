@@ -60,6 +60,7 @@ func leveled(level lod.Level) *render.Shader {
 		{Name: "HazeUp", Size: 1}, {Name: "HazeWay", Size: 3},
 		{Name: "Sight", Size: 4}, {Name: "DetailPx", Size: 1},
 		{Name: "Bands", Size: 1}, {Name: "ShadowTint", Size: 3}, {Name: "Warmth", Size: 1},
+		{Name: "Mouths", Size: 1},
 	})
 }
 
@@ -113,6 +114,19 @@ type Painted struct {
 	Takes  []render.Taking
 	Sway   []float32
 	Styled uint64
+	// Mouths are where floors sunk under the ground open to the sky, the ground over each cut
+	// away; MouthsAt counts their changes
+	Mouths   []Mouth
+	MouthsAt uint64
+}
+
+// Mouth is where a floor sunk under the ground comes out: under the cell X, Y, across the edge
+// towards its neighbour Dx, Dy, Half its width either side of its line, its roof Clear over the
+// ground at that edge. The ground lower than the roof is not drawn over it.
+type Mouth struct {
+	X, Y        int
+	Dx, Dy      int8
+	Half, Clear float32
 }
 
 // Sky is the air over the ground, for how far one sees through it.
@@ -147,6 +161,9 @@ type Renderer struct {
 	// quadrants: heights, normals, wet cells, shores
 	lattice   *render.Image
 	heightsAt uint64 // one more than the ground's version the heights hold; 0 none
+	mouthsAt  uint64 // one more than the mouths' count the lattice holds; 0 none
+	mouthed   []Mouth
+	texel     [4]byte
 	coastAt   uint64
 	wetAt     [3]uint64
 	low, span float32
@@ -307,7 +324,7 @@ func (r *Renderer) heightsOf(cam camera.Camera) bool {
 		r.heightsAt, r.coastAt, r.wetAt = 0, 0, [3]uint64{}
 	}
 	if v := r.ground.Version() + 1; r.heightsAt != v {
-		r.heightsAt = v
+		r.heightsAt, r.mouthsAt, r.mouthed = v, 0, r.mouthed[:0]
 		r.low, r.span, r.buf = encode(heights, r.buf[:0])
 		r.write(0, 0, cols, rows)
 		r.relay(cam, cols, rows, cell)
@@ -325,8 +342,12 @@ func (r *Renderer) refresh(cam camera.Camera) bool {
 	if !r.heightsOf(cam) {
 		return false
 	}
-	cols, rows, _, _, _ := r.ground.Lattice()
+	cols, rows, cell, heights, _ := r.ground.Lattice()
 	r.painted = r.surface.Surface()
+	if v := r.painted.MouthsAt + 1; r.mouthsAt != v {
+		r.mouthsAt = v
+		r.cut(cols, rows, cell, heights)
+	}
 	if v := r.painted.Coast + 1; r.coastAt != v {
 		r.coastAt = v
 		if s := r.painted.Shores; s != nil {
@@ -458,8 +479,49 @@ func openWater(cols, rows int, dst []byte) []byte {
 	return dst
 }
 
+// cut marks the lattice with the mouths the surface has, the marks of those it had last taken
+// off: at the corner a mouth's cell begins at, in the blue the heights leave free the edge it
+// opens across (1 to 9, by its neighbour's column then its row) and in their alpha half its
+// width over a cell's, in the alpha the normals leave free its room over a cell's
+func (r *Renderer) cut(cols, rows int, cell float32, heights []float32) {
+	mark := func(m Mouth, on bool) {
+		if m.X < 0 || m.Y < 0 || m.X >= cols-1 || m.Y >= rows-1 {
+			return
+		}
+		v := uint32(min(max((heights[m.Y*cols+m.X]-r.low)/r.span, 0), 1)*65535 + 0.5)
+		r.texel = [4]byte{byte(v >> 8), byte(v & 255), 0, 255}
+		n := normalAt(cols, rows, cell, heights, m.X, m.Y)
+		room := byte(255)
+		if on {
+			r.texel[2] = byte(int(m.Dx)+1+3*(int(m.Dy)+1)) + 1
+			r.texel[3] = byte(min(m.Half/cell, 1)*255 + 0.5)
+			room = byte(min(m.Clear/cell, 1)*255 + 0.5)
+		}
+		r.lattice.SubImage(image.Rect(m.X, m.Y, m.X+1, m.Y+1)).WritePixels(r.texel[:])
+		r.texel = [4]byte{n[0], n[1], n[2], room}
+		r.lattice.SubImage(image.Rect(cols+m.X, m.Y, cols+m.X+1, m.Y+1)).WritePixels(r.texel[:])
+	}
+	for _, m := range r.mouthed {
+		mark(m, false)
+	}
+	r.mouthed = append(r.mouthed[:0], r.painted.Mouths...)
+	for _, m := range r.mouthed {
+		mark(m, true)
+	}
+}
+
 // (n+1)/2 in red, green and blue; one-sided at the edge
 func normals(cols, rows int, cell float32, heights []float32, dst []byte) []byte {
+	for y := range rows {
+		for x := range cols {
+			n := normalAt(cols, rows, cell, heights, x, y)
+			dst = append(dst, n[0], n[1], n[2], 255)
+		}
+	}
+	return dst
+}
+
+func normalAt(cols, rows int, cell float32, heights []float32, x, y int) [3]byte {
 	at := func(x, y int) float32 { return heights[y*cols+x] }
 	rise := func(x, y, dx, dy int) float32 {
 		x0, y0, x1, y1 := x-dx, y-dy, x+dx, y+dy
@@ -475,17 +537,13 @@ func normals(cols, rows int, cell float32, heights []float32, dst []byte) []byte
 		}
 		return (at(x1, y1) - at(x0, y0)) / (steps * cell)
 	}
-	for y := range rows {
-		for x := range cols {
-			n := [3]float32{-rise(x, y, 1, 0), -rise(x, y, 0, 1), 1}
-			l := float32(math.Sqrt(float64(n[0]*n[0] + n[1]*n[1] + 1)))
-			for k := range n {
-				dst = append(dst, byte((n[k]/l+1)/2*255+0.5))
-			}
-			dst = append(dst, 255)
-		}
+	n := [3]float32{-rise(x, y, 1, 0), -rise(x, y, 0, 1), 1}
+	l := float32(math.Sqrt(float64(n[0]*n[0] + n[1]*n[1] + 1)))
+	var out [3]byte
+	for k := range n {
+		out[k] = byte((n[k]/l+1)/2*255 + 0.5)
 	}
-	return dst
+	return out
 }
 
 func decodeNormal(r, g, b byte) [3]float32 {
@@ -535,6 +593,7 @@ func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	r.set("Cell", cell)
 	r.set("Corners", float32(cols), float32(rows))
 	r.set("Low", r.low)
+	r.set("Mouths", flag(len(r.mouthed) > 0))
 	r.set("Span", r.span)
 	r.set("ShoreReach", max(r.painted.Reach, 1e-3))
 	albedo := r.painted.Albedo

@@ -9,7 +9,9 @@ func (t *Cells) limit(sites []site) {
 	}
 	t.limited = t.limited[:0]
 	for _, s := range sites {
-		if s.built.Floor.Load <= 0 && s.built.Wall.Gap.Width <= 0 {
+		b := &s.built
+		if b.Floor.Load <= 0 && b.More[0].Load <= 0 && b.More[1].Load <= 0 &&
+			b.Wall.Gap.Width <= 0 {
 			continue
 		}
 		i, ok := t.Ordinal(s.cell)
@@ -27,10 +29,10 @@ func (t *Cells) limit(sites []site) {
 // Limited reports whether a floor's Load or a wall's Gap limits whom a cell takes anywhere.
 func (r *Read) Limited() bool { return len(r.t.limited) > 0 }
 
-// Limits are what c limits a body moving in d by beyond its kind, on the decks' level when deck:
+// Limits are what c limits a body moving in d by beyond its kind, on level:
 // the Load of the floor carrying it where its ground would not, and the Gap of the wall keeping d
 // off; zero where nothing does.
-func (r *Read) Limits(c cell.ID, d cell.Domain, deck bool) (load float32, gap cell.Gap) {
+func (r *Read) Limits(c cell.ID, d cell.Domain, level cell.Level) (load float32, gap cell.Gap) {
 	t := r.t
 	if len(t.limited) == 0 || r.store == nil {
 		return 0, cell.Gap{}
@@ -43,13 +45,13 @@ func (r *Read) Limits(c cell.ID, d cell.Domain, deck bool) (load float32, gap ce
 	if b == nil {
 		return 0, cell.Gap{}
 	}
-	if b.Wall.Keeps&d != 0 {
+	f := b.On(level)
+	if b.Wall.Keeps&d != 0 && !f.Sunk() {
 		gap = b.Wall.Gap
 	}
-	f := b.Floor
 	switch {
-	case f.Load <= 0 || f.Allows&d == 0 || (f.Height > 0) != deck:
-	case deck || !r.store.wayOf(i).Over(r.store.groundOf(i).Kind).Admits(d):
+	case f.Load <= 0 || f.Allows&d == 0:
+	case level != cell.OnGround || !r.store.wayOf(i).Over(r.store.groundOf(i).Kind).Admits(d):
 		load = f.Load
 	}
 	return load, gap

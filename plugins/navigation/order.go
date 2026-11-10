@@ -1,6 +1,9 @@
 package navigation
 
-import "github.com/kjkrol/gram/plugins/navigation/internal/order"
+import (
+	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
+)
 
 // The order a unit carries, the commands it is given and the facts it is told, the systems' own
 // (internal/order).
@@ -64,3 +67,7 @@ var (
 	IdleAlly         = order.IdleAlly
 	StrangerOnGoal   = order.StrangerOnGoal
 )
+
+// On is the Level a goal on its cell's level l has: a storey over or under the ground past the
+// first, which OnDeck names.
+func On(l cell.Level) Level { return order.On(l) }

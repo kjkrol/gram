@@ -54,6 +54,7 @@ const (
 	BandKind      = "band"
 
 	BridgeKind     = "bridge"
+	TunnelKind     = "tunnel"
 	FordKind       = "ford"
 	LanternKind    = "lantern"
 	ForestKind     = "forest"

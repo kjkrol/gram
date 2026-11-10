@@ -120,7 +120,7 @@ func holdWidth(t *testing.T, b *board.Plugin) float32 {
 	t.Helper()
 	g := b.Read(0).Board().Grid
 	c := g.At(1, 1)
-	b.Write().Occupancy().Enter(c, false, 7, cell.Land)
+	b.Write().Occupancy().Enter(c, cell.OnGround, 7, cell.Land)
 	b.Write().ShowHolds(true)
 	cam := cameratest.NewFromSpace(256, 256, 0)
 	view := b.HoldsView()

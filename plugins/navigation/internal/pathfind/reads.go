@@ -5,34 +5,30 @@ import "github.com/kjkrol/gram/plugins/board/cell"
 // what one search has read of a cell, paced for its domain; nothing changes the board while a
 // search runs, so a cell is read once a search however many steps ask about it
 type read struct {
-	c       cell.ID
-	search  uint32
-	has     uint16
-	carries cell.Domain
-	ground  step
-	bare    step
-	top     float32
-	under   float32
+	c      cell.ID
+	search uint32
+	has    uint32
+	ground step
+	bare   step
+	// the storeys making a level: bit s storey s, as the levels say and as they carry the
+	// search's domain; their floors are kept apart (Finder.floors), a read being cleared a node
+	storeys, sunk uint8
+	levels        uint8
 }
 
 const (
-	hasGround uint16 = 1 << iota
+	hasGround uint32 = 1 << iota
 	hasBare
-	hasDeck
-	raisedDeck
+	hasStoreys
 	hasKind
-	// the limits read on a level, the ground's bit and the deck's
+	// the limits read on a level, a bit a level
 	hasLimits
-	_
-	// some limit on a level, the ground's bit and the deck's
-	limited
-	_
-	// a railing asked of on a level, the ground's bit and the deck's
-	hasRailing
-	_
-	// a railing along the cell's band on a level, the ground's bit and the deck's
-	railing
-	_
+	// some limit on a level, a bit a level
+	limited = hasLimits << cell.Levels
+	// a railing asked of on a level, a bit a level
+	hasRailing = limited << cell.Levels
+	// a railing along the cell's band on a level, a bit a level
+	railing = hasRailing << cell.Levels
 )
 
 // a kind as a step onto it costs in the search's domain on the level: rate what a unit of
@@ -119,8 +115,8 @@ func (p *Finder) groundStep(c cell.ID) step {
 }
 
 func (p *Finder) stepAt(r *read, level uint8) step {
-	if level == deck {
-		return p.stepOn(r.c, p.kindAt(r.c, deck), deck)
+	if level != ground {
+		return p.stepOn(r.c, p.kindAt(r.c, level), level)
 	}
 	return p.groundOf(r)
 }
@@ -138,8 +134,8 @@ func (p *Finder) kindOn(r *read, level uint8, bare bool) cell.Kind {
 	if bare {
 		return p.ways.Bare(r.c)
 	}
-	if level == deck {
-		return p.kindAt(r.c, deck)
+	if level != ground {
+		return p.kindAt(r.c, level)
 	}
 	o, ok := p.grid.Ordinal(r.c)
 	if !ok {
@@ -154,18 +150,62 @@ func (p *Finder) kindOn(r *read, level uint8, bare bool) cell.Kind {
 	return p.kinds[o]
 }
 
-// Levels' Deck of r's cell
-func (p *Finder) deckOf(r *read) (top, under float32, carries cell.Domain, ok bool) {
-	if r.has&hasDeck == 0 {
-		r.has |= hasDeck
-		if r.top, r.under, r.carries, ok = p.levels.Deck(r.c); ok {
-			r.has |= raisedDeck
+// storeysOf reads r's cell's storeys once a search
+func (p *Finder) storeysOf(r *read) {
+	if r.has&hasStoreys != 0 {
+		return
+	}
+	r.has |= hasStoreys
+	// into the Finder's own: a local handed to the levels would be allocated a cell
+	floors := &p.offFloors
+	if r.storeys, r.sunk = p.levels.Storeys(r.c, floors); r.storeys == 0 {
+		return
+	}
+	*p.floorsOf(r.c) = *floors
+	for s := range uint8(cell.Storeys) {
+		if r.storeys&(1<<s) != 0 && floors[s].Carries&p.domain != 0 {
+			r.levels |= 1 << s
 		}
 	}
-	return r.top, r.under, r.carries, r.has&raisedDeck != 0
 }
 
+// floorsOf are the floors of c's storeys as last read, by ordinal; a cell off the grid shares
+// one set, read and used at once
+func (p *Finder) floorsOf(c cell.ID) *[cell.Storeys]Storey {
+	o, ok := p.grid.Ordinal(c)
+	if !ok {
+		return &p.offFloors
+	}
+	if len(p.floors) == 0 {
+		p.floors = make([][cell.Storeys]Storey, p.grid.CellCount())
+	}
+	return &p.floors[o]
+}
+
+// floorOf is the storey making r's cell's level, one of levelsOf's past the ground
+func (p *Finder) floorOf(r *read, level uint8) *Storey { return &p.floorsOf(r.c)[level-1] }
+
+// sunken says whether r's cell's level lies under the ground
+func (p *Finder) sunken(r *read, level uint8) bool {
+	return level != ground && r.sunk&(1<<(level-1)) != 0
+}
+
+// raised says whether a storey is raised over r's cell
 func (p *Finder) raised(r *read) bool {
-	_, _, _, ok := p.deckOf(r)
-	return ok
+	if p.storeysOf(r); r.storeys == 0 {
+		return false
+	}
+	return r.storeys&^r.sunk != 0
+}
+
+// lowest is the underside of the lowest storey raised over r's cell; false where none is
+func (p *Finder) lowest(r *read) (under float32, ok bool) {
+	p.storeysOf(r)
+	floors := p.floorsOf(r.c)
+	for s := range uint8(cell.Storeys) {
+		if r.storeys&^r.sunk&(1<<s) != 0 && (!ok || floors[s].Bound < under) {
+			under, ok = floors[s].Bound, true
+		}
+	}
+	return under, ok
 }

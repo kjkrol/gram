@@ -41,7 +41,8 @@ func newCrossings() crossings {
 		gaps:  map[cell.ID]cell.Gap{g.At(24, 4): {Width: gapWidth, Height: gapHeight}}}, g}
 }
 
-func (b crossings) Lane(from, to cell.ID, d cell.Domain, deck bool) float32 {
+func (b crossings) Lane(from, to cell.ID, d cell.Domain, level cell.Level) float32 {
+	deck := level != cell.OnGround
 	x0, y0, _ := b.g.Coords(from)
 	x1, y1, _ := b.g.Coords(to)
 	if d&cell.Land == 0 || deck || y0 != 3 || y1 != 3 || max(x0, x1) < 15 || min(x0, x1) > 15 {
@@ -64,6 +65,28 @@ func newFootbridge(x uint32) footbridge {
 		loads: map[cell.ID]float32{g.At(x, 4): ropeLoad}}, g, x}
 }
 
+func (b footbridge) Storeys(c cell.ID, dst *[cell.Storeys]Storey) (made, sunk uint8) {
+	for s := range uint8(cell.Storeys) {
+		if top, bound, under, carries, ok := b.Storey(c, s); ok {
+			dst[s] = Storey{Top: top, Bound: bound, Carries: carries}
+			made |= 1 << s
+			if under {
+				sunk |= 1 << s
+			}
+		}
+	}
+	return made, sunk
+}
+
+func (b footbridge) Storey(c cell.ID, s uint8) (top, bound float32, sunk bool,
+	carries cell.Domain, ok bool) {
+	if s != 0 {
+		return 0, 0, false, 0, false
+	}
+	top, bound, carries, ok = b.Deck(c)
+	return top, bound, false, carries, ok
+}
+
 func (b footbridge) Deck(c cell.ID) (top, under float32, carries cell.Domain, ok bool) {
 	if x, y, _ := b.g.Coords(c); x == b.x && y == 4 {
 		return 1, 0.5, cell.Land, true
@@ -82,7 +105,8 @@ func (b footbridge) Over(p geom.Vec) (float32, bool) {
 	return 0, false
 }
 
-func (b footbridge) KindAt(c cell.ID, deck bool) cell.Kind {
+func (b footbridge) KindAt(c cell.ID, level cell.Level) cell.Kind {
+	deck := level != cell.OnGround
 	if _, _, _, ok := b.Deck(c); ok && deck {
 		return cell.Kind{Pace: 1, Allows: cell.Land}
 	}
@@ -304,7 +328,7 @@ func TestHierarchy_AStepMeetingNothingIsReadOnceForEveryClass(t *testing.T) {
 				continue
 			}
 			c := f.cornerOf(a.c, n, i)
-			if f.bodily(a, rf, f.at(n), ground, c, f.laneOf(a.c, n, false)) {
+			if f.bodily(a, rf, f.at(n), ground, c, f.laneOf(a.c, n, ground)) {
 				t.Fatalf("the step %v->%v measured against a body", a, n)
 			}
 		}

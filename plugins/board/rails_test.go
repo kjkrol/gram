@@ -266,13 +266,16 @@ func TestBoard_ARailingRunsAlongABandThroughACell(t *testing.T) {
 			})
 			ctx.ECS().Tick(time.Second / 60)
 			brd := p.Read(0).Board()
-			deck := tc.height > 0
+			deck, other := cell.OnGround, cell.OnDeck
+			if tc.height > 0 {
+				deck, other = cell.OnDeck, cell.OnGround
+			}
 			g.EachCell(func(c cell.ID) {
 				want := c == g.At(2, 1)
 				if got := brd.Railed(c, cell.Land, deck); got != want {
 					t.Errorf("%v railed %v on its band's level, want %v", c, got, want)
 				}
-				if brd.Railed(c, cell.Land, !deck) || brd.Railed(c, cell.Water, deck) {
+				if brd.Railed(c, cell.Land, other) || brd.Railed(c, cell.Water, deck) {
 					t.Errorf("%v railed on the other level or for the water", c)
 				}
 			})

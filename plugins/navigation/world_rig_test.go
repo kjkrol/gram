@@ -184,7 +184,7 @@ func newNavWorldIn(t testing.TB, pool *parallel.Pool, cols, rows, cellSize uint3
 		for q.All(); q.Next(); {
 			cur := q.Cursor()
 			for i, id := range cur.IDs {
-				nw.occupancy.Enter(at.Slice(cur)[i].Cell, false, id, cell.Land)
+				nw.occupancy.Enter(at.Slice(cur)[i].Cell, cell.OnGround, id, cell.Land)
 				for u, k := range kinds {
 					if base.Slice(cur)[i].TypeID == k {
 						nw.ids[u] = id

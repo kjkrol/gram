@@ -914,6 +914,37 @@ The load is the file read and decoded and every cluster's cells fingerprinted (2
 hand, not reflection: 480 ms before); hpastar's own `Save`/`Load` of a 1024² map are 64 and
 75–86 ms (its `BENCHMARKS.md`, v1.6.0).
 
+## Four levels a cell (2026-11-11, `feat/underground`, base `9450d4b3` v0.21.0)
+
+A cell's levels went from two (the ground, a deck) to four (the ground and three storeys), every
+node dictionary of the navigation twice as long. Base and tree alternately, three rounds, medians,
+`-cpu 1`, this machine (±2.6 % a pair on `PathFinder_Terrain`, ±1.6 % on `Navigation_Tick`):
+
+| Benchmark | base | tree | |
+|---|---|---|---|
+| `Navigation_Tick/open,entities=1000` | 2.40 ms | 2.38 ms | −0.7 % |
+| `Navigation_Tick/crowded,entities=1000` | 7.79 ms | 7.88 ms | +1.3 % |
+| `Navigation_Tick/grouped,entities=1000` | 9.75 ms | 10.10 ms | +3.6 % |
+| `Navigation_Tick/column,entities=1000` | 2.54 ms | 2.47 ms | −2.6 % |
+| `Navigation_Tick/abstract,entities=1000` | 752 µs | 756 µs | +0.5 % |
+| `PathFinder_Terrain/map` | 4.92 ms | 5.00 ms | +1.6 % |
+| `PathFinder_Terrain/levels` | 6.21 ms | 6.43 ms | +3.5 % |
+| `PathFinder_Field/map` | 15.8 ms | 16.9 ms | +6.6 % |
+| `PathFinder_Field/relief` | 25.8 ms | 26.4 ms | +2.3 % |
+| `PathFinder_Hierarchy/build/map` | 61.0 ms | 63.5 ms | +4.1 % |
+| `PathFinder_Hierarchy/find/map` | 616 µs | 636 µs | +3.3 % |
+| `Board_Terrain/rough=compact` | 5.42 ms | 5.45 ms | +0.6 % |
+| `World_Frame/5000 of 5000 in view` | 524 µs | 507 µs | −3.1 % |
+
+What it took to get there, each found by the profile of `Navigation_Tick/open`: the first cut
+read a cell's storeys by three calls, each a lookup of what is built on the cell (+10 % on the
+tick; one call a cell now, none on a board without storeys, `BoardRead.Storeyed`); the floors
+kept in the per-node read made it bigger to clear (+3–5 % on a search; kept apart by ordinal);
+a field's storey nodes cleared every fill (the fill +5 %; cleared after a fill reached one). The
+grounds' slots lie before the storeys' (`slotOf`); with a cell's levels side by side nothing
+measurable changed either way. What is left on the field's fill is its steps asking the slot of
+a level. The hierarchy rows are from the first round of three, before those fixes.
+
 ## What they say
 
 - **A tick is the plugins' RunPlan and nothing else.** The engine adds no work of its own per

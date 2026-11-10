@@ -35,16 +35,20 @@ func TestBoard_ALaneIsTheBandLessItsRailingsOnItsOwnLevel(t *testing.T) {
 			g := grid.DefaultGrids{}.Square(5, 3, 10)
 			brd := banded(t, g, tc.height, tc.keeps)
 			along := [2]cell.ID{g.At(1, 1), g.At(2, 1)}
-			if got := brd.Lane(along[0], along[1], cell.Land, false); got != tc.ground {
+			if got := brd.Lane(along[0], along[1], cell.Land, cell.OnGround); got != tc.ground {
 				t.Errorf("along the band on the ground's level: %v, want %v", got, tc.ground)
 			}
-			if got := brd.Lane(along[1], along[0], cell.Land, true); got != tc.deck {
+			if got := brd.Lane(along[1], along[0], cell.Land, cell.OnDeck); got != tc.deck {
 				t.Errorf("along the band on the decks' level: %v, want %v", got, tc.deck)
 			}
-			if got := brd.Lane(g.At(2, 0), g.At(2, 1), cell.Land, tc.height > 0); got != inf {
+			across := cell.OnGround
+			if tc.height > 0 {
+				across = cell.OnDeck
+			}
+			if got := brd.Lane(g.At(2, 0), g.At(2, 1), cell.Land, across); got != inf {
 				t.Errorf("across the band: %v, want no lane", got)
 			}
-			if got := brd.Lane(along[0], along[1], cell.Water, tc.height > 0); got != inf {
+			if got := brd.Lane(along[0], along[1], cell.Water, across); got != inf {
 				t.Errorf("for a boat the band does not carry: %v, want no lane", got)
 			}
 		})

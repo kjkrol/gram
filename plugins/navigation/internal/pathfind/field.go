@@ -12,8 +12,10 @@ import (
 type Field struct {
 	grid grid.Grid
 	goal cell.ID
-	cost []float32 // by node: a cell's ordinal twice, plus its level; +Inf unreached
-	next []uint8   // by node: the direction of its step, twice, plus the level stepped onto
+	cost []float32 // by node (slotOf): +Inf unreached
+	// a fill reached a storey's node: those are to be cleared before the next
+	storeyed bool
+	next     []uint8 // by node: the direction of its step and, under it, the level stepped onto
 }
 
 // the next of the goal's own nodes
@@ -45,14 +47,11 @@ func (f *Field) Next(c cell.ID, l Level) (cell.ID, Level, bool) {
 	if !ok || f.next[s] == fieldEnd {
 		return 0, Either, false
 	}
-	n, ok := f.grid.Toward(c, int(f.next[s]>>1))
+	n, ok := f.grid.Toward(c, int(f.next[s]>>levelBits))
 	if !ok {
 		return 0, Either, false
 	}
-	if f.next[s]&1 == deck {
-		return n, Deck, true
-	}
-	return n, Ground, true
+	return n, On(cell.Level(f.next[s] & levelMask)), true
 }
 
 // Reached reports whether the fill reached c on either level.
@@ -61,29 +60,42 @@ func (f *Field) Reached(c cell.ID) bool {
 	return ok
 }
 
-// the node of c on l, the cheaper of the two for Either, where the fill reached it
+// the bits of a step's next holding the level stepped onto, under its direction
+const (
+	levelBits = 2
+	levelMask = 1<<levelBits - 1
+)
+
+// the node of c on l, the cheapest of its levels for Either, where the fill reached it
 func (f *Field) at(c cell.ID, l Level) (int, bool) {
 	if len(f.cost) == 0 {
 		return 0, false
 	}
 	o, ok := f.grid.Ordinal(c)
-	if !ok || 2*o+1 >= len(f.cost) {
+	count := len(f.cost) / cell.Levels
+	if !ok || o >= count {
 		return 0, false
 	}
-	s := 2 * o
-	switch {
-	case l == Deck, l == Either && f.cost[s+1] < f.cost[s]:
-		s++
+	s := o
+	if on, named := l.Of(); named {
+		s = slotOf(count, o, uint8(on))
+	} else {
+		for level := uint8(1); level < cell.Levels; level++ {
+			if k := slotOf(count, o, level); f.cost[k] < f.cost[s] {
+				s = k
+			}
+		}
 	}
 	return s, !f32.IsInf(f.cost[s], 1)
 }
 
 func (f *Field) node(n node) (int, bool) {
 	o, ok := f.grid.Ordinal(n.c)
-	if !ok || 2*o+1 >= len(f.cost) || f32.IsInf(f.cost[2*o+int(n.level)], 1) {
+	s := slotOf(len(f.cost)/cell.Levels, o, n.level)
+	if !ok || s >= len(f.cost) || f32.IsInf(f.cost[s], 1) {
 		return 0, false
 	}
-	return 2*o + int(n.level), true
+	return s, true
 }
 
 // the nodes a fill has yet to settle, the cheapest first: one gone cheaper is pushed again and
@@ -155,12 +167,22 @@ func (p *Finder) FillField(f *Field, goal cell.ID, end Level, domain cell.Domain
 	p.entity, p.blocked = 0, nil
 	p.begin(domain)
 	p.as(body)
-	if cap(f.cost) < 2*count {
-		f.cost, f.next = make([]float32, 2*count), make([]uint8, 2*count)
+	if cap(f.cost) < cell.Levels*count || len(f.cost) != cell.Levels*count {
+		if cap(f.cost) < cell.Levels*count {
+			f.cost = make([]float32, cell.Levels*count)
+			f.next = make([]uint8, cell.Levels*count)
+		}
+		f.cost, f.next = f.cost[:cell.Levels*count], f.next[:cell.Levels*count]
+		f.storeyed = true
 	}
-	f.cost, f.next = f.cost[:2*count], f.next[:2*count]
-	for i := range f.cost {
-		f.cost[i] = f32.Inf(1)
+	// the storeys' nodes are cleared only after a fill reached one: on a board of few storeys
+	// clearing them every fill cost it 5%
+	clearing := f.cost[:count]
+	if f.storeyed {
+		clearing, f.storeyed = f.cost, false
+	}
+	for i := range clearing {
+		clearing[i] = f32.Inf(1)
 	}
 	want := p.stampSeeds(seeds)
 	h := &p.frontier
@@ -170,9 +192,11 @@ func (p *Finder) FillField(f *Field, goal cell.ID, end Level, domain cell.Domain
 		end = Either
 	}
 	for _, l := range levels {
-		if end == Either || end == Deck == (l == deck) {
-			f.cost[2*o+int(l)], f.next[2*o+int(l)] = 0, fieldEnd
-			h.push(int32(2*o+int(l)), 0)
+		if end.takes(l) {
+			s := slotOf(count, o, l)
+			f.storeyed = f.storeyed || l != ground
+			f.cost[s], f.next[s] = 0, fieldEnd
+			h.push(int32(s), 0)
 		}
 	}
 	reached, farthest := 0, float32(0)
@@ -189,12 +213,12 @@ func (p *Finder) FillField(f *Field, goal cell.ID, end Level, domain cell.Domain
 			break
 		}
 		// every node pushed had its cell read this fill
-		at := int(s) >> 1
+		at, level := nodeAt(count, int(s))
 		if p.seeded[at] == p.seeding {
 			p.seeded[at] = 0
 			reached, farthest = reached+1, key
 		}
-		p.into(f, node{p.reads[at].c, uint8(s & 1)}, key)
+		p.into(f, node{p.reads[at].c, level}, key)
 	}
 	// what was left on the front is a cost not yet the least: unreached
 	for i, s := range h.ids {
@@ -248,9 +272,10 @@ func (p *Finder) into(f *Field, t node, cost float32) {
 			if !ok {
 				continue
 			}
-			s := 2*o + int(level)
+			s := slotOf(len(f.cost)/cell.Levels, o, level)
 			if v := float32(float64(cost) + price); v < f.cost[s] {
-				f.cost[s], f.next[s] = v, uint8(back)<<1|t.level
+				f.storeyed = f.storeyed || level != ground
+				f.cost[s], f.next[s] = v, uint8(back)<<levelBits|t.level
 				p.frontier.push(int32(s), v)
 			}
 		}
@@ -267,7 +292,7 @@ func (p *Finder) Walk(f *Field, entity uid.UID64, domain cell.Domain, body Body,
 	if p.levels == nil || len(f.cost) == 0 {
 		return 0, false
 	}
-	p.decks, p.entity = 0, entity
+	p.decks, p.storeys, p.entity = 0, 0, entity
 	p.begin(domain)
 	p.as(body)
 	at := node{from, p.levelOf(p.at(from), body)}
@@ -275,7 +300,7 @@ func (p *Finder) Walk(f *Field, entity uid.UID64, domain cell.Domain, body Body,
 	if !ok {
 		return 0, false
 	}
-	var decks uint64
+	var decks, storeys uint64
 	n := 0
 	for n < len(dst) {
 		if target != f.goal && (at.c == f.goal || p.grid.Distance(at.c, target) <= fieldLastLeg) {
@@ -284,23 +309,24 @@ func (p *Finder) Walk(f *Field, entity uid.UID64, domain cell.Domain, body Body,
 			if !ok {
 				return 0, false
 			}
-			p.decks = decks | p.decks<<n
+			p.decks, p.storeys = decks|p.decks<<n, storeys|p.storeys<<n
 			return n + k, true
 		}
 		w := f.next[s]
 		if w == fieldEnd {
 			break
 		}
-		c, _ := p.grid.Toward(at.c, int(w>>1))
-		at = node{c, w & 1}
+		c, _ := p.grid.Toward(at.c, int(w>>levelBits))
+		at = node{c, w & levelMask}
 		s, _ = f.node(at)
 		dst[n] = c
-		if at.level == deck && n < 64 {
-			decks |= 1 << n
+		if n < 64 {
+			decks |= uint64(at.level&1) << n
+			storeys |= uint64(at.level>>1) << n
 		}
 		n++
 	}
-	p.decks, p.ended = decks, at.level
+	p.decks, p.storeys, p.ended = decks, storeys, at.level
 	return n, n > 0
 }
 

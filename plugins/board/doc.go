@@ -46,8 +46,10 @@
 // cells with them. What each kind carries beyond what it is given is its [StandingTemplate]'s
 // (world.Plugin.Roster): standing still, its shadow Baked into the ground's shade (light.Shadow); a
 // unit's is a live patch. Every cell carries what its [CellTemplate] asks besides the board's own.
-// A Floor with a Height is a deck, and the cell has two levels ([BoardRead.KindAt],
-// [BoardRead.KindFor], [BoardRead.CellFor], [BoardRead.LevelFor]); one with a Width and Links is a
+// A Floor with a Height is a storey, raised over the cell (a deck) or sunk under it with the
+// room Clear over it (a tunnel's floor), and gives the cell a level beside its ground, up to
+// cell.Levels of them, a Floor naming its Storey ([BoardRead.KindAt], [BoardRead.KindFor],
+// [BoardRead.CellFor], [BoardRead.LevelFor]); one with a Width and Links is a
 // band ([BoardRead.DecksOver], [BoardRead.Reaches]), its railings never stepped across
 // ([BoardRead.Fenced]); a step along it takes a body no wider than its [BoardRead.Lane].
 // [BoardRead.Limits] is what a cell limits a body by beyond its kind, a floor's load and a wall's

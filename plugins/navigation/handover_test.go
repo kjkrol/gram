@@ -426,7 +426,7 @@ func TestHandover_AnAggregateComesDownAndStandsTillItHasFolded(t *testing.T) {
 			down.at, stood.at, amidst(soldiers))
 	}
 	g.EachCell(func(c cell.ID) {
-		h.occ.Holders(c, func(e uid.UID64, _ cell.Domain, _ bool) {
+		h.occ.Holders(c, func(e uid.UID64, _ cell.Domain, _ cell.Level) {
 			if e == down.id {
 				t.Errorf("unfolded, the army holds cell %v, want none", c)
 			}

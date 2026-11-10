@@ -221,18 +221,18 @@ func Learn(m *MoveOrder, c cell.ID) {
 // Leg is the single step an entity is travelling, its cells held in the occupancy until it
 // reaches To's centre; a slantwise step along a deck (Decked) holds no corner.
 type Leg struct {
-	From, To         cell.ID
-	C1, C2           cell.ID
-	FromDeck, ToDeck bool
-	Diagonal         bool
-	Decked           bool
-	Active           bool
+	From, To     cell.ID
+	C1, C2       cell.ID
+	FromOn, ToOn cell.Level
+	Diagonal     bool
+	Decked       bool
+	Active       bool
 }
 
-// Spot is a cell held on one of its levels, its raised deck or its ground.
+// Spot is a cell held on one of its levels.
 type Spot struct {
-	C    cell.ID
-	Deck bool
+	C  cell.ID
+	On cell.Level
 }
 
 // Cells are the cells l steps through, the first n.
@@ -251,7 +251,8 @@ func Covers(l Leg, c cell.ID) bool {
 
 // Held is what l holds in the occupancy, the first n.
 func Held(l Leg) (held [4]Spot, n int) {
-	held = [4]Spot{{l.From, l.FromDeck}, {l.To, l.ToDeck}, {l.C1, false}, {l.C2, false}}
+	held = [4]Spot{{l.From, l.FromOn}, {l.To, l.ToOn}, {l.C1, cell.OnGround},
+		{l.C2, cell.OnGround}}
 	if l.Diagonal && !l.Decked {
 		return held, 4
 	}

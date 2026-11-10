@@ -216,6 +216,7 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[Field](),
 		goke.LoadComp[PartOf](),
 		goke.LoadComp[Whole](),
+		goke.LoadComp[Unseen](),
 		goke.LoadComp[PieceOf](),
 		goke.LoadComp[Unfolded](),
 		goke.LoadComp[Fixed](),

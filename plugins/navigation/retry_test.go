@@ -24,7 +24,7 @@ type askedOccupancy struct {
 	asked int
 }
 
-func (o *askedOccupancy) CanEnter(cell.ID, bool, uid.UID64, cell.Domain) bool {
+func (o *askedOccupancy) CanEnter(cell.ID, cell.Level, uid.UID64, cell.Domain) bool {
 	o.asked++
 	return true
 }
@@ -126,7 +126,7 @@ func TestRetry_AnOrderWithNoWaySearchesOnceTillItGivesItsTargetUp(t *testing.T) 
 		base.Slice(&f.Cursor)[0].Pos = posAt(g, at(0))
 		orderComp.Slice(&f.Cursor)[0] = MoveOrder{Target: at(4)}
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-		occupancy.Enter(at(0), false, f.Cursor.IDs[0], cell.Land)
+		occupancy.Enter(at(0), cell.OnGround, f.Cursor.IDs[0], cell.Land)
 		q = si.NewQueryBuilder(&here, &orderComp).Build()
 	}})
 	navHandle := ecs.RegSys(nav)

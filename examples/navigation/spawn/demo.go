@@ -129,7 +129,8 @@ func (a *arena) spawnUnderCursor(c control.Context) (world.Spawn, bool) {
 		return world.Spawn{}, false
 	}
 	held := false
-	a.board.Write().Occupancy().Holders(at, func(uid.UID64, cell.Domain, bool) { held = true })
+	a.board.Write().Occupancy().Holders(at,
+		func(uid.UID64, cell.Domain, cell.Level) { held = true })
 	if held {
 		return world.Spawn{}, false
 	}

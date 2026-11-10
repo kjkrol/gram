@@ -110,7 +110,7 @@ type System struct {
 	// whom taken answers for, through the method value bound once
 	taker   uid.UID64
 	takerIn cell.Domain
-	taken   func(c cell.ID, deck bool) bool
+	taken   func(c cell.ID, level cell.Level) bool
 
 	heirs heirs
 }
@@ -246,10 +246,10 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 			if hands != nil && hands[i].Steers() {
 				if w.o.Leg.Active {
 					s.releaseLeg(w.o.Leg, id)
-					s.occupancy.Enter(cells[i].Cell, w.onDeck, id, w.domain)
+					s.occupancy.Enter(cells[i].Cell, w.on, id, w.domain)
 				}
 				if w.far {
-					s.occupancy.Enter(w.actual, w.onDeck, id, w.domain)
+					s.occupancy.Enter(w.actual, w.on, id, w.domain)
 					s.moveTo(&w, w.actual)
 					s.unmark(&w)
 				}
@@ -307,7 +307,7 @@ type walker struct {
 	minded          bool
 	domain          cell.Domain
 	current, actual cell.ID
-	onDeck          bool
+	on              cell.Level
 	m               bodies.Member
 	entered         bool
 	arrived         bool
@@ -334,7 +334,7 @@ func (s *System) begin(w *walker, z *world.Z, mover *unit.Mover, owners *tag.Tag
 	}
 	var ok bool
 	w.off = s.offOf(w.base.Pos.Size)
-	if w.actual, w.onDeck, ok = spacing.LevelOf(s.grid, s.terrain, s.from(w.base.Pos.Center(),
+	if w.actual, w.on, ok = spacing.LevelOf(s.grid, s.terrain, s.from(w.base.Pos.Center(),
 		w.off), z); !ok {
 		w.actual = w.current
 	}
@@ -440,10 +440,10 @@ func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 			o.Cooldown = bumpInterval
 			if leg.Active {
 				s.releaseLeg(*leg, w.id)
-				s.occupancy.Enter(w.actual, w.onDeck, w.id, w.domain)
+				s.occupancy.Enter(w.actual, w.on, w.id, w.domain)
 			} else if w.actual != w.current {
 				s.occupancy.Leave(w.current, w.id)
-				s.occupancy.Enter(w.actual, w.onDeck, w.id, w.domain)
+				s.occupancy.Enter(w.actual, w.on, w.id, w.domain)
 			}
 			s.moveTo(w, w.actual)
 			*leg = order.Leg{}
@@ -456,13 +456,13 @@ func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 	switch {
 	case leg.Active && w.actual == leg.From && !s.admitsLeg(*leg, w.domain):
 		s.releaseLeg(*leg, w.id)
-		s.occupancy.Enter(w.actual, w.onDeck, w.id, w.domain)
+		s.occupancy.Enter(w.actual, w.on, w.id, w.domain)
 		*leg = order.Leg{}
 		p.Length = 0
 		st.RequestSpeed(0)
 	case leg.Active && !order.Covers(*leg, w.actual):
 		s.releaseLeg(*leg, w.id)
-		s.occupancy.Enter(w.actual, w.onDeck, w.id, w.domain)
+		s.occupancy.Enter(w.actual, w.on, w.id, w.domain)
 		s.moveTo(w, w.actual)
 		*leg = order.Leg{}
 		p.Length = 0
@@ -470,7 +470,7 @@ func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 		s.moveTo(w, w.actual)
 	case !leg.Active && w.actual != w.current:
 		s.occupancy.Leave(w.current, w.id)
-		s.occupancy.Enter(w.actual, w.onDeck, w.id, w.domain)
+		s.occupancy.Enter(w.actual, w.on, w.id, w.domain)
 		s.moveTo(w, w.actual)
 		p.Length = 0
 	}
@@ -488,7 +488,7 @@ func (s *System) head(w *walker, changed bool, d time.Duration) stepped {
 		st.RequestSpeed(0)
 		if leg.Active {
 			s.releaseLeg(*leg, w.id)
-			s.occupancy.Enter(w.actual, w.onDeck, w.id, w.domain)
+			s.occupancy.Enter(w.actual, w.on, w.id, w.domain)
 			s.moveTo(w, w.actual)
 			*leg = order.Leg{}
 		}
@@ -647,20 +647,20 @@ func (s *System) tail(w *walker, d time.Duration) {
 	if leg.Active && p.Index < p.Length && p.Steps[p.Index] == leg.From {
 		// the route goes back the way the leg came: the same cells held
 		leg.From, leg.To = leg.To, leg.From
-		leg.FromDeck, leg.ToDeck = leg.ToDeck, leg.FromDeck
+		leg.FromOn, leg.ToOn = leg.ToOn, leg.FromOn
 	}
 
-	waypoint, aloft := target, false
+	waypoint, aloft := target, cell.OnGround
 	switch {
 	case leg.Active:
 		waypoint = leg.To
 	case p.Length > 0 && p.Index < p.Length:
-		waypoint, aloft = p.Steps[p.Index], order.Deck(p, p.Index)
+		waypoint, aloft = p.Steps[p.Index], order.LevelAt(p, p.Index)
 	}
 
 	if !leg.Active && waypoint != w.at.Cell {
-		reserved, why := s.reserveLeg(order.Spot{C: w.at.Cell, Deck: w.onDeck},
-			order.Spot{C: waypoint, Deck: aloft}, w.id, w.domain)
+		reserved, why := s.reserveLeg(order.Spot{C: w.at.Cell, On: w.on},
+			order.Spot{C: waypoint, On: aloft}, w.id, w.domain)
 		if !reserved.Active {
 			st.RequestSpeed(0)
 			switch {
@@ -671,7 +671,7 @@ func (s *System) tail(w *walker, d time.Duration) {
 				order.Learn(o, why.cell)
 				p.Length = 0
 			default:
-				if holder, known := s.keep.Blocked(w.m, o, why.cell, why.deck, d); known {
+				if holder, known := s.keep.Blocked(w.m, o, why.cell, why.on, d); known {
 					s.touched = append(s.touched, touching{self: w.id, other: holder,
 						way: s.wayBetween(why.cell, w.at.Cell), cell: why.cell, from: w.at.Cell,
 						headOn: w.m.Pressed && w.m.PressedBy == holder, refused: true})
@@ -718,7 +718,7 @@ func (s *System) tail(w *walker, d time.Duration) {
 		st.RequestSpeed(0)
 		if leg.Active {
 			s.releaseLeg(*leg, w.id)
-			s.occupancy.Enter(leg.To, leg.ToDeck, w.id, w.domain)
+			s.occupancy.Enter(leg.To, leg.ToOn, w.id, w.domain)
 			s.moveTo(w, leg.To)
 			*leg = order.Leg{}
 		}
@@ -746,7 +746,7 @@ func (s *System) tail(w *walker, d time.Duration) {
 		}
 		if leg.Active {
 			s.releaseLeg(*leg, w.id)
-			s.occupancy.Enter(leg.To, leg.ToDeck, w.id, w.domain)
+			s.occupancy.Enter(leg.To, leg.ToOn, w.id, w.domain)
 			s.moveTo(w, leg.To)
 			*leg = order.Leg{}
 		}
@@ -776,7 +776,7 @@ func (s *System) tail(w *walker, d time.Duration) {
 		}
 		if leg.Active {
 			s.releaseLeg(*leg, w.id)
-			s.occupancy.Enter(leg.To, leg.ToDeck, w.id, w.domain)
+			s.occupancy.Enter(leg.To, leg.ToOn, w.id, w.domain)
 			s.moveTo(w, leg.To)
 			*leg = order.Leg{}
 		}
@@ -810,14 +810,14 @@ func (s *System) tail(w *walker, d time.Duration) {
 
 	if leg.Active {
 		s.releaseLeg(*leg, w.id)
-		s.occupancy.Enter(leg.To, leg.ToDeck, w.id, w.domain)
+		s.occupancy.Enter(leg.To, leg.ToOn, w.id, w.domain)
 		s.moveTo(w, leg.To)
 		*leg = order.Leg{}
 	}
-	if at, deck, ok := spacing.LevelOf(s.grid, s.terrain, s.from(want, w.off), &w.m.Z); ok &&
+	if at, level, ok := spacing.LevelOf(s.grid, s.terrain, s.from(want, w.off), &w.m.Z); ok &&
 		at != w.at.Cell {
 		s.occupancy.Leave(w.at.Cell, w.id)
-		s.occupancy.Enter(at, deck, w.id, w.domain)
+		s.occupancy.Enter(at, level, w.id, w.domain)
 		s.moveTo(w, at)
 	}
 
@@ -1107,9 +1107,9 @@ func (s *System) carryOut(m bodies.Member, o *order.MoveOrder, st steering.Helm,
 	if o.Holding <= 0 {
 		return false, false
 	}
-	next, aloft := o.Target, false
+	next, aloft := o.Target, cell.OnGround
 	if o.Path.Index < o.Path.Length {
-		next, aloft = o.Path.Steps[o.Path.Index], order.Deck(&o.Path, o.Path.Index)
+		next, aloft = o.Path.Steps[o.Path.Index], order.LevelAt(&o.Path, o.Path.Index)
 	}
 	if s.keep.MayStep(m, next, aloft, s.wayTo(m, next), nil) {
 		o.Holding = 0
@@ -1359,28 +1359,29 @@ func approach(st steering.Helm, dist, within float32) float32 {
 }
 
 type refusal struct {
-	cell               cell.ID
-	deck, held, corner bool
+	cell         cell.ID
+	on           cell.Level
+	held, corner bool
 }
 
 // every cell of the step is claimed, or none: an inactive Leg and why
 func (s *System) reserveLeg(from, to order.Spot, id uid.UID64,
 	domain cell.Domain) (order.Leg, refusal) {
-	leg := order.Leg{From: from.C, To: to.C, FromDeck: from.Deck, ToDeck: to.Deck, Active: true}
+	leg := order.Leg{From: from.C, To: to.C, FromOn: from.On, ToOn: to.On, Active: true}
 	if c1, c2, diag := s.grid.DiagonalNeighbors(from.C, to.C); diag {
 		leg.C1, leg.C2, leg.Diagonal, leg.Decked = c1, c2, true, s.decked(from.C, to.C)
 	}
 	held, n := order.Held(leg)
 	for _, h := range held[1:n] {
 		if !s.terrain.Kind(h.C).Admits(domain) {
-			return order.Leg{}, refusal{cell: h.C, deck: h.Deck}
+			return order.Leg{}, refusal{cell: h.C, on: h.On}
 		}
-		if !s.occupancy.CanEnter(h.C, h.Deck, id, domain) {
-			return order.Leg{}, refusal{cell: h.C, deck: h.Deck, held: true, corner: h.C != to.C}
+		if !s.occupancy.CanEnter(h.C, h.On, id, domain) {
+			return order.Leg{}, refusal{cell: h.C, on: h.On, held: true, corner: h.C != to.C}
 		}
 	}
 	for _, h := range held[:n] {
-		s.occupancy.Enter(h.C, h.Deck, id, domain)
+		s.occupancy.Enter(h.C, h.On, id, domain)
 	}
 	return leg, refusal{}
 }
@@ -1440,7 +1441,7 @@ func (s *System) seedLegs() {
 			if orders[i].Leg.Active {
 				held, n := order.Held(orders[i].Leg)
 				for _, h := range held[:n] {
-					s.occupancy.Enter(h.C, h.Deck, id, unit.DomainAt(movers, i))
+					s.occupancy.Enter(h.C, h.On, id, unit.DomainAt(movers, i))
 				}
 			}
 		}

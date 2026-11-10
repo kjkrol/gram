@@ -23,12 +23,12 @@ type Bridges struct {
 func (t *Cells) SetBridges(b Bridges) { t.bridges = b }
 
 func (t *Cells) keepBridges(sites []site, first bool) {
-	if !slices.ContainsFunc(sites, func(s site) bool { return banded(&s.built) }) {
+	if !slices.ContainsFunc(sites, func(s site) bool { return bridged(&s.built) }) {
 		return
 	}
 	at := map[cell.ID]int{}
 	for k, s := range sites {
-		if b := s.built; banded(&b) {
+		if b := s.built; bridged(&b) {
 			at[s.cell] = k
 		}
 	}
@@ -156,3 +156,6 @@ func (t *Cells) ground(p geom.Vec) float32 {
 	}
 	return t.bridges.Ground(p)
 }
+
+// a bridge's piece: a band of the first storey not sunk under the ground
+func bridged(b *cell.Built) bool { return banded(b) && !b.Floor.Sunk() }

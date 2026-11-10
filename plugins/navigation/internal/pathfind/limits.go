@@ -9,7 +9,7 @@ import (
 // floor bears, the gap in its wall
 type limits interface {
 	Limited() bool
-	Limits(c cell.ID, d cell.Domain, deck bool) (load float32, gap cell.Gap)
+	Limits(c cell.ID, d cell.Domain, level cell.Level) (load float32, gap cell.Gap)
 }
 
 // limitsOf are what r's cell limits a body on level by, asked once a search where nothing does
@@ -18,7 +18,7 @@ func (p *Finder) limitsOf(r *read, level uint8) (load float32, gap cell.Gap) {
 	if r.has&read != 0 && r.has&some == 0 {
 		return 0, cell.Gap{}
 	}
-	load, gap = p.limits.Limits(r.c, p.domain, level == deck)
+	load, gap = p.limits.Limits(r.c, p.domain, cell.Level(level))
 	if r.has |= read; load > 0 || gap.Width > 0 {
 		r.has |= some
 	}

@@ -500,14 +500,11 @@ func (c *Coordinator) Form(ids []uid.UID64) {
 		if f.field == nil {
 			continue
 		}
-		at, deck, ok := spacing.LevelOf(brd, brd, r.laid, &r.z)
+		at, on, ok := spacing.LevelOf(brd, brd, r.laid, &r.z)
 		if !ok {
 			continue
 		}
-		level := pathfind.Ground
-		if deck {
-			level = pathfind.Deck
-		}
+		level := pathfind.On(on)
 		if cost, on := f.field.Cost(at, level); on {
 			r.cost, r.per = costAt(brd, f.field, at, level, cost, r.laid)
 		}

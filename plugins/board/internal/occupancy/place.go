@@ -51,7 +51,7 @@ type placeSystem struct {
 	partOf goke.OptComp[world.PartOf]
 	whole  goke.OptComp[world.Aggregate]
 
-	holding func(uid.UID64, cell.Domain, bool) // isHolding, bound once
+	holding func(uid.UID64, cell.Domain, cell.Level) // isHolding, bound once
 	asked   uid.UID64
 	held    bool
 	// whoever left the world this step still holds its cell till the keep lets it go: on a cell
@@ -95,16 +95,16 @@ func (s *placeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 			if size := bases[i].Pos.Size; max(size.X, size.Y) > s.span {
 				p = unit.LaidFrom(s.grid, size, p)
 			}
-			c, deck, _, ok := s.footing(p, feet, reach)
+			c, level, _, ok := s.footing(p, feet, reach)
 			if !ok || s.holds(c, id) || s.holds(ats[i].Cell, id) {
 				continue
 			}
 			domain := unit.DomainAt(movers, i)
-			if !s.released && !s.takes(c, deck, id, domain) {
+			if !s.released && !s.takes(c, level, id, domain) {
 				s.occupancy.Release(s.gone)
 				s.released = true
 			}
-			if s.takes(c, deck, id, domain) {
+			if s.takes(c, level, id, domain) {
 				s.placed = append(s.placed, c)
 				continue
 			}
@@ -121,8 +121,8 @@ func (s *placeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 
 // whether c takes id moving in domain, on its deck where deck: its domain may stand there, nobody
 // else holds it, nobody was placed there this step
-func (s *placeSystem) takes(c cell.ID, deck bool, id uid.UID64, domain cell.Domain) bool {
-	return s.terrain.Kind(c).Admits(domain) && s.occupancy.CanEnter(c, deck, id, domain) &&
+func (s *placeSystem) takes(c cell.ID, level cell.Level, id uid.UID64, domain cell.Domain) bool {
+	return s.terrain.Kind(c).Admits(domain) && s.occupancy.CanEnter(c, level, id, domain) &&
 		!slices.Contains(s.placed, c)
 }
 
@@ -142,7 +142,7 @@ func (s *placeSystem) nearest(from cell.ID, p geom.Vec, id uid.UID64,
 		}
 		best, found, near := cell.ID(0), false, f32.Inf(1)
 		for _, n := range s.next {
-			if !s.takes(n, false, id, domain) {
+			if !s.takes(n, cell.OnGround, id, domain) {
 				continue
 			}
 			if at := s.grid.CellCenter(n); f32.Hypot(at.X-p.X, at.Y-p.Y) < near {
@@ -163,7 +163,7 @@ func (s *placeSystem) holds(c cell.ID, id uid.UID64) bool {
 	return s.held
 }
 
-func (s *placeSystem) isHolding(e uid.UID64, _ cell.Domain, _ bool) {
+func (s *placeSystem) isHolding(e uid.UID64, _ cell.Domain, _ cell.Level) {
 	if e == s.asked {
 		s.held = true
 	}

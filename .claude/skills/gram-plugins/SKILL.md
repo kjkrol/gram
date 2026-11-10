@@ -1,6 +1,6 @@
 ---
 name: gram-plugins
-description: Reference of gram's built-in plugins, one entry each — world (with entity, view, clock), motion (with steering), light, board (cells, units, standing entities, bridges, maps as files, gramap), topography, atmosphere, collision, navigation, selection, players and owner, dialog, cameras, driving, gravity, vision, bridges, telemetry, minimap, bullet: how each is wired and in what order, what it rests on, its invariants, the user's decisions, the traps and the ideas dropped. Use when working in or with a specific plugin, before reading its code.
+description: Reference of gram's built-in plugins, one entry each — world (with entity, view, clock), motion (with steering), light, board (cells, units, standing entities, bridges, maps as files, gramap), topography, atmosphere, collision, navigation, selection, players and owner, dialog, cameras, driving, gravity, vision, bridges, underground, telemetry, minimap, bullet: how each is wired and in what order, what it rests on, its invariants, the user's decisions, the traps and the ideas dropped. Use when working in or with a specific plugin, before reading its code.
 ---
 
 # gram-plugins
@@ -891,6 +891,40 @@ keeps only what those do not.
   keeps its decks' `Baked` and has no handle: they cast piece by piece, within a colour step. The
   handle sits in the spatial index with a big box: selection and hover may pick it nearest but
   it carries no marks; vision still sees it (a `Sighted` slot).
+
+## underground
+
+- Made after the topography (its shaper levels a tunnel's heads) and before the players; its
+  `RunPlan` beside the bridges', before the world. A world without heights panics.
+- **A cell has levels, never "a deck or not"** (the user's word, 2026-11-10: N levels, a
+  sensible small number): the ground and three storeys, `cell.Floor.Storey` naming one, raised or
+  sunk by the sign of its `Height`. Bridges build on storey 0, the underground from storey 1 up
+  (`site.vacant`), so the board's bridge keeping (`keepBridges`, a level deck) never reads a
+  tunnel and a bridge stands over one. A sunk floor needs `Clear`: the board panics on one
+  without.
+- **A level is asked of the board by its feet**: `LevelFor`, `KindOn` and `Surface` put on a sunk
+  floor whoever has its feet under its roof and within a step over its floor (`stoodOn`); feet
+  at +Inf (a pick from above) never. A sunk band's floor is graded between its pieces
+  (`surfaces.graded`), the tube's stretches drawn to the same mean at the edge.
+- **In the finder a sunk storey is entered and left along its links alone** (`crosses`), by a
+  body no taller than its room (`roomy`), from piece to piece whatever lies between their floors
+  (they run on as one), and the step on the ground from a head into the cell over its first
+  piece is refused (`mouthed`): the way there lies down the mouth, where `Surface` drops whoever
+  walks it. A head is plain ground with a mouth standing on it, no floor.
+- **The seams a search asserts on the terrain fail without a word**: `built`, `lanes`, `limits`
+  and `railings` are found by assertion, so a signature changed on one side alone is a board
+  searched as though nothing stood on it (it cost the slantwise bridges twice in this stage);
+  `spacing/path_finder.go` asserts `*board.BoardRead` against them all.
+- The pieces carry `world.Unseen` (the world draws none of them, the plugin's tube does),
+  `vision.Transparency{1}` and no shadow; the mouth is the one part with a look. The tube and the
+  marks read every sunk floor of the board, whoever built it.
+- The ground is cut over a mouth by the terrain's shader from marks in the lattice's free
+  channels (the heights' blue and alpha, the normals' alpha at the cell's corner), found by the
+  topography in its Publish as the board's passage moves; `U.Mouths` keeps a board without
+  tunnels from reading them.
+- The cameras needed no change: the cage is free in the room over a sunk floor
+  (`topography.Read.Free`), so the eye inside a unit is the unit's and the arm behind it
+  shortens before the walls.
 
 ## forest
 

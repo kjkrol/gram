@@ -384,8 +384,9 @@ func (r *routeRig) record(out *strings.Builder, pairs int) {
 		if r.topo != nil {
 			feet = r.topo.Write().Relief().Altitude(from)
 		}
-		if top, _, _, ok := r.levels.Deck(from); ok && rng.IntN(2) == 0 {
-			feet = top
+		var floors [cell.Storeys]pathfind.Storey
+		if made, _ := r.levels.Storeys(from, &floors); made&1 != 0 && rng.IntN(2) == 0 {
+			feet = floors[0].Top
 		}
 		shapes := routeBodies(feet)
 		body := shapes[rng.IntN(len(shapes))]
@@ -394,7 +395,7 @@ func (r *routeRig) record(out *strings.Builder, pairs int) {
 			r.at(to), body.Feet, body.Step, body.Height, body.Size, end)
 
 		n, ok := f.Find(uid.UID64(1), cell.Land, body, from, to, end, dst[:])
-		fmt.Fprintf(out, " find %s %x [%s]\n", yes(ok), f.Decks(), r.cellsOf(dst[:n]))
+		fmt.Fprintf(out, " find %s %x [%s]\n", yes(ok), decksOf(f), r.cellsOf(dst[:n]))
 		if ok && n > 2 {
 			lo, hi := n/3, 2*n/3+1
 			route := append([]cell.ID(nil), dst[lo:hi]...)
@@ -407,9 +408,11 @@ func (r *routeRig) record(out *strings.Builder, pairs int) {
 				return false
 			}
 			n, ok := f.FindAround(uid.UID64(1), cell.Land, body, from, to, end, blocked, dst[:])
-			fmt.Fprintf(out, " around %s %x [%s]\n", yes(ok), f.Decks(), r.cellsOf(dst[:n]))
+			fmt.Fprintf(out, " around %s %x [%s]\n", yes(ok), decksOf(f), r.cellsOf(dst[:n]))
 		}
-		taken := func(c cell.ID, deck bool) bool { return uint64(c)%5 == 0 || deck && c%3 == 0 }
+		taken := func(c cell.ID, on cell.Level) bool {
+			return uint64(c)%5 == 0 || on != cell.OnGround && c%3 == 0
+		}
 		dest, n, ok := f.NearestFree(uid.UID64(1), cell.Land, body, from, to, end, taken, dst[:])
 		fmt.Fprintf(out, " nearest %s %s [%s]\n", yes(ok), r.at(dest), r.cellsOf(dst[:n]))
 
@@ -421,13 +424,11 @@ func (r *routeRig) record(out *strings.Builder, pairs int) {
 				out.WriteString(" -")
 				continue
 			}
-			onto, steps := f.Steps(cell.Land, body, from, nb)
-			kind, level := r.brd.KindAt(nb, onto), cell.OnGround
-			if onto {
-				level = cell.OnDeck
-			}
+			level, steps := f.Steps(cell.Land, body, from, nb)
+			kind := r.brd.KindAt(nb, level)
 			cost, priced := f.Price(from, nb, kind, level, cell.Land)
-			fmt.Fprintf(out, " %s%s%s:%s:%s", yes(onto), yes(steps), yes(priced), float(cost),
+			fmt.Fprintf(out, " %s%s%s:%s:%s", yes(level != cell.OnGround), yes(steps),
+				yes(priced), float(cost),
 				float(f.Pace(from, nb, kind, level, cell.Land)))
 		}
 		out.WriteByte('\n')
@@ -466,4 +467,10 @@ func TestRoutes_AsPinned(t *testing.T) {
 			t.Fatalf("line %d differs from %s:\n got: %s\nwant: %s", i+1, routesGolden, g, w)
 		}
 	}
+}
+
+// decksOf says which steps of the route f last found lie on the first storey, bit k the k-th
+func decksOf(f interface{ Levels() (lo, hi uint64) }) uint64 {
+	lo, _ := f.Levels()
+	return lo
 }

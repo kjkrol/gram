@@ -4093,3 +4093,45 @@ atmosphere/navigation/gram-perf-navigation, CHANGELOG, roadmapa, README.
 
 Trwała scena GPU (etap `v`), minimapa po drabinie (`i`), strumieniowanie kafli mapy z dysku
 (wszystko czytane na start, ~140 MB), równoległa budowa w hpastarze bez pomiaru, który jej wymaga.
+
+## Program „Madera 10 m” (plan 2026-11-10 noc, zatwierdzony; zastępuje kolejność z sekcji „Madera 10 m”)
+
+Rozmowa i ankiety 2026-11-10 po v0.21.0. Decyzje: przed etapem `m` wchodzi **etap 0, używany już w
+Maderze 100 m**: struktury podziemne (tunele, komory; przejazd w FPP/TPP), mosty (naturalne
+rozmiary, wiadukty, z danych rzeczywistych), drogi, tunele i mosty z **OpenStreetMap**, ok. 10
+gatunków drzew Madery z danych pokrycia terenu; przy 10 m **rozmiary naturalne** (bez skali
+figur); etap `m` w trzech PR-ach; komórka zbiorcza bez reguł, pogoda po polu sektorów; jeden
+gramap dla obu receptur; **format najpierw** (seed tylko do odczytu w blokach, diff w RAM z
+dziennikiem na czas, przewijanie ekranu nigdy nie dotyka dysku), bo ta sama dokładność na mapie
+kraju to inna skala.
+
+| Etap | Gałąź | Co wnosi |
+|---|---|---|
+| 0a | `feat/underground` | plugin `underground`, komórka o czterech poziomach, kamera i rysowanie wnętrza |
+| 0b | `feat/osm-roads` | gramap czyta OSM (drogi, tunele, mosty, zabudowa), mosty w naturalnych rozmiarach, migawka regresji Madery |
+| 0c | `feat/madeira-species` | 10 gatunków, rodzaje lasu z danych pokrycia terenu |
+| m1 | `feat/madeira-10m-store` | format blokowy, magazyn planszy, diff i dziennik, gramap na tablicach |
+| m2 | `feat/madeira-10m-pages` | encje komórek tylko w sektorach rozwiniętych, pogoda po polu, `Ahead` |
+| m3 | `feat/madeira-10m` | `Stale` z listy zmian, `-prepare`, hpastar gotowy po regionie, demo |
+
+Każdy etap: gałąź od `main`, jeden PR, własny szczegółowy plan przed startem. Pomiary wstępne
+(rig płaski, jedna klasa): budowa hierarchii ~8 µs na komórkę przy boku 64, liniowo (20,5 mln
+komórek ≈ 170 s lądu; w budżecie ticku ~47 min gry, więc `-prepare` konieczne, równoległa budowa
+nie); encja komórki ~0,55 µs i ~430 B (20,5 mln = 8,8 GB; sektor 64×64 rozwija się ~2,3 ms, więc
+`Unfolds` liczone w komórkach); magazyn statyczny ~103 MB. Dane: Geofabrik ma tylko całą
+Portugalię, otwartego rastra gatunków nie ma (IFRAM3: laurisilva 16 114 ha, eukaliptus 10 168,
+akacje 4 102, sosna nadmorska 2 337, kasztan 594).
+
+### Etap 0a: wynik (2026-11-10, gałąź `feat/underground`, baza `9450d4b3` v0.21.0)
+
+Decyzja z ankiety w trakcie: poziomów komórki ma być N, rozsądnie mało (użytkownik), nie trzeci
+poziom na sztywno ani podłoga zagłębiona na miejscu pomostu. Zrobione: `cell.Levels = 4` (grunt
+i trzy kondygnacje, `Floor.Storey`, `Floor.Clear`, `Built.More`), `cell.Level` w miejsce każdego
+`deck bool` (zajętość, `BoardRead`, `driving.Keeping`, rozkaz ruchu: `Leg.FromOn/ToOn`, poziom
+kroku trasy w dwóch bitach `Path.Decks`+`Upper`), węzły nawigacji `4·ordynał+poziom` (finder,
+pole, obrys, hierarchia; plik hierarchii z nowym znakiem `GRM2`), reguły zagłębionej podłogi w
+finderze (wejście tylko wzdłuż łącza, prześwit `Clear`, wylot zamyka krok po gruncie), `Surface` i
+`LevelFor` pod gruntem, podłoga pasa stopniowana między kawałkami; plugin `underground` (`site`,
+rodzaje, plik mapy, narzędzie Shift+T, `Courses`), `world.Unseen`, tuba instancjami z własnymi
+lampami, wycięcie gruntu nad wylotem (znaki w wolnych kanałach kratownicy, `U.Mouths`), klatka
+kamery wolna w tunelu (kamera jadąca nie wymagała zmian). `routes.golden` bez zmiany.

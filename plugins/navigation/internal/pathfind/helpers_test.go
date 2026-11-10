@@ -38,7 +38,7 @@ func (f testFinder) findPath(entity uid.UID64, domain cell.Domain, from, to cell
 
 func (f testFinder) nearestFree(entity uid.UID64, domain cell.Domain, from, target cell.ID, taken func(cell.ID) bool) (cell.ID, Path, bool) {
 	var path Path
-	takenOn := func(c cell.ID, _ bool) bool { return taken(c) }
+	takenOn := func(c cell.ID, _ cell.Level) bool { return taken(c) }
 	dest, n, ok := f.NearestFree(entity, domain, Body{}, from, target, Either, takenOn,
 		path.Steps[:])
 	path.Length = uint16(n)

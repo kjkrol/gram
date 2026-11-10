@@ -8,18 +8,17 @@ import (
 
 // OccupancyRead is who holds each cell, on which of its levels and in which domains, read.
 type OccupancyRead interface {
-	// CanEnter reports whether entity, moving in domain, may hold c on the deck over it or on
-	// its ground.
-	CanEnter(c ID, deck bool, entity uid.UID64, domain Domain) bool
+	// CanEnter reports whether entity, moving in domain, may hold c on level.
+	CanEnter(c ID, level Level, entity uid.UID64, domain Domain) bool
 	// Holders hands visit every hold of c.
-	Holders(c ID, visit func(entity uid.UID64, domain Domain, deck bool))
+	Holders(c ID, visit func(entity uid.UID64, domain Domain, level Level))
 }
 
 // Occupancy tracks who holds each cell, on which of its levels and in which domains.
 type Occupancy interface {
 	OccupancyRead
 	// Enter has entity hold c on a level in domain, in place of the hold of c it had.
-	Enter(c ID, deck bool, entity uid.UID64, domain Domain)
+	Enter(c ID, level Level, entity uid.UID64, domain Domain)
 	Leave(c ID, entity uid.UID64)
 	// Release lets go of every hold of an entity gone says is no more.
 	Release(gone func(uid.UID64) bool)
@@ -28,7 +27,7 @@ type Occupancy interface {
 type holder struct {
 	entity uid.UID64
 	domain Domain
-	deck   bool
+	level  Level
 }
 
 // SingleOccupancy lets one entity per domain into a cell on each of its levels. The zero value
@@ -40,17 +39,17 @@ type SingleOccupancy struct {
 
 var _ Occupancy = (*SingleOccupancy)(nil)
 
-func (o *SingleOccupancy) CanEnter(c ID, deck bool, entity uid.UID64, domain Domain) bool {
+func (o *SingleOccupancy) CanEnter(c ID, level Level, entity uid.UID64, domain Domain) bool {
 	for _, h := range o.holders[c] {
-		if h.entity != entity && h.deck == deck && h.domain&domain != 0 {
+		if h.entity != entity && h.level == level && h.domain&domain != 0 {
 			return false
 		}
 	}
 	return true
 }
 
-func (o *SingleOccupancy) Enter(c ID, deck bool, entity uid.UID64, domain Domain) {
-	o.holders = enter(o.holders, &o.spare, c, holder{entity, domain, deck})
+func (o *SingleOccupancy) Enter(c ID, level Level, entity uid.UID64, domain Domain) {
+	o.holders = enter(o.holders, &o.spare, c, holder{entity, domain, level})
 }
 
 func (o *SingleOccupancy) Leave(c ID, entity uid.UID64) {
@@ -60,11 +59,11 @@ func (o *SingleOccupancy) Leave(c ID, entity uid.UID64) {
 }
 
 // Holder is the entity holding c on a level in a domain domain shares, if any.
-func (o *SingleOccupancy) Holder(c ID, deck bool, domain Domain) (uid.UID64, bool) {
-	return holderOf(o.holders[c], deck, domain)
+func (o *SingleOccupancy) Holder(c ID, level Level, domain Domain) (uid.UID64, bool) {
+	return holderOf(o.holders[c], level, domain)
 }
 
-func (o *SingleOccupancy) Holders(c ID, visit func(uid.UID64, Domain, bool)) {
+func (o *SingleOccupancy) Holders(c ID, visit func(uid.UID64, Domain, Level)) {
 	holdersOf(o.holders[c], visit)
 }
 
@@ -78,10 +77,10 @@ type MultipleOccupancy struct {
 
 var _ Occupancy = (*MultipleOccupancy)(nil)
 
-func (o *MultipleOccupancy) CanEnter(ID, bool, uid.UID64, Domain) bool { return true }
+func (o *MultipleOccupancy) CanEnter(ID, Level, uid.UID64, Domain) bool { return true }
 
-func (o *MultipleOccupancy) Enter(c ID, deck bool, entity uid.UID64, domain Domain) {
-	o.holders = enter(o.holders, &o.spare, c, holder{entity, domain, deck})
+func (o *MultipleOccupancy) Enter(c ID, level Level, entity uid.UID64, domain Domain) {
+	o.holders = enter(o.holders, &o.spare, c, holder{entity, domain, level})
 }
 
 func (o *MultipleOccupancy) Leave(c ID, entity uid.UID64) {
@@ -91,11 +90,11 @@ func (o *MultipleOccupancy) Leave(c ID, entity uid.UID64) {
 }
 
 // Holder is the first entity holding c on a level in a domain domain shares, if any.
-func (o *MultipleOccupancy) Holder(c ID, deck bool, domain Domain) (uid.UID64, bool) {
-	return holderOf(o.holders[c], deck, domain)
+func (o *MultipleOccupancy) Holder(c ID, level Level, domain Domain) (uid.UID64, bool) {
+	return holderOf(o.holders[c], level, domain)
 }
 
-func (o *MultipleOccupancy) Holders(c ID, visit func(uid.UID64, Domain, bool)) {
+func (o *MultipleOccupancy) Holders(c ID, visit func(uid.UID64, Domain, Level)) {
 	holdersOf(o.holders[c], visit)
 }
 
@@ -134,15 +133,15 @@ func enter(holders map[ID][]holder, spare *[][]holder, c ID, h holder) map[ID][]
 	return holders
 }
 
-func holdersOf(holders []holder, visit func(uid.UID64, Domain, bool)) {
+func holdersOf(holders []holder, visit func(uid.UID64, Domain, Level)) {
 	for _, h := range holders {
-		visit(h.entity, h.domain, h.deck)
+		visit(h.entity, h.domain, h.level)
 	}
 }
 
-func holderOf(holders []holder, deck bool, domain Domain) (uid.UID64, bool) {
+func holderOf(holders []holder, level Level, domain Domain) (uid.UID64, bool) {
 	for _, h := range holders {
-		if h.deck == deck && h.domain&domain != 0 {
+		if h.level == level && h.domain&domain != 0 {
 			return h.entity, true
 		}
 	}

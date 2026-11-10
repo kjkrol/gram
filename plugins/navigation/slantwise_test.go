@@ -65,6 +65,9 @@ type bridgeSite struct {
 	from, to cell.ID
 	cells    bool
 	others   []walkerRow
+	// floor is the floor of a piece standing on a cell whose ground's level is level, its links
+	// set after; nil, a bridge's deck 10 up
+	floor func(level float32) cell.Floor
 }
 
 func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level Level,
@@ -107,6 +110,11 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 		case r.Head:
 			links = 1 << back
 		}
+		if site.floor != nil {
+			f := site.floor(topo.Write().Relief().Altitude(r.At))
+			f.Links = links
+			return f
+		}
 		return cell.Floor{
 			Allows:    cell.Land,
 			Height:    10 - topo.Write().Relief().Altitude(r.At),
@@ -116,7 +124,12 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 			Links:     links,
 			Width:     12,
 		}
-	}), comp.Const(cell.Rail{Keeps: cell.Land, Height: 1}))
+	}), comp.Load(func(spanRow) cell.Rail {
+		if site.floor != nil {
+			return cell.Rail{}
+		}
+		return cell.Rail{Keeps: cell.Land, Height: 1}
+	}))
 	for x, y := int(x0), int(y0); ; x, y = x+dx, y+dy {
 		at := g.At(uint32(x), uint32(y))
 		w.Write().Seed(spans.Named("bridge").Entry(spanRow{At: at,

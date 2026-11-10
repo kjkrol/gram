@@ -34,12 +34,26 @@ func (m passingMap) CellPassage(c cell.ID) uint64 { return m.cells[c] }
 // a board of one level, flat
 type flat struct{ terrain cell.Terrain }
 
-func (flat) Deck(cell.ID) (top, under float32, carries cell.Domain, ok bool) {
-	return 0, 0, 0, false
+func (x flat) Storeys(c cell.ID, dst *[cell.Storeys]pathfind.Storey) (made, sunk uint8) {
+	for s := range uint8(cell.Storeys) {
+		if top, bound, under, carries, ok := x.Storey(c, s); ok {
+			dst[s] = pathfind.Storey{Top: top, Bound: bound, Carries: carries}
+			made |= 1 << s
+			if under {
+				sunk |= 1 << s
+			}
+		}
+	}
+	return made, sunk
 }
-func (flat) Ground(geom.Vec) float32              { return 0 }
-func (flat) Over(geom.Vec) (float32, bool)        { return 0, false }
-func (f flat) KindAt(c cell.ID, _ bool) cell.Kind { return f.terrain.Kind(c) }
+
+func (flat) Storey(cell.ID, uint8) (top, bound float32, sunk bool, carries cell.Domain,
+	ok bool) {
+	return 0, 0, false, 0, false
+}
+func (flat) Ground(geom.Vec) float32                    { return 0 }
+func (flat) Over(geom.Vec) (float32, bool)              { return 0, false }
+func (f flat) KindAt(c cell.ID, _ cell.Level) cell.Kind { return f.terrain.Kind(c) }
 
 // units moving on land and in the water alike, a domain of its own
 const amphibious = cell.Land | cell.Water

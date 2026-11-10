@@ -116,11 +116,11 @@ const asideGoal = 0.5
 // OpenOccupancy holds no cell for anyone: a search blind to the others.
 type OpenOccupancy struct{}
 
-func (OpenOccupancy) CanEnter(cell.ID, bool, uid.UID64, cell.Domain) bool { return true }
-func (OpenOccupancy) Enter(cell.ID, bool, uid.UID64, cell.Domain)         {}
-func (OpenOccupancy) Leave(cell.ID, uid.UID64)                            {}
-func (OpenOccupancy) Holders(cell.ID, func(uid.UID64, cell.Domain, bool)) {}
-func (OpenOccupancy) Release(func(uid.UID64) bool)                        {}
+func (OpenOccupancy) CanEnter(cell.ID, cell.Level, uid.UID64, cell.Domain) bool { return true }
+func (OpenOccupancy) Enter(cell.ID, cell.Level, uid.UID64, cell.Domain)         {}
+func (OpenOccupancy) Leave(cell.ID, uid.UID64)                                  {}
+func (OpenOccupancy) Holders(cell.ID, func(uid.UID64, cell.Domain, cell.Level)) {}
+func (OpenOccupancy) Release(func(uid.UID64) bool)                              {}
 
 // BodyKeeping keeps units apart by their boxes, several standing in one cell (BodySpacing).
 type BodyKeeping struct {
@@ -558,7 +558,7 @@ func (k *BodyKeeping) goalOf(o *order.MoveOrder) geom.Vec {
 const YieldLinger = time.Second
 
 // never called: the open occupancy refuses nobody
-func (k *BodyKeeping) Blocked(bodies.Member, *order.MoveOrder, cell.ID, bool,
+func (k *BodyKeeping) Blocked(bodies.Member, *order.MoveOrder, cell.ID, cell.Level,
 	time.Duration) (uid.UID64, bool) {
 	return 0, false
 }
@@ -569,7 +569,7 @@ func (k *BodyKeeping) Within(m bodies.Member) float32 {
 	return min(ArrivalEpsilon, min(m.Pos.Size.X, m.Pos.Size.Y)/4)
 }
 
-func (k *BodyKeeping) MayStep(m bodies.Member, _ cell.ID, _ bool, heading geom.Vec,
+func (k *BodyKeeping) MayStep(m bodies.Member, _ cell.ID, _ cell.Level, heading geom.Vec,
 	near *bodies.Nearby) bool {
 	if near == nil {
 		near = &k.index.Own

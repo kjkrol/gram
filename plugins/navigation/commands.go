@@ -46,12 +46,8 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 				cell, ok := brd.CellFor(at, f32.Inf(1), 0)
 				return MoveTo{Cell: cell, At: at, Append: appendIt}, ok
 			}
-			cell, deck, ok := brd.LevelFor(at, z, pickReach)
-			level := OnGround
-			if deck {
-				level = OnDeck
-			}
-			return MoveTo{Cell: cell, At: at, Append: appendIt, Level: level}, ok
+			cell, on, ok := brd.LevelFor(at, z, pickReach)
+			return MoveTo{Cell: cell, At: at, Append: appendIt, Level: On(on)}, ok
 		}
 	}
 	// without a selection the drag is left to whatever yields to it: the cameras' grab

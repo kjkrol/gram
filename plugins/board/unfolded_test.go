@@ -191,7 +191,7 @@ func (c *camped) cast() (camp camper, parts []camper) {
 func (c *camped) held(id uid.UID64) []cell.ID {
 	var cells []cell.ID
 	c.g.EachCell(func(cl cell.ID) {
-		c.occ.Holders(cl, func(e uid.UID64, _ cell.Domain, _ bool) {
+		c.occ.Holders(cl, func(e uid.UID64, _ cell.Domain, _ cell.Level) {
 			if e == id {
 				cells = append(cells, cl)
 			}

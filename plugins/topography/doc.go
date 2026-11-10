@@ -31,8 +31,9 @@
 //
 // Read(0) is a cameras.Cage for a game to hand its cameras (cameras.Config.Cage): a point is
 // [Read.Free] over the ground, over the kind standing on its cell to its Height and out of a
-// deck's slab; [Read.Span] is the lowest and the highest the ground reaches, [Read.Grain]
-// how finely a line of sight steps near a deck.
+// deck's slab, and under the ground in the room over a floor sunk there; [Read.Span] is the
+// lowest and the highest the ground reaches, [Read.Grain] how finely a line of sight steps near
+// a deck. The ground over the mouth of a floor sunk under it, lower than its roof, is not drawn.
 //
 // # Light and shadows
 //

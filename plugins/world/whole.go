@@ -15,6 +15,10 @@ import (
 // its Shadow) and no sprite, and its pieces go as it goes.
 type Whole struct{}
 
+// Unseen marks a kind none of the world's looks draw, its sprite left undeclared: what its
+// plugin draws by a source of its own, a tunnel's piece under the ground.
+type Unseen struct{}
+
 // PieceOf is a piece's handle, the Whole it stands as a piece of; SpawnWhole and SeedWhole put it
 // on every piece they spawn.
 type PieceOf struct{ Whole uid.UID64 }

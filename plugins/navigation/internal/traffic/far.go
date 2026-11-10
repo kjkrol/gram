@@ -146,10 +146,7 @@ func (s *System) stepPace(w *walker) float32 {
 	if o.Pace > 0 && o.Paced == step {
 		return o.Pace
 	}
-	level := cell.OnGround
-	if order.Deck(p, p.Index) {
-		level = cell.OnDeck
-	}
+	level := order.LevelAt(p, p.Index)
 	o.Pace, o.Paced = 1, step
 	cost, ok := s.pathFinder.Price(step[0], step[1], s.pathFinder.KindAt(step[1], level), level,
 		w.domain)
@@ -170,8 +167,8 @@ func (s *System) arriveFar(w *walker, want, off geom.Vec) {
 	if s.space != nil && (f32.Abs(off.X) > f32.Eps(want.X) || f32.Abs(off.Y) > f32.Eps(want.Y)) {
 		s.space.Move(&w.base.Pos.AABB, off)
 	}
-	if at, deck, ok := spacing.LevelOf(s.grid, s.terrain, s.from(want, w.off), &w.m.Z); ok {
-		s.occupancy.Enter(at, deck, w.id, w.domain)
+	if at, level, ok := spacing.LevelOf(s.grid, s.terrain, s.from(want, w.off), &w.m.Z); ok {
+		s.occupancy.Enter(at, level, w.id, w.domain)
 		s.moveTo(w, at)
 	}
 	s.arrive(w)
@@ -231,30 +228,30 @@ func (s *System) descend(w *walker) stepped {
 	o, p := w.o, &w.o.Path
 	w.at.Next = 0
 	s.unmark(w)
-	c, deck, snapped, ok := s.land(w, true)
+	c, level, snapped, ok := s.land(w, true)
 	if !ok {
 		p.Length, p.Index = 0, 0
 		o.Waited = max(o.Waited, spacing.TargetWaitTimeout)
 		o.Ask = order.AskNearest
 		return asking
 	}
-	s.occupancy.Enter(c, deck, w.id, w.domain)
+	s.occupancy.Enter(c, level, w.id, w.domain)
 	s.moveTo(w, c)
-	w.current, w.actual, w.onDeck = c, c, deck
-	if snapped || !s.anchor(p, c, deck) {
+	w.current, w.actual, w.on = c, c, level
+	if snapped || !s.anchor(p, c, level) {
 		p.Length, p.Index = 0, 0
 	}
 	return onward
 }
 
 // land has w, come down from the far mode, on the cell under it where that takes it and, held,
-// is free, else moves it onto the nearest such: the cell, whether on a raised deck and whether w
-// was snapped off the one under it; false with none near, w left where it is
-func (s *System) land(w *walker, held bool) (c cell.ID, deck, snapped, ok bool) {
-	c, deck = w.actual, w.onDeck
+// is free, else moves it onto the nearest such: the cell, its level and whether w was snapped
+// off the one under it; false with none near, w left where it is
+func (s *System) land(w *walker, held bool) (c cell.ID, level cell.Level, snapped, ok bool) {
+	c, level = w.actual, w.on
 	if s.terrain.Kind(c).Admits(w.domain) &&
-		(!held || s.occupancy.CanEnter(c, deck, w.id, w.domain)) {
-		return c, deck, false, true
+		(!held || s.occupancy.CanEnter(c, level, w.id, w.domain)) {
+		return c, level, false, true
 	}
 	taken := s.taken
 	if !held {
@@ -263,26 +260,26 @@ func (s *System) land(w *walker, held bool) (c cell.ID, deck, snapped, ok bool) 
 	s.taker, s.takerIn = w.id, w.domain
 	snap, found := s.pathFinder.Snap(w.domain, w.m.Body(), c, taken)
 	if !found {
-		return c, deck, false, false
+		return c, level, false, false
 	}
 	have := w.base.Pos.Center()
 	to := s.unwrap(have, s.place(snap, w.off))
 	if s.space != nil {
 		s.space.Move(&w.base.Pos.AABB, geom.NewVec(to.X-have.X, to.Y-have.Y))
 	}
-	deck = false
+	level = cell.OnGround
 	if at, on, ok := spacing.LevelOf(s.grid, s.terrain, s.from(to, w.off), &w.m.Z); ok &&
 		at == snap {
-		deck = on
+		level = on
 	}
 	s.snaps++
-	return snap, deck, true, true
+	return snap, level, true, true
 }
 
-// anchor has p's route stand at c, on a raised deck where deck says, where c is a cell of it
+// anchor has p's route stand at c on level, where c is a cell of it
 // round its next steps: the one it stands at, one of the next few or a neighbour of the next;
 // false where c is none of them or the route is spent
-func (s *System) anchor(p *order.Path, c cell.ID, deck bool) bool {
+func (s *System) anchor(p *order.Path, c cell.ID, level cell.Level) bool {
 	if p.Index >= p.Length {
 		return false
 	}
@@ -305,14 +302,12 @@ func (s *System) anchor(p *order.Path, c cell.ID, deck bool) bool {
 	}
 	k := p.Index - 1
 	p.Steps[k] = c
-	if p.Decks &^= 1 << k; deck {
-		p.Decks |= 1 << k
-	}
+	order.SetLevel(p, k, level)
 	return true
 }
 
-func (s *System) isTaken(c cell.ID, deck bool) bool {
-	return !s.occupancy.CanEnter(c, deck, s.taker, s.takerIn)
+func (s *System) isTaken(c cell.ID, level cell.Level) bool {
+	return !s.occupancy.CanEnter(c, level, s.taker, s.takerIn)
 }
 
 func (s *System) mark(w *walker) {

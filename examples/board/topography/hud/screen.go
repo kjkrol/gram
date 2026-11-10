@@ -20,9 +20,10 @@ type Deps struct {
 	Clock      render.Renderer
 	Paused     func() bool
 	Atmosphere *atmosphere.Plugin
-	// Reason says why a bridge cannot stand where it is aimed, Window asks to build it.
-	Reason *ui.Element
-	Window *ui.Element
+	// Reasons say why a bridge or a tunnel cannot lie where it is aimed, Windows ask to build
+	// it.
+	Reasons []*ui.Element
+	Windows []*ui.Element
 	// Widgets lays the hour, the date and the weather apart by the corners, not in a bar.
 	Widgets bool
 }
@@ -39,20 +40,25 @@ const (
 )
 
 // Screen is the feed under the clock, the minimap top-right, the atmosphere's hour, date and
-// weather, PAUSED beside them while the clock stands, and the bridges' words over all; the
+// weather, PAUSED beside them while the clock stands, and the builders' words over all; the
 // top-left corner is the telemetry panel's.
 func Screen(d Deps) *ui.Element {
-	return ui.Layers(
+	layers := []*ui.Element{
 		d.Feed,
 		ui.Drawer(d.Clock),
 		ui.TopRight(ui.Layers(
 			ui.Center(d.Minimap.Masked(ui.Circle).Border(minimapRim, 2)).Size(minimapSide, minimapSide),
 			d.Compass,
-		)).Size(minimapBox, minimapBox).Margin(16-minimap.Overhang),
+		)).Size(minimapBox, minimapBox).Margin(16 - minimap.Overhang),
 		timeAndWeather(d),
-		ui.BottomMiddle(d.Reason.Padding(6).Fill(reasonColor)).Margin(40),
-		ui.Center(d.Window),
-	)
+	}
+	for _, r := range d.Reasons {
+		layers = append(layers, ui.BottomMiddle(r.Padding(6).Fill(reasonColor)).Margin(40))
+	}
+	for _, w := range d.Windows {
+		layers = append(layers, ui.Center(w))
+	}
+	return ui.Layers(layers...)
 }
 
 // the bar at the top, or apart: the hour over the clock, the date at the top, the weather

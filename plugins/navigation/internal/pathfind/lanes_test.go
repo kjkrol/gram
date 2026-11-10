@@ -28,7 +28,8 @@ func newBridged() bridged {
 	return bridged{terrain, g}
 }
 
-func (b bridged) Lane(from, to cell.ID, d cell.Domain, deck bool) float32 {
+func (b bridged) Lane(from, to cell.ID, d cell.Domain, level cell.Level) float32 {
+	deck := level != cell.OnGround
 	x0, y0, _ := b.g.Coords(from)
 	x1, y1, _ := b.g.Coords(to)
 	if d&cell.Land == 0 || deck || y0 != 1 || y1 != 1 || max(x0, x1) < 2 || min(x0, x1) > 2 {

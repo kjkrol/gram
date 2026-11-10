@@ -47,6 +47,7 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/topography"
+	"github.com/kjkrol/gram/plugins/underground"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -98,6 +99,7 @@ type arena struct {
 	gravity    *gravity.Plugin
 	topography *topography.Plugin
 	bridges    *bridges.Plugin
+	tunnels    *underground.Plugin
 	forest     *forest.Plugin
 	selection  *selection.Plugin
 	driving    *driving.Plugin
@@ -226,6 +228,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		Reshape:   scale.Units(60),
 		High:      scale.Units(200),
 	}}).WithShaper(a.topography.Write())
+	a.tunnels = underground.NewPlugin(a.world, a.board, underground.Config{Rules: tunnelling}).
+		WithShaper(a.topography.Write())
 	a.forest = forest.NewPlugin(a.world, a.board)
 	a.selection = selection.NewPlugin(a.world)
 	a.driving = driving.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board)
@@ -282,7 +286,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 			a.world.Read(0).Seen())
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection,
 		a.nav, a.driving,
-		a.atmosphere, a.topography, a.vision, a.bridges, a.minimap, a.light)
+		a.atmosphere, a.topography, a.vision, a.bridges, a.tunnels, a.minimap, a.light)
 	a.light.Write().AdaptShadows(true)
 	a.atmosphere.Write().ShowClouds(atmosphere.AllBodies)
 	a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground: true, Figures: true, High: true})
@@ -425,6 +429,7 @@ func (a *arena) defineFigures() {
 		band{color: playerColor, joined: a.enlisted},
 	)
 	a.bridges.Figures(bridge{})
+	a.tunnels.Figures(tunnel{})
 	a.forest.Figures(woods{})
 	a.atmosphere.Skies(earth{})
 }
@@ -462,6 +467,9 @@ func (a *arena) spawn() error {
 	if err := a.bridges.Write().Spawn(level); err != nil {
 		return err
 	}
+	if err := a.tunnels.Write().Spawn(level); err != nil {
+		return err
+	}
 	caravans := board.Sides{ReserveSide: append(a.carried(), selection.Allow{})}
 	if err := board.Spawn[caravanRow](level, caravans); err != nil {
 		return err
@@ -489,6 +497,7 @@ func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
 
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.bridges.RunPlan(ctx, d)
+	a.tunnels.RunPlan(ctx, d)
 	a.world.RunPlan(ctx, d)
 	a.light.RunPlan(ctx, d)
 	a.motion.RunPlan(ctx, d)
