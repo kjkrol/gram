@@ -30,9 +30,18 @@
 // a headwall, and drawn back along the tunnel where that is not enough; one that cannot lie
 // stays a road. A flat map plans its own roads along the routes.
 //
-// The recipe's fields: section lays fields over the cells of a kind, an entity a block (grain
+// With source: corine in its cover: section a map with relief draws its land as the land cover
+// says (CORINE Land Cover 2018, © European Union, Copernicus Land Monitoring Service, European
+// Environment Agency; asked of the agency's service once, the answer kept beside the tiles): the
+// cells whose middles lie in a shape of a class are of the kind its kinds: name for the class,
+// and within a Natura 2000 site named in sites: the kinds of: are another, kind:. What the cover
+// says grows on a slope grows there; rock is what it leaves steep, and what lies over the
+// ground's rock above. A map without it, and every flat one, lays its forest by noise.
+//
+// The recipe's fields: section lays fields over the cells of a kind, or of several, an entity
+// a block (grain
 // cells a side from the first cell; a sector of the world, so a field folds and unfolds by
-// sector) where at least least of its cells are of that kind, written as rows of the map's
+// sector) where at least least of its cells are of those kinds, written as rows of the map's
 // entities: with the kind, the block's first and last cell and how many cells it covers, for
 // the game's rules to plant. Its settlements: section lays cells of a kind round the roads'
 // places, as many as a place's size names in sizes: (cells, the words the recipe's: hamlet,
@@ -100,7 +109,8 @@ func run(recipePath, out, cache string, flat bool) error {
 		}
 		return data, err
 	}
-	c, err := build(r, newTerrarium(zoom, cache).at, osm, flat)
+	land := newLandcover(filepath.Join(filepath.Dir(cache), "cover"))
+	c, err := build(r, newTerrarium(zoom, cache).at, osm, land, flat)
 	if err != nil {
 		return err
 	}

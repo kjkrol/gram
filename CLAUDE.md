@@ -69,7 +69,7 @@ make demo-board-topography                                      # Madeira in rel
 make demo-board-topography-ghibli                               # the same ground painted, the light in bands (-look ghibli)
 make demo-board-topography-widgets                              # the hour, the date and the weather apart by the corners, not in a bar (-hud widgets)
 make demo-board-forest-army                                     # a forest and two armies folded far off and unfolded near: trees, soldiers, a battle either way
-go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS, its roads, tunnels, bridges and buildings OpenStreetMap's, its forests and settlements as fields
+go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS, its roads, tunnels, bridges and buildings OpenStreetMap's, what grows where the land cover's (CORINE), its growth and settlements as fields
 make demo-navigation-square                                     # units sent round a wall, over a river by a bridge a wagon is too wide for; walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-hex                                        # the same on a hex board
 make demo-navigation-spawn                                      # walkers spawned under the cursor (N) hold their cells, the cells held shown

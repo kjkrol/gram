@@ -58,7 +58,7 @@ func (w *chart) check(data []byte) (err error) {
 	ground := cell.Land | cell.Air
 	kinds := b.Read(0).CellKinds()
 	kinds.Define(k.Sea, cell.Kind{Pace: 1, Allows: cell.Water | cell.Air})
-	for _, name := range k.land() {
+	for _, name := range append(k.land(), w.r.Cover.kinds()...) {
 		kinds.Define(name, cell.Kind{Pace: 1, Allows: ground})
 	}
 	for _, name := range []string{k.Brook, k.Stream, k.River} {

@@ -19,6 +19,7 @@ type recipe struct {
 	Zoom        int            `yaml:"zoom"` // 0: one fine enough for the cells
 	Kinds       kinds          `yaml:"kinds"`
 	Ground      groundCfg      `yaml:"ground"`
+	Cover       coverCfg       `yaml:"cover"`
 	Rivers      riversCfg      `yaml:"rivers"`
 	Roads       roadsCfg       `yaml:"roads"`
 	Tunnels     tunnelsCfg     `yaml:"tunnels"`
@@ -82,13 +83,13 @@ type kinds struct {
 // land is the kinds the land's cells are drawn as
 func (k kinds) land() []string { return []string{k.Earth, k.Sand, k.Rock, k.Forest, k.Built} }
 
-// a field over the cells of a kind in each block of the board, a square grain cells a side counted
-// from its first cell, where at least least of them lie
+// a field over the cells of a kind, or of some kinds, in each block of the board, a square grain
+// cells a side counted from its first cell, where at least least of them lie
 type fieldCfg struct {
-	Cells string `yaml:"cells"` // the cells' kind
-	Kind  string `yaml:"kind"`  // the field's, a kind of entity
-	Grain int    `yaml:"grain"`
-	Least int    `yaml:"least"`
+	Cells cellKinds `yaml:"cells"`
+	Kind  string    `yaml:"kind"` // the field's, a kind of entity
+	Grain int       `yaml:"grain"`
+	Least int       `yaml:"least"`
 }
 
 // the cells laid round the places, as many as a place's size: a word of sizes, none or a number
@@ -292,16 +293,22 @@ func parseRecipe(data []byte, path string) (recipe, error) {
 }
 
 func (r recipe) validate() error {
-	land := r.Kinds.land()
+	land := append(r.Kinds.land(), r.Cover.kinds()...)
+	if err := r.Cover.validate(); err != nil {
+		return err
+	}
 	for i, f := range r.Fields {
 		switch {
-		case f.Cells == "" || f.Kind == "":
+		case len(f.Cells) == 0 || f.Kind == "":
 			return fmt.Errorf("fields: field %d names no cells or no kind", i+1)
 		case f.Grain < 1 || f.Least < 1:
 			return fmt.Errorf("fields: %s over %s wants a grain and a least of a cell or more",
 				f.Kind, f.Cells)
-		case f.Cells != r.Kinds.Sea && !slices.Contains(land, f.Cells):
-			return fmt.Errorf("fields: %s lies over %q, no kind of the recipe's", f.Kind, f.Cells)
+		}
+		for _, cells := range f.Cells {
+			if cells != r.Kinds.Sea && !slices.Contains(land, cells) {
+				return fmt.Errorf("fields: %s lies over %q, no kind of the recipe's", f.Kind, cells)
+			}
 		}
 	}
 	s := r.Settlements
@@ -355,4 +362,20 @@ func defaultRecipe() recipe {
 	r.Roads.High = 60
 	r.Tunnels = tunnelsCfg{Clear: 3, Width: 4, Cover: 5, Grade: 0.1, Longest: 40, Least: 2, Reshape: 60}
 	return r
+}
+
+// cellKinds are kinds of cells, a recipe naming one bare or several in a list
+type cellKinds []string
+
+func (c *cellKinds) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind == yaml.ScalarNode {
+		*c = cellKinds{n.Value}
+		return nil
+	}
+	var list []string
+	if err := n.Decode(&list); err != nil {
+		return err
+	}
+	*c = list
+	return nil
 }

@@ -23,16 +23,20 @@ var (
 )
 
 var cellColors = map[string]color.RGBA{
-	WaterCell:  {R: 40, G: 90, B: 170, A: 255},
-	EarthCell:  {R: 110, G: 150, B: 75, A: 255},
-	SandCell:   {R: 215, G: 195, B: 140, A: 255},
-	RockCell:   {R: 130, G: 125, B: 120, A: 255},
-	BrookCell:  {R: 90, G: 145, B: 205, A: 255},
-	StreamCell: {R: 90, G: 145, B: 205, A: 255},
-	RiverCell:  {R: 90, G: 145, B: 205, A: 255},
-	RoadCell:   {R: 165, G: 135, B: 95, A: 255},
-	ForestCell: {R: 30, G: 90, B: 45, A: 255},
-	BuiltCell:  {R: 158, G: 146, B: 124, A: 255},
+	WaterCell:      {R: 40, G: 90, B: 170, A: 255},
+	EarthCell:      {R: 110, G: 150, B: 75, A: 255},
+	SandCell:       {R: 215, G: 195, B: 140, A: 255},
+	RockCell:       {R: 130, G: 125, B: 120, A: 255},
+	BrookCell:      {R: 90, G: 145, B: 205, A: 255},
+	StreamCell:     {R: 90, G: 145, B: 205, A: 255},
+	RiverCell:      {R: 90, G: 145, B: 205, A: 255},
+	RoadCell:       {R: 165, G: 135, B: 95, A: 255},
+	LaurisilvaCell: {R: 24, G: 82, B: 46, A: 255},
+	WoodlandCell:   {R: 58, G: 104, B: 56, A: 255},
+	PinewoodCell:   {R: 34, G: 88, B: 72, A: 255},
+	HeathCell:      {R: 116, G: 122, B: 86, A: 255},
+	FarmlandCell:   {R: 142, G: 160, B: 82, A: 255},
+	BuiltCell:      {R: 158, G: 146, B: 124, A: 255},
 }
 
 var (
@@ -51,24 +55,16 @@ var (
 )
 
 var (
-	laurelCrown   = color.RGBA{R: 30, G: 84, B: 42, A: 255}
-	laurelLeaves  = color.RGBA{R: 64, G: 122, B: 58, A: 255}
-	laurelTrunk   = color.RGBA{R: 72, G: 54, B: 38, A: 255}
-	pineCrown     = color.RGBA{R: 38, G: 90, B: 70, A: 255}
-	pineLeaves    = color.RGBA{R: 54, G: 108, B: 82, A: 255}
-	pineTrunk     = color.RGBA{R: 84, G: 58, B: 40, A: 255}
-	heatherCrown  = color.RGBA{R: 98, G: 112, B: 62, A: 255}
-	heatherLeaves = color.RGBA{R: 156, G: 160, B: 100, A: 255}
-	heatherTrunk  = color.RGBA{R: 92, G: 72, B: 52, A: 255}
-)
-
-var (
 	snowyColors = map[string]color.RGBA{
-		EarthCell:  {R: 232, G: 236, B: 235, A: 255},
-		SandCell:   {R: 238, G: 236, B: 225, A: 255},
-		RockCell:   {R: 205, G: 208, B: 212, A: 255},
-		ForestCell: {R: 150, G: 185, B: 165, A: 255},
-		BuiltCell:  {R: 226, G: 224, B: 220, A: 255},
+		EarthCell:      {R: 232, G: 236, B: 235, A: 255},
+		SandCell:       {R: 238, G: 236, B: 225, A: 255},
+		RockCell:       {R: 205, G: 208, B: 212, A: 255},
+		LaurisilvaCell: {R: 146, G: 182, B: 164, A: 255},
+		WoodlandCell:   {R: 160, G: 190, B: 168, A: 255},
+		PinewoodCell:   {R: 150, G: 184, B: 176, A: 255},
+		HeathCell:      {R: 214, G: 218, B: 208, A: 255},
+		FarmlandCell:   {R: 228, G: 232, B: 222, A: 255},
+		BuiltCell:      {R: 226, G: 224, B: 220, A: 255},
 	}
 	iceColor = color.RGBA{R: 175, G: 210, B: 230, A: 255}
 )
@@ -81,7 +77,11 @@ func (m *mainScene) screen() *ui.Element {
 		Style(EarthCell, painter.Style{Spread: 0.3, Detail: d[EarthCell]}).
 		Style(SandCell, painter.Style{Spread: 0.35, Detail: d[SandCell]}).
 		Style(RockCell, painter.Style{Spread: 0.25, Detail: d[RockCell]}).
-		Style(ForestCell, painter.Style{Detail: d[ForestCell]}).
+		Style(LaurisilvaCell, painter.Style{Detail: d[LaurisilvaCell]}).
+		Style(WoodlandCell, painter.Style{Detail: d[WoodlandCell]}).
+		Style(PinewoodCell, painter.Style{Detail: d[PinewoodCell]}).
+		Style(HeathCell, painter.Style{Spread: 0.3, Detail: d[HeathCell]}).
+		Style(FarmlandCell, painter.Style{Spread: 0.3, Detail: d[FarmlandCell]}).
 		Style(RoadCell, painter.Style{Detail: d[RoadCell]}).
 		Style(BuiltCell, painter.Style{Spread: 0.3, Detail: d[RockCell]}).
 		Style(BrookCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).

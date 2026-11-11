@@ -57,8 +57,12 @@ var defaultColours = Colours{
 	Trunk:  color.RGBA{R: 95, G: 70, B: 45, A: 255},
 }
 
-// the side of a tree's sprites in the atlas
-const spritePx = 48
+// the side of a tree's sprites in the atlas, and of a tall tree's at most: its side is drawn
+// on a square stretched to its height, so one taller than wide is drawn finer
+const (
+	spritePx     = 48
+	tallSpritePx = 192
+)
 
 type treeRow struct{}
 
@@ -67,6 +71,7 @@ type Types struct {
 	p     *Plugin
 	specs map[string]Spec
 	names []string
+	asked []string // the kinds entries were asked of
 }
 
 // Define registers the kind of tree named name, as spec says: a part of its forest standing for
@@ -124,6 +129,23 @@ func (t *Types) Named(name string) Type {
 	return Type{name: name, spec: spec, kind: kind.Named[treeRow](t.p.worldPlugin.Kinds(), name)}
 }
 
+// Entry is one tree of the kind named name, for a game's own rule to stand where no forest
+// plants it (world.SpawnPart); a name no kind of tree is defined as by the time the looks are
+// declared panics.
+func (t *Types) Entry(name string) kind.Entry {
+	t.asked = append(t.asked, name)
+	return kind.EntryOf(name, treeRow{})
+}
+
+// check panics where an entry was asked of a kind of tree never defined
+func (t *Types) check() {
+	for _, name := range t.asked {
+		if _, ok := t.specs[name]; !ok {
+			panic(fmt.Sprintf("forest: an entry of %q, which is no kind of tree", name))
+		}
+	}
+}
+
 // Type is a kind of tree defined.
 type Type struct {
 	name string
@@ -148,7 +170,8 @@ func (t Type) look(a *world.Atlas) {
 	if side == nil {
 		side = standing(t.spec.Colours, t.spec.Trunk)
 	}
-	s := a.Add(t.kind, spritePx, side).Canopy().Cutout()
+	px := spritePx * min(max(int(t.spec.Height/t.spec.Crown), 1), tallSpritePx/spritePx)
+	s := a.Add(t.kind, px, side).Canopy().Cutout()
 	if t.spec.Body {
 		s = s.Upright()
 	}

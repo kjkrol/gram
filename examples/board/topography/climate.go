@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"time"
 
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
@@ -86,7 +87,16 @@ func (a *arena) defineClimate() weathering.Config {
 	return weathering.Config{
 		Snowy: snowy,
 		Ice:   IceCell,
-		Sway:  []string{ForestCell, snowyCell(ForestCell)},
+		Sway:  swaying(),
 		High:  func(c cell.ID) bool { return ground.Altitude(c) >= scale.Units(highSnow) },
 	}
+}
+
+// swaying are the kinds of cells the wind sways the growth of, snowed on or not
+func swaying() []string {
+	var names []string
+	for _, name := range append(slices.Clone(woods), HeathCell) {
+		names = append(names, name, snowyCell(name))
+	}
+	return names
 }

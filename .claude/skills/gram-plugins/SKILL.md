@@ -414,8 +414,15 @@ keeps only what those do not.
   the words and the sizes are the game's, in its recipe, sizes in cells never in houses (the
   user's word, 2026-11-06: gramap stays general; what stands on a built cell is the game's
   Unfold rules). `check.go` defines `built` like soil and stand-in field kinds so the map lays
-  on a board. Madeira: 239 forests and 21 settlements over 800 sectors; a town grows in strips
-  along its roads, and the grain of 16 cuts a big town into several fields.
+  on a board. A field's `cells:` is a kind or a list of kinds (2026-11-11): one field a block
+  over all the land cover's kinds, since a field a kind a block tripled the fields and cost the
+  world's publish 0.6 ms of every 30 (Madeira: 315 growth fields and 195 settlements). The land
+  cover (`cover.go`, 2026-11-11): CORINE Land Cover 2018's shapes and the Natura 2000 sites
+  from the EEA's ArcGIS REST services (GeoJSON, no login, the answers kept in `cover/` beside
+  the tiles through the same `overpass` cache), rasterised by the cells' middles a row at a
+  time, holes by the even-odd rule; `soil()` takes the cover's kind before the slope's rock
+  (the laurisilva grows on slopes: with the rock first it lost 40 % of its cells) and after the
+  altitude's. CORINE knows no species: the game's stands pick them by height.
 - The board's field (collision's `Field`) and cover (sight's) read the cell entities whenever
   asked; nothing copies them.
 - The flat board is drawn on the GPU from an image of its cells (`look/tiles.go`): the CPU writes
@@ -970,6 +977,14 @@ keeps only what those do not.
 
 ## forest
 
+- A tree's `Side` is drawn on a square stretched to its crown across and its height down: a
+  drawer must squash what it draws by the tree's height over its crown, or a round crown is a
+  tall ellipse (the topography's `side` helper counts in crown widths); the sprite is
+  `spritePx` times that ratio, up to four, so a tall tree's crown keeps its pixels. A crown
+  wider than the world's `MaxSize` is refused as the part spawns, a line in the log, no panic.
+  `Types.Entry(name)` is a tree for a rule of another aggregate (the settlement's palms); it is
+  checked with the stands' mixes as the looks are declared, since the Rules of a board's figure
+  run before the forest's kinds are defined.
 - Made over the world and the board (`NewPlugin(w, brd)`), no pass of its own: the trees come and go
   by the world's `Unfold`, `Fold` and `Folding`. `Types.Define(name, Spec)` registers a kind of tree
   on `board.StandingTemplate` (so `Fixed`) with the plugin's `TreeRole` (its rule despawns the tree
