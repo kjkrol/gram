@@ -10,7 +10,13 @@
   level's file (`{kind: tunnel, from, to, via}`, `{kind: cave, from, to, depth}`,
   `Write.Spawn`), a player with the tunnel in hand (Shift+T: `Tool`, `Aim`, `Mark`, `Dig`,
   `Cancel`, `Window`, `Reason`, the heads levelled by `WithShaper`). A structure is entities a
-  cell under a `world.Whole`, its kinds a game's (`Types.Define`, `Types.Chamber`, `Figure`);
+  cell under a `world.Whole`, its kinds a game's (`Types.Define`, `Types.Chamber`, `Figure`), a
+  mouth square to its tunnel (one out across its head's corner, or turning in its first cell,
+  is refused; `site.Square` leads the tool's slanting line out across the edges and two cells
+  on) and framed by a jamb either side and a lintel
+  running in as far as the tube shows through the ground cut over it, the way in open, a turn's
+  stretches cut on the plane between them, the ground beside a corner a tunnel crosses closing
+  over it too (`site.Rules.Width`), the floor a road's with its lines;
   a unit walks in at a mouth and through, no taller than the room, and a body in the room
   meets its walls (the board's field: either side of a tunnel, a turn closed outside, round a
   chamber but for the door of a tunnel coming in); a camera riding it (V) stays
@@ -26,10 +32,32 @@
   `navigation.On` names a goal's level past `OnDeck`.
 - `world.Unseen`: a kind none of the world's looks draw, its plugin drawing it by a source of
   its own.
+- `cmd/gramap` takes a map's roads, tunnels, bridges and buildings from OpenStreetMap (`roads:
+  {source: osm, classes: [...]}`, asked of the Overpass API once and kept beside the tiles; ©
+  OpenStreetMap contributors, ODbL): the roads thinned to lines and cut into legs at their
+  junctions, each planned along its trace by `roads/site`'s planner, bridged where
+  OpenStreetMap has a bridge or water lies, levelled a batch at a time, a leg the ground refuses
+  tried in halves; the tunnels dug by `underground/site`'s rules (`tunnels: {clear, cover,
+  width, grade, longest, reshape}`), led out of each head across an edge and two cells on
+  before it slants (a mouth's first cell runs straight), a head cut into the ground and a headwall raised over its mouth;
+  the settlements' cells where OpenStreetMap has `least` buildings or more (`settlements:
+  {source: osm, least}`). Madeira in relief is its real network: 4718 cells of road (1089
+  before), 50 bridges, 24 tunnels a road runs into at either head, some 4300 built cells; 299
+  short stretches too steep for a road of 10° are left out, 82 tunnels the ground does not
+  let lie stay roads and 8 dug ones no road could be laid to are left out. A flat map plans
+  its roads along the recipe's routes as before, cell for cell.
 - The topography cuts the ground over the mouth of a floor sunk under it and frees the cameras'
   cage in the room over such a floor (`Read.Free`).
 
+**Fixed**
+- A way narrower than a pixel and a half of the ground's sheet is painted that wide: a road
+  slanting across a big board's cells was a row of dots from close by.
+
 **Changed**
+- A gramap recipe says how many times bigger than life its game draws the figures
+  (`area: {figures}`) and gives a deck's `thickness`, a man's `figure` and a tunnel's `clear`
+  in metres of life; Madeira's bridges span six cells at most (four before), the demo's rules
+  with them, its deck's and its tunnel's widths and its piers by `scale.Figure`.
 - A level of a cell is a `cell.Level` wherever it was "on the deck or not": `cell.Occupancy`
   (`CanEnter`, `Enter`, `Holder`, `Holders`), `BoardRead.KindAt`, `LevelFor`, `Lane`, `Fenced`,
   `Railed` and `Limits`, `driving.Keeping.MayStep`. A game's own `cell.Occupancy` or

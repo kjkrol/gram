@@ -135,6 +135,9 @@ func (p *Plugin) Publish() {
 	}
 }
 
+// how far past its cell's middle the ground over a mouth is cut away, in the way to the middle
+const mouthClimb = 1.2
+
 // mouths appends to dst where the floors sunk under the board's cells come out: every link of a
 // band running on to a neighbour no floor of its storey lies under
 func (p *Plugin) mouths(dst []terrain.Mouth) []terrain.Mouth {
@@ -160,9 +163,14 @@ func (p *Plugin) mouths(dst []terrain.Mouth) []terrain.Mouth {
 					if nb := brd.Built(n); nb.Storey(s).Sunk() {
 						continue
 					}
+					// a floor climbing in from its mouth has its roof higher past the cell's
+					// middle than at the edge the cut is counted from
+					_, level := brd.Map().Top(c)
+					_, before := brd.Map().Top(n)
+					climbs := max(level+f.Height-before, 0)
 					dx, dy := brd.Offset(way)
 					dst = append(dst, terrain.Mouth{X: int(x), Y: int(y), Dx: int8(dx),
-						Dy: int8(dy), Half: f.Width / 2, Clear: f.Clear})
+						Dy: int8(dy), Half: f.Width / 2, Clear: f.Clear + mouthClimb*climbs})
 				}
 			}
 		}

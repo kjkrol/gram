@@ -388,6 +388,22 @@ keeps only what those do not.
   flanking a diagonal bridge's head is barred (its corners are fixed at the deck and on the
   ground); the map is laid on a board and run a step before it is written, the old file's
   `units:` kept — and `units:` alone: a hand-placed row of `entities:` goes with a regeneration.
+  With `roads: {source: osm}` (2026-11-11, a map with relief alone; `-flat` plans the routes
+  as before) OpenStreetMap leads the same planner (`osm.go`, `guide.go`, `follow.go`,
+  `tunnels.go`): the ways' cells thinned (Zhang–Suen, so two carriageways are one line) and cut
+  into legs at junctions; a leg planned in the corridor two cells round its trace, cells off it
+  twice dearer, leaps offered only over OpenStreetMap's bridges and water (weighing bridges at
+  every expanded node was 89% of the old run); legs levelled sixteen at a time with all laid,
+  the one through the refused cell taken out and tried alone, then in halves down to four
+  cells, so a long road loses a stretch, never itself. Tunnels first: ways joined into chains,
+  a twin tube skipped, the line straightened to the grid's ways (`via`) and led out of each
+  head across an edge, two cells on before it slants (`squared`), each head cut down and
+  the far corners of its first cell raised (the site wants the ground over the first cell's
+  middle at the roof: 2 × clear over the head, 90 m at figures 15), drawn back up to four
+  cells; their heads, first cells and corners are pinned for every later levelling (`held`
+  plans each anew as `hold` does the bridges). What decides the yield is the 10° of
+  `ground.RoadSlope` and the room of figures 15 times life, not the planner. `GRAMAP_MADEIRA=1
+  go test ./cmd/gramap -run TestMadeira` holds both of Madeira's maps to their SHA-256.
   Fields and settlements (`fields.go`, `settle.go`, `d/gramap`, 2026-11-06): `fields:` rows
   `{cells, kind, grain, least}` lay a field entity a block of `grain` cells from (0, 0) over the
   cells of a kind where at least `least` lie, written as `{kind, from: [x, y], to: [x, y],
@@ -906,6 +922,19 @@ keeps only what those do not.
   floor whoever has its feet under its roof and within a step over its floor (`stoodOn`); feet
   at +Inf (a pick from above) never. A sunk band's floor is graded between its pieces
   (`surfaces.graded`), the tube's stretches drawn to the same mean at the edge.
+- **A mouth is square to its tunnel** (2026-11-11): `site.Plan` refuses a tunnel out across its
+  head's corner, since the tube, wider than the corner, runs under the two cells beside, whose
+  ground stands in it or, cut, leaves holes under the frame; `site.Square` leads the tool's
+  slanting line out across the edges, two cells on before it slants, for a turn in the first
+  cell is refused too: its stretch runs along the slope the mouth opens in and its wall
+  stands out of it. The same under the
+  ground: beside a corner a tunnel crosses the two cells' ground must close over the roof half
+  the width off (`Rules.Width`, the plugin's from the kind), or a wall shows through a slope.
+  The frame runs in level as far as the topography cuts the ground (`frameIn` over
+  `mouthPast`), as high as the cut (`frameOver`, the plugin's `mouthClimb`): a floor falling in
+  under a frame laid along it left a gap one saw under the ground through. A mouth is looked
+  at with a probe putting the camera before it (`cameras.LookFrom`, `LookAt`, `GRAM_SHOT`); the
+  cage lifts an eye put inside.
 - **In the finder a sunk storey is entered and left along its links alone** (`crosses`), by a
   body no taller than its room (`roomy`), from piece to piece whatever lies between their floors
   (they run on as one), and the step on the ground from a head into the cell over its first

@@ -70,6 +70,12 @@ fn fs_prime(g: Ground) -> @location(0) vec4<f32> {
     return vec4<f32>(0.0);
 }
 
+// how far past its cell's middle a mouth's cut runs and how far beside the floor's width, in
+// cells, and how many times the floor's room it reaches up
+const mouthPast: f32 = 0.1;
+const mouthBeside: f32 = 0.02;
+const mouthOver: f32 = 1.1;
+
 // mouthed says whether the ground at p is cut away: it lies over the mouth of a floor sunk under
 // its cell (terrain.Mouth, the marks at the cell's corner), on the half of the cell the floor
 // comes out through, within its width and lower than its roof.
@@ -84,11 +90,14 @@ fn mouthed(p: vec3<f32>) -> bool {
     let mid = (i + 0.5) * U.Cell;
     let along = normalize(way);
     let q = p.xy - mid;
-    if dot(q, along) < 0.0 || abs(dot(q, vec2<f32>(-along.y, along.x))) > mark.a * U.Cell {
+    // a little past the middle, wider and higher than the floor's room: no sliver of ground is
+    // left in it
+    if dot(q, along) < -mouthPast * U.Cell ||
+        abs(dot(q, vec2<f32>(-along.y, along.x))) > (mark.a + mouthBeside) * U.Cell {
         return false;
     }
     let room = imageSrc0At(imageSrc0Origin() + vec2<f32>(U.Corners.x, 0.0) + i + 0.5).a;
-    return p.z < height(mid + way * U.Cell * 0.5) + room * U.Cell;
+    return p.z < height(mid + way * U.Cell * 0.5) + room * U.Cell * mouthOver;
 }
 
 // fs_main is the ground's colour at its point in the sun's light, turned to the Fog as far off

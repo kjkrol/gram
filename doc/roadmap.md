@@ -236,13 +236,27 @@ What is left to do. Take an item out when it lands.
   from a low eye (a field's L4 piece as a canopy card of the trees' height in the relief's Look: a
   forest has no silhouette on the horizon).
 - **Underground, what is left** (2026-11-10) — the tool digs a straight tunnel alone (a level's file turns one at
-  `via`); a mouth is a plain box, no frame round the hole, and the sheets photograph the ground
-  over it uncut; a tube's stretches leave a wedge open at the outer side of a turn and a
-  chamber's wall whole beside a tunnel coming in; its lamps are the shader's own, no
+  `via`); the sheets photograph the ground over a mouth uncut, and its frame is in no
+  sheet; a tunnel turns by the grid's ways alone, a kink of 45° a cell (a curve wants pieces
+  bent, the map of 10 m its cells); a chamber's wall is left out whole beside a tunnel coming
+  in; its lamps are the shader's own, no
   `light.Source`; on a hex board no mouth is cut and no chamber walled (`topography.mouths`,
   `tubes.room` read a square grid); `cell.Built` grew by two floors a cell (to measure against a
-  component apart for the storeys past the first); the ride through a tunnel (V) was checked by
-  tests and from above, not yet looked at from inside in a demo.
+  component apart for the storeys past the first); the camera behind a unit hangs over a low roof where the
+  arm does not fit (it is to drop under it: the map of 10 m); the mouths were looked at from
+  outside on shots of every one, the ride through (V) by the user alone.
+- **Maps from OpenStreetMap, what is left** (2026-11-11) — Madeira at 100 m lays three
+  quarters of its roads' length: 299 stretches of four to seven cells are left out where a
+  road of `ground.RoadSlope` (10°) does not fit a hundred metres of that ground (hairpins
+  tighter than a cell are gone), so the network has gaps a unit crosses on bare ground; of 114 tunnels 24 lie with a road at either head, 8 are dug and left out for no
+  road could be laid to a head cut into the ground (a road planned from the head outward
+  would reach them), and 82 stay roads, most for a room of 45 m (figures 15 times life) the ground does not
+  close over within the reshape allowed, or a head beside running water, which never moves; a
+  tunnel shorter than four cells and a bridge shorter than one are plain road. A head drawn
+  outward along its road, a steeper class of road (a mountain track) and the map of 10 m with
+  figures as in life are the ways on. gramap asks one server and its mirror and names the
+  left-out stretches only by their count; the flat demo's committed map predates the
+  settlements and was not made anew.
 - **Winter without the slowdown** — snow and ice on Madeira (`weathering`) slow the game down
   badly; a lead: `weathering` asks `air.FallsAt` of every cell once a second of game time, and
   since the clouds came in two layers it works out both layers' noise on the CPU.

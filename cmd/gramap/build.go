@@ -26,9 +26,14 @@ type chart struct {
 	roads      *roads
 	settled    map[string][]cell.ID // a place's settlement, by its name
 	unsettled  []string             // places of a size with no cell of their own
+	osm        *osmData
+	built      int // cells settled where OpenStreetMap has buildings
 }
 
-func build(r recipe, height elevation, flat bool) (*chart, error) {
+// source is what OpenStreetMap has within a box: south, west, north, east
+type source func(box [4]float64, classes []string, buildings bool) (*osmData, error)
+
+func build(r recipe, height elevation, osm source, flat bool) (*chart, error) {
 	origin, cells, err := grow(r, height)
 	if err != nil {
 		return nil, err
@@ -70,12 +75,34 @@ func build(r recipe, height elevation, flat bool) (*chart, error) {
 	}
 	w.soil()
 	w.roads = newRoads(w)
+	if r.Roads.Source == "osm" && !flat {
+		if osm == nil {
+			return nil, fmt.Errorf("roads: the source is osm, and none is given")
+		}
+		data, err := osm(w.box(), r.Roads.Classes, r.Settlements.Source == "osm")
+		if err != nil {
+			return nil, err
+		}
+		w.osm = data
+		ways, open := w.roads.bore(data.ways)
+		var heads [][2]int
+		for _, t := range w.roads.tunnels {
+			for _, h := range [2]cell.ID{t.from, t.to} {
+				x, y := w.xy(h)
+				heads = append(heads, [2]int{x, y})
+			}
+		}
+		w.roads.guide = w.newGuide(ways, open, heads)
+	}
 	if err := w.roads.lay(); err != nil {
 		return nil, err
 	}
 	w.settle()
 	return w, nil
 }
+
+// figures is how many times bigger than life the map's figures are drawn
+func (w *chart) figures() float64 { return max(w.r.Area.Figures, 1) }
 
 func (w *chart) lonLat(x, y float64) (lon, lat float64) {
 	return lonLatOf(w.r.Area.Centre, w.east(x), w.south(y))

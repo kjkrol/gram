@@ -10,7 +10,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -146,6 +145,7 @@ func (l *laid) check(g *boardGround, r site.Rules) error {
 		_, err := site.Room(g, r, l.t.spec.Clear, l.depth, l.chamber.From, l.chamber.To)
 		return err
 	}
+	r.Width = l.t.spec.Width
 	_, err := site.Plan(g, r, l.t.spec.Clear, l.tunnel.From, l.tunnel.To, l.via...)
 	return err
 }
@@ -166,7 +166,7 @@ func (l *laid) note(g *boardGround) {
 	}
 }
 
-// tunnel is the tunnel t of the kind ty under g: its handle, and its pieces and its mouths
+// tunnel is the tunnel t of the kind ty under g: its handle and its pieces
 func (p *Plugin) tunnel(ty Type, t site.Tunnel, g *boardGround) (kind.Entry, []kind.Entry) {
 	gr := g.Grid()
 	run := append(append([]cell.ID{t.From}, t.Cells...), t.To)
@@ -184,24 +184,6 @@ func (p *Plugin) tunnel(ty Type, t site.Tunnel, g *boardGround) (kind.Entry, []k
 		m := gr.CellCenter(c)
 		lo = geom.NewVec(min(lo.X, m.X), min(lo.Y, m.Y))
 		hi = geom.NewVec(max(hi.X, m.X), max(hi.Y, m.Y))
-	}
-	for i, h := range [2]cell.ID{t.From, t.To} {
-		in := t.Cells[0]
-		if i == 1 {
-			in = t.Cells[len(t.Cells)-1]
-		}
-		b := g.brd.Built(h)
-		if b.Levelled() {
-			continue // it opens into a chamber
-		}
-		a, c := gr.CellCenter(h), gr.CellCenter(in)
-		d := geom.NewVec(c.X-a.X, c.Y-a.Y)
-		length := f32.Hypot(d.X, d.Y)
-		out = append(out, ty.portal.Entry(portalRow{
-			At:    geom.NewVec((a.X+c.X)/2, (a.Y+c.Y)/2),
-			Dir:   geom.NewVec(d.X/length, d.Y/length),
-			Floor: t.Ends[i],
-		}))
 	}
 	half := gr.CellSpan() / 2
 	whole := wholeRow{
@@ -233,8 +215,10 @@ func (p *Plugin) chamber(ty Type, ch site.Chamber, g *boardGround) (kind.Entry, 
 	return ty.whole.Entry(whole), out
 }
 
-func (p *Plugin) rules() site.Rules {
+// rules are the Rules a structure of the kind t lies by
+func (p *Plugin) rules(t Type) site.Rules {
 	r := p.cfg.Rules
+	r.Width = t.spec.Width
 	if p.shaper == nil {
 		r.Reshape = 1e-3 * p.board.Read(0).Board().Grid.CellSpan()
 	}
@@ -264,7 +248,7 @@ func (p *Plugin) ground(t Type) *boardGround {
 func (p *Plugin) dig(o Order) {
 	t := p.types.Named(o.Kind)
 	g := p.ground(t)
-	plan, err := site.Plan(g, p.rules(), t.spec.Clear, o.Plan.From, o.Plan.To, turns(g.Grid(),
+	plan, err := site.Plan(g, p.rules(t), t.spec.Clear, o.Plan.From, o.Plan.To, turns(g.Grid(),
 		o.Plan)...)
 	if err != nil {
 		log.Printf("underground: not dug: %v", err)

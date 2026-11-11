@@ -70,7 +70,7 @@ roads:
 
 func TestBuild_RoadsLieAsTransportTycoonLaysThem(t *testing.T) {
 	r, height := isle(t)
-	c, err := build(r, height, false)
+	c, err := build(r, height, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestBuild_RoadsLieAsTransportTycoonLaysThem(t *testing.T) {
 
 func TestBuild_EveryLegRunsFromPlaceToPlace(t *testing.T) {
 	r, height := isle(t)
-	c, err := build(r, height, false)
+	c, err := build(r, height, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestBuild_AFlatBridgeIsACellLong(t *testing.T) {
 	r, height := isle(t)
 	r.Flat = flatCfg{Longest: 1}
 	r.Roads.Fords = false
-	c, err := build(r.asFlat(), height, true)
+	c, err := build(r.asFlat(), height, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,12 +253,12 @@ func TestTerrarium_ReadsTheTilesHeights(t *testing.T) {
 
 func TestBuild_TheAreaGrowsForSeaRoundTheLand(t *testing.T) {
 	r, height := isle(t)
-	plain, err := build(r, height, true)
+	plain, err := build(r, height, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	r.Area.Sea = 12
-	c, err := build(r, height, true)
+	c, err := build(r, height, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -706,7 +706,7 @@ ways:
 
 func TestText_WithoutFieldsOrSettlementsTheMapIsAsBefore(t *testing.T) {
 	r, height := knoll(t)
-	c, err := build(r, height, false)
+	c, err := build(r, height, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -895,7 +895,7 @@ func TestCheck_TakesAMapWithFieldsAndSettlements(t *testing.T) {
 	}
 	r.Settlements = settlementsCfg{Cells: r.Kinds.Built, Sizes: map[string]int{"town": 6}}
 	r.Roads.Places = map[string]place{"town": {At: lonLatAt(r, 5, 3), Size: "town"}}
-	c, err := build(r, height, false)
+	c, err := build(r, height, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}

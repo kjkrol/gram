@@ -2,6 +2,7 @@ package site_test
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -17,6 +18,7 @@ type ridge struct {
 	rock  map[cell.ID]bool
 	built map[cell.ID]cell.Built
 	flat  bool
+	dug   geom.Vec // a corner of the cells dug 100 down, but for the board's own
 }
 
 func newRidge() *ridge {
@@ -31,6 +33,8 @@ func (r *ridge) Grid() grid.Grid { return r.g }
 
 func (r *ridge) at(p geom.Vec) float32 {
 	switch {
+	case r.dug != geom.Vec{} && p == r.dug:
+		return -100
 	case r.flat, p.X <= 64, p.X >= 192:
 		return 0
 	case p.X < 96:
@@ -211,5 +215,61 @@ func TestPlan_AHeadOpensIntoAChamber(t *testing.T) {
 	if tn.Ends != [2]float32{0, 0} || len(tn.Cells) != 2 {
 		t.Errorf("ends %v under %v; want from the ground to the chamber's floor under two cells",
 			tn.Ends, tn.Cells)
+	}
+}
+
+func TestPlan_RefusesAMouthAcrossItsHeadsCorner(t *testing.T) {
+	r := newRidge()
+	g := r.g
+	_, err := site.Plan(r, site.Rules{}, 4, g.At(1, 1), g.At(6, 6))
+	var refused *site.Refusal
+	if !errors.As(err, &refused) || !strings.Contains(refused.Why(), "corner") {
+		t.Fatalf("a tunnel out across its head's corner: %v, want it refused", err)
+	}
+	if _, err := site.Plan(r, site.Rules{}, 4, g.At(1, 2), g.At(6, 3), g.At(3, 2),
+		g.At(4, 3)); err != nil {
+		t.Errorf("the tunnel led out of its heads across their edges: %v", err)
+	}
+	_, err = site.Plan(r, site.Rules{}, 4, g.At(1, 2), g.At(6, 3), g.At(2, 2), g.At(3, 3))
+	if !errors.As(err, &refused) || !strings.Contains(refused.Why(), "turns under") {
+		t.Errorf("a tunnel turning in its mouth's cell: %v, want it refused", err)
+	}
+}
+
+func TestSquare_LeadsASlantingTunnelOutOfItsHeadsAcrossTheirEdges(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(8, 8, 32)
+	for name, c := range map[string]struct {
+		from, to cell.ID
+		want     []cell.ID
+	}{
+		"along a row":       {g.At(1, 3), g.At(6, 3), nil},
+		"slanting":          {g.At(1, 1), g.At(5, 5), []cell.ID{g.At(3, 1), g.At(5, 3)}},
+		"slanting back":     {g.At(5, 1), g.At(1, 5), []cell.ID{g.At(3, 1), g.At(1, 3)}},
+		"slanting two":      {g.At(1, 1), g.At(3, 3), []cell.ID{g.At(3, 1)}},
+		"across one corner": {g.At(3, 3), g.At(4, 2), []cell.ID{g.At(4, 3)}},
+		"along no way":      {g.At(1, 1), g.At(5, 3), nil},
+	} {
+		if got := site.Square(g, c.from, c.to); !slices.Equal(got, c.want) {
+			t.Errorf("%s: turns at %v, want %v", name, got, c.want)
+		}
+	}
+}
+
+func TestPlan_RefusesACornerCrossedUnderGroundLowerThanTheRoofBesideIt(t *testing.T) {
+	r := newRidge()
+	g := r.g
+	rules := site.Rules{Width: 40}
+	plan := func() error {
+		_, err := site.Plan(r, rules, 12, g.At(1, 3), g.At(6, 4), g.At(3, 3), g.At(4, 4))
+		return err
+	}
+	if err := plan(); err != nil {
+		t.Fatalf("under the ridge whole: %v", err)
+	}
+	// the cell beside the corner the tunnel crosses from (3, 3) to (4, 4), dug down at its own
+	r.dug = geom.NewVec(96, 160)
+	var refused *site.Refusal
+	if err := plan(); !errors.As(err, &refused) || !strings.Contains(refused.Why(), "beside") {
+		t.Fatalf("the ground dug beside the corner: %v, want the tunnel refused", err)
 	}
 }

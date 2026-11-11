@@ -3,11 +3,10 @@ package underground
 import "github.com/kjkrol/gram/plugins/world"
 
 // Figure is a kind of structure under the ground in one piece: its Spec defined on the plugin's
-// Types in the Kinds section, the look of its mouths declared on the world's atlas in a scene.
-// One with states of its own is Stateful, one with roles and rules of its own Ruled.
+// Types in the Kinds section; the plugin draws it. One with states of its own is Stateful, one
+// with roles and rules of its own Ruled.
 type Figure interface {
 	Define(p *Plugin)
-	Look(a *world.Atlas, p *Plugin)
 }
 
 // Stateful is a Figure with effects of its own, defined in the Effects section.
@@ -29,14 +28,14 @@ func (p *Plugin) Figures(figures ...Figure) {
 // World is the world the structures lie under.
 func (p *Plugin) World() *world.Plugin { return p.worldPlugin }
 
-// a structure as the world's figure: defined on the plugin's Types, looked on the world's atlas
+// a structure as the world's figure: defined on the plugin's Types, drawn by the plugin
 type dug struct {
 	f Figure
 	p *Plugin
 }
 
-func (d dug) Define(*world.Plugin)                 { d.f.Define(d.p) }
-func (d dug) Look(a *world.Atlas, _ *world.Plugin) { d.f.Look(a, d.p) }
+func (d dug) Define(*world.Plugin)             { d.f.Define(d.p) }
+func (d dug) Look(*world.Atlas, *world.Plugin) {}
 
 func (d dug) Effects(*world.Plugin) {
 	if s, ok := d.f.(Stateful); ok {

@@ -2,7 +2,9 @@ package site
 
 import (
 	"fmt"
+	"slices"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -21,12 +23,14 @@ type Ground interface {
 
 // Rules are where a structure may lie: a tunnel through Longest cells at most (0: any), the roof
 // Cover under the ground at least, the floor climbing no steeper than Grade (rise over run; 0:
-// any), a head's ground moved no more than Reshape to lie flat at the floor.
+// any), a head's ground moved no more than Reshape to lie flat at the floor. A tunnel Width
+// wide (0: unasked) has the ground beside it close over it where it crosses a cell's corner.
 type Rules struct {
 	Longest int
 	Cover   float32
 	Grade   float32
 	Reshape float32
+	Width   float32
 }
 
 // Tunnel is a tunnel planned from one head to another: the cells it runs under in order, its
@@ -77,6 +81,23 @@ func Plan(g Ground, r Rules, clear float32, from, to cell.ID, via ...cell.ID) (T
 			return Tunnel{}, err
 		}
 		t.Ends[i] = end
+		if sunk(g, h) {
+			continue
+		}
+		// a mouth is square to its tunnel, which runs straight on under the slope it opens
+		// in: the ground is cut and framed along an edge, and a turn there shows through
+		run := append(append([]cell.ID{from}, t.Cells...), to)
+		if i == 1 {
+			slices.Reverse(run)
+		}
+		switch {
+		case !edged(gr, h, run[1]):
+			return Tunnel{}, refusal(gr, h, "a tunnel comes out across its head's corner: "+
+				"it leaves a head across an edge")
+		case !straight(gr, run[0], run[1], run[2]):
+			return Tunnel{}, refusal(gr, run[1], "a tunnel turns under its mouth: it runs "+
+				"straight through the first cell")
+		}
 	}
 	run := float32(len(t.Cells) + 1)
 	if rise := f32.Abs(t.Ends[1] - t.Ends[0]); r.Grade > 0 &&
@@ -105,8 +126,101 @@ func Plan(g Ground, r Rules, clear float32, from, to cell.ID, via ...cell.ID) (T
 	if free == 0 {
 		return Tunnel{}, refusal(gr, from, "crosses floors on every storey of a cell")
 	}
+	if err := beside(g, r, clear, t); err != nil {
+		return Tunnel{}, err
+	}
 	t.Storey = first(free)
 	return t, nil
+}
+
+// beside refuses t where it crosses a cell's corner under ground lower than its roof: half its
+// width either side of the corner it runs under the two cells beside, none of them its own
+func beside(g Ground, r Rules, clear float32, t Tunnel) error {
+	gr := g.Grid()
+	if r.Width <= 0 {
+		return nil
+	}
+	var buf [6]float32
+	for k := 1; k < len(t.Cells); k++ {
+		a, b := t.Cells[k-1], t.Cells[k]
+		if edged(gr, a, b) {
+			continue
+		}
+		cover := r.Cover
+		if k == 1 && !sunk(g, t.From) || k == len(t.Cells)-1 && !sunk(g, t.To) {
+			cover = 0
+		}
+		roof := max(t.Floors[k-1], t.Floors[k]) + clear + cover
+		ax, ay, _ := gr.Coords(a)
+		bx, by, _ := gr.Coords(b)
+		pa, pb := gr.CellCenter(a), gr.CellCenter(b)
+		corner := geom.NewVec((pa.X+pb.X)/2, (pa.Y+pb.Y)/2)
+		for _, side := range [2]cell.ID{gr.At(bx, ay), gr.At(ax, by)} {
+			m := gr.CellCenter(side)
+			l := f32.Hypot(m.X-corner.X, m.Y-corner.Y)
+			at := geom.NewVec(corner.X+(m.X-corner.X)/l*r.Width/2,
+				corner.Y+(m.Y-corner.Y)/l*r.Width/2)
+			if low := level(gr, side, g.Heights(side, buf[:0]), at); low < roof {
+				return refusal(gr, side, "the ground beside the tunnel lies %.1f over a floor "+
+					"at %.1f, its roof %.1f up and %.1f of rock over it at least",
+					low-roof+clear+cover, roof-clear-cover, clear, cover)
+			}
+		}
+	}
+	return nil
+}
+
+// level is the ground of the square cell c, heights at its outline, at the point at
+func level(g grid.Grid, c cell.ID, heights []float32, at geom.Vec) float32 {
+	span := g.CellSpan()
+	sum := float32(0)
+	for i, p := range g.CellOutline(c, nil) {
+		sum += heights[i] * max(1-f32.Abs(at.X-p.X)/span, 0) * max(1-f32.Abs(at.Y-p.Y)/span, 0)
+	}
+	return sum
+}
+
+// Square is the cells a tunnel from the head from straight to the head to turns at to leave
+// both across an edge and run straight under either mouth: none where it does already, or lies
+// along no way of the grid.
+func Square(g grid.Grid, from, to cell.ID) []cell.ID {
+	x0, y0, ok0 := g.Coords(from)
+	x1, y1, ok1 := g.Coords(to)
+	shape, ok := grid.ShapeOf(g)
+	dx, dy := int(x1)-int(x0), int(y1)-int(y0)
+	if !ok0 || !ok1 || !ok || shape.Hex || dx == 0 || dy == 0 || dx != dy && dx != -dy {
+		return nil
+	}
+	n := max(dx, -dx)
+	lead := min(n, 2)
+	first := g.At(uint32(int(x0)+dx/n*lead), y0)
+	last := g.At(x1, uint32(int(y1)-dy/n*lead))
+	if first == last {
+		return []cell.ID{first}
+	}
+	return []cell.ID{first, last}
+}
+
+// straight says whether the neighbours a, b and c lie along one way of the grid
+func straight(g grid.Grid, a, b, c cell.ID) bool {
+	for way := range g.Directions() {
+		if n, ok := g.Toward(a, way); ok && n == b {
+			m, ok := g.Toward(b, way)
+			return ok && m == c
+		}
+	}
+	return false
+}
+
+// edged says whether the neighbours a and b lie across an edge, not a corner
+func edged(g grid.Grid, a, b cell.ID) bool {
+	shape, ok := grid.ShapeOf(g)
+	if !ok || shape.Hex {
+		return true
+	}
+	ax, ay, _ := g.Coords(a)
+	bx, by, _ := g.Coords(b)
+	return ax == bx || ay == by
 }
 
 // Room is the chamber clear high under the rectangle of cells from from to to, its floor depth

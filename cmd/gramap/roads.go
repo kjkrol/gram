@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/water"
 	bridgesite "github.com/kjkrol/gram/plugins/bridges/site"
 	roadsite "github.com/kjkrol/gram/plugins/roads/site"
+	usite "github.com/kjkrol/gram/plugins/underground/site"
 )
 
 type roads struct {
@@ -41,6 +42,25 @@ type roads struct {
 	skipped []skip
 	route   []cell.ID
 	outline []geom.Vec
+	// a guide's: the cells a bridge may span, the corridor round the leg under search and its
+	// trace, and the roads planned and marked, not yet levelled
+	spannable map[cell.ID]bool
+	corridor  map[cell.ID]bool
+	traced    map[cell.ID]bool
+	waiting   []road
+	moved     map[cell.ID]cell.ID // the cell a leg ends on, by its junction's
+	guide     *guide
+	legs      int
+	lost      []leg
+	// the tunnels dug, those of the guide's that could not be, the floors under the cells they
+	// run under, their heads and the cells by their mouths
+	tunnels   []tunnel
+	undug     int
+	unreached int // tunnels dug no road was laid to
+	bored     map[cell.ID]cell.Built
+	heads     map[cell.ID]bool
+	mouths    map[cell.ID]bool
+	pinned    map[int]bool // the corners of the heads and of the cells by the mouths
 }
 
 // a leg of a route, from one place to the next
@@ -108,16 +128,20 @@ const dearer = 3
 const margin = 0.05
 
 // metres: the deck's thickness and a metre to spare
-func (r *roads) clearance() float64 { return r.cfg.Thickness + 1 }
+func (r *roads) clearance() float64 { return r.cfg.Thickness*r.w.figures() + 1 }
 
 // metres: the figures the map is made for, 2 m where it says none, and the clearance over them
-func (r *roads) underpass() float64 { return max(r.cfg.Figure, 2) + r.clearance() }
+func (r *roads) underpass() float64 {
+	return max(r.cfg.Figure*r.w.figures(), 2) + r.clearance()
+}
 
 func newRoads(w *chart) *roads {
 	r := &roads{w: w, cfg: w.r.Roads, net: network.New(w.grid), places: map[string]cell.ID{},
 		spanOf: map[cell.ID]*span{}, wetK: make([]bool, len(w.corners)),
 		marks: map[cell.ID]mark{}, barred: map[cell.ID]bool{}, banned: map[[2]cell.ID]bool{},
-		dear: map[cell.ID]float32{}, offered: map[[2]cell.ID]bridging{}}
+		dear: map[cell.ID]float32{}, offered: map[[2]cell.ID]bridging{},
+		bored: map[cell.ID]cell.Built{}, heads: map[cell.ID]bool{}, mouths: map[cell.ID]bool{},
+		pinned: map[int]bool{}}
 	r.rules = r.cfg.rules(w.perUnit, w.grid.CellCount())
 	for _, share := range rungs {
 		rules := r.cfg.routing(w.perUnit, w.grid.CellCount(), share)
@@ -147,17 +171,22 @@ func (r *roads) lay() error {
 		}
 		r.places[name] = c
 	}
-	for _, route := range r.cfg.Routes {
-		for i := 1; i < len(route); i++ {
-			rd, err := r.once(r.places[route[i-1]], r.places[route[i]])
-			if err != nil {
-				r.skipped = append(r.skipped, skip{route[i-1], route[i], err})
-				continue
+	if r.guide != nil {
+		r.follow(r.guide)
+	} else {
+		for _, route := range r.cfg.Routes {
+			for i := 1; i < len(route); i++ {
+				rd, err := r.once(r.places[route[i-1]], r.places[route[i]])
+				if err != nil {
+					r.skipped = append(r.skipped, skip{route[i-1], route[i], err})
+					continue
+				}
+				r.laid = append(r.laid, rd)
 			}
-			r.laid = append(r.laid, rd)
 		}
 	}
 	r.net = r.layout(r.laid).net
+	r.reached()
 	for _, rd := range r.laid {
 		for _, b := range crossed(rd) {
 			spans := rd.cells[b[0]+1 : b[1]]
@@ -203,6 +232,9 @@ func (r *roads) ford(c cell.ID) bool {
 
 // within reports whether c lies in the corridor round the leg under search
 func (r *roads) within(c cell.ID) bool {
+	if r.corridor != nil {
+		return r.corridor[c]
+	}
 	g := r.w.grid
 	return r.reach == 0 || g.Distance(r.leg[0], c)+g.Distance(c, r.leg[1]) <= r.reach
 }
@@ -505,6 +537,9 @@ func refusedAt(err error) (cell.ID, bool) {
 	if ref, ok := errors.AsType[*bridgesite.Refusal](err); ok {
 		return ref.At, true
 	}
+	if ref, ok := errors.AsType[*usite.Refusal](err); ok {
+		return ref.At, true
+	}
 	return 0, false
 }
 
@@ -537,6 +572,9 @@ func (r *roads) levels(l *layout) (roadsite.Estimate, error) {
 	}
 	moved := r.grade(est.Corners)
 	err := r.hold(l)
+	if err == nil {
+		err = r.held(l)
+	}
 	r.undo(moved)
 	return est, err
 }
@@ -736,6 +774,12 @@ func (r *roads) leaps(c cell.ID, way int, dst []roadsite.Leap) []roadsite.Leap {
 	if r.w.flat && r.w.grid.Corner(way) {
 		return dst // a flat map's bridge runs across a side
 	}
+	if r.spannable != nil {
+		// a guide's roads bridge where its own do, and water
+		if s, ok := r.leap(c, way, 1); !ok || !r.spannable[s] && !r.crossing(s) {
+			return dst
+		}
+	}
 	for n := 1; n <= r.longest(); n++ {
 		head, ok := r.leap(c, way, n+1)
 		if !ok || r.barred[head] {
@@ -916,8 +960,18 @@ func (r *roads) summary() string {
 	}
 	cubed := r.w.perUnit * r.w.perUnit * r.w.perUnit
 	cut, fill := float64(r.graded.Cut)*cubed, float64(r.graded.Fill)*cubed
-	return fmt.Sprintf("roads: %d cells, %d bridges, %d fords; earth: %.0f m³ cut, %.0f filled",
+	line := fmt.Sprintf("roads: %d cells, %d bridges, %d fords; earth: %.0f m³ cut, %.0f filled",
 		len(r.net.Cells()), bridges, fords, cut, fill)
+	if r.guide == nil {
+		return line
+	}
+	left := 0
+	for _, l := range r.lost {
+		left += len(l.trace)
+	}
+	return line + fmt.Sprintf("\nOpenStreetMap: %d legs of road, %d stretches left out "+
+		"(%d cells); %d tunnels dug, %d left as roads, %d no road reaches left out", r.legs,
+		len(r.lost), left, len(r.tunnels), r.undug, r.unreached)
 }
 
 // the ground in world units, as the roads' site asks: with l, the roads a levelling plans; else
@@ -933,7 +987,9 @@ type chartGround struct {
 // none off the corridor round the leg under search taking a road
 type plannerGround struct{ chartGround }
 
-func (g plannerGround) Takes(c cell.ID) bool { return g.chartGround.Takes(c) && g.r.within(c) }
+func (g plannerGround) Takes(c cell.ID) bool {
+	return g.chartGround.Takes(c) && g.r.within(c) && !g.r.mouths[c]
+}
 
 func (g plannerGround) Heights(c cell.ID, dst []float32) []float32 {
 	n := len(dst)
@@ -956,10 +1012,14 @@ func (g plannerGround) Heights(c cell.ID, dst []float32) []float32 {
 }
 
 func (g plannerGround) Price(c cell.ID) float32 {
-	if d, ok := g.r.dear[c]; ok {
-		return g.chartGround.Price(c) * d
+	price := g.chartGround.Price(c)
+	if g.r.traced != nil && !g.r.traced[c] && !g.r.marks[c].paved {
+		price *= astray
 	}
-	return g.chartGround.Price(c)
+	if d, ok := g.r.dear[c]; ok {
+		return price * d
+	}
+	return price
 }
 
 // the ground as the bridges' site asks; stood, with l, are the bridges standing
@@ -1032,6 +1092,9 @@ func (g chartGround) Ford(c cell.ID) bool {
 
 func (g chartGround) Fixed(c cell.ID) bool {
 	if g.r.w.wet(c) {
+		return true
+	}
+	if g.r.heads[c] || g.r.mouths[c] {
 		return true
 	}
 	if g.l != nil {

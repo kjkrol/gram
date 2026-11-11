@@ -560,7 +560,10 @@ as chains of named places. The heights come from the
 [Terrain Tiles on AWS](https://registry.opendata.aws/terrain-tiles/), fetched once into the
 user's cache. The rivers are carved into the ground, the roads routed and graded as Transport
 Tycoon lays them, with bridges over water and down valleys and fords where a river is shallow;
-with `-flat` the map has no heights. Its `fields:` lay a field entity over the cells of a kind
+with `-flat` the map has no heights. With `source: osm` a map with relief follows
+[OpenStreetMap](https://www.openstreetmap.org/copyright) instead: its roads of the classes the
+recipe names, its bridges, its tunnels dug where the ground lets one lie, and its settlements
+where the buildings stand (Madeira: 4718 cells of road, 50 bridges, 24 tunnels). Its `fields:` lay a field entity over the cells of a kind
 in each block where enough of them lie (Madeira's forests, four cells of sixteen a side), its
 `settlements:` cells of a kind round the roads' places, as many as a place's size says in the
 recipe's own words (a hamlet, a village, a town); what grows and stands on them is the game's
@@ -672,6 +675,10 @@ are `aabbworld`'s; gram is where they meet an ECS and a screen.
 - The heights of Madeira's maps and of every map `cmd/gramap` makes: the Terrain Tiles on AWS,
   Mapzen's Tilezen terrarium — SRTM, EU-DEM (Copernicus), GMTED2010, ETOPO1 and others; see their
   [attribution](https://github.com/tilezen/joerd/blob/master/docs/attribution.md).
+- The roads, tunnels, bridges and settlements of Madeira in relief
+  (`examples/board/topography/map.yaml`), and of every map `cmd/gramap` makes with `source:
+  osm`: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, under the Open
+  Database License.
 
 # License
 

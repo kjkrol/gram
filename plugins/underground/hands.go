@@ -87,7 +87,9 @@ func (p *Plugin) handOf(id command.Issuer) *hand {
 }
 
 func (p *Plugin) plan(h *hand) {
-	h.plan, h.err = site.Plan(p.ground(h.t), p.rules(), h.t.spec.Clear, h.from, h.to)
+	g := p.ground(h.t)
+	h.plan, h.err = site.Plan(g, p.rules(h.t), h.t.spec.Clear, h.from, h.to,
+		site.Square(g.Grid(), h.from, h.to)...)
 }
 
 // endAt is the cell a tunnel from from runs to as the cursor points at at: along the way

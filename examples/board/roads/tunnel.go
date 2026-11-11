@@ -1,13 +1,9 @@
 package main
 
 import (
-	"image/color"
-
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/underground"
 	"github.com/kjkrol/gram/plugins/underground/site"
-	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 )
 
 const (
@@ -22,8 +18,6 @@ var tunnelling = site.Rules{
 	Reshape: 3,
 }
 
-var portalColor = color.RGBA{R: 95, G: 95, B: 100, A: 255}
-
 // tunnel is a road's tunnel, as wide as a deck and a wagon high
 type tunnel struct{}
 
@@ -36,8 +30,4 @@ func (tunnel) Define(p *underground.Plugin) {
 		Clear:  tunnelClear,
 		Pace:   1,
 	})
-}
-
-func (tunnel) Look(a *world.Atlas, p *underground.Plugin) {
-	a.Add(p.Types().Named(TunnelKind).Portal(), CellSize, render.Solid(portalColor)).Upright()
 }

@@ -4,6 +4,7 @@ area:
   cells: [640, 320]
   cell: 100 # metres
   units: 32
+  figures: 15 # times bigger than life the demos draw their figures: a man, a deck, a tunnel
   sea: 10 # cells of sea round the land at least: the area grows where it has fewer
 kinds: {built: built} # the settlements' cells, drawn "@"
 ground:
@@ -22,7 +23,7 @@ rivers:
 roads:
   width: 7
   deck: 12
-  thickness: 3 # metres: a deck of 0.2 m as the demos draw it, 15 times thicker than life
+  thickness: 0.2 # metres of a deck in life
   cut: 200 # metres a corner is dug down at most, a bridge's head too
   fill: 200 # metres a corner is raised at most
   route: {cut: 40, fill: 40} # metres a route's step is forgiven at most: none tried first
@@ -31,9 +32,13 @@ roads:
   climb: 6
   rock: 4
   bridge: 4
-  longest: 4 # cells a bridge spans, at most
+  longest: 6 # cells a bridge spans, at most
   high: 200
-  figure: 27 # metres: a man of 1.8 m as the demos draw him, 15 times bigger than life
+  figure: 1.8 # metres of a man in life
+  # with relief the roads are OpenStreetMap's, followed leg by leg; a flat map plans its own
+  # along the routes below
+  source: osm
+  classes: [motorway, trunk, primary, secondary, tertiary]
   places: # longitude, latitude and a size of the settlements'; a bare pair: the default size
     Funchal: {at: [-16.9086, 32.6496], size: town}
     Câmara de Lobos: {at: [-16.977, 32.65], size: town}
@@ -62,8 +67,17 @@ roads:
 fields: # a field over the cells of a kind in each block of 16 cells a side, a sector of the world
   - {cells: forest, kind: forest, grain: 16, least: 4}
   - {cells: built, kind: settlement, grain: 16, least: 1}
+tunnels: # OpenStreetMap's, where the ground lets one lie
+  clear: 2.2 # metres of its room in life
+  width: 4 # metres in life
+  cover: 5 # metres of rock over its roof
+  grade: 0.1 # rise over run
+  longest: 40 # cells
+  reshape: 60 # metres a head is cut into the ground and its headwall raised, at most
 settlements:
-  cells: built # the cell kind laid round a place
+  source: osm # with relief: the cells OpenStreetMap has least buildings on or more
+  least: 8
+  cells: built # the cell kind laid, round a place on a flat map
   sizes: {hamlet: 3, village: 8, town: 16} # cells
   default: village
 flat: # the simple map's own: cells of 50, roads two figures of 20 wide, a deck with its railings

@@ -4135,3 +4135,48 @@ finderze (wejście tylko wzdłuż łącza, prześwit `Clear`, wylot zamyka krok 
 rodzaje, plik mapy, narzędzie Shift+T, `Courses`), `world.Unseen`, tuba instancjami z własnymi
 lampami, wycięcie gruntu nad wylotem (znaki w wolnych kanałach kratownicy, `U.Mouths`), klatka
 kamery wolna w tunelu (kamera jadąca nie wymagała zmian). `routes.golden` bez zmiany.
+
+### Etap 0b: wynik (2026-11-11, gałąź `feat/osm-roads`, baza `918c5222`)
+
+Decyzje z ankiet: klasy dróg do tertiary, zabudowa z budynków OSM po gęstości, mapa płaska
+zostaje na planowanych trasach. Zrobione: gramap czyta OpenStreetMap przez Overpass (odpowiedź w
+pamięci podręcznej obok kafli), ślady dróg ścienia do linii i tnie na nogi w skrzyżowaniach,
+każdą nogę planuje tym samym planerem w korytarzu wokół śladu, mosty tylko tam, gdzie ma je OSM
+albo leży woda, niweluje partiami po 16 nóg, a odrzuconą nogę dzieli na połowy. Tunele kopie
+regułami `underground/site`: wylot wcięty w zbocze, ściana czołowa podniesiona, głowa cofana do
+czterech komórek. Receptura mówi `figures` i podaje rozmiary w metrach życia.
+
+Profil przed zmianą: 89 % czasu starego gramapa (165 s) to ważenie mostów przy każdym kroku
+szukania, niwelacja 5 s. Po zmianie mapa Madery powstaje w 108 s.
+
+| Madera 100 m | przed | po |
+|---|---|---|
+| komórki dróg | 1089 | 4620 |
+| mosty | 21 | 53 |
+| tunele | 0 | 37 |
+| komórki zabudowy | ok. 160 | 4349 |
+| pola osad | 21 | 194 |
+| nogi tras nieułożone | 6 z 21 | 323 krótkie odcinki (1427 komórek śladu) |
+
+Czego nie dało się zrobić: 78 ze 115 tuneli OSM zostaje drogami (światło 45 m przy figurach 15×,
+głowy przy wodzie), a 323 odcinki po 4–7 komórek nie mieszczą drogi o nachyleniu 10°, więc sieć
+ma przerwy. Mapa płaska wychodzi bajt w bajt jak z `main` (migawka `GRAMAP_MADEIRA=1`).
+
+Klatkarz dema w widoku startowym, kopia `main` przeciw drzewu na zmianę, dwa razy: 144,3 → 129,7
+FPS (−10 %), tick 1,45 → 1,8 ms, rysowanie 1,7 → 1,95 ms. To koszt treści (cztery razy więcej
+dróg, 37 tuneli, dziewięć razy więcej pól osad), nie zmieniono silnika; nie rozbierałem go
+profilem. Nie zmierzone: widok nad Funchal, przejazd karawany tunelem i mostem z nowej mapy.
+
+Po uwagach użytkownika (2026-11-11): tunel szerszy niż wyższy (szerokość 4 m życia, światło 2,2),
+wylot z ramą zamiast płyty, zakręty tuby przycięte na ukos, jezdnia z liniami. Mapa zrobiona od
+nowa: 4533 komórki dróg, 51 mostów, 47 tuneli (63 zostają drogami), 363 odcinki pominięte.
+
+Po drugiej rundzie uwag (2026-11-11): tunel wychodzi z głowy tylko przez krawędź komórki (reguła
+`site.Plan`; wylot przez narożnik zostawiał kliny gruntu w świetle tuby albo dziury pod ramą),
+pierwsza komórka za wylotem biegnie prosto (skos i zakręt najwcześniej w drugiej), grunt obok narożnika, pod którym biegnie tunel, też
+musi przykrywać strop (`Rules.Width`), rama wylotu biegnie w głąb jak wycięcie terenu, tunel bez
+drogi przy którejś głowie jest pomijany, droga wchodzi na krawędź wylotu. Wąska droga po skosie
+nie rozpada się w kropki (malarz: co najmniej półtora piksela arkusza). Mapa końcowa: 4718
+komórek dróg, 50 mostów, 24 tunele z drogą przy obu głowach, 8 wykopanych pominiętych, 82
+zostają drogami, 299 odcinków pominiętych. Wyloty obejrzane na zrzutach wszystkich 48 głów
+(sonda stawia kamerę przed wylotem): 39 widocznych bez wad, 9 zasłania budynek albo drzewo.
