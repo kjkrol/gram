@@ -213,9 +213,10 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-func (p *Plugin) holdAt(c cell.ID, at geom.Vec, deck bool) float32 {
-	if deck {
-		return p.board.read.altitude(c) + p.board.read.Built(c).Floor.Height
+func (p *Plugin) holdAt(c cell.ID, at geom.Vec, level cell.Level) float32 {
+	if level != cell.OnGround {
+		b := p.board.read.Built(c)
+		return p.board.read.altitude(c) + b.On(level).Height
 	}
 	if h := p.board.mapping.Heights(); h != nil {
 		return h.At(at)

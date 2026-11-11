@@ -38,7 +38,7 @@ type March struct {
 // part with an order.
 type Inherit struct{ From ceremony.Whom }
 
-// Level is which of a cell's two levels, a raised deck or the ground under it, a goal lies on. A
+// Level is which of a cell's levels, the ground or a storey over or under it, a goal lies on. A
 // cell of one level takes any.
 type Level uint8
 
@@ -47,6 +47,9 @@ const (
 	OnGround
 	OnDeck
 )
+
+// On is the Level that is the cell's level l.
+func On(l cell.Level) Level { return Level(l) + OnGround }
 
 // LookAt is the command to every Selected entity — or to the entity that gives it itself — to
 // finish the step it is on, stop and turn towards At.

@@ -37,6 +37,7 @@ type renderer struct {
 	fixed       goke.OptComp[Fixed]
 	pieceOf     goke.OptComp[PieceOf]
 	whole       goke.OptComp[Whole]
+	unseen      goke.OptComp[Unseen]
 	rules       *Rules
 	layers      [][]render.Appearance
 	shown       []bool

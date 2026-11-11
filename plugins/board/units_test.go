@@ -313,9 +313,9 @@ func TestUnits_AnEvenFootprintIsAtTheCellItIsLaidFrom(t *testing.T) {
 		ctx.ECS().Tick(time.Second / 60)
 		for q.All(); q.Next(); {
 			for _, a := range at.Slice(q.Cursor()) {
-				if a.Cell != laid || occ.CanEnter(laid, false, 99, cell.Land) {
+				if a.Cell != laid || occ.CanEnter(laid, cell.OnGround, 99, cell.Land) {
 					t.Errorf("step %d: At %v, its cell %v held %v; want At it and holding it",
-						step, a.Cell, laid, !occ.CanEnter(laid, false, 99, cell.Land))
+						step, a.Cell, laid, !occ.CanEnter(laid, cell.OnGround, 99, cell.Land))
 				}
 			}
 		}

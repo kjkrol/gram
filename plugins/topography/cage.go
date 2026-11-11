@@ -5,17 +5,20 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
-// Free reports whether nothing solid fills the point (x, y, z): the ground, the kind standing on
-// its cell to its Height, a deck's slab.
+// Free reports whether nothing solid fills the point (x, y, z): the ground, but for the room
+// over a floor sunk under it, the kind standing on its cell to its Height, a deck's slab.
 func (r *Read) Free(x, y, z float32) bool {
 	at := geom.NewVec(x, y)
-	if z < r.topAt(at) {
-		return false
-	}
-	free := true
+	under := z < r.topAt(at)
+	free := !under
 	r.board().DecksOver(at, func(c cell.ID, f cell.Floor) {
 		deck := r.p.relief.Altitude(c) + f.Height
-		if f.Height > 0 && z < deck && z >= deck-max(f.Thickness, 1e-3) {
+		switch {
+		case f.Sunk():
+			if under && z >= deck && z < deck+f.Clear {
+				free = true
+			}
+		case f.Height > 0 && z < deck && z >= deck-max(f.Thickness, 1e-3):
 			free = false
 		}
 	})

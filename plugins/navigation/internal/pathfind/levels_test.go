@@ -27,6 +27,28 @@ func newValley() valley {
 	return valley{g, terrain}
 }
 
+func (v valley) Storeys(c cell.ID, dst *[cell.Storeys]Storey) (made, sunk uint8) {
+	for s := range uint8(cell.Storeys) {
+		if top, bound, under, carries, ok := v.Storey(c, s); ok {
+			dst[s] = Storey{Top: top, Bound: bound, Carries: carries}
+			made |= 1 << s
+			if under {
+				sunk |= 1 << s
+			}
+		}
+	}
+	return made, sunk
+}
+
+func (v valley) Storey(c cell.ID, s uint8) (top, bound float32, sunk bool,
+	carries cell.Domain, ok bool) {
+	if s != 0 {
+		return 0, 0, false, 0, false
+	}
+	top, bound, carries, ok = v.Deck(c)
+	return top, bound, false, carries, ok
+}
+
 func (v valley) Deck(c cell.ID) (top, under float32, carries cell.Domain, ok bool) {
 	if x, y, _ := v.g.Coords(c); y == 2 && x >= 1 && x <= 3 {
 		return 10, 9, cell.Land, true
@@ -50,7 +72,8 @@ func (v valley) Over(p geom.Vec) (float32, bool) {
 	return 0, false
 }
 
-func (v valley) KindAt(c cell.ID, deck bool) cell.Kind {
+func (v valley) KindAt(c cell.ID, level cell.Level) cell.Kind {
+	deck := level != cell.OnGround
 	if _, _, _, ok := v.Deck(c); ok && deck {
 		return cell.Kind{Pace: 1, Allows: cell.Land, Graded: true}
 	}
@@ -159,7 +182,12 @@ type fenced struct {
 
 func (f fenced) Reaches(c, n cell.ID) bool { return false }
 
-func (f fenced) Fenced(from, to cell.ID, d cell.Domain, deck bool) bool {
+func (f fenced) ReachesOn(c, n cell.ID, _ cell.Level) bool {
+	return f.Reaches(c, n)
+}
+
+func (f fenced) Fenced(from, to cell.ID, d cell.Domain, level cell.Level) bool {
+	deck := level != cell.OnGround
 	p, q := f.g.CellCenter(from), f.g.CellCenter(to)
 	side := func(o, e, x geom.Vec) float32 { return (e.X-o.X)*(x.Y-o.Y) - (e.Y-o.Y)*(x.X-o.X) }
 	return !deck && d&cell.Land != 0 &&
@@ -191,6 +219,28 @@ func (w causeway) on(c cell.ID) bool {
 	return x == y && x >= 1 && x <= 3
 }
 
+func (w causeway) Storeys(c cell.ID, dst *[cell.Storeys]Storey) (made, sunk uint8) {
+	for s := range uint8(cell.Storeys) {
+		if top, bound, under, carries, ok := w.Storey(c, s); ok {
+			dst[s] = Storey{Top: top, Bound: bound, Carries: carries}
+			made |= 1 << s
+			if under {
+				sunk |= 1 << s
+			}
+		}
+	}
+	return made, sunk
+}
+
+func (w causeway) Storey(c cell.ID, s uint8) (top, bound float32, sunk bool,
+	carries cell.Domain, ok bool) {
+	if s != 0 {
+		return 0, 0, false, 0, false
+	}
+	top, bound, carries, ok = w.Deck(c)
+	return top, bound, false, carries, ok
+}
+
 func (w causeway) Deck(c cell.ID) (top, under float32, carries cell.Domain, ok bool) {
 	if w.on(c) {
 		return 1, 0.5, cell.Land, true
@@ -207,7 +257,8 @@ func (w causeway) Over(p geom.Vec) (float32, bool) {
 	return 0, false
 }
 
-func (w causeway) KindAt(c cell.ID, deck bool) cell.Kind {
+func (w causeway) KindAt(c cell.ID, level cell.Level) cell.Kind {
+	deck := level != cell.OnGround
 	if deck && w.on(c) {
 		return cell.Kind{Pace: 1, Allows: cell.Land}
 	}
@@ -220,7 +271,11 @@ func (w causeway) Reaches(c, n cell.ID) bool {
 	return w.on(c) && int(nx)-int(cx) == int(ny)-int(cy)
 }
 
-func (w causeway) Fenced(cell.ID, cell.ID, cell.Domain, bool) bool { return false }
+func (w causeway) ReachesOn(c, n cell.ID, _ cell.Level) bool {
+	return w.Reaches(c, n)
+}
+
+func (w causeway) Fenced(cell.ID, cell.ID, cell.Domain, cell.Level) bool { return false }
 
 func (w causeway) Kind(c cell.ID) cell.Kind { return w.terrain.Kind(c) }
 

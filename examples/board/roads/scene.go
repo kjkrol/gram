@@ -50,8 +50,10 @@ func (m *mainScene) screen() *ui.Element {
 			Margin(8),
 		ui.BottomMiddle(a.roads.Reason().Padding(6).Fill(panelColor)).Margin(40),
 		ui.BottomMiddle(a.bridges.Reason().Padding(6).Fill(panelColor)).Margin(40),
+		ui.BottomMiddle(a.tunnels.Reason().Padding(6).Fill(panelColor)).Margin(40),
 		ui.Center(a.roads.Window()),
 		ui.Center(a.bridges.Window()),
+		ui.Center(a.tunnels.Window()),
 	)
 }
 

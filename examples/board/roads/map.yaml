@@ -8,7 +8,8 @@ board:
     "f": ford
   # a river runs down the valley, an old bridge over it in the middle and a ford below; the west
   # village stands on a terrace under a wooded hill, the east one on the plain at the end of the
-  # road from the bridge; a low swell rises in the south-east under a wood
+  # road from the bridge; a low swell rises in the south-east under a wood; an old tunnel runs
+  # under the hill from a level cut either side of it
   cells: |
     ..T^^^T....~~......T.TTT
     ..T^^^^T...~~......TT.TT
@@ -28,6 +29,7 @@ board:
     ...........~~......T.TT.
   entities:
     - {kind: bridge, from: [10, 7], to: [13, 7]}
+    - {kind: tunnel, from: [1, 2], to: [8, 2]}
     - {kind: settlement, at: [2, 7]}
     - {kind: settlement, at: [20, 7]}
 # metres at the cells' corners: the river's bed at -0.6, its banks, the ford, the bridge's heads and
@@ -36,8 +38,8 @@ relief:
   corners: |
     4.7 5.2 6.5 9.6 13.2 14.7 12.1 7.4 3.6 2.2 1.9 1.8 -0.6 1.8 1.8 1.8 1.8 1.8 1.8 2 2.2 2.5 3.1 3.7 4.2
     4.8 5.5 8 13.9 21.2 24.5 20.1 11.7 5.1 2.6 1.9 1.8 -0.6 1.8 1.8 1.8 1.8 1.8 1.9 2 2.2 2.4 3.1 3.7 4.2
-    4.7 5.5 8.6 16 25.2 29.5 24.1 13.7 5.8 2.8 1.9 1.8 -0.6 1.8 1.8 1.8 1.8 1.8 2 2.1 2.3 2.4 3 3.6 4.2
-    4.7 5.3 7.8 13.8 21.3 24.7 20.2 11.6 5.1 2.6 1.9 1.8 -0.6 1.8 1.8 1.8 1.8 1.8 2 2.2 2.3 2.4 2.9 3.5 4.2
+    4.7 5.5 5.5 16 25.2 29.5 24.1 13.7 3.5 3.5 1.9 1.8 -0.6 1.8 1.8 1.8 1.8 1.8 2 2.1 2.3 2.4 3 3.6 4.2
+    4.7 5.5 5.5 13.8 21.3 24.7 20.2 11.6 3.5 3.5 1.9 1.8 -0.6 1.8 1.8 1.8 1.8 1.8 2 2.2 2.3 2.4 2.9 3.5 4.2
     4.6 4.9 6.3 9.6 13.4 15 12.2 7.3 3.6 2.2 1.9 1.8 -0.6 1.8 1.8 1.8 1.8 1.8 2.1 2.2 2.3 2.3 2.9 3.5 4.2
     4.6 4.6 5.1 6.4 7.4 7.7 6.3 4.1 2.4 1.9 1.8 1.8 -0.6 1.8 1.8 1.8 1.8 1.8 2 2.2 2.3 2.3 2.9 3.5 4.2
     4.6 4.6 4.7 5 4.9 4.5 3.7 2.8 1.9 1.8 1.8 1.8 -0.6 1.8 1.8 1.8 1.8 1.8 2 2.1 2.3 2.4 3 3.6 4.2

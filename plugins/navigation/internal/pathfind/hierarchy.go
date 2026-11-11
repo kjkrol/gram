@@ -74,7 +74,7 @@ func (p *Finder) NewHierarchy(key Key, side int, classes []Body) *Hierarchy {
 	}
 	h.cols, h.rows = int(shape.Cols), int(shape.Rows)
 	h.across = (h.cols + h.side - 1) / h.side
-	h.on = make([]uint8, 2*p.grid.CellCount())
+	h.on = make([]uint8, cell.Levels*p.grid.CellCount())
 	h.cells = make([]cell.ID, p.grid.CellCount())
 	for y := range h.rows {
 		for x := range h.cols {
@@ -90,7 +90,7 @@ func (p *Finder) NewHierarchy(key Key, side int, classes []Body) *Hierarchy {
 		Heuristic: h.distance,
 		Index:     p.nodeSlot,
 		Of:        h.nodeOf,
-		Size:      2*p.grid.CellCount() + 2,
+		Size:      cell.Levels*p.grid.CellCount() + 2,
 		Layout: &graph.Layout[node]{
 			Coords:   h.coords,
 			At:       h.at,
@@ -148,8 +148,9 @@ func (h *Hierarchy) EachCell(k int, fn func(c cell.ID)) {
 
 // nodeOf is the node Finder.nodeSlot gives key: a file's node stood again
 func (h *Hierarchy) nodeOf(key int) node {
-	if o := key / 2; o < len(h.cells) {
-		return node{c: h.cells[o], level: uint8(key % 2)}
+	if n := len(h.cells); key < cell.Levels*n {
+		o, level := nodeAt(n, key)
+		return node{c: h.cells[o], level: level}
 	}
 	return node{c: offGrid, level: goal}
 }
@@ -163,11 +164,10 @@ func (h *Hierarchy) coords(n node) (int, int, bool) {
 func (h *Hierarchy) at(x, y int, buf []node) []node {
 	c := h.grid.At(uint32(x), uint32(y))
 	if o, ok := h.grid.Ordinal(c); ok {
-		if h.on[2*o+int(ground)] != 0 {
-			buf = append(buf, node{c, ground})
-		}
-		if h.on[2*o+int(deck)] != 0 {
-			buf = append(buf, node{c, deck})
+		for l := range uint8(cell.Levels) {
+			if h.on[cell.Levels*o+int(l)] != 0 {
+				buf = append(buf, node{c, l})
+			}
 		}
 	}
 	return buf
@@ -195,7 +195,7 @@ func (h *Hierarchy) classesOn(n node) uint8 {
 	if !ok || n.level == goal {
 		return 0
 	}
-	return h.on[2*o+int(n.level)]
+	return h.on[cell.Levels*o+int(n.level)]
 }
 
 // standsAs says whether class k stands on n, a node of h's graph of class k
@@ -215,10 +215,10 @@ func (h *Hierarchy) classOf(body Body) (int, bool) {
 // standing reads which of h's classes stand on each of c's levels, o its ordinal, into h
 func (p *Finder) standing(h *Hierarchy, c cell.ID, o int) {
 	r := p.at(c)
-	h.on[2*o+int(ground)] = p.standers(h, r, ground)
-	h.on[2*o+int(deck)] = 0
-	if len(p.levelsOf(r)) > 1 {
-		h.on[2*o+int(deck)] = p.standers(h, r, deck)
+	on := h.on[cell.Levels*o : cell.Levels*o+cell.Levels]
+	clear(on)
+	for _, l := range p.levelsOf(r) {
+		on[l] = p.standers(h, r, l)
 	}
 }
 
@@ -358,11 +358,16 @@ func (p *Finder) staleRound(h *Hierarchy, c cell.ID) int {
 // this Stale had not yet counted c's cluster of level 1
 func (p *Finder) staleAt(h *Hierarchy, c cell.ID) int {
 	o, _ := p.grid.Ordinal(c)
-	held := h.on[2*o+int(deck)] != 0
+	var held [cell.Levels]bool
+	for l := range held {
+		held[l] = h.on[cell.Levels*o+l] != 0
+	}
 	p.standing(h, c, o)
 	h.h.Changed(node{c, ground})
-	if held || h.on[2*o+int(deck)] != 0 {
-		h.h.Changed(node{c, deck})
+	for l := 1; l < cell.Levels; l++ {
+		if held[l] || h.on[cell.Levels*o+l] != 0 {
+			h.h.Changed(node{c, uint8(l)})
+		}
 	}
 	k, _ := h.clusterOf(node{c, ground})
 	if h.counted[k] == h.stale {
@@ -647,7 +652,7 @@ func (p *Finder) classedFrom(h *Hierarchy, from, prev node,
 	if stood == 0 {
 		return buf
 	}
-	if from.c == p.goal && (p.end == Either || p.end == Deck == (from.level == deck)) {
+	if from.c == p.goal && p.end.takes(from.level) {
 		buf = append(buf, graph.Transition[node]{To: node{p.goal, goal}, Refuses: h.all &^ stood})
 	}
 	rf := p.at(from.c)
@@ -679,8 +684,7 @@ func (p *Finder) classedInto(h *Hierarchy, to, next node,
 		}
 		for _, level := range p.levelsOf(p.at(to.c)) {
 			n := node{to.c, level}
-			if stood := h.classesOn(n); stood != 0 &&
-				(p.end == Either || p.end == Deck == (level == deck)) {
+			if stood := h.classesOn(n); stood != 0 && p.end.takes(level) {
 				buf = append(buf, graph.Transition[node]{To: n, Refuses: h.all &^ stood})
 			}
 		}
@@ -717,7 +721,7 @@ func (p *Finder) classedInto(h *Hierarchy, to, next node,
 // against is refused alike by every class, read once too.
 func (p *Finder) classedStep(h *Hierarchy, from node, rf, rn *read, level uint8, c corner,
 	stood uint8) (float64, uint8, bool) {
-	if !p.occupancy.CanEnter(rn.c, level == deck, p.entity, p.domain) ||
+	if !p.occupancy.CanEnter(rn.c, cell.Level(level), p.entity, p.domain) ||
 		!p.crosses(from, rf, rn, level, c.diagonal) {
 		return 0, 0, false
 	}
@@ -725,7 +729,7 @@ func (p *Finder) classedStep(h *Hierarchy, from node, rf, rn *read, level uint8,
 	if !k.admits {
 		return 0, 0, false
 	}
-	lane := p.laneOf(from.c, rn.c, level == deck)
+	lane := p.laneOf(from.c, rn.c, level)
 	refuses := h.all &^ stood
 	if p.bodily(from, rf, rn, level, c, lane) {
 		for i := range h.classes {

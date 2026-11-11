@@ -195,12 +195,12 @@ func (s *driveSystem) follow(id uid.UID64, at *unit.At, pos world.Position, z *w
 	if z != nil {
 		feet, reach = z.Altitude, z.Reach()
 	}
-	actual, deck, ok := s.board.LevelFor(pos.Center(), feet, reach)
+	actual, level, ok := s.board.LevelFor(pos.Center(), feet, reach)
 	if !ok || actual == at.Cell {
 		return false
 	}
 	s.occupancy.Leave(at.Cell, id)
-	s.occupancy.Enter(actual, deck, id, domain)
+	s.occupancy.Enter(actual, level, id, domain)
 	at.Cell = actual
 	return true
 }
@@ -265,18 +265,14 @@ func (s *driveSystem) open(w walker, heading geom.Vec) (cell.ID, bool) {
 	case w.z == nil && !s.board.Kind(ahead).Admits(w.domain):
 		return ahead, false
 	}
-	kind, deck := s.board.Kind(ahead), false
+	kind, level := s.board.Kind(ahead), cell.OnGround
 	if w.z != nil {
 		kind = s.board.KindFor(ahead, point, w.z.Altitude, w.z.Reach())
-		ahead, deck, _ = s.board.LevelFor(point, w.z.Altitude, w.z.Reach())
+		ahead, level, _ = s.board.LevelFor(point, w.z.Altitude, w.z.Reach())
 	}
 	// a step the mobility refuses is not driven, under gravity too: the unit cannot, whatever
 	// pushes it may
 	if cur, ok := s.board.CellAt(centre); ok && s.pace != nil {
-		level := cell.OnGround
-		if deck {
-			level = cell.OnDeck
-		}
 		if s.pace(cur, ahead, kind, level, w.domain) == 0 {
 			return ahead, false
 		}
@@ -284,5 +280,5 @@ func (s *driveSystem) open(w walker, heading geom.Vec) (cell.ID, bool) {
 	if s.keeping == nil {
 		return ahead, true
 	}
-	return ahead, s.keeping.MayStep(w.id, w.pos, w.at, ahead, deck, w.domain, heading)
+	return ahead, s.keeping.MayStep(w.id, w.pos, w.at, ahead, level, w.domain, heading)
 }

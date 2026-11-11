@@ -30,10 +30,10 @@ func readAll(r *board.Read, g grid.Grid, out []reading) {
 		i, _ := brd.Ordinal(c)
 		east, _ := g.Toward(c, 0)
 		at := brd.CellCenter(c)
-		rd := reading{kind: brd.Kind(c), ground: brd.KindAt(c, false), deck: brd.KindAt(c, true),
+		rd := reading{kind: brd.Kind(c), ground: brd.KindAt(c, cell.OnGround), deck: brd.KindAt(c, cell.OnDeck),
 			bare: brd.Bare(c), built: brd.Built(c), way: brd.Way(c), along: brd.Along(c, east),
-			reaches: brd.Reaches(c, east), fenced: brd.Fenced(c, east, cell.Land, true),
-			lane: brd.Lane(c, east, cell.Land, true)}
+			reaches: brd.Reaches(c, east), fenced: brd.Fenced(c, east, cell.Land, cell.OnDeck),
+			lane: brd.Lane(c, east, cell.Land, cell.OnDeck)}
 		brd.DecksOver(at, func(cell.ID, cell.Floor) { rd.decks++ })
 		rd.top, rd.level = brd.Map().Top(c)
 		r.Cover().Walk(at, geom.NewVec(1, 0), 64, world.Layers(cell.Land),

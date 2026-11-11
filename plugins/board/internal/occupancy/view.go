@@ -28,9 +28,9 @@ type View struct {
 	visited []uint64 // the cells published, by ordinal
 	at      cell.ID
 	outline []geom.Vec
-	cell    func(cell.ID)                      // inCell, bound once
-	once    func(cell.ID)                      // inCell once a cell, bound once
-	hold    func(uid.UID64, cell.Domain, bool) // takeHold, bound once
+	cell    func(cell.ID)                            // inCell, bound once
+	once    func(cell.ID)                            // inCell once a cell, bound once
+	hold    func(uid.UID64, cell.Domain, cell.Level) // takeHold, bound once
 }
 
 // holds are what the View draws: every hold, its points holds.points[from:from+n] round it in the
@@ -48,7 +48,7 @@ type hold struct {
 }
 
 // Height is how high the point p of the cell c lies on the ground, or on the raised deck over c.
-type Height func(c cell.ID, p geom.Vec, deck bool) float32
+type Height func(c cell.ID, p geom.Vec, level cell.Level) float32
 
 const (
 	// of the way to the cell's middle; a deck's further in
@@ -141,20 +141,20 @@ func (v *View) inCell(c cell.ID) {
 	v.occupancy.Holders(c, v.hold)
 }
 
-func (v *View) takeHold(e uid.UID64, _ cell.Domain, deck bool) {
+func (v *View) takeHold(e uid.UID64, _ cell.Domain, level cell.Level) {
 	c, b := v.at, v.back
 	v.outline = v.grid.CellOutline(c, v.outline[:0])
 	mid := v.grid.CellCenter(c)
 	inset, col := float32(groundInset), holderColor(e)
-	if deck {
+	if level != cell.OnGround {
 		inset, col = deckInset, lighter(col)
 	}
-	h := hold{mid: [3]float32{mid.X, mid.Y, v.height(c, mid, deck)},
+	h := hold{mid: [3]float32{mid.X, mid.Y, v.height(c, mid, level)},
 		color: col, from: int32(len(b.points)), n: int32(len(v.outline))}
 	for _, p := range v.outline {
 		p = geom.NewVec(p.X+(mid.X-p.X)*inset, p.Y+(mid.Y-p.Y)*inset)
 		b.points = append(b.points, [3]float32{p.X, p.Y,
-			v.height(c, p, deck)})
+			v.height(c, p, level)})
 	}
 	b.all = append(b.all, h)
 }

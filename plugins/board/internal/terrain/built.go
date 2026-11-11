@@ -81,7 +81,8 @@ func (s *builtSystem) Update(*goke.CmdBuf, time.Duration) {
 		for i := range ons {
 			var b cell.Built
 			if floors != nil {
-				b.Floor = floors[i]
+				s.storeyed(cur.IDs[i], floors[i])
+				*b.Storey(floors[i].Storey) = floors[i]
 			}
 			if walls != nil {
 				b.Wall = walls[i]
@@ -90,8 +91,10 @@ func (s *builtSystem) Update(*goke.CmdBuf, time.Duration) {
 				b.Rail = rails[i]
 			}
 			s.refuse(cur.IDs[i], b)
-			if b.Floor.Allows == 0 {
-				b.Floor = cell.Floor{}
+			for k := range uint8(cell.Storeys) {
+				if f := b.Storey(k); f.Allows == 0 {
+					*f = cell.Floor{}
+				}
 			}
 			if b.Wall.Keeps == 0 {
 				b.Wall = cell.Wall{}
@@ -113,7 +116,7 @@ func (s *builtSystem) Update(*goke.CmdBuf, time.Duration) {
 		if b.Rail.Keeps == 0 {
 			continue
 		}
-		if _, through, _ := s.cells.run(b.Floor); !through || !banded(b) {
+		if _, through, _ := s.cells.run(b.Floor); !through || !band(b.Floor) {
 			b.Rail = cell.Rail{} // a railing stands along a band carrying someone through alone
 		}
 	}
@@ -193,9 +196,24 @@ func (s *builtSystem) lay(floors []cell.Floor, rails []cell.Rail, bases []entity
 	}
 }
 
+func (s *builtSystem) storeyed(id uid.UID64, f cell.Floor) {
+	if f.Storey >= cell.Storeys {
+		panic(fmt.Sprintf("board: entity %d's floor is storey %d, a cell has %d", id, f.Storey,
+			cell.Storeys))
+	}
+}
+
 func (s *builtSystem) refuse(id uid.UID64, b cell.Built) {
 	f, gap := b.Floor, b.Wall.Gap
+	for k := range uint8(cell.Storeys) {
+		if g := b.Storey(k); g.Allows != 0 {
+			f = *g
+		}
+	}
 	switch {
+	case f.Sunk() && f.Clear <= 0:
+		panic(fmt.Sprintf("board: entity %d's floor is sunk %v with no room over it: give it "+
+			"Clear", id, -f.Height))
 	case f.Load < 0:
 		panic(fmt.Sprintf("board: entity %d's floor bears %v kg", id, f.Load))
 	case gap.Width < 0 || gap.Height < 0:
@@ -262,19 +280,14 @@ func gather(sites []site) []site {
 	for _, s := range sites {
 		if n := len(out); n > 0 && out[n-1].cell == s.cell {
 			o := &out[n-1].built
-			o.Floor.Width = widest(o.Floor, s.built.Floor)
-			o.Floor.Load = strongest(o.Floor, s.built.Floor)
-			o.Floor.Allows |= s.built.Floor.Allows
-			o.Floor.Height = max(o.Floor.Height, s.built.Floor.Height)
-			o.Floor.Graded = o.Floor.Graded || s.built.Floor.Graded
-			o.Floor.Thickness = max(o.Floor.Thickness, s.built.Floor.Thickness)
-			o.Floor.Pace = max(o.Floor.Pace, s.built.Floor.Pace)
+			for k := range uint8(cell.Storeys) {
+				join(o.Storey(k), s.built.Storey(k))
+			}
 			if s.built.Wall.Keeps != 0 {
 				o.Wall.Height = tallest(o.Wall, s.built.Wall)
 				o.Wall.Gap = narrowest(o.Wall, s.built.Wall)
 				o.Wall.Keeps |= s.built.Wall.Keeps
 			}
-			o.Floor.Links |= s.built.Floor.Links
 			o.Rail.Keeps |= s.built.Rail.Keeps
 			o.Rail.Height = max(o.Rail.Height, s.built.Rail.Height)
 			continue
@@ -282,6 +295,28 @@ func gather(sites []site) []site {
 		out = append(out, s)
 	}
 	return out
+}
+
+// join has a carry what b carries too, two floors of one storey on a cell
+func join(a, b *cell.Floor) {
+	switch {
+	case b.Allows == 0:
+		return
+	case a.Allows == 0:
+		*a = *b
+		return
+	}
+	a.Width, a.Load = widest(*a, *b), strongest(*a, *b)
+	a.Allows |= b.Allows
+	if a.Height < 0 || b.Height < 0 {
+		a.Height = min(a.Height, b.Height)
+	} else {
+		a.Height = max(a.Height, b.Height)
+	}
+	a.Graded = a.Graded || b.Graded
+	a.Thickness, a.Clear = max(a.Thickness, b.Thickness), max(a.Clear, b.Clear)
+	a.Pace = max(a.Pace, b.Pace)
+	a.Links |= b.Links
 }
 
 func widest(a, b cell.Floor) float32 {

@@ -63,8 +63,32 @@ fn rimCorner(j: u32) -> vec2<f32> {
 
 // fs_prime lays the ground's depth alone, before fs_main shades only what is seen of it.
 @fragment
-fn fs_prime() -> @location(0) vec4<f32> {
+fn fs_prime(g: Ground) -> @location(0) vec4<f32> {
+    if U.Mouths > 0.5 && mouthed(g.world) {
+        discard;
+    }
     return vec4<f32>(0.0);
+}
+
+// mouthed says whether the ground at p is cut away: it lies over the mouth of a floor sunk under
+// its cell (terrain.Mouth, the marks at the cell's corner), on the half of the cell the floor
+// comes out through, within its width and lower than its roof.
+fn mouthed(p: vec3<f32>) -> bool {
+    let i = clamp(floor(p.xy / U.Cell), vec2<f32>(0.0), U.Corners - 2.0);
+    let mark = imageSrc0At(imageSrc0Origin() + i + 0.5);
+    let code = u32(mark.b * 255.0 + 0.5);
+    if code == 0u {
+        return false;
+    }
+    let way = vec2<f32>(f32((code - 1u) % 3u) - 1.0, f32((code - 1u) / 3u) - 1.0);
+    let mid = (i + 0.5) * U.Cell;
+    let along = normalize(way);
+    let q = p.xy - mid;
+    if dot(q, along) < 0.0 || abs(dot(q, vec2<f32>(-along.y, along.x))) > mark.a * U.Cell {
+        return false;
+    }
+    let room = imageSrc0At(imageSrc0Origin() + vec2<f32>(U.Corners.x, 0.0) + i + 0.5).a;
+    return p.z < height(mid + way * U.Cell * 0.5) + room * U.Cell;
 }
 
 // fs_main is the ground's colour at its point in the sun's light, turned to the Fog as far off
@@ -80,6 +104,9 @@ fn fs_prime() -> @location(0) vec4<f32> {
 @fragment
 fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     let p = g.world;
+    if U.Mouths > 0.5 && mouthed(p) {
+        discard;
+    }
     // how far p moves over the ground for a screen pixel, and how many a cell spans there
     let moveX = dpdx(p);
     let moveY = dpdy(p);

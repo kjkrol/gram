@@ -79,7 +79,7 @@ func (s *renderer) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base, &s.appearance).Optional(&s.z).Optional(&s.lies).
 		Optional(&s.active).Optional(&s.keen).Optional(&s.asleep).Optional(&s.field).
 		Optional(&s.aggregate).Optional(&s.unfolded).Optional(&s.fixed).Optional(&s.pieceOf).
-		Optional(&s.whole)
+		Optional(&s.whole).Optional(&s.unseen)
 	if s.lighting != nil {
 		s.lighting.Join(qb)
 	}
@@ -144,7 +144,8 @@ func (s *renderer) Publish() {
 			if s.seenFields(s.base.Slice(cur), fields) {
 				s.publish(b, cur, fields, false, nil, false)
 			}
-		} else if !s.asleep.Present(cur) && !s.unfolded.Present(cur) && !s.whole.Present(cur) {
+		} else if !s.asleep.Present(cur) && !s.unfolded.Present(cur) && !s.whole.Present(cur) &&
+			!s.unseen.Present(cur) {
 			fixed := sheeting && s.fixed.Present(cur)
 			var c *standerChunk
 			anew := false

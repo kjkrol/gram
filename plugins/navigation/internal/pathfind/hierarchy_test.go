@@ -34,6 +34,28 @@ func newGorge() gorge {
 	return gorge{g, terrain}
 }
 
+func (v gorge) Storeys(c cell.ID, dst *[cell.Storeys]Storey) (made, sunk uint8) {
+	for s := range uint8(cell.Storeys) {
+		if top, bound, under, carries, ok := v.Storey(c, s); ok {
+			dst[s] = Storey{Top: top, Bound: bound, Carries: carries}
+			made |= 1 << s
+			if under {
+				sunk |= 1 << s
+			}
+		}
+	}
+	return made, sunk
+}
+
+func (v gorge) Storey(c cell.ID, s uint8) (top, bound float32, sunk bool,
+	carries cell.Domain, ok bool) {
+	if s != 0 {
+		return 0, 0, false, 0, false
+	}
+	top, bound, carries, ok = v.Deck(c)
+	return top, bound, false, carries, ok
+}
+
 func (v gorge) Deck(c cell.ID) (top, under float32, carries cell.Domain, ok bool) {
 	if x, y, _ := v.g.Coords(c); y == 6 && x >= 12 && x <= 35 {
 		return 10, 9, cell.Land, true
@@ -57,7 +79,8 @@ func (v gorge) Over(p geom.Vec) (float32, bool) {
 	return 0, false
 }
 
-func (v gorge) KindAt(c cell.ID, deck bool) cell.Kind {
+func (v gorge) KindAt(c cell.ID, level cell.Level) cell.Kind {
+	deck := level != cell.OnGround
 	if _, _, _, ok := v.Deck(c); ok && deck {
 		return cell.Kind{Pace: 1, Allows: cell.Land, Graded: true}
 	}
@@ -220,7 +243,7 @@ func TestHierarchy_TheGoalIsReachedBackwardAsForward(t *testing.T) {
 // leveledInto
 func fillOverInto(f *Finder, goalCell cell.ID, body Body) ([]float32, []uint8) {
 	n := f.grid.CellCount()
-	cost, next, cells := make([]float32, 2*n), make([]uint8, 2*n), make([]cell.ID, n)
+	cost, next, cells := make([]float32, cell.Levels*n), make([]uint8, cell.Levels*n), make([]cell.ID, n)
 	f.grid.EachCell(func(c cell.ID) {
 		o, _ := f.grid.Ordinal(c)
 		cells[o] = c
@@ -233,8 +256,8 @@ func fillOverInto(f *Finder, goalCell cell.ID, body Body) ([]float32, []uint8) {
 	var front frontier
 	o, _ := f.grid.Ordinal(goalCell)
 	for _, l := range f.levelsOf(f.at(goalCell)) {
-		cost[2*o+int(l)], next[2*o+int(l)] = 0, fieldEnd
-		front.push(int32(2*o+int(l)), 0)
+		cost[slotOf(n, o, l)], next[slotOf(n, o, l)] = 0, fieldEnd
+		front.push(int32(slotOf(n, o, l)), 0)
 	}
 	var buf []graph.Transition[node]
 	for {
@@ -245,14 +268,15 @@ func fillOverInto(f *Finder, goalCell cell.ID, body Body) ([]float32, []uint8) {
 		if key > cost[s] {
 			continue
 		}
-		t := node{cells[s>>1], uint8(s & 1)}
+		to, tl := nodeAt(n, int(s))
+		t := node{cells[to], tl}
 		buf = f.leveledInto(t, t, buf)
 		for _, step := range buf {
 			on, _ := f.grid.Ordinal(step.To.c)
-			at := 2*on + int(step.To.level)
+			at := slotOf(n, on, step.To.level)
 			if v := float32(float64(key) + step.Cost); v < cost[at] {
 				way, _ := grid.Way(f.grid, step.To.c, t.c)
-				cost[at], next[at] = v, uint8(way)<<1|t.level
+				cost[at], next[at] = v, uint8(way)<<levelBits|t.level
 				front.push(int32(at), v)
 			}
 		}
@@ -299,7 +323,7 @@ func TestField_IntoIsLeveledInto(t *testing.T) {
 					reached++
 				}
 			}
-			if reached < len(cost)/4 {
+			if reached < len(cost)/(2*cell.Levels) {
 				t.Errorf("%d nodes of %d reached; want most", reached, len(cost))
 			}
 		})
@@ -521,7 +545,7 @@ func TestHierarchy_AClimbCrossesADeck(t *testing.T) {
 	for k, s := range climbed[:n] {
 		_, _, _, decked := v.Deck(s)
 		onto, ok := f.Steps(cell.Land, rim, prev, s)
-		if on := decks>>k&1 != 0; !ok || on != decked || onto != on {
+		if on := decks>>k&1 != 0; !ok || on != decked || (onto != cell.OnGround) != on {
 			t.Errorf("step %d to %v: on the deck %v, onto it %v %v; want the deck where it lies",
 				k, s, on, onto, ok)
 		}
@@ -1099,6 +1123,28 @@ type bridgedRiver struct {
 	terrain *cell.TerrainMap
 }
 
+func (b bridgedRiver) Storeys(c cell.ID, dst *[cell.Storeys]Storey) (made, sunk uint8) {
+	for s := range uint8(cell.Storeys) {
+		if top, bound, under, carries, ok := b.Storey(c, s); ok {
+			dst[s] = Storey{Top: top, Bound: bound, Carries: carries}
+			made |= 1 << s
+			if under {
+				sunk |= 1 << s
+			}
+		}
+	}
+	return made, sunk
+}
+
+func (b bridgedRiver) Storey(c cell.ID, s uint8) (top, bound float32, sunk bool,
+	carries cell.Domain, ok bool) {
+	if s != 0 {
+		return 0, 0, false, 0, false
+	}
+	top, bound, carries, ok = b.Deck(c)
+	return top, bound, false, carries, ok
+}
+
 func (b bridgedRiver) Deck(c cell.ID) (top, under float32, carries cell.Domain, ok bool) {
 	if x, y, _ := b.g.Coords(c); y == 4 && x >= 10 && x <= 12 {
 		return 1, 0.5, cell.Land, true
@@ -1117,7 +1163,8 @@ func (b bridgedRiver) Over(p geom.Vec) (float32, bool) {
 	return 0, false
 }
 
-func (b bridgedRiver) KindAt(c cell.ID, deck bool) cell.Kind {
+func (b bridgedRiver) KindAt(c cell.ID, level cell.Level) cell.Kind {
+	deck := level != cell.OnGround
 	if _, _, _, ok := b.Deck(c); ok && deck {
 		return cell.Kind{Pace: 1, Allows: cell.Land}
 	}

@@ -70,7 +70,8 @@ func (p *Finder) FindPath(
 ) (order.Path, bool) {
 	path := order.Path{From: from}
 	n, ok := p.Find(entity, domain, body, from, to, pathfind.Level(end), path.Steps[:])
-	path.Length, path.Decks = uint16(n), p.Decks()
+	path.Length = uint16(n)
+	path.Decks, path.Upper = p.Levels()
 	return path, ok
 }
 
@@ -82,7 +83,8 @@ func (p *Finder) climbPath(
 ) (order.Path, bool) {
 	path := order.Path{From: from}
 	n, ok := p.Climb(h, entity, domain, body, from, to, pathfind.Level(end), path.Steps[:])
-	path.Length, path.Decks = uint16(n), p.Decks()
+	path.Length = uint16(n)
+	path.Decks, path.Upper = p.Levels()
 	return path, ok
 }
 
@@ -93,7 +95,8 @@ func (p *Finder) walkField(f *pathfind.Field, m bodies.Member, body pathfind.Bod
 	path := order.Path{From: from}
 	n, ok := p.Walk(f, m.ID, m.Domain, body, from, o.Target, pathfind.Level(o.Level),
 		path.Steps[:])
-	path.Length, path.Decks = uint16(n), p.Decks()
+	path.Length = uint16(n)
+	path.Decks, path.Upper = p.Levels()
 	return path, ok
 }
 
@@ -104,7 +107,8 @@ func (p *Finder) findPathAround(
 	path := order.Path{From: from}
 	n, ok := p.FindAround(entity, domain, body, from, to, pathfind.Level(end), blocked,
 		path.Steps[:])
-	path.Length, path.Decks = uint16(n), p.Decks()
+	path.Length = uint16(n)
+	path.Decks, path.Upper = p.Levels()
 	return path, ok
 }
 
@@ -112,12 +116,13 @@ func (p *Finder) findPathAround(
 // which cells no route reaches once a search found none
 func (p *Finder) nearestFree(
 	h *pathfind.Hierarchy, entity uid.UID64, domain cell.Domain, body pathfind.Body,
-	from, target cell.ID, end order.Level, taken func(c cell.ID, deck bool) bool,
+	from, target cell.ID, end order.Level, taken func(c cell.ID, level cell.Level) bool,
 ) (cell.ID, order.Path, bool) {
 	path := order.Path{From: from}
 	dest, n, ok := p.NearestFreeThrough(h, entity, domain, body, from, target,
 		pathfind.Level(end), taken, path.Steps[:])
-	path.Length, path.Decks = uint16(n), p.Decks()
+	path.Length = uint16(n)
+	path.Decks, path.Upper = p.Levels()
 	return dest, path, ok
 }
 
@@ -137,32 +142,30 @@ func (p *Finder) asides(m bodies.Member, c cell.ID) bool {
 	return ok
 }
 
-func (p *Finder) stepsAside(m bodies.Member, c cell.ID) (deck, ok bool) {
-	deck, ok = p.stepsOnto(m, c)
+func (p *Finder) stepsAside(m bodies.Member, c cell.ID) (level cell.Level, ok bool) {
+	level, ok = p.stepsOnto(m, c)
 	if !ok || c == m.Cell || !p.Sloped() {
-		return deck, ok
-	}
-	level := cell.OnGround
-	if deck {
-		level = cell.OnDeck
+		return level, ok
 	}
 	kind := p.KindAt(c, level)
 	flat := p.Flat(c, kind, level, m.Domain)
-	return deck, flat > 0 && p.Pace(m.Cell, c, kind, level, m.Domain) >= YieldShare*flat
+	return level, flat > 0 && p.Pace(m.Cell, c, kind, level, m.Domain) >= YieldShare*flat
 }
 
-func (p *Finder) stepsOnto(m bodies.Member, c cell.ID) (deck, ok bool) {
+func (p *Finder) stepsOnto(m bodies.Member, c cell.ID) (level cell.Level, ok bool) {
 	if c == m.Cell {
-		return p.onDeck(m, c), true
+		return p.levelOn(m, c), true
 	}
 	if _, ok := grid.Way(p.grid, m.Cell, c); !ok {
-		return false, true
+		return cell.OnGround, true
 	}
 	return p.Steps(m.Domain, p.bodyOf(m), m.Cell, c)
 }
 
-func (p *Finder) onDeck(m bodies.Member, c cell.ID) bool {
-	return p.Level(m.Domain, p.bodyOf(m), c) == pathfind.Deck
+// the level of c m stands on, the ground's on a cell of one level
+func (p *Finder) levelOn(m bodies.Member, c cell.ID) cell.Level {
+	l, _ := p.Level(m.Domain, p.bodyOf(m), c).Of()
+	return l
 }
 
 // rings are the cells round target dom crosses, the nearest first, priced for costs as a route
@@ -226,17 +229,45 @@ func (p *Finder) tilesRound(target cell.ID, dom, costs cell.Domain) []cell.ID {
 	return out
 }
 
+// what a search asks of the terrain beyond its kinds, by assertion: a board's read answering by
+// another signature would be searched as though nothing stood on it
+var _ interface {
+	Reaches(c, n cell.ID) bool
+	ReachesOn(c, n cell.ID, level cell.Level) bool
+	Fenced(from, to cell.ID, d cell.Domain, level cell.Level) bool
+	Lane(from, to cell.ID, d cell.Domain, level cell.Level) float32
+	Limits(c cell.ID, d cell.Domain, level cell.Level) (float32, cell.Gap)
+	Railed(c cell.ID, d cell.Domain, level cell.Level) bool
+} = (*board.BoardRead)(nil)
+
 // BoardLevels are the board's decks and its ground as the search reads them.
 type BoardLevels struct{ Read *board.Read }
 
-func (l BoardLevels) Deck(c cell.ID) (top, under float32, carries cell.Domain, ok bool) {
-	f := l.Read.Board().Built(c).Floor
-	if f.Height <= 0 {
-		return 0, 0, 0, false
+func (l BoardLevels) Storeys(c cell.ID, dst *[cell.Storeys]pathfind.Storey) (made, sunk uint8) {
+	brd := l.Read.Board()
+	if !brd.Storeyed() {
+		return 0, 0
 	}
-	_, level := l.Read.Board().Map().Top(c)
-	top = level + f.Height
-	return top, top - f.Thickness, f.Allows, true
+	b := brd.Built(c)
+	if !b.Levelled() {
+		return 0, 0
+	}
+	_, level := brd.Map().Top(c)
+	for s := range uint8(cell.Storeys) {
+		f := b.Storey(s)
+		if f.Height == 0 || f.Allows == 0 {
+			continue
+		}
+		top := level + f.Height
+		made |= 1 << s
+		if f.Sunk() {
+			sunk |= 1 << s
+			dst[s] = pathfind.Storey{Top: top, Bound: top + f.Clear, Carries: f.Allows}
+		} else {
+			dst[s] = pathfind.Storey{Top: top, Bound: top - f.Thickness, Carries: f.Allows}
+		}
+	}
+	return made, sunk
 }
 
 func (l BoardLevels) Ground(p geom.Vec) float32 {
@@ -260,6 +291,6 @@ func (l BoardLevels) Over(p geom.Vec) (under float32, ok bool) {
 	return under, ok
 }
 
-func (l BoardLevels) KindAt(c cell.ID, deck bool) cell.Kind {
-	return l.Read.Board().KindAt(c, deck)
+func (l BoardLevels) KindAt(c cell.ID, level cell.Level) cell.Kind {
+	return l.Read.Board().KindAt(c, level)
 }

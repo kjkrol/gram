@@ -241,7 +241,8 @@
 // plugins: a rule reads no component), [Fixed] (on a kind standing for good, what the sheets of
 // the strategic scale are photographed of), [Whole] (on the kind of the handle of a thing standing
 // in pieces, its joint box and no sprite, despawning its pieces as it goes), [PieceOf] (on a
-// piece, its handle's). A thing standing for good lives in a tier of sectors (sector.Grid.Fit):
+// piece, its handle's), [Unseen] (on a kind none of the world's looks draw, its plugin drawing it
+// by a source of its own). A thing standing for good lives in a tier of sectors (sector.Grid.Fit):
 // one no longer than [SectorsCfg] Small by its centre, a longer one in the lowest holding it whole.
 // Knobs, for an effect's Alter:
 // render.Appearance, the look's.

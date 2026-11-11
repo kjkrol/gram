@@ -27,6 +27,7 @@ import (
 	"github.com/kjkrol/gram/plugins/roads/site"
 	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/topography"
+	"github.com/kjkrol/gram/plugins/underground"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/ui"
 )
@@ -55,6 +56,7 @@ type arena struct {
 	board      *board.Plugin
 	topography *topography.Plugin
 	bridges    *bridges.Plugin
+	tunnels    *underground.Plugin
 	roads      *roads.Plugin
 	cameras    *cameras.Plugin
 	players    *players.Plugin
@@ -75,8 +77,8 @@ func main() {
 			"window says what it takes and what it costs before it is built. The treasury " +
 			"pays: once it is empty the builders refuse. I brings the winter, whose frozen " +
 			"ground is levelled for no road; a road levelled sets the roadworks going for half " +
-			"a minute. Shift+B builds another bridge. Whether the tool levels the ground is set " +
-			"on F10.",
+			"a minute. Shift+B builds another bridge, Shift+T digs a tunnel from one level head " +
+			"to another under the hill. Whether the tool levels the ground is set on F10.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -117,6 +119,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.topography = topography.NewPlugin(a.world, a.board, a.light, topography.Config{})
 	a.bridges = bridges.NewPlugin(a.world, a.board, bridges.Config{Rules: bridging}).
 		WithShaper(a.topography.Write())
+	a.tunnels = underground.NewPlugin(a.world, a.board, underground.Config{Rules: tunnelling}).
+		WithShaper(a.topography.Write())
 	a.roads = roads.NewPlugin(a.world, a.board, roads.Config{
 		Kind:  RoadCell,
 		Width: RoadWidth,
@@ -142,8 +146,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		Cell: CellSize,
 		Cage: a.topography.Read(0),
 	})
-	a.players = players.NewPlugin(a.world, a.cameras, a.board, a.topography, a.bridges, a.roads,
-		a.light)
+	a.players = players.NewPlugin(a.world, a.cameras, a.board, a.topography, a.bridges,
+		a.tunnels, a.roads, a.light)
 }
 
 func tariff(e site.Estimate) float32 {
@@ -160,6 +164,7 @@ func (a *arena) defineFigures() {
 	a.board.Surfaces(surface{})
 	a.board.Figures(settlement{})
 	a.bridges.Figures(bridge{})
+	a.tunnels.Figures(tunnel{})
 }
 
 func (a *arena) defineEffects() {
@@ -214,6 +219,9 @@ func (a *arena) spawn() error {
 	if err := a.bridges.Write().Spawn(level); err != nil {
 		return err
 	}
+	if err := a.tunnels.Write().Spawn(level); err != nil {
+		return err
+	}
 	return board.Spawn[settlementRow](level, nil)
 }
 
@@ -227,6 +235,7 @@ func (a *arena) defineScenes() []game.Scene {
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.pay()
 	a.bridges.RunPlan(ctx, d)
+	a.tunnels.RunPlan(ctx, d)
 	a.world.RunPlan(ctx, d)
 	a.light.RunPlan(ctx, d)
 	a.motion.RunPlan(ctx, d)

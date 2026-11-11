@@ -93,6 +93,12 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   under every figure (`FigureLift` 2): the point and material paths place it so; through a Look it
   goes `Lie`, never `Upright`/`Lay`, still at the Look's own lift (an interface change to pass a
   lift is open, 2026-11-04).
+- What lies under the ground is a Direct of its plugin (`underground/renderer.go`, `tube.wgsl`):
+  a stretch an instance (three vec4: its ends on the floor, half its width, its room, its walls
+  standing), the faces built in the vertex stage from the vertex index, opaque, lit by a share
+  of the air's light, the frame's lamps and its own strips under the roof, none of the sun. The
+  ground over a mouth is the terrain's to cut (`mouthed` in `mesh.wgsl`, in `fs_prime` too, so
+  the primed depth has the hole).
 - A stage is readied before its first frame (`render.Prepare`, then a frame drawn and thrown
   away): nothing is compiled or baked in a frame shown.
 

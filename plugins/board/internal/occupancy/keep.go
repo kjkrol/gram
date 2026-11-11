@@ -44,7 +44,7 @@ func (l *leaving) gone(id uid.UID64) bool {
 
 // Footing is the cell whoever stands at p, its feet at feet, stepping reach high, is on, whether on
 // the raised deck over it, and whether it has a raised deck at all; false off the board.
-type Footing func(p geom.Vec, feet, reach float32) (c cell.ID, deck, raised, ok bool)
+type Footing func(p geom.Vec, feet, reach float32) (c cell.ID, level cell.Level, raised, ok bool)
 
 var _ goke.System = (*keepSystem)(nil)
 
@@ -61,7 +61,7 @@ type keepSystem struct {
 	statesID  goke.CompID
 	lacking   []uid.UID64          // the units entering a cell whose chunk had no unit.States
 	gone      func(uid.UID64) bool // isGone, bound once
-	holding   func(uid.UID64, cell.Domain, bool)
+	holding   func(uid.UID64, cell.Domain, cell.Level)
 	asked     uid.UID64 // whom holding looks for
 	held      bool      // whether holding found it
 	grid      grid.Grid
@@ -115,23 +115,23 @@ func (s *keepSystem) keep(q *goke.Query, starting bool) {
 			if size := bases[i].Pos.Size; max(size.X, size.Y) > s.span {
 				p = unit.LaidFrom(s.grid, size, p)
 			}
-			c, deck, raised, ok := s.footing(p, feet, reach)
+			c, level, raised, ok := s.footing(p, feet, reach)
 			if !ok {
 				continue
 			}
 			at, domain := &ats[i], unit.DomainAt(movers, i)
 			switch {
 			case starting:
-				s.occupancy.Enter(at.Cell, deck && c == at.Cell, id, domain)
+				s.occupancy.Enter(at.Cell, startOn(level, c == at.Cell), id, domain)
 			case !s.holds(c, id):
-				s.occupancy.Enter(c, deck, id, domain)
+				s.occupancy.Enter(c, level, id, domain)
 				if c != at.Cell {
 					s.occupancy.Leave(at.Cell, id)
 					at.Cell, at.Next = c, 0
 					s.enter(states, i, id)
 				}
 			case raised:
-				s.occupancy.Enter(c, deck, id, domain)
+				s.occupancy.Enter(c, level, id, domain)
 			}
 		}
 	}
@@ -143,7 +143,7 @@ func (s *keepSystem) holds(c cell.ID, id uid.UID64) bool {
 	return s.held
 }
 
-func (s *keepSystem) isHolding(e uid.UID64, _ cell.Domain, _ bool) {
+func (s *keepSystem) isHolding(e uid.UID64, _ cell.Domain, _ cell.Level) {
 	if e == s.asked {
 		s.held = true
 	}
@@ -156,4 +156,13 @@ func (s *keepSystem) enter(states []tag.Tags[unit.States], i int, id uid.UID64) 
 	} else {
 		s.lacking = append(s.lacking, id)
 	}
+}
+
+// a unit starting holds its own cell on the level it stands on there, on the ground where the
+// floor it stands on is another cell's
+func startOn(level cell.Level, own bool) cell.Level {
+	if own {
+		return level
+	}
+	return cell.OnGround
 }

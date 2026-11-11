@@ -84,8 +84,10 @@ func (r *BoardRead) CellEntity(c cell.ID) (uid.UID64, bool) { return r.cells.Ent
 // included; off the board, the zero kind admitting nobody.
 func (r *BoardRead) Kind(c cell.ID) cell.Kind { return r.cells.Kind(c) }
 
-// KindAt is c's kind on the deck over it or on the ground under; Kind on a cell of one level.
-func (r *BoardRead) KindAt(c cell.ID, deck bool) cell.Kind { return r.cells.KindAt(c, deck) }
+// KindAt is c's kind on level; Kind on a cell of one level.
+func (r *BoardRead) KindAt(c cell.ID, level cell.Level) cell.Kind {
+	return r.cells.KindAt(c, level)
+}
 
 // KindFor is c's kind at p, a point in c, on the level of whoever has its feet at feet and steps
 // reach high: a deck over p within reach, else what lies under.
@@ -100,16 +102,19 @@ func (r *BoardRead) CellFor(p geom.Vec, feet, reach float32) (cell.ID, bool) {
 	return r.cells.CellFor(p, feet, reach, r.altitude)
 }
 
-// LevelFor is CellFor and whether whoever stands there stands on a raised deck.
-func (r *BoardRead) LevelFor(p geom.Vec, feet, reach float32) (c cell.ID, deck, ok bool) {
+// LevelFor is CellFor and the level whoever stands there stands on.
+func (r *BoardRead) LevelFor(p geom.Vec, feet, reach float32) (c cell.ID, level cell.Level,
+	ok bool) {
 	return r.cells.LevelFor(p, feet, reach, r.altitude)
 }
 
-func (r *BoardRead) footing(p geom.Vec, feet, reach float32) (c cell.ID, deck, raised, ok bool) {
-	if c, deck, ok = r.LevelFor(p, feet, reach); !ok {
-		return c, false, false, false
+func (r *BoardRead) footing(p geom.Vec, feet, reach float32) (c cell.ID, level cell.Level,
+	raised, ok bool) {
+	if c, level, ok = r.LevelFor(p, feet, reach); !ok {
+		return c, cell.OnGround, false, false
 	}
-	return c, deck, r.Built(c).Floor.Height > 0, true
+	b := r.Built(c)
+	return c, level, b.Levelled(), true
 }
 
 // DecksOver calls visit with every Floor over p and the cell it is built on, a neighbour's band
@@ -124,6 +129,12 @@ func (r *BoardRead) DecksOver(p geom.Vec, visit func(c cell.ID, f cell.Floor)) {
 		return true
 	})
 }
+
+// Storeyed reports whether a floor gives any cell of the board a level beside its ground.
+func (r *BoardRead) Storeyed() bool { return r.cells.Storeyed() }
+
+// Sunk reports whether a floor lies sunk under any cell of the board.
+func (r *BoardRead) Sunk() bool { return r.cells.Sunk() }
 
 // NearDeck reports whether a Floor lies over any of the cell under p.
 func (r *BoardRead) NearDeck(p geom.Vec) bool {
@@ -141,34 +152,40 @@ func (r *BoardRead) ThinnestDeck() float32 { return r.cells.Thinnest() }
 // along a link.
 func (r *BoardRead) Reaches(c, n cell.ID) bool { return r.cells.Reaches(c, n) }
 
+// ReachesOn is Reaches of the floor making c's level.
+func (r *BoardRead) ReachesOn(c, n cell.ID, level cell.Level) bool {
+	return r.cells.ReachesOn(c, n, level)
+}
+
 // Lane is how wide a body may be across the step from from to its neighbour to in d where a
-// deck's band runs along it, on the decks' level when deck, else the ground's; +Inf where no band
-// narrows the step. The railings keeping d off are taken off the band's width.
-func (r *BoardRead) Lane(from, to cell.ID, d cell.Domain, deck bool) float32 {
-	return r.cells.Lane(from, to, d, deck)
+// deck's band runs along it on level; +Inf where no band narrows the step. The railings keeping
+// d off are taken off the band's width.
+func (r *BoardRead) Lane(from, to cell.ID, d cell.Domain, level cell.Level) float32 {
+	return r.cells.Lane(from, to, d, level)
 }
 
 // Fenced reports whether a railing keeping d off stands across the step from from to its
-// neighbour to, on the decks' level when deck, else on the ground's.
-func (r *BoardRead) Fenced(from, to cell.ID, d cell.Domain, deck bool) bool {
-	return r.cells.Fenced(from, to, d, deck)
+// neighbour to on level.
+func (r *BoardRead) Fenced(from, to cell.ID, d cell.Domain, level cell.Level) bool {
+	return r.cells.Fenced(from, to, d, level)
 }
 
-// Railed reports whether a railing keeping d off runs along c's own band, on the decks' level
-// when deck, else on the ground's: a band running on through c, a head carrying none.
-func (r *BoardRead) Railed(c cell.ID, d cell.Domain, deck bool) bool {
-	return r.cells.Railed(c, d, deck)
+// Railed reports whether a railing keeping d off runs along c's own band on level: a band
+// running on through c, a head carrying none.
+func (r *BoardRead) Railed(c cell.ID, d cell.Domain, level cell.Level) bool {
+	return r.cells.Railed(c, d, level)
 }
 
 // Limited reports whether a floor's Load or a wall's Gap limits whom a cell takes anywhere on the
 // board.
 func (r *BoardRead) Limited() bool { return r.cells.Limited() }
 
-// Limits are what c limits a body moving in d by beyond its kind, on the decks' level when deck:
+// Limits are what c limits a body moving in d by beyond its kind on level:
 // the Load of the floor carrying it where its ground would not, and the Gap of the wall keeping d
 // off; zero where nothing does.
-func (r *BoardRead) Limits(c cell.ID, d cell.Domain, deck bool) (load float32, gap cell.Gap) {
-	return r.cells.Limits(c, d, deck)
+func (r *BoardRead) Limits(c cell.ID, d cell.Domain, level cell.Level) (load float32,
+	gap cell.Gap) {
+	return r.cells.Limits(c, d, level)
 }
 
 // Built is what the entities standing on c build over it as of the board's last step; none off
@@ -196,8 +213,14 @@ func (r *BoardRead) Along(from, to cell.ID) bool {
 	if r.Way(from).Links&out != 0 || r.Way(to).Links&back != 0 {
 		return true
 	}
-	f, t := r.Built(from).Floor, r.Built(to).Floor
-	return f.Allows != 0 && f.Links&out != 0 || t.Allows != 0 && t.Links&back != 0
+	f, t := r.Built(from), r.Built(to)
+	for k := range uint8(cell.Storeys) {
+		if f, t := f.Storey(k), t.Storey(k); f.Allows != 0 && f.Links&out != 0 ||
+			t.Allows != 0 && t.Links&back != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // CellVersion counts the changes to c alone; it only grows.
@@ -256,8 +279,18 @@ func (s surfaces) Surface(p geom.Vec, d cell.Domain, feet, step float32) (floor,
 	if d == 0 {
 		d = cell.Land
 	}
+	sunk := f32.Inf(-1)
 	s.r.DecksOver(p, func(c cell.ID, f cell.Floor) {
 		deck := s.r.altitude(c) + f.Height
+		if f.Sunk() {
+			// under the ground whoever has its feet under the floor's roof stands on it
+			deck = s.graded(c, f, p, deck)
+			if roof := deck + f.Clear; f.Allows&d != 0 && deck <= feet+step && feet < roof &&
+				deck > sunk {
+				sunk, ceiling = deck, min(ceiling, roof)
+			}
+			return
+		}
 		if f.Allows&d != 0 && deck <= feet+step {
 			floor = max(floor, deck)
 		}
@@ -265,7 +298,45 @@ func (s surfaces) Surface(p geom.Vec, d cell.Domain, feet, step float32) (floor,
 			ceiling = min(ceiling, under)
 		}
 	})
+	if !f32.IsInf(sunk, -1) {
+		floor = sunk
+	}
 	return floor, ceiling
+}
+
+// graded is how high the sunk band f of c, its floor at level under c's middle, lies at p: on
+// the way out to each neighbour its links name it runs to the mean of the two floors at their
+// edge, so a tunnel climbs evenly from piece to piece
+func (s surfaces) graded(c cell.ID, f cell.Floor, p geom.Vec, level float32) float32 {
+	if f.Width <= 0 || f.Links == 0 {
+		return level
+	}
+	r := s.r
+	m := r.CellCenter(c)
+	q := geom.NewVec(p.X-m.X, p.Y-m.Y)
+	for way := range r.Directions() {
+		if !f.Links.Has(way) {
+			continue
+		}
+		st := r.Step(way)
+		l := f32.Hypot(st.X, st.Y)
+		along := (q.X*st.X + q.Y*st.Y) / l
+		if along <= 0 {
+			continue
+		}
+		n, ok := r.Toward(c, way)
+		if !ok {
+			return level
+		}
+		nb := r.Built(n)
+		nf := nb.Storey(f.Storey)
+		if !nf.Sunk() {
+			return level
+		}
+		edge := (level + r.altitude(n) + nf.Height) / 2
+		return level + (edge-level)*min(2*along/l, 1)
+	}
+	return level
 }
 
 // BoardWrite writes a board's terrain, on the game's goroutine.

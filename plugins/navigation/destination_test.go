@@ -59,7 +59,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 		}
 		for i, id := range f.Cursor.IDs {
 			here.Slice(&f.Cursor)[i] = unit.At{Cell: starts[i]}
-			occupancy.Enter(starts[i], false, id, cell.Land)
+			occupancy.Enter(starts[i], cell.OnGround, id, cell.Land)
 			if starts[i] == at(5, 4) {
 				nearest = id
 			}

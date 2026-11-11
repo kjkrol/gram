@@ -19,7 +19,7 @@ const ArrivalEpsilon = 2.0
 // Footing is a terrain whose cells have levels: the cell and the kind under feet at a point.
 type Footing interface {
 	CellFor(p geom.Vec, feet, reach float32) (cell.ID, bool)
-	LevelFor(p geom.Vec, feet, reach float32) (c cell.ID, deck, ok bool)
+	LevelFor(p geom.Vec, feet, reach float32) (c cell.ID, level cell.Level, ok bool)
 	KindFor(c cell.ID, p geom.Vec, feet, reach float32) cell.Kind
 }
 
@@ -44,12 +44,13 @@ func ShortestAxisDelta(have, want float32, size uint32, wraps bool) float32 {
 	return d
 }
 
-// LevelOf is the cell under p for feet standing as z says, and whether on its raised deck.
-func LevelOf(g grid.Grid, t cell.Terrain, p geom.Vec, z *world.Z) (c cell.ID, deck, ok bool) {
+// LevelOf is the cell under p for feet standing as z says, and the level of it they stand on.
+func LevelOf(g grid.Grid, t cell.Terrain, p geom.Vec, z *world.Z) (c cell.ID, level cell.Level,
+	ok bool) {
 	f, known := t.(Footing)
 	if !known {
 		c, ok = g.CellAt(p)
-		return c, false, ok
+		return c, cell.OnGround, ok
 	}
 	if z == nil {
 		return f.LevelFor(p, f32.Inf(-1), 0)

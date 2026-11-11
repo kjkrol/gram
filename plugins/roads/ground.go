@@ -98,8 +98,8 @@ func (g *boardGround) Fixed(c cell.ID) bool {
 
 func (g *boardGround) Held(c cell.ID) bool {
 	held := false
-	g.p.board.Read(0).Occupancy().Holders(c, func(_ uid.UID64, _ cell.Domain, deck bool) {
-		held = held || !deck
+	g.p.board.Read(0).Occupancy().Holders(c, func(_ uid.UID64, _ cell.Domain, level cell.Level) {
+		held = held || level == cell.OnGround
 	})
 	return held
 }

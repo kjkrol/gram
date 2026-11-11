@@ -1,5 +1,48 @@
 # Changelog
 
+## v0.22.0 — unreleased
+
+**Added**
+- `plugins/underground`: tunnels and chambers dug under the ground by one set of rules
+  (`underground/site`: `Plan` a tunnel from head to head through the cells it turns at, its
+  floor from one head's ground to the other's, its roof `Rules.Cover` under the ground, no
+  steeper than `Rules.Grade`; `Room` a chamber under a rectangle of cells), whoever digs them: a
+  level's file (`{kind: tunnel, from, to, via}`, `{kind: cave, from, to, depth}`,
+  `Write.Spawn`), a player with the tunnel in hand (Shift+T: `Tool`, `Aim`, `Mark`, `Dig`,
+  `Cancel`, `Window`, `Reason`, the heads levelled by `WithShaper`). A structure is entities a
+  cell under a `world.Whole`, its kinds a game's (`Types.Define`, `Types.Chamber`, `Figure`);
+  a unit walks in at a mouth and through, no taller than the room, and a body in the room
+  meets its walls (the board's field: either side of a tunnel, a turn closed outside, round a
+  chamber but for the door of a tunnel coming in); a camera riding it (V) stays
+  under the roof; inside it is drawn as a tube with its own lamps, lit by none of the sun; from
+  above its course and the units in it are marks over the world (`Courses`, a switch under
+  Game). The roads demo has an old tunnel under its hill, the roads and the topography demos
+  the tool.
+- **A cell has levels**: its ground and up to three storeys (`cell.Levels`), each a `cell.Floor`
+  raised over the cell or sunk under it (a negative `Height`, the room `Clear` over it), naming
+  its `Storey`; `cell.Built` holds the storeys past the first in `More` (`Built.On`,
+  `Built.Storey`, `Built.Levelled`, `Floor.Level`, `Floor.Sunk`), so a tunnel runs under a road
+  and a bridge over a tunnel on one cell. `BoardRead.ReachesOn`, `BoardRead.Sunk`;
+  `navigation.On` names a goal's level past `OnDeck`.
+- `world.Unseen`: a kind none of the world's looks draw, its plugin drawing it by a source of
+  its own.
+- The topography cuts the ground over the mouth of a floor sunk under it and frees the cameras'
+  cage in the room over such a floor (`Read.Free`).
+
+**Changed**
+- A level of a cell is a `cell.Level` wherever it was "on the deck or not": `cell.Occupancy`
+  (`CanEnter`, `Enter`, `Holder`, `Holders`), `BoardRead.KindAt`, `LevelFor`, `Lane`, `Fenced`,
+  `Railed` and `Limits`, `driving.Keeping.MayStep`. A game's own `cell.Occupancy` or
+  `driving.Keeping` takes the level in place of the bool.
+- Navigation keeps four nodes a cell (two before): its dictionaries by node are twice as big,
+  the routes the same (`routes.golden` unchanged). A hierarchy kept between runs
+  (`navigation.Cache`) is built anew once, its file's nodes keyed anew. A game saved with a unit
+  in the middle of a step loads it holding its step's cells on the ground.
+
+**Improved**
+- Measured against v0.21.0 (`BENCHMARKS.md`, "Four levels a cell"): the navigation's ticks within
+  ±3 %, a search +1.6 %, a group's field +2–7 %, the board and the world's frame unchanged.
+
 ## v0.21.0 — 2026-11-10
 
 **Added**

@@ -76,13 +76,13 @@ func TestWall_AGapAdmitsWhomItKeepsOffAndTellsWhomItFits(t *testing.T) {
 	if !brd.Limited() {
 		t.Error("a board with a gap in a wall limits nothing")
 	}
-	if load, got := brd.Limits(at, cell.Land, false); load != 0 || got != gap {
+	if load, got := brd.Limits(at, cell.Land, cell.OnGround); load != 0 || got != gap {
 		t.Errorf("the gap's cell limits Land by %v kg and %+v, want the gap alone", load, got)
 	}
-	if _, got := brd.Limits(at, cell.Air, false); got != (cell.Gap{}) {
+	if _, got := brd.Limits(at, cell.Air, cell.OnGround); got != (cell.Gap{}) {
 		t.Errorf("the gap limits Air, which the wall keeps not, by %+v", got)
 	}
-	if _, got := brd.Limits(wall, cell.Land, false); got != (cell.Gap{}) {
+	if _, got := brd.Limits(wall, cell.Land, cell.OnGround); got != (cell.Gap{}) {
 		t.Errorf("a wall without a gap limits by %+v, want nothing: it admits none", got)
 	}
 }
@@ -192,13 +192,13 @@ func TestLimits_AFloorBearsWhereItsGroundWouldNot(t *testing.T) {
 	} {
 		s := newStrip(t, tc.under, effect.Spec{}, comp.Const(tc.floor))
 		brd := s.Board.Read(0).Board()
-		onGround, _ := brd.Limits(s.middle, cell.Land, false)
-		onDeck, _ := brd.Limits(s.middle, cell.Land, true)
+		onGround, _ := brd.Limits(s.middle, cell.Land, cell.OnGround)
+		onDeck, _ := brd.Limits(s.middle, cell.Land, cell.OnDeck)
 		if onGround != tc.onGround || onDeck != tc.onDeck {
 			t.Errorf("%s: bears %v on the ground and %v on the deck, want %v and %v", tc.name,
 				onGround, onDeck, tc.onGround, tc.onDeck)
 		}
-		if load, _ := brd.Limits(s.middle, cell.Air, false); load != 0 {
+		if load, _ := brd.Limits(s.middle, cell.Air, cell.OnGround); load != 0 {
 			t.Errorf("%s: bears Air, which it carries not, %v kg", tc.name, load)
 		}
 	}

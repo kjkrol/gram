@@ -37,7 +37,10 @@
 // An entity standing on the board carries [On], the cell it stands on. Its knobs [Floor], [Wall]
 // and [Rail] build over the cell — a trapdoor over a pit, a bridge's deck, a gate, railings —
 // gathered on the cell's entity as [Built], whose Over is the kind as whoever crosses the cell
-// meets it. An effect opens one by altering a Floor's Allows or a Wall's Keeps to 0. A Floor's
+// meets it. A Floor at a Height is a storey of its cell, raised over it or sunk under it with
+// the room Clear over it, and makes a [Level] of the cell beside its ground: [Levels] at most,
+// the Floor's Storey saying which, so a bridge crosses over a tunnel on one cell. An effect opens
+// a Floor by altering its Allows, a Wall by its Keeps, to 0. A Floor's
 // Load bears no heavier body (unit.Mover.Weight); a Wall's [Gap] lets through whom it keeps off
 // where the body fits, the cell admitting them.
 //

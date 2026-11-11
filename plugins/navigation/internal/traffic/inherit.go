@@ -81,9 +81,9 @@ func (s *System) inheritFrom(cb *goke.CmdBuf, heir uid.UID64, of ceremony.Whom) 
 	o := order.Inherited(&took, leg)
 	if b := h.base.At(cur); has && !leg.Active {
 		off := s.offOf(b.Pos.Size)
-		if c, deck, ok := spacing.LevelOf(s.grid, s.terrain, s.from(b.Pos.Center(), off),
+		if c, level, ok := spacing.LevelOf(s.grid, s.terrain, s.from(b.Pos.Center(), off),
 			h.z.At(cur)); ok {
-			s.anchor(&o.Path, c, deck)
+			s.anchor(&o.Path, c, level)
 		}
 	}
 	switch {

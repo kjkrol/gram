@@ -562,7 +562,7 @@ func TestColumn_WaitingOnTheOneAheadIsNoStall(t *testing.T) {
 		watched, blocked := false, false
 		for range 2 * 60 {
 			body.Watch(m, &o, toward, g.CellCenter(toward), time.Second/60)
-			cells.Blocked(m, &held, toward, false, time.Second/60)
+			cells.Blocked(m, &held, toward, cell.OnGround, time.Second/60)
 			watched, blocked = watched || o.Bumped, blocked || held.Bumped
 		}
 		if watched != c.stalled || blocked != c.stalled {

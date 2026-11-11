@@ -21,7 +21,8 @@ type limitedTerrain struct {
 
 func (l limitedTerrain) Limited() bool { return len(l.loads) > 0 || len(l.gaps) > 0 }
 
-func (l limitedTerrain) Limits(c cell.ID, d cell.Domain, deck bool) (float32, cell.Gap) {
+func (l limitedTerrain) Limits(c cell.ID, d cell.Domain, level cell.Level) (float32, cell.Gap) {
+	deck := level != cell.OnGround
 	if d&cell.Land == 0 {
 		return 0, cell.Gap{}
 	}
@@ -264,7 +265,7 @@ func TestFind_AStepTouchingNoLimitReadsNone(t *testing.T) {
 		t.Fatal("no route round the wall")
 	}
 	for i := range f.reads {
-		if r := &f.reads[i]; r.search == f.search && r.has&(hasLimits|hasLimits<<1) != 0 {
+		if r := &f.reads[i]; r.search == f.search && r.has&(hasLimits|hasLimits<<1|hasLimits<<2|hasLimits<<3) != 0 {
 			t.Fatalf("the limits of %v read on a board limiting nothing", r.c)
 		}
 	}

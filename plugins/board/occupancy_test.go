@@ -118,7 +118,7 @@ func (k *keptBoard) each(f func(uid.UID64, *world.Base, *world.Z, *unit.At,
 
 func (k *keptBoard) holders(c cell.ID) []uid.UID64 {
 	var ids []uid.UID64
-	k.occupancy.Holders(c, func(e uid.UID64, _ cell.Domain, _ bool) { ids = append(ids, e) })
+	k.occupancy.Holders(c, func(e uid.UID64, _ cell.Domain, _ cell.Level) { ids = append(ids, e) })
 	return ids
 }
 
@@ -133,13 +133,13 @@ func TestOccupancy_HoldsAUnitsCellOnTheLevelOfItsFeet(t *testing.T) {
 	}
 	const other = 99
 	standAt(10)
-	if k.occupancy.CanEnter(mid, true, other, cell.Land) ||
-		!k.occupancy.CanEnter(mid, false, other, cell.Land) {
+	if k.occupancy.CanEnter(mid, cell.OnDeck, other, cell.Land) ||
+		!k.occupancy.CanEnter(mid, cell.OnGround, other, cell.Land) {
 		t.Error("a unit standing on the deck holds its cell's ground, not the deck")
 	}
 	standAt(0)
-	if !k.occupancy.CanEnter(mid, true, other, cell.Land) ||
-		k.occupancy.CanEnter(mid, false, other, cell.Land) {
+	if !k.occupancy.CanEnter(mid, cell.OnDeck, other, cell.Land) ||
+		k.occupancy.CanEnter(mid, cell.OnGround, other, cell.Land) {
 		t.Error("a unit fallen off the deck into its cell still holds the deck, not the ground")
 	}
 }
@@ -223,7 +223,7 @@ func TestOccupancy_LeavesAUnitInACellItHolds(t *testing.T) {
 	to := k.g.At(2, 0)
 	k.tick()
 	k.each(func(id uid.UID64, b *world.Base, _ *world.Z, _ *unit.At, _ *tag.Tags[unit.States]) {
-		k.occupancy.Enter(to, false, id, cell.Land)
+		k.occupancy.Enter(to, cell.OnGround, id, cell.Land)
 		b.Pos.AABB = boardtest.CellBox(k.g, to, 2)
 	})
 	k.tick()

@@ -32,7 +32,12 @@ type Field struct {
 	veils    *[]veil // by ordinal, the board's: kept by Veil and Veils as the cells change
 	boxes    []geom.AABB
 	decks    []terrain.Deck
-	seen     []cell.ID
+	seen     []storey
+}
+
+type storey struct {
+	cell cell.ID
+	k    uint8
 }
 
 // New is the ground of the board over g read through cells, its levels as altitude says.
@@ -214,12 +219,12 @@ func (f *Field) Solid(layers world.Layers, band collision.Band, box geom.AABB, v
 	}
 }
 
-// Walls are the railings and the slabs of the decks running as bands round box, for an entity on
-// layers spanning band, the collision.Field contract. Their ends are free where the bridge ends or
-// a head takes over.
+// Walls are the railings and the slabs of the decks running as bands round box, and the walls of
+// what lies sunk under it, for an entity on layers spanning band, the collision.Field contract.
+// A deck's ends are free where the bridge ends or a head takes over.
 func (f *Field) Walls(layers world.Layers, band collision.Band, box geom.AABB,
 	visit func(collide.FieldWall) bool) {
-	if !f.cells.Banded() {
+	if !f.cells.Banded() && !f.cells.Sunk() {
 		return
 	}
 	f.seen = f.seen[:0]
@@ -248,14 +253,25 @@ func (f *Field) Walls(layers world.Layers, band collision.Band, box geom.AABB,
 
 func (f *Field) wallsOf(c cell.ID, m geom.Vec, layers world.Layers, band collision.Band,
 	visit func(collide.FieldWall) bool) bool {
+	if f.cells.Sunk() && !f.rooms(c, m, band, visit) {
+		return false
+	}
 	f.decks = f.cells.Bands(c, f.decks[:0])
 	for _, d := range f.decks {
-		if slices.Contains(f.seen, d.Cell) {
+		at := storey{cell: d.Cell, k: d.Built.Floor.Storey}
+		if slices.Contains(f.seen, at) {
 			continue
 		}
-		f.seen = append(f.seen, d.Cell)
+		f.seen = append(f.seen, at)
 		fl, top := d.Built.Floor, f.altitude(d.Cell)+d.Built.Floor.Height
-		a, b, freeA, freeB, ok := f.cells.Ends(d.Cell, fl, geom.NewVec(m.X+d.Off.X, m.Y+d.Off.Y))
+		mid := geom.NewVec(m.X+d.Off.X, m.Y+d.Off.Y)
+		if fl.Sunk() {
+			if !f.bore(d.Cell, fl, mid, band, visit) {
+				return false
+			}
+			continue
+		}
+		a, b, freeA, freeB, ok := f.cells.Ends(d.Cell, fl, mid)
 		if !ok {
 			continue
 		}
@@ -293,6 +309,167 @@ func (f *Field) wallsOf(c cell.ID, m geom.Vec, layers world.Layers, band collisi
 			}
 			if !visit(w) {
 				return false
+			}
+		}
+	}
+	return true
+}
+
+// a hex's side is its step over √3
+const sqrt3 = 1.7320508
+
+// roomOf is the room over the sunk floor fl of c, from its floor up to its roof
+func (f *Field) roomOf(c cell.ID, fl cell.Floor) collision.Band {
+	floor := f.altitude(c) + fl.Height
+	return collision.Band{Bottom: floor, Top: floor + fl.Clear}
+}
+
+// bore visits the walls either side of the sunk band fl of c, its middle at mid, for a body in
+// its room; where it turns, along each of its links from behind the middle out to the cell's
+// edge, less what would stand across the other, so the turn is closed outside and open inside
+func (f *Field) bore(c cell.ID, fl cell.Floor, mid geom.Vec, band collision.Band,
+	visit func(collide.FieldWall) bool) bool {
+	if !f.roomOf(c, fl).Meets(band) {
+		return true
+	}
+	half := terrain.RailHalf(f.grid.CellSpan())
+	off := fl.Width/2 + half
+	if a, b, _, _, ok := f.cells.Ends(c, fl, mid); ok {
+		l := f32.Hypot(b.X-a.X, b.Y-a.Y)
+		nx, ny := (a.Y-b.Y)/l*off, (b.X-a.X)/l*off
+		for _, side := range [2]float32{-1, 1} {
+			w := collide.FieldWall{
+				A:    geom.NewVec(a.X+side*nx, a.Y+side*ny),
+				B:    geom.NewVec(b.X+side*nx, b.Y+side*ny),
+				Half: half,
+				Cell: uint64(c),
+			}
+			if !visit(w) {
+				return false
+			}
+		}
+		return true
+	}
+	for i := range f.grid.Directions() {
+		if !fl.Links.Has(i) {
+			continue
+		}
+		s := f.grid.Step(i)
+		l := f32.Hypot(s.X, s.Y)
+		u := geom.NewVec(s.X/l, s.Y/l)
+		for _, side := range [2]float32{-1, 1} {
+			from := geom.NewVec(mid.X-side*u.Y*off, mid.Y+side*u.X*off)
+			// what is left of the wall, in two pieces at most
+			spans := [2][2]float32{{-off, l / 2}, {1, 0}}
+			for j := range f.grid.Directions() {
+				if j == i || !fl.Links.Has(j) {
+					continue
+				}
+				sj := f.grid.Step(j)
+				lj := f32.Hypot(sj.X, sj.Y)
+				v := geom.NewVec(sj.X/lj, sj.Y/lj)
+				lo, hi := within(geom.NewVec(from.X-mid.X, from.Y-mid.Y), u, v, off)
+				if lo >= hi {
+					continue
+				}
+				whole := spans[0]
+				spans[0] = [2]float32{whole[0], min(whole[1], lo)}
+				spans[1] = [2]float32{max(whole[0], hi), whole[1]}
+			}
+			for _, sp := range spans {
+				if sp[1]-sp[0] <= f32.Eps(l) {
+					continue
+				}
+				w := collide.FieldWall{
+					A:    geom.NewVec(from.X+u.X*sp[0], from.Y+u.Y*sp[0]),
+					B:    geom.NewVec(from.X+u.X*sp[1], from.Y+u.Y*sp[1]),
+					Half: half,
+					Cell: uint64(c),
+				}
+				if !visit(w) {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+// within is the stretch of the line from p along u lying strictly inside the strip running
+// from the origin along v, half wide either side; lo past hi for none
+func within(p, u, v geom.Vec, half float32) (lo, hi float32) {
+	lo, hi = f32.Inf(-1), f32.Inf(1)
+	slack := f32.Eps(half)
+	for _, k := range [3][2]float32{
+		{p.X*v.X + p.Y*v.Y - slack, u.X*v.X + u.Y*v.Y},
+		{half - slack - (p.X*v.Y - p.Y*v.X), -(u.X*v.Y - u.Y*v.X)},
+		{half - slack + (p.X*v.Y - p.Y*v.X), u.X*v.Y - u.Y*v.X},
+	} {
+		// k[0] + s·k[1] > 0
+		switch {
+		case k[1] > 0:
+			lo = max(lo, -k[0]/k[1])
+		case k[1] < 0:
+			hi = min(hi, -k[0]/k[1])
+		case k[0] <= 0:
+			return 1, 0
+		}
+	}
+	return lo, hi
+}
+
+// rooms visits the walls of the chambers under c, its middle at m, for a body in one's room:
+// along every edge no floor of its storey lies sunk beyond, a tunnel coming in through it left
+// its width of door
+func (f *Field) rooms(c cell.ID, m geom.Vec, band collision.Band,
+	visit func(collide.FieldWall) bool) bool {
+	b := f.cells.Built(c)
+	for k := uint8(1); k < cell.Storeys; k++ {
+		fl := *b.Storey(k)
+		if !fl.Sunk() || fl.Width > 0 || !f.roomOf(c, fl).Meets(band) {
+			continue
+		}
+		half := terrain.RailHalf(f.grid.CellSpan())
+		for i := range f.grid.Directions() {
+			if f.grid.Corner(i) {
+				continue
+			}
+			door := float32(0)
+			if n, ok := f.grid.Toward(c, i); ok {
+				nb := f.cells.Built(n)
+				nf := *nb.Storey(k)
+				if nf.Sunk() && nf.Width == 0 {
+					continue
+				}
+				if nf.Sunk() && nf.Links.Has(f.grid.Opposite(i)) {
+					door = nf.Width/2 + half
+				}
+			}
+			s := f.grid.Step(i)
+			l := f32.Hypot(s.X, s.Y)
+			u := geom.NewVec(s.X/l, s.Y/l)
+			long := l / 2
+			if f.square == nil {
+				long = l / (2 * sqrt3)
+			}
+			at := geom.NewVec(m.X+u.X*(l/2+half), m.Y+u.Y*(l/2+half))
+			spans := [2][2]float32{{-long, long}, {1, 0}}
+			if door > 0 {
+				spans = [2][2]float32{{-long, -door}, {door, long}}
+			}
+			for _, sp := range spans {
+				if sp[1]-sp[0] <= f32.Eps(l) {
+					continue
+				}
+				w := collide.FieldWall{
+					A:    geom.NewVec(at.X-u.Y*sp[0], at.Y+u.X*sp[0]),
+					B:    geom.NewVec(at.X-u.Y*sp[1], at.Y+u.X*sp[1]),
+					Half: half,
+					Cell: uint64(c),
+				}
+				if !visit(w) {
+					return false
+				}
 			}
 		}
 	}

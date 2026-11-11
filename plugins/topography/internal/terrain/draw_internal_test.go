@@ -73,6 +73,63 @@ func TestTerrain_DrawsTheLevelEvenlyAndABumpWhereItStands(t *testing.T) {
 	}
 }
 
+// a slope climbing east from the column 4 to the column 6, level either side
+type sloped struct{}
+
+func (sloped) Lattice() (cols, rows int, cell float32, heights []float32, ok bool) {
+	heights = make([]float32, 17*17)
+	for y := range 17 {
+		for x := range 17 {
+			heights[y*17+x] = min(max(float32(x-4), 0), 2) * 40
+		}
+	}
+	return 17, 17, 32, heights, true
+}
+func (sloped) Version() uint64 { return 0 }
+
+type mouthed struct {
+	grey
+	mouths []Mouth
+}
+
+func (m *mouthed) Surface() Painted {
+	p := m.grey.Surface()
+	p.Mouths, p.MouthsAt = m.mouths, 1
+	return p
+}
+
+func TestTerrain_CutsTheGroundOverAMouthUnderItsRoofAlone(t *testing.T) {
+	gputest.Need(t)
+	// under the cell (4, 8), out across its west edge, 8 either side, its roof 16 over the foot
+	// of the slope: the ground climbs to it a fifth of the cell in
+	surface := &mouthed{mouths: []Mouth{{X: 4, Y: 8, Dx: -1, Half: 8, Clear: 16}}}
+	r := New(sloped{}, surface, noAir{}, Config{})
+	screen := render.NewImage(64, 64)
+	u := render.UniformsOf(map[string]any{"LightWay": []float32{0.3, 0.2, 1},
+		"LightStrength": []float32{1}, "LightColor": []float32{1, 1, 1},
+		"Ambience": []float32{0.2, 0.2, 0.2}})
+	depth := render.NewDepth()
+	screen.ClearDepth(depth)
+	r.Draw(render.Target{Screen: screen, Depth: depth},
+		downward{cameratest.NewFromSpace(64, 64, 0)}, u)
+	pix := make([]byte, 4*64*64)
+	screen.ReadPixels(pix)
+	drawn := func(x, y float32) bool { return pix[4*(int(y/8)*64+int(x/8))+3] != 0 }
+	if drawn(132, 272) {
+		t.Error("the ground in the mouth, lower than its roof, is drawn")
+	}
+	for name, at := range map[string][2]float32{
+		"past where the ground climbs over the roof": {148, 272},
+		"beside the mouth":                           {132, 258},
+		"before the edge it opens across":            {124, 272},
+		"on the far half of its cell":                {156, 272},
+	} {
+		if !drawn(at[0], at[1]) {
+			t.Errorf("the ground %s, at %v, is not drawn", name, at)
+		}
+	}
+}
+
 func TestTerrainShaders_Compile(t *testing.T) {
 	gputest.Need(t)
 	if want := int(lod.Omitted - lod.Standard); len(Shaders()) != want {

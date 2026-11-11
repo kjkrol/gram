@@ -176,7 +176,7 @@ func TestDecks_ABandSlantwiseCutsTheCorners(t *testing.T) {
 		{"onto it from the side", g.At(2, 1), g.At(2, 2), true},
 		{"beside it", g.At(1, 0), g.At(2, 1), false},
 	} {
-		if got := brd.Fenced(c.from, c.to, cell.Land, false); got != c.fenced {
+		if got := brd.Fenced(c.from, c.to, cell.Land, cell.OnGround); got != c.fenced {
 			t.Errorf("a step %s: fenced %v, want %v", c.name, got, c.fenced)
 		}
 	}
@@ -241,10 +241,10 @@ func TestDecks_ABandOnAHexRunsFromEdgeToEdge(t *testing.T) {
 	if !brd.Reaches(g.At(2, 2), g.At(2, 3)) || brd.Reaches(g.At(2, 2), g.At(3, 2)) {
 		t.Error("the band reaches the wrong neighbours")
 	}
-	if brd.Fenced(g.At(2, 2), g.At(2, 3), cell.Land, false) {
+	if brd.Fenced(g.At(2, 2), g.At(2, 3), cell.Land, cell.OnGround) {
 		t.Error("a step along the band is fenced")
 	}
-	if !brd.Fenced(g.At(2, 2), g.At(3, 2), cell.Land, false) {
+	if !brd.Fenced(g.At(2, 2), g.At(3, 2), cell.Land, cell.OnGround) {
 		t.Error("a step off the band's side is not fenced")
 	}
 }
@@ -354,11 +354,11 @@ func TestDecks_AHeadIsAHalfBand(t *testing.T) {
 		}
 	}
 	for _, from := range []cell.ID{g.At(0, 2), g.At(1, 1), g.At(1, 3), g.At(0, 1)} {
-		if brd.Fenced(from, g.At(1, 2), cell.Land, false) {
+		if brd.Fenced(from, g.At(1, 2), cell.Land, cell.OnGround) {
 			t.Errorf("onto the head from %v: fenced, want open from any side", from)
 		}
 	}
-	if !brd.Fenced(g.At(2, 1), g.At(2, 2), cell.Land, false) {
+	if !brd.Fenced(g.At(2, 1), g.At(2, 2), cell.Land, cell.OnGround) {
 		t.Error("onto the bridge between its heads from the side: open, want fenced")
 	}
 	lies, dirs := d.lies()

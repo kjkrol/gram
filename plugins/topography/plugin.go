@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/light"
@@ -113,6 +114,9 @@ type drawnTopography struct {
 	relief   irelief.Relief
 	settings Settings
 	grid     look.RenderState // the board's
+	// where the floors sunk under the ground come out, as the board's passage last had them
+	mouths   []terrain.Mouth
+	mouthsAt uint64 // one more than that passage; 0 none
 }
 
 // Publish hands the frame drawn next the relief as it stands, its heights copied as they change,
@@ -125,6 +129,45 @@ func (p *Plugin) Publish() {
 	if r := p.boardPlugin.Res.Render; r != nil {
 		b.grid = *r
 	}
+	if v := p.board.Passage() + 1; b.mouthsAt != v {
+		b.mouthsAt = v
+		b.mouths = p.mouths(b.mouths[:0])
+	}
+}
+
+// mouths appends to dst where the floors sunk under the board's cells come out: every link of a
+// band running on to a neighbour no floor of its storey lies under
+func (p *Plugin) mouths(dst []terrain.Mouth) []terrain.Mouth {
+	brd := p.board
+	shape, ok := grid.ShapeOf(brd.Grid)
+	if !ok || shape.Hex || !brd.Sunk() {
+		return dst
+	}
+	for y := range shape.Rows {
+		for x := range shape.Cols {
+			c := brd.At(x, y)
+			b := brd.Built(c)
+			for s := range uint8(cell.Storeys) {
+				f := b.Storey(s)
+				if !f.Sunk() || f.Width <= 0 {
+					continue
+				}
+				for way := range brd.Directions() {
+					n, ok := brd.Toward(c, way)
+					if !f.Links.Has(way) || !ok {
+						continue
+					}
+					if nb := brd.Built(n); nb.Storey(s).Sunk() {
+						continue
+					}
+					dx, dy := brd.Offset(way)
+					dst = append(dst, terrain.Mouth{X: int(x), Y: int(y), Dx: int8(dx),
+						Dy: int8(dy), Half: f.Width / 2, Clear: f.Clear})
+				}
+			}
+		}
+	}
+	return dst
 }
 
 // Swap has the relief and the settings published last drawn.
@@ -274,6 +317,10 @@ func (s boardSurface) Surface() terrain.Painted {
 	}
 	out.Shores, out.Reach, out.Coast = d.Shores(s.p.boardPlugin.Read(0).Atlas())
 	out.Takes, out.Sway, out.Styled = s.p.takes()
+	if s.p.swapped {
+		d := s.p.drawn.Front()
+		out.Mouths, out.MouthsAt = d.mouths, d.mouthsAt
+	}
 	grid := s.p.drawnGrid()
 	if line, width, shown := grid.Grid(); shown {
 		out.Grid, out.GridLine, out.GridWidth = look.MinGridCell, line, width

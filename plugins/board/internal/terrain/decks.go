@@ -21,8 +21,26 @@ type Deck struct {
 // RailHalf is half how thick a railing along a band is on a grid of cells span wide.
 func RailHalf(span float32) float32 { return span / 32 }
 
-func banded(b *cell.Built) bool {
-	return b != nil && b.Floor.Allows != 0 && b.Floor.Width > 0 && b.Floor.Links != 0
+func levelOf(f cell.Floor) cell.Level { return f.Level() }
+
+// band reports whether f runs as a band
+func band(f cell.Floor) bool { return f.Allows != 0 && f.Width > 0 && f.Links != 0 }
+
+// banded reports whether b's first storey runs as a band: a bridge, with its railings
+func banded(b *cell.Built) bool { return b != nil && band(b.Floor) }
+
+// anyBand reports whether a storey of b runs as a band
+func anyBand(b *cell.Built) bool {
+	return b != nil && (band(b.Floor) || band(b.More[0]) || band(b.More[1]))
+}
+
+// of is b as its storey k alone builds it: the floor as the first, the wall, and the railing of
+// the first storey
+func of(b *cell.Built, k uint8) cell.Built {
+	if k == 0 {
+		return cell.Built{Floor: b.Floor, Wall: b.Wall, Rail: b.Rail}
+	}
+	return cell.Built{Floor: *b.Storey(k), Wall: b.Wall}
 }
 
 // through: the band runs on out the opposite way; else it begins in the cell's middle, a head
@@ -126,9 +144,13 @@ func (r *Read) DecksOver(c cell.ID, p geom.Vec, visit func(Deck) bool) {
 		return
 	}
 	q := t.local(c, p)
-	if b := r.store.builtOf(i); b != nil && b.Floor.Allows != 0 {
-		if (!banded(b) || t.inBand(b.Floor, q)) && !visit(Deck{Cell: c, Built: *b}) {
-			return
+	if b := r.store.builtOf(i); b != nil {
+		for k := range uint8(cell.Storeys) {
+			f := *b.Storey(k)
+			if f.Allows != 0 && (!band(f) || t.inBand(f, q)) &&
+				!visit(Deck{Cell: c, Built: of(b, k)}) {
+				return
+			}
 		}
 	}
 	if t.bands == 0 || !t.reached[i] {
@@ -141,10 +163,16 @@ func (r *Read) DecksOver(c cell.ID, p geom.Vec, visit func(Deck) bool) {
 		}
 		mi, _ := t.Ordinal(m)
 		b := r.store.builtOf(mi)
+		if !anyBand(b) {
+			continue
+		}
 		off := t.grid.Step(j)
-		if banded(b) && t.inBand(b.Floor, geom.NewVec(q.X-off.X, q.Y-off.Y)) &&
-			!visit(Deck{Cell: m, Built: *b, Off: off}) {
-			return
+		for k := range uint8(cell.Storeys) {
+			f := *b.Storey(k)
+			if band(f) && t.inBand(f, geom.NewVec(q.X-off.X, q.Y-off.Y)) &&
+				!visit(Deck{Cell: m, Built: of(b, k), Off: off}) {
+				return
+			}
 		}
 	}
 }
@@ -159,18 +187,26 @@ func (r *Read) Bands(c cell.ID, dst []Deck) []Deck {
 	if !ok {
 		return dst
 	}
-	if b := r.store.builtOf(i); banded(b) {
-		dst = append(dst, Deck{Cell: c, Built: *b})
-	}
+	dst = bandsOf(r.store.builtOf(i), c, geom.Vec{}, dst)
 	if !t.reached[i] {
 		return dst
 	}
 	for j := range t.grid.Directions() {
 		if m, ok := t.grid.Toward(c, j); ok {
 			mi, _ := t.Ordinal(m)
-			if b := r.store.builtOf(mi); banded(b) {
-				dst = append(dst, Deck{Cell: m, Built: *b, Off: t.grid.Step(j)})
-			}
+			dst = bandsOf(r.store.builtOf(mi), m, t.grid.Step(j), dst)
+		}
+	}
+	return dst
+}
+
+func bandsOf(b *cell.Built, c cell.ID, off geom.Vec, dst []Deck) []Deck {
+	if b == nil {
+		return dst
+	}
+	for k := range uint8(cell.Storeys) {
+		if band(*b.Storey(k)) {
+			dst = append(dst, Deck{Cell: c, Built: of(b, k), Off: off})
 		}
 	}
 	return dst
@@ -188,13 +224,19 @@ func (r *Read) Ends(c cell.ID, f cell.Floor, off geom.Vec) (a, b geom.Vec, freeA
 	sd := t.grid.Step(d)
 	b = geom.NewVec(off.X+sd.X/2, off.Y+sd.Y/2)
 	if !through {
-		return off, b, true, !r.carried(c, d), true
+		return off, b, true, !r.carried(c, d, f.Storey), true
 	}
 	o := t.grid.Opposite(d)
 	so := t.grid.Step(o)
 	a = geom.NewVec(off.X+so.X/2, off.Y+so.Y/2)
-	return a, b, !r.carried(c, o), !r.carried(c, d), true
+	return a, b, !r.carried(c, o, f.Storey), !r.carried(c, d, f.Storey), true
 }
+
+// Storeyed reports whether a floor gives any cell a level beside its ground.
+func (r *Read) Storeyed() bool { return r.t.storeyed > 0 }
+
+// Sunk reports whether a floor lies sunk under any cell.
+func (r *Read) Sunk() bool { return r.t.sunk > 0 }
 
 // NearDeck reports whether a Floor lies over any of c: its own, or a neighbour's band reaching into
 // it.
@@ -207,21 +249,22 @@ func (r *Read) NearDeck(c cell.ID) bool {
 	if !ok {
 		return false
 	}
-	if b := r.store.builtOf(i); b != nil && b.Floor.Allows != 0 {
+	if b := r.store.builtOf(i); b != nil &&
+		b.Floor.Allows|b.More[0].Allows|b.More[1].Allows != 0 {
 		return true
 	}
 	return t.bands > 0 && t.reached[i]
 }
 
-// fencedBy reports whether a railing keeping d off on deck's level stands across the step from the
+// fencedBy reports whether a railing keeping d off on level stands across the step from the
 // origin to s: one on c's deck or on a neighbour's reaching into c, seen from c's middle at at
-func (r *Read) fencedBy(c cell.ID, at, s geom.Vec, d cell.Domain, deck bool) bool {
+func (r *Read) fencedBy(c cell.ID, at, s geom.Vec, d cell.Domain, level cell.Level) bool {
 	t := r.t
 	i, ok := t.Ordinal(c)
 	if !ok {
 		return false
 	}
-	if r.railCrosses(c, r.store.builtOf(i), at, s, d, deck) {
+	if r.railCrosses(c, r.store.builtOf(i), at, s, d, level) {
 		return true
 	}
 	if !t.reached[i] {
@@ -232,7 +275,7 @@ func (r *Read) fencedBy(c cell.ID, at, s geom.Vec, d cell.Domain, deck bool) boo
 			mi, _ := t.Ordinal(m)
 			off := t.grid.Step(j)
 			if r.railCrosses(m, r.store.builtOf(mi), geom.NewVec(at.X+off.X, at.Y+off.Y), s, d,
-				deck) {
+				level) {
 				return true
 			}
 		}
@@ -242,8 +285,8 @@ func (r *Read) fencedBy(c cell.ID, at, s geom.Vec, d cell.Domain, deck bool) boo
 
 // a head carries no railing, so whoever comes onto it comes from any side
 func (r *Read) railCrosses(c cell.ID, b *cell.Built, off, s geom.Vec, d cell.Domain,
-	deck bool) bool {
-	if !banded(b) || b.Rail.Keeps&d == 0 || (b.Floor.Height > 0) != deck {
+	level cell.Level) bool {
+	if !banded(b) || b.Rail.Keeps&d == 0 || levelOf(b.Floor) != level {
 		return false
 	}
 	a, e, _, _, ok := r.Ends(c, b.Floor, off)
@@ -263,7 +306,7 @@ func (r *Read) railCrosses(c cell.ID, b *cell.Built, off, s geom.Vec, d cell.Dom
 	return false
 }
 
-func (r *Read) carried(c cell.ID, i int) bool {
+func (r *Read) carried(c cell.ID, i int, storey uint8) bool {
 	t := r.t
 	n, ok := t.grid.Toward(c, i)
 	if !ok {
@@ -271,16 +314,21 @@ func (r *Read) carried(c cell.ID, i int) bool {
 	}
 	ni, _ := t.Ordinal(n)
 	b := r.store.builtOf(ni)
-	if !banded(b) || !b.Floor.Links.Has(t.grid.Opposite(i)) {
+	if b == nil {
 		return false
 	}
-	_, through, _ := t.run(b.Floor)
+	f := *b.Storey(storey)
+	if !band(f) || !f.Links.Has(t.grid.Opposite(i)) {
+		return false
+	}
+	_, through, _ := t.run(f)
 	return through
 }
 
 // Fenced reports whether a railing keeping d off stands across the step from from to its neighbour
-// to: one on a raised deck when the step is on the decks' level, deck, else one on the ground's.
-func (r *Read) Fenced(from, to cell.ID, d cell.Domain, deck bool) bool {
+// to on level: one on a raised deck for a step on its level, one lying on the ground for the
+// ground's.
+func (r *Read) Fenced(from, to cell.ID, d cell.Domain, level cell.Level) bool {
 	t := r.t
 	if t.railed == 0 || r.store == nil {
 		return false
@@ -290,12 +338,12 @@ func (r *Read) Fenced(from, to cell.ID, d cell.Domain, deck bool) bool {
 		return false
 	}
 	s := t.grid.Step(way)
-	return r.fencedBy(from, geom.Vec{}, s, d, deck) || r.fencedBy(to, s, s, d, deck)
+	return r.fencedBy(from, geom.Vec{}, s, d, level) || r.fencedBy(to, s, s, d, level)
 }
 
-// Railed reports whether a railing keeping d off runs along c's own band: one raised on the decks'
-// level when deck, else one lying on the ground's; a head carries none.
-func (r *Read) Railed(c cell.ID, d cell.Domain, deck bool) bool {
+// Railed reports whether a railing keeping d off runs along c's own band on level; a head
+// carries none.
+func (r *Read) Railed(c cell.ID, d cell.Domain, level cell.Level) bool {
 	t := r.t
 	if t.railed == 0 || r.store == nil {
 		return false
@@ -305,7 +353,7 @@ func (r *Read) Railed(c cell.ID, d cell.Domain, deck bool) bool {
 		return false
 	}
 	b := r.store.builtOf(i)
-	if !banded(b) || b.Rail.Keeps&d == 0 || (b.Floor.Height > 0) != deck {
+	if !banded(b) || b.Rail.Keeps&d == 0 || levelOf(b.Floor) != level {
 		return false
 	}
 	_, through, ok := t.run(b.Floor)
@@ -333,9 +381,8 @@ func (t *Cells) local(c cell.ID, p geom.Vec) geom.Vec {
 
 // Lane is how wide a body may be across the step from from to its neighbour to in d where a band
 // runs along it: the narrower of the two less its railings keeping d off, +Inf where no band
-// narrows the step. A raised band counts on the decks' level, deck, one lying on the ground on
-// the ground's.
-func (r *Read) Lane(from, to cell.ID, d cell.Domain, deck bool) float32 {
+// narrows the step. A raised band counts on its level, one lying on the ground on the ground's.
+func (r *Read) Lane(from, to cell.ID, d cell.Domain, level cell.Level) float32 {
 	t := r.t
 	lane := f32.Inf(1)
 	if t.bands == 0 || r.store == nil {
@@ -343,12 +390,12 @@ func (r *Read) Lane(from, to cell.ID, d cell.Domain, deck bool) float32 {
 	}
 	for _, step := range [2][2]cell.ID{{from, to}, {to, from}} {
 		b := r.Built(step[0])
-		if !banded(&b) || b.Floor.Allows&d == 0 || (b.Floor.Height > 0) != deck ||
-			!r.Reaches(step[0], step[1]) {
+		f := b.On(level)
+		if !band(f) || f.Allows&d == 0 || !r.ReachesOn(step[0], step[1], level) {
 			continue
 		}
-		w := b.Floor.Width
-		if b.Rail.Keeps&d != 0 {
+		w := f.Width
+		if f.Storey == 0 && b.Rail.Keeps&d != 0 {
 			w -= 2 * RailHalf(t.grid.CellSpan())
 		}
 		lane = min(lane, w)
@@ -356,18 +403,28 @@ func (r *Read) Lane(from, to cell.ID, d cell.Domain, deck bool) float32 {
 	return lane
 }
 
-// Reaches reports whether c's deck runs out towards its neighbour n: a band along its link to n, a
-// whole floor across any edge, and through a corner only along a link.
+// Reaches reports whether c's deck, the floor of its first storey, runs out towards its
+// neighbour n: a band along its link to n, a whole floor across any edge, and through a corner
+// only along a link.
 func (r *Read) Reaches(c, n cell.ID) bool {
-	t := r.t
 	b := r.Built(c)
-	if b.Floor.Allows == 0 {
+	return r.t.reaches(b.Floor, c, n)
+}
+
+// ReachesOn is Reaches of the floor making c's level.
+func (r *Read) ReachesOn(c, n cell.ID, level cell.Level) bool {
+	b := r.Built(c)
+	return r.t.reaches(b.On(level), c, n)
+}
+
+func (t *Cells) reaches(f cell.Floor, c, n cell.ID) bool {
+	if f.Allows == 0 {
 		return false
 	}
 	for i := range t.grid.Directions() {
 		if m, ok := t.grid.Toward(c, i); ok && m == n {
-			if banded(&b) || t.grid.Corner(i) {
-				return b.Floor.Links.Has(i)
+			if band(f) || t.grid.Corner(i) {
+				return f.Links.Has(i)
 			}
 			return true
 		}
@@ -376,36 +433,48 @@ func (r *Read) Reaches(c, n cell.ID) bool {
 }
 
 func (t *Cells) decked(sites []site) {
-	t.bands, t.narrowest, t.thinnest = 0, 0, 0
+	t.bands, t.narrowest, t.thinnest, t.sunk, t.storeyed = 0, 0, 0, 0, 0
 	for _, s := range sites {
-		b := s.built
-		if !banded(&b) {
+		for k := range uint8(cell.Storeys) {
+			f := *s.built.Storey(k)
+			if f.Sunk() {
+				t.sunk++
+			}
+			if f.Height != 0 {
+				t.storeyed++
+			}
+			t.deck(s.cell, f)
+		}
+	}
+}
+
+// deck counts the band f on c, marking the cells its slantwise links reach into
+func (t *Cells) deck(c cell.ID, f cell.Floor) {
+	if !band(f) {
+		return
+	}
+	if t.bands == 0 {
+		if len(t.reached) != t.grid.CellCount() {
+			t.reached = make([]bool, t.grid.CellCount())
+		}
+		clear(t.reached)
+	}
+	t.bands++
+	if t.narrowest == 0 || f.Width < t.narrowest {
+		t.narrowest = f.Width
+	}
+	if f.Height > 0 && f.Thickness > 0 && (t.thinnest == 0 || f.Thickness < t.thinnest) {
+		t.thinnest = f.Thickness
+	}
+	for i := range t.grid.Directions() {
+		fa, fb, corner := t.grid.Flanks(i)
+		if !corner || !f.Links.Has(i) {
 			continue
 		}
-		if t.bands == 0 {
-			if len(t.reached) != t.grid.CellCount() {
-				t.reached = make([]bool, t.grid.CellCount())
-			}
-			clear(t.reached)
-		}
-		t.bands++
-		if t.narrowest == 0 || b.Floor.Width < t.narrowest {
-			t.narrowest = b.Floor.Width
-		}
-		if f := b.Floor; f.Height > 0 && f.Thickness > 0 && (t.thinnest == 0 ||
-			f.Thickness < t.thinnest) {
-			t.thinnest = f.Thickness
-		}
-		for i := range t.grid.Directions() {
-			fa, fb, corner := t.grid.Flanks(i)
-			if !corner || !b.Floor.Links.Has(i) {
-				continue
-			}
-			for _, f := range [2]int{fa, fb} {
-				if n, ok := t.grid.Toward(s.cell, f); ok {
-					if ni, ok := t.Ordinal(n); ok {
-						t.reached[ni] = true
-					}
+		for _, flank := range [2]int{fa, fb} {
+			if n, ok := t.grid.Toward(c, flank); ok {
+				if ni, ok := t.Ordinal(n); ok {
+					t.reached[ni] = true
 				}
 			}
 		}

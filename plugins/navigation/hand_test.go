@@ -35,10 +35,10 @@ func TestHand_EndsTheOrderOfTheUnitItIsOn(t *testing.T) {
 	}
 	occupancy := rw.nav.boardPlugin.Write().Occupancy()
 	stranger := uid.UID64(1 << 20)
-	if ahead != now && !occupancy.CanEnter(ahead, false, stranger, cell.Land) {
+	if ahead != now && !occupancy.CanEnter(ahead, cell.OnGround, stranger, cell.Land) {
 		t.Error("the cell the order's step was heading into is still held")
 	}
-	if occupancy.CanEnter(now, false, stranger, cell.Land) {
+	if occupancy.CanEnter(now, cell.OnGround, stranger, cell.Land) {
 		t.Errorf("the cell the unit stands on (%v, was %v) is no longer held", now, at)
 	}
 }

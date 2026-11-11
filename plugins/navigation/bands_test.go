@@ -162,7 +162,7 @@ func (k *levelKeeping) Orders(members []bodies.Member, cmd MoveTo,
 	k.Keeping.Orders(members, cmd, issue)
 }
 
-func (k *levelKeeping) MayStep(m bodies.Member, ahead cell.ID, deck bool, heading geom.Vec,
+func (k *levelKeeping) MayStep(m bodies.Member, ahead cell.ID, deck cell.Level, heading geom.Vec,
 	near *bodies.Nearby) bool {
 	k.seen[m.ID] = m.Level
 	return k.Keeping.MayStep(m, ahead, deck, heading, near)
@@ -235,7 +235,7 @@ func TestMember_KnowsTheLevelItsSectorIsTickedAt(t *testing.T) {
 
 	nw.nav.handKeeping.Keep = keep
 	for _, id := range []uid.UID64{near, far} {
-		nw.nav.handKeeping.MayStep(id, world.Position{}, g.At(2, 1), g.At(3, 1), false, cell.Land,
+		nw.nav.handKeeping.MayStep(id, world.Position{}, g.At(2, 1), g.At(3, 1), cell.OnGround, cell.Land,
 			geom.NewVec(1, 0))
 	}
 	check("the hand")

@@ -86,20 +86,17 @@ func (s *spotSearch) expand(c cell.ID) {
 func (s *spotSearch) on(p geom.Vec) (cell.ID, order.Level) {
 	k := s.k
 	f, ok := k.terrain.(interface {
-		LevelFor(p geom.Vec, feet, reach float32) (cell.ID, bool, bool)
+		LevelFor(p geom.Vec, feet, reach float32) (cell.ID, cell.Level, bool)
 	})
 	if !ok {
 		c, _ := CellOf(k.grid, k.terrain, p, &s.z)
 		return c, s.level
 	}
-	c, deck, _ := f.LevelFor(p, s.z.Altitude, s.z.Reach())
-	switch {
-	case s.level == order.EitherLevel:
+	c, level, _ := f.LevelFor(p, s.z.Altitude, s.z.Reach())
+	if s.level == order.EitherLevel {
 		return c, order.EitherLevel
-	case deck:
-		return c, order.OnDeck
 	}
-	return c, order.OnGround
+	return c, order.On(level)
 }
 
 // only the ground and the group count: whoever finds its spot taken learns it by striking the one

@@ -118,7 +118,7 @@ func (r *abstractRig) tick() { r.nw.ecs.Tick(time.Second / 60) }
 func (r *abstractRig) held(id uid.UID64) []cell.ID {
 	var cells []cell.ID
 	r.g.EachCell(func(c cell.ID) {
-		r.nw.occupancy.Holders(c, func(e uid.UID64, _ cell.Domain, _ bool) {
+		r.nw.occupancy.Holders(c, func(e uid.UID64, _ cell.Domain, _ cell.Level) {
 			if e == id {
 				cells = append(cells, c)
 			}
@@ -133,7 +133,7 @@ func (r *abstractRig) priced(t *testing.T, p Path) (steps []cell.ID, total float
 	prev := p.From
 	for k, c := range p.Steps[:p.Length] {
 		level := cell.OnGround
-		if order.Deck(&p, uint16(k)) {
+		if order.LevelAt(&p, uint16(k)) != cell.OnGround {
 			level = cell.OnDeck
 		}
 		price, ok := r.nw.nav.finder.Price(prev, c, r.nw.board.Kind(c), level, cell.Land)
@@ -365,7 +365,7 @@ func TestFar_FinishesItsCellPathBeforeItGoesUp(t *testing.T) {
 	}
 	held, n := order.Held(leg)
 	for _, h := range held[:n] {
-		if !r.nw.occupancy.CanEnter(h.C, h.Deck, other, cell.Land) {
+		if !r.nw.occupancy.CanEnter(h.C, h.On, other, cell.Land) {
 			t.Errorf("its last leg's %v still held", h.C)
 		}
 	}

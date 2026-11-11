@@ -9,6 +9,7 @@ import (
 	contract "github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/internal/vec"
+	"github.com/kjkrol/gram/plugins/world"
 )
 
 // a ridge across the 20 x 20 cells of 32 from x0 to x1, 400 high, sloping down a cell either side
@@ -437,5 +438,37 @@ func TestFollow_InPerspectiveLettingGoGivesTheStickBack(t *testing.T) {
 	if !near(r.cam.persp.length, length) || r.cam.persp.held {
 		t.Errorf("let go, the stick is %v long, held %v; want the tactical %v, free",
 			r.cam.persp.length, r.cam.persp.held, length)
+	}
+}
+
+// a tunnel 30 wide and 12 high running east under ground 200 high, its floor at 0
+func (r *followRig) tunnelled() {
+	r.sys.free = func(_, y, z float32) bool {
+		return z >= 200 || z >= 0 && z < 12 && f32.Abs(y-305) < 15
+	}
+	r.cam.persp.ground = func(_, _ float32) float32 { return 200 }
+	r.cam.persp.extent = func() (float32, float32) { return 0, 200 }
+}
+
+func TestRide_UnderTheGroundTheEyeStaysInTheTunnelBehindAndInside(t *testing.T) {
+	r := newFollowRig(t)
+	r.cam.next()
+	r.tunnelled()
+	r.walk(300, 300, 1, 0)
+	w := r.ents[r.walkers[0]]
+	w.z, w.eye = world.Z{Altitude: 0, Height: 6}, world.Eye{Height: 5}
+	r.behind()
+	for range 120 {
+		r.tick(time.Second / 60)
+	}
+	eye := r.cam.persp.eye()
+	if !r.sys.free(eye[0], eye[1], eye[2]) || eye[2] >= 12 || eye[0] >= 305 {
+		t.Errorf("behind the walker in the tunnel the eye stands at %v; want behind it, under "+
+			"the roof at 12", eye)
+	}
+	r.inside()
+	if eye := r.cam.persp.eye(); !near(eye[2], 5) || !near(eye[0], 305) || !near(eye[1], 305) {
+		t.Errorf("inside the walker in the tunnel the eye stands at %v, want the walker's at "+
+			"(305, 305, 5)", eye)
 	}
 }

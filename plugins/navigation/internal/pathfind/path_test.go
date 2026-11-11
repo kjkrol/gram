@@ -95,8 +95,8 @@ func TestPathFinder_NearestFree_SkipsOccupiedTakenAndUnreachableCells(t *testing
 	at := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
 
 	const mover, other = uid.UID64(1), uid.UID64(2)
-	occupancy.Enter(at(0), false, mover, cell.Land)
-	occupancy.Enter(at(4), false, other, cell.Land)
+	occupancy.Enter(at(0), cell.OnGround, mover, cell.Land)
+	occupancy.Enter(at(4), cell.OnGround, other, cell.Land)
 	terrain.Set(at(2), cell.Kind{Pace: 1, Solid: true})
 	taken := func(c cell.ID) bool { return c == at(5) }
 
@@ -136,12 +136,30 @@ func TestPathFinder_Find_StartsOffTheGrid(t *testing.T) {
 // one level everywhere
 type flat struct{ terrain cell.Terrain }
 
+func (x flat) Storeys(c cell.ID, dst *[cell.Storeys]Storey) (made, sunk uint8) {
+	for s := range uint8(cell.Storeys) {
+		if top, bound, under, carries, ok := x.Storey(c, s); ok {
+			dst[s] = Storey{Top: top, Bound: bound, Carries: carries}
+			made |= 1 << s
+			if under {
+				sunk |= 1 << s
+			}
+		}
+	}
+	return made, sunk
+}
+
+func (flat) Storey(cell.ID, uint8) (top, bound float32, sunk bool, carries cell.Domain,
+	ok bool) {
+	return 0, 0, false, 0, false
+}
+
 func (flat) Deck(cell.ID) (top, under float32, carries cell.Domain, ok bool) {
 	return 0, 0, 0, false
 }
-func (flat) Ground(geom.Vec) float32              { return 0 }
-func (flat) Over(geom.Vec) (float32, bool)        { return 0, false }
-func (f flat) KindAt(c cell.ID, _ bool) cell.Kind { return f.terrain.Kind(c) }
+func (flat) Ground(geom.Vec) float32                    { return 0 }
+func (flat) Over(geom.Vec) (float32, bool)              { return 0, false }
+func (f flat) KindAt(c cell.ID, _ cell.Level) cell.Kind { return f.terrain.Kind(c) }
 
 func TestFinder_FindAllocatesNothingOnceItsRoutesFit(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(32, 32, 10)

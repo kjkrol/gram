@@ -120,7 +120,7 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 		for tw.q.All(); tw.q.Next(); { // the units hold the cells they start in
 			cur := tw.q.Cursor()
 			for i, id := range cur.IDs {
-				occupancy.Enter(tw.cell.Slice(cur)[i].Cell, false, id, cell.Land)
+				occupancy.Enter(tw.cell.Slice(cur)[i].Cell, cell.OnGround, id, cell.Land)
 			}
 		}
 	}})

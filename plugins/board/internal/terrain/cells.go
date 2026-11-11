@@ -39,6 +39,8 @@ type Cells struct {
 	built     int // a board of none seeks none
 	railed    int
 	bands     int
+	sunk      int // the floors sunk under the ground
+	storeyed  int // the floors raised or sunk: the levels beside the ground
 	narrowest float32
 	thinnest  float32
 	reached   []bool // by ordinal: a neighbour's band reaches into the cell
@@ -121,16 +123,16 @@ func (r *Read) Kind(c cell.ID) cell.Kind {
 	return k
 }
 
-// KindAt is c's kind on its deck or under it where a raised Floor gives it two levels; on a cell
-// of one level, Kind.
-func (r *Read) KindAt(c cell.ID, deck bool) cell.Kind {
+// KindAt is c's kind on level where a raised Floor gives it more than one; on a cell of one
+// level, Kind.
+func (r *Read) KindAt(c cell.ID, on cell.Level) cell.Kind {
 	t := r.t
 	b := r.Built(c)
-	if b.Floor.Height <= 0 {
+	if !b.Levelled() {
 		return r.Kind(c)
 	}
 	i, _ := t.Ordinal(c)
-	return level(r.store.wayOf(i).Over(r.store.groundOf(i).Kind), b, deck)
+	return level(r.store.wayOf(i).Over(r.store.groundOf(i).Kind), b, on)
 }
 
 // KindFor is c's kind at p for whoever stands with its feet at feet and steps reach high: a Floor
@@ -161,22 +163,25 @@ func (r *Read) KindOn(c cell.ID, p geom.Vec, feet, reach float32,
 	switch {
 	case b == nil:
 		return k, cell.OnGround
-	case b.Floor.Allows == 0 && (t.bands == 0 || !t.reached[i]):
+	case b.Floor.Allows|b.More[0].Allows|b.More[1].Allows == 0 &&
+		(t.bands == 0 || !t.reached[i]):
 		return b.Over(k), cell.OnGround
 	}
-	kind, on := level(k, *b, false), cell.OnGround
+	// the ground beside the floors: a floor lying on it counts where p is on it
+	kind, on, top := cell.Built{Wall: b.Wall, Rail: b.Rail}.Over(k), cell.OnGround, f32.Inf(-1)
 	r.DecksOver(c, p, func(d Deck) bool {
 		f := d.Built.Floor
-		raised := f.Height > 0 && ground != nil
-		if raised && feet < ground(d.Cell)+f.Height-reach {
+		h, ok := stoodOn(f, d.Cell, feet, reach, ground)
+		if !ok || h <= top {
 			return true
 		}
-		if built := (cell.Built{Floor: f, Wall: b.Wall}); raised {
-			kind, on = level(k, built, true), cell.OnDeck
+		top = h
+		if built := (cell.Built{Floor: f, Wall: b.Wall}); f.Height != 0 && ground != nil {
+			kind, on = levelled(k, built), f.Level()
 		} else {
-			kind = built.Over(k)
+			kind, on = built.Over(k), cell.OnGround
 		}
-		return false
+		return true
 	})
 	return kind, on
 }
@@ -189,34 +194,63 @@ func (r *Read) CellFor(p geom.Vec, feet, reach float32,
 	return c, ok
 }
 
-// LevelFor is CellFor and whether whoever stands there stands on a raised deck.
+// LevelFor is CellFor and the level whoever stands there stands on.
 func (r *Read) LevelFor(p geom.Vec, feet, reach float32,
-	ground func(cell.ID) float32) (cell.ID, bool, bool) {
+	ground func(cell.ID) float32) (cell.ID, cell.Level, bool) {
 	t := r.t
 	c, ok := t.grid.CellAt(p)
 	if !ok || t.built == 0 || r.store == nil {
-		return c, false, ok
+		return c, cell.OnGround, ok
 	}
-	best, top, raised := c, f32.Inf(-1), false
+	best, top, on := c, f32.Inf(-1), cell.OnGround
 	r.DecksOver(c, p, func(d Deck) bool {
 		f := d.Built.Floor
-		h := f.Height
-		if ground != nil {
-			h += ground(d.Cell)
-		}
-		if !(f.Height > 0 && ground != nil && feet < h-reach || h <= top) {
-			best, top, raised = d.Cell, h, f.Height > 0
+		if h, ok := stoodOn(f, d.Cell, feet, reach, ground); ok && h > top {
+			best, top, on = d.Cell, h, levelOf(f)
 		}
 		return true
 	})
-	return best, raised, true
+	return best, on, true
 }
 
-func level(k cell.Kind, b cell.Built, deck bool) cell.Kind {
+// stoodOn is how high f, built on c, lies and whether whoever has its feet at feet and steps
+// reach high stands on it: a raised floor within its reach, a sunk one under whose roof its feet
+// are, a floor lying on the ground whatever its feet
+func stoodOn(f cell.Floor, c cell.ID, feet, reach float32,
+	ground func(cell.ID) float32) (h float32, ok bool) {
+	h = f.Height
+	if ground == nil {
+		return h, !f.Sunk()
+	}
+	h += ground(c)
+	switch {
+	case f.Height > 0:
+		return h, feet >= h-reach
+	case f.Sunk():
+		return h, feet >= h-reach && feet < h+f.Clear
+	}
+	return h, true
+}
+
+// level is k as whoever crosses b's cell on l meets it: on the ground with the floors lying on
+// it alone, on a storey with its floor
+func level(k cell.Kind, b cell.Built, l cell.Level) cell.Kind {
+	if l == cell.OnGround {
+		on := cell.Built{Wall: b.Wall, Rail: b.Rail}
+		if b.Floor.Height == 0 {
+			on.Floor = b.Floor
+		}
+		return on.Over(k)
+	}
+	return levelled(k, cell.Built{Floor: b.On(l), Wall: b.Wall})
+}
+
+// levelled is k on b's floor, raised or sunk: a sunk floor runs under the cell's wall
+func levelled(k cell.Kind, b cell.Built) cell.Kind {
 	floor := b.Floor
 	b.Floor = cell.Floor{}
-	if !deck {
-		return b.Over(k)
+	if floor.Sunk() {
+		b.Wall = cell.Wall{}
 	}
 	on := cell.Kind{Name: k.Name, Pace: k.Pace, SpriteID: k.SpriteID}
 	if floor.Pace > 0 {
@@ -543,13 +577,22 @@ func (p *passage) fingerprint() uint64 {
 	f32(p.width)
 	u64(uint64(p.links))
 	b := &p.built
-	u64(uint64(b.Floor.Allows) | uint64(b.Floor.Links)<<8)
-	f32(b.Floor.Height)
-	f32(b.Floor.Thickness)
-	f32(b.Floor.Load)
-	f64(b.Floor.Pace)
-	bits(b.Floor.Graded)
-	f32(b.Floor.Width)
+	for k := range uint8(cell.Storeys) {
+		f := b.Storey(k)
+		if k > 0 && *f == (cell.Floor{}) {
+			continue
+		}
+		u64(uint64(f.Allows) | uint64(f.Links)<<8 | uint64(f.Storey)<<16)
+		f32(f.Height)
+		f32(f.Thickness)
+		f32(f.Load)
+		f64(f.Pace)
+		bits(f.Graded)
+		f32(f.Width)
+		if k > 0 || f.Clear != 0 {
+			f32(f.Clear)
+		}
+	}
 	u64(uint64(b.Wall.Keeps))
 	f32(b.Wall.Height)
 	f32(b.Wall.Gap.Width)

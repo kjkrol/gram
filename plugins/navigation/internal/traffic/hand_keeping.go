@@ -19,8 +19,8 @@ type HandKeeping struct {
 	near bodies.Nearby
 }
 
-func (k *HandKeeping) MayStep(id uid.UID64, pos world.Position, at, ahead cell.ID, deck bool,
-	domain cell.Domain, heading geom.Vec) bool {
+func (k *HandKeeping) MayStep(id uid.UID64, pos world.Position, at, ahead cell.ID,
+	level cell.Level, domain cell.Domain, heading geom.Vec) bool {
 	if k.Keep == nil {
 		return true
 	}
@@ -28,7 +28,7 @@ func (k *HandKeeping) MayStep(id uid.UID64, pos world.Position, at, ahead cell.I
 	if k.Nav != nil {
 		m.Level = k.Nav.levelOf(id)
 	}
-	return k.Keep.MayStep(m, ahead, deck, heading, &k.near)
+	return k.Keep.MayStep(m, ahead, level, heading, &k.near)
 }
 
 func (k *HandKeeping) Ordered(id uid.UID64) bool { return k.Nav != nil && k.Nav.ordered(id) }

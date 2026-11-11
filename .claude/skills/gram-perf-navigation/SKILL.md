@@ -96,6 +96,13 @@ wynik etapów: `doc/plans-perf.md` (Etap 2, Fale 3–5, „Udziały tempa", „K
 - Zero alokacji po rozgrzaniu: A* do trzymanych buforów, keepingi, formacje, ponowne
   wypełnienie pola (nowe pole bierze miejsce ostatnio zwolnione w `spacing.Fields`).
 
+- **Cztery węzły na komórkę** (2026-11-10, `cell.Levels`): grunt i trzy kondygnacje, slot
+  `4·ordynał+poziom`; słowniki po węźle są dwa razy większe niż przy dwóch poziomach, trasy te
+  same co do remisów (`routes.golden` bez zmiany). Poziomy komórki czyta się raz na szukanie
+  (`storeysOf`: maski `storeys`, `sunk`, `levels` w `read`), zbiór poziomów to tablica po masce
+  (`levelSets`), bez alokacji. Poziom kroku trasy to dwa bity (`Path.Decks` niski, `Upper`
+  wysoki).
+
 ## Pułapki
 
 - **Dynamika tłumu przesuwa czas bez śladu w profilu.** `InTheWay` pytające o `Ahead` także
