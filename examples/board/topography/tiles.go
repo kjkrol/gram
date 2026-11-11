@@ -43,19 +43,21 @@ var grounds = []ground{
 	{name: RiverCell, kind: cell.Kind{Pace: 1, Allows: wet}},
 	{name: RoadCell, kind: cell.Kind{Pace: 1, Allows: dry, Graded: true}},
 	{name: BuiltCell, kind: cell.Kind{Pace: 1, Allows: dry}, snowable: true},
-	{
-		name: ForestCell,
-		kind: cell.Kind{
-			Pace:   2.0 / 15,
-			Allows: dry,
-			Veil:   0.6,
-			Height: scale.Units(20),
-			Sway:   0.6,
-		},
-		snowable: true,
-		upland:   true,
-	},
+	{name: LaurisilvaCell, kind: wooded(2.0/15, 0.7, 20), snowable: true, upland: true},
+	{name: WoodlandCell, kind: wooded(2.0/15, 0.6, 20), snowable: true, upland: true},
+	{name: PinewoodCell, kind: wooded(0.2, 0.5, 20), snowable: true, upland: true},
+	{name: HeathCell, kind: wooded(0.3, 0.2, 5), snowable: true, upland: true},
+	{name: FarmlandCell, kind: cell.Kind{Pace: 0.35, Allows: dry, Sway: 0.35}, snowable: true},
 }
+
+// wooded is ground under trees: how fast one walks it, how much it veils the sight and how
+// high its growth stands over it, metres
+func wooded(pace float64, veil, height float32) cell.Kind {
+	return cell.Kind{Pace: pace, Allows: dry, Veil: veil, Height: scale.Units(height), Sway: 0.6}
+}
+
+// the kinds of ground trees stand on thick
+var woods = []string{LaurisilvaCell, WoodlandCell, PinewoodCell}
 
 func (g ground) Define(b *board.Plugin) {
 	var plays []*ceremony.Part

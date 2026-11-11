@@ -28,6 +28,10 @@ func (w *chart) text(recipePath, units string) []byte {
 		b.WriteString("# Roads, tunnels, bridges and buildings: © OpenStreetMap contributors, " +
 			"under the ODbL;\n# see https://www.openstreetmap.org/copyright\n")
 	}
+	if w.covered != nil {
+		b.WriteString("# Land cover: CORINE Land Cover 2018, © European Union, Copernicus Land " +
+			"Monitoring\n# Service, European Environment Agency; Natura 2000 sites, © EEA\n")
+	}
 	fmt.Fprintf(&b, "# From %s", recipePath)
 	if w.flat {
 		b.WriteString(", flat")
@@ -72,6 +76,23 @@ func (w *chart) writeBoard(b *bytes.Buffer) {
 		if kind := l.kind(k); kind != "" && (kind == k.Sea || slices.Contains(w.soils, kind)) {
 			fmt.Fprintf(b, "    %q: %s\n", l.key, kind)
 			keys[kind] = l.key
+		}
+	}
+	// the land cover's kinds by a letter of their names, the first no kind before took
+	for _, kind := range w.r.Cover.kinds() {
+		if !slices.Contains(w.soils, kind) {
+			continue
+		}
+		for _, key := range kind + "abcdefghijklmnopqrstuvwxyz" {
+			taken := false
+			for _, k := range keys {
+				taken = taken || k == string(key)
+			}
+			if !taken {
+				fmt.Fprintf(b, "    %q: %s\n", string(key), kind)
+				keys[kind] = string(key)
+				break
+			}
 		}
 	}
 	b.WriteString("  cells: |\n")

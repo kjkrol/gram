@@ -35,7 +35,7 @@ func (w *chart) block(f fieldCfg, bx, by int) (field, bool) {
 	x0, y0, x1, y1, n := w.cols, w.rows, -1, -1, 0
 	for y := by; y < min(by+f.Grain, w.rows); y++ {
 		for x := bx; x < min(bx+f.Grain, w.cols); x++ {
-			if w.kindAt(x, y) == f.Cells {
+			if slices.Contains(f.Cells, w.kindAt(x, y)) {
 				x0, y0, x1, y1 = min(x0, x), min(y0, y), max(x1, x), max(y1, y)
 				n++
 			}

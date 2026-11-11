@@ -4109,7 +4109,8 @@ kraju to inna skala.
 |---|---|---|
 | 0a | `feat/underground` | plugin `underground`, komórka o czterech poziomach, kamera i rysowanie wnętrza |
 | 0b | `feat/osm-roads` | gramap czyta OSM (drogi, tunele, mosty, zabudowa), mosty w naturalnych rozmiarach, migawka regresji Madery |
-| 0c | `feat/madeira-species` | 10 gatunków, rodzaje lasu z danych pokrycia terenu |
+| 0c | `feat/madeira-species` | 15 gatunków, rodzaje roślinności z danych pokrycia terenu (CORINE, Natura 2000) |
+| 0d | `feat/madeira-buildings` | 10–40 rodzajów budynków z tagów OSM, budowle wyjątkowe Madery |
 | m1 | `feat/madeira-10m-store` | format blokowy, magazyn planszy, diff i dziennik, gramap na tablicach |
 | m2 | `feat/madeira-10m-pages` | encje komórek tylko w sektorach rozwiniętych, pogoda po polu, `Ahead` |
 | m3 | `feat/madeira-10m` | `Stale` z listy zmian, `-prepare`, hpastar gotowy po regionie, demo |
@@ -4180,3 +4181,38 @@ nie rozpada się w kropki (malarz: co najmniej półtora piksela arkusza). Mapa 
 komórek dróg, 50 mostów, 24 tunele z drogą przy obu głowach, 8 wykopanych pominiętych, 82
 zostają drogami, 299 odcinków pominiętych. Wyloty obejrzane na zrzutach wszystkich 48 głów
 (sonda stawia kamerę przed wylotem): 39 widocznych bez wad, 9 zasłania budynek albo drzewo.
+
+### Etap 0c: wynik (2026-11-11, gałąź `feat/madeira-species`, baza `5fec331c`)
+
+Decyzje z ankiety: dane CORINE Land Cover 2018, laurisilva od plantacji granicą obszaru Natura
+2000 PTMAD0001, gatunki: dziesięć proponowanych plus dracena, cedr maderski, palmy, bananowce i
+winnice; zabudowa osobnym etapem 0d.
+
+Zrobione: gramap czyta kształty CORINE i obszary Natura 2000 z usług REST EEA (bez logowania,
+odpowiedzi w pamięci podręcznej), rasteryzuje je po środkach komórek i kładzie rodzaje gruntu
+z receptury (`cover:`); pole może leżeć na kilku rodzajach komórek. Demo: pięć rodzajów gruntu
+z roślinnością, piętnaście rodzajów drzew i roślin wg wysokości, palmy i draceny przy domach
+wybrzeża (`forest.Types.Entry`), rysunek boczny drzewa w proporcjach, drobniejszy dla wysokich.
+
+| Madera 100 m, komórki (ha) | przed | po | CORINE / IFRAM |
+|---|---|---|---|
+| las z szumu | 19 329 | 0 | |
+| laurisilva | | 11 191 | IFRAM 16 114 |
+| las liściasty, mieszany, przejściowy poza obszarem | | 18 122 | CORINE 311+313+324: 29 356 z laurisilvą |
+| las iglasty | | 3 082 | CORINE 3 090 |
+| wrzosowisko | | 12 745 | CORINE 13 143 |
+| uprawy | | 9 832 | CORINE ok. 10 000 |
+| skała | 13 805 | 1 999 | |
+| pola roślinności | 238 | 315 | |
+
+Pokrycie wygrywa ze stromizną (laurisilva rośnie na stokach; ze skałą pierwszą miała 6 946
+komórek). Drogi po zmianie gruntu: 4709 komórek, 50 mostów, 25 tuneli.
+
+Klatkarz widoku startowego, kopia `main` przeciw drzewu na zmianę, trzy pary: 133,9 → 122,2,
+138,1 → 127,8, 141,6 → 128,6 FPS (−8 do −9 %); tick 1,57 → 1,67 ms. Pole na rodzaj w każdym
+bloku (771 pól) kosztowało tick 1,83 ms przez publikację świata, stąd jedno pole na blok.
+Doświadczenia: ćwierć gęstości drzew oddaje jedną trzecią spadku (132 FPS), grunt bez
+podniesionej wysokości nic. Reszty nie znalazłem; przypuszczenie: arkusze trzymają więcej
+sektorów. Nie zmierzone: widok z bliska nad lasem, nad Funchal, czas pierwszego robienia
+arkuszy. Oglądane na zrzutach z sondy: każdy rodzaj roślinności z bliska i ze średniej
+odległości oraz osada; wygląd ghibli tylko uruchomiony.

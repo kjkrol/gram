@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/forest"
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -50,19 +51,29 @@ var quarterShaken = func() (at [quarterPlots]geom.Vec) {
 	return at
 }()
 
+// how high a settlement's palms and its dragon trees grow, metres, and of how many built
+// cells one has a tree in its garden
+const (
+	palmsTo   = 300
+	dragonsTo = 200
+	gardens   = 8
+)
+
 // settlement stands over a field of the map's built cells: each sector of it come down to L3
-// stands a house on each of them, in the quarter its seed picks, and one of litFrom cells or
-// more a lamp facing the house nearest its middle.
-type settlement struct{}
+// stands a house on each of them, in the quarter its seed picks, one of litFrom cells or more
+// a lamp facing the house nearest its middle, and by the sea a palm or a dragon tree beside
+// some houses, of the trees' kinds.
+type settlement struct{ trees *forest.Plugin }
 
 var (
 	_ board.Figure = settlement{}
 	_ board.Ruled  = settlement{}
 )
 
-func (settlement) Rules(b *board.Plugin) {
+func (s settlement) Rules(b *board.Plugin) {
 	w := b.Read(0).World()
 	home, lit := kind.EntryOf(HouseKind, houseRow{}), kind.EntryOf(LampKind, lampRow{})
+	palm, dragon := s.trees.Types().Entry(PalmKind), s.trees.Types().Entry(DragonKind)
 	rules := make([]act.Rule, 0, quarterPlots)
 	for k := range quarterPlots {
 		rules = append(rules, act.Branch[world.Unfold]{
@@ -76,6 +87,14 @@ func (settlement) Rules(b *board.Plugin) {
 				act.Branch[world.Unfold]{
 					When: cond.Self.If(lampAt(b, k)),
 					Then: act.Self.Do(world.SpawnPart{Entry: lit, At: quarterShaken[k]}),
+				},
+				act.Branch[world.Unfold]{
+					When: cond.Self.If(gardenAt(b, k, 0, palmsTo)),
+					Then: act.Self.Do(world.SpawnPart{Entry: palm, At: quarterShaken[k]}),
+				},
+				act.Branch[world.Unfold]{
+					When: cond.Self.If(gardenAt(b, k, 1, dragonsTo)),
+					Then: act.Self.Do(world.SpawnPart{Entry: dragon, At: quarterShaken[k]}),
 				}),
 		})
 	}
@@ -123,6 +142,26 @@ func lampAt(b *board.Plugin, k int) cond.Word[world.Unfold] {
 		c, _ := b.Read(0).Board().Grid.CellAt(at)
 		heart, n := heartOf(b, u.Box)
 		return n >= litFrom && c == heart
+	})
+}
+
+// gardenAt is the word of the k-th plot of a sector of a settlement being the quarter beside
+// its cell's house, the cell one of every gardens whose seed draws lot and its ground lower
+// than below, metres
+func gardenAt(b *board.Plugin, k, lot int, below float32) cond.Word[world.Unfold] {
+	return cond.NewWord(fmt.Sprintf("garden %d %d", lot, k), func(u world.Unfold) bool {
+		at := middle(u.Box).Add(quarterLattice[k])
+		if q, home := quarters(b, u.ID, at); q != home^1 {
+			return false
+		}
+		heights := b.Read(0).Heights()
+		if heights == nil || heights.At(at) >= scale.Units(below) {
+			return false
+		}
+		bd := b.Read(0).Board()
+		c, _ := bd.Grid.CellAt(at)
+		i, _ := bd.Ordinal(c)
+		return int(lod.Seed(u.ID, uint64(i))>>8%gardens) == lot
 	})
 }
 

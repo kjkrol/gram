@@ -70,7 +70,7 @@ roads:
 
 func TestBuild_RoadsLieAsTransportTycoonLaysThem(t *testing.T) {
 	r, height := isle(t)
-	c, err := build(r, height, nil, false)
+	c, err := build(r, height, nil, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestBuild_RoadsLieAsTransportTycoonLaysThem(t *testing.T) {
 
 func TestBuild_EveryLegRunsFromPlaceToPlace(t *testing.T) {
 	r, height := isle(t)
-	c, err := build(r, height, nil, false)
+	c, err := build(r, height, nil, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestBuild_AFlatBridgeIsACellLong(t *testing.T) {
 	r, height := isle(t)
 	r.Flat = flatCfg{Longest: 1}
 	r.Roads.Fords = false
-	c, err := build(r.asFlat(), height, nil, true)
+	c, err := build(r.asFlat(), height, nil, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,12 +253,12 @@ func TestTerrarium_ReadsTheTilesHeights(t *testing.T) {
 
 func TestBuild_TheAreaGrowsForSeaRoundTheLand(t *testing.T) {
 	r, height := isle(t)
-	plain, err := build(r, height, nil, true)
+	plain, err := build(r, height, nil, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	r.Area.Sea = 12
-	c, err := build(r, height, nil, true)
+	c, err := build(r, height, nil, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -706,7 +706,7 @@ ways:
 
 func TestText_WithoutFieldsOrSettlementsTheMapIsAsBefore(t *testing.T) {
 	r, height := knoll(t)
-	c, err := build(r, height, nil, false)
+	c, err := build(r, height, nil, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -777,8 +777,8 @@ func TestRecipe_RefusesFieldsAndSettlementsItCannotLay(t *testing.T) {
 func TestFields_ABlockOfLeastCellsIsAFieldOverThem(t *testing.T) {
 	w := strip(t, 20, 9, slices.Repeat([]float64{10}, 21))
 	w.r.Fields = []fieldCfg{
-		{Cells: w.r.Kinds.Forest, Kind: "forest", Grain: 8, Least: 3},
-		{Cells: w.r.Kinds.Sand, Kind: "dunes", Grain: 4, Least: 1},
+		{Cells: cellKinds{w.r.Kinds.Forest}, Kind: "forest", Grain: 8, Least: 3},
+		{Cells: cellKinds{w.r.Kinds.Sand}, Kind: "dunes", Grain: 4, Least: 1},
 	}
 	lay := func(kind string, xys ...[2]int) {
 		for _, xy := range xys {
@@ -890,12 +890,12 @@ func TestSettle_APlaceWithoutACellIsLeftUnsettled(t *testing.T) {
 func TestCheck_TakesAMapWithFieldsAndSettlements(t *testing.T) {
 	r, height := knoll(t)
 	r.Fields = []fieldCfg{
-		{Cells: r.Kinds.Forest, Kind: "forest", Grain: 4, Least: 2},
-		{Cells: r.Kinds.Built, Kind: "settlement", Grain: 4, Least: 1},
+		{Cells: cellKinds{r.Kinds.Forest}, Kind: "forest", Grain: 4, Least: 2},
+		{Cells: cellKinds{r.Kinds.Built}, Kind: "settlement", Grain: 4, Least: 1},
 	}
 	r.Settlements = settlementsCfg{Cells: r.Kinds.Built, Sizes: map[string]int{"town": 6}}
 	r.Roads.Places = map[string]place{"town": {At: lonLatAt(r, 5, 3), Size: "town"}}
-	c, err := build(r, height, nil, false)
+	c, err := build(r, height, nil, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}

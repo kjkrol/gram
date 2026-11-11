@@ -324,7 +324,7 @@ demo opens a window; what it shows is tested in the library's package that does 
 | [`board/custom-map`](examples/board/custom-map) | A board drawn by a map of the game's own (`board.Plugin.WithMap`) and walked by a mobility of its own (`cell.Mobility`): hills rising out of the grass, shaded by how high they lie; the walkers go round the steep and slow down climbing | `make demo-board-custom-map` |
 | [`board/flat`](examples/board/flat) | Madeira on the simple map out of `cmd/gramap`: the island in its colours, rivers and roads as bands, bridges and fords standing on it, a day and the weather going by, a minimap north up | `make demo-board-flat` |
 | [`board/roads`](examples/board/roads) | A valley with two villages either side of a river, a bridge and a ford: Shift+R takes a road in hand, marked point by point or laid a piece at a time, planned by the cheapest way the rules allow, the ground it levels outlined, priced and paid from a treasury before it is built; the builders refuse while the treasury is empty or the ground is frozen (I brings the winter); an old tunnel runs under the hill and Shift+T digs another from one level head to the next | `make demo-board-roads` |
-| [`board/topography`](examples/board/topography) | Madeira in relief, its true heights, a cell 100 m: lit by the sun, water running, roads laid as Transport Tycoon lays them, bridges on piers (Shift+B builds one), tunnels dug under the ridges (Shift+T) and ridden through (V), the ground shaped under the cursor; the camera on a stick turned (Q, E) and leaned (R, F) from straight down to isometric and flatter, orthographic or in perspective (Tab); a minimap turning with it, a click on it taking the camera there; the ground textured from photographs (`make demo-board-topography`) or painted, the light in bands (`make demo-board-topography-ghibli`); the hour, the date and the weather in a bar or apart by the corners (`make demo-board-topography-widgets`); its forests and settlements fields of the map, trees and houses near and photographed into the ground far off, the sheets kept between runs; caravans and travellers on its roads, banners with counts far off | `make demo-board-topography` |
+| [`board/topography`](examples/board/topography) | Madeira in relief, its true heights, a cell 100 m: lit by the sun, water running, roads laid as Transport Tycoon lays them, bridges on piers (Shift+B builds one), tunnels dug under the ridges (Shift+T) and ridden through (V), the ground shaped under the cursor; the camera on a stick turned (Q, E) and leaned (R, F) from straight down to isometric and flatter, orthographic or in perspective (Tab); a minimap turning with it, a click on it taking the camera there; the ground textured from photographs (`make demo-board-topography`) or painted, the light in bands (`make demo-board-topography-ghibli`); the hour, the date and the weather in a bar or apart by the corners (`make demo-board-topography-widgets`); its growth and settlements fields of the map, where the land cover has them: the laurisilva, the eucalyptus woods, the pinewoods, the heath and the terraces, fifteen kinds of trees and plants by the height of the ground, palms and dragon trees by the houses of the coast, all standing near and photographed into the ground far off, the sheets kept between runs; caravans and travellers on its roads, banners with counts far off | `make demo-board-topography` |
 | [`board/forest-army`](examples/board/forest-army) | A forest and two armies, each one thing far off and its parts near: zoomed out the forest a sheet of crowns and each army a point marching from region to region, zoomed in the trees planted sector by sector and the soldiers stood round their army, taking its march over and folding back in where they stand; soldiers fell the trees they strike and the forest grows back sparser; two armies meeting far off fight blow by blow, soldiers meeting near strike each other | `make demo-board-forest-army` |
 
 ### Navigation: units sent across a board
@@ -563,8 +563,12 @@ Tycoon lays them, with bridges over water and down valleys and fords where a riv
 with `-flat` the map has no heights. With `source: osm` a map with relief follows
 [OpenStreetMap](https://www.openstreetmap.org/copyright) instead: its roads of the classes the
 recipe names, its bridges, its tunnels dug where the ground lets one lie, and its settlements
-where the buildings stand (Madeira: 4718 cells of road, 50 bridges, 24 tunnels). Its `fields:` lay a field entity over the cells of a kind
-in each block where enough of them lie (Madeira's forests, four cells of sixteen a side), its
+where the buildings stand. With `cover: {source: corine}` it draws the land as
+[CORINE Land Cover](https://land.copernicus.eu/en/products/corine-land-cover) says, a kind of
+cell for the classes the recipe names, another within a Natura 2000 site (Madeira: laurisilva
+within its site, woodland, pinewood, heath and farmland). Its `fields:` lay a field entity over
+the cells of a kind, or of several, in each block where enough of them lie (Madeira's growth,
+four cells of sixteen a side), its
 `settlements:` cells of a kind round the roads' places, as many as a place's size says in the
 recipe's own words (a hamlet, a village, a town); what grows and stands on them is the game's
 rules', as the fields unfold.
@@ -679,6 +683,9 @@ are `aabbworld`'s; gram is where they meet an ECS and a screen.
   (`examples/board/topography/map.yaml`), and of every map `cmd/gramap` makes with `source:
   osm`: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, under the Open
   Database License.
+- What grows where on Madeira in relief, and on every map `cmd/gramap` makes with `cover:
+  {source: corine}`: CORINE Land Cover 2018, © European Union, Copernicus Land Monitoring
+  Service, European Environment Agency (EEA); the Natura 2000 sites, © EEA.
 
 # License
 

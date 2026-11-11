@@ -24,11 +24,15 @@ func details(look string) map[string]painter.Detail {
 	switch look {
 	case NaturalLook:
 		paint = map[string]painter.Detail{
-			EarthCell:  {Image: texture("earth"), Across: 6},
-			SandCell:   {Image: texture("sand"), Across: 6},
-			RockCell:   {Image: texture("rock"), Across: 6},
-			ForestCell: {Image: texture("forest"), Across: 9},
-			RoadCell:   {Image: texture("road"), Across: 3},
+			EarthCell:    {Image: texture("earth"), Across: 6},
+			SandCell:     {Image: texture("sand"), Across: 6},
+			RockCell:     {Image: texture("rock"), Across: 6},
+			RoadCell:     {Image: texture("road"), Across: 3},
+			HeathCell:    {Image: texture("earth"), Across: 6},
+			FarmlandCell: {Image: texture("earth"), Across: 6},
+		}
+		for _, name := range woods {
+			paint[name] = painter.Detail{Image: texture("forest"), Across: 9}
 		}
 		snow := painter.Detail{Image: texture("snow"), Across: 6}
 		for _, name := range snowable() {
@@ -36,11 +40,15 @@ func details(look string) map[string]painter.Detail {
 		}
 	case GhibliLook:
 		paint = map[string]painter.Detail{
-			EarthCell:  {Image: paintedEarth(), Across: 6},
-			SandCell:   {Image: paintedSand(), Across: 6},
-			RockCell:   {Image: paintedRock(), Across: 6},
-			ForestCell: {Image: paintedForest(), Across: 9},
-			RoadCell:   {Image: paintedRoad(), Across: 3},
+			EarthCell:    {Image: paintedEarth(), Across: 6},
+			SandCell:     {Image: paintedSand(), Across: 6},
+			RockCell:     {Image: paintedRock(), Across: 6},
+			RoadCell:     {Image: paintedRoad(), Across: 3},
+			HeathCell:    {Image: paintedEarth(), Across: 6},
+			FarmlandCell: {Image: paintedEarth(), Across: 6},
+		}
+		for _, name := range woods {
+			paint[name] = painter.Detail{Image: paintedForest(), Across: 9}
 		}
 		snow := painter.Detail{Image: paintedSnow(), Across: 6}
 		for _, name := range snowable() {

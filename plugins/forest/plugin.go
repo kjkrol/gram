@@ -74,9 +74,11 @@ func (trees) Rules(w *world.Plugin) {
 	})
 }
 
-// the stands' mixes are checked here, the first moment every kind of tree is defined
+// the stands' mixes and the entries asked are checked here, the first moment every kind of
+// tree is defined
 func (t trees) Look(a *world.Atlas, _ *world.Plugin) {
 	t.p.stands.check(&t.p.types)
+	t.p.types.check()
 	for _, name := range t.p.types.names {
 		t.p.types.Named(name).look(a)
 	}

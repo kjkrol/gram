@@ -415,7 +415,7 @@ func (a *arena) defineFigures() {
 		lantern{},
 		house{},
 		lamp{},
-		settlement{},
+		settlement{trees: a.forest},
 		wagon{},
 		porter{color: playerColor},
 		caravan{color: playerColor, carried: a.enlisted},
@@ -424,7 +424,7 @@ func (a *arena) defineFigures() {
 	)
 	a.bridges.Figures(bridge{})
 	a.tunnels.Figures(tunnel{})
-	a.forest.Figures(woods{})
+	a.forest.Figures(growth{})
 	a.atmosphere.Skies(earth{})
 }
 

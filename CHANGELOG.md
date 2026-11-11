@@ -41,11 +41,26 @@
   width, grade, longest, reshape}`), led out of each head across an edge and two cells on
   before it slants (a mouth's first cell runs straight), a head cut into the ground and a headwall raised over its mouth;
   the settlements' cells where OpenStreetMap has `least` buildings or more (`settlements:
-  {source: osm, least}`). Madeira in relief is its real network: 4718 cells of road (1089
-  before), 50 bridges, 24 tunnels a road runs into at either head, some 4300 built cells; 299
+  {source: osm, least}`). Madeira in relief is its real network: 4709 cells of road (1089
+  before), 50 bridges, 25 tunnels a road runs into at either head, some 4300 built cells; 308
   short stretches too steep for a road of 10° are left out, 82 tunnels the ground does not
-  let lie stay roads and 8 dug ones no road could be laid to are left out. A flat map plans
+  let lie stay roads and 7 dug ones no road could be laid to are left out. A flat map plans
   its roads along the recipe's routes as before, cell for cell.
+- `cmd/gramap` draws the land as the land cover says (`cover: {source: corine, kinds, sites}`:
+  CORINE Land Cover 2018 and the Natura 2000 sites, © European Union, Copernicus Land
+  Monitoring Service, EEA; asked of the agency's services once and kept beside the tiles): a
+  kind of cell for the classes the recipe names, another within a site, by the middle of the
+  cell; rock is what the cover leaves steep. A field lies over the cells of several kinds
+  (`fields: [{cells: [a, b], ...}]`). Madeira in relief: laurisilva within its Natura 2000 site
+  (11 191 cells of a hectare), woodland (18 122), pinewood (3 082), heath (12 745) and farmland
+  (9 832) where the forest laid by noise was (19 329); a flat map keeps the noise.
+- Madeira's demo plants fifteen kinds of trees and plants by the land cover and the height of
+  the ground: the til, the laurel, the vinhático, the barbusano and the faia of the laurisilva,
+  the tree heather and the Madeira cedar of the heights, the maritime pine, the eucalyptus, the
+  acacia and the chestnut, bananas and vines on the terraces, and palms and dragon trees beside
+  the houses of the coast.
+- `forest.Types.Entry` is a tree for a game's own rule to stand where no forest plants it; a
+  tree taller than wide is drawn on a finer sprite, up to four times.
 - The topography cuts the ground over the mouth of a floor sunk under it and frees the cameras'
   cage in the room over such a floor (`Read.Free`).
 

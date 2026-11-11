@@ -27,13 +27,15 @@ type chart struct {
 	settled    map[string][]cell.ID // a place's settlement, by its name
 	unsettled  []string             // places of a size with no cell of their own
 	osm        *osmData
-	built      int // cells settled where OpenStreetMap has buildings
+	covered    []string // the kind the land cover draws a cell as, "" where it says none
+	built      int      // cells settled where OpenStreetMap has buildings
 }
 
 // source is what OpenStreetMap has within a box: south, west, north, east
 type source func(box [4]float64, classes []string, buildings bool) (*osmData, error)
 
-func build(r recipe, height elevation, osm source, flat bool) (*chart, error) {
+func build(r recipe, height elevation, osm source, land landcover, flat bool) (*chart,
+	error) {
 	origin, cells, err := grow(r, height)
 	if err != nil {
 		return nil, err
@@ -72,6 +74,20 @@ func build(r recipe, height elevation, osm source, flat bool) (*chart, error) {
 	}
 	if err := w.drain(); err != nil {
 		return nil, err
+	}
+	if r.Cover.Source != "" && !flat {
+		if land == nil {
+			return nil, fmt.Errorf("cover: the source is %s, and none is given", r.Cover.Source)
+		}
+		var sites []string
+		for _, s := range r.Cover.Sites {
+			sites = append(sites, s.Site)
+		}
+		data, err := land(w.box(), sites)
+		if err != nil {
+			return nil, err
+		}
+		w.cover(data)
 	}
 	w.soil()
 	w.roads = newRoads(w)
@@ -281,11 +297,16 @@ func (w *chart) soil() {
 			mx := (float64(x-w.origin[0]) + 0.5) * w.r.Area.Cell
 			my := (float64(y-w.origin[1]) + 0.5) * w.r.Area.Cell
 			switch {
-			case steep >= g.Rock.Slope || top >= g.Rock.Above:
+			// what the land cover says grows on a slope grows there: rock is what it leaves
+			case top >= g.Rock.Above:
+				w.soils[y*w.cols+x] = w.r.Kinds.Rock
+			case w.covered != nil && w.covered[y*w.cols+x] != "":
+				w.soils[y*w.cols+x] = w.covered[y*w.cols+x]
+			case steep >= g.Rock.Slope:
 				w.soils[y*w.cols+x] = w.r.Kinds.Rock
 			case float64(inland[c]) <= g.Sand.Within && top < g.Sand.Below:
 				sands = append(sands, candidate{c, fbm(mx/sandPatch+50, my/sandPatch+20)})
-			case w.level(c) >= g.Forest.From && w.level(c) <= g.Forest.To:
+			case w.covered == nil && w.level(c) >= g.Forest.From && w.level(c) <= g.Forest.To:
 				forests = append(forests, candidate{c, fbm(mx/forestPatch+31, my/forestPatch+17)})
 			}
 		}

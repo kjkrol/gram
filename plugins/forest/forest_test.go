@@ -565,3 +565,25 @@ func (g *grove) fell() {
 	}
 	g.t.Fatal("no tree to fell")
 }
+
+func TestTypes_EntryIsATreeOfAKindDefinedByTheTimeTheLooksAre(t *testing.T) {
+	asked := func(name string) (refused bool) {
+		defer func() { refused = recover() != nil }()
+		f := planting(forest.Stand{Mix: []forest.Share{{Tree: "oak"}}}, tree{"oak", oak})
+		stands := f.rules
+		f.rules = func(p *forest.Plugin) {
+			stands(p)
+			if got := p.Types().Entry(name).Kind(); got != name {
+				t.Errorf("the entry is of %q, want %q", got, name)
+			}
+		}
+		newGrove(t, f, nil)
+		return false
+	}
+	if asked("oak") {
+		t.Error("an entry of a tree defined is refused")
+	}
+	if !asked("elm") {
+		t.Error("an entry of a tree never defined is given")
+	}
+}

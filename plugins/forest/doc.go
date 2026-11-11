@@ -15,7 +15,8 @@
 // sheets hold it as planted. A look left out is drawn of its [Colours]. Its looks are whole,
 // drawn in render's cutout pass (world.Slot.Cutout), and canopies (world.Slot.Canopy): from
 // above a unit standing under a tree shows through its crown where the world's Canopies setting
-// says, in relief the crown hides it.
+// says, in relief the crown hides it. [Types.Entry] is a tree for a game's own rule to stand
+// where no forest plants it.
 //
 // # Stands
 //

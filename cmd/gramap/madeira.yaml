@@ -11,6 +11,15 @@ ground:
   rock: {slope: 0.9, above: 1600}
   sand: {within: 2, below: 20, share: 0.3}
   forest: {from: 300, to: 1400, share: 0.45}
+cover: # with relief: what grows where, by the land cover; a flat map lays its forest by noise
+  source: corine
+  kinds: # by CORINE Land Cover's classes
+    woodland: [311, 313, 324] # broad-leaved, mixed, transitional
+    pinewood: [312]
+    heath: [322]
+    farmland: [221, 222, 242, 243] # vineyards, fruit, complex cultivation
+  sites: # within a Natura 2000 site the kinds named are another
+    - {site: PTMAD0001, of: [woodland], kind: laurisilva} # Laurissilva da Madeira
 rivers:
   brook: 6 # km² drained
   stream: 15
@@ -66,6 +75,10 @@ roads:
     - [Funchal, Poiso, Faial]
 fields: # a field over the cells of a kind in each block of 16 cells a side, a sector of the world
   - {cells: forest, kind: forest, grain: 16, least: 4}
+  - cells: [laurisilva, woodland, pinewood, heath, farmland] # what the land cover lays
+    kind: growth
+    grain: 16
+    least: 4
   - {cells: built, kind: settlement, grain: 16, least: 1}
 tunnels: # OpenStreetMap's, where the ground lets one lie
   clear: 2.2 # metres of its room in life
