@@ -30,6 +30,16 @@ const (
 	tubeVertices = 36
 )
 
+// a mouth's frame by its tube's height: how thick it is and how far it stands out of the ground;
+// and how far it runs in by its cell's span, past where the ground is cut away over the mouth
+const (
+	frameThick = 0.12
+	frameOut   = 0.3
+	frameIn    = 0.65
+	// how much higher than a roof climbing in the frame stands: over the ground cut above it
+	frameOver = 1.1
+)
+
 // the walls of a stretch standing, by bit: on its left and its right going along it, at its
 // beginning and at its end
 const (
@@ -109,24 +119,82 @@ func (r *tubes) lay(dst []float32) []float32 {
 					continue
 				}
 				step := g.Step(way)
-				end, far := geom.NewVec(m.X+step.X/2, m.Y+step.Y/2), z
+				l := f32.Hypot(step.X, step.Y)
+				u := geom.NewVec(step.X/l, step.Y/l)
+				end, far, mouth := geom.NewVec(m.X+step.X/2, m.Y+step.Y/2), z, true
 				if n, ok := g.Toward(c, way); ok {
 					nb := brd.Built(n)
+					_, nl := brd.Map().Top(n)
+					// it meets the floor it runs on to halfway, and at a mouth the ground
+					// before it
 					if nf := nb.Storey(f.Storey); nf.Sunk() {
-						_, nl := brd.Map().Top(n)
-						far = (z + nl + nf.Height) / 2
+						far, mouth = (z+nl+nf.Height)/2, false
+					} else {
+						far = nl
 					}
 				}
 				// the lamps are counted along the stretch's line, from where it crosses the
 				// world's corner
-				l := f32.Hypot(step.X, step.Y)
-				from := -(end.X*step.X + end.Y*step.Y) / l
+				from := -(end.X*u.X + end.Y*u.Y)
 				dst = append(dst, end.X, end.Y, far, f.Width/2, m.X, m.Y, z, f.Clear,
-					wallLeft|wallRight, from, 0, 0)
+					wallLeft|wallRight, from, r.mitre(g, f, way), 0)
+				if mouth {
+					dst = frame(dst, end, u, far, (z-far)/(l/2), frameIn*l, f)
+				}
 			}
 		}
 	}
 	return dst
+}
+
+// mitre is how far short of its cell's middle the left wall of the stretch of f coming in
+// along way ends, and its right wall past it, for the stretch to meet the one f turns into on
+// the plane between them; 0 where f runs straight on
+func (r *tubes) mitre(g grid.Grid, f cell.Floor, way int) float32 {
+	other := -1
+	for i := range g.Directions() {
+		if i != way && f.Links.Has(i) {
+			if other >= 0 {
+				return 0 // a fork: its stretches meet as they come
+			}
+			other = i
+		}
+	}
+	if other < 0 {
+		return 0
+	}
+	s, o := g.Step(way), g.Step(other)
+	ls, lo := f32.Hypot(s.X, s.Y), f32.Hypot(o.X, o.Y)
+	// out of the middle along the stretch, and along the one it turns into
+	u, v := geom.NewVec(s.X/ls, s.Y/ls), geom.NewVec(o.X/lo, o.Y/lo)
+	if along := u.X*v.X + u.Y*v.Y; along < 1-1e-3 {
+		// the stretch is drawn coming in: its left is the normal of -u
+		n := geom.NewVec(u.Y, -u.X)
+		return f.Width / 2 * (n.X*v.X + n.Y*v.Y) / (1 - along)
+	}
+	return 0
+}
+
+// frame appends to dst the frame round the mouth of f at end, the tunnel running in against u,
+// its floor rising climb a unit: a jamb either side of the tube and a lintel over it, standing
+// out of the ground and running in as far as the tube shows through the ground cut over it,
+// level, from the lowest of the floor there to over the highest of the roof
+func frame(dst []float32, end, u geom.Vec, floor, climb, in float32, f cell.Floor) []float32 {
+	thick := frameThick * f.Clear
+	out := frameOut * f.Clear
+	// off the tube's own faces, which lie in the same planes
+	gap := thick / 16
+	a, b := geom.NewVec(end.X+u.X*out, end.Y+u.Y*out), geom.NewVec(end.X-u.X*in, end.Y-u.Y*in)
+	low := floor + min(climb*in, 0)
+	top := floor + f.Clear + thick + frameOver*max(climb*in, 0)
+	const all = wallLeft | wallRight | wallBegin | wallEnd
+	for _, side := range [2]float32{-1, 1} {
+		off := side * ((f.Width+thick)/2 + gap)
+		dst = append(dst, a.X-u.Y*off, a.Y+u.X*off, low, thick/2,
+			b.X-u.Y*off, b.Y+u.X*off, low, top-low, all, 0, 0, 1)
+	}
+	return append(dst, a.X, a.Y, floor+f.Clear+gap, f.Width/2+thick+gap,
+		b.X, b.Y, floor+f.Clear+gap, top-floor-f.Clear-gap, all, 0, 0, 1)
 }
 
 // room appends to dst a whole cell's stretch, from its west edge to its east, a wall on every

@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/bridges"
 	"github.com/kjkrol/gram/plugins/topography"
+	"github.com/kjkrol/gram/plugins/underground"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -71,11 +72,22 @@ func (w *chart) check(data []byte) (err error) {
 	br.Types().Define(k.Bridge, bridges.Spec{
 		Allows:    cell.Land,
 		Width:     float32(w.deck()),
-		Thickness: float32(w.r.Roads.Thickness / w.perUnit),
+		Thickness: float32(w.r.Roads.Thickness * w.figures() / w.perUnit),
 		Pace:      1,
 		Rail:      cell.Rail{Keeps: cell.Land},
 		Pier:      1,
 	})
+	var un *underground.Plugin
+	if !w.flat && len(w.roads.tunnels) > 0 {
+		un = underground.NewPlugin(wp, b, underground.Config{Rules: w.roads.tunnelRules(0)})
+		plugins = append(plugins, un)
+		un.Types().Define(k.Tunnel, underground.Spec{
+			Allows: cell.Land,
+			Width:  float32(w.deck()),
+			Clear:  w.roads.clear(),
+			Pace:   1,
+		})
+	}
 	fords := board.NewEntities(b, board.Shape{Size: float32(w.size)},
 		func(r fordRow) cell.ID { return r.At })
 	fords.Define(k.Ford, comp.Const(cell.Floor{Allows: cell.Land}))
@@ -98,6 +110,11 @@ func (w *chart) check(data []byte) (err error) {
 	}
 	if err := br.Write().Spawn(level); err != nil {
 		return err
+	}
+	if un != nil {
+		if err := un.Write().Spawn(level); err != nil {
+			return err
+		}
 	}
 	if topo != nil {
 		topo.Write().Seed(level.Heights())

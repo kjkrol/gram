@@ -21,6 +21,7 @@ type recipe struct {
 	Ground      groundCfg      `yaml:"ground"`
 	Rivers      riversCfg      `yaml:"rivers"`
 	Roads       roadsCfg       `yaml:"roads"`
+	Tunnels     tunnelsCfg     `yaml:"tunnels"`
 	Fields      []fieldCfg     `yaml:"fields"`
 	Settlements settlementsCfg `yaml:"settlements"`
 	Flat        flatCfg        `yaml:"flat"`
@@ -58,6 +59,8 @@ type area struct {
 	Cell   float64    `yaml:"cell"`   // metres
 	Units  uint32     `yaml:"units"`  // world units a cell
 	Sea    int        `yaml:"sea"`    // cells of sea between the land and every edge
+	// how many times bigger than life the figures are drawn; 0: as in life
+	Figures float64 `yaml:"figures"`
 }
 
 type kinds struct {
@@ -73,6 +76,7 @@ type kinds struct {
 	Bridge string `yaml:"bridge"`
 	Ford   string `yaml:"ford"`
 	Built  string `yaml:"built"`
+	Tunnel string `yaml:"tunnel"`
 }
 
 // land is the kinds the land's cells are drawn as
@@ -92,6 +96,9 @@ type settlementsCfg struct {
 	Cells   string         `yaml:"cells"` // the kind laid
 	Sizes   map[string]int `yaml:"sizes"` // cells
 	Default string         `yaml:"default"`
+	// osm: the cells are those OpenStreetMap has Least buildings on or more, no place's size
+	Source string `yaml:"source"`
+	Least  int    `yaml:"least"`
 }
 
 // cells is how many cells a place of size is settled on
@@ -166,6 +173,9 @@ type roadsCfg struct {
 	Route     allowance        `yaml:"route"`
 	Places    map[string]place `yaml:"places"`
 	Routes    [][]string       `yaml:"routes"` // each a chain of places
+	// osm: the roads are OpenStreetMap's of Classes, followed; else planned along Routes
+	Source  string   `yaml:"source"`
+	Classes []string `yaml:"classes"`
 }
 
 // a place roads run to, at a longitude and latitude, settled on as its size says, the
@@ -322,7 +332,7 @@ func defaultRecipe() recipe {
 	r.Kinds = kinds{
 		Sea: "water", Earth: "earth", Sand: "sand", Rock: "rock", Forest: "forest",
 		Brook: "brook", Stream: "stream", River: "river",
-		Road: "road", Bridge: "bridge", Ford: "ford", Built: "built",
+		Road: "road", Bridge: "bridge", Ford: "ford", Built: "built", Tunnel: "tunnel",
 	}
 	r.Ground.Rock.Slope = 0.5
 	r.Ground.Rock.Above = 1e9
@@ -343,5 +353,6 @@ func defaultRecipe() recipe {
 	r.Roads.Bridge = 4
 	r.Roads.Longest = 3
 	r.Roads.High = 60
+	r.Tunnels = tunnelsCfg{Clear: 3, Width: 4, Cover: 5, Grade: 0.1, Longest: 40, Least: 2, Reshape: 60}
 	return r
 }

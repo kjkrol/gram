@@ -44,6 +44,7 @@ func (w *Write) Spawn(level *board.Level) error {
 	return board.Each(level, func(name string, r Row, at string) error {
 		t := p.types.Named(name)
 		g.allows = t.spec.Allows
+		rules.Width = t.spec.Width
 		tn, err := site.Plan(g, rules, t.spec.Clear, r.From, r.To, r.Via...)
 		if err != nil {
 			return err

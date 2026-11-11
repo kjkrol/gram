@@ -53,7 +53,7 @@ type caravanRow struct {
 // over, and folded it takes the way back from them.
 type caravan struct {
 	color color.RGBA
-	// what its wagon and porters are told as they are made: whose they are
+	// what its wagon and porters are told as they are made: whose they are, each picked itself
 	carried func() []command.Command
 }
 

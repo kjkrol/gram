@@ -258,7 +258,9 @@ fn bandAt(a: Out, b: Out, m: vec2<f32>, w: Way, u: f32) -> BandAt {
         t = t / l;
     }
     out.along = t;
-    out.half = v * v * a.half + 2.0 * u * v * (w.width / 2.0) + u * u * b.half;
+    let half = v * v * a.half + 2.0 * u * v * (w.width / 2.0) + u * u * b.half;
+    // three quarters of a pixel at least: a narrower band across the pixels breaks into dots
+    out.half = max(half, 0.75 / U.PaintScale);
     out.shows = 1.0 - (v * v * a.fade + 2.0 * u * v * w.fade + u * u * b.fade);
     out.mix = v * v * a.mix + 2.0 * u * v * w.mix + u * u * b.mix;
     return out;

@@ -13,8 +13,9 @@
 // it runs under, its floor a cell.Floor sunk under the ground (a negative Height) with the room
 // over it (Clear), on a storey of its own, so the ground over it stays ground and a bridge may
 // stand over it; a tunnel's pieces are bands running from one to the next, a chamber's whole
-// cells. Where a tunnel comes out stands its mouth, a piece with a look ([Type.Portal]). Over
-// them stands the handle, "<name>.whole", which takes its pieces with it as it goes (world.Whole).
+// cells. A tunnel comes out square to its head's edge and runs straight through its first
+// cell, its mouth framed, the way in open. Over them stands the handle, "<name>.whole", which
+// takes its pieces with it as it goes (world.Whole).
 // A unit walks in at a mouth and through on the floor, no taller than the room, and a body in
 // the room is kept in by its walls, as collision reads them of the board; a camera riding
 // it stays under the roof; the ground over a mouth is cut away, and inside the structure is

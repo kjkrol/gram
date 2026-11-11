@@ -306,7 +306,8 @@ func (s surfaces) Surface(p geom.Vec, d cell.Domain, feet, step float32) (floor,
 
 // graded is how high the sunk band f of c, its floor at level under c's middle, lies at p: on
 // the way out to each neighbour its links name it runs to the mean of the two floors at their
-// edge, so a tunnel climbs evenly from piece to piece
+// edge, and to the ground of a neighbour it comes out on, so a tunnel climbs evenly from piece
+// to piece and meets the ground at its mouth
 func (s surfaces) graded(c cell.ID, f cell.Floor, p geom.Vec, level float32) float32 {
 	if f.Width <= 0 || f.Links == 0 {
 		return level
@@ -329,11 +330,11 @@ func (s surfaces) graded(c cell.ID, f cell.Floor, p geom.Vec, level float32) flo
 			return level
 		}
 		nb := r.Built(n)
-		nf := nb.Storey(f.Storey)
-		if !nf.Sunk() {
-			return level
+		// at a mouth it comes out on the ground before it
+		edge := r.altitude(n)
+		if nf := nb.Storey(f.Storey); nf.Sunk() {
+			edge = (level + edge + nf.Height) / 2
 		}
-		edge := (level + r.altitude(n) + nf.Height) / 2
 		return level + (edge-level)*min(2*along/l, 1)
 	}
 	return level

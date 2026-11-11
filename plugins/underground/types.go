@@ -12,7 +12,6 @@ import (
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 )
 
 // Spec is what a kind of structure under the ground is: whom its floor carries (Allows, at Pace;
@@ -52,13 +51,6 @@ type boreRow struct {
 	Wide   bool
 }
 
-// a tunnel's mouth: the middle of the edge it opens through, the way into it and its floor
-type portalRow struct {
-	At    geom.Vec
-	Dir   geom.Vec
-	Floor float32
-}
-
 // a structure whole: the box over its cells, from its corner At, and its lowest floor
 type wholeRow struct {
 	At, Size geom.Vec
@@ -75,7 +67,7 @@ type Types struct {
 }
 
 // Define registers the kind of tunnel named name, as spec says, with the kinds of its parts,
-// "<name>.bore" and "<name>.portal", and of its handle, "<name>.whole".
+// "<name>.bore", and of its handle, "<name>.whole".
 func (t *Types) Define(name string, spec Spec) {
 	if spec.Width <= 0 {
 		panic(fmt.Sprintf("underground: tunnel %q: it needs a Width", name))
@@ -148,20 +140,6 @@ func (t *Types) define(name string, spec Spec) {
 		// the plugin draws it from inside
 		comp.Const(world.Unseen{}),
 	)
-	side := max(spec.Width, float32(w.Res.Config.Entities.MinSize))
-	kind.Define[portalRow](w.Kinds(), portalName(name), kind.Spec{
-		comp.Load(func(r portalRow) world.Position {
-			return world.Position{AABB: plane.NewAABB(
-				geom.NewVec(r.At.X-side/2, r.At.Y-side/2), side, side)}
-		}),
-		comp.Load(func(r portalRow) world.Velocity { return world.Velocity{Dir: r.Dir} }),
-		comp.Load(func(r portalRow) world.Z {
-			return world.Z{Altitude: r.Floor, Height: spec.Clear}
-		}),
-		comp.Const(light.Shadow{Cast: light.NoShadow}),
-		comp.Const(vision.Transparency{Value: 1}),
-		comp.Const(world.Fixed{}),
-	})
 	kind.Define[wholeRow](w.Kinds(), wholeName(name), kind.Spec{
 		comp.Load(func(r wholeRow) world.Position {
 			return world.Position{AABB: plane.NewAABB(r.At, r.Size.X, r.Size.Y)}
@@ -190,23 +168,21 @@ func (t *Types) Named(name string) Type {
 	}
 	w := t.p.worldPlugin
 	return Type{
-		name:   name,
-		spec:   spec,
-		room:   t.rooms[name],
-		bore:   kind.Named[boreRow](w.Kinds(), boreName(name)),
-		portal: kind.Named[portalRow](w.Kinds(), portalName(name)),
-		whole:  kind.Named[wholeRow](w.Kinds(), wholeName(name)),
+		name:  name,
+		spec:  spec,
+		room:  t.rooms[name],
+		bore:  kind.Named[boreRow](w.Kinds(), boreName(name)),
+		whole: kind.Named[wholeRow](w.Kinds(), wholeName(name)),
 	}
 }
 
 // Type is a kind of structure under the ground defined.
 type Type struct {
-	name   string
-	spec   Spec
-	room   bool
-	bore   kind.Of[boreRow]
-	portal kind.Of[portalRow]
-	whole  kind.Of[wholeRow]
+	name  string
+	spec  Spec
+	room  bool
+	bore  kind.Of[boreRow]
+	whole kind.Of[wholeRow]
 }
 
 // Name is what the kind of structure is called.
@@ -215,9 +191,5 @@ func (t Type) Name() string { return t.name }
 // Spec is what the kind of structure is.
 func (t Type) Spec() Spec { return t.spec }
 
-// Portal is the atlas slot a tunnel's mouths are drawn from, standing.
-func (t Type) Portal() render.SpriteID { return t.portal.SpriteID() }
-
-func boreName(name string) string   { return name + ".bore" }
-func portalName(name string) string { return name + ".portal" }
-func wholeName(name string) string  { return name + ".whole" }
+func boreName(name string) string  { return name + ".bore" }
+func wholeName(name string) string { return name + ".whole" }

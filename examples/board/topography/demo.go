@@ -222,7 +222,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 			MaxStep: scale.Units(48),
 		}})
 	a.bridges = bridges.NewPlugin(a.world, a.board, bridges.Config{Rules: site.Rules{
-		Longest:   4,
+		Longest:   6,
 		Under:     figure + deckThickness + scale.Units(1),
 		Clearance: deckThickness + scale.Units(1),
 		Reshape:   scale.Units(60),
@@ -391,14 +391,8 @@ func overField(b *board.Plugin) []comp.Comp {
 // unseen is the look of what is drawn for it by its parts
 func unseen(*render.Canvas, int) {}
 
-// carried is what the wagon and the porters of a caravan are told as they are made: whose they
-// are; the caravan alone is picked, through any of them
-func (a *arena) carried() []command.Command {
-	return []command.Command{players.Give{To: a.player.ID}}
-}
-
-// enlisted is what a band's walkers are told as they are made: whose they are, and that each is
-// picked itself where it stands
+// enlisted is what a band's walkers, a caravan and its wagon and porters are told as they are
+// made: whose they are, and that each is picked itself where it stands
 func (a *arena) enlisted() []command.Command {
 	return []command.Command{players.Give{To: a.player.ID}, selection.Allow{}}
 }
@@ -424,7 +418,7 @@ func (a *arena) defineFigures() {
 		settlement{},
 		wagon{},
 		porter{color: playerColor},
-		caravan{color: playerColor, carried: a.carried},
+		caravan{color: playerColor, carried: a.enlisted},
 		traveller{color: playerColor},
 		band{color: playerColor, joined: a.enlisted},
 	)
@@ -470,7 +464,7 @@ func (a *arena) spawn() error {
 	if err := a.tunnels.Write().Spawn(level); err != nil {
 		return err
 	}
-	caravans := board.Sides{ReserveSide: append(a.carried(), selection.Allow{})}
+	caravans := board.Sides{ReserveSide: a.enlisted()}
 	if err := board.Spawn[caravanRow](level, caravans); err != nil {
 		return err
 	}

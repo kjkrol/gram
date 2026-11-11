@@ -207,28 +207,21 @@ func TestSpawn_ALevelsTunnelLiesUnderTheRidgeFromHeadToHead(t *testing.T) {
 			t.Errorf("under [%d, 3]: %+v, want %+v", x, f, want)
 		}
 	}
-	wholes, pieces, portals := 0, 0, 0
+	wholes, pieces := 0, 0
 	for d.all.All(); d.all.Next(); {
 		cur := d.all.Cursor()
-		for i := range cur.IDs {
+		for range cur.IDs {
 			switch {
 			case d.whole.Slice(cur) != nil:
 				wholes++
 			case d.piece.Slice(cur) != nil:
 				pieces++
-				if d.floor.Slice(cur) == nil {
-					portals++
-					if z := d.z.Slice(cur)[i]; z.Altitude != 0 || z.Height != 3 {
-						t.Errorf("a mouth stands from %v up %v, want from the floor up its room",
-							z.Altitude, z.Height)
-					}
-				}
 			}
 		}
 	}
-	if wholes != 1 || pieces != 6 || portals != 2 {
-		t.Errorf("%d handles, %d pieces, %d of them mouths; want one handle over four pieces "+
-			"and two mouths", wholes, pieces, portals)
+	if wholes != 1 || pieces != 4 {
+		t.Errorf("%d handles, %d pieces; want one handle over the four pieces, its mouths none "+
+			"of their own", wholes, pieces)
 	}
 	brd := d.board.Read(0).Board()
 	inside := g.CellCenter(g.At(5, 3))

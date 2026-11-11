@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"maps"
+	"math"
 	"slices"
 
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -14,6 +15,10 @@ import (
 func (w *chart) settle() {
 	s := w.r.Settlements
 	w.settled = map[string][]cell.ID{}
+	if s.Source == "osm" && w.osm != nil {
+		w.build()
+		return
+	}
 	taken := map[cell.ID]bool{}
 	for _, name := range slices.Sorted(maps.Keys(w.r.Roads.Places)) {
 		n, _ := s.cells(w.r.Roads.Places[name].Size)
@@ -101,4 +106,25 @@ func (w *chart) byRoad(c cell.ID) bool {
 		}
 	}
 	return false
+}
+
+// build lays the settlements' cells where OpenStreetMap has buildings, the settlements' least a
+// cell or more, on what a settlement may take, no tunnel's mouth under it
+func (w *chart) build() {
+	s := w.r.Settlements
+	count := make([]int, w.cols*w.rows)
+	for _, b := range w.osm.buildings {
+		fx, fy := w.place(b[0], b[1])
+		if x, y := int(math.Floor(fx)), int(math.Floor(fy)); x >= 0 && y >= 0 && x < w.cols &&
+			y < w.rows {
+			count[y*w.cols+x]++
+		}
+	}
+	for i, n := range count {
+		c := w.cell(i%w.cols, i/w.cols)
+		if n >= max(s.Least, 1) && w.settles(c) && !w.roads.mouths[c] {
+			w.soils[i] = s.Cells
+			w.built++
+		}
+	}
 }

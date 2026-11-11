@@ -18,11 +18,11 @@ var _ bridges.Figure = bridge{}
 func (bridge) Define(p *bridges.Plugin) {
 	p.Types().Define(BridgeKind, bridges.Spec{
 		Allows:    cell.Land,
-		Width:     12,
+		Width:     scale.Figure(2.5),
 		Thickness: deckThickness,
 		Pace:      1,
 		Rail:      cell.Rail{Keeps: cell.Land, Height: scale.Figure(1)},
-		Pier:      3,
+		Pier:      scale.Figure(0.625),
 	})
 }
 

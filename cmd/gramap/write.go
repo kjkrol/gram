@@ -24,6 +24,10 @@ const attribution = `# Made by cmd/gramap. Heights: Terrain Tiles on AWS (Mapzen
 func (w *chart) text(recipePath, units string) []byte {
 	var b bytes.Buffer
 	b.WriteString(attribution)
+	if w.osm != nil {
+		b.WriteString("# Roads, tunnels, bridges and buildings: © OpenStreetMap contributors, " +
+			"under the ODbL;\n# see https://www.openstreetmap.org/copyright\n")
+	}
 	fmt.Fprintf(&b, "# From %s", recipePath)
 	if w.flat {
 		b.WriteString(", flat")
@@ -79,10 +83,22 @@ func (w *chart) writeBoard(b *bytes.Buffer) {
 		b.WriteString("\n")
 	}
 	stands, fields := w.standing(), w.fields()
-	if len(stands)+len(fields) == 0 {
+	if len(stands)+len(fields)+len(w.roads.tunnels) == 0 {
 		return
 	}
 	b.WriteString("  entities:\n")
+	for _, t := range w.roads.tunnels {
+		fmt.Fprintf(b, "    - {kind: %s, from: %s, to: %s", k.Tunnel, w.point(t.from),
+			w.point(t.to))
+		if len(t.via) > 0 {
+			via := make([]string, len(t.via))
+			for i, c := range t.via {
+				via[i] = w.point(c)
+			}
+			fmt.Fprintf(b, ", via: [%s]", strings.Join(via, ", "))
+		}
+		b.WriteString("}\n")
+	}
 	for _, s := range stands {
 		x, y := w.xy(s.at)
 		if s.bridge {
@@ -170,6 +186,13 @@ func (w *chart) writeWays(b *bytes.Buffer) {
 					items = append(items, xy)
 				}
 				writeList(b, "        - ", items)
+			}
+		}
+		// a road runs on into each tunnel from its head
+		for _, t := range w.roads.tunnels {
+			under := t.plan.Cells
+			for _, e := range [2][2]cell.ID{{t.from, under[0]}, {t.to, under[len(under)-1]}} {
+				fmt.Fprintf(b, "        - [%s, {onto: %s}]\n", w.point(e[0]), w.point(e[1]))
 			}
 		}
 	}

@@ -69,7 +69,7 @@ make demo-board-topography                                      # Madeira in rel
 make demo-board-topography-ghibli                               # the same ground painted, the light in bands (-look ghibli)
 make demo-board-topography-widgets                              # the hour, the date and the weather apart by the corners, not in a bar (-hud widgets)
 make demo-board-forest-army                                     # a forest and two armies folded far off and unfolded near: trees, soldiers, a battle either way
-go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS, its forests and settlements as fields
+go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS, its roads, tunnels, bridges and buildings OpenStreetMap's, its forests and settlements as fields
 make demo-navigation-square                                     # units sent round a wall, over a river by a bridge a wagon is too wide for; walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-hex                                        # the same on a hex board
 make demo-navigation-spawn                                      # walkers spawned under the cursor (N) hold their cells, the cells held shown
@@ -354,8 +354,9 @@ Decisions the user has made; they are not up for revisiting in passing.
   word, 2026-11-07): a click, a marquee or a hover on a part without `selection.Allow` selects
   its whole, the outline drawn round each part standing, the orders going to the whole; a part
   told `Allow` is picked itself (2026-11-08: a group of individuals, the army, the band, tells
-  its parts `Allow`, so one is selected where it stands; a unit of pieces, the caravan, does
-  not). L4 is
+  its parts `Allow`, so one is selected where it stands; 2026-11-11: the caravan's wagon and
+  porters too, the user's word: a unit moving in a group is picked alone and ordered alone).
+  L4 is
   the thermodynamics, L2 the dynamics: a descent realises the coarse state in fine terms as the
   fine processes would have run it (the cell at the elapsed share of the leg's refined route; the
   parts from `lod.Seed` and the aggregate's state), an ascent sums the fine into the coarse, both
