@@ -38,6 +38,7 @@ func TestTubes_DrawAStretchWhereItLiesAndNothingBesideIt(t *testing.T) {
 	r := &tubes{}
 	// from (100, 250) to (400, 250), 80 wide and 30 high, its walls along it standing
 	r.bufs[0] = []float32{100, 250, 0, 40, 400, 250, 0, 30, wallLeft | wallRight, 100, 0, 0}
+	r.kept[0] = render.NewInstances(r.bufs[0])
 	screen := render.NewImage(64, 64)
 	depth := render.NewDepth()
 	screen.ClearDepth(depth)
@@ -84,15 +85,25 @@ func TestMitre_CutsAStretchOnThePlaneBetweenItAndTheOneItTurnsInto(t *testing.T)
 func TestFrame_StandsRoundTheMouthLevelOverTheRoofAsItRunsIn(t *testing.T) {
 	f := cell.Floor{Width: 6, Clear: 4}
 	// the floor at 10 at the mouth, climbing a half a unit, the frame running 16 in
-	got := frame(nil, geom.NewVec(50, 20), geom.NewVec(1, 0), 10, 0.5, 16, f)
-	if len(got) != 3*tubeFloats {
-		t.Fatalf("a frame of %d floats, want two jambs and a lintel", len(got))
+	all := frame(nil, geom.NewVec(50, 20), geom.NewVec(1, 0), 10, 0.5, 16, f)
+	if len(all) != 6*tubeFloats {
+		t.Fatalf("a frame of %d floats, want two jambs and a lintel, each a face and a cover",
+			len(all))
 	}
-	for k := 0; k < len(got); k += tubeFloats {
-		if p := got[k : k+tubeFloats]; p[11] != 1 || p[0] <= 50 || p[4] != 34 {
-			t.Errorf("the piece %v, want a frame's from outside the mouth at x 50 to 16 in", p)
+	// the face round the mouth, as deep as the frame is thick, and the cover behind it
+	thick := float32(frameThick * 4)
+	for k := 0; k < len(all); k += tubeFloats {
+		p := all[k : k+tubeFloats]
+		face := k < 3*tubeFloats
+		switch {
+		case face && (p[11] != 1 || p[0] <= 50 || p[4] != 50-thick):
+			t.Errorf("the piece %v, want the face from outside the mouth at x 50 to %v in", p,
+				thick)
+		case !face && (p[11] != 2 || p[0] != 50-thick || p[4] != 34):
+			t.Errorf("the piece %v, want the cover from behind the face to 16 in", p)
 		}
 	}
+	got := all[3*tubeFloats:]
 	if l, r := got[1], got[tubeFloats+1]; f32.Abs(l-20) <= 3 || f32.Abs(r-20) <= 3 || l == r {
 		t.Errorf("the jambs at y %v and %v, want one either side of a tube 3 off its middle", l, r)
 	}

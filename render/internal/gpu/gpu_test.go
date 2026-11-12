@@ -278,6 +278,62 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> { return o.color; }`).Instanced(2)
 	}
 }
 
+func TestMesh_InstancesKeptAreDrawnAsThoseOfTheFrame(t *testing.T) {
+	needGPU(t)
+	p := NewMesh("test kept", "", `
+struct Out {
+    @builtin(position) clip: vec4<f32>,
+    @location(0) color: vec4<f32>,
+}
+@vertex
+fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>, @location(1) color: vec4<f32>) -> Out {
+    var corners = array<vec2<f32>, 6>(vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 0.0), vec2<f32>(0.0, 1.0), vec2<f32>(1.0, 0.0), vec2<f32>(1.0, 1.0), vec2<f32>(0.0, 1.0));
+    let px = at.xy + corners[vid] * at.zw;
+    var o: Out;
+    o.clip = vec4<f32>(px.x / D.target.x * 2.0 - 1.0, 1.0 - px.y / D.target.y * 2.0, 0.0, 1.0);
+    o.color = color;
+    return o;
+}
+@fragment
+fn fs_main(o: Out) -> @location(0) vec4<f32> { return o.color; }`).Instanced(2)
+	data := []float32{
+		0, 0, 1, 4, 1, 0, 0, 1,
+		1, 0, 1, 4, 0, 1, 0, 1,
+		2, 0, 1, 4, 0, 0, 1, 1,
+		3, 0, 1, 4, 1, 1, 0, 1,
+	}
+	shot := func(dw MeshDraw) []byte {
+		dst := NewTexture(4, 4)
+		dw.Target, dw.Program, dw.Vertices, dw.Blend = Image{Texture: dst}, p, 6, Copy
+		Mesh(&dw)
+		pix := make([]byte, 64)
+		dst.ReadPixels(pix)
+		return pix
+	}
+	kept := NewInstances(data)
+	if got, want := shot(MeshDraw{Kept: kept}), shot(MeshDraw{Instances: data}); !bytes.Equal(got, want) {
+		t.Errorf("kept whole %v, of the frame %v", got, want)
+	}
+	// the first and the last two, a range past the end and an empty one drawing nothing
+	got := shot(MeshDraw{Kept: kept, Spans: []Range{{0, 1}, {2, 9}, {7, 2}, {1, 0}}})
+	want := shot(MeshDraw{Instances: append(append([]float32(nil), data[:8]...), data[16:]...)})
+	if !bytes.Equal(got, want) {
+		t.Errorf("kept in ranges %v, of the frame %v", got, want)
+	}
+	if p := pixel(got, 4, 1, 2); p != [4]byte{} {
+		t.Errorf("the instance left out drew %v", p)
+	}
+	// released with a draw gathered and not yet submitted
+	dst := NewTexture(4, 4)
+	Mesh(&MeshDraw{Target: Image{Texture: dst}, Program: p, Vertices: 6, Blend: Copy, Kept: kept})
+	kept.Release()
+	pix := make([]byte, 64)
+	dst.ReadPixels(pix)
+	if p := pixel(pix, 4, 3, 1); p != [4]byte{255, 255, 0, 255} {
+		t.Errorf("drawn before its release %v, want yellow", p)
+	}
+}
+
 func TestWritePixels_GoesInTheOrderOfTheDraws(t *testing.T) {
 	needGPU(t)
 	red, green, blue := []byte{255, 0, 0, 255}, []byte{0, 255, 0, 255}, []byte{0, 0, 255, 255}

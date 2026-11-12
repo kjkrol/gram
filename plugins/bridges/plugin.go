@@ -31,8 +31,20 @@ type Config struct {
 }
 
 // Resources is the state of bridges, saved with the game whole: the bridges ordered and not yet
-// built.
-type Resources struct{ Orders []Order }
+// built, and those laid along paths, as their structures are drawn.
+type Resources struct {
+	Orders []Order
+	Wound  []Wound
+}
+
+// Wound is a bridge laid along a path: its kind, its width, and its axis and its deck's level
+// at every cell.
+type Wound struct {
+	Kind  string
+	Width float32
+	At    []geom.Vec
+	Deck  []float32
+}
 
 // Order is a bridge its player confirmed (Build), built at the next step of the simulation: the
 // name of its kind of bridge (Types.Named) and its plan.
@@ -54,6 +66,8 @@ type Plugin struct {
 	shaper      ground.Shaper
 	module      *module
 	renderer    *renderer
+	structure   *structure
+	sky         Sky
 	kept        *plugin.Kept[Resources]
 
 	hands map[command.Issuer]*hand
@@ -84,6 +98,7 @@ func NewPlugin(w *world.Plugin, brd *board.Plugin, cfg Config) *Plugin {
 	p.write.p = p
 	p.types = &Types{p: p}
 	p.renderer = &renderer{p: p}
+	p.structure = &structure{p: p}
 	p.Self = world.NewSelf(w, p)
 	return p
 }
@@ -225,6 +240,7 @@ func (p *Plugin) Name() string { return "gram.bridges" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = newModule(p)
 	ctx.UseModule(p.module)
+	ctx.Draws(p.structure)
 	ctx.Draws(p.renderer)
 	return nil
 }
@@ -239,7 +255,10 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // entities.
 func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
 
-// Restore takes the Resources loaded.
-func (p *Plugin) Restore() { p.kept.Restore() }
+// Restore takes the Resources loaded and has the structures laid anew.
+func (p *Plugin) Restore() {
+	p.kept.Restore()
+	p.structure.stale = true
+}
 
 func (p *Plugin) String() string { return fmt.Sprintf("bridges %v", p.types.names) }

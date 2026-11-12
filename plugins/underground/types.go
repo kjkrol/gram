@@ -31,6 +31,9 @@ type Row struct {
 	From cell.ID   `yaml:"from"`
 	To   cell.ID   `yaml:"to"`
 	Via  []cell.ID `yaml:"via"`
+	// Lanes are the lanes of the road through it: one marked with them is a road's, drawn
+	// on through its mouths as the roads over the ground are.
+	Lanes uint8 `yaml:"lanes"`
 }
 
 // RoomRow is a chamber as a level's file writes it: under the rectangle of cells from From to
@@ -49,6 +52,7 @@ type boreRow struct {
 	Height float32
 	Storey uint8
 	Wide   bool
+	Lanes  uint8
 }
 
 // a structure whole: the box over its cells, from its corner At, and its lowest floor
@@ -130,7 +134,7 @@ func (t *Types) define(name string, spec Spec) {
 				Storey: r.Storey,
 			}
 			if !r.Wide {
-				f.Links, f.Width = r.Links, spec.Width
+				f.Links, f.Width, f.Lanes = r.Links, spec.Width, r.Lanes
 			}
 			return f
 		}),

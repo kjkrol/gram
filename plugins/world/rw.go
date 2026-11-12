@@ -225,6 +225,31 @@ func (r *Read) LevelAt(x, y float32) lod.Level { return r.p.module.sectors.level
 // of no sectors.
 func (r *Read) SectorOf(x, y float32) int { return r.p.module.sectors.of(x, y) }
 
+// Unfolding is the stretch of an aggregate the step's Unfold told of as its subject: whose it is,
+// its sector and its box there, and whether it is a preview for the sheets, spawning nothing.
+type Unfolding struct {
+	Whole   uid.UID64
+	Sector  int
+	Box     geom.AABB
+	Preview bool
+}
+
+// Unfolding is the stretch an Unfold of this step told of, by the id a command aimed under it
+// was given (host.Aimed); false for any other.
+func (r *Read) Unfolding(stretch uid.UID64) (Unfolding, bool) {
+	for _, p := range r.p.module.wholes.telling {
+		if p.stretch == stretch {
+			return Unfolding{
+				Whole:   p.whole,
+				Sector:  p.sector,
+				Box:     p.box,
+				Preview: isPreview(stretch),
+			}, true
+		}
+	}
+	return Unfolding{}, false
+}
+
 // SectorSide is the side of the world's square sectors, in world units; 0 in a world of no
 // sectors.
 func (r *Read) SectorSide() float32 {

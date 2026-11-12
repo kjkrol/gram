@@ -1,8 +1,8 @@
 // Package forest plants forests over the board: fields of trees standing as a camera comes near
 // and folding into the world's sheets as it goes.
 //
-// [NewPlugin] takes the world and the board, whose cells and heights a forest reads. It has no
-// pass of its own: its trees come and go by the world's moments of an aggregate.
+// [NewPlugin] takes the world and the board, whose cells and heights a forest reads. Its trees
+// come and go by the world's moments of an aggregate.
 //
 // # Kinds of trees
 //
@@ -29,6 +29,12 @@
 // of the forest's choose between two stands; [Stands.Felled] tells a forest folding short of its
 // trees.
 //
+// # Trees standing by themselves
+//
+// A line of a level's file `{kind: <a kind of tree>, at: [x, y]}` is a tree standing where it
+// says ([Write.Spawn], [Write.Stand]): an entity where the aggregate over its sector unfolds
+// and gives itself [Plant], gone as the sector folds. [Plugin.RunPlan] plants them.
+//
 // # Figures
 //
 // A [Figure] is a kind of forest in one piece: Define its kinds of trees on the plugin's Types and
@@ -38,5 +44,6 @@
 //
 // # Vocabulary
 //
-// Roles: [TreeRole], every tree's. Words: [Stands.Felled], of a world.Fold.
+// Roles: [TreeRole], every tree's. Words: [Stands.Felled], of a world.Fold. Commands, an
+// aggregate's own under a world.Unfold: [Plant].
 package forest

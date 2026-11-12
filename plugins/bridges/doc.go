@@ -23,6 +23,16 @@
 // head: [Write.Spawn] builds every one in the Spawn section and fails with the line of one that
 // may not stand.
 //
+// # A bridge along a path
+//
+// A line `{kind: bridge, lanes: 2, width: 22, path: [[x, y, dx, dy], ...]}` is a bridge laid
+// over every cell it lists, each beside the one before, its axis passing each cell (dx, dy)
+// off the middle: it turns as they lie and climbs evenly from the ground under its first
+// head's axis to that under its last's, bound by no rule of site's. Its deck's surface is a
+// road's, drawn by the ground's look; a kind with a [Model] ([Beam], [Arch], [Viaduct]) has its
+// structure drawn by the plugin as solids at every level: the girder, the parapets, a pier
+// every Spec.Span, in the frame's light and the air's haze ([Plugin.WithAir]).
+//
 // # A bridge in a player's hand
 //
 // [Plugin.DefaultBindings] have Shift+B take a bridge in hand ([Tool]); while the player holds

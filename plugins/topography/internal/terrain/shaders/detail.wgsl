@@ -10,6 +10,8 @@ const acrossScale = 16.0;
 // whole: a tile's texels would shimmer with no mipmaps, so the ground falls back to its colour
 const detailFar = 14.0;
 const detailNear = 40.0;
+// how many cells across a tile the two are meant for
+const detailWhole = 3.0;
 
 // detailTile is the tile k's pixels (its top-left, inside the border) in GroundDetail.
 fn detailTile(k: f32) -> vec2<f32> {
@@ -51,15 +53,15 @@ fn kindAt(t: vec2<f32>) -> f32 {
 // A cell of one kind carries it in own (the flags' alpha, cellDetailAt); one kind round p, the
 // common case among the rest, is told by one blended read: four kinds alike blend to their own
 // number, two apart to one between.
-fn detailAt(p: vec2<f32>, own: f32) -> vec3<f32> {
+fn detailAt(p: vec2<f32>, own: f32, span: f32) -> vec3<f32> {
     if own < 254.5 {
-        return detailToneOf(own, p);
+        return detailToneOf(own, p, span);
     }
     let t = clamp(p / U.Cell * U.Px, vec2<f32>(0.5), (U.Corners - 1.0) * U.Px - 0.5);
     let r = imageSrc3Linear(imageSrc3Origin() + t).r * 255.0;
     let k = floor(r + 0.5);
     if abs(r - k) < 0.02 {
-        return detailToneOf(k, p);
+        return detailToneOf(k, p, span);
     }
     let i = floor(t - 0.5);
     let f = t - 0.5 - i;
@@ -68,18 +70,25 @@ fn detailAt(p: vec2<f32>, own: f32) -> vec3<f32> {
     let k01 = kindAt(i + vec2<f32>(0.5, 1.5));
     let k11 = kindAt(i + vec2<f32>(1.5, 1.5));
     var tone = vec3<f32>(0.0);
-    tone += detailToneOf(k00, p) * (1.0 - f.x) * (1.0 - f.y);
-    tone += detailToneOf(k10, p) * f.x * (1.0 - f.y);
-    tone += detailToneOf(k01, p) * (1.0 - f.x) * f.y;
-    tone += detailToneOf(k11, p) * f.x * f.y;
+    tone += detailToneOf(k00, p, span) * (1.0 - f.x) * (1.0 - f.y);
+    tone += detailToneOf(k10, p, span) * f.x * (1.0 - f.y);
+    tone += detailToneOf(k01, p, span) * (1.0 - f.x) * f.y;
+    tone += detailToneOf(k11, p, span) * f.x * f.y;
     return tone;
 }
 
-fn detailToneOf(k: f32, p: vec2<f32>) -> vec3<f32> {
+// A tile finer than detailWhole cells across shows as its own span on the screen lets it: its
+// texels would fall many to a pixel where a cell's detail still shows, and flicker.
+fn detailToneOf(k: f32, p: vec2<f32>, span: f32) -> vec3<f32> {
     if k < 0.5 {
         return vec3<f32>(0.5);
     }
-    return detailOf(k, p);
+    let fine = detailAcross(k) / detailWhole;
+    if fine >= 1.0 {
+        return detailOf(k, p);
+    }
+    let keep = detailShow(span * fine) / max(detailShow(span), 1e-3);
+    return mix(vec3<f32>(0.5), detailOf(k, p), min(keep, 1.0));
 }
 
 // detailShow is how much of the detail shows where a cell spans span screen pixels.

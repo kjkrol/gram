@@ -50,7 +50,11 @@
 // shine, its flow, how it spreads, and its painter.Detail, a texture laid over its cells seen
 // near as a grain round the kind's own colour, fading out as a cell shrinks on the screen; what
 // sways on a cell (cell.Kind.Sway) leans its grain with the weather's wind, the gusts going over
-// the ground as a wave. How the light is styled is a painter.Shading ([Plugin.WithShading]):
+// the ground as a wave. A way whose Style has a painter.Ribbon is drawn as a road: a ribbon in
+// its true width along the axes of its cells (cell.Way.Off), level across, its lanes marked,
+// the ways meeting on a plate or round a roundabout's island, at every level; a deck laid along
+// a path is surfaced the same. How the light is styled is a painter.Shading
+// ([Plugin.WithShading]):
 // the sun's light in bands, the shade tinted, the sun warmed.
 //
 // # Drawing and commands

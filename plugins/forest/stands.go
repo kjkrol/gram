@@ -187,7 +187,7 @@ func (pl *planting) sows(k int, when cond.Cond) cond.Cond {
 // draws among those growing there
 func (pl *planting) plants(k int) act.Step {
 	spawn := func(sh Share) act.Step {
-		tree := kind.EntryOf(sh.Tree, treeRow{})
+		tree := kind.EntryOf(sh.Tree, Row{})
 		return act.Self.Do(world.SpawnPart{Entry: tree, At: pl.shaken[k]})
 	}
 	if len(pl.mix) == 1 && !pl.banded {
@@ -272,6 +272,7 @@ func (pl *planting) onWay(bd *board.BoardRead, way cell.Way, q geom.Vec) bool {
 	if !way.Runs() {
 		return false
 	}
+	q = q.Sub(way.Off)
 	half := way.Width/2 + way.Width/4 + pl.widest()/2
 	if q.X*q.X+q.Y*q.Y <= half*half {
 		return true

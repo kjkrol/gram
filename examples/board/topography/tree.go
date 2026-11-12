@@ -16,42 +16,52 @@ type foliage struct {
 }
 
 // Madeira's trees, each drawn from above and from the side, its side spanning its crown across
-// and its height down, sized in metres of life, no crown wider than a cell. Of the laurisilva:
-// the til, the laurel, the vinhático, the barbusano and the faia; of the heights: the tree
-// heather and the Madeira cedar; brought in: the maritime pine, the eucalyptus, the acacia and the chestnut; of the
-// coast and the terraces: the dragon tree, the palm, the banana and the vine.
+// and its height down, sized in metres of life, no crown wider than the map's world holds. Of
+// the laurisilva: the til, the laurel, the vinhático, the barbusano and the faia; of the
+// heights: the tree heather and the Madeira cedar; brought in: the maritime pine, the
+// eucalyptus, the acacia and the chestnut; of the coast and the terraces: the dragon tree, the
+// palm, the banana and the vine.
+// crown is how wide a tree's crown is, metres: as in life where the map's world holds it, else
+// as wide as the island's does, its figures many times bigger than life
+func crown(island, life float32) float32 {
+	if here.crowns {
+		return life
+	}
+	return island
+}
+
 var trees = map[string]forest.Spec{
-	TilKind: broadleaf(25, 6.5, foliage{
+	TilKind: broadleaf(25, crown(6.5, 12), foliage{
 		crown:  color.RGBA{R: 22, G: 70, B: 38, A: 255},
 		leaves: color.RGBA{R: 50, G: 104, B: 52, A: 255},
 		trunk:  color.RGBA{R: 62, G: 48, B: 36, A: 255},
 	}),
-	LaurelKind: broadleaf(12, 5.5, foliage{
+	LaurelKind: broadleaf(12, crown(5.5, 8), foliage{
 		crown:  color.RGBA{R: 30, G: 84, B: 42, A: 255},
 		leaves: color.RGBA{R: 64, G: 122, B: 58, A: 255},
 		trunk:  color.RGBA{R: 72, G: 54, B: 38, A: 255},
 	}),
-	VinhaticoKind: broadleaf(20, 6, foliage{
+	VinhaticoKind: broadleaf(20, crown(6, 10), foliage{
 		crown:  color.RGBA{R: 44, G: 96, B: 48, A: 255},
 		leaves: color.RGBA{R: 150, G: 96, B: 60, A: 255},
 		trunk:  color.RGBA{R: 96, G: 64, B: 44, A: 255},
 	}),
-	BarbusanoKind: broadleaf(15, 5.5, foliage{
+	BarbusanoKind: broadleaf(15, crown(5.5, 8), foliage{
 		crown:  color.RGBA{R: 40, G: 76, B: 36, A: 255},
 		leaves: color.RGBA{R: 86, G: 112, B: 48, A: 255},
 		trunk:  color.RGBA{R: 58, G: 46, B: 38, A: 255},
 	}),
-	FaiaKind: broadleaf(8, 5, foliage{
+	FaiaKind: broadleaf(8, crown(5, 6), foliage{
 		crown:  color.RGBA{R: 66, G: 110, B: 46, A: 255},
 		leaves: color.RGBA{R: 112, G: 150, B: 64, A: 255},
 		trunk:  color.RGBA{R: 90, G: 74, B: 56, A: 255},
 	}),
-	ChestnutKind: broadleaf(18, 6.5, foliage{
+	ChestnutKind: broadleaf(18, crown(6.5, 10), foliage{
 		crown:  color.RGBA{R: 58, G: 112, B: 44, A: 255},
 		leaves: color.RGBA{R: 132, G: 160, B: 62, A: 255},
 		trunk:  color.RGBA{R: 84, G: 62, B: 44, A: 255},
 	}),
-	AcaciaKind: broadleaf(12, 5, foliage{
+	AcaciaKind: broadleaf(12, crown(5, 7), foliage{
 		crown:  color.RGBA{R: 70, G: 104, B: 62, A: 255},
 		leaves: color.RGBA{R: 214, G: 190, B: 70, A: 255},
 		trunk:  color.RGBA{R: 70, G: 58, B: 48, A: 255},
@@ -66,17 +76,17 @@ var trees = map[string]forest.Spec{
 		leaves: color.RGBA{R: 148, G: 172, B: 70, A: 255},
 		trunk:  color.RGBA{R: 86, G: 66, B: 48, A: 255},
 	}),
-	PineKind: conifer(15, 3.75, foliage{
+	PineKind: conifer(15, crown(3.75, 6), foliage{
 		crown:  color.RGBA{R: 38, G: 90, B: 70, A: 255},
 		leaves: color.RGBA{R: 54, G: 108, B: 82, A: 255},
 		trunk:  color.RGBA{R: 84, G: 58, B: 40, A: 255},
 	}),
-	CedarKind: conifer(12, 5, foliage{
+	CedarKind: conifer(12, crown(5, 6), foliage{
 		crown:  color.RGBA{R: 44, G: 82, B: 84, A: 255},
 		leaves: color.RGBA{R: 86, G: 124, B: 122, A: 255},
 		trunk:  color.RGBA{R: 104, G: 72, B: 56, A: 255},
 	}),
-	EucalyptusKind: slender(35, 5, foliage{
+	EucalyptusKind: slender(35, crown(5, 8), foliage{
 		crown:  color.RGBA{R: 84, G: 116, B: 96, A: 255},
 		leaves: color.RGBA{R: 134, G: 158, B: 136, A: 255},
 		trunk:  color.RGBA{R: 196, G: 184, B: 164, A: 255},
@@ -90,6 +100,32 @@ var trees = map[string]forest.Spec{
 		crown:  color.RGBA{R: 52, G: 110, B: 48, A: 255},
 		leaves: color.RGBA{R: 98, G: 150, B: 60, A: 255},
 		trunk:  color.RGBA{R: 120, G: 92, B: 64, A: 255},
+	}),
+	// of a town's streets and gardens
+	JacarandaKind: broadleaf(12, crown(6, 9), foliage{
+		crown:  color.RGBA{R: 96, G: 92, B: 150, A: 255},
+		leaves: color.RGBA{R: 150, G: 128, B: 204, A: 255},
+		trunk:  color.RGBA{R: 82, G: 66, B: 54, A: 255},
+	}),
+	PlaneKind: broadleaf(22, crown(6.5, 14), foliage{
+		crown:  color.RGBA{R: 70, G: 118, B: 50, A: 255},
+		leaves: color.RGBA{R: 122, G: 160, B: 70, A: 255},
+		trunk:  color.RGBA{R: 172, G: 164, B: 140, A: 255},
+	}),
+	TipuanaKind: broadleaf(14, crown(6.5, 12), foliage{
+		crown:  color.RGBA{R: 78, G: 122, B: 52, A: 255},
+		leaves: color.RGBA{R: 216, G: 186, B: 62, A: 255},
+		trunk:  color.RGBA{R: 76, G: 60, B: 48, A: 255},
+	}),
+	CanaryPalmKind: fronded(15, crown(5, 8), 0.6, foliage{
+		crown:  color.RGBA{R: 48, G: 102, B: 50, A: 255},
+		leaves: color.RGBA{R: 92, G: 142, B: 62, A: 255},
+		trunk:  color.RGBA{R: 112, G: 88, B: 62, A: 255},
+	}),
+	FicusKind: broadleaf(18, crown(6.5, 16), foliage{
+		crown:  color.RGBA{R: 26, G: 78, B: 40, A: 255},
+		leaves: color.RGBA{R: 52, G: 110, B: 54, A: 255},
+		trunk:  color.RGBA{R: 120, G: 110, B: 98, A: 255},
 	}),
 	BananaKind: fronded(4, 3.5, 0.25, foliage{
 		crown:  color.RGBA{R: 72, G: 136, B: 50, A: 255},

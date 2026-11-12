@@ -61,6 +61,9 @@ type roads struct {
 	heads     map[cell.ID]bool
 	mouths    map[cell.ID]bool
 	pinned    map[int]bool // the corners of the heads and of the cells by the mouths
+	// the cells a street crosses a tunnel's way over: the ground there is raised over its roof
+	covers  map[cell.ID]bool
+	streets *streets // the roads laid on a profile of their own, none planned
 }
 
 // a leg of a route, from one place to the next
@@ -141,7 +144,7 @@ func newRoads(w *chart) *roads {
 		marks: map[cell.ID]mark{}, barred: map[cell.ID]bool{}, banned: map[[2]cell.ID]bool{},
 		dear: map[cell.ID]float32{}, offered: map[[2]cell.ID]bridging{},
 		bored: map[cell.ID]cell.Built{}, heads: map[cell.ID]bool{}, mouths: map[cell.ID]bool{},
-		pinned: map[int]bool{}}
+		pinned: map[int]bool{}, covers: map[cell.ID]bool{}}
 	r.rules = r.cfg.rules(w.perUnit, w.grid.CellCount())
 	for _, share := range rungs {
 		rules := r.cfg.routing(w.perUnit, w.grid.CellCount(), share)
@@ -950,6 +953,9 @@ func (r *roads) bridgeRules() bridgesite.Rules {
 
 // summary is what the roads came to: their cells, bridges and fords, the earth levelled
 func (r *roads) summary() string {
+	if r.streets != nil {
+		return r.streets.summary()
+	}
 	bridges, fords := 0, 0
 	for _, s := range r.live() {
 		if s.ford {

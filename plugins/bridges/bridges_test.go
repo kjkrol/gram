@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"math"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -682,4 +683,125 @@ func indent(s string) string {
 		}
 	}
 	return b.String()
+}
+
+func TestSpawn_ABridgeAlongAPathTurnsAndClimbs(t *testing.T) {
+	file := func(entity string) fstest.MapFS {
+		var corners strings.Builder
+		for y := 0; y <= 6; y++ {
+			for x := 0; x <= 10; x++ {
+				if x > 0 {
+					corners.WriteString(" ")
+				}
+				switch {
+				case x <= 3:
+					corners.WriteString("20")
+				case x >= 6:
+					corners.WriteString("26")
+				default:
+					corners.WriteString("0")
+				}
+			}
+			corners.WriteString("\n")
+		}
+		return fstest.MapFS{"map.yaml": {Data: []byte("board:\n  default: earth\n" +
+			"  entities:\n    - " + entity + "\nrelief:\n  corners: |\n" +
+			indent(corners.String()))}}
+	}
+	lay := func(t *testing.T, entity string) (*dale, *board.Level, error) {
+		d := newDale(t)
+		d.board.Read(0).CellKinds().Define("earth", cell.Kind{Pace: 1, Allows: cell.Land})
+		level, err := d.board.Lay(file(entity), "map.yaml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d, level, d.bridges.Write().Spawn(level)
+	}
+	if _, _, err := lay(t, "{kind: bridge, path: [[2, 2, 0, 0], [3, 2, 0, 0]]}"); err == nil {
+		t.Error("a path of two cells is taken for a bridge")
+	}
+	if _, _, err := lay(t,
+		"{kind: bridge, path: [[2, 2, 0, 0], [4, 2, 0, 0], [6, 2, 0, 0]]}"); err == nil {
+		t.Error("a path leaping a cell is taken for a bridge")
+	}
+	d, level, err := lay(t, "{kind: bridge, lanes: 2, width: 7, path: "+
+		"[[2, 2, 0, 0], [3, 2, 0, 0], [4, 3, 0, 0], [5, 3, 0, 0], [6, 3, 0, 0]]}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wound := d.bridges.Res.Wound
+	d.bridges.Serializable().Persisted()
+	d.bridges.Res = bridges.Resources{}
+	d.bridges.Restore()
+	if !reflect.DeepEqual(d.bridges.Res.Wound, wound) || len(wound) != 1 {
+		t.Errorf("a load brought back %v, saved %v", d.bridges.Res.Wound, wound)
+	}
+	d.topo.Write().Seed(level.Heights())
+	if err := d.board.Populate(); err != nil {
+		t.Fatal(err)
+	}
+	d.start(level.Heights())
+	d.ticks(2)
+	decks := d.decks()
+	if len(decks) != 5 {
+		t.Fatalf("built %d pieces of deck, want 5", len(decks))
+	}
+	heights := level.Heights()
+	level4 := func(c cell.ID) float32 {
+		sum := float32(0)
+		for _, p := range d.g.CellOutline(c, nil) {
+			sum += heights(p)
+		}
+		return sum / 4
+	}
+	run := []float32{0, 10, 10 + 10*f32.Sqrt(2), 20 + 10*f32.Sqrt(2), 30 + 10*f32.Sqrt(2)}
+	for i, xy := range [][2]uint32{{2, 2}, {3, 2}, {4, 3}, {5, 3}, {6, 3}} {
+		c := d.g.At(xy[0], xy[1])
+		f := decks[c]
+		if f.Graded || f.Width != 7 || f.Lanes != 2 {
+			t.Errorf("the deck at %v: %+v, want one winding, 7 wide, of two lanes", xy, f)
+		}
+		if i == 0 || i == 4 {
+			if f.Height != 0 {
+				t.Errorf("the head at %v stands %v over its ground", xy, f.Height)
+			}
+			continue
+		}
+		want := 20 + 6*run[i]/run[4]
+		if got := level4(c) + f.Height; f32.Abs(got-want) > 1e-3 {
+			t.Errorf("the deck at %v lies at %v, want %v: even from head to head", xy, got, want)
+		}
+	}
+	turn := decks[d.g.At(4, 3)].Links
+	back, _ := grid.Link(d.g, d.g.At(4, 3), d.g.At(3, 2))
+	on, _ := grid.Link(d.g, d.g.At(4, 3), d.g.At(5, 3))
+	if turn != back|on {
+		t.Errorf("where the bridge turns its deck runs %08b, want back north-west and on east",
+			turn)
+	}
+	// a step along the deck and the one off it onto its head are paced by the deck's own
+	// slope, 6 up in 44: the same either way, whatever the ground does under it
+	walked := cell.Kind{Pace: 1, Allows: cell.Land}
+	read := d.board.Read(0)
+	along := read.Pace(d.g.At(4, 3), d.g.At(5, 3), walked, cell.OnDeck, cell.Land)
+	off := read.Pace(d.g.At(5, 3), d.g.At(6, 3), walked, cell.OnGround, cell.Land)
+	want := cell.PaceOf(cell.DefaultHiking, cell.Step{Kind: walked, Domain: cell.Land,
+		Slope: 6 / float64(run[4])})
+	if math.Abs(along-want) > 1e-3 || math.Abs(off-want) > 1e-3 {
+		t.Errorf("a step along the deck keeps %.3f of the pace and the one off it onto its "+
+			"head %.3f, want %.3f for the deck's slope", along, off, want)
+	}
+	// whoever walks it walks a ramp: at the edge between two pieces as high as half way from
+	// one to the next, a step up to neither
+	top := func(i int) float32 { return 20 + 6*run[i]/run[4] }
+	edge := geom.NewVec(50, 35)
+	half := (top(2) + top(3)) / 2
+	if floor, _ := read.Footing().Surface(edge, cell.Land, half, 0.1); f32.Abs(floor-half) > 1e-3 {
+		t.Errorf("at the edge between two pieces the deck lies at %v, want %v", floor, half)
+	}
+	c, lv, ok := read.Board().LevelFor(geom.NewVec(50.5, 35), half, 0.1)
+	if !ok || c != d.g.At(5, 3) || lv != cell.OnDeck {
+		t.Errorf("at the low edge of a piece, feet at %v: on %v of %v, want its deck", half, lv,
+			c)
+	}
 }

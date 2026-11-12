@@ -28,8 +28,8 @@ const (
 	sprint   = 4
 )
 
-// three quarters of a cell a second: a man walks 1.4 m/s
-var walkerSpeed = scale.Units(75)
+// five metres a second, where a man walks 1.4: the island is crossed in a game's time
+var walkerSpeed = scale.Figure(5)
 
 // walking is how whoever goes on foot steers, a caravan's wagon keeping its porters' pace
 var walking = steering.Steering{
@@ -110,7 +110,7 @@ func looking() []comp.Comp {
 	return []comp.Comp{
 		comp.Const(vision.Sight{
 			Facing: geom.NewVec(1, 0),
-			Radius: scale.Units(10000),
+			Radius: scale.Units(here.sees),
 			Ahead:  true,
 		}),
 		comp.Const(world.Eye{Angle: 72 * math.Pi / 180, Vertical: 50 * math.Pi / 180}),

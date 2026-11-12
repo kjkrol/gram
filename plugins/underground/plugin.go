@@ -2,6 +2,7 @@ package underground
 
 import (
 	"fmt"
+	"image/color"
 	"log"
 	"time"
 
@@ -57,6 +58,7 @@ type Plugin struct {
 	cfg         Config
 	types       *Types
 	shaper      ground.Shaper
+	cover       [4]float32 // the earth over a mouth: its colour, 1 once set
 	module      *module
 	tubes       *tubes
 	marker      *marker
@@ -102,6 +104,13 @@ func NewPlugin(w *world.Plugin, brd *board.Plugin, cfg Config) *Plugin {
 // tunnel opens only where its heads' ground lies flat already.
 func (p *Plugin) WithShaper(s ground.Shaper) *Plugin {
 	p.shaper = s
+	return p
+}
+
+// WithCover has the earth lying over a mouth, behind its face, drawn in c; without it the
+// frame is concrete as far in as it shows.
+func (p *Plugin) WithCover(c color.RGBA) *Plugin {
+	p.cover = [4]float32{float32(c.R) / 255, float32(c.G) / 255, float32(c.B) / 255, 1}
 	return p
 }
 
@@ -167,7 +176,8 @@ func (l *laid) note(g *boardGround) {
 }
 
 // tunnel is the tunnel t of the kind ty under g: its handle and its pieces
-func (p *Plugin) tunnel(ty Type, t site.Tunnel, g *boardGround) (kind.Entry, []kind.Entry) {
+func (p *Plugin) tunnel(ty Type, t site.Tunnel, g *boardGround,
+	lanes uint8) (kind.Entry, []kind.Entry) {
 	gr := g.Grid()
 	run := append(append([]cell.ID{t.From}, t.Cells...), t.To)
 	var out []kind.Entry
@@ -180,7 +190,7 @@ func (p *Plugin) tunnel(ty Type, t site.Tunnel, g *boardGround) (kind.Entry, []k
 			}
 		}
 		out = append(out, ty.bore.Entry(boreRow{At: c, Links: links,
-			Height: t.Floors[k] - g.level(c), Storey: t.Storey}))
+			Height: t.Floors[k] - g.level(c), Storey: t.Storey, Lanes: lanes}))
 		m := gr.CellCenter(c)
 		lo = geom.NewVec(min(lo.X, m.X), min(lo.Y, m.Y))
 		hi = geom.NewVec(max(hi.X, m.X), max(hi.Y, m.Y))
@@ -267,7 +277,7 @@ func (p *Plugin) dig(o Order) {
 			}
 		}
 	}
-	whole, pieces := p.tunnel(t, plan, g)
+	whole, pieces := p.tunnel(t, plan, g, 0)
 	p.worldPlugin.Write().SpawnWhole(whole, pieces...)
 }
 
