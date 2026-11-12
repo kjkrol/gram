@@ -43,6 +43,7 @@ func (s *ownSun) Init(si *goke.SysInit) {
 		Optional(&p.z).With(s.pace).Build()
 	// what lies asleep at L6 is baked by no ground
 	p.blocks = si.NewQueryBuilder(&p.blockBase, &p.blockZ, &p.blockOf).Optional(&p.blockLie).
+		Optional(&p.blockStand).
 		Exclude(goke.Exclude[sector.L6]()).Build()
 }
 

@@ -2,6 +2,8 @@ package forest_test
 
 import (
 	"math"
+	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -200,6 +202,7 @@ func newGrove(t *testing.T, f woods, lay func(b *board.Plugin)) *grove {
 			w.Write().Observe(g)
 			g.update = func(rc goke.RunCtx, d time.Duration) {
 				w.RunPlan(rc, d)
+				g.p.RunPlan(rc, d)
 				m.RunPlan(rc, d)
 				g.board.RunPlan(rc, d)
 				rc.Sync()
@@ -585,5 +588,56 @@ func TestTypes_EntryIsATreeOfAKindDefinedByTheTimeTheLooksAre(t *testing.T) {
 	}
 	if !asked("elm") {
 		t.Error("an entry of a tree never defined is given")
+	}
+}
+
+func TestPlant_StandsTheLevelsTreesOfASectorAsItUnfoldsAndTheyGoAsItFolds(t *testing.T) {
+	avenue := woods{trees: []tree{{"oak", oak}}, plays: []string{"woods"},
+		rules: func(p *forest.Plugin) {
+			p.World().Roles().Define("woods", act.Branch[world.Unfold]{
+				Name: "its trees stand",
+				When: cond.Self.If(cond.Always),
+				Then: act.Self.Do(forest.Plant{}),
+			})
+		}}
+	g := newGrove(t, avenue, nil)
+	rows := []geom.Vec{geom.NewVec(30, 20), geom.NewVec(width-25, height-40)}
+	for _, at := range rows {
+		g.p.Write().Stand("oak", forest.Row{At: [2]float32{at.X, at.Y}})
+	}
+	g.run(3)
+	got := g.planted()["oak"]
+	if len(got) != len(rows) {
+		t.Fatalf("%d oaks stand at L3, want the level's %d", len(got), len(rows))
+	}
+	for _, at := range rows {
+		if !slices.ContainsFunc(got, func(p geom.Vec) bool {
+			return f32.Abs(p.X-at.X) < 1e-3 && f32.Abs(p.Y-at.Y) < 1e-3
+		}) {
+			t.Errorf("no oak stands at %v: %v", at, got)
+		}
+	}
+	g.zoom(0.25)
+	g.run(int(foldAfter/frame) + 4)
+	if n := total(g.planted()); n != 0 {
+		t.Errorf("%d trees stand after every sector folded at L4, want none", n)
+	}
+	g.zoom(0.5)
+	g.run(3)
+	if n := total(g.planted()); n != len(rows) {
+		t.Errorf("%d oaks stand back at L3, want %d", n, len(rows))
+	}
+}
+
+func TestResources_TheLevelsTreesComeBackWithALoad(t *testing.T) {
+	g := newGrove(t, woods{trees: []tree{{"oak", oak}}, rules: func(*forest.Plugin) {}}, nil)
+	g.p.Write().Stand("oak", forest.Row{At: [2]float32{30, 20}})
+	g.p.Write().Stand("oak", forest.Row{At: [2]float32{width - 25, height - 40}})
+	planted := g.p.Res.Planted
+	g.p.Serializable().Persisted()
+	g.p.Res = forest.Resources{}
+	g.p.Restore()
+	if !reflect.DeepEqual(g.p.Res.Planted, planted) || len(planted) == 0 {
+		t.Errorf("loaded %v, saved %v", g.p.Res.Planted, planted)
 	}
 }

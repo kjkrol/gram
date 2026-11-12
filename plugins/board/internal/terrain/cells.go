@@ -23,6 +23,9 @@ import (
 // Cells is a board's cells' terrain: its seed until the ECS is set up, then the cells' entities,
 // with the counts of changes to them. Not safe for concurrent use.
 type Cells struct {
+	// Edge, where set, is how high the ground lies where a band of c comes out on it towards
+	// its neighbour n; else n's level.
+	Edge      func(c, n cell.ID) float32
 	grid      grid.Grid
 	square    uint64 // a square grid's cell count; 0 for any other grid
 	seed      *cell.TerrainMap
@@ -171,7 +174,7 @@ func (r *Read) KindOn(c cell.ID, p geom.Vec, feet, reach float32,
 	kind, on, top := cell.Built{Wall: b.Wall, Rail: b.Rail}.Over(k), cell.OnGround, f32.Inf(-1)
 	r.DecksOver(c, p, func(d Deck) bool {
 		f := d.Built.Floor
-		h, ok := stoodOn(f, d.Cell, feet, reach, ground)
+		h, ok := r.stoodOn(f, d.Cell, feet, reach, ground)
 		if !ok || h <= top {
 			return true
 		}
@@ -205,7 +208,7 @@ func (r *Read) LevelFor(p geom.Vec, feet, reach float32,
 	best, top, on := c, f32.Inf(-1), cell.OnGround
 	r.DecksOver(c, p, func(d Deck) bool {
 		f := d.Built.Floor
-		if h, ok := stoodOn(f, d.Cell, feet, reach, ground); ok && h > top {
+		if h, ok := r.stoodOn(f, d.Cell, feet, reach, ground); ok && h > top {
 			best, top, on = d.Cell, h, levelOf(f)
 		}
 		return true
@@ -214,9 +217,9 @@ func (r *Read) LevelFor(p geom.Vec, feet, reach float32,
 }
 
 // stoodOn is how high f, built on c, lies and whether whoever has its feet at feet and steps
-// reach high stands on it: a raised floor within its reach, a sunk one under whose roof its feet
-// are, a floor lying on the ground whatever its feet
-func stoodOn(f cell.Floor, c cell.ID, feet, reach float32,
+// reach high stands on it: a raised floor within its reach, as low as it runs at its edges, a
+// sunk one under whose roof its feet are, a floor lying on the ground whatever its feet
+func (r *Read) stoodOn(f cell.Floor, c cell.ID, feet, reach float32,
 	ground func(cell.ID) float32) (h float32, ok bool) {
 	h = f.Height
 	if ground == nil {
@@ -225,11 +228,44 @@ func stoodOn(f cell.Floor, c cell.ID, feet, reach float32,
 	h += ground(c)
 	switch {
 	case f.Height > 0:
-		return h, feet >= h-reach
+		return h, feet >= h-reach || feet >= h-reach-r.Dip(f, c, ground)
 	case f.Sunk():
-		return h, feet >= h-reach && feet < h+f.Clear
+		return h, feet >= h-reach-r.Dip(f, c, ground) && feet < h+f.Clear
 	}
 	return h, true
+}
+
+// Dip is how far under its middle the band f of c, raised or sunk, lies at its lowest edge: on
+// the way to each neighbour its links name it runs to the mean of the two floors, or to the
+// ground it comes out on. ground gives a cell's level.
+func (r *Read) Dip(f cell.Floor, c cell.ID, ground func(cell.ID) float32) float32 {
+	if f.Height == 0 || f.Width <= 0 || f.Links == 0 {
+		return 0
+	}
+	g := r.t.grid
+	level := ground(c) + f.Height
+	dip := float32(0)
+	for way := range g.Directions() {
+		if !f.Links.Has(way) {
+			continue
+		}
+		n, ok := g.Toward(c, way)
+		if !ok {
+			continue
+		}
+		nb := r.Built(n)
+		var edge float32
+		switch nf := nb.Storey(f.Storey); {
+		case nf.Height != 0 && nf.Sunk() == f.Sunk():
+			edge = (level + ground(n) + nf.Height) / 2
+		case r.t.Edge != nil:
+			edge = r.t.Edge(c, n)
+		default:
+			edge = ground(n)
+		}
+		dip = max(dip, level-edge)
+	}
+	return dip
 }
 
 // level is k as whoever crosses b's cell on l meets it: on the ground with the floors lying on

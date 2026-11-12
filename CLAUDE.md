@@ -68,8 +68,9 @@ make demo-board-roads                                           # two villages e
 make demo-board-topography                                      # Madeira in relief: light, water, roads, bridges, the camera on a stick (Q/E, R/F, Tab), the weather; the ground textured from photographs; forests and settlements as fields, caravans on the roads, far off in the sheets kept between runs
 make demo-board-topography-ghibli                               # the same ground painted, the light in bands (-look ghibli)
 make demo-board-topography-widgets                              # the hour, the date and the weather apart by the corners, not in a bar (-hud widgets)
+make demo-board-topography-funchal                              # Funchal in cells of 10 m, everything as big as in life: OpenStreetMap's buildings each its own, solids of ten kinds, its streets with their lanes, roundabouts and bridges, the trees of its streets and gardens (-map funchal)
 make demo-board-forest-army                                     # a forest and two armies folded far off and unfolded near: trees, soldiers, a battle either way
-go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS, its roads, tunnels, bridges and buildings OpenStreetMap's, what grows where the land cover's (CORINE), its growth and settlements as fields
+go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS, its roads, tunnels, bridges and buildings OpenStreetMap's, what grows where the land cover's (CORINE), its growth and settlements as fields; cmd/gramap/funchal.yaml a town in cells of 10 m, its buildings each its own, its streets as they run on a profile of their own, its tunnels, its trees
 make demo-navigation-square                                     # units sent round a wall, over a river by a bridge a wagon is too wide for; walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-hex                                        # the same on a hex board
 make demo-navigation-spawn                                      # walkers spawned under the cursor (N) hold their cells, the cells held shown
@@ -317,7 +318,11 @@ Decisions the user has made; they are not up for revisiting in passing.
   (2026-11-06): its `Unfold` told as though its sector came down, the parts its rules give
   photographed where they would stand, on the ground the world is given (`Write.SetGround`, the
   topography's), none spawned, nothing saved, so a forest is in the sheet before anyone comes
-  near and only the game's rules say what stands in it; the sheets are **kept in tiles** between
+  near and only the game's rules say what stands in it; **what a plugin
+  draws as a solid of its own, it draws at every level** (the user's word, 2026-11-12: a
+  building is in no sheet, which holds sprites seen from above and which a camera with an eye
+  does not see; `buildings` draws its solids whole at the close and standard scales and their
+  bodies alone at the strategic one, the level its sector's in the camera's view); the sheets are **kept in tiles** between
   runs where the game says (`world.Config.Sheets`: a folder read as the sheets are made, written
   back sector by sector as they settle where it asks `Keep`; the policy is the game's, a static
   world shipping its tiles read-only, a dynamic one writing them back; a change to how a game
@@ -401,6 +406,22 @@ Decisions the user has made; they are not up for revisiting in passing.
   sums (a walk along a ray, the draining of a relief, the ortho camera's stick), in costs and time
   ratios, in a setting's value and in time. Math on float32 goes through `internal/f32`, a
   tolerance by `f32.Eps`, never a 1e-9 sized for float64.
+- **Everything is as big as in life** (the user's word, 2026-11-11): every kind of entity is
+  sized in metres of life through the game's one `world.Scale`, never by eye and never a scale
+  of its own. A map of cells of 100 m may draw its figures many times bigger, one factor for
+  all (`Scale.Figures`); a map of 10 m draws them as in life, and nothing made for it leans on
+  an exaggeration.
+- **A road is one a cell and a level, on the grid; it is drawn as it runs** (the user's word,
+  2026-11-12): the grid is what roads are planned and walked on, so navigation knows cells
+  alone and no cell holds two roads on one level (two carriageways nearer than a cell are one
+  road of their lanes together; a road over a road is a storey). What a road looks like is not
+  the grid's: a `cell.Way` says where its axis passes its cell (`Off`), its `Lanes`, the links
+  it may be left by (`Out`) and how the ways meeting join (`Form`, a roundabout a form of a
+  junction, in its true size), and the topography draws a way styled `painter.Ribbon` as a
+  ribbon through those axes, bending, in its true width, **level across**, the ground under
+  it laid to the road's own profile (`cmd/gramap`, `roads: {lay: profile}`). A bridge laid
+  along a path turns and climbs with its cells. How cars keep their lanes and take a
+  roundabout is a stage to come.
 - **Examples are self-contained** (a demo keeps its `hero.go` and `hero.png`; no shared package
   under `examples/`), **not tested** (what a demo shows is tested in the library's package; no
   `_test.go` in `examples/`), **grouped by what they show** (`start`, `look`, `rules`, `board`,
@@ -433,10 +454,14 @@ lamps, the shadows baked and cast; made before the board and the topography, whi
 `cmd/gramap` makes maps of the
 Earth), `topography` (a map in relief, the cameras' cage), `atmosphere` (the time of day, the
 climate, the weather), `collision`, `navigation`, `selection`, `dialog`, `players` (with
-`players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`, `underground` (tunnels
+`players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges` (straight and level by `bridges/site`'s rules, or laid along a path, turning and
+climbing, a model's structure drawn as solids), `underground` (tunnels
 and chambers dug under the ground by `underground/site`'s rules, walked and ridden through, drawn
 from inside), `forest` (forests
-planted over the board's cells: kinds of trees, stands by the ground's height), `roads` (roads laid
+planted over the board's cells: kinds of trees, stands by the ground's height, trees a level's
+file stands by themselves), `buildings` (the
+buildings of a level's file as solids in their true sizes, drawn by the plugin at every level,
+entities where their settlement's sector unfolds), `roads` (roads laid
 with a tool: planned, priced, judged by the game's rules and built, by `roads/site`'s rules, which
 `cmd/gramap` plans its roads by too), `bullet`, `minimap`
 (small pictures round the players' cameras), `telemetry`

@@ -2,6 +2,8 @@ package bridges
 
 import (
 	"fmt"
+	"image/color"
+	"slices"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
@@ -28,12 +30,26 @@ type Spec struct {
 	Pace      float64
 	Rail      cell.Rail
 	Pier      float32
+	// Span is how far apart the piers of a bridge laid along a path stand, in world units; 0
+	// stands none.
+	Span float32
+	// Model has a bridge laid along a path drawn as solids, its deck Girder deep, in the colours
+	// of its Body and its Parapet; None leaves it to its deck's and piers' looks.
+	Model   Model
+	Girder  float32
+	Body    color.RGBA
+	Parapet color.RGBA
 }
 
-// Row is a bridge as a level's file writes it: from the head From to the head To.
+// Row is a bridge as a level's file writes it: from the head From to the head To, straight and
+// level; or along Path, every cell from head to head as [x, y, dx, dy], its axis passing the
+// cell (dx, dy) off the middle, turning and climbing as they lie, Lanes marked and Width wide.
 type Row struct {
-	From cell.ID `yaml:"from"`
-	To   cell.ID `yaml:"to"`
+	From  cell.ID      `yaml:"from"`
+	To    cell.ID      `yaml:"to"`
+	Path  [][4]float32 `yaml:"path"`
+	Lanes uint8        `yaml:"lanes"`
+	Width float32      `yaml:"width"`
 }
 
 type deckRow struct {
@@ -41,6 +57,11 @@ type deckRow struct {
 	Links  cell.Links
 	Height float32
 	Dir    geom.Vec
+	// a winding bridge's: its own width, its axis off the cell's middle, its lanes
+	Winds bool
+	Width float32
+	Off   geom.Vec
+	Lanes uint8
 }
 
 type pierRow struct {
@@ -103,25 +124,36 @@ func (t *Types) Define(name string, spec Spec) {
 	decks := board.NewEntities(brd, shape, func(r deckRow) cell.ID { return r.At })
 	deck := []comp.Comp{
 		comp.Load(func(r deckRow) cell.Floor {
-			return cell.Floor{
+			f := cell.Floor{
 				Allows:    spec.Allows,
 				Height:    r.Height,
 				Thickness: spec.Thickness,
 				Load:      spec.Load,
 				Pace:      spec.Pace,
-				Graded:    true,
+				Graded:    !r.Winds,
 				Links:     r.Links,
 				Width:     spec.Width,
+				Off:       r.Off,
+				Lanes:     r.Lanes,
 			}
+			if r.Width > 0 {
+				f.Width = r.Width
+			}
+			return f
 		}),
 		comp.Const(spec.Rail),
 		comp.Load(func(r deckRow) world.Velocity { return world.Velocity{Dir: r.Dir} }),
 		// the handle casts the deck's shadow whole
 		comp.Const(light.Shadow{Cast: light.NoShadow}),
 	}
+	pier := kind.Spec{}
+	if spec.Model != None {
+		deck = append(deck, comp.Const(world.Unseen{}))
+		pier = append(pier, comp.Const(world.Unseen{}))
+	}
 	decks.Define(deckName(name), deck...)
 	half := spec.Pier / 2
-	kind.Define[pierRow](w.Kinds(), pierName(name), kind.Spec{
+	kind.Define[pierRow](w.Kinds(), pierName(name), append(pier,
 		comp.Load(func(r pierRow) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(r.At.X-half, r.At.Y-half),
 				spec.Pier, spec.Pier)}
@@ -134,7 +166,7 @@ func (t *Types) Define(name string, spec Spec) {
 		comp.Const(collision.Physics{Mass: f32.Inf(1)}),
 		comp.Const(light.Shadow{Cast: light.Baked}),
 		comp.Const(world.Fixed{}),
-	})
+	))
 	least := float32(w.Res.Config.Entities.MinSize)
 	kind.Define[wholeRow](w.Kinds(), wholeName(name), kind.Spec{
 		comp.Load(func(r wholeRow) world.Position {
@@ -158,6 +190,9 @@ func (t *Types) Define(name string, spec Spec) {
 	t.specs[name] = spec
 	t.names = append(t.names, name)
 }
+
+// Names are the kinds of bridges defined, in the order defined.
+func (t *Types) Names() []string { return slices.Clone(t.names) }
 
 // Named is the kind of bridge defined as name; an unknown name panics.
 func (t *Types) Named(name string) Type {

@@ -145,6 +145,46 @@ func (x *Indices) Release() {
 	}
 }
 
+// Instances are an Instanced program's instances, its vec4s each, kept on the GPU.
+type Instances struct {
+	data   []float32
+	buf    *wgpu.Buffer
+	floats int
+}
+
+// NewInstances keeps the instances of data, going to the GPU at their first draw.
+func NewInstances(data []float32) *Instances {
+	return &Instances{data: append([]float32(nil), data...), floats: len(data)}
+}
+
+func (x *Instances) gpuBuffer(d *device) *wgpu.Buffer {
+	if x.buf != nil {
+		return x.buf
+	}
+	data := appendF32s(make([]byte, 0, 4*len(x.data)), x.data)
+	buf, err := d.dev.CreateBuffer(&wgpu.BufferDescriptor{
+		Label: "mesh instances",
+		Size:  uint64(max(len(data), 4)),
+		Usage: wgpu.BufferUsageVertex | wgpu.BufferUsageCopyDst,
+	})
+	if err != nil {
+		panic(fmt.Errorf("gpu: a mesh's instances: %w", err))
+	}
+	if err := d.queue.WriteBuffer(buf, 0, data); err != nil {
+		panic(fmt.Errorf("gpu: writing a mesh's instances: %w", err))
+	}
+	x.buf, x.data = buf, nil
+	return buf
+}
+
+// Release frees the instances on the GPU.
+func (x *Instances) Release() {
+	if x.buf != nil {
+		retire(x.buf.Release) // a draw gathered or submitted may still read it
+		x.buf = nil
+	}
+}
+
 // MeshDraw is a draw of a mesh (NewMesh) into a rectangle of a texture, tested against the depth
 // buffer Depth and written to it where Write says; without a Depth it is drawn whole, untested.
 // Primed, its depth is laid first alone by the program's fs_prime, and its colour then only where
@@ -167,7 +207,11 @@ type MeshDraw struct {
 	Vertices uint32
 	// an Instanced program's: its vec4s an instance, the mesh drawn once each
 	Instances []float32
-	Blend     Blend
+	// Kept are the instances kept on the GPU, in place of Instances; Spans the ranges of them
+	// drawn, at one go; none, every one
+	Kept  *Instances
+	Spans []Range
+	Blend Blend
 	// ReadDepth is a depth buffer the program reads (depthAt), another than Depth, at the size it
 	// was drawn at.
 	ReadDepth *Depth
@@ -207,6 +251,12 @@ func Mesh(dw *MeshDraw) {
 	instances := uint32(1)
 	if n := dw.Program.instance; n > 0 {
 		instances = uint32(len(dw.Instances) / (4 * n))
+		if dw.Kept != nil {
+			if len(dw.Instances) > 0 {
+				panic("gpu: a mesh drawn with instances kept and instances of the frame")
+			}
+			instances = dw.Kept.spans(dw.Spans, n)
+		}
 	}
 	if clip.W <= 0 || clip.H <= 0 || count == 0 || instances == 0 {
 		return
@@ -252,8 +302,12 @@ func Mesh(dw *MeshDraw) {
 		dw.Indices.gpuBuffer(d)
 	}
 	d.ensure((4*len(dw.Instances)+vertexSize-1)/vertexSize, 0)
-	iOff := uint64(len(d.verts))
-	if dw.Program.instance > 0 {
+	in := instanced{buf: d.vbuf, off: uint64(len(d.verts)), count: instances}
+	if dw.Kept != nil {
+		in = instanced{buf: dw.Kept.gpuBuffer(d), spans: dw.Spans, count: instances,
+			stride: uint64(16 * dw.Program.instance), all: uint32(dw.Kept.floats /
+				(4 * dw.Program.instance))}
+	} else if dw.Program.instance > 0 {
 		d.verts = appendF32s(d.verts, dw.Instances[:int(instances)*4*dw.Program.instance])
 	}
 	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms, [4]float32{}, [4]float32{}, nil)
@@ -268,24 +322,18 @@ func Mesh(dw *MeshDraw) {
 		pass.SetBindGroup(1, group1, nil)
 		pass.SetBindGroup(2, group2, nil)
 		d.bindFrame(pass, group3)
-		if dw.Program.instance > 0 {
-			pass.SetVertexBuffer(0, d.vbuf, iOff)
-		}
-		draw(pass, dw.Indices, dw.Ranges, count, instances)
+		in.draw(pass, dw, count)
 	}
 	pass.SetPipeline(pipeline)
 	pass.SetBindGroup(0, d.group0, offs)
 	pass.SetBindGroup(1, group1, nil)
 	pass.SetBindGroup(2, group2, nil)
 	d.bindFrame(pass, group3)
-	if dw.Program.instance > 0 {
-		pass.SetVertexBuffer(0, d.vbuf, iOff)
-	}
 	// clip space spans the target's rectangle, not the whole texture
 	r := dw.Target.rect()
 	pass.SetViewport(gputypes.Viewport{X: float32(r.X), Y: float32(r.Y), Width: float32(r.W), Height: float32(r.H), MaxDepth: 1})
 	pass.SetScissorRect(gputypes.ScissorRect{X: uint32(clip.X), Y: uint32(clip.Y), Width: uint32(clip.W), Height: uint32(clip.H)})
-	draw(pass, dw.Indices, dw.Ranges, count, instances)
+	in.draw(pass, dw, count)
 	pass.SetViewport(gputypes.Viewport{Width: float32(t.w), Height: float32(t.h), MaxDepth: 1})
 }
 
@@ -381,8 +429,52 @@ func (d *device) depthPass(t *target, p *Program, from, to *Depth, place [4]floa
 	pass.Draw(gputypes.DrawArgs{VertexCount: 3, InstanceCount: 1})
 }
 
-// Range is Count of a mesh's Indices from First.
+// Range is Count of a mesh's Indices, or of its instances kept, from First.
 type Range struct{ First, Count uint32 }
+
+// spans is how many of the instances, n vec4s each, the ranges draw: every one without a range
+func (x *Instances) spans(ranges []Range, n int) uint32 {
+	all := uint32(x.floats / (4 * n))
+	if len(ranges) == 0 {
+		return all
+	}
+	var sum uint32
+	for _, r := range ranges {
+		first := min(r.First, all)
+		sum += min(r.Count, all-first)
+	}
+	return sum
+}
+
+// instanced is where a draw's instances lie: count of them from off in buf, or the spans of
+// the all kept there, stride bytes each
+type instanced struct {
+	buf    *wgpu.Buffer
+	off    uint64
+	count  uint32
+	spans  []Range
+	stride uint64
+	all    uint32
+}
+
+func (in instanced) draw(pass *wgpu.RenderPassEncoder, dw *MeshDraw, count uint32) {
+	if dw.Program.instance == 0 {
+		draw(pass, dw.Indices, dw.Ranges, count, 1)
+		return
+	}
+	if len(in.spans) == 0 {
+		pass.SetVertexBuffer(0, in.buf, in.off)
+		draw(pass, dw.Indices, dw.Ranges, count, in.count)
+		return
+	}
+	for _, r := range in.spans {
+		first := min(r.First, in.all)
+		if n := min(r.Count, in.all-first); n > 0 {
+			pass.SetVertexBuffer(0, in.buf, uint64(first)*in.stride)
+			draw(pass, dw.Indices, dw.Ranges, count, n)
+		}
+	}
+}
 
 func draw(pass *wgpu.RenderPassEncoder, indices *Indices, ranges []Range, count, instances uint32) {
 	if indices == nil {

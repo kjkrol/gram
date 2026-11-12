@@ -16,11 +16,15 @@ const (
 	PinewoodCell   = "pinewood"
 	HeathCell      = "heath"
 	FarmlandCell   = "farmland"
+	ParkCell       = "park"
 	BrookCell      = "brook"
 	StreamCell     = "stream"
 	RiverCell      = "river"
 	RoadCell       = "road"
 	BuiltCell      = "built"
+	PavedCell      = "paved"
+	AsphaltCell    = "asphalt"
+	BuildingCell   = "building"
 	IceCell        = "ice"
 
 	BloodMoonEf    = "blood moon"
@@ -62,6 +66,10 @@ const (
 	BandKind      = "band"
 
 	BridgeKind     = "bridge"
+	BeamKind       = "beam"
+	ArchKind       = "arch"
+	ViaductKind    = "viaduct"
+	PontoonKind    = "pontoon"
 	TunnelKind     = "tunnel"
 	FordKind       = "ford"
 	LanternKind    = "lantern"
@@ -81,9 +89,25 @@ const (
 	PalmKind       = "palm"
 	BananaKind     = "banana"
 	VineKind       = "vine"
+	JacarandaKind  = "jacaranda"
+	PlaneKind      = "plane"
+	TipuanaKind    = "tipuana"
+	CanaryPalmKind = "canary palm"
+	FicusKind      = "ficus"
 	SettlementKind = "settlement"
-	HouseKind      = "house"
+	CottageKind    = "cottage"
 	LampKind       = "lamp"
+
+	HouseKind     = "house"
+	TownhouseKind = "townhouse"
+	VillaKind     = "villa"
+	BlockKind     = "block"
+	TowerKind     = "tower"
+	HotelKind     = "hotel"
+	ChurchKind    = "church"
+	ChapelKind    = "chapel"
+	HallKind      = "hall"
+	ShedKind      = "shed"
 
 	PlayerSide  = "player"
 	RivalSide   = "rival"
@@ -91,6 +115,9 @@ const (
 
 	BoardTopographyStage = "board-topography"
 	MainScene            = "main"
+
+	MadeiraMap = "madeira"
+	FunchalMap = "funchal"
 
 	NaturalLook = "natural"
 	GhibliLook  = "ghibli"
@@ -100,11 +127,11 @@ const (
 
 	// SheetsVersion is how the fields are planted: a change to the forests', the settlements' or
 	// their parts' rules or looks changes it, or the sheets kept from an earlier run show the old.
-	SheetsVersion = "madeira-4"
+	SheetsVersion = "madeira-13"
 	// RoutesVersion is how the steps are priced: a change to the mobility, the kinds' paces or
 	// the unit kinds' bodies changes it, or the hierarchy kept from an earlier run climbs the
 	// old prices.
-	RoutesVersion = "madeira-1"
+	RoutesVersion = "madeira-9"
 )
 
 func snowyCell(kind string) string { return "snowy " + kind }

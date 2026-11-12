@@ -166,7 +166,7 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     if LEVEL <= 4u && U.DetailPx > 0.0 && inside {
         let show = detailShow(span);
         if show > 0.0 {
-            ground *= mix(vec3<f32>(1.0), grain(p.xy, g.sway, cellDetailAt(flags)), show);
+            ground *= mix(vec3<f32>(1.0), grain(p.xy, g.sway, cellDetailAt(flags), span), show);
         }
     }
     var rgb = ground * light;
@@ -242,7 +242,7 @@ fn banded(d: f32, bands: f32) -> f32 {
 // mean tone leaves the colour as it is; where what stands sways (sway: how much, the wave over
 // it), the grain leans with the wind (swayShift of a cell at a full lean) and the wave lightens
 // its crests and darkens its troughs, in bands as the light is.
-fn grain(p: vec2<f32>, sway: vec2<f32>, own: f32) -> vec3<f32> {
+fn grain(p: vec2<f32>, sway: vec2<f32>, own: f32, span: f32) -> vec3<f32> {
     var q = p;
     var sheen = 0.0;
     if sway.x > 0.0 {
@@ -252,7 +252,7 @@ fn grain(p: vec2<f32>, sway: vec2<f32>, own: f32) -> vec3<f32> {
             sheen = (step(0.3, sway.y) - step(0.3, -sway.y)) * sway.x * swaySheen;
         }
     }
-    return detailAt(q, own) * 2.0 * (1.0 + sheen);
+    return detailAt(q, own, span) * 2.0 * (1.0 + sheen);
 }
 
 const swayShift = 0.3;

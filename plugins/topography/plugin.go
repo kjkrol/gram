@@ -23,6 +23,7 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/internal/hexes"
 	ipainter "github.com/kjkrol/gram/plugins/topography/internal/painter"
 	irelief "github.com/kjkrol/gram/plugins/topography/internal/relief"
+	"github.com/kjkrol/gram/plugins/topography/internal/ribbons"
 	"github.com/kjkrol/gram/plugins/topography/internal/terrain"
 	"github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/plugins/world"
@@ -83,6 +84,8 @@ type Plugin struct {
 	// nil off a square grid, where hexes draws the ground
 	ground *terrain.Renderer
 	hexes  *hexes.Ground
+	// the ways styled as roads, drawn in their true widths; nil off a square grid
+	ribbons *ribbons.Renderer
 
 	hazing  command.Queue[Haze]
 	kept    *plugin.Kept[Settings]
@@ -133,6 +136,9 @@ func (p *Plugin) Publish() {
 		b.mouthsAt = v
 		b.mouths = p.mouths(b.mouths[:0])
 	}
+	if p.ribbons != nil {
+		p.ribbons.Publish(p.relief.Version())
+	}
 }
 
 // how far past its cell's middle the ground over a mouth is cut away, in the way to the middle
@@ -181,6 +187,9 @@ func (p *Plugin) mouths(dst []terrain.Mouth) []terrain.Mouth {
 // Swap has the relief and the settings published last drawn.
 func (p *Plugin) Swap() {
 	p.drawn.Swap()
+	if p.ribbons != nil {
+		p.ribbons.Swap()
+	}
 	p.swapped = true
 	if p.ground != nil {
 		p.levels = p.ground.Levels()
@@ -297,6 +306,23 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 		p.hexes = hexes.New(worldPlugin, boardPlugin, p.drawnBoard, drawnMap{p}, p.drawnRelief,
 			func() (bool, look.RenderState) { return p.drawnSettings().Haze, p.drawnGrid() },
 			liveSky{p}, p.painter)
+	}
+	if p.ground != nil {
+		metres := worldPlugin.Read(0).Scale().Metres
+		if metres <= 0 {
+			metres = 1
+		}
+		p.ribbons = ribbons.New(ribbons.Config{
+			Board:  brd,
+			Ground: func() func(geom.Vec) float32 { return p.relief.GroundAt },
+			Style:  func(k cell.Kind) painter.Ribbon { return p.painter.StyleOfKind(k).Ribbon },
+			Sector: worldPlugin.Read(0).SectorOf,
+			View:   worldPlugin.Read(0).ViewFor,
+			Seen: func(cam camera.Camera) (float32, float32, [3]float32) {
+				return p.sky.DrawnAir().Seen(cam, p.drawnSettings().Haze)
+			},
+			Metre: 1 / metres,
+		})
 	}
 	p.look = billboards.New(worldPlugin.Read(0).FlatLook(), liveSky{p},
 		func() (*irelief.Relief, bool) { return p.drawnRelief(), p.drawnSettings().Haze })
@@ -462,6 +488,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.worldPlugin.Write().Clock().Replayed(p.module.heights.Fill)
 	if p.ground != nil {
 		ctx.Draws(p.ground)
+		ctx.Draws(p.ribbons)
 	} else {
 		ctx.Draws(p.hexes)
 	}

@@ -65,13 +65,33 @@ func (w *chart) trace(line [][2]float64) [][2]int {
 	return out
 }
 
+// unbent is the cells of a trace without those at its corners: each still beside the one
+// before, across a corner where the line turns
+func unbent(cells [][2]int) [][2]int {
+	out := make([][2]int, 0, len(cells))
+	for i, c := range cells {
+		if i > 0 && i < len(cells)-1 {
+			a, b := out[len(out)-1], cells[i+1]
+			if abs(b[0]-a[0]) == 1 && abs(b[1]-a[1]) == 1 {
+				continue
+			}
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
 // a set of cells of the chart, row by row
 type mask struct {
 	cols, rows int
 	on         []bool
+	// bar says no line runs from the cell a to the cell b beside it, both of the set
+	bar func(a, b [2]int) bool
 }
 
-func newMask(cols, rows int) *mask { return &mask{cols, rows, make([]bool, cols*rows)} }
+func newMask(cols, rows int) *mask {
+	return &mask{cols: cols, rows: rows, on: make([]bool, cols*rows)}
+}
 
 func (m *mask) has(x, y int) bool {
 	return x >= 0 && y >= 0 && x < m.cols && y < m.rows && m.on[y*m.cols+x]
@@ -133,6 +153,9 @@ func (m *mask) next(x, y int, dst [][2]int) [][2]int {
 		if !m.has(x+d[0], y+d[1]) {
 			continue
 		}
+		if m.bar != nil && m.bar([2]int{x, y}, [2]int{x + d[0], y + d[1]}) {
+			continue
+		}
 		if i%2 == 1 {
 			a, b := ring[(i+7)%8], ring[(i+1)%8]
 			if m.has(x+a[0], y+a[1]) || m.has(x+b[0], y+b[1]) {
@@ -154,8 +177,32 @@ func (w *chart) newGuide(ways []osmWay, open, keep [][2]int) *guide {
 		class[i] = math.MaxInt8
 	}
 	g := &guide{spannable: map[cell.ID]bool{}}
-	for _, way := range ways {
-		for _, c := range w.trace(way.line) {
+	// the way driven one way that alone passes a cell, one more than its index, -1 where more
+	// ways pass or one driven both ways, and the way it runs there
+	solo := make([]int32, w.cols*w.rows)
+	heading := make([][2]float64, w.cols*w.rows)
+	for i, way := range ways {
+		cells := w.trace(way.line)
+		// a town's streets alone: a map of roads planned between the guide's legs has its
+		// carriageways one road
+		lone := way.oneway && !way.roundabout && w.r.Roads.Lay == "profile"
+		if lone {
+			cells = unbent(cells)
+		}
+		for k, c := range cells {
+			at := c[1]*w.cols + c[0]
+			switch {
+			case !lone || solo[at] != 0 && solo[at] != int32(i+1):
+				solo[at] = -1
+			case solo[at] == 0:
+				a, b := cells[max(k-1, 0)], cells[min(k+1, len(cells)-1)]
+				if l := math.Hypot(float64(b[0]-a[0]), float64(b[1]-a[1])); l > 0 {
+					solo[at] = int32(i + 1)
+					heading[at] = [2]float64{float64(b[0]-a[0]) / l, float64(b[1]-a[1]) / l}
+				}
+			}
+		}
+		for _, c := range cells {
 			roads.set(c[0], c[1], true)
 			class[c[1]*w.cols+c[0]] = min(class[c[1]*w.cols+c[0]], int8(way.class))
 			if way.bridge {
@@ -169,14 +216,73 @@ func (w *chart) newGuide(ways []osmWay, open, keep [][2]int) *guide {
 		}
 	}
 	for _, c := range open {
+		solo[c[1]*w.cols+c[0]] = -1
 		roads.set(c[0], c[1], true)
 		class[c[1]*w.cols+c[0]] = min(class[c[1]*w.cols+c[0]], 0)
 	}
 	for _, c := range keep {
+		solo[c[1]*w.cols+c[0]] = -1
 		roads.set(c[0], c[1], true)
 		kept.set(c[0], c[1], true)
 	}
 	roads.thin(kept)
+	// the two carriageways of an avenue are two roads: where their cells come to lie side by
+	// side, as two lines slanting across the grid a cell or two apart do at every step, no
+	// road runs from one across to the other. Ways that do join them are ways of their own.
+	// how many cells round c a way driven against c's passes alone
+	against := func(c [2]int) int {
+		n, h := 0, heading[c[1]*w.cols+c[0]]
+		for _, d := range ring {
+			x, y := c[0]+d[0], c[1]+d[1]
+			if x < 0 || y < 0 || x >= w.cols || y >= w.rows {
+				continue
+			}
+			i := y*w.cols + x
+			if solo[i] > 0 && solo[i] != solo[c[1]*w.cols+c[0]] &&
+				heading[i][0]*h[0]+heading[i][1]*h[1] < -0.5 {
+				n++
+			}
+		}
+		return n
+	}
+	// one whose only way on is across stays joined: thinning left it no other
+	held := make([]bool, w.cols*w.rows)
+	bar := func(a, b [2]int) bool {
+		ia, ib := a[1]*w.cols+a[0], b[1]*w.cols+b[0]
+		if solo[ia] <= 0 || solo[ib] <= 0 || solo[ia] == solo[ib] || held[ia] || held[ib] {
+			return false
+		}
+		ha, hb := heading[ia], heading[ib]
+		if ha[0]*hb[0]+ha[1]*hb[1] > -0.5 {
+			return false
+		}
+		l := math.Hypot(float64(b[0]-a[0]), float64(b[1]-a[1]))
+		x, y := float64(b[0]-a[0])/l, float64(b[1]-a[1])/l
+		if math.Abs(x*ha[0]+y*ha[1]) >= 0.6 || math.Abs(x*hb[0]+y*hb[1]) >= 0.6 {
+			return false
+		}
+		// carriageways a cell apart all along are one road, as thinning makes them: only
+		// those touching in passing are kept apart
+		return against(a) <= 1 && against(b) <= 1
+	}
+	var cut []int
+	for y := range w.rows {
+		for x := range w.cols {
+			if !roads.has(x, y) {
+				continue
+			}
+			roads.bar = nil
+			joined := len(roads.next(x, y, nil))
+			roads.bar = bar
+			if left := len(roads.next(x, y, nil)); left < 2 && joined >= 2 {
+				cut = append(cut, y*w.cols+x)
+			}
+		}
+	}
+	for _, i := range cut {
+		held[i] = true
+	}
+	roads.bar = bar
 	var buf [][2]int
 	node := func(x, y int) bool {
 		buf = roads.next(x, y, buf[:0])

@@ -597,7 +597,7 @@ func (f *Field) solidCells(layers world.Layers, band collision.Band, box geom.AA
 // body is the size of the entity's box
 func (f *Field) stops(c cell.ID, layers world.Layers, band collision.Band, body geom.Vec) bool {
 	k := f.cells.KindOf(c)
-	if solidFor(k, layers) && f.solidBand(c, k.Height).Meets(band) {
+	if solidFor(k, layers) && f.underDecks(c, f.solidBand(c, k.Height)).Meets(band) {
 		return true
 	}
 	b := f.cells.Built(c)
@@ -612,6 +612,21 @@ func (f *Field) stops(c cell.ID, layers world.Layers, band collision.Band, body 
 	}
 	deck := f.altitude(c) + fl.Height
 	return collision.Band{Bottom: deck - fl.Thickness, Top: deck}.Meets(band.Above())
+}
+
+// underDecks is the solid band of c's ground no higher than the underside of the lowest deck
+// raised over it: what stands on the ground stops nobody crossing on a bridge over it
+func (f *Field) underDecks(c cell.ID, solid collision.Band) collision.Band {
+	if !f.cells.Banded() {
+		return solid
+	}
+	f.decks = f.cells.Bands(c, f.decks[:0])
+	for _, d := range f.decks {
+		if fl := d.Built.Floor; fl.Height > 0 {
+			solid.Top = min(solid.Top, f.altitude(d.Cell)+fl.Height-fl.Thickness)
+		}
+	}
+	return solid
 }
 
 // from below up, so nothing passes under a wall on a slope; a wall of no height stands at every

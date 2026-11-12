@@ -36,14 +36,23 @@ var cellColors = map[string]color.RGBA{
 	PinewoodCell:   {R: 34, G: 88, B: 72, A: 255},
 	HeathCell:      {R: 116, G: 122, B: 86, A: 255},
 	FarmlandCell:   {R: 142, G: 160, B: 82, A: 255},
+	ParkCell:       {R: 104, G: 146, B: 72, A: 255},
 	BuiltCell:      {R: 158, G: 146, B: 124, A: 255},
+	PavedCell:      {R: 168, G: 160, B: 146, A: 255},
+	AsphaltCell:    {R: 74, G: 74, B: 78, A: 255},
+	BuildingCell:   {R: 150, G: 142, B: 130, A: 255},
 }
 
 var (
-	deckColor    = color.RGBA{R: 115, G: 85, B: 55, A: 255}
-	railColor    = color.RGBA{R: 70, G: 50, B: 35, A: 255}
-	stoneColor   = color.RGBA{R: 150, G: 145, B: 135, A: 255}
-	pierColor    = color.RGBA{R: 160, G: 150, B: 135, A: 255}
+	deckColor  = color.RGBA{R: 115, G: 85, B: 55, A: 255}
+	railColor  = color.RGBA{R: 70, G: 50, B: 35, A: 255}
+	stoneColor = color.RGBA{R: 150, G: 145, B: 135, A: 255}
+	pierColor  = color.RGBA{R: 160, G: 150, B: 135, A: 255}
+	// the grass in the middle of a roundabout
+	islandColor  = color.RGBA{R: 96, G: 132, B: 70, A: 255}
+	bankColor    = color.RGBA{R: 112, G: 128, B: 84, A: 255}
+	revetColor   = color.RGBA{R: 124, G: 118, B: 110, A: 255}
+	walkColor    = color.RGBA{R: 172, G: 150, B: 118, A: 255}
 	lanternGlow  = color.RGBA{R: 255, G: 200, B: 110, A: 255}
 	lanternColor = render.Light{1, 0.75, 0.4}
 	wallColor    = color.RGBA{R: 235, G: 230, B: 218, A: 255}
@@ -64,13 +73,16 @@ var (
 		PinewoodCell:   {R: 150, G: 184, B: 176, A: 255},
 		HeathCell:      {R: 214, G: 218, B: 208, A: 255},
 		FarmlandCell:   {R: 228, G: 232, B: 222, A: 255},
+		ParkCell:       {R: 230, G: 234, B: 226, A: 255},
 		BuiltCell:      {R: 226, G: 224, B: 220, A: 255},
+		PavedCell:      {R: 228, G: 228, B: 226, A: 255},
 	}
 	iceColor = color.RGBA{R: 175, G: 210, B: 230, A: 255}
 )
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
+	a.tunnels.WithCover(bankColor)
 	d := details(a.look)
 	a.topography.
 		Style(WaterCell, painter.Style{Under: true, Shine: 0.9}).
@@ -82,8 +94,18 @@ func (m *mainScene) screen() *ui.Element {
 		Style(PinewoodCell, painter.Style{Detail: d[PinewoodCell]}).
 		Style(HeathCell, painter.Style{Spread: 0.3, Detail: d[HeathCell]}).
 		Style(FarmlandCell, painter.Style{Spread: 0.3, Detail: d[FarmlandCell]}).
+		Style(ParkCell, painter.Style{Spread: 0.3, Detail: d[FarmlandCell]}).
 		Style(RoadCell, painter.Style{Detail: d[RoadCell]}).
 		Style(BuiltCell, painter.Style{Spread: 0.3, Detail: d[RockCell]}).
+		Style(PavedCell, painter.Style{Spread: 0.3, Detail: d[RockCell]}).
+		Style(AsphaltCell, painter.Style{Ribbon: painter.Ribbon{
+			Surface: cellColors[AsphaltCell],
+			Island:  islandColor,
+			Bank:    bankColor,
+			Wall:    revetColor,
+			Walk:    walkColor,
+		}}).
+		Style(BuildingCell, painter.Style{Detail: d[RockCell]}).
 		Style(BrookCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).
 		Style(StreamCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).
 		Style(RiverCell, painter.Style{Shine: 0.9, Flow: 22, MixWith: WaterCell}).
@@ -95,9 +117,11 @@ func (m *mainScene) screen() *ui.Element {
 	}
 	a.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
 	a.topography.WithAtmosphere(a.atmosphere.Read(0))
+	a.buildings.WithAir(a.atmosphere.Read(0))
+	a.bridges.WithAir(a.atmosphere.Read(0))
 	a.vision.WithViews(world.Show(a.selection.Read(0).IsSelected))
 
-	cam := a.cameras.Write().New(cameras.Isometrically, camera.Config{Zoom: StartZoom})
+	cam := a.cameras.Write().New(cameras.Isometrically, camera.Config{Zoom: here.zoom})
 	return hud.Screen(hud.Deps{
 		Feed: ui.Image(render.NewFeed(cam, a.world.Read(0).Picture())).
 			Input(a.players.Through(a.player)),

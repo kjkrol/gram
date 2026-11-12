@@ -21,7 +21,7 @@ type Rules struct {
 	standing host.Rules[unit.Standing]
 	now      host.Rules[cell.Now]
 	rings    rings
-	rise     func(from, to cell.ID) float64
+	rise     func(from, to cell.ID, on cell.Level) float64
 	level    func(c cell.ID) float32
 
 	// Mobility, when set, paces every unit by the ground under it and the slope the way it goes;
@@ -32,11 +32,11 @@ type Rules struct {
 	told map[uid.UID64]bool
 }
 
-// New is the rules of the board over g with its cells, run in the Ticks tick makes. rise is the
-// board's Map's, how steep a step from a cell to its neighbour is, and level a cell's ground
-// level.
+// New is the rules of the board over g with its cells, run in the Ticks tick makes. rise is how
+// steep a step from a cell to its neighbour is for whoever stands on a level of the first, and
+// level a cell's ground level.
 func New(g grid.Grid, cells *terrain.Cells, tick host.TickSource,
-	rise func(from, to cell.ID) float64, level func(c cell.ID) float32) *Rules {
+	rise func(from, to cell.ID, on cell.Level) float64, level func(c cell.ID) float32) *Rules {
 	return &Rules{grid: g, cells: cells, tick: tick, rise: rise, level: level}
 }
 

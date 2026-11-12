@@ -25,6 +25,9 @@ type recipe struct {
 	Tunnels     tunnelsCfg     `yaml:"tunnels"`
 	Fields      []fieldCfg     `yaml:"fields"`
 	Settlements settlementsCfg `yaml:"settlements"`
+	Buildings   buildingsCfg   `yaml:"buildings"`
+	Greens      greensCfg      `yaml:"greens"`
+	Coast       coastCfg       `yaml:"coast"`
 	Flat        flatCfg        `yaml:"flat"`
 }
 
@@ -75,9 +78,13 @@ type kinds struct {
 	River  string `yaml:"river"`
 	Road   string `yaml:"road"`
 	Bridge string `yaml:"bridge"`
-	Ford   string `yaml:"ford"`
-	Built  string `yaml:"built"`
-	Tunnel string `yaml:"tunnel"`
+	// the kinds of a short bridge over water and of a long or a high one, on a map whose roads
+	// lie on their own profile; the Bridge's where none is named
+	Arch    string `yaml:"arch"`
+	Viaduct string `yaml:"viaduct"`
+	Ford    string `yaml:"ford"`
+	Built   string `yaml:"built"`
+	Tunnel  string `yaml:"tunnel"`
 }
 
 // land is the kinds the land's cells are drawn as
@@ -90,6 +97,8 @@ type fieldCfg struct {
 	Kind  string    `yaml:"kind"` // the field's, a kind of entity
 	Grain int       `yaml:"grain"`
 	Least int       `yaml:"least"`
+	// Trees counts a cell a tree stands on by itself among the field's
+	Trees bool `yaml:"trees"`
 }
 
 // the cells laid round the places, as many as a place's size: a word of sizes, none or a number
@@ -177,6 +186,11 @@ type roadsCfg struct {
 	// osm: the roads are OpenStreetMap's of Classes, followed; else planned along Routes
 	Source  string   `yaml:"source"`
 	Classes []string `yaml:"classes"`
+	// profile: OpenStreetMap's roads lie where they run, a cell wide, on a profile of their own,
+	// a Lane wide a lane and a Verge either side, metres; else they are planned and levelled
+	Lay   string  `yaml:"lay"`
+	Lane  float64 `yaml:"lane"`
+	Verge float64 `yaml:"verge"`
 }
 
 // a place roads run to, at a longitude and latitude, settled on as its size says, the
@@ -294,7 +308,17 @@ func parseRecipe(data []byte, path string) (recipe, error) {
 
 func (r recipe) validate() error {
 	land := append(r.Kinds.land(), r.Cover.kinds()...)
+	land = append(land, r.town()...)
 	if err := r.Cover.validate(); err != nil {
+		return err
+	}
+	if err := r.Buildings.validate(); err != nil {
+		return err
+	}
+	if err := r.Coast.validate(); err != nil {
+		return err
+	}
+	if err := r.Greens.validate(); err != nil {
 		return err
 	}
 	for i, f := range r.Fields {
@@ -333,6 +357,18 @@ func (r recipe) validate() error {
 	return nil
 }
 
+// town is the kind of cells the buildings stand on
+func (r recipe) town() []string {
+	var out []string
+	if r.Buildings.Cells != "" {
+		out = append(out, r.Buildings.Cells)
+	}
+	if r.Greens.Cells != "" {
+		out = append(out, r.Greens.Cells)
+	}
+	return out
+}
+
 func defaultRecipe() recipe {
 	var r recipe
 	r.Area.Units = 32
@@ -353,6 +389,8 @@ func defaultRecipe() recipe {
 	r.Roads.Earth = math.Inf(1)
 	r.Roads.Slope = ground.RoadSlope * 180 / math.Pi
 	r.Roads.Fords = true
+	r.Roads.Lane = 3
+	r.Roads.Verge = 0.5
 	r.Roads.Metre = 1
 	r.Roads.Cubic = 0.001
 	r.Roads.Climb = 6

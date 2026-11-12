@@ -175,6 +175,12 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
 - All pipelines share one layout, so `bindFrame` sets group 3 once a pass. A draw has four image
   slots of its own, the terrain using all four. A mesh drawn in parts goes by
   `DrawMeshOptions.Ranges`, one call.
+- **What stands goes to the GPU once** (2026-11-12): a Direct's instances that change only as
+  the map does are a `render.Instances` (`PackInstances` a sector a group, fine then coarse),
+  drawn `Kept` in `Spans` joined where sectors follow each other, laid in Publish and put in
+  place in Swap, the old one released; `DrawMeshOptions.Instances` is for what changes every
+  frame. Sent every frame, Funchal's 55 000 instances halved its frame rate seen whole, on the
+  GPU's side more than on the CPU's.
 - **The sky is the game's look** (a `backdrop.Dome`'s parts an `atmosphere.Sky` sets) **and its
   colours come from one place** (2026-10-15, `skyAt`): a vault far from the air's colour at the
   horizon shows a seam with the fog; the water reflects the air, never the vault; the clouds'

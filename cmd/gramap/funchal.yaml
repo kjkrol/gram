@@ -1,0 +1,90 @@
+# Funchal: 3.6 x 4.6 km in 360 x 460 cells of 10 m, from the harbour up to Monte, everything
+# as big as in life.
+area:
+  centre: [-16.910, 32.660] # longitude, latitude
+  cells: [360, 460]
+  cell: 10 # metres
+  units: 32
+  figures: 1 # as in life
+  sea: 0 # the town runs on past the area: no sea is asked round it
+coast: {source: osm, quay: 1.5, pier: paved, pontoon: pontoon} # the harbour's shore, its breakwaters and piers
+kinds: {built: built, road: asphalt, bridge: beam, arch: arch, viaduct: viaduct}
+ground:
+  rock: {slope: 1.5, above: 1600}
+  sand: {within: 2, below: 4, share: 0.3}
+  forest: {from: 300, to: 1400, share: 0.45}
+cover:
+  source: corine
+  kinds: # by CORINE Land Cover's classes
+    woodland: [311, 313, 324]
+    pinewood: [312]
+    heath: [322]
+    farmland: [221, 222, 242, 243]
+    paved: [111, 112, 121, 122, 123, 133, 141, 142] # the town's fabric, its port, its works
+rivers:
+  brook: 6 # km² drained: the area cuts the catchments, so none runs
+  stream: 15
+  river: 40
+  depth: [2, 4, 6]
+  rain: 1000
+  width: 0.42
+  meander: 15
+  ford: {every: 24, slope: 0.1}
+roads: # OpenStreetMap's, where they run: a cell wide, each on a profile of its own
+  source: osm
+  lay: profile
+  classes: [motorway, trunk, primary, secondary, tertiary, unclassified, residential]
+  slope: 14 # degrees, the steepest a street climbs
+  lane: 3 # metres a lane
+  verge: 0.5 # metres either side of the lanes
+  cut: 6 # metres past which a cell is counted as cut or filled too far
+  fill: 6
+  thickness: 1 # metres of a deck in life
+tunnels: # OpenStreetMap's, where the ground lets one lie
+  clear: 4.5 # metres of its room
+  width: 8 # metres
+  cover: 1 # metres of rock over its roof
+  grade: 0.12 # rise over run
+  longest: 300 # cells
+  reshape: 12 # metres a head is cut into the ground and its headwall raised, at most
+  follow: 1.5 # cells off its ways a slanting stretch may run before it is led in steps
+buildings: # OpenStreetMap's, each its own: the first kind whose words it answers
+  cells: building
+  storey: 3 # metres
+  longest: 40 # metres either way: a longer building is written in parts
+  kinds:
+    - {kind: chapel, tags: {building: chapel}}
+    - {kind: church, tags: {building: [church, cathedral]}}
+    - {kind: church, tags: {amenity: place_of_worship}}
+    - {kind: hotel, tags: {tourism: hotel}}
+    - {kind: hotel, tags: {building: hotel}}
+    - {kind: tower, floors: 8}
+    - {kind: block, floors: 4}
+    - {kind: hall, tags: {building: [industrial, warehouse, retail, commercial, supermarket]}}
+    - {kind: shed, tags: {building: [shed, hut, garage, garages, roof, greenhouse, ruins]}}
+    - {kind: block, tags: {building: apartments}}
+    - {kind: shed, under: 25} # square metres
+    - {kind: hall, over: 1500}
+    - {kind: villa, tags: {"roof:shape": flat}}
+    - {kind: townhouse, floors: 3}
+    - {kind: house}
+greens: # OpenStreetMap's trees, rows of trees and parks
+  cells: park
+  row: 8 # metres between a row's trees
+  density: 60 # trees to the hectare of a park
+  trees: # the kinds of Funchal's streets and gardens, by their shares
+    - {kind: jacaranda, share: 4}
+    - {kind: plane, share: 3}
+    - {kind: tipuana, share: 2}
+    - {kind: canary palm, share: 2}
+    - {kind: ficus, share: 1}
+    - {kind: dragon tree, share: 1}
+fields: # a field over the cells of a kind in each block of 16 cells a side, a sector of the world
+  - {cells: [building, park], kind: settlement, grain: 16, least: 1, trees: true}
+  - cells: [woodland, pinewood, heath, farmland]
+    kind: growth
+    grain: 16
+    least: 4
+settlements:
+  source: none
+  cells: built

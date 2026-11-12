@@ -61,6 +61,7 @@ type roads struct {
 	heads     map[cell.ID]bool
 	mouths    map[cell.ID]bool
 	pinned    map[int]bool // the corners of the heads and of the cells by the mouths
+	streets   *streets     // the roads laid on a profile of their own, none planned
 }
 
 // a leg of a route, from one place to the next
@@ -950,6 +951,9 @@ func (r *roads) bridgeRules() bridgesite.Rules {
 
 // summary is what the roads came to: their cells, bridges and fords, the earth levelled
 func (r *roads) summary() string {
+	if r.streets != nil {
+		return r.streets.summary()
+	}
 	bridges, fords := 0, 0
 	for _, s := range r.live() {
 		if s.ford {

@@ -77,6 +77,9 @@ func (l *Painter) Style(name string, s Style) {
 	l.styleVersion++
 }
 
+// StyleOfKind is how k looks, as Style set it.
+func (l *Painter) StyleOfKind(k cell.Kind) Style { return l.styles[k.Name] }
+
 // StyleOf is how the kind named name looks, as Style set it.
 func (l *Painter) StyleOf(name string) Style { return l.styles[cell.Named(name)] }
 
@@ -215,6 +218,9 @@ type lane struct {
 
 func (l *Painter) laneOf(w cell.Way) lane {
 	s := l.styles[w.Kind.Name]
+	if s.Ribbon != (Ribbon{}) {
+		return lane{} // drawn as a road, not painted on the ground
+	}
 	ln := lane{Way: w, shine: s.Shine, flow: s.Flow}
 	if s.MixWith != "" && l.kinds != nil {
 		if k, ok := l.kinds.Get(s.MixWith); ok {

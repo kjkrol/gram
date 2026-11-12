@@ -65,6 +65,32 @@ func (w *chart) way(id int64, class int, pts ...[2]float64) osmWay {
 	return way
 }
 
+func TestGuide_KeepsAnAvenuesCarriagewaysApartWhereTheirCellsTouch(t *testing.T) {
+	w := bare(24, 30)
+	w.r.Roads.Lay = "profile"
+	// two carriageways two cells apart slanting across the grid, driven against each other:
+	// at every step of one a cell of it lies beside a cell of the other
+	up := w.way(1, 1, [2]float64{4.5, 27.5}, [2]float64{12.5, 3.5})
+	down := w.way(2, 1, [2]float64{14.5, 3.5}, [2]float64{6.5, 27.5})
+	up.oneway, down.oneway = true, true
+	g := w.newGuide([]osmWay{up, down}, nil, nil)
+	if len(g.legs) != 2 {
+		t.Fatalf("%d legs, want the two carriageways, no road across from one to the other",
+			len(g.legs))
+	}
+	for _, l := range g.legs {
+		if len(l.trace) < 20 {
+			t.Errorf("a carriageway of %d cells, want it whole from end to end", len(l.trace))
+		}
+	}
+	// a street crossing them joins both
+	across := w.way(3, 1, [2]float64{2.5, 15.5}, [2]float64{20.5, 15.5})
+	if g := w.newGuide([]osmWay{up, down, across}, nil, nil); len(g.legs) != 7 {
+		t.Errorf("%d legs with a street across, want the three ways cut in seven at the two "+
+			"crossings", len(g.legs))
+	}
+}
+
 func TestGuide_ThinsARoadOfTwoCarriagewaysToOneLeg(t *testing.T) {
 	w := bare(16, 12)
 	g := w.newGuide([]osmWay{
@@ -113,7 +139,7 @@ func TestStraighten_LeadsATunnelAlongTheGridsWays(t *testing.T) {
 	for x := 0; x <= 9; x++ {
 		run = append(run, [2]int{x, x / 3})
 	}
-	turns := append(append([][2]int{run[0]}, straighten(run, bend)...), run[len(run)-1])
+	turns := append(append([][2]int{run[0]}, straighten(run, bend, 0)...), run[len(run)-1])
 	if len(turns) < 3 {
 		t.Fatalf("turns at %v, want a turn between ends lying on no way of the grid", turns)
 	}
@@ -271,17 +297,7 @@ func TestMadeira_IsTheMapItWas(t *testing.T) {
 	tiles := newTerrarium(zoomFor(r.Area.Cell, r.Area.Centre[1]),
 		filepath.Join(dir, "gramap", "terrarium"))
 	over := newOverpass(filepath.Join(dir, "gramap", "osm"))
-	osm := func(box [4]float64, classes []string, buildings bool) (*osmData, error) {
-		ways, err := over.roads(box, classes)
-		if err != nil {
-			return nil, err
-		}
-		data := &osmData{ways: ways}
-		if buildings {
-			data.buildings, err = over.buildings(box)
-		}
-		return data, err
-	}
+	osm := over.source(r)
 	land := newLandcover(filepath.Join(dir, "gramap", "cover"))
 	for flat, want := range madeira {
 		rc := r
@@ -298,3 +314,34 @@ func TestMadeira_IsTheMapItWas(t *testing.T) {
 		}
 	}
 }
+
+// With GRAMAP_MADEIRA set and OpenStreetMap's answers in the user's cache, Funchal's map is
+// made and held to what it was.
+func TestFunchal_IsTheMapItWas(t *testing.T) {
+	if os.Getenv("GRAMAP_MADEIRA") == "" {
+		t.Skip("GRAMAP_MADEIRA is not set: Funchal's map is not made")
+	}
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		t.Skip(err)
+	}
+	r, err := readRecipe("funchal.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tiles := newTerrarium(zoomFor(r.Area.Cell, r.Area.Centre[1]),
+		filepath.Join(dir, "gramap", "terrarium"))
+	over := newOverpass(filepath.Join(dir, "gramap", "osm"))
+	land := newLandcover(filepath.Join(dir, "gramap", "cover"))
+	c, err := build(r, tiles.at, over.source(r), land, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(c.text("cmd/gramap/funchal.yaml", ""))
+	if got := hex.EncodeToString(sum[:]); got != funchal {
+		t.Errorf("the map is %s, was %s", got, funchal)
+	}
+}
+
+// the map of Funchal as its recipe makes it, by the SHA-256 of its text
+const funchal = "bb3a27b94be9395e7a3c5878d1bab5cf06a6ac672f33d9718a3394d394ae2177"

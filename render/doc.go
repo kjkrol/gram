@@ -8,14 +8,15 @@
 // lines to the telemetry panel.
 //
 // The world's picture is a [Composer] of [Source]s, each handing its pieces to a [Frame] where
-// they lie ([At]), drawn back to front against the depth; a [Direct] source draws its part
-// itself with a shader of its own ([NewMeshShaderWith], [Image.DrawMesh]), in the passes it asks
-// for: the opaque ground ([Frame.DrawOpaque]), the cutouts after it ([Frame.DrawCutout]: what
-// stands whole, cut at half its alpha, writing the depth, in no order, so what stands behind or
-// under it is hidden), and among what is seen through ([Frame.DrawAt]); [Sprites] as instances,
-// [Sprites.Cutout] naming those of the cutout pass; [Sprites] lay what is seen from afar as
-// points too, a pixel at least, as opaque as they cover of it. What is worked out per pixel is a material ([RegisterMaterials]), what every
-// shader of a frame reads beside the uniforms an image ([RegisterImage], [Frame.Image]).
+// they lie ([At]), drawn back to front against the depth; a [Direct] source draws its part itself
+// with a shader of its own ([NewMeshShaderWith], [Image.DrawMesh]; instances that stand are kept
+// on the GPU, [Instances]), in the passes it asks for: the opaque ground ([Frame.DrawOpaque]), the
+// cutouts after it ([Frame.DrawCutout]: what stands whole, cut at half its alpha, writing the
+// depth, in no order, so what stands behind or under it is hidden), and among what is seen through
+// ([Frame.DrawAt]); [Sprites] as instances, [Sprites.Cutout] naming those of the cutout pass;
+// [Sprites] lay what is seen from afar as points too, a pixel at least, as opaque as they cover of
+// it. What is worked out per pixel is a material ([RegisterMaterials]), what every shader of a
+// frame reads beside the uniforms an image ([RegisterImage], [Frame.Image]).
 //
 // Pictures are [Image]s on the GPU, drawn into and filled ([Image.FillRect] and kin); sprites
 // are painted on the CPU into an [Atlas] ([SpriteDrawer], [Solid] and kin, [Blob] one seen from

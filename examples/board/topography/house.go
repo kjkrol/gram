@@ -37,7 +37,7 @@ func (house) Rules(b *board.Plugin) {
 
 func (house) Define(b *board.Plugin) {
 	w := b.Read(0).World()
-	kind.Define[houseRow](w.Kinds(), HouseKind, w.Roster().Spec(board.StandingTemplate,
+	kind.Define[houseRow](w.Kinds(), CottageKind, w.Roster().Spec(board.StandingTemplate,
 		// a part: SpawnPart lays its box off the middle of the settlement's sector
 		comp.Const(world.Position{
 			AABB: plane.NewAABB(geom.NewVec(-housePx/2, -housePx/2), housePx, housePx),
@@ -47,7 +47,7 @@ func (house) Define(b *board.Plugin) {
 }
 
 func (house) Look(a *world.Atlas, w *world.Plugin) {
-	a.Add(kind.Named[houseRow](w.Kinds(), HouseKind), housePx, roof).Upright()
+	a.Add(kind.Named[houseRow](w.Kinds(), CottageKind), housePx, roof).Upright()
 }
 
 // a roof seen from above, its two slopes either side of the ridge, the walls' tops round it

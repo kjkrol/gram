@@ -59,6 +59,116 @@
   the tree heather and the Madeira cedar of the heights, the maritime pine, the eucalyptus, the
   acacia and the chestnut, bananas and vines on the terraces, and palms and dragon trees beside
   the houses of the coast.
+- `plugins/buildings`: the buildings of a level's file as solids, each as long, as wide and as
+  high as its line says (`{kind, mid, size, turn, floors}`, `Write.Spawn`, `Write.Stand`):
+  walls on a rectangle turned any way and a roof over them (`Flat`, `Gable`, `Hip`,
+  `Pyramid`), a kind's `Spec` its storey, its colours, its windows' bay and its `Part`s (a
+  tower, a room on the roof). The plugin draws them itself at every level, in the frame's
+  light, the relief's shade and the air's haze (`WithAir`): whole at the close and standard
+  scales, bodies without windows at the strategic one, windows lit at night, each layer of a
+  camera's picture drawing the sectors it shows; no sheet holds them. A building is an entity
+  where its settlement's sector unfolds (`Raise`, a command a settlement gives itself under
+  `world.Unfold`), standing for good, turned, its shadow baked, gone as the sector folds
+  (`BuildingRole`).
+- `world.Stand`: the rectangle a thing standing turned covers on the ground; the light bakes
+  its shadow over it. `world.SpawnPartIn` and `Read.Unfolding`: a plugin gives, in an
+  aggregate's name, the parts of the stretch an `Unfold` told of.
+- `cmd/gramap` writes a town: OpenStreetMap's buildings each its own (`buildings: {cells,
+  storey, longest, kinds}`: its outline's area lying as its narrowest frame, its storeys from
+  its levels or its height, its kind the first whose tags, storeys and area it answers, one
+  longer than `longest` in parts), the cells under them of a kind of their own.
+- **A road as it runs, on the grid** (`roads: {source: osm, lay: profile}` in a gramap recipe):
+  OpenStreetMap's ways a cell wide, one road a cell and a level, each cell's axis where the ways
+  pass it, the ground under them cut and filled to a profile along the axis, no steeper than
+  `slope`, and level across; two carriageways nearer than a cell are one road of their lanes
+  together, a ring of ways a roundabout at its middle, of its own radius. A `cell.Way` says
+  where its axis passes its cell (`Off`), its `Lanes`, the links it may be left by where it
+  runs one way (`Out`, `OneWay`) and how the ways meeting in it join (`Form`: `Joined`,
+  `Roundabout` of a `Radius`); a level's file writes them (`{via, lanes, oneway, width}` for a
+  path, `axes`, `junctions` under a road's kind). OpenStreetMap's tunnels and bridges are laid
+  along one grade line a course: the tunnels and bridges driven one after another, a few
+  metres of plain road between them, lie on a line through the points where the road meets
+  the ground, a spot the heights misplace passed over; a tunnel is dug where the ground closes
+  over the line, whichever way runs there, a deck stands where it lies a hollow under it, a
+  street runs between, in a cutting where no tunnel may lie (`tunnels: {follow}` leads a
+  slanting stretch in steps along its ways); a tunnel's way on ground too shallow to close
+  over it is sunk under its line, a ramp down from either end, 3.5 m at most. A bridge's
+  head lies level. No building stands over a mouth.
+- A tunnel a level's file marks with lanes (`{kind, from, to, via, lanes}`) is a road's: the
+  topography's ribbon runs on along its floor, through its mouths at the heads' level, lit as
+  a tunnel is, and the tube draws no road of its own.
+- The topography draws a way styled as a road (`painter.Style.Ribbon`) as a ribbon in its true
+  width along the axes of its cells, level across, at every level: bending through each cell,
+  its edges and lanes marked, the middle line dashed or double by its lanes, an arrow on a
+  lane driven one way, roads meeting each with its lines up to its mouth and a rounded
+  corner from each road's edge to the next one's, the edge line running on along it from one
+  road into the other; a roundabout a roadway whole round its island, level with the roads
+  run into it: each by a mouth at its rim, the road's edge lines rounding into the line
+  along the rim, a broken line across the mouth where the road gives way, in
+  the ground's shade and the air's haze. Where the ground lies lower than an edge, the road is
+  held: a bank of earth (`Ribbon.Bank`, falling `Slope`, landing within `Reach` metres) from
+  the edge down to the ground, running out to nothing along the road, or a wall
+  (`Ribbon.Wall`) where no bank lands, a solid cell stands in its way or another road lies
+  there. A deck's head lying
+  on the ground is the road there, drawn once. A band painted on the ground stays what a way
+  without the style is.
+- `cmd/gramap` stands no building on a road or on water: a wall in a road's way or over a
+  bed draws back to its edge, the building as much narrower; one too narrow for that steps
+  aside, and one a road runs through is left out. Water a street ends in, where streets meet
+  over it or one runs along it, is covered, the streets running on.
+- `cmd/gramap` takes a town's shore from OpenStreetMap (`coast: {source: osm, quay, pier,
+  pontoon}`): the sea is what lies on the water's side of the coastline's ways, breakwaters
+  and piers are land standing `quay` metres over it, no water is left cut off from the sea (a
+  harbour's mouth narrower than a cell is opened a cell wide), and a pier drawn as a line is
+  written as a bridge of the kind `pontoon` from the quay out over the water. The heights'
+  zero, which a harbour is too fine for, stays the shore of a map asking none.
+- `cmd/gramap` keeps an avenue's two carriageways two roads: where their cells come to lie
+  side by side, as two lines slanting across the grid do at every step, no road runs from
+  one across to the other; carriageways a cell apart all along stay one road of their lanes.
+- Nothing stands on a road: `cmd/gramap` moves a tree off every street's roadway, a
+  roundabout's and the water, onto a roundabout's island where that is nearer, as it draws a
+  building back. A roundabout's row says its own lanes (`junctions: [{at, roundabout,
+  lanes}]`), the radius its roadway's outer edge.
+- `painter.Ribbon.Walk`: the surface of a deck no lanes are marked on, a walkway.
+- `underground.Plugin.WithCover`: the earth lying over a tunnel's mouth, behind its face, in
+  a colour of the game's; without it the frame is concrete as far in as it shows.
+- A `painter.Detail` finer than three cells across shows as its own span on the screen lets
+  it, so a texture laid as big as in life gives its grain near and the ground's colour far
+  off, without flicker.
+- A bridge along a path (`{kind: <a bridge>, lanes, width, path: [[x, y, dx, dy], ...]}`): a
+  piece of deck on every cell from head to head, turning with its cells and climbing evenly
+  from one head's ground to the other's, its surface drawn as the roads are. `bridges.Spec`
+  takes a `Model` drawn as solids at every level (`Beam` a slab on wall piers, `Arch` a stone
+  arch from pier to pier, `Viaduct` a girder on slender piers), its `Girder`'s depth, its
+  piers' `Span` and its colours; `WithAir` hazes it as the ground. `cell.Floor` carries the
+  `Off` and the `Lanes` of a deck run as a band.
+- A tree standing by itself (`{kind: <a tree>, at: [x, y]}` in a level's file,
+  `forest.Write.Spawn`, `Write.Stand`): an entity where the aggregate over its sector unfolds
+  and gives itself `forest.Plant`, gone as the sector folds.
+- `cmd/gramap` lays what grows in a town (`greens: {cells, row, density, trees}`):
+  OpenStreetMap's trees, a tree every `row` metres along a row of them and `density` to the
+  hectare of a park, each of a kind by its share, none on a street; the parks' cells of a kind
+  of their own. A field may count the cells a tree stands on (`fields: [{trees: true}]`).
+- `cmd/gramap/funchal.yaml` is Funchal from the harbour up to Monte in cells of 10 m,
+  everything as big as in life: 15 469 buildings, 18 471 cells of street in 2239 stretches
+  with their lanes, 18 roundabouts, 21 bridges, 15 tunnels and 5409 trees of its streets and
+  gardens, made in under ten seconds.
+- The topography demo plays Funchal too (`-map funchal`, `make demo-board-topography-funchal`):
+  cells of 10 m, the figures, the trees and the buildings as big as in life, ten kinds of
+  buildings (house, town house, villa, block, tower, hotel, church, chapel, hall, shed), its
+  streets ribbons of asphalt, three models of bridge, and the jacaranda, the plane, the
+  tipuana, the Canary palm and the ficus along them.
+- `camera.Inner` and `Transform.Shows`: the window a later layer of a picture covers, and
+  whether a box may show through a camera's layer, for a source drawing by sectors.
+- `render.Instances`: an instanced mesh's instances kept on the GPU (`NewInstances`,
+  `PackInstances` by groups, `DrawMeshOptions.Kept` and `Spans`, `JoinSpan`), drawn in ranges
+  with nothing sent a frame; the buildings, the roads' ribbons and the bridges' structures
+  keep theirs a sector. A building is drawn by the two walls of its four that face the
+  camera, and far off under a level lid in place of its roof's slopes. Funchal seen whole
+  draws at 125 FPS where it drew at 48.
+- What a level's file stands is saved with the game (`buildings.Resources`,
+  `forest.Resources`, `bridges.Resources.Wound`): its buildings, its trees standing by
+  themselves and its bridges along paths are drawn and raised after a load as before it.
 - `forest.Types.Entry` is a tree for a game's own rule to stand where no forest plants it; a
   tree taller than wide is drawn on a finer sprite, up to four times.
 - The topography cuts the ground over the mouth of a floor sunk under it and frees the cameras'
@@ -67,6 +177,20 @@
 **Fixed**
 - A way narrower than a pixel and a half of the ground's sheet is painted that wide: a road
   slanting across a big board's cells was a row of dots from close by.
+- A step on a floor raised or sunk is paced by the floors' own slope, and the one off a deck
+  onto its head too, not by the ground's under it (`board.Read.Pace`, and the pace a unit
+  walks at, which read the ground's under a deck and over a tunnel and stood it still over a
+  ravine's wall); a slantwise step on a deck is priced as the deck's, not as one across the
+  bare ground beside a way. A viaduct over a deep ravine was a cliff to a route.
+- A bridge climbing from piece to piece is a ramp to whoever walks it, as a tunnel's floor
+  is: its surface runs evenly from a piece's middle to the next one's and to the ground at its
+  ends (`Footing().Surface`), a unit at a piece's low edge stands on it (`LevelFor`,
+  `BoardRead.FloorDip`), and a route takes a deck running on, and steps onto it and off it
+  at its ends, whatever it climbs a cell, the pacing judging its slope. Each piece was a step as high as the deck climbs in a cell, and a
+  walker stepping lower than that was refused the bridge or walked in under it.
+- Ground nobody enters, of no height of its own, stops nobody on a bridge over it: it stands
+  no higher than the underside of the lowest deck over its cell. A house's cell under a
+  viaduct stopped whoever crossed 60 m over its roof.
 
 **Changed**
 - A gramap recipe says how many times bigger than life its game draws the figures

@@ -98,17 +98,7 @@ func run(recipePath, out, cache string, flat bool) error {
 		r = r.asFlat()
 	}
 	over := newOverpass(filepath.Join(filepath.Dir(cache), "osm"))
-	osm := func(box [4]float64, classes []string, buildings bool) (*osmData, error) {
-		ways, err := over.roads(box, classes)
-		if err != nil {
-			return nil, err
-		}
-		data := &osmData{ways: ways}
-		if buildings {
-			data.buildings, err = over.buildings(box)
-		}
-		return data, err
-	}
+	osm := over.source(r)
 	land := newLandcover(filepath.Join(filepath.Dir(cache), "cover"))
 	c, err := build(r, newTerrarium(zoom, cache).at, osm, land, flat)
 	if err != nil {

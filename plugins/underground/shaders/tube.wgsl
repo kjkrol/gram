@@ -5,7 +5,8 @@
 // left and on its right going from a to b, and the walls closing it at a and at b; faces says
 // which of the four walls stand, a bit each. Where a stretch turns into another at b its left
 // wall ends c.z short of b and its right wall as far past it, so the two meet on the plane
-// between them; a stretch of c.w 1 is the frame round a mouth, in the light of the day.
+// between them; a stretch of c.w 1 is the frame round a mouth, in the light of the day, one of
+// c.w 2 the cover behind it, U.TubeCover's colour where its alpha is set.
 
 struct Tube {
     @builtin(position) clip: vec4<f32>,
@@ -15,6 +16,7 @@ struct Tube {
     @location(2) at: vec2<f32>,
     @location(3) @interpolate(flat) room: vec2<f32>, // how wide and how high the stretch is
     @location(4) @interpolate(flat) frame: f32,
+    @location(5) @interpolate(flat) bare: f32, // a road's ribbon lies on its floor
 }
 
 const faceFloor = 0u;
@@ -76,6 +78,7 @@ fn vs_main(
     t.at = at;
     t.room = vec2<f32>(2.0 * half, clear);
     t.frame = c.w;
+    t.bare = f32((u32(c.x) >> 4u) & 1u);
     return t;
 }
 
@@ -94,7 +97,14 @@ fn fs_main(t: Tube) -> @location(0) vec4<f32> {
             shade = 1.0;
         }
         let day = U.Ambience + vec3<f32>(0.35) + lampLightAt(t.world);
-        return vec4<f32>(vec3<f32>(0.6, 0.59, 0.56) * shade * day, 1.0);
+        let face = vec3<f32>(0.6, 0.59, 0.56);
+        if t.frame > 1.5 && U.TubeCover.w > 0.0 {
+            // behind the mouth's face the earth lies on it, in the sun as the ground is
+            let sun = U.LightColor * max(lightWay().z, 0.0) * U.LightStrength;
+            let lit = U.Ambience + sun * shade + lampLightAt(t.world);
+            return vec4<f32>(U.TubeCover.rgb * lit, 1.0);
+        }
+        return vec4<f32>(face * shade * day, 1.0);
     }
     var rgb = vec3<f32>(0.42, 0.41, 0.39); // the walls' concrete
     let period = lampEvery * t.room.y;
@@ -108,7 +118,9 @@ fn fs_main(t: Tube) -> @location(0) vec4<f32> {
         let dash = step(fract(t.at.x / (t.room.y * 1.5)), 0.5);
         let middle = (1.0 - smoothstep(0.012, 0.024, off)) * dash;
         let edge = smoothstep(0.42, 0.432, off) * (1.0 - smoothstep(0.448, 0.46, off));
-        rgb = mix(rgb, vec3<f32>(0.8, 0.8, 0.75), max(middle, edge));
+        if t.bare < 0.5 {
+            rgb = mix(rgb, vec3<f32>(0.8, 0.8, 0.75), max(middle, edge));
+        }
     } else if t.face == faceRoof {
         rgb = vec3<f32>(0.27, 0.27, 0.27);
         // the lamp itself: a strip across the roof
