@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/buildings"
 	"github.com/kjkrol/gram/plugins/forest"
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
@@ -59,8 +60,9 @@ const (
 	gardens   = 8
 )
 
-// settlement stands over a field of the map's built cells: each sector of it come down to L3
-// stands a house on each of them, in the quarter its seed picks, one of litFrom cells or more
+// settlement stands over a field of the map's built cells: in a town the buildings its file
+// lists stand as a sector of it comes down to L3; else each sector stands a house on each of
+// them, in the quarter its seed picks, one of litFrom cells or more
 // a lamp facing the house nearest its middle, and by the sea a palm or a dragon tree beside
 // some houses, of the trees' kinds.
 type settlement struct{ trees *forest.Plugin }
@@ -72,7 +74,21 @@ var (
 
 func (s settlement) Rules(b *board.Plugin) {
 	w := b.Read(0).World()
-	home, lit := kind.EntryOf(HouseKind, houseRow{}), kind.EntryOf(LampKind, lampRow{})
+	if here.town {
+		w.Roles().Define(SettlementRole,
+			act.Branch[world.Unfold]{
+				Name: "its buildings stand",
+				When: cond.Self.If(cond.Always),
+				Then: act.Self.Do(buildings.Raise{}),
+			},
+			act.Branch[world.Unfold]{
+				Name: "its streets' and parks' trees stand",
+				When: cond.Self.If(cond.Always),
+				Then: act.Self.Do(forest.Plant{}),
+			})
+		return
+	}
+	home, lit := kind.EntryOf(CottageKind, houseRow{}), kind.EntryOf(LampKind, lampRow{})
 	palm, dragon := s.trees.Types().Entry(PalmKind), s.trees.Types().Entry(DragonKind)
 	rules := make([]act.Rule, 0, quarterPlots)
 	for k := range quarterPlots {

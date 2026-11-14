@@ -9,7 +9,8 @@ import (
 // Shine (0 to 1) is how much of the sun it throws back, Flow how fast water runs down its slope
 // (world units a second at a fall of 1 in 1, 0 still), Spread (0 to a half) how softly it runs
 // into a spreading neighbour, Under whether it lies under the kinds round it, MixWith the kind
-// a way of it takes the look of towards its mouth, Detail the texture laid over its cells.
+// a way of it takes the look of towards its mouth, Detail the texture laid over its cells, Ribbon
+// how a way of it is drawn as a road.
 type Style struct {
 	Shine   float32
 	Flow    float32
@@ -17,6 +18,24 @@ type Style struct {
 	Under   bool
 	MixWith string
 	Detail  Detail
+	Ribbon  Ribbon
+}
+
+// Ribbon has a way drawn as a road in its true width along the axes of its cells, level across,
+// its lanes marked, a roundabout's Island in the middle of its plate; the zero Ribbon leaves the
+// way a band painted on the ground. A deck laid along a path is drawn as the roads are.
+type Ribbon struct {
+	Surface color.RGBA
+	Island  color.RGBA
+	// Bank is the earth sloping from a road's edge down to the ground lying lower, falling
+	// Slope a unit out (2/3 where 0) and landing within Reach metres (8 where 0); Wall holds the
+	// road where no bank lands or a solid cell stands in its way. Neither set, the edge hangs.
+	Bank  color.RGBA
+	Wall  color.RGBA
+	Slope float32
+	Reach float32
+	// Walk is the surface of a deck no lanes are marked on, a walkway; Surface's where unset.
+	Walk color.RGBA
 }
 
 // DetailPx is the side a Detail's tile is baked at, in pixels; an Image of another size is

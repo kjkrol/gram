@@ -12,7 +12,8 @@ type Write struct{ p *Plugin }
 func (p *Plugin) Write() *Write { return &p.write }
 
 // Spawn builds every bridge a level's file has, a line `{kind: <a kind of bridge>, from: [x, y],
-// to: [x, y]}`, its deck at its first head's level. One the Rules refuse fails Populate with its
+// to: [x, y]}`, its deck at its first head's level, or `{kind, path: [[x, y, dx, dy], ...]}`, its
+// deck from its first head's level to its last's. One the Rules refuse fails Populate with its
 // line.
 func (w *Write) Spawn(level *board.Level) error {
 	p := w.p
@@ -21,6 +22,14 @@ func (w *Write) Spawn(level *board.Level) error {
 	gr := g.Grid()
 	return board.Each(level, func(name string, r Row, at string) error {
 		t := p.types.Named(name)
+		if len(r.Path) > 0 {
+			whole, pieces, err := p.winding(t, r, g)
+			if err != nil {
+				return err
+			}
+			p.worldPlugin.Write().SeedWhole(whole, pieces...)
+			return nil
+		}
 		way, spans, err := site.Line(gr, r.From, r.To, p.cfg.Rules.Longest)
 		if err != nil {
 			return err

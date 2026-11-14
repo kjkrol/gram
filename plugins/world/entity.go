@@ -11,6 +11,7 @@ type (
 	Layers   = entity.Layers
 	Eye      = entity.Eye
 	Lie      = entity.Lie
+	Stand    = entity.Stand
 )
 
 // StepReach is how far an entity may travel in one tick, as a share of its own shorter side.

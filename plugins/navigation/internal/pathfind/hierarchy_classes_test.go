@@ -133,7 +133,7 @@ func classedBoards() map[string]classedBoard {
 	gapG := grid.DefaultGrids{}.Square(7, 5, 10)
 	gap := gapped(gapG)
 	causewayG := grid.DefaultGrids{}.Square(5, 5, 10)
-	cw := causeway{causewayG, cell.NewTerrainMap()}
+	cw := causeway{g: causewayG, terrain: cell.NewTerrainMap()}
 	cw.terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Water})
 	cw.terrain.Set(causewayG.At(0, 0), cell.Kind{Pace: 1, Allows: cell.Land})
 	cw.terrain.Set(causewayG.At(4, 4), cell.Kind{Pace: 1, Allows: cell.Land})
@@ -255,7 +255,9 @@ func TestHierarchy_TheGraphRefusesAClassWhatItsBodyIsRefused(t *testing.T) {
 				t.Errorf("%d steps forward, %d backward; want each seen from both its ends alike",
 					len(forward), len(backward))
 			}
-			if bodily := name != "roads over hills"; bodily != (refused > 0) {
+			// a causeway's ends are ramps to any body
+			bodily := name != "roads over hills" && name != "a causeway slantwise"
+			if bodily != (refused > 0) {
 				t.Errorf("%d steps refused some class; want some where a body is measured, none "+
 					"where nothing is", refused)
 			}

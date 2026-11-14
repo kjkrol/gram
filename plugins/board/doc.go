@@ -104,7 +104,10 @@
 // relief every cell of a Graded road lies level or on an even ramp (ground.RoadFits), by its
 // corners on either grid. A hex relief given by cells bends the cell where level ground turns
 // into a ramp, a corner being the mean of three cells, so a road climbing there leads onto a
-// bridge or a ford at its ends.
+// bridge or a ford at its ends. A path may be written with its own words, {via: [...], width,
+// lanes, oneway}; beside the paths a road's kind lists the cells its axis passes off their
+// middles (axes: [[x, y, dx, dy], ...]) and its roundabouts (junctions: [{at, roundabout,
+// lanes}]: the radius of its roadway's outer edge and the lanes round it).
 //
 // # Commands
 //
@@ -115,7 +118,11 @@
 // # Ways
 //
 // A cell.Way is what runs across a cell over its ground, a band Width wide from the cell's middle
-// out towards each neighbour its Links name. [BoardRead.Way] and [BoardWrite.SetWay] read and write
+// out towards each neighbour its Links name: one way a cell and a level, whatever runs there. A
+// way may say where its axis passes the cell (Off), how many Lanes it has, the links it may be
+// left by where it is one way (Out) and how the ways meeting in the cell join (Form), for
+// whoever draws it as a road; a step still goes from cell to cell. [BoardRead.Way] and
+// [BoardWrite.SetWay] read and write
 // them, [BoardRead.Along] tells a step along a way from one over the ground beside it,
 // [BoardRead.Bare] is that ground. [BoardRead.CellVersion] and [BoardRead.Changes] count the
 // changes, so whoever keeps something worked out of a cell knows when it is stale;

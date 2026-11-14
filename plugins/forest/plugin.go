@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
@@ -21,19 +23,40 @@ const TreeRole = "forest.tree"
 type Plugin struct {
 	*world.Self
 
+	Res Resources
+
 	worldPlugin *world.Plugin
 	board       *board.Plugin
 	types       Types
 	stands      Stands
+	plants      command.Queue[Plant]
+	module      *module
+	write       Write
+	kept        *plugin.Kept[Resources]
 }
 
-var _ plugin.Plugin = (*Plugin)(nil)
+// Resources is the state of the forest, saved with the game whole: the trees standing by
+// themselves, by the sector each stands in.
+type Resources struct{ Planted map[int][]Planted }
+
+// Planted is a tree standing by itself: its kind and where it stands.
+type Planted struct {
+	Kind string
+	At   geom.Vec
+}
+
+var (
+	_ plugin.Plugin         = (*Plugin)(nil)
+	_ plugin.CommandHandler = (*Plugin)(nil)
+	_ plugin.Restorer       = (*Plugin)(nil)
+)
 
 // NewPlugin builds the forest plugin over w and the board brd, which a forest's cells and heights
 // are read off.
 func NewPlugin(w *world.Plugin, brd *board.Plugin) *Plugin {
-	p := &Plugin{worldPlugin: w, board: brd}
-	p.types.p, p.stands.p = p, p
+	p := &Plugin{worldPlugin: w, board: brd, Res: Resources{Planted: map[int][]Planted{}}}
+	p.kept = plugin.Keep(&p.Res)
+	p.types.p, p.stands.p, p.write.p = p, p, p
 	p.Self = world.NewSelf(w, p)
 	w.Figures(trees{p: p})
 	return p
@@ -47,17 +70,30 @@ func (p *Plugin) Stands() *Stands { return &p.stands }
 
 func (p *Plugin) Name() string { return "gram.forest" }
 
-// Install wires nothing: the trees grow and fold by the world's moments.
-func (p *Plugin) Install(plugin.Installer) error { return nil }
+// Install wires the pass that plants the trees a level's file stands by themselves.
+func (p *Plugin) Install(ctx plugin.Installer) error {
+	p.module = &module{p: p}
+	ctx.UseModule(p.module)
+	return nil
+}
 
-// RunPlan does nothing: the forest has no pass of its own.
-func (p *Plugin) RunPlan(goke.RunCtx, time.Duration) {}
+// RunPlan plants the trees of the stretches told to Plant in the simulation.
+func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
 // EventHandler is nil: the forest reads no input.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is nil: a tree is an entity, saved as any, and a forest's state its effects.
-func (p *Plugin) Serializable() plugin.Serializable { return nil }
+// Serializable is the plugin's Resources, kept whole; a tree planted is an entity, saved as
+// any, and a forest's state its effects.
+func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
+
+// Restore takes the Resources loaded.
+func (p *Plugin) Restore() {
+	p.kept.Restore()
+	if p.Res.Planted == nil {
+		p.Res.Planted = map[int][]Planted{}
+	}
+}
 
 func (p *Plugin) String() string { return fmt.Sprintf("forest %v", p.types.names) }
 

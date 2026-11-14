@@ -1,6 +1,8 @@
 package gfx
 
 import (
+	"slices"
+
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render/internal/gpu"
 )
@@ -57,6 +59,54 @@ func NewIndices(indices []uint32) *Indices { return &Indices{i: gpu.NewIndices(i
 // Release frees the indices on the GPU.
 func (x *Indices) Release() { x.i.Release() }
 
+// Instances are an Instanced shader's instances, its vec4s each, kept on the GPU once drawn.
+type Instances struct {
+	i     *gpu.Instances
+	spans []gpu.Range
+}
+
+// InstanceRange is Count of the instances kept from First.
+type InstanceRange struct{ First, Count int }
+
+// NewInstances keeps the instances of data.
+func NewInstances(data []float32) *Instances { return &Instances{i: gpu.NewInstances(data)} }
+
+// Release frees the instances on the GPU.
+func (x *Instances) Release() { x.i.Release() }
+
+// PackInstances keeps the instances of every block's groups, floats each, a block after
+// another and a block's groups in the order of their keys, and says where each group lies.
+func PackInstances(floats int, blocks ...map[int][]float32) (*Instances,
+	[]map[int]InstanceRange) {
+	var all []float32
+	at := make([]map[int]InstanceRange, len(blocks))
+	for b, groups := range blocks {
+		keys := make([]int, 0, len(groups))
+		for k := range groups {
+			keys = append(keys, k)
+		}
+		slices.Sort(keys)
+		at[b] = make(map[int]InstanceRange, len(groups))
+		for _, k := range keys {
+			at[b][k] = InstanceRange{First: len(all) / floats, Count: len(groups[k]) / floats}
+			all = append(all, groups[k]...)
+		}
+	}
+	return NewInstances(all), at
+}
+
+// JoinSpan is spans with r after them, one with the last where it follows it at once.
+func JoinSpan(spans []InstanceRange, r InstanceRange) []InstanceRange {
+	if r.Count <= 0 {
+		return spans
+	}
+	if n := len(spans); n > 0 && spans[n-1].First+spans[n-1].Count == r.First {
+		spans[n-1].Count += r.Count
+		return spans
+	}
+	return append(spans, r)
+}
+
 // NewMeshShaderWith is a mesh's shader on the composer's library and its materials, as
 // NewShaderWith, whose source has a vertex stage of its own: vs_main and fs_main, and fs_prime
 // for a mesh drawn Primed.
@@ -85,6 +135,10 @@ type DrawMeshOptions struct {
 	// Ranges are the ranges of the indices drawn, at one go; none, every one.
 	Ranges    []IndexRange
 	Instances []float32 // an Instanced shader's, its vec4s each
+	// Kept are the instances kept on the GPU, in place of Instances; Spans the ranges of them
+	// drawn, at one go; none, every one.
+	Kept  *Instances
+	Spans []InstanceRange
 	// ReadDepth is a depth buffer the shader reads (depthAt), another than Depth, at the size it
 	// was drawn at.
 	ReadDepth *Depth
@@ -125,11 +179,24 @@ func (i *Image) DrawMesh(idx *Indices, s *Shader, op *DrawMeshOptions) {
 		}
 		ranges = idx.ranges
 	}
+	var kept *gpu.Instances
+	var spans []gpu.Range
+	if op.Kept != nil {
+		kept = op.Kept.i
+		op.Kept.spans = op.Kept.spans[:0]
+		for _, r := range op.Spans {
+			op.Kept.spans = append(op.Kept.spans, gpu.Range{First: uint32(max(r.First, 0)),
+				Count: uint32(max(r.Count, 0))})
+		}
+		spans = op.Kept.spans
+	}
 	gpu.Mesh(&gpu.MeshDraw{
 		Target:     i.gpu(),
 		Depth:      depth,
 		Vertices:   uint32(max(op.Vertices, 0)),
 		Instances:  op.Instances,
+		Kept:       kept,
+		Spans:      spans,
 		ReadDepth:  read,
 		ClearDepth: op.ClearDepth,
 		Write:      op.WriteDepth,

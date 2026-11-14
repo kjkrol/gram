@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/kjkrol/aabbworld/geom"
+	"slices"
 	"testing/fstest"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/bridges"
+	"github.com/kjkrol/gram/plugins/buildings"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/underground"
 	"github.com/kjkrol/gram/plugins/world"
@@ -24,6 +27,10 @@ import (
 type fordRow struct {
 	At  cell.ID `yaml:"at"`
 	Way [2]int  `yaml:"way"`
+}
+
+type treeRow struct {
+	At [2]float32 `yaml:"at"`
 }
 
 type fieldRow struct {
@@ -58,7 +65,7 @@ func (w *chart) check(data []byte) (err error) {
 	ground := cell.Land | cell.Air
 	kinds := b.Read(0).CellKinds()
 	kinds.Define(k.Sea, cell.Kind{Pace: 1, Allows: cell.Water | cell.Air})
-	for _, name := range append(k.land(), w.r.Cover.kinds()...) {
+	for _, name := range append(append(k.land(), w.r.Cover.kinds()...), w.r.town()...) {
 		kinds.Define(name, cell.Kind{Pace: 1, Allows: ground})
 	}
 	for _, name := range []string{k.Brook, k.Stream, k.River} {
@@ -66,24 +73,34 @@ func (w *chart) check(data []byte) (err error) {
 			kinds.Define(name, cell.Kind{Pace: 1, Allows: cell.Water | cell.Air})
 		}
 	}
-	kinds.Define(k.Road, cell.Kind{Pace: 1, Allows: ground, Graded: true})
+	kinds.Define(k.Road, cell.Kind{Pace: 1, Allows: ground, Graded: w.roads.streets == nil})
 	br := bridges.NewPlugin(wp, b, bridges.Config{Rules: w.roads.bridgeRules()})
 	plugins = append(plugins, br)
-	br.Types().Define(k.Bridge, bridges.Spec{
-		Allows:    cell.Land,
-		Width:     float32(w.deck()),
-		Thickness: float32(w.r.Roads.Thickness * w.figures() / w.perUnit),
-		Pace:      1,
-		Rail:      cell.Rail{Keeps: cell.Land},
-		Pier:      1,
-	})
+	for _, name := range []string{k.Bridge, k.Arch, k.Viaduct, w.r.Coast.Pontoon} {
+		if name == "" || slices.Contains(br.Types().Names(), name) {
+			continue
+		}
+		br.Types().Define(name, bridges.Spec{
+			Allows:    cell.Land,
+			Width:     float32(w.deck()),
+			Thickness: float32(w.r.Roads.Thickness * w.figures() / w.perUnit),
+			Pace:      1,
+			Rail:      cell.Rail{Keeps: cell.Land},
+			Pier:      1,
+		})
+	}
 	var un *underground.Plugin
 	if !w.flat && len(w.roads.tunnels) > 0 {
 		un = underground.NewPlugin(wp, b, underground.Config{Rules: w.roads.tunnelRules(0)})
 		plugins = append(plugins, un)
+		// a town's tunnels are as wide as its recipe says, as the game's are
+		width := float32(w.deck())
+		if w.roads.streets != nil {
+			width = float32(w.r.Tunnels.Width * w.figures() / w.perUnit)
+		}
 		un.Types().Define(k.Tunnel, underground.Spec{
 			Allows: cell.Land,
-			Width:  float32(w.deck()),
+			Width:  width,
 			Clear:  w.roads.clear(),
 			Pace:   1,
 		})
@@ -98,14 +115,39 @@ func (w *chart) check(data []byte) (err error) {
 				wp.Roster().Spec(world.EntityTemplate, comp.Const(world.Position{})))
 		}
 	}
+	// a tree standing by itself is a game's kind too
+	for _, t := range w.r.Greens.Trees {
+		if _, _, _, ok := wp.Kinds().Lookup(t.Kind); !ok {
+			kind.Define[treeRow](wp.Kinds(), t.Kind,
+				wp.Roster().Spec(world.EntityTemplate, comp.Const(world.Position{})))
+		}
+	}
+	var stood *buildings.Plugin
+	if names := w.r.Buildings.names(); len(names) > 0 && !w.flat {
+		stood = buildings.NewPlugin(wp, b)
+		plugins = append(plugins, stood)
+		// the role its figure would define in a Stage
+		wp.Roles().Define(buildings.BuildingRole)
+		for _, name := range names {
+			stood.Types().Define(name, buildings.Spec{Storey: 1, Size: geom.NewVec(1, 1)})
+		}
+	}
 	level, err := b.Lay(fstest.MapFS{"map.yaml": {Data: data}}, "map.yaml")
 	if err != nil {
 		return err
+	}
+	if stood != nil {
+		if err := stood.Write().Spawn(level); err != nil {
+			return err
+		}
 	}
 	if err := board.Spawn[fordRow](level, nil); err != nil {
 		return err
 	}
 	if err := board.Each(level, func(string, fieldRow, string) error { return nil }); err != nil {
+		return err
+	}
+	if err := board.Each(level, func(string, treeRow, string) error { return nil }); err != nil {
 		return err
 	}
 	if err := br.Write().Spawn(level); err != nil {

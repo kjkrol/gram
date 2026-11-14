@@ -12,7 +12,8 @@
 // How a kind looks in relief beyond its sprite is its [Style], set by name ([Painter.Style]):
 // its Shine, its Flow, its Spread, whether it lies Under the others, what it MixWith. An effect
 // that turns a kind into another turns it into that kind's Style too; a way's kind is styled
-// the same way.
+// the same way. A way whose Style has a Ribbon is no band of the painter's: the topography draws
+// it as a road.
 //
 // # Water
 //

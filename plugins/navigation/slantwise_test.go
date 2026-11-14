@@ -62,6 +62,7 @@ func valleyBridgeTo(t *testing.T, at geom.Vec, target cell.ID, level Level,
 type bridgeSite struct {
 	heights  func(geom.Vec) float32
 	wet      []cell.ID
+	solid    []cell.ID // ground nobody on Land enters, of no height of its own
 	from, to cell.ID
 	cells    bool
 	others   []walkerRow
@@ -94,6 +95,9 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 	brd.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	for _, c := range site.wet {
 		brd.Write().Board().Set(c, cell.Kind{Pace: 1, Allows: cell.Water})
+	}
+	for _, c := range site.solid {
+		brd.Write().Board().Set(c, cell.Kind{Pace: 1, Allows: cell.Air, Solid: true})
 	}
 	topo.Write().Relief().SetHeights(site.heights)
 	x0, y0, _ := g.Coords(site.from)
@@ -385,5 +389,33 @@ func TestLeg_AlongADeckPassesOverItsCornersHoldingNone(t *testing.T) {
 	leg.Decked = false
 	if got, n := order.Held(leg); n != 4 {
 		t.Errorf("a leg cutting a corner over the ground holds %v, want its corners too", got[:n])
+	}
+}
+
+// a house in the valley stops whoever walks its floor, nobody on the bridge over its roof
+func TestNavigation_CrossesABridgeOverSolidGround(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(8, 8, 32)
+	valley := func(p geom.Vec) float32 {
+		if p.X <= 64 || p.X >= 160 {
+			return 10
+		}
+		return 0
+	}
+	site := bridgeSite{heights: valley, from: g.At(1, 3), to: g.At(5, 3),
+		solid: []cell.ID{g.At(3, 3)}}
+	ecs, q, base, _ := bridged(t, site, geom.NewVec(16, 112), g.At(7, 3), EitherLevel)
+	for range 60 * 30 {
+		ecs.Tick(time.Second / 60)
+	}
+	for q.All(); q.Next(); {
+		for _, b := range base.Slice(q.Cursor()) {
+			if b.Pos.Size.X != 3 {
+				continue
+			}
+			if c, _ := g.CellAt(b.Pos.Center()); c != g.At(7, 3) {
+				t.Errorf("after 30 s the walker stands at %v, want across the bridge",
+					b.Pos.Center())
+			}
+		}
 	}
 }

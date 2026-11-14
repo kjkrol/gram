@@ -34,6 +34,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/bridges"
 	"github.com/kjkrol/gram/plugins/bridges/site"
+	"github.com/kjkrol/gram/plugins/buildings"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
@@ -56,36 +57,22 @@ import (
 
 const (
 	TPS          = 60
-	GridWidth    = 640
-	GridHeight   = 320
 	CellSize     = 32
-	WorldWidth   = GridWidth * CellSize
-	WorldHeight  = GridHeight * CellSize
 	ScreenWidth  = 1024
 	ScreenHeight = 768
 	// the trees and houses unfolded round the camera and what walks among them
 	MaxEntCount = 40_000
 
-	// a sector's side in cells, gramap's fields' grain: Buckets of the space's buckets, which
-	// MaxEntCount makes 64 world units a side
+	// a sector's side in cells, gramap's fields' grain
 	sectorCells = 16
-	Buckets     = sectorCells * CellSize / 64
 	// seconds a sector lies at L4 before the trees, the houses and the caravans' men fold
 	FoldAfter = 3
 	// the side of a field's own box at the middle of its rectangle
 	fieldPx = 16
-	// the zoom the game starts at, raised by the camera to the one fitting the world in the window,
-	// 0.18 in 1024 by 768, 0.28 in 1920 by 1080 and 0.38 in 2560 by 1440: L4 in a window up to
-	// about 2700 pixels wide at 16:9, the forests and the settlements in the sheet, the caravans
-	// and the travellers far off
-	StartZoom = 0.15
 )
 
-//go:embed map.yaml
+//go:embed map.yaml funchal.yaml
 var mapFile embed.FS
-
-// A cell is 100 m of Madeira; the figures on it are drawn 15 times bigger than life.
-var scale = world.Scale{Metres: 100.0 / CellSize, Figures: 15}
 
 // figure is how tall a walker stands as drawn: what passes under a bridge.
 var figure = scale.Figure(1.8)
@@ -101,6 +88,7 @@ type arena struct {
 	bridges    *bridges.Plugin
 	tunnels    *underground.Plugin
 	forest     *forest.Plugin
+	buildings  *buildings.Plugin
 	selection  *selection.Plugin
 	driving    *driving.Plugin
 	nav        *navigation.Plugin
@@ -122,6 +110,9 @@ func main() {
 		"the ground's look: natural (photographs) or ghibli (painted, the light in bands)")
 	hud := flag.String("hud", BarHUD,
 		"the hour, the date and the weather: bar (one, at the top) or widgets (by the corners)")
+	flag.String("map", MadeiraMap,
+		"the map: madeira (the island, cells of 100 m, figures 15 times life) or funchal (the "+
+			"town, cells of 10 m, everything as big as in life)")
 	flag.Parse()
 	if *hud != BarHUD && *hud != WidgetsHUD {
 		log.Fatalf("no HUD is named %q: bar or widgets", *hud)
@@ -153,13 +144,12 @@ func main() {
 			Space: world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
 			Entities: world.EntitiesCfg{
 				MaxCount: MaxEntCount,
-				MinSize:  2,
-				MaxSize:  CellSize,
+				MinSize:  here.least,
+				MaxSize:  here.widest,
 			},
-			Sectors: world.SectorsCfg{Buckets: Buckets},
+			Sectors: world.SectorsCfg{Buckets: int(here.buckets)},
 			LOD: lod.Ladder{
-				// L2 from a tree of 12 pixels, L3 down to 8, L4, the sheet, under that
-				Scales: [lod.Levels - 1]float32{0, 0, 0.6, 0.4, 0.12, 0},
+				Scales: ladder,
 				Sight:  scale.Units(30_000),
 				Fog:    scale.Units(6_000),
 				Fold:   FoldAfter,
@@ -189,7 +179,7 @@ func main() {
 func sheets() world.SheetsCfg {
 	cfg := world.SheetsCfg{Keep: true, Version: SheetsVersion}
 	if dir, err := os.UserCacheDir(); err == nil {
-		cfg.Dir = filepath.Join(dir, "gram", "topography", "sheets")
+		cfg.Dir = filepath.Join(dir, "gram", "topography", here.file, "sheets")
 	}
 	return cfg
 }
@@ -199,7 +189,7 @@ func sheets() world.SheetsCfg {
 func routes() navigation.Cache {
 	cfg := navigation.Cache{Keep: true, Version: RoutesVersion}
 	if dir, err := os.UserCacheDir(); err == nil {
-		cfg.Dir = filepath.Join(dir, "gram", "topography", "hierarchy")
+		cfg.Dir = filepath.Join(dir, "gram", "topography", here.file, "hierarchy")
 	}
 	return cfg
 }
@@ -231,6 +221,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.tunnels = underground.NewPlugin(a.world, a.board, underground.Config{Rules: tunnelling}).
 		WithShaper(a.topography.Write())
 	a.forest = forest.NewPlugin(a.world, a.board)
+	a.buildings = buildings.NewPlugin(a.world, a.board)
 	a.selection = selection.NewPlugin(a.world)
 	a.driving = driving.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board)
 	a.nav = navigation.NewPlugin(a.board, a.world, a.motion, a.selection, a.driving).
@@ -277,7 +268,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		Arm:         cameras.Arm{Pitch: 20, Distance: 3, Aim: 1, Tilts: true, Zooms: true},
 	})
 	a.minimap = minimap.NewPlugin(a.world, a.topography.Write(), minimap.Config{
-		Reach:   scale.Units(12_000),
+		Reach:   scale.Units(here.reach),
 		Turning: true,
 	})
 	a.telemetry = telemetry.NewPlugin(a.world).
@@ -423,8 +414,14 @@ func (a *arena) defineFigures() {
 		band{color: playerColor, joined: a.enlisted},
 	)
 	a.bridges.Figures(bridge{})
+	if here.town {
+		for _, s := range spans {
+			a.bridges.Figures(s)
+		}
+	}
 	a.tunnels.Figures(tunnel{})
 	a.forest.Figures(growth{})
+	a.buildings.Figures(town{})
 	a.atmosphere.Skies(earth{})
 }
 
@@ -444,7 +441,7 @@ func (a *arena) bindKeys() error {
 }
 
 func (a *arena) spawn() error {
-	level, err := a.board.Lay(mapFile, "map.yaml")
+	level, err := a.board.Lay(mapFile, here.file)
 	if err != nil {
 		return err
 	}
@@ -462,6 +459,12 @@ func (a *arena) spawn() error {
 		return err
 	}
 	if err := a.tunnels.Write().Spawn(level); err != nil {
+		return err
+	}
+	if err := a.forest.Write().Spawn(level); err != nil {
+		return err
+	}
+	if err := a.buildings.Write().Spawn(level); err != nil {
 		return err
 	}
 	caravans := board.Sides{ReserveSide: a.enlisted()}
@@ -493,6 +496,8 @@ func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.bridges.RunPlan(ctx, d)
 	a.tunnels.RunPlan(ctx, d)
 	a.world.RunPlan(ctx, d)
+	a.buildings.RunPlan(ctx, d)
+	a.forest.RunPlan(ctx, d)
 	a.light.RunPlan(ctx, d)
 	a.motion.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)

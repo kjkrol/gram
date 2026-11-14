@@ -40,6 +40,7 @@ func NewBoard(g grid.Grid) (*BoardRead, *BoardWrite) {
 func newBoard(g grid.Grid) *board {
 	b := &board{Grid: g, cells: terrain.New(g)}
 	b.read = BoardRead{Grid: g, b: b, cells: b.cells.Read()}
+	b.cells.Edge = b.read.edge
 	b.write.b = b
 	b.drawn = newDrawn(b)
 	b.mapping = newSimpleMap(b.drawnBoard())
@@ -128,6 +129,12 @@ func (r *BoardRead) DecksOver(p geom.Vec, visit func(c cell.ID, f cell.Floor)) {
 		visit(d.Cell, d.Built.Floor)
 		return true
 	})
+}
+
+// FloorDip is how far under its middle the band f of c, raised or sunk, lies at its lowest
+// edge: it climbs evenly on to the floors and the ground its links name.
+func (r *BoardRead) FloorDip(c cell.ID, f cell.Floor) float32 {
+	return r.cells.Dip(f, c, r.altitude)
 }
 
 // Storeyed reports whether a floor gives any cell of the board a level beside its ground.
@@ -257,6 +264,67 @@ func (r *BoardRead) CellFingerprint(c cell.ID) uint64 {
 	return h.Sum64()
 }
 
+// rise is how steep the step from from onto to's level is: the ground's, or where a floor
+// raised or sunk carries the step, the floors' own heights over the run between the cells'
+// middles. A step onto the ground is a floor's where from's floor runs on to to: off a deck
+// onto its head.
+func (r *BoardRead) rise(from, to cell.ID, level cell.Level) float64 {
+	off := r.Built(from)
+	if level == cell.OnGround && !off.Levelled() {
+		return r.b.mapping.Rise(from, to)
+	}
+	onto := r.Built(to)
+	f := onto.On(level)
+	g := off.On(level)
+	if level == cell.OnGround {
+		// the floor from carries, if it leads to to
+		g = cell.Floor{}
+		if way, ok := grid.Link(r.Grid, from, to); ok {
+			for s := range uint8(cell.Storeys) {
+				if h := off.Storey(s); h.Height != 0 && h.Links&way != 0 {
+					g = *h
+				}
+			}
+		}
+		if g == (cell.Floor{}) {
+			return r.b.mapping.Rise(from, to)
+		}
+	} else if f == (cell.Floor{}) {
+		return r.b.mapping.Rise(from, to)
+	}
+	_, low := r.b.mapping.Top(from, 0)
+	_, high := r.b.mapping.Top(to, 0)
+	a, b := r.CellCenter(from), r.CellCenter(to)
+	run := math.Hypot(float64(b.X-a.X), float64(b.Y-a.Y))
+	if run == 0 {
+		return 0
+	}
+	return float64(high+f.Height-low-g.Height) / run
+}
+
+// ledRise is how steep the step from from to to is for whoever stands on on of from: along
+// its floor where that runs on, off it onto the ground where it ends, and from the ground onto
+// a floor that begins there, a bridge's deck or a tunnel's, as a route leads.
+func (r *BoardRead) ledRise(from, to cell.ID, on cell.Level) float64 {
+	onto := r.Built(to)
+	if on != cell.OnGround {
+		if onto.On(on) == (cell.Floor{}) {
+			on = cell.OnGround
+		}
+		return r.rise(from, to, on)
+	}
+	off := r.Built(from)
+	if back, ok := grid.Link(r.Grid, to, from); ok {
+		for s := range uint8(cell.Storeys) {
+			if h := onto.Storey(s); h.Height != 0 && h.Links&back != 0 &&
+				off.Storey(s).Height == 0 {
+				return r.rise(from, to, h.Level())
+			}
+		}
+	}
+	return r.rise(from, to, cell.OnGround)
+}
+
 // Map is what the board is drawn and priced by, its cells' kinds read through r: the plugin's,
 // or the simple map on a board no plugin runs.
 func (r *BoardRead) Map() MapRead { return readMap{r} }
@@ -281,10 +349,9 @@ func (s surfaces) Surface(p geom.Vec, d cell.Domain, feet, step float32) (floor,
 	}
 	sunk := f32.Inf(-1)
 	s.r.DecksOver(p, func(c cell.ID, f cell.Floor) {
-		deck := s.r.altitude(c) + f.Height
+		deck := s.graded(c, f, p, s.r.altitude(c)+f.Height)
 		if f.Sunk() {
 			// under the ground whoever has its feet under the floor's roof stands on it
-			deck = s.graded(c, f, p, deck)
 			if roof := deck + f.Clear; f.Allows&d != 0 && deck <= feet+step && feet < roof &&
 				deck > sunk {
 				sunk, ceiling = deck, min(ceiling, roof)
@@ -304,12 +371,12 @@ func (s surfaces) Surface(p geom.Vec, d cell.Domain, feet, step float32) (floor,
 	return floor, ceiling
 }
 
-// graded is how high the sunk band f of c, its floor at level under c's middle, lies at p: on
-// the way out to each neighbour its links name it runs to the mean of the two floors at their
-// edge, and to the ground of a neighbour it comes out on, so a tunnel climbs evenly from piece
-// to piece and meets the ground at its mouth
+// graded is how high the band f of c, raised or sunk, its floor at level at c's middle, lies at
+// p: on the way out to each neighbour its links name it runs to the mean of the two floors at
+// their edge, and to the ground of a neighbour it comes out on, so a tunnel and a bridge climb
+// evenly from piece to piece and meet the ground at their ends
 func (s surfaces) graded(c cell.ID, f cell.Floor, p geom.Vec, level float32) float32 {
-	if f.Width <= 0 || f.Links == 0 {
+	if f.Height == 0 || f.Width <= 0 || f.Links == 0 {
 		return level
 	}
 	r := s.r
@@ -330,14 +397,28 @@ func (s surfaces) graded(c cell.ID, f cell.Floor, p geom.Vec, level float32) flo
 			return level
 		}
 		nb := r.Built(n)
-		// at a mouth it comes out on the ground before it
-		edge := r.altitude(n)
-		if nf := nb.Storey(f.Storey); nf.Sunk() {
-			edge = (level + edge + nf.Height) / 2
+		// at its end it comes out on the ground before it
+		edge := r.edge(c, n)
+		if nf := nb.Storey(f.Storey); nf.Height != 0 && nf.Sunk() == f.Sunk() {
+			edge = (level + r.altitude(n) + nf.Height) / 2
 		}
 		return level + (edge-level)*min(2*along/l, 1)
 	}
 	return level
+}
+
+// edge is how high the ground lies where a band of c comes out on it towards its neighbour n:
+// at the middle of the edge or the corner between them, n's level on a board without heights
+func (r *BoardRead) edge(c, n cell.ID) float32 {
+	h := r.b.mapping.Heights()
+	if h == nil {
+		return r.altitude(n)
+	}
+	a, b := r.CellCenter(c), r.CellCenter(n)
+	if span := 2 * r.CellSpan(); f32.Abs(b.X-a.X) > span || f32.Abs(b.Y-a.Y) > span {
+		return r.altitude(n) // across the world's seam
+	}
+	return h.At(geom.NewVec((a.X+b.X)/2, (a.Y+b.Y)/2))
 }
 
 // BoardWrite writes a board's terrain, on the game's goroutine.

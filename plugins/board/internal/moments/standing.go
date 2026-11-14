@@ -142,6 +142,12 @@ func (s *standingSystem) share(i int) float32 {
 	}
 	feet, reach := s.feet(i)
 	kind, level := s.r.cells.Read().KindOn(c, at, feet, reach, s.r.level)
+	if level != cell.OnGround {
+		// on a band across a corner of the cell under it: the step is the band's own cell's
+		if on, _, ok := s.r.cells.Read().LevelFor(at, feet, reach, s.r.level); ok {
+			c = on
+		}
+	}
 	step := cell.Step{From: c, To: c, Level: level, Kind: kind, Domain: unit.DomainAt(s.movers, i)}
 	if !kind.Graded && s.r.rise != nil {
 		dir := b.Vel.Dir
@@ -153,7 +159,7 @@ func (s *standingSystem) share(i int) float32 {
 			n, led = s.r.grid.Toward(c, s.nearest(dir))
 		}
 		if led && n != c {
-			step.Slope = s.r.rise(c, n)
+			step.Slope = s.r.rise(c, n, level)
 		}
 	}
 	return float32(cell.PaceOf(s.r.Mobility, step))

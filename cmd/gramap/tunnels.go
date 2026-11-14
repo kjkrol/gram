@@ -11,8 +11,10 @@ import (
 )
 
 // what the tunnels are allowed, as the underground's site has it: their room and their width in
-// metres of a figure's life, the rock over the roof and the ground a head's levelling moves in metres, the
-// floor's rise over run, how many cells one runs under at most and at least
+// metres of a figure's life, the rock over the roof and the ground a head's levelling moves in
+// metres, the floor's rise over run, how many cells one runs under at most and at least;
+// Follow how many cells off its ways a slanting stretch may run before it is led in steps (0:
+// one turn)
 type tunnelsCfg struct {
 	Clear   float64 `yaml:"clear"`
 	Width   float64 `yaml:"width"`
@@ -21,6 +23,7 @@ type tunnelsCfg struct {
 	Longest int     `yaml:"longest"`
 	Least   int     `yaml:"least"`
 	Reshape float64 `yaml:"reshape"`
+	Follow  float64 `yaml:"follow"`
 }
 
 // a tunnel of the map: its heads, the cells it turns at and, of the guide's ways, those it
@@ -29,6 +32,7 @@ type tunnel struct {
 	from, to cell.ID
 	via      []cell.ID
 	plan     usite.Tunnel
+	lanes    int       // of the road through it, where it is a street's
 	ends     [2][2]int // where its ways' line begins and ends, before a head drew back
 }
 
@@ -79,7 +83,7 @@ func (r *roads) bore(ways []osmWay) (left []osmWay, open [][2]int) {
 			}
 			continue
 		}
-		t, i, j, ok := r.dig(ch.run)
+		t, i, j, ok := r.dig(ch.run, nil)
 		if !ok {
 			r.undug++
 			continue
@@ -101,18 +105,30 @@ func (r *roads) bore(ways []osmWay) (left []osmWay, open [][2]int) {
 }
 
 func (r *roads) twinned(ends [2][2]int) bool {
+	_, ok := r.twinOf(ends)
+	return ok
+}
+
+// twinOf is the heads of the tunnel dug already whose ends lie by ends, the one by each
+func (r *roads) twinOf(ends [2][2]int) (heads [2]cell.ID, ok bool) {
 	near := func(a, b [2]int) bool {
 		return max(abs(a[0]-b[0]), abs(a[1]-b[1])) <= twin
 	}
-	return slices.ContainsFunc(r.tunnels, func(t tunnel) bool {
-		return near(ends[0], t.ends[0]) && near(ends[1], t.ends[1]) ||
-			near(ends[0], t.ends[1]) && near(ends[1], t.ends[0])
-	})
+	for _, t := range r.tunnels {
+		switch {
+		case near(ends[0], t.ends[0]) && near(ends[1], t.ends[1]):
+			return [2]cell.ID{t.from, t.to}, true
+		case near(ends[0], t.ends[1]) && near(ends[1], t.ends[0]):
+			return [2]cell.ID{t.to, t.from}, true
+		}
+	}
+	return heads, false
 }
 
 // dig is the tunnel under run, its heads drawn back i and j cells from run's ends, the least
-// that lets it lie; its heads are laid flat and the cells it runs under noted
-func (r *roads) dig(run [][2]int) (t tunnel, i, j int, ok bool) {
+// that lets it lie; its heads are laid flat and the cells it runs under noted. At, where
+// given, is the height its floor lies at by each cell of run, metres.
+func (r *roads) dig(run [][2]int, at func(k int) float64) (t tunnel, i, j int, ok bool) {
 	n := len(run)
 	for back := 0; back <= 2*drawBack; back++ {
 		for i = max(0, back-drawBack); i <= min(back, drawBack); i++ {
@@ -120,7 +136,11 @@ func (r *roads) dig(run [][2]int) (t tunnel, i, j int, ok bool) {
 			if n-i-j < r.w.r.Tunnels.Least+2 {
 				continue
 			}
-			if t, err := r.plan(run[i : n-j]); err == nil {
+			var level func(k int) float64
+			if at != nil {
+				level = func(k int) float64 { return at(k + i) }
+			}
+			if t, err := r.plan(run[i:n-j], level); err == nil {
 				return t, i, j, true
 			}
 		}
@@ -131,14 +151,15 @@ func (r *roads) dig(run [][2]int) (t tunnel, i, j int, ok bool) {
 // plan is the tunnel from run's first cell to its last along it, or why none may lie there.
 // Its heads are cut into the ground, no deeper than the tunnels' reshape, till its floor climbs
 // no steeper than it may and the ground over each mouth, raised as much again at most, closes
-// over the roof: a cutting and a headwall, as a mouth has.
-func (r *roads) plan(run [][2]int) (tunnel, error) {
+// over the roof: a cutting and a headwall, as a mouth has. With at its heads lie where its
+// road's grade line has them, the headwalls alone raised.
+func (r *roads) plan(run [][2]int, at func(k int) float64) (tunnel, error) {
 	w := r.w
 	cfg := w.r.Tunnels
 	n := len(run)
 	t := tunnel{from: w.cell(run[0][0], run[0][1]), to: w.cell(run[n-1][0], run[n-1][1])}
 	turns := [][2]int{run[0]}
-	for _, v := range squared(run[0], run[n-1], straighten(run, bend)) {
+	for _, v := range squared(run[0], run[n-1], straighten(run, bend, cfg.Follow)) {
 		t.via = append(t.via, w.cell(v[0], v[1]))
 		turns = append(turns, v)
 	}
@@ -171,6 +192,9 @@ func (r *roads) plan(run [][2]int) (tunnel, error) {
 		}
 		level[e] = w.level(h)
 	}
+	if at != nil {
+		level[0], level[1] = at(0), at(n-1)
+	}
 	steps := float64(len(under) + 1)
 	clear := cfg.Clear * w.figures()
 	// the floor under the first cell in from the head e
@@ -193,12 +217,14 @@ func (r *roads) plan(run [][2]int) (tunnel, error) {
 			}
 		}
 	}
-	ease()
-	// half of what a mouth lacks cut at the head, the other half raised over it
-	for e := range heads {
-		level[e] -= short(e) / 2
+	if at == nil {
+		ease()
+		// half of what a mouth lacks cut at the head, the other half raised over it
+		for e := range heads {
+			level[e] -= short(e) / 2
+		}
+		ease()
 	}
-	ease()
 	var moved []height
 	move := func(k int, to float64) error {
 		if to == w.corners[k] {
@@ -435,8 +461,9 @@ func (w *chart) chains(ways []osmWay) []chain {
 
 // straighten is the cells a line along run turns at, between its ends: run's own corners, no
 // stretch between two further than bend off it, each stretch led along the grid's ways through
-// one more turn where it runs along none
-func straighten(run [][2]int, bend float64) [][2]int {
+// one more turn where it runs along none, or in steps where that turn would lie further than
+// follow off run (0: never)
+func straighten(run [][2]int, bend, follow float64) [][2]int {
 	keep := []int{0}
 	var split func(a, b int)
 	split = func(a, b int) {
@@ -462,21 +489,55 @@ func straighten(run [][2]int, bend float64) [][2]int {
 	}
 	split(0, len(run)-1)
 	var via [][2]int
-	for k := 1; k < len(keep); k++ {
-		p, q := run[keep[k-1]], run[keep[k]]
+	var lead func(a, b int)
+	lead = func(a, b int) {
+		p, q := run[a], run[b]
 		dx, dy := q[0]-p[0], q[1]-p[1]
-		if dx != 0 && dy != 0 && abs(dx) != abs(dy) {
-			m := min(abs(dx), abs(dy))
-			first := [2]int{p[0] + sign(dx)*m, p[1] + sign(dy)*m}
-			last := [2]int{q[0] - sign(dx)*m, q[1] - sign(dy)*m}
-			turn := first
-			if off(run[keep[k-1]:keep[k]+1], last) < off(run[keep[k-1]:keep[k]+1], first) {
-				turn = last
-			}
-			via = append(via, turn)
+		if dx == 0 || dy == 0 || abs(dx) == abs(dy) {
+			return
 		}
+		m := min(abs(dx), abs(dy))
+		first := [2]int{p[0] + sign(dx)*m, p[1] + sign(dy)*m}
+		last := [2]int{q[0] - sign(dx)*m, q[1] - sign(dy)*m}
+		turn := first
+		if off(run[a:b+1], last) < off(run[a:b+1], first) {
+			turn = last
+		}
+		if follow > 0 {
+			// the slant in the stretch's middle, a straight run either side of it: half as
+			// far off the ways, and no turn by a head
+			long := max(abs(dx), abs(dy)) - m
+			if k := long / 2; k >= 2 && long-k >= 2 {
+				ax, ay := 0, sign(dy)
+				if abs(dx) > abs(dy) {
+					ax, ay = sign(dx), 0
+				}
+				from := [2]int{p[0] + ax*k, p[1] + ay*k}
+				to := [2]int{from[0] + sign(dx)*m, from[1] + sign(dy)*m}
+				if b-a > 3 && max(off(run[a:b+1], from), off(run[a:b+1], to)) > follow {
+					mid := (a + b) / 2
+					lead(a, mid)
+					via = append(via, run[mid])
+					lead(mid, b)
+					return
+				}
+				via = append(via, from, to)
+				return
+			}
+			if b-a > 3 && off(run[a:b+1], turn) > follow {
+				mid := (a + b) / 2
+				lead(a, mid)
+				via = append(via, run[mid])
+				lead(mid, b)
+				return
+			}
+		}
+		via = append(via, turn)
+	}
+	for k := 1; k < len(keep); k++ {
+		lead(keep[k-1], keep[k])
 		if k < len(keep)-1 {
-			via = append(via, q)
+			via = append(via, run[keep[k]])
 		}
 	}
 	return via

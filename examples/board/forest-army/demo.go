@@ -284,6 +284,7 @@ func (a *arena) defineScenes() []game.Scene {
 
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.world.RunPlan(ctx, d)
+	a.forest.RunPlan(ctx, d)
 	a.motion.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)
 	a.board.RunPlan(ctx, d)

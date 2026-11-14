@@ -4110,7 +4110,8 @@ kraju to inna skala.
 | 0a | `feat/underground` | plugin `underground`, komórka o czterech poziomach, kamera i rysowanie wnętrza |
 | 0b | `feat/osm-roads` | gramap czyta OSM (drogi, tunele, mosty, zabudowa), mosty w naturalnych rozmiarach, migawka regresji Madery |
 | 0c | `feat/madeira-species` | 15 gatunków, rodzaje roślinności z danych pokrycia terenu (CORINE, Natura 2000) |
-| 0d | `feat/madeira-buildings` | 10–40 rodzajów budynków z tagów OSM, budowle wyjątkowe Madery |
+| 0d | `feat/madeira-buildings` | bryły 3D w prawdziwej skali na wycinku Funchal 10 m, dziesięć rodzajów |
+| 0e | `feat/madeira-landmarks` | pozostałe 24 rodzaje budynków i 18 budowli wyjątkowych (po drogach, mostach i zieleni z 0d) |
 | m1 | `feat/madeira-10m-store` | format blokowy, magazyn planszy, diff i dziennik, gramap na tablicach |
 | m2 | `feat/madeira-10m-pages` | encje komórek tylko w sektorach rozwiniętych, pogoda po polu, `Ahead` |
 | m3 | `feat/madeira-10m` | `Stale` z listy zmian, `-prepare`, hpastar gotowy po regionie, demo |
@@ -4216,3 +4217,450 @@ podniesionej wysokości nic. Reszty nie znalazłem; przypuszczenie: arkusze trzy
 sektorów. Nie zmierzone: widok z bliska nad lasem, nad Funchal, czas pierwszego robienia
 arkuszy. Oglądane na zrzutach z sondy: każdy rodzaj roślinności z bliska i ze średniej
 odległości oraz osada; wygląd ghibli tylko uruchomiony.
+
+### Etap 0d: wynik (2026-11-12, gałąź `feat/madeira-buildings`, baza `c05fe895`)
+
+Plan z 2026-11-12 (decyzje z ankiet): zabudowa jako bryły 3D w rzeczywistych rozmiarach na
+wycinku Funchal w komórkach 10 m; z daleka rysuje je własny renderer, nie arkusz; pozostałe
+rodzaje i budowle wyjątkowe osobnym etapem 0e.
+
+Zrobione: plugin `plugins/buildings` (rodzaje z częściami pod dachem płaskim, dwuspadowym,
+czterospadowym i namiotowym; renderer brył z instancji, okna i światła nocą w shaderze; encja
+budynku tylko w sektorze rozwiniętym, przez komendę `Raise` pod `world.Unfold`), `world.Stand`
+i obrócony blok cienia, gramap z rzutami budynków OSM i ulicami jako komórkami, receptura
+`cmd/gramap/funchal.yaml` (360×460 komórek po 10 m, port → Monte), demo topografii z `-map
+funchal` w skali 1× (figury, drzewa z prawdziwymi koronami, dziesięć rodzajów budynków).
+
+| Funchal 10 m | budynków | rzut, mediana | ściany, mediana |
+|---|---|---|---|
+| dom | 11 188 | 11,6 × 8,2 m | 6 m |
+| kamienica | 1 612 | 14,5 × 10,3 m | 9,6 m |
+| blok | 1 290 | 19 × 12 m | 12 m |
+| szopa | 1 048 | 5,1 × 3,6 m | 2,5 m |
+| hala | 233 | 25 × 20 m | 8 m |
+| willa | 108 | 14,9 × 8 m | 6 m |
+| hotel | 70 | 28 × 21 m | 16 m |
+| wieżowiec | 49 | 25 × 22 m | 27 m |
+| kościół | 28 | 22 × 16 m | 12 m |
+| kaplica | 15 | 8,6 × 6,8 m | 7 m |
+
+Razem 15 641 zapisów (budynek dłuższy niż 40 m w częściach), piętra z OSM ma ok. połowa.
+Jednostka świata 0,3125 m, człowiek 1,8 m, piętro 3 m.
+
+Klatkarz (UHD 620, 1024×768, bez vsync, mediany po rozgrzaniu):
+
+| Widok | FPS |
+|---|---|
+| Madera 100 m, `main` → drzewo, cztery pary na zmianę | 133,2 → 134,3; 133,1 → 134,1; 117,7 → 119,4; 110,6 → 116,6 |
+| Funchal, stare miasto z bliska (L2–L3, 2,7 tys. encji) | 129 |
+| Funchal, cały wycinek z daleka (L4–L5) | 111–118 |
+| Funchal, Monte (las i domy) | 179 |
+| te same widoki bez brył | 176 z bliska, 199 z daleka |
+
+Dwie ostatnie pary Madery i końcowe liczby Funchal zmierzone na maszynie wolniejszej o ok.
+12 % niż przy pierwszych dwóch parach (baza spadła tak samo).
+
+Po drodze: bryły rysowane w każdej z trzech warstw kamery w całości dawały 55 FPS z daleka i
+70–80 z bliska (13 ms GPU); każda warstwa rysuje teraz sektory widoczne w jej oknie i nie
+zakryte w całości przez następną. Cień i lampy liczone na wierzchołek, nie na fragment.
+
+Odstępstwa od planu: (1) potok dróg gramap nie działa przy 10 m (12 minut nad ulicami Funchal
+i setki komórek „cannot be graded”; także dla samych dróg głównych), więc ulice są komórkami
+gruntu, bez mostów, tuneli i niwelacji; drogi 10 m zostają dla etapów m. (2) Kształty obłe
+(walec, stożek, kopuła) przeniesione do 0e, z pierwszymi użytkownikami. (3) Obrys zaznaczenia
+po obróconym rzucie nie zrobiony (budynków w demie się nie zaznacza). (4) Mgła: shader brył ma
+własną kopię `hazeDepth`, jak shadery terenu, bez wspólnej biblioteki. (5) Budynek dłuższy
+niż 40 m jest cięty (granica `MaxSize` 192 jednostek przy sektorze 512), nie 100 m.
+
+Nie zmierzone: czas pierwszego uruchomienia Funchal (hierarchia tras), kamera za jednostką (V)
+w mieście, zima. Oglądane na zrzutach z sondy: stare miasto z bliska i z ulicy, Monte, cały
+wycinek z daleka i ze średniej odległości, noc, wygląd ghibli (bryły bez pasmowanego światła).
+
+### Etap 0d, ciąg dalszy: drogi, mosty i zieleń miejska (2026-11-12, ta sama gałąź i PR #62)
+
+Słowo użytkownika po przeglądzie 0d: ulice jako komórki są do naprawy; drogi i mosty mają być
+modelowane i rysowane poprawnie, z nowymi modelami mostów i zielenią miejską. Decyzje:
+nawigacja wyłącznie na siatce 10 m, jedna droga na komórkę i poziom, droga rysowana po swoim
+przebiegu (łuki, prawdziwa szerokość), jezdnia w poprzek płaska, pasy, skrzyżowania i ronda
+(rondo w naturalnym rozmiarze jako forma skrzyżowania), ruch aut po pasach osobnym etapem.
+
+Pomiar przed zmianą (Funchal, drogi z OSM starym potokiem, same klasy do `tertiary`): 103 s,
+z czego 60 % w `relaxClasses` (każda partia niwelowana ze wszystkimi położonymi drogami); 327
+odcinków pominiętych (164 „climbs”, 159 „too uneven”), a na końcu 150 z 5065 komórek odrzuconych
+po zaokrągleniu wysokości do centymetra (rampa na granicy 10°: zapas 0,999 to 1,8 mm na komórce
+10 m). OSM dla wycinka: 2574 odcinki ulic (203 km), `lanes` ma 77 %, jednokierunkowych 46 %,
+24 ronda o rozpiętości 9–32 m, 125 mostów (większość poniżej 30 m, 9 ponad 100 m, łuki do
+80°), 37 tuneli; z 23 078 komórek z ulicą 516 ma dwie ulice bez wspólnego węzła, z tego 255 na
+różnych poziomach i 117 (0,5 %) naprawdę niezależnych na jednym.
+
+Zrobione: tryb `roads: {lay: profile}` w gramap (`streets.go`: oś komórki, profil podłużny z
+ograniczeniem spadku, grunt płaski w poprzek, ronda, mosty z OSM nad pustką i nad wodą),
+`cell.Way` z osią, pasami, kierunkowością i formą skrzyżowania, wstęgi dróg w topografii
+(`internal/ribbons`), most po ścieżce z modelami `Beam`, `Arch`, `Viaduct` rysowanymi jako
+bryły, drzewa stojące pojedynczo (`forest.Plant`) i `greens:` w gramap.
+
+| Funchal 10 m | przed (stary potok, drogi główne) | po (wszystkie klasy do `residential`) |
+|---|---|---|
+| czas gramap | 103 s, mapa odrzucona | 2,4 s z drogami, ok. 9 s cała mapa |
+| komórki ulic | 5065 (1633 pominięte) | 19 309 w 2434 odcinkach, 25 pominiętych (koniec w wodzie) |
+| ronda, mosty | 0, 3 | 18, 16 (10 wiaduktów, 6 łukowych) |
+| najstromszy odcinek | — | 14,5° (granica receptury 14°) |
+| wykop / nasyp | — | do 39,7 m / 16,3 m; 44 komórki ponad 6 m (wloty tuneli, których nie ma) |
+| drzewa miejskie | — | 5409 (3766 pojedynczych z OSM, reszta z szpalerów i parków) |
+
+Klatkarz (UHD 620, 1024×768, bez vsync, mediany po rozgrzaniu, dwie rundy na zmianę; „przed”
+to commit `3e4ab810`, ulice jako komórki):
+
+| Widok | przed | po |
+|---|---|---|
+| Funchal, stare miasto z bliska | 157; 166 | 129; 111 |
+| Funchal, cały wycinek z daleka | 90; 77 | 59; 55 |
+| Funchal, Monte | 179; 147 | 124; 127 |
+| Madera 100 m, `main` → drzewo | 290 → 252 (pierwszy przebieg po zmianie wersji pamięci); 290 → 283 |
+
+Funchal zwolnił o 20–30 %: doszło 19 tys. komórek wstęg, konstrukcje mostów i 5,4 tys. drzew.
+Pierwsza wersja rysowała pełną geometrię wstęg na każdym poziomie (z daleka 26–38 FPS); sektory
+od L4 mają teraz zakręt komórki w jednym pasie, bez okrągłych zakończeń. Nie rozłożone dalej:
+co z reszty kosztu to kopiowanie instancji do bufora co klatkę, a co światło lamp liczone na
+wierzchołek. Maszyna między rundami pływała o ok. 10 %.
+
+Znalezione po drodze: wczytanie pamięci hierarchii tras zapisanej dla poprzedniej mapy kończy
+się paniką w hpastarze (`hierarchy.relabel`, indeks 24 poza 24) po ok. 14 s gry; z czystą
+pamięcią nie występuje. Demo ma podbite `RoutesVersion` i `SheetsVersion`, przyczyna w
+hpastarze nie jest zbadana. Krawędź mapy bez morza (`sea: 0`) miała narożniki na wysokości 0
+(ściana wokół Funchal); trzymają teraz swoje wysokości.
+
+Odstępstwa od planu: (1) `ground.RoadFits` i niwelacja `roads/site` zostały bez zmian; droga
+w trybie profilu jest rodzajem nie-`Graded`, a grunt kładzie gramap (płaszczyzna na komórkę
+wymuszała płaski każdy zakręt, czyli znów tarasy). (2) Tunele OSM w trybie profilu nie są
+zrobione: ulice kończą się przy wlotach. (3) Płaska plansza rysuje pas przez środek komórki.
+(4) Skrzyżowanie leży płasko (stopień na stromej ulicy). (5) Cień mostu w łuku to jeden uchwyt
+po cięciwie. (6) Strzałki tylko na jednopasowych jednokierunkowych.
+
+Oglądane na zrzutach z sondy: stare miasto z góry, rondo z bliska, ulica 2+2 z poziomu jezdni,
+wiadukt VR1 (pomost i balustrady, z wnętrza lasu), aleje drzew, cały wycinek z daleka po
+uproszczeniu wstęg. Nie oglądane: most łukowy i filary z boku (kamera w zabudowie nie trafiła),
+noc, zima, ghibli, jazda jednostką przez most (V).
+
+### Etap 0d, instancje trzymane na karcie (2026-11-12, ta sama gałąź i PR #62)
+
+Rozkład kosztu Funchal z daleka (kopia drzewa z wyłącznikami źródeł, mediany FPS, dwie rundy):
+
+| Wyłączone | FPS | Rysowanie (CPU) | Czekanie na kartę |
+|---|---|---|---|
+| nic | 55–62 | 4,9–5,1 ms | 9–14 ms |
+| budynki | 98–99 | 3,7–3,9 ms | 5–7 ms |
+| wstęgi | 75–76 | 3,5 ms | 8–10 ms |
+| bryły mostów | 58–59 | 4,8 ms | 11–12 ms |
+| drzewa | 60–61 | 5,0 ms | 10–12 ms |
+| wszystkie | 182–185 | 1,9 ms | 3,1 ms |
+
+Budynki, wstęgi i mosty sklejały co klatkę, na każdej z trzech warstw kamery, dane widocznych
+sektorów (ok. 22 tys. części budynków, 33 tys. kawałków wstęg, 4,5 MB) i wysyłały je na
+kartę. Tick rósł tylko dlatego, że dzieli procesor z rysowaniem; jego publikacja stała.
+
+Zmiana: `render.Instances` (wzorem `Indices`): dane idą na kartę raz, `DrawMeshOptions.Kept`
+ze `Spans` rysuje zakresy; trzy renderery pakują sektory rosnąco (dokładne, potem zgrubne),
+kładą w `Publish`, podmieniają w `Swap`. Zrzuty trzech widoków przed i po: te same poza
+panelem telemetrii i jedną jednostką w ruchu.
+
+| Widok | Przed (24aef883) | Po |
+|---|---|---|
+| Funchal, stare miasto z bliska | 112; 122 | 141; 133 |
+| Funchal, cały wycinek z daleka | 48; 48 | 100; 98 |
+| Funchal, Monte | 147; 144 | 185; 190 |
+| Madera 100 m (`main`; przed; po) | 288; 285; 290 i 292; 290; 288 |
+
+Po zmianie z daleka: wszystko 105, bez budynków 169, bez wstęg 113, bez obu i mostów 195
+(osobny build z wyłącznikami, liczby porównywalne tylko między sobą). Wstęgi kosztowały więc
+wysyłką i są prawie darmowe; zostają wierzchołki budynków (42 na część, ok. 930 tys. na
+klatkę, światło na wierzchołek). Do decyzji: prostsza bryła od poziomu strategicznego.
+
+Prostsza bryła (słowo użytkownika, 2026-11-12). Eksperyment na kopii: bez cienia na wierzchołek
+104–108 FPS (bez zmian), 30 wierzchołków na część 111–122, 6 wierzchołków 144–148, bez
+budynków 160–163: koszt idzie z liczbą wierzchołków. Zmiana: z czterech ścian części rysowane
+są dwie zwrócone do kamery (wybór w shaderze wierzchołków ze znaku wyznacznika trzech punktów
+ściany w przestrzeni obcięcia, więc w każdej projekcji; 30 wierzchołków zamiast 42, obraz z
+bliska ten sam), a od poziomu strategicznego część to dwie ściany pod płaskim wiekiem w
+połowie wzniosu dachu (18 wierzchołków, drugie rysowanie z `SolidFar`).
+
+| Widok | Przed (db19e569) | Po |
+|---|---|---|
+| Funchal, stare miasto z bliska | 147; 145 | 146; 150 |
+| Funchal, cały wycinek z daleka | 100; 105 | 122; 127 |
+| Funchal, Monte | 189; 174 | 189; 174 |
+| Madera 100 m, `main` → drzewo | 330 → 287; 294 → 294 |
+
+Pierwsza para Madery to stan maszyny (pierwszy przebieg po serii Funchal bywa szybszy o
+kilkanaście procent, którekolwiek drzewo na niego trafi); trzy inne pary tego dnia są równe.
+
+Sprawdzone po optymalizacji (2026-11-12): noc (okna świecą z bliska, z daleka bryły bez okien),
+zima, ghibli: obraz poprawny. Zima jest cięższa na obu mapach (Funchal z daleka 87 FPS wobec
+125 latem, Madera 100 m 175 wobec 290; tick 5,5 i 2,7 ms): nie z tego etapu, przyczyna nie
+zbadana. Zapis i wczytanie gry w Funchal: po wczytaniu nie było budynków, brył mostów ani
+drzew z pliku mapy (leżały w polach pluginów, a plik poziomu nie jest kładziony drugi raz);
+są teraz zasobami (`buildings.Resources.Stood`, `forest.Resources.Planted`,
+`bridges.Resources.Wound`), zapis Funchal ma 2,7 MB. Nie sprawdzone: jazda jednostką przez
+most (V), wchodzi z etapem ruchu po ulicach.
+
+### Etap 0d, tunele na mapie miasta (2026-11-12, ta sama gałąź i PR #62)
+
+Tryb `lay: profile` pomijał tunele OSM (Funchal: 37 dróg w 25 ciągach). Teraz `roads.bore`
+kopie je przed ulicami, jak na mapie wyspy, a ulica dochodzi do głowy na jej poziomie
+(`lot.pin`). Pomiar na starcie: z ustawieniami Madery kopało się 7 z 25. Przyczyny i
+poprawki: (1) strop za płytko o 0,2–1,2 m w czterech: `tunnels.sink` obniża obie głowy;
+(2) skośny ciąg prowadzony jednym zakrętem biegł do 80 m obok osi, pod innym gruntem:
+`tunnels.follow` prowadzi go schodkami; (3) `reshape` 30 m dawał głowy wcięte na 20 m i
+wykopy dojazdów: zostało 12 m.
+
+| Funchal 10 m | Przed | Po |
+|---|---|---|
+| tunele | 0 | 12 (9 ciągów odpada, 2 to bliźniacze rury, reszta za krótka) |
+| mosty | 16 | 13 |
+| najgłębszy wykop | 39,7 m | 9,0 m |
+| najwyższy nasyp | 16,3 m | 11,3 m |
+| komórki ponad 6 m | 44 | 42 |
+| najstromsza ulica | 14,5° | 14,5° |
+| budynki | 15 641 | 15 624 (17 stało na wlotach) |
+| czas gramap | 2,4 s (drogi) | 2,4 s |
+
+Mosty: jeden wiadukt VR1 między dwoma tunelami leży teraz na gruncie (głowa tunelu obniżyła
+jego koniec, pod pomostem nie ma 3 m powietrza), dwa równoległe wiadukty od portalu do wąwozu,
+który model wysokości kładzie 50–60 m niżej, są pominięte (`aloft` 20 m: przyczółek stałby
+na słupie nasypu 50 m). Model wysokości jest grubszy niż miasto; tego recepturą nie da się
+zdjąć. Sonda: jednostka przeszła tunelem VR1 (do 17 m pod gruntem, wyjście drugim wlotem);
+druga wybrała drogę po zboczu obok krótkiego tunelu.
+
+### Etap 0d, niweleta przed budowlami (2026-11-12, ta sama gałąź i PR #62)
+
+Użytkownik odrzucił wynik poprzedniego kroku: wiadukt VR1 kończył się na słupie nasypu, a
+droga spadała do wlotu tunelu na dnie wąwozu; między wstęgą a jezdnią tunelu był odstęp.
+Przyczyna: każda budowla brała wysokość z gruntu we własnej komórce, a model wysokości jest
+grubszy niż miasto (portal zachodni na 173 m wobec 258 m wschodniego).
+
+Teraz `cmd/gramap/courses.go` łączy tunele i mosty jadące jeden za drugim w ciąg i prowadzi
+jedną niweletę przez punkty, w których droga dotyka gruntu; punkt, do którego linia musiałaby
+dojść stromiej niż wolno pomostowi albo podłodze tunelu, jest pomijany. Tunel jest tam, gdzie
+grunt zamyka się nad linią, pomost tam, gdzie leży pod nią; tunel, którego grunt nie przyjmie,
+staje się wykopem, więc droga nigdzie się nie urywa.
+
+| Funchal 10 m | Poprzednio (63b2e3c7) | Teraz |
+|---|---|---|
+| mosty | 13 (2 wycięte regułą `aloft`) | 18 (0 wyciętych) |
+| tunele | 12 (9 ciągów bez drogi) | 11 (5 jako wykopy, droga ciągła) |
+| najgłębszy wykop / nasyp | 9,0 / 11,3 m | 9,0 / 11,3 m |
+| komórki ponad 6 m | 42 | 40 |
+| najstromsza ulica | 14,5° | 14,5° |
+
+Wiadukt VR1 nad wąwozem: jeden, 32 komórki, od ściany do ściany, przyczółki na gruncie.
+Wstęga ulicy biegnie po podłodze tunelu (wiersz tunelu z `lanes`), rura nie rysuje własnej
+jezdni. Dwa błędy silnika znalezione sondą: tempo kroku po pomoście liczone ze spadku gruntu
+pod nim i skośny krok po pomoście wyceniany jak przez goły grunt. Po tym kroku zostały: piechur
+dema schodzący w wąwóz zamiast iść wiaduktem i pięć tuneli jako wykopy (niżej).
+
+### Etap 0d, poprawki po niwelecie (2026-11-13, ta sama gałąź i PR #62)
+
+Kontrola wszystkich budowli (wydruk tymczasowy w gramap: każdy ciąg komórka po komórce,
+każdy most i tunel z wysokością końców nad gruntem) pokazała przyczyny pięciu odmów tuneli,
+a sonda z jednostką od przyczółka do przyczółka każdej budowli osobno pokazała, że wiaduktu
+nie omijała wycena zejść (poprzednia diagnoza była błędna), tylko pięć miejsc w silniku.
+
+gramap:
+
+- tunel tam, gdzie grunt zamyka się nad linią, także na komórkach drogi mostowej, jeśli
+  wchodzi w nie tunel OSM (model stawia wzgórze 13 m nad „mostem” przed zachodnim tunelem
+  VR1: był tam wykop 9 m, jest tunel 8 komórek);
+- obniżenie niwelety pod płytkim gruntem (`sag`): rampa z obu końców, między nimi linia
+  równoległa, do 3,5 m, tylko gdy bez tego nie ma tunelu z 6 komórek;
+- wszystkie niwelety liczone przed pierwszym kopaniem (wlot wykopany dla jednej jezdni psuł
+  linię bliźniaczej); spadek tunelu liczony w komórkach, jak liczy go `underground/site`;
+- resztki bliźniaczej jezdni między dwiema scalonymi budowlami nie są już ulicą, a odcinek
+  skośny między portalem i przyczółkiem idzie przez wspólny narożnik (był zygzak przy wlocie);
+- przyczółek mostu leży płasko na wysokości swojej ulicy.
+
+Silnik (każde z testem):
+
+- `pathfind.passes`: pomost biegnący dalej wspina się jak rampa (był schodami wyższymi niż
+  krok piechura), tak samo wejście na niego i zejście na jego końcach; spadek ocenia wycena;
+- `Footing().Surface`: pomost jest pochylnią od środka elementu do środka następnego i do
+  gruntu na wspólnej krawędzi; `LevelFor` i `levelOf` planisty znają zagłębienie elementu
+  (`Dip`);
+- tempo jednostki w ruchu (`ledRise`) liczone po podłodze, po której idzie, od komórki
+  elementu, także gdy jednostka stoi nad narożnikiem sąsiedniej komórki;
+- lita komórka bez wysokości (budynek) nie zatrzymuje nikogo na pomoście nad nią;
+- wstęgi: droga przechodząca przez skrzyżowanie biegnie z liniami, boczna dochodzi do jej
+  krawędzi; płyta zostaje, gdzie krzyżują się drogi równorzędne.
+
+| Funchal 10 m | Przed (efe5f21c) | Teraz |
+|---|---|---|
+| tunele | 11 (5 jako wykopy) | 15 (1 jako ulica: odnoga łącząca się pod ziemią) |
+| mosty | 18 | 18, każdy przyczółek na gruncie |
+| najgłębszy wykop / nasyp | 9,0 / 11,3 m | 9,0 / 11,3 m |
+| komórki ponad 6 m | 40 | 41 |
+
+FPS, baza `efe5f21c` przeciw drzewu na zmianę, bezczynna maszyna: z bliska 135,9; 133,7 wobec
+133,6; 132,4, z daleka 107,5; 111,1 wobec 106,9; 101,6, Madera 252,6 wobec 257,8: bez zmiany
+w granicach rozrzutu.
+
+Sonda: dwie jednostki naprzeciw siebie przez tunel, wiadukt VR1 (32 komórki, 75 m nad dnem)
+i drugi tunel dochodzą do celów i mijają się na pomoście. hpastar: `Dump` pisał klaster przed
+nazwaniem jego węzłów i przed przebudową klastrów nad nim; plik po uciętym biegu dawał panic
+w `relabel` albo stare poziomy wyższe. Poprawka na gałęzi `fix/dump-pending-labels`
+(v1.6.1): `Dump` pisze tylko gotową hierarchię, `Load` odrzuca plik z etykietami nie od tych
+węzłów.
+
+Otwarte: tunel o trzech pasach na pomoście scalonym z dwóch jezdni i dwóch w tunelu (zmiana
+szerokości przy portalu); jednostka idzie środkami komórek, nie osią pomostu.
+
+### Etap 0d, jezdnia na stoku (2026-11-13, ta sama gałąź i PR #62)
+
+Zrzut użytkownika z zachodniego portalu VR1: jezdnia jak półka nad stokiem, z uskokami,
+portal jak pudło, kamienie gruntu wielkości okien. Pomiar na pliku mapy (98 tys. przekrojów
+wstęg odtworzonych jak w silniku):
+
+| Funchal 10 m | Liczba |
+|---|---|
+| przekroje ze szczeliną ponad 0,5 m pod krawędzią jezdni | 5,3% (przy portalach 39%, przy przyczółkach 15%, skrzyżowania 14%, zwykła ulica 3%) |
+| krawędzie wiszące ponad 0,3 m | 12 634 z 195 152 |
+| skarpa 2:3 ląduje w 8 m | 93,5% (w 3 m 90%); reszta mur: 819 odcinków, 65 ponad 2 m, najwyższy 5,5 m |
+| wyrównanie gruntu pod całym obrysem (odrzucone) | szczeliny 5,3% → 3,2%, grunt ruszony pod 8936 z 24 952 komórek budynków |
+| przyczółki, gdzie oś pomostu leżała ponad 1 m od osi ulicy | 17 z 31 (do 4,5 m) → 0 |
+
+Co weszło:
+
+- wstęgi: pod krawędzią wiszącą nad gruntem skarpa od krawędzi do stopy (`Ribbon.Bank`,
+  `Slope`, `Reach`), mur (`Ribbon.Wall`), gdzie skarpa nie ląduje, trafia w komórkę litą albo
+  poza planszę; wysokość maleje wzdłuż drogi do zera; gruntu nie rusza;
+- wstęgi: przyczółek leżący na gruncie jest drogą w swojej komórce (był rysowany dwa razy,
+  ulicą i pomostem, na dwóch osiach: stąd uskok), leży jak droga nad gruntem pod krawędziami
+  i styka się z ulicą na jednej wysokości; wysokość jezdni bierze grunt także krok w przód i
+  w tył (narożnik siatki między przekrojami wchodził klinem na jezdnię);
+- gramap: pomost zaczyna się tam, gdzie oś jego ulicy przechodzi przez przyczółek;
+- `underground.WithCover`: rama wlotu za licem ma kolor ziemi (pudło z betonu było ramą
+  rysowaną tak daleko w głąb, jak grunt nad wlotem jest wycięty);
+- `painter.Detail` drobniejszy niż trzy komórki pokazuje się według własnej rozpiętości na
+  ekranie; tekstury gruntu miasta mają wielkość z życia (zdjęcie 3–6 m zamiast 60 m), ziarno
+  widać z bliska, z daleka kolor gruntu; Madera 100 m bez zmian.
+
+Moje dwie diagnozy sprzed pomiaru były błędne: rura tunelu nie jest odkryta z boku (grunt
+przykrywa strop przy wszystkich 30 portalach), a uskok jezdni nie brał się z osi tunelu,
+tylko z dwóch osi w komórce przyczółka.
+
+FPS, baza `eb47feb2` przeciw drzewu na zmianę, bezczynna maszyna: z bliska 136,6; 135,5;
+139,8; 139,6 wobec 131,4; 130,5; 135,8; 136,7 (w obu kolejnościach drzewo 2–4% wolniej:
+około 13 tys. instancji skarp więcej), z daleka 109,9; 108,7 wobec 105,9; 110,0, Madera 256,4
+wobec 255,5: bez zmiany w granicach rozrzutu. Sonda: dwie jednostki nadal przechodzą tunel,
+wiadukt VR1 i drugi tunel w obie strony.
+
+Po zrzutach użytkownika z tego samego dnia (dom na drodze, dom na potoku, drogi urwane przy
+wodzie, wjazd do tunelu jak rampa):
+
+- wjazd jak rampa był błędem tej zmiany (krok wysokości jezdni w przód trafiał w zbocze nad
+  wlotem): przy wlocie jezdnia bierze grunt tylko pod własnymi krawędziami;
+- wstęga wchodziła w obrys 1344 z 15 619 budynków, sama oś drogi w 226; 36 budynków stało
+  nad mokrą komórką. Droga jest jedna na komórkę i biegnie osią komórki, koryto ma całą
+  komórkę, a budynki stoją tam, gdzie w OpenStreetMap. gramap (`setback`) cofa ścianę
+  stojącą w pasie drogi albo koryta do jego krawędzi (budynek o tyle węższy), za wąski
+  odsuwa w całości do 6 m, a ten, przez którego środek biegnie droga, pomija: 3214 budynków
+  cofniętych, 177 pominiętych, po zmianie żaden nie styka się z jezdnią ani z korytem;
+- 14 ulic kończyło się krążkiem przy potoku: skrzyżowania wypadały na mokrych komórkach, a
+  gramap stawiał most tylko nad wodą w środku odcinka i wycinał mokre końce (25 komórek).
+  Koryto bierze się ze spływu po modelu wysokości, nie z OpenStreetMap, więc nie da się go
+  przesunąć o komórkę bez zmiany rzeźby; woda, w której kończy się odcinek ulicy, jest teraz
+  zakryta (10 komórek z 96), ulice biegną nad nią dalej, a potok płynie po obu stronach.
+
+Skrzyżowania (zrzuty użytkownika; decyzje: bez sztucznych rond, białe linie zawsze i łączące
+się z liniami drogi obok, nigdy placek asfaltu): 812 z 1557 komórek-skrzyżowań leży w 280
+skupiskach stykających się skrzyżowań (największe 19 komórek: siatka uliczek starego miasta),
+a każda komórka rysowała własne ramiona i płytę, z liniami w poprzek cudzej nawierzchni.
+Wstęgi (`junction`): każda droga dochodzi z liniami do wlotu cofniętego za punkt, w którym
+jej krawędź spotyka krawędź sąsiedniej, między wlotami leży asfalt, a od krawędzi każdej
+drogi do krawędzi następnej biegnie zaokrąglony narożnik z linią krawędzi; drogi naprzeciw
+siebie dają prostą, czyli ciągłą krawędź drogi głównej. Okrągłe płyty zostają tylko na
+końcach ulic i rondach. Pierwsza próba (goły asfalt w skupisku) odrzucona przez użytkownika.
+Skarpa nie powstaje nad inną jezdnią. Zostaje: ostre szpice tam, gdzie drogi schodzą się
+pod ostrym kątem, maleńkie wysepki między łącznicami, ulice starego miasta po 7 m szerokości.
+
+FPS, baza `0e0b3c52` przeciw drzewu na zmianę: z bliska 136,4; 132,0 wobec 131,4; 128,6, z
+daleka 105,0; 104,4 wobec 102,5; 101,7: około 3% wolniej (narożniki to kilkanaście instancji
+więcej na skrzyżowanie).
+
+Brzeg, port i marina (zrzut użytkownika: morze w basenie szarym placem, woda w odizolowanych
+pasach, bez falochronu i pomostów). Lądem była każda komórka z wysokością ponad zero w modelu
+terenu, a model ma przy brzegu piksele po kilkadziesiąt metrów i szum wokół zera. gramap
+(`coast: {source: osm}`, `coast.go`): linia brzegowa z OpenStreetMap rasteryzowana na polach
+2 m dzieli mapę na części, częścią morza jest ta, którą więcej odcinków brzegu ma po prawej
+(jeden odcinek potrafi wskazać zły bok przy ostrodze węższej niż pole: pierwsza wersja z
+zalewaniem od prawej strony każdego odcinka zalała całe miasto); falochrony i mola to ląd na
+wysokości nabrzeża (`quay`), także gdy mają jedną komórkę szerokości; woda odcięta po
+przeliczeniu na komórki dostaje kanał szerokości komórki. Funchal: 18 101 komórek morza w
+jednym kawałku (było kilkanaście kałuż), 13 falochronów, trzy duże mola, 7 z 32 pomostów
+mariny zapisanych jako mosty rodzaju `pontoon` (reszta krótsza niż 25 m albo bez styku z
+lądem). Zostaje: nabrzeże bez pionowej ściany (stok na szerokości komórki wody), pomosty w
+kolorze jezdni, krótkie pomosty-palce pominięte.
+
+Aleja pocięta w „drabinę” (zrzut użytkownika): sieć ulic powstaje z maski komórek po
+ścienianiu, więc dwie przeciwbieżne jezdnie biegnące ukosem dwie komórki od siebie stykały
+się na każdym schodku siatki i dostawały tam skrzyżowanie z łącznikiem. `newGuide`: jezdnie
+jednokierunkowe są śledzone bez komórek narożnych (`unbent`), a przejście między komórką
+samej jednej jezdni i komórką samej przeciwbieżnej, w poprzek obu, jest zakazane (`bar`),
+o ile jezdnie tylko się mijają (jezdnie komórka przy komórce na całej długości zostają jedną
+drogą) i żadna komórka nie zostałaby przez to ślepym końcem. Funchal: skrzyżowań 1549 →
+1354, stykających się 805 → 589, odcinków 2533 → 2239, sieć w tylu samych kawałkach.
+Wstęgi: przyczółek bez dalszej drogi obok przyczółka innego mostu łączy się z nim (ulica
+między dwoma przyczółkami nie ma własnej komórki). Pomosty mariny w kolorze `Ribbon.Walk`.
+Ściana nabrzeża nie weszła: narożnik terenu ma jedną wysokość, więc pionowa ściana wymaga
+wody rysowanej osobno na poziomie morza i muru jako własnej geometrii.
+
+Ronda (zrzut użytkownika: droga wjeżdżała na trawnik wyspy, pierścień cienki i przerwany;
+zasada: drogi bez dziur, linie nieprzerwane). Promień ronda z gramap to oś jezdni okrężnej,
+a płyta kończyła się na nim, więc brakowało zewnętrznej połowy jezdni; płyta leżała 1,5 cm
+nad drogami, czyli poniżej rozdzielczości głębi, i przegrywała z nimi kolejnością rysowania.
+Teraz: płyta sięga pół jezdni dalej, leży 0,3 m nad najwyższym gruntem pod sobą (drogi
+wchodzące pod nią kończą się na jej krawędzi), ma linię przy krawędzi i przy wyspie, wyspa
+wąski krawężnik; droga wchodząca pod rondo trzyma własną szerokość do krawędzi; gramap
+odsuwa budynki od zewnętrznej krawędzi jezdni okrężnej. Kontrola ciągłości wstęg na całej
+mapie (każdy koniec paska ma sąsiada o tej samej szerokości i wysokości): 148 352 końce,
+0 luźnych, 0 progów, 0 zwężeń; kontrola nie widzi kolejności rysowania, więc ronda sprawdzone
+na zrzutach (trzy ronda, z góry i z poziomu jezdni).
+
+Drzewa na jezdni (zrzut użytkownika; zasada ogólna: na jezdni nic nie stoi). `clearing`
+sprawdzało drzewo tylko z osią ulicy we własnej komórce. Teraz drzewa i budynki korzystają z
+jednego spisu pasów (`lanes`: każdy odcinek ulicy, jezdnia każdego ronda od krawędzi do
+wyspy, koryta): drzewo schodzi z każdego pasa, w którym stoi, na wyspę ronda, gdy tam bliżej;
+485 przesuniętych, 18 pominiętych, na wstęgach zostają 4 z 5403 (było 190), na jezdniach
+rond 0 (było 7). Przy okazji wyszło, że mapa zapisuje zewnętrzny promień ronda, a szerokość
+pierścienia silnik brał z pasów ulicy w komórce środka: wiersz ronda niesie teraz własne pasy
+(`lanes`), silnik i gramap liczą pierścień z tych samych liczb.
+
+Ronda, druga runda (prośba użytkownika: pierścień nie nad drogami, linia ustąpienia zamiast
+ciągłej w poprzek wjazdu, linie krawędzi skręcające w pierścień). `roundabout`: dróg pod
+płytą ronda wstęgi nie rysują; droga z zewnątrz kończy się długość wlotu (3 m) przed
+krawędzią, na wysokości płyty, wlot dorysowuje rondo, po obu stronach narożnik z linią
+krawędzi przechodzącą w linię pierścienia, w poprzek wlotu linia przerywana, linia pierścienia
+tylko między wjazdami. Płyta leży na poziomie dróg, równo nad najwyższym gruntem pod sobą i
+pod wlotami (pierwsza wersja liczyła grunt tylko pod płytą i wlot od wyższej strony chował
+się pod ziemią). Trzecia runda, po przejrzeniu sześciu rond z góry i dwóch z poziomu jezdni:
+wjazdy stykające się ze sobą mają wspólny narożnik (czubek wysepki między nimi) zamiast dwóch
+nakładających się; płyta ronda jest płaszczyzną dopasowaną do gruntu pod nią, najwyżej 8%
+(pozioma stała na stoku jak platforma kilka metrów nad gruntem); pod krawędzią płyty, wlotów
+i narożników leży skarpa aż do gruntu (bez progu zasięgu: mur obok skarpy dawał zęby); linia
+ustąpienia biegnie tylko w poprzek jezdni wjazdu, a wlot małego ronda jest krótszy.
+
+Przegląd całej mapy (skrypt w scratchpadzie: zrzuty z góry 18 rond, 56 przyczółków, 30
+portali, 42 losowych skrzyżowań, w arkuszach po sześć, przed i po). Znalezione i naprawione
+we wstęgach: jezdnia przerwana na przyczółkach, gdzie pomost opada od przyczółka (wstęga
+schodziła pod płaski grunt przyczółka; przyczółek trzyma się teraz nad gruntem, pomost
+dochodzi do niego nie niżej); wjazdy na ronda pod kątem (krawędzie jezdni przecinane z
+okręgiem osobno; komórka tuż przy krawędzi ronda należy do ronda); narożnik zataczający
+pętlę przez skrzyżowanie, gdy szeroka droga i uliczka leżą prawie w linii; biała linia w
+poprzek jezdni tam, gdzie dwie jezdnie wychodzą ze skrzyżowania obok siebie; skarpa ronda z
+jednym pochyleniem na obwodzie. Zostaje: balustrady dwóch pomostów biegnących obok siebie
+widoczne w środku jezdni (model mostu, nie wstęgi), strzałki jednokierunkowe jak białe
+trójkąty przy skrzyżowaniach, kolce skarp przy rondach na bardzo stromym zboczu, pomosty
+mariny nakładające się przy 259,311.
+
+Nie weszło: pięć mostów niższych niż 2,2 m (dwa stoją nad ulicą, trzy powstały, bo w chwili
+wyboru grunt leżał 3 m niżej; zamiana na nasyp wymaga powtórzenia niwelety po ułożeniu
+gruntu); przejście szerokości z dwóch pasów na trzy przy portalu; nawierzchnie miejskie
+(chodniki, place, deptaki z OpenStreetMap z własnymi teksturami) jako osobny etap.

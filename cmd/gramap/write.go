@@ -95,6 +95,12 @@ func (w *chart) writeBoard(b *bytes.Buffer) {
 			}
 		}
 	}
+	for _, town := range [2][2]string{{"#", w.r.Buildings.Cells}, {"%", w.r.Greens.Cells}} {
+		if kind := town[1]; kind != "" && slices.Contains(w.soils, kind) {
+			fmt.Fprintf(b, "    %q: %s\n", town[0], kind)
+			keys[kind] = town[0]
+		}
+	}
 	b.WriteString("  cells: |\n")
 	for y := range w.rows {
 		b.WriteString("    ")
@@ -104,10 +110,20 @@ func (w *chart) writeBoard(b *bytes.Buffer) {
 		b.WriteString("\n")
 	}
 	stands, fields := w.standing(), w.fields()
-	if len(stands)+len(fields)+len(w.roads.tunnels) == 0 {
+	var spans int
+	if w.roads.streets != nil {
+		spans = len(w.roads.streets.spans)
+	}
+	piers := w.pontoons()
+	if len(stands)+len(fields)+len(w.roads.tunnels)+len(w.buildings)+len(w.trees)+spans+
+		len(piers) == 0 {
 		return
 	}
 	b.WriteString("  entities:\n")
+	if spans > 0 {
+		w.roads.streets.rows(b)
+	}
+	w.writePontoons(b, piers)
 	for _, t := range w.roads.tunnels {
 		fmt.Fprintf(b, "    - {kind: %s, from: %s, to: %s", k.Tunnel, w.point(t.from),
 			w.point(t.to))
@@ -117,6 +133,9 @@ func (w *chart) writeBoard(b *bytes.Buffer) {
 				via[i] = w.point(c)
 			}
 			fmt.Fprintf(b, ", via: [%s]", strings.Join(via, ", "))
+		}
+		if t.lanes > 0 {
+			fmt.Fprintf(b, ", lanes: %d", t.lanes)
 		}
 		b.WriteString("}\n")
 	}
@@ -134,6 +153,10 @@ func (w *chart) writeBoard(b *bytes.Buffer) {
 		fmt.Fprintf(b, "    - {kind: %s, from: %s, to: %s, cells: %d}\n", f.kind, w.point(f.from),
 			w.point(f.to), f.cells)
 	}
+	var rows strings.Builder
+	w.writeBuildings(&rows)
+	w.writeTrees(&rows)
+	b.WriteString(rows.String())
 }
 
 type standing struct {
@@ -193,6 +216,9 @@ func (w *chart) writeRelief(b *bytes.Buffer) {
 
 func (w *chart) writeWays(b *bytes.Buffer) {
 	b.WriteString("ways:\n")
+	if w.roads.streets != nil {
+		w.roads.streets.write(b)
+	}
 	if len(w.roads.laid) > 0 {
 		fmt.Fprintf(b, "  roads:\n    %s:\n      width: %s\n      paths:\n", w.r.Kinds.Road,
 			number(w.roads.cfg.Width))

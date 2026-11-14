@@ -1,7 +1,9 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 
@@ -12,6 +14,8 @@ import (
 )
 
 type chart struct {
+	// the ends of the tunnels no ground let lie, a road's cuttings from then on
+	refused    map[[2][2]int]bool
 	r          recipe
 	flat       bool
 	origin     [2]int // how far the area grew west and north for its sea
@@ -22,13 +26,19 @@ type chart struct {
 	land       []bool
 	corners    []float64 // metres, (cols+1) x (rows+1), row by row
 	soils      []string
-	rivers     *water.Network
-	roads      *roads
-	settled    map[string][]cell.ID // a place's settlement, by its name
-	unsettled  []string             // places of a size with no cell of their own
-	osm        *osmData
-	covered    []string // the kind the land cover draws a cell as, "" where it says none
-	built      int      // cells settled where OpenStreetMap has buildings
+	// the cells of what is built into the sea: true a breakwater's, false a pier's
+	moles     map[int]bool
+	coast     *osmCoast
+	rivers    *water.Network
+	roads     *roads
+	settled   map[string][]cell.ID // a place's settlement, by its name
+	unsettled []string             // places of a size with no cell of their own
+	osm       *osmData
+	covered   []string // the kind the land cover draws a cell as, "" where it says none
+	built     int      // cells settled where OpenStreetMap has buildings
+	buildings []built
+	trees     []tree       // standing by themselves
+	treeCells map[int]bool // the cells they stand on
 }
 
 // source is what OpenStreetMap has within a box: south, west, north, east
@@ -60,9 +70,22 @@ func build(r recipe, height elevation, osm source, land landcover, flat bool) (*
 			w.land[y*cols+x] = h > 0
 		}
 	}
+	coasted := false
+	if r.Coast.Source != "" {
+		if osm == nil {
+			return nil, fmt.Errorf("coast: it is OpenStreetMap's, and no source is given")
+		}
+		data, err := osm(w.box(), nil, false)
+		if err != nil {
+			return nil, err
+		}
+		coasted = data.coast != nil && w.shore(data.coast)
+	}
 	for y := range rows + 1 {
 		for x := range cols + 1 {
-			if !w.ashore(x, y) {
+			// a harbour's land stands over its water up to its edge, a quay; else the shore
+			// slopes down to the sea's level
+			if !w.ashore(x, y) && !(coasted && w.landed(x, y)) {
 				continue
 			}
 			h, err := at(float64(x), float64(y))
@@ -70,6 +93,10 @@ func build(r recipe, height elevation, osm source, land landcover, flat bool) (*
 				return nil, err
 			}
 			w.corners[y*(cols+1)+x] = max(h, 0)
+			// the land by a harbour's water is its quay: level, over the water
+			if coasted {
+				w.corners[y*(cols+1)+x] = max(h, r.Coast.Quay)
+			}
 		}
 	}
 	if err := w.drain(); err != nil {
@@ -90,6 +117,26 @@ func build(r recipe, height elevation, osm source, land landcover, flat bool) (*
 		w.cover(data)
 	}
 	w.soil()
+	for _, i := range slices.Sorted(maps.Keys(w.moles)) {
+		w.soils[i] = cmp.Or(r.Coast.Pier, r.Kinds.Rock)
+		if w.moles[i] {
+			w.soils[i] = r.Kinds.Rock
+		}
+	}
+	if len(r.town()) > 0 && !flat {
+		if osm == nil {
+			return nil, fmt.Errorf("buildings: they are OpenStreetMap's, and no source is given")
+		}
+		data, err := osm(w.box(), nil, false)
+		if err != nil {
+			return nil, err
+		}
+		w.osm = data
+		w.stand(data.footprints)
+		if data.greens != nil {
+			w.green(data.greens)
+		}
+	}
 	w.roads = newRoads(w)
 	if r.Roads.Source == "osm" && !flat {
 		if osm == nil {
@@ -100,6 +147,26 @@ func build(r recipe, height elevation, osm source, land landcover, flat bool) (*
 			return nil, err
 		}
 		w.osm = data
+		if r.Roads.Lay == "profile" {
+			// a tunnel the streets laid over it bare is refused and they are laid again, on
+			// the ground as it lay, the road running through in a cutting there
+			lay := slices.Clone(w.corners)
+			soils := slices.Clone(w.soils)
+			for {
+				w.roads.streets = w.newStreets(data.ways)
+				w.roads.net = w.roads.streets.net()
+				if w.roads.streets.dug() == 0 {
+					break
+				}
+				copy(w.corners, lay)
+				copy(w.soils, soils)
+				w.roads = newRoads(w)
+			}
+			w.roads.streets.narrowed, w.roads.streets.gone = w.setback()
+			w.clearing(w.roads.streets)
+			w.settle()
+			return w, nil
+		}
 		ways, open := w.roads.bore(data.ways)
 		var heads [][2]int
 		for _, t := range w.roads.tunnels {
@@ -168,11 +235,28 @@ func grow(r recipe, height elevation) (origin, cells [2]int, err error) {
 		sea)
 }
 
+// landed says a cell at the corner x, y is land
+func (w *chart) landed(x, y int) bool {
+	for _, d := range [4][2]int{{-1, -1}, {0, -1}, {-1, 0}, {0, 0}} {
+		cx, cy := x+d[0], y+d[1]
+		if cx >= 0 && cy >= 0 && cx < w.cols && cy < w.rows && w.land[cy*w.cols+cx] {
+			return true
+		}
+	}
+	return false
+}
+
 // the coast's corners stay at the sea's level, so the shore slopes down into water lying level
 func (w *chart) ashore(x, y int) bool {
 	for _, d := range [4][2]int{{-1, -1}, {0, -1}, {-1, 0}, {0, 0}} {
 		cx, cy := x+d[0], y+d[1]
-		if cx < 0 || cy < 0 || cx >= w.cols || cy >= w.rows || !w.land[cy*w.cols+cx] {
+		if cx < 0 || cy < 0 || cx >= w.cols || cy >= w.rows {
+			if w.r.Area.Sea > 0 {
+				return false
+			}
+			continue // an area asking no sea round it: the land runs on past it
+		}
+		if !w.land[cy*w.cols+cx] {
 			return false
 		}
 	}

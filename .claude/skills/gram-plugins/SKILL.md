@@ -404,6 +404,20 @@ keeps only what those do not.
   plans each anew as `hold` does the bridges). What decides the yield is the 10° of
   `ground.RoadSlope` and the room of figures 15 times life, not the planner. `GRAMAP_MADEIRA=1
   go test ./cmd/gramap -run TestMadeira` holds both of Madeira's maps to their SHA-256.
+  A town's shore is OpenStreetMap's (`coast.go`, 2026-11-13): the heights' zero is noise at a
+  harbour (pixels of tens of metres: Funchal's port came out in bands and puddles). The
+  coastline's ways, rasterised on squares a fifth of a cell, cut the chart in parts; a part is
+  the sea's where more length of way has it on its right than on its left: flooding from the
+  right of every way drowned the town, one way's side falling across a spur narrower than a
+  square. Moles are land from a quarter of a cell covered, so a breakwater a cell wide stands
+  unbroken, every corner of land by the water at `quay`; `rejoin` opens a cell to any water
+  the cells cut off. A new query is a new answer in the user's cache, asked of the API once.
+  Nothing stands on a road (the user's word, 2026-11-14, a rule for the whole map): buildings
+  (`setback`) and trees (`clearing`) are held off one index of lanes (`lanes`: every stretch
+  of street by its lots' axes, a roundabout's roadway from its rim in to its island, the
+  beds), never off the road of the thing's own cell alone. A roundabout's radius in the file
+  is its roadway's outer edge (`rim`), its lanes its ring's own: the cell's way lanes are the
+  widest street's run into it, which drew a ring of the wrong width.
   Fields and settlements (`fields.go`, `settle.go`, `d/gramap`, 2026-11-06): `fields:` rows
   `{cells, kind, grain, least}` lay a field entity a block of `grain` cells from (0, 0) over the
   cells of a kind where at least `least` lie, written as `{kind, from: [x, y], to: [x, y],
@@ -444,6 +458,62 @@ keeps only what those do not.
   as gone; the place system, on the first cell found taken in a step, releases the cells of
   everything gone and tries again (a fold despawns the parts in the step the whole loses
   `Unfolded`, and the placing runs before the keep). Test `unfolded_test.go` through a real stage.
+
+- gramap's streets (`cmd/gramap/streets.go`, `roads: {lay: profile}`, 2026-11-12). The
+  planned pipeline cannot lay a town at 10 m: a bend, a slant and a fork must lie level and a
+  ramp runs straight across its cell's edges at 10° at most, so a street slanting up Funchal's
+  15–25 % wants terraces; the map's centimetres round a ramp past `RoadFits`' margin (0.999 of
+  the rise is 1.8 mm on a cell of 10 m, 18 mm on one of 100 m); and every batch is levelled
+  with every road laid (`relaxClasses` 60 % of 100 s for the main roads alone). So such a
+  recipe lays its roads without the planner: the ways thinned to legs (`newGuide`, a
+  roundabout's disc filled and its middle kept, a bridge's heads kept), each cell's axis the
+  mean of the nearest points of the ways through it, within `leeway` of the middle; the
+  profile the ground under the axes eased against its neighbours and held to `slope` link by
+  link (the ground pulls each cell back every pass, else it flattens out); a cell's corners
+  at the profile's height abreast of each along the axis, the mean where streets share one, a
+  junction level. The road's kind is not `Graded` (no `RoadFits` asked; the slope slows a
+  step). A bridge is a chain of OpenStreetMap's bridge ways over air of `hollow` metres or
+  water, traced apart from the ground's ways so it joins nothing it crosses, or a street's
+  run through wet cells; one the heights show no hollow under lies on the ground. An area
+  asking no sea round it keeps its edge's corners at their heights (they stood at 0).
+  Structures follow one grade line, never each its own ground (`courses.go`, 2026-11-12,
+  after a viaduct from a portal at 258 m to a tunnel's head the heights put at 173 m): a
+  course is the tunnels and bridges joined end to end (where two alone meet, and across a gap
+  of plain road of `gap` cells where the ends run on each other's way); its line passes
+  through knots, the ground at its ends, on its plain cells and where a tunnel's way gives
+  way to a bridge's, and a knot the line could reach only steeper than a deck or a floor
+  climbs is dropped, the one furthest off its neighbours' chord first (the heights put a
+  ravine's wall a cell or two off). A cell is a tunnel where `clear + cover` of ground lies
+  over the line, whichever way runs there so long as a tunnel's way runs on into the stretch
+  (the heights put a hill over a bridge's way before a tunnel), a deck where the ground lies
+  `hollow` under it, a street else; a tunnel's way under ground too shallow is sunk (`sag`:
+  a ramp down from either end, level with the line between, as deep as gives the longest
+  tunnel, `sagMost` at most and only where no tunnel of `sagLeast` cells lies without), the
+  heads on the level part, since a tunnel's floor is straight from head to head. Every line
+  is laid before the first tunnel is dug: a mouth cut into the ground spoilt the twin's
+  line. A tunnel counts its run in cells, so the line's steepest is held by cells too. A
+  tunnel is dug at the line's levels (`plan` with `at`: no easing of its heads), one refused
+  or laid bare by a street becomes a cutting and the streets are laid again
+  (`chart.refused`), so the road is never cut. `tunnels.follow` leads a slanting
+  stretch with its slant in the middle and in steps; a street's shaping leaves the ground a
+  roof wants; twins' heads are joined nearest to nearest.
+- What a viaduct over a deep ravine showed of the engine (2026-11-12/13), each a place that
+  read the ground where a floor carries the step: `board.Read.Pace` (the floors' own heights
+  now, and off a deck onto its head); `pathfind.price` (a slantwise step on a deck priced as
+  across the bare ground beside a way); the standing pass's pace (`BoardRead.ledRise`: by the
+  level the unit stands on, from the band's own cell where it crosses a corner of another,
+  onto a floor beginning at a head); and a climbing deck taken for stairs: a floor's top is
+  its middle's, so `Footing().Surface` grades a raised band as a sunk one, to the ground at
+  the shared edge where it ends (a head is not level, its cell's mean is not its edge),
+  `stoodOn` and the finder's `levelOf` allow the band's dip at its low edge
+  (`terrain.Read.Dip`, `pathfind.Storey.Dip`), and `pathfind.passes` lets a deck running on
+  climb, and be stepped onto and off at its ends (from a cell without its level, along its
+  link), the pacing judging the slope; a solid kind of no height stands no higher than the
+  underside of a deck over its cell (`field.underDecks`: a house's cell under a viaduct
+  stopped whoever crossed over it). gramap lays a bridge's head level at its street's height
+  and drops what is left of a twin carriageway between two structures gone into their twins
+  (it bent the road out of a mouth round a corner). A route that avoids a structure it should take: probe
+  the steps one by one (a unit from head to head of each) before blaming the prices.
 
 ## topography
 
@@ -537,6 +607,54 @@ keeps only what those do not.
   corners (the ground alone, never a deck): its figure is drawn flat at its altitude, so a slope
   under a corner higher than the middle showed through it. A body within a cell reads the ground
   under its middle alone.
+
+- Roads as ribbons (`internal/ribbons`, 2026-11-12, the user's word: a road is one a cell on
+  the grid and drawn as it runs, level across). A way whose `painter.Style` has a `Ribbon` is
+  left out by the painter (`laneOf` gives no lane) and drawn by a Direct of instances, a strip
+  or a round plate each: a cell's road is a node at its axis (`cell.Way.Off`), a ground way's
+  or a deck's (a `Floor` run as a band and not `Graded`), its arms the nodes its links lead to
+  and those leading to it (a way led `onto` a head has no way there, the head's deck no link
+  back). A node of two arms bends from the middle of one leg to the middle of the other round
+  its axis; one of one, or of three and more, lays straight arms and a plate; a roundabout's
+  plate is its `Radius`, an island on it. Both edges of a strip lie at one height, the highest
+  of the ground under the axis and under either edge and a lift: level across whatever the
+  ground's fold does, never under it (`over`: the edges there and a step along the road either
+  way, a corner of the ground between two sections else poking through). A deck's head lying
+  on the ground (`Height` 0) is the road there: the way under it is no node, the head's level
+  `over` its edges, and where it meets the road both take the same height (a step at the seam
+  else). Under an edge hanging more than `hang` a bank or a wall is laid (`banks`, `foot`: a
+  march out along the ground at `Ribbon.Slope` till it lands; a wall where it does not within
+  `Reach`, in a solid cell or off the board), an instance of the kind `bank` whose side
+  vectors are the foot's offsets and whose `c.zw` the foot's heights, lit by its own normal;
+  none where another road lies under the edge or in the bank's way (`taken`: the nodes of the
+  cells round the point), and none within a junction; the ground itself is never moved for it (measured 2026-11-13: laying the ground under the
+  whole outline moved it under a third of the buildings' cells and closed less). Where three roads or more meet (`junction`, 2026-11-13, the user's word:
+  a road's white lines join the next road's, never a plate of bare asphalt) each road is laid
+  from its mouth with its lines, the mouth set back to past where its edge meets its
+  neighbours' and `cornerRound` more, the ground between a fan of triangles from the middle
+  (a strip with one side vector zero), and from each road's edge to the next one's, in the
+  order of their angles, a corner: a curve through where the two edges meet, its edge line
+  strips of `lineRGB` a `lineInset` inside it, as the shader marks a road's. Roads opposite
+  each other get a straight corner, the far edge of a road running on. A town at 10 m has
+  812 of its 1557 junction cells in cells side by side (the lattice of an old town's lanes):
+  each is laid alike, the lines running round the blocks. A roundabout (`roundabout`) is a plate level at `plate`, over the highest
+  ground under it and under its mouths (a mouth on the higher side sank under the ground when
+  the plate's own disc alone was sampled); the nodes under it (`ring`) are not drawn, a road
+  from outside ends `rimSet` short of the rim (`joint`) at the plate's height, and the
+  roundabout lays the mouth, the corners with their lines, the give-way dashes and the rim's
+  line between the mouths. A plate lifted over the roads to cover their ends was tried first:
+  a lift under the depth buffer's precision loses to the order of drawing, one over it shows
+  as a step. The plate is a plane fitted to its ground (`tilt`, no steeper than `plateSteep`,
+  `tilted`: a disc whose axis runs the way it climbs) and raised clear of it: a level one
+  stood metres over a slope. Mouths so near that their corners cross share one (`joined`).
+  Every edge that is no road's strip has its bank by `skirt`. A junction's node is as wide as its widest road, so the road
+  between a junction's cell and the next is as wide as the narrower of the two
+  (`halfBetween`): the mean of them swelled a lane halfway and pinched it at the mouth. The dashes run by the distance walked along a stretch
+  from a junction (`walk`), an arm's lines hidden within its plate. Laid anew `every` frames
+  published at most while the board's `Passage` or the relief's version changes, all of it:
+  the board counts no change to its ways alone. `camera.Inner` and `Transform.Shows` cull a
+  sector to a layer, as the buildings'. naga: a struct member named `rgb` or `round` assigned
+  to is refused in lowering ("multi-component swizzle assignment"); name it otherwise.
 
 ## atmosphere
 
@@ -915,6 +1033,18 @@ keeps only what those do not.
   handle sits in the spatial index with a big box: selection and hover may pick it nearest but
   it carries no marks; vision still sees it (a `Sighted` slot).
 
+- A bridge along a path (`Row.Path`, `winding.go`, 2026-11-12): its decks are `Floor`s not
+  `Graded`, so the board's `keepBridges` (straight, level, heads flat) never checks them and
+  `site.Plan` is not asked; the deck's level at a cell is even by the run along the cells' axes
+  from the ground under one head's axis to the other's, a span's `Height` never under the
+  deck's `Thickness`. The structure (`structure.go`: walls and slabs as instances, a wall with
+  a depth at either end, so an arch's underside is its walls' lower edge) is laid from `wound`,
+  noted at `Spawn` alone: a game loaded draws none until its level is read again. Its bend
+  through a cell is sampled as the topography's ribbons sample it (`bends`), or the deck's
+  edges part from its fascia. A unit crosses by the cells' middles and each cell's own deck
+  level, in steps: gramap holds a span's axis within a quarter of a cell of the middle
+  (`deckLeeway`) so it stays on the deck drawn.
+
 ## underground
 
 - Made after the topography (its shaper levels a tunnel's heads) and before the players; its
@@ -1021,6 +1151,47 @@ keeps only what those do not.
 - The sector's side comes from the world (`Read.SectorSide`). The demos: topography's `woods`
   (`forest.go`: laurel, pine, heather by height; `tree.go` the specs), forest-army's `forest`
   with its felled role and two stands.
+
+- A tree standing by itself (`Row{At}`, `Write.Spawn`, `Plant`, 2026-11-12) goes the way a
+  building does (`buildings.Raise`): kept by sector off the level's file, given as a part of
+  the stretch a `world.Unfold` told of through `world.SpawnPartIn`; a preview gets none, so no
+  sheet holds it. One aggregate a sector gives `Plant`, or the trees stand twice: the game's
+  settlement in a town, its field counting the cells with a tree (`fields: [{trees: true}]`).
+
+## buildings
+
+- Made over the world and the board (`NewPlugin(w, brd)`, after the forest, used right after the
+  world in `update`); `WithAir(sky)` in the scene beside the topography's `WithAtmosphere`.
+  The buildings are the map's lines kept by sector (`Write.Spawn`, `Stand`): the map, not
+  state, so a loaded game has none drawn till its level is read again (open, `doc/roadmap.md`).
+- A building is drawn by the plugin's own Direct (`renderer.go`, `shaders/solid.wgsl`: an
+  instance a part, 42 vertices from `vertex_index`, five vec4), at every level, from the lines,
+  never from the entities, and is in no sheet (the user's word, 2026-11-12; CLAUDE.md). Its
+  foot is the lowest ground under its body's corners, its storeys are counted from the highest;
+  the buffers are laid once in `Publish` when the board's heights are there.
+- The level is the sector's in the camera's view (`view.Sectors`): fine parts under
+  `Strategic`, coarse (bodies, no windows, no `Fine` parts) from it. **A picture drawn in
+  layers draws the Direct once a layer**: all the sectors three times cost 13 ms of GPU on
+  Funchal (55 FPS); `Draw` keeps the sectors showing in the layer's window and not wholly
+  within the next layer's (`within`, `shown`: the box's eight corners through the layer's
+  transform), 118 FPS. A sector's box is widened by `overhang`, half the widest building.
+- The shade and the lamps are worked out a vertex, not a fragment (near view 70 → 80 FPS); a
+  wall takes no shade of the blocks (`standingShadeAt` would shade it with its own block), so
+  buildings shade the ground, not each other. The haze is the ground's `hazeDepth` copied with
+  the plugin's own uniforms (`SolidHaze`), as the terrain's shaders copy it.
+- A building is an entity only in a stretch unfolded: the game's settlement gives `Raise`
+  under its `Unfold`; the plugin's system, run after the world's in the same step, finds the
+  stretch (`world.Read.Unfolding`, the pieces told this step; a preview is skipped) and puts a
+  `world.SpawnPartIn` a line in the settlement's name. The kind's row is the map's `Row`, its
+  box the turned rectangle's (so `Entities.MaxSize` must hold it: gramap cuts a building
+  longer than `buildings.longest` either way), with `world.Stand`, `Unseen`, the standing
+  template's `Fixed` and `Baked`, and `BuildingRole` (despawn at `Folding`).
+- A world whose `MaxSize` is raised gets bigger buckets (`MaxSize × capacity` up to a power of
+  two): `Sectors.Buckets` is a sector in those, so the topography demo's `place` gives both.
+- cmd/gramap's road pipeline does not work at 10 m (Funchal with residential streets: 12
+  minutes, then hundreds of cells "cannot be graded"; main roads alone: the same refusal): the
+  town's streets are cells of a kind (`streets:`), no way, no bridge, no tunnel. Roads at 10 m
+  are the m stages'.
 
 ## roads, with site
 

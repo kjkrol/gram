@@ -212,6 +212,7 @@ func TestFinder_GoesRoundARailing(t *testing.T) {
 type causeway struct {
 	g       grid.Grid
 	terrain *cell.TerrainMap
+	rise    float32 // how much higher each cell of the deck lies than the one before
 }
 
 func (w causeway) on(c cell.ID) bool {
@@ -243,7 +244,8 @@ func (w causeway) Storey(c cell.ID, s uint8) (top, bound float32, sunk bool,
 
 func (w causeway) Deck(c cell.ID) (top, under float32, carries cell.Domain, ok bool) {
 	if w.on(c) {
-		return 1, 0.5, cell.Land, true
+		x, _, _ := w.g.Coords(c)
+		return 1 + w.rise*float32(x-1), 0.5, cell.Land, true
 	}
 	return 0, 0, 0, false
 }
@@ -285,7 +287,7 @@ func TestFinder_WalksADeckSlantwise(t *testing.T) {
 	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Water})
 	terrain.Set(g.At(0, 0), cell.Kind{Pace: 1, Allows: cell.Land})
 	terrain.Set(g.At(4, 4), cell.Kind{Pace: 1, Allows: cell.Land})
-	w := causeway{g, terrain}
+	w := causeway{g: g, terrain: terrain}
 	f := New(g, w, nil, &cell.MultipleOccupancy{}).WithLevels(w)
 	var steps [64]cell.ID
 	n, ok := f.Find(uid.UID64(1), cell.Land, Body{Step: 1, Height: 2}, g.At(0, 0), g.At(4, 4),
@@ -297,5 +299,27 @@ func TestFinder_WalksADeckSlantwise(t *testing.T) {
 	}
 	if _, ok := f.Steps(cell.Land, Body{Feet: 1, Step: 1, Height: 2}, g.At(2, 2), g.At(3, 1)); ok {
 		t.Error("a step off the deck slantwise across it is allowed")
+	}
+}
+
+func TestFinder_WalksADeckClimbingMoreACellThanItsStep(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(5, 5, 10)
+	terrain := cell.NewTerrainMap()
+	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Water})
+	terrain.Set(g.At(0, 0), cell.Kind{Pace: 1, Allows: cell.Land})
+	terrain.Set(g.At(4, 4), cell.Kind{Pace: 1, Allows: cell.Land})
+	w := causeway{g: g, terrain: terrain, rise: 2}
+	f := New(g, w, nil, &cell.MultipleOccupancy{}).WithLevels(w)
+	body := Body{Feet: 1, Step: 1, Height: 2}
+	if _, ok := f.Steps(cell.Land, body, g.At(1, 1), g.At(2, 2)); !ok {
+		t.Error("a step along a deck climbing 2 a cell is refused a body stepping 1")
+	}
+	if _, ok := f.Steps(cell.Land, Body{Feet: 5, Step: 1, Height: 2}, g.At(3, 3),
+		g.At(4, 4)); !ok {
+		t.Error("a step off the deck's end onto the ground it comes out on is refused")
+	}
+	if _, ok := f.Steps(cell.Land, Body{Feet: 3, Step: 1, Height: 2}, g.At(2, 2),
+		g.At(3, 2)); ok {
+		t.Error("a step off the deck's side, 3 over the ground, is allowed a body stepping 1")
 	}
 }

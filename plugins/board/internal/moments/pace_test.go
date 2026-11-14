@@ -169,7 +169,7 @@ func TestPace_AZeroShareStopsTheUnit(t *testing.T) {
 	cells := terrain.New(grid)
 	cells.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	at := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
-	r := New(grid, cells, nil, flat, nil)
+	r := New(grid, cells, nil, level(flat), nil)
 	r.Mobility = refusing{at(1): true}
 	got := walk(t, r, 1,
 		walker{box: cellBox(grid, at(0), 4), vel: world.Velocity{Value: 1}, domain: cell.Land},
@@ -187,7 +187,7 @@ func TestPace_IsWholeOnTheAbstractGraph(t *testing.T) {
 	cells := terrain.New(grid)
 	cells.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	at := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
-	r := New(grid, cells, nil, flat, nil)
+	r := New(grid, cells, nil, level(flat), nil)
 	r.Mobility = refusing{at(0): true, at(1): true}
 	got := walk(t, r, 1,
 		walker{box: cellBox(grid, at(0), 4), vel: world.Velocity{Value: 1}, domain: cell.Land},
@@ -213,7 +213,7 @@ type walker struct {
 func paces(t *testing.T, g grid.Grid, cells *terrain.Cells, rise func(from, to cell.ID) float64,
 	walkers ...walker) map[float32]float32 {
 	t.Helper()
-	r := New(g, cells, nil, rise, nil)
+	r := New(g, cells, nil, level(rise), nil)
 	r.Mobility = cell.DefaultHiking
 	return walk(t, r, 1, walkers...)
 }
@@ -272,4 +272,9 @@ func cellBox(g grid.Grid, c cell.ID, size uint32) plane.AABB {
 	at := g.CellCenter(c)
 	half := float32(size) / 2
 	return plane.NewAABB(geom.NewVec(at.X-half, at.Y-half), float32(size), float32(size))
+}
+
+// rise as the rules take it, the same on every level
+func level(rise func(from, to cell.ID) float64) func(cell.ID, cell.ID, cell.Level) float64 {
+	return func(from, to cell.ID, _ cell.Level) float64 { return rise(from, to) }
 }

@@ -43,11 +43,17 @@ var grounds = []ground{
 	{name: RiverCell, kind: cell.Kind{Pace: 1, Allows: wet}},
 	{name: RoadCell, kind: cell.Kind{Pace: 1, Allows: dry, Graded: true}},
 	{name: BuiltCell, kind: cell.Kind{Pace: 1, Allows: dry}, snowable: true},
+	{name: PavedCell, kind: cell.Kind{Pace: 0.8, Allows: dry}, snowable: true},
+	// a street of a town as it lies: on a profile of its own, no ramp across its cell's edges
+	{name: AsphaltCell, kind: cell.Kind{Pace: 1, Allows: dry}},
+	// under a building: no way through, and the sight ends at its walls
+	{name: BuildingCell, kind: cell.Kind{Pace: 1, Allows: cell.Air, Solid: true, Veil: 1}},
 	{name: LaurisilvaCell, kind: wooded(2.0/15, 0.7, 20), snowable: true, upland: true},
 	{name: WoodlandCell, kind: wooded(2.0/15, 0.6, 20), snowable: true, upland: true},
 	{name: PinewoodCell, kind: wooded(0.2, 0.5, 20), snowable: true, upland: true},
 	{name: HeathCell, kind: wooded(0.3, 0.2, 5), snowable: true, upland: true},
 	{name: FarmlandCell, kind: cell.Kind{Pace: 0.35, Allows: dry, Sway: 0.35}, snowable: true},
+	{name: ParkCell, kind: cell.Kind{Pace: 0.6, Allows: dry, Sway: 0.35}, snowable: true},
 }
 
 // wooded is ground under trees: how fast one walks it, how much it veils the sight and how

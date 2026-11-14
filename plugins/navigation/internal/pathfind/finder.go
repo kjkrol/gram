@@ -146,10 +146,12 @@ type Levels interface {
 	KindAt(c cell.ID, level cell.Level) cell.Kind
 }
 
-// Storey is a floor making a level of its cell: how high it lies, the underside of a raised one
-// or the roof of a sunk one, and whom it carries.
+// Storey is a floor making a level of its cell: how high it lies at its middle and how far
+// under that at its lowest edge, the underside of a raised one or the roof of a sunk one, and
+// whom it carries.
 type Storey struct {
 	Top, Bound float32
+	Dip        float32
 	Carries    cell.Domain
 }
 
@@ -291,13 +293,14 @@ func (p *Finder) Price(from, to cell.ID, kind cell.Kind, level cell.Level, d cel
 	return p.price(from, p.at(to), p.stepOn(to, kind, uint8(level)), uint8(level), diagonal)
 }
 
-// off a way a slantwise step crosses the bare ground beside it; where that admits and paces it
-// alike, whether it runs along one does not matter. On the level a step costs its length over
-// the share the cell was read with; over a relief the strategy paces each step.
+// off a way a slantwise step over the ground crosses the bare ground beside it; where that
+// admits and paces it alike, whether it runs along one does not matter. A floor raised or sunk
+// carries its own slantwise step whole. On the level a step costs its length over the share
+// the cell was read with; over a relief the strategy paces each step.
 func (p *Finder) price(from cell.ID, to *read, k step, level uint8, diagonal bool) (float64,
 	bool) {
 	bare := false
-	if diagonal && p.ways != nil {
+	if diagonal && p.ways != nil && level == ground {
 		if b := p.bareOf(to); (b != k || !b.admits) && !p.ways.Along(from, to.c) {
 			if k, bare = b, true; !k.admits {
 				return 0, false
@@ -814,7 +817,7 @@ func (p *Finder) levelOf(r *read, body Body) uint8 {
 			continue
 		}
 		f := &floors[s]
-		if body.Feet < f.Top-body.Step-reachSlack || f.Top <= best ||
+		if body.Feet < f.Top-f.Dip-body.Step-reachSlack || f.Top <= best ||
 			r.sunk&(1<<s) != 0 && body.Feet >= f.Bound {
 			continue
 		}
@@ -850,6 +853,14 @@ func (p *Finder) passes(from node, rf, rn *read, level uint8, body Body, c corne
 		return false
 	}
 	if from.level == level && p.sunken(rf, from.level) && p.sunken(rn, level) {
+		return true
+	}
+	// a deck running on climbs as a ramp, and meets the ground at the edge of the cell it
+	// begins or ends by, one without its level: the pacing judges the slope; a floor's top is
+	// its middle's
+	if p.along(from, rf, rn, level) && (from.level != ground && level != ground ||
+		from.level == ground && !p.has(rf, level) ||
+		level == ground && !p.has(rn, from.level)) {
 		return true
 	}
 	at := p.heightAt(from.c, rn.c, rf, from.level)
