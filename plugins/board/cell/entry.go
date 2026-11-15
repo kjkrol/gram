@@ -1,6 +1,7 @@
 package cell
 
 import (
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/tag"
@@ -38,4 +39,16 @@ type WayEntry struct {
 	Links Links
 	Fade  float32
 	Mix   float32
+	// Off, Lanes, Out, Form and Radius are the Way's.
+	Off    geom.Vec
+	Lanes  uint8
+	Out    Links
+	Form   Form
+	Radius float32
+}
+
+// Way is the Way e lays, of kind.
+func (e WayEntry) Way(kind Kind) Way {
+	return Way{Kind: kind, Width: e.Width, Links: e.Links, Fade: e.Fade, Mix: e.Mix, Off: e.Off,
+		Lanes: e.Lanes, Out: e.Out, Form: e.Form, Radius: e.Radius}
 }

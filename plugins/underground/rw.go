@@ -51,7 +51,7 @@ func (w *Write) Spawn(level *board.Level) error {
 		}
 		l := laid{t: t, tunnel: tn, via: r.Via, at: at, heights: heights}
 		p.laid = append(p.laid, l)
-		whole, pieces := p.tunnel(t, tn, g)
+		whole, pieces := p.tunnel(t, tn, g, r.Lanes)
 		p.worldPlugin.Write().SeedWhole(whole, pieces...)
 		l.note(g)
 		return nil

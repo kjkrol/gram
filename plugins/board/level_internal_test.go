@@ -438,3 +438,40 @@ func TestLay_AHexRoadLiesAsTransportTycoonLaysIt(t *testing.T) {
 		}
 	}
 }
+
+func TestLay_ARoadLiesAsItsPathsAxesAndJunctionsSay(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(6, 6, 10)
+	p := newLevelBoard(t, g, 0)
+	if _, err := lay(t, p, `
+ways:
+  roads:
+    road:
+      width: 4
+      paths:
+        - {via: [[0, 2], [5, 2]], width: 6, lanes: 2, oneway: true}
+        - [[2, 0], [2, 5]]
+      axes: [[1, 2, 3, -2.5]]
+      junctions: [{at: [2, 2], roundabout: 7, lanes: 3}]
+`); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Populate(); err != nil {
+		t.Fatal(err)
+	}
+	brd := p.Read(0).Board()
+	east, _ := grid.Link(g, g.At(1, 2), g.At(2, 2))
+	w := brd.Way(g.At(1, 2))
+	if w.Width != 6 || w.Lanes != 2 || w.Out != east || !w.OneWay() {
+		t.Errorf("on the one-way path: %+v, want 6 wide, two lanes, left eastward alone", w)
+	}
+	if w.Off != geom.NewVec(3, -2.5) {
+		t.Errorf("its axis passes %v off the middle, want (3, -2.5)", w.Off)
+	}
+	if side := brd.Way(g.At(2, 4)); side.Width != 4 || side.Lanes != 0 || side.OneWay() {
+		t.Errorf("on the plain path: %+v, want 4 wide, unmarked, both ways", side)
+	}
+	if j := brd.Way(g.At(2, 2)); j.Form != cell.Roundabout || j.Radius != 7 || j.Lanes != 3 {
+		t.Errorf("where they cross: form %v, radius %v, %d lanes; want a roundabout of 7, its "+
+			"own three lanes round it", j.Form, j.Radius, j.Lanes)
+	}
+}

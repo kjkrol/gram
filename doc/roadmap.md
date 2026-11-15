@@ -263,10 +263,38 @@ What is left to do. Take an item out when it lands.
   the edges. Madeira's start view draws 8 % slower with the growth over 55 000 cells where the
   forest took 19 000: a third of it follows the number of trees, the rest was not found (the
   sheets holding more sectors is the guess). The flat demo keeps its forest by noise.
-- **Buildings of many kinds** (stage 0d, to plan) — OpenStreetMap has 113 762 buildings on
-  Madeira, some 13 000 with a type and 11 745 with their levels: the kind of building a cell
-  by the tags, 34 kinds proposed (dwellings, tourism and trade, public, industry and
-  infrastructure) and 18 landmarks in their true places.
+- **The rest of the buildings and the landmarks** (stage 0e, to plan) — ten kinds of buildings
+  stand in Funchal (stage 0d); left of the 34 proposed are 24 (the Santana house, the quinta,
+  the ruin, the market hall, the school, the town hall, the hospital, the fire station, the
+  stand, the greenhouse, the tank, the power plant, the wind turbine, the lighthouse, the fort,
+  the levada keeper's house, the cable car station, the filling station, the port's sheds and
+  the rest) and the 18 landmarks in their true places, eight of them within Funchal's map.
+  Round bodies (a cylinder, a cone, a dome) come with their first users.
+- **What the town's buildings lack** — a footprint is one rectangle of its outline's area, so
+  an L or a U is simplified; a building shades the ground and not its neighbours' walls; a
+  roof's shadow is its walls' and half its rise; the selection's outline is the box's, not the
+  turned rectangle's; a loaded game has no building drawn till its level is read again
+  (`Write.Spawn` in a Stage's `Loaded`); OpenStreetMap's building relations (courtyards) are
+  not asked for.
+- **Cars on the streets** — a town's streets carry their lanes, the way each is driven and
+  their roundabouts (`cell.Way.Lanes`, `Out`, `Form`), drawn but not driven: a unit walks from
+  cell middle to cell middle, so on a street whose axis passes off the middle it walks beside
+  the axis (up to 3 m) and it takes a one-way street either way. To come: the step's point at
+  the cell's axis and on its lane, one-way links in the routing, a roundabout driven round.
+- **Tunnels on a town's map, the rest** — a tunnel joining another under the ground has no
+  mouth to open by and is a street over the hill (one in Funchal); a tunnel's way on ground
+  the heights show flat or hollow stays a street on it.
+- **A town's streets, the rest** — streets on cells touching side to side share their corners,
+  so the ground between two at different heights is a bank where a town has a retaining wall,
+  and each lies a little off level across there; a junction's cell lies level, a step on a
+  steep street; a flat board (`plugins/board/internal/draw`) draws a way's band through its
+  cell's middle, not through its axis; the ribbons and a bridge's structure are laid anew a
+  second after the board's passage changes, all of them; a bridge laid along a path is
+  checked by no rule (`bridges/site` plans straight level ones) and its structure is not drawn
+  in a game loaded until its level is read again; a tree standing by itself is in no sheet
+  (it stands where its sector is drawn at L3 or closer); Funchal's ribeiras run where the
+  heights drain, not in their channels, so streets along them cross "water" by bridges that
+  are not there.
 - **Winter without the slowdown** — snow and ice on Madeira (`weathering`) slow the game down
   badly; a lead: `weathering` asks `air.FallsAt` of every cell once a second of game time, and
   since the clouds came in two layers it works out both layers' noise on the CPU.

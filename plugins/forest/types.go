@@ -64,7 +64,10 @@ const (
 	tallSpritePx = 192
 )
 
-type treeRow struct{}
+// Row is a tree as a level's file writes it, standing by itself: At a point of the world.
+type Row struct {
+	At [2]float32 `yaml:"at"`
+}
 
 // Types is the register of the kinds of trees, defined on the Stage's kinds.
 type Types struct {
@@ -112,7 +115,7 @@ func (t *Types) Define(name string, spec Spec) {
 			comp.Const(collision.Collider{}),
 			comp.Const(collision.Physics{Mass: f32.Inf(1)}))
 	}
-	kind.Define[treeRow](w.Kinds(), name, w.Roster().Spec(board.StandingTemplate, own...))
+	kind.Define[Row](w.Kinds(), name, w.Roster().Spec(board.StandingTemplate, own...))
 	if t.specs == nil {
 		t.specs = map[string]Spec{}
 	}
@@ -126,7 +129,7 @@ func (t *Types) Named(name string) Type {
 	if !ok {
 		panic(fmt.Sprintf("forest: no tree is defined as %q", name))
 	}
-	return Type{name: name, spec: spec, kind: kind.Named[treeRow](t.p.worldPlugin.Kinds(), name)}
+	return Type{name: name, spec: spec, kind: kind.Named[Row](t.p.worldPlugin.Kinds(), name)}
 }
 
 // Entry is one tree of the kind named name, for a game's own rule to stand where no forest
@@ -134,7 +137,7 @@ func (t *Types) Named(name string) Type {
 // declared panics.
 func (t *Types) Entry(name string) kind.Entry {
 	t.asked = append(t.asked, name)
-	return kind.EntryOf(name, treeRow{})
+	return kind.EntryOf(name, Row{})
 }
 
 // check panics where an entry was asked of a kind of tree never defined
@@ -150,7 +153,7 @@ func (t *Types) check() {
 type Type struct {
 	name string
 	spec Spec
-	kind kind.Of[treeRow]
+	kind kind.Of[Row]
 }
 
 // Name is what the kind of tree is called.

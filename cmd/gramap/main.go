@@ -98,17 +98,7 @@ func run(recipePath, out, cache string, flat bool) error {
 		r = r.asFlat()
 	}
 	over := newOverpass(filepath.Join(filepath.Dir(cache), "osm"))
-	osm := func(box [4]float64, classes []string, buildings bool) (*osmData, error) {
-		ways, err := over.roads(box, classes)
-		if err != nil {
-			return nil, err
-		}
-		data := &osmData{ways: ways}
-		if buildings {
-			data.buildings, err = over.buildings(box)
-		}
-		return data, err
-	}
+	osm := over.source(r)
 	land := newLandcover(filepath.Join(filepath.Dir(cache), "cover"))
 	c, err := build(r, newTerrarium(zoom, cache).at, osm, land, flat)
 	if err != nil {
@@ -124,6 +114,18 @@ func run(recipePath, out, cache string, flat bool) error {
 	}
 	if err := os.WriteFile(out, data, 0o644); err != nil {
 		return err
+	}
+	counts := map[string]int{}
+	for _, f := range c.flaws {
+		counts[f.What]++
+		if os.Getenv("GRAMAP_FLAWS") != "" {
+			fmt.Fprintf(os.Stderr, "gramap: flaw [%.2f, %.2f] %s (%s) by %.2f m\n",
+				float64(f.At.X)/float64(c.size), float64(f.At.Y)/float64(c.size), f.What,
+				f.Of, float64(f.By)*c.perUnit)
+		}
+	}
+	for _, what := range slices.Sorted(maps.Keys(counts)) {
+		fmt.Fprintf(os.Stderr, "gramap: %d places %s\n", counts[what], what)
 	}
 	for _, leg := range c.roads.skipped {
 		if c.roads.guide != nil {

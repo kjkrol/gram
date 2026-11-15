@@ -34,12 +34,21 @@ type osmWay struct {
 	tunnel bool
 	bridge bool
 	line   [][2]float64
+	// its lanes in all, whether it is driven one way, along its line, and whether it is a
+	// roundabout's ring
+	lanes      int
+	oneway     bool
+	roundabout bool
 }
 
-// osmData is what a map takes of OpenStreetMap: the roads and the middles of the buildings
+// osmData is what a map takes of OpenStreetMap: the roads and the middles of the buildings, or
+// the buildings whole and the streets' lines
 type osmData struct {
-	ways      []osmWay
-	buildings [][2]float64
+	ways       []osmWay
+	buildings  [][2]float64
+	footprints []osmBuilding
+	greens     *osmGreens
+	coast      *osmCoast
 }
 
 // overpass asks the Overpass API, each answer kept in cache by its query
@@ -49,6 +58,38 @@ type overpass struct {
 }
 
 func newOverpass(cache string) *overpass { return &overpass{cache: cache, post: ask} }
+
+// source is what the recipe r takes of the API: asked of no classes, the town's own, its
+// buildings whole; else the roads of the classes and the buildings' middles
+func (o *overpass) source(r recipe) source {
+	return func(box [4]float64, classes []string, buildings bool) (*osmData, error) {
+		data := &osmData{}
+		var err error
+		if len(classes) == 0 {
+			if r.Buildings.Cells != "" {
+				if data.footprints, err = o.footprints(box); err != nil {
+					return nil, err
+				}
+			}
+			if len(r.Greens.Trees) > 0 {
+				if data.greens, err = o.greens(box); err != nil {
+					return nil, err
+				}
+			}
+			if r.Coast.Source != "" {
+				data.coast, err = o.coast(box)
+			}
+			return data, err
+		}
+		if data.ways, err = o.roads(box, classes); err != nil {
+			return nil, err
+		}
+		if buildings {
+			data.buildings, err = o.buildings(box)
+		}
+		return data, err
+	}
+}
 
 // roads are the ways of classes within the box south, west, north, east
 func (o *overpass) roads(box [4]float64, classes []string) ([]osmWay, error) {
@@ -82,6 +123,17 @@ func (o *overpass) roads(box [4]float64, classes []string) ([]osmWay, error) {
 		for _, p := range e.Geometry {
 			w.line = append(w.line, [2]float64{p.Lon, p.Lat})
 		}
+		w.roundabout = e.Tags["junction"] == "roundabout" || e.Tags["junction"] == "circular"
+		w.oneway = e.Tags["oneway"] == "yes" || e.Tags["oneway"] == "-1" || w.roundabout
+		if e.Tags["oneway"] == "-1" {
+			slices.Reverse(w.line)
+		}
+		if w.lanes, _ = strconv.Atoi(e.Tags["lanes"]); w.lanes <= 0 {
+			w.lanes = 2
+			if w.oneway {
+				w.lanes = 1
+			}
+		}
 		ways = append(ways, w)
 	}
 	slices.SortStableFunc(ways, func(a, b osmWay) int {
@@ -113,6 +165,87 @@ func (o *overpass) buildings(box [4]float64) ([][2]float64, error) {
 		out = append(out, [2]float64{e.Center.Lon, e.Center.Lat})
 	}
 	return out, nil
+}
+
+// an element of an answer with its tags and its line
+type osmElement struct {
+	ID       int64             `json:"id"`
+	Tags     map[string]string `json:"tags"`
+	Geometry []struct {
+		Lat float64 `json:"lat"`
+		Lon float64 `json:"lon"`
+	} `json:"geometry"`
+}
+
+func (e osmElement) line() [][2]float64 {
+	out := make([][2]float64, 0, len(e.Geometry))
+	for _, p := range e.Geometry {
+		out = append(out, [2]float64{p.Lon, p.Lat})
+	}
+	return out
+}
+
+// footprints are the buildings within the box south, west, north, east, each with its outline
+func (o *overpass) footprints(box [4]float64) ([]osmBuilding, error) {
+	q := fmt.Sprintf("[out:json][timeout:180][bbox:%s];way[building];out tags geom;",
+		boxOf(box))
+	var answer struct {
+		Elements []osmElement `json:"elements"`
+	}
+	if err := o.answer(q, &answer); err != nil {
+		return nil, err
+	}
+	out := make([]osmBuilding, 0, len(answer.Elements))
+	for _, e := range answer.Elements {
+		ring := e.line()
+		if n := len(ring); n > 1 && ring[0] == ring[n-1] {
+			ring = ring[:n-1]
+		}
+		if len(ring) >= 3 {
+			out = append(out, osmBuilding{id: e.ID, tags: e.Tags, ring: ring})
+		}
+	}
+	slices.SortFunc(out, func(a, b osmBuilding) int { return int(a.id - b.id) })
+	return out, nil
+}
+
+// greens are the trees, the rows of trees and the parks within the box south, west, north, east
+func (o *overpass) greens(box [4]float64) (*osmGreens, error) {
+	q := fmt.Sprintf("[out:json][timeout:180][bbox:%s];(node[natural=tree];"+
+		"way[natural=tree_row];way[leisure~\"^(park|garden)$\"];"+
+		"way[landuse~\"^(grass|cemetery|recreation_ground|village_green)$\"];);"+
+		"out tags geom;", boxOf(box))
+	var answer struct {
+		Elements []struct {
+			osmElement
+			Type string  `json:"type"`
+			Lat  float64 `json:"lat"`
+			Lon  float64 `json:"lon"`
+		} `json:"elements"`
+	}
+	if err := o.answer(q, &answer); err != nil {
+		return nil, err
+	}
+	slices.SortFunc(answer.Elements, func(a, b struct {
+		osmElement
+		Type string  `json:"type"`
+		Lat  float64 `json:"lat"`
+		Lon  float64 `json:"lon"`
+	}) int {
+		return int(a.ID - b.ID)
+	})
+	g := &osmGreens{}
+	for _, e := range answer.Elements {
+		switch {
+		case e.Type == "node":
+			g.trees = append(g.trees, [2]float64{e.Lon, e.Lat})
+		case e.Tags["natural"] == "tree_row" && len(e.Geometry) >= 2:
+			g.rows = append(g.rows, e.line())
+		case len(e.Geometry) >= 4:
+			g.parks = append(g.parks, e.line())
+		}
+	}
+	return g, nil
 }
 
 func boxOf(box [4]float64) string {

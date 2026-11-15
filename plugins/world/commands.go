@@ -45,6 +45,13 @@ type SpawnWhole struct {
 // Aim tells the command the stretch of the aggregate it lies in.
 func (s *SpawnPart) Aim(who uid.UID64) { s.in, s.aimed = who, true }
 
+// SpawnPartIn is a SpawnPart aimed at the stretch an Unfold told of (Read.Unfolding), for a
+// plugin to give in the aggregate's name the parts a rule cannot count: the Entry's entity laid
+// At off the stretch's centre.
+func SpawnPartIn(stretch uid.UID64, e kind.Entry, at geom.Vec) SpawnPart {
+	return SpawnPart{Entry: e, At: at, in: stretch, aimed: true}
+}
+
 // Keen is the command an entity gives itself to keep its sector and the eight round it ticked at
 // Level at most (sector.Keen) till it gives Calm: a battle its rules would see fought out unseen.
 type Keen struct{ Level lod.Level }

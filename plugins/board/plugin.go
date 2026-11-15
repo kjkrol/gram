@@ -118,8 +118,8 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 		edges := worldPlugin.Res.Config.Space.Edges
 		ws.SetWrap(edges.WrapsX(), edges.WrapsY())
 	}
-	rise := func(from, to cell.ID) float64 { return brd.mapping.Rise(from, to) }
-	p.rules = moments.New(brd.Grid, brd.cells, worldPlugin.Read(0).Tick, rise, brd.read.altitude)
+	p.rules = moments.New(brd.Grid, brd.cells, worldPlugin.Read(0).Tick, brd.read.ledRise,
+		brd.read.altitude)
 	if t := worldPlugin.Kinds().DefineTag[unit.States](unit.EnteredName); t != unit.Entered {
 		panic(fmt.Sprintf("board: the units' markers have tags of their own before %q",
 			unit.EnteredName))
@@ -375,7 +375,7 @@ func (p *Plugin) Populate() error {
 		if err != nil {
 			return err
 		}
-		ways[i] = cell.Way{Kind: kind, Width: e.Width, Links: e.Links, Fade: e.Fade, Mix: e.Mix}
+		ways[i] = e.Way(kind)
 	}
 
 	brd := p.board

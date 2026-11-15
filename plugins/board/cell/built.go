@@ -1,5 +1,7 @@
 package cell
 
+import "github.com/kjkrol/aabbworld/geom"
+
 import "github.com/kjkrol/ceremony/effect"
 
 // On is the cell an entity standing on the board stands on for good (board.NewEntities).
@@ -24,6 +26,10 @@ type Floor struct {
 	Storey uint8
 	// Clear is the room over a sunk floor, up to its roof: whoever is taller stays out.
 	Clear float32
+	// Off is where the axis of a floor run as a band passes the cell, off the cell's middle, and
+	// Lanes how many lanes it is marked with, as a Way's.
+	Off   geom.Vec
+	Lanes uint8
 }
 
 // Level is the level of its cell f makes: the ground's where it lies on it, else its storey's.

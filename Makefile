@@ -11,7 +11,7 @@ DIRTY       := $(shell git diff --quiet || echo "-dirty")
 RESULT_FILE := bench_results/bench_$(COMMIT_DATE)_$(COMMIT_HASH)$(DIRTY).txt
 BENCH_COUNT ?= 5
 
-.PHONY: all demo-start-minimal demo-start-scenes demo-start-split-screen demo-look-animation demo-look-material demo-look-sky demo-look-light demo-rules-dialog demo-rules-effect demo-rules-guard demo-rules-mechanisms demo-rules-vision demo-board-atlas demo-board-custom-map demo-board-flat demo-board-roads demo-board-topography demo-board-topography-ghibli demo-board-topography-widgets demo-board-forest-army demo-navigation-hex demo-navigation-spawn demo-navigation-square demo-motion-bullet demo-motion-collision demo-motion-expanse demo-motion-platformer deps tidy build test bench bench-save clean
+.PHONY: all demo-start-minimal demo-start-scenes demo-start-split-screen demo-look-animation demo-look-material demo-look-sky demo-look-light demo-rules-dialog demo-rules-effect demo-rules-guard demo-rules-mechanisms demo-rules-vision demo-board-atlas demo-board-custom-map demo-board-flat demo-board-roads demo-board-topography demo-board-topography-ghibli demo-board-topography-widgets demo-board-topography-funchal demo-board-forest-army demo-navigation-hex demo-navigation-spawn demo-navigation-square demo-motion-bullet demo-motion-collision demo-motion-expanse demo-motion-platformer deps tidy build test bench bench-save clean
 
 all: demo-motion-collision
 
@@ -62,6 +62,8 @@ demo-board-topography-ghibli: deps
 	$(GO) run ./examples/board/topography -look ghibli
 demo-board-topography-widgets: deps
 	$(GO) run ./examples/board/topography -hud widgets
+demo-board-topography-funchal: deps
+	$(GO) run ./examples/board/topography -map funchal
 demo-board-forest-army: deps
 	$(GO) run ./examples/board/forest-army
 

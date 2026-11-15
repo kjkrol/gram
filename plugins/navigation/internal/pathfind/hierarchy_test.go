@@ -161,7 +161,7 @@ func TestHierarchy_TheBackwardStepsMirrorTheForward(t *testing.T) {
 	torus := wrapped(grid.DefaultGrids{}.Square(24, 24, 10))
 	scatteredTorus, _ := scattered(torus, 3, 5)
 	causewayG := grid.DefaultGrids{}.Square(5, 5, 10)
-	cw := causeway{causewayG, cell.NewTerrainMap()}
+	cw := causeway{g: causewayG, terrain: cell.NewTerrainMap()}
 	cw.terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Water})
 	cw.terrain.Set(causewayG.At(0, 0), cell.Kind{Pace: 1, Allows: cell.Land})
 	cw.terrain.Set(causewayG.At(4, 4), cell.Kind{Pace: 1, Allows: cell.Land})

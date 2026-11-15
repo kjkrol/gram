@@ -22,6 +22,7 @@ var tubeShader = render.NewMeshShaderWith("underground tubes",
 		{Name: "TubeViewProj", Size: 16},
 		{Name: "TubeEye", Size: 3},
 		{Name: "TubeBend", Size: 1},
+		{Name: "TubeCover", Size: 4},
 	}).Instanced(3)
 
 // a stretch's floats and its vertices: a floor, a roof and four walls, two triangles each
@@ -47,6 +48,8 @@ const (
 	wallRight
 	wallBegin
 	wallEnd
+	// a road's ribbon runs along its floor: the stretch draws no road of its own
+	bare
 )
 
 // tubes draws what lies under the ground from inside, a stretch an instance, as published once
@@ -61,6 +64,7 @@ type tubes struct {
 	// the stretches drawn and those written next, and one more than the board's changes each
 	// holds
 	bufs    [2][]float32
+	kept    [2]*render.Instances
 	ats     [2]uint64
 	front   int
 	opts    render.DrawMeshOptions
@@ -88,6 +92,10 @@ func (r *tubes) Publish() {
 	if v := r.p.board.Read(0).Board().Changes() + 1; r.ats[back] != v {
 		r.ats[back] = v
 		r.bufs[back] = r.lay(r.bufs[back][:0])
+		if r.kept[back] != nil {
+			r.kept[back].Release()
+		}
+		r.kept[back] = render.NewInstances(r.bufs[back])
 	}
 }
 
@@ -136,8 +144,12 @@ func (r *tubes) lay(dst []float32) []float32 {
 				// the lamps are counted along the stretch's line, from where it crosses the
 				// world's corner
 				from := -(end.X*u.X + end.Y*u.Y)
+				walls := float32(wallLeft | wallRight)
+				if f.Lanes > 0 {
+					walls += bare
+				}
 				dst = append(dst, end.X, end.Y, far, f.Width/2, m.X, m.Y, z, f.Clear,
-					wallLeft|wallRight, from, r.mitre(g, f, way), 0)
+					walls, from, r.mitre(g, f, way), 0)
 				if mouth {
 					dst = frame(dst, end, u, far, (z-far)/(l/2), frameIn*l, f)
 				}
@@ -178,23 +190,31 @@ func (r *tubes) mitre(g grid.Grid, f cell.Floor, way int) float32 {
 // frame appends to dst the frame round the mouth of f at end, the tunnel running in against u,
 // its floor rising climb a unit: a jamb either side of the tube and a lintel over it, standing
 // out of the ground and running in as far as the tube shows through the ground cut over it,
-// level, from the lowest of the floor there to over the highest of the roof
+// level, from the lowest of the floor there to over the highest of the roof. Each is two
+// pieces: the face round the mouth, as deep as it is thick, and behind it the cover the earth
+// lies on.
 func frame(dst []float32, end, u geom.Vec, floor, climb, in float32, f cell.Floor) []float32 {
 	thick := frameThick * f.Clear
 	out := frameOut * f.Clear
 	// off the tube's own faces, which lie in the same planes
 	gap := thick / 16
-	a, b := geom.NewVec(end.X+u.X*out, end.Y+u.Y*out), geom.NewVec(end.X-u.X*in, end.Y-u.Y*in)
 	low := floor + min(climb*in, 0)
 	top := floor + f.Clear + thick + frameOver*max(climb*in, 0)
 	const all = wallLeft | wallRight | wallBegin | wallEnd
-	for _, side := range [2]float32{-1, 1} {
-		off := side * ((f.Width+thick)/2 + gap)
-		dst = append(dst, a.X-u.Y*off, a.Y+u.X*off, low, thick/2,
-			b.X-u.Y*off, b.Y+u.X*off, low, top-low, all, 0, 0, 1)
+	deep := min(thick, in)
+	for part, run := range [2][2]float32{{-out, deep}, {deep, in}} {
+		a := geom.NewVec(end.X-u.X*run[0], end.Y-u.Y*run[0])
+		b := geom.NewVec(end.X-u.X*run[1], end.Y-u.Y*run[1])
+		kind := float32(part + 1)
+		for _, side := range [2]float32{-1, 1} {
+			off := side * ((f.Width+thick)/2 + gap)
+			dst = append(dst, a.X-u.Y*off, a.Y+u.X*off, low, thick/2,
+				b.X-u.Y*off, b.Y+u.X*off, low, top-low, all, 0, 0, kind)
+		}
+		dst = append(dst, a.X, a.Y, floor+f.Clear+gap, f.Width/2+thick+gap,
+			b.X, b.Y, floor+f.Clear+gap, top-floor-f.Clear-gap, all, 0, 0, kind)
 	}
-	return append(dst, a.X, a.Y, floor+f.Clear+gap, f.Width/2+thick+gap,
-		b.X, b.Y, floor+f.Clear+gap, top-floor-f.Clear-gap, all, 0, 0, 1)
+	return dst
 }
 
 // room appends to dst a whole cell's stretch, from its west edge to its east, a wall on every
@@ -229,8 +249,7 @@ func (r *tubes) Compose(f *render.Frame, _ camera.Camera) {
 
 // Draw draws the stretches into the target through cam under the frame's uniforms u.
 func (r *tubes) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
-	instances := r.bufs[r.front]
-	if t.Screen == nil || t.Depth == nil || len(instances) == 0 {
+	if t.Screen == nil || t.Depth == nil || len(r.bufs[r.front]) == 0 || r.kept[r.front] == nil {
 		return
 	}
 	rays, ok := cam.(camera.Rays)
@@ -253,8 +272,13 @@ func (r *tubes) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	r.set("TubeViewProj", tr.M[:]...)
 	r.set("TubeEye", tr.Eye[:]...)
 	r.set("TubeBend", tr.Bend)
+	var cover [4]float32
+	if r.p != nil {
+		cover = r.p.cover
+	}
+	r.set("TubeCover", cover[:]...)
 	r.opts.Depth, r.opts.WriteDepth = t.Depth, true
-	r.opts.Vertices, r.opts.Instances = tubeVertices, instances
+	r.opts.Vertices, r.opts.Kept = tubeVertices, r.kept[r.front]
 	t.Screen.DrawMesh(nil, tubeShader, &r.opts)
 }
 

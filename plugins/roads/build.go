@@ -68,8 +68,7 @@ func (p *Plugin) waysOf(e site.Estimate) ([]laidWay, bool) {
 			log.Printf("roads: not built: no kind of cell is called %q", w.Kind)
 			return nil, false
 		}
-		way := cell.Way{Kind: k, Width: w.Width, Links: w.Links, Fade: w.Fade, Mix: w.Mix}
-		ways = append(ways, laidWay{at: w.Cell, way: way, was: brd.Way(w.Cell)})
+		ways = append(ways, laidWay{at: w.Cell, way: w.Way(k), was: brd.Way(w.Cell)})
 	}
 	return ways, true
 }

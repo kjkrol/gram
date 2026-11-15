@@ -24,33 +24,33 @@ func details(look string) map[string]painter.Detail {
 	switch look {
 	case NaturalLook:
 		paint = map[string]painter.Detail{
-			EarthCell:    {Image: texture("earth"), Across: 6},
-			SandCell:     {Image: texture("sand"), Across: 6},
-			RockCell:     {Image: texture("rock"), Across: 6},
-			RoadCell:     {Image: texture("road"), Across: 3},
-			HeathCell:    {Image: texture("earth"), Across: 6},
-			FarmlandCell: {Image: texture("earth"), Across: 6},
+			EarthCell:    {Image: texture("earth"), Across: grain(6, 4)},
+			SandCell:     {Image: texture("sand"), Across: grain(6, 4)},
+			RockCell:     {Image: texture("rock"), Across: grain(6, 4)},
+			RoadCell:     {Image: texture("road"), Across: grain(3, 3)},
+			HeathCell:    {Image: texture("earth"), Across: grain(6, 4)},
+			FarmlandCell: {Image: texture("earth"), Across: grain(6, 4)},
 		}
 		for _, name := range woods {
-			paint[name] = painter.Detail{Image: texture("forest"), Across: 9}
+			paint[name] = painter.Detail{Image: texture("forest"), Across: grain(9, 6)}
 		}
-		snow := painter.Detail{Image: texture("snow"), Across: 6}
+		snow := painter.Detail{Image: texture("snow"), Across: grain(6, 4)}
 		for _, name := range snowable() {
 			paint[snowyCell(name)] = snow
 		}
 	case GhibliLook:
 		paint = map[string]painter.Detail{
-			EarthCell:    {Image: paintedEarth(), Across: 6},
-			SandCell:     {Image: paintedSand(), Across: 6},
-			RockCell:     {Image: paintedRock(), Across: 6},
-			RoadCell:     {Image: paintedRoad(), Across: 3},
-			HeathCell:    {Image: paintedEarth(), Across: 6},
-			FarmlandCell: {Image: paintedEarth(), Across: 6},
+			EarthCell:    {Image: paintedEarth(), Across: grain(6, 4)},
+			SandCell:     {Image: paintedSand(), Across: grain(6, 4)},
+			RockCell:     {Image: paintedRock(), Across: grain(6, 4)},
+			RoadCell:     {Image: paintedRoad(), Across: grain(3, 3)},
+			HeathCell:    {Image: paintedEarth(), Across: grain(6, 4)},
+			FarmlandCell: {Image: paintedEarth(), Across: grain(6, 4)},
 		}
 		for _, name := range woods {
-			paint[name] = painter.Detail{Image: paintedForest(), Across: 9}
+			paint[name] = painter.Detail{Image: paintedForest(), Across: grain(9, 6)}
 		}
-		snow := painter.Detail{Image: paintedSnow(), Across: 6}
+		snow := painter.Detail{Image: paintedSnow(), Across: grain(6, 4)}
 		for _, name := range snowable() {
 			paint[snowyCell(name)] = snow
 		}
@@ -58,6 +58,16 @@ func details(look string) map[string]painter.Detail {
 		log.Fatalf("no look is named %q: natural or ghibli", look)
 	}
 	return paint
+}
+
+// grain is how many cells a texture repeats across: cells on the map of the island, where
+// everything is drawn many times its size, and on the town's the metres of ground its
+// photograph shows
+func grain(cells, metres float32) float32 {
+	if here.town {
+		return metres / here.metres
+	}
+	return cells
 }
 
 // shading is how the sun lights the relief in the look named look.

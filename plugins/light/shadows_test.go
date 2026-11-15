@@ -213,6 +213,28 @@ func TestPlugin_PublishesABridgesHandleLyingAndNoBlockForItsDecks(t *testing.T) 
 	}
 }
 
+func TestPlugin_PublishesAThingStandingTurnedAsABlockOverItsStand(t *testing.T) {
+	w, p, tick := litWorld(t, light.Config{}, func(w *world.Plugin, p *light.Plugin) {
+		kind.Define[laid](w.Kinds(), "house", kind.Spec{
+			comp.Load(func(r laid) world.Position {
+				return world.Position{AABB: plane.NewAABB(geom.NewVec(r.x-2, 498), 4, 4)}
+			}),
+			comp.Const(world.Velocity{Dir: geom.NewVec(0, 1)}),
+			comp.Const(world.Z{Altitude: 5, Height: 9}),
+			comp.Const(world.Stand{Length: 4, Width: 2}),
+			comp.Const(light.Shadow{Cast: light.Baked}),
+			comp.Const(world.Fixed{}),
+		})
+		w.Write().Seed(kind.Named[laid](w.Kinds(), "house").Entry(laid{500}))
+	})
+	p.WithDistant(light.Distant{Dir: [3]float32{-1, 0, 1}, Strength: 1})
+	tick()
+	want := render.Block{X: 500, Y: 500, UX: 0, UY: 1, Along: 2, Wide: 1, Bottom: 5, Top: 14}
+	if bs := blocksOf(lightsOf(w, p)); len(bs) != 1 || bs[0] != want {
+		t.Errorf("a house standing turned publishes the blocks %v, want %v", bs, want)
+	}
+}
+
 func TestPlugin_SaysTheSunsShareOfTheLight(t *testing.T) {
 	w, p, tick := litWorld(t, light.Config{}, func(w *world.Plugin, p *light.Plugin) {
 		w.Write().Seed(lampKind(w, "torch", light.Source{Strength: 1, Reach: 100}).Entry(spot{500, 500}))

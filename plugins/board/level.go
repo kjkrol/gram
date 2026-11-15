@@ -358,21 +358,42 @@ func (l *leveler) ways(w *levelWays, layout *Layout, heights func(geom.Vec) floa
 	brd := &l.p.board.read
 	roads, rivers := network.New(brd), network.New(brd)
 	laidBy := map[cell.ID]*yaml.Node{}
+	lies := &lying{
+		lanes: map[cell.ID]uint8{},
+		out:   map[cell.ID]cell.Links{},
+		off:   map[cell.ID]geom.Vec{},
+		form:  map[cell.ID]float32{},
+		round: map[cell.ID]uint8{},
+	}
 	for _, name := range slices.Sorted(maps.Keys(w.Roads)) {
 		n := w.Roads[name]
 		width, paths, err := l.road(&n, name)
 		if err != nil {
 			return err
 		}
-		node := network.Node{Kind: name, Width: width}
+		if err := l.lies(&n, lies); err != nil {
+			return err
+		}
 		for _, path := range paths {
+			node := network.Node{Kind: name, Width: width}
+			if path.width > 0 {
+				node.Width = path.width
+			}
 			for i, c := range path.cells {
 				if _, ok := roads.Node(c); !ok && !path.onto(i) {
 					roads.Set(c, node)
 					laidBy[c] = path.node
+					lies.lanes[c] = path.lanes
 				}
-				if i > 0 {
-					roads.Link(path.cells[i-1], c)
+				if i == 0 {
+					continue
+				}
+				prev := path.cells[i-1]
+				roads.Link(prev, c)
+				on, _ := grid.Link(brd, prev, c)
+				lies.out[prev] |= on
+				if back, _ := grid.Link(brd, c, prev); !path.oneway {
+					lies.out[c] |= back
 				}
 			}
 		}
@@ -401,6 +422,7 @@ func (l *leveler) ways(w *levelWays, layout *Layout, heights func(geom.Vec) floa
 			return l.errorf(laidBy[way.Cell], "the %s runs over a river at [%d, %d]: lead it onto "+
 				"the bridge or the ford there, {onto: [%d, %d]}", way.Kind, x, y, x, y)
 		}
+		lies.lay(&way)
 		layout.Ways = append(layout.Ways, way)
 	}
 	if heights != nil {
@@ -440,6 +462,78 @@ type roadPath struct {
 	node  *yaml.Node
 	first bool // leads onto its first cell without running over it
 	last  bool
+	// a path written {via: [...], width, lanes, oneway}
+	width  float32
+	lanes  uint8
+	oneway bool
+}
+
+// lying is how the roads lie in their cells beyond their links: the lanes, the links a cell may
+// be left by, where the axis passes off its middle, a roundabout's radius
+type lying struct {
+	lanes map[cell.ID]uint8
+	out   map[cell.ID]cell.Links
+	off   map[cell.ID]geom.Vec
+	form  map[cell.ID]float32
+	round map[cell.ID]uint8 // a roundabout's own lanes, where its row says them
+}
+
+func (y *lying) lay(w *cell.WayEntry) {
+	w.Lanes, w.Off = y.lanes[w.Cell], y.off[w.Cell]
+	if out := y.out[w.Cell] & w.Links; out != w.Links {
+		w.Out = out
+	}
+	if r, ok := y.form[w.Cell]; ok {
+		w.Form, w.Radius = cell.Roundabout, r
+		if n := y.round[w.Cell]; n > 0 {
+			w.Lanes = n
+		}
+	}
+}
+
+// lies reads a road's axes, [x, y, dx, dy] where one passes its cell off the middle, and its
+// junctions, {at: [x, y], roundabout: radius, lanes}: a roundabout's radius its roadway's
+// outer edge, its lanes its own, the widest road's run into it where none are said
+func (l *leveler) lies(n *yaml.Node, y *lying) error {
+	keys, err := l.keys(n, "width", "paths", "axes", "junctions")
+	if err != nil {
+		return err
+	}
+	if an := keys["axes"]; an != nil {
+		for _, a := range an.Content {
+			var v [4]float32
+			if a.Kind != yaml.SequenceNode || len(a.Content) != 4 || a.Decode(&v) != nil {
+				return l.errorf(a, "want an axis, [x, y, dx, dy]")
+			}
+			c, err := l.cell(&yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq", Line: a.Line,
+				Content: a.Content[:2]})
+			if err != nil {
+				return err
+			}
+			y.off[c] = geom.NewVec(v[2], v[3])
+		}
+	}
+	if jn := keys["junctions"]; jn != nil {
+		for _, j := range jn.Content {
+			keys, err := l.keys(j, "at", "roundabout", "lanes")
+			if err != nil {
+				return err
+			}
+			var r float32
+			var lanes uint8
+			if keys["at"] == nil || keys["roundabout"] == nil ||
+				keys["roundabout"].Decode(&r) != nil || r <= 0 ||
+				keys["lanes"] != nil && keys["lanes"].Decode(&lanes) != nil {
+				return l.errorf(j, "want a junction, {at: [x, y], roundabout: radius, lanes}")
+			}
+			c, err := l.cell(keys["at"])
+			if err != nil {
+				return err
+			}
+			y.form[c], y.round[c] = r, lanes
+		}
+	}
+	return nil
 }
 
 func (r roadPath) onto(i int) bool { return i == 0 && r.first || i == len(r.cells)-1 && r.last }
@@ -448,7 +542,7 @@ func (l *leveler) road(n *yaml.Node, name string) (width float32, paths []roadPa
 	if err := l.cellKind(n, name); err != nil {
 		return 0, nil, err
 	}
-	keys, err := l.keys(n, "width", "paths")
+	keys, err := l.keys(n, "width", "paths", "axes", "junctions")
 	if err != nil {
 		return 0, nil, err
 	}
@@ -464,6 +558,25 @@ func (l *leveler) road(n *yaml.Node, name string) (width float32, paths []roadPa
 	}
 	for _, path := range pn.Content {
 		r := roadPath{node: path}
+		if path.Kind == yaml.MappingNode {
+			keys, err := l.keys(path, "via", "width", "lanes", "oneway")
+			if err != nil {
+				return 0, nil, err
+			}
+			if keys["via"] == nil {
+				return 0, nil, l.errorf(path, "a path with its own words needs its via: [...]")
+			}
+			for key, into := range map[string]any{
+				"width":  &r.width,
+				"lanes":  &r.lanes,
+				"oneway": &r.oneway,
+			} {
+				if kn := keys[key]; kn != nil && kn.Decode(into) != nil {
+					return 0, nil, l.errorf(kn, "%s: not what a path takes", key)
+				}
+			}
+			path = keys["via"]
+		}
 		k := 0
 		point := func(pt *yaml.Node) (*yaml.Node, error) {
 			defer func() { k++ }()

@@ -1,6 +1,10 @@
 package camera
 
-import "math"
+import (
+	"math"
+
+	"github.com/kjkrol/aabbworld/geom"
+)
 
 // Layer is a layer of a picture drawn in layers: Share of the frame wide and high (1 the whole)
 // drawn at Resolution of its shown pixels, laid in the frame as the picture's Layout says.
@@ -97,4 +101,61 @@ func IsCropped(cam Camera) bool {
 		return c.Cropped()
 	}
 	return false
+}
+
+// Inner is the window of the layer drawn after the one cam is cropped to, in cam's own pixels:
+// what that layer covers whole. False for the last layer and for a picture of one.
+func Inner(cam Camera) (Window, bool) {
+	crop, cropped := cam.(Cropping)
+	layers := LayersOf(cam)
+	if !cropped || !crop.Cropped() || len(layers) < 2 {
+		return Window{}, false
+	}
+	fw, fh := crop.Frame()
+	wins := Arrange(LayoutOf(cam), layers, int(fw), int(fh))
+	at := crop.Window()
+	for i, win := range wins[:len(wins)-1] {
+		if win == at {
+			k := ResolutionOf(cam)
+			next := wins[i+1]
+			return Window{X: (next.X - at.X) * k, Y: (next.Y - at.Y) * k, W: next.W * k,
+				H: next.H * k}, true
+		}
+	}
+	return Window{}, false
+}
+
+// Shows reports whether anything in the box, grown by margin and standing from low to top, may
+// show through tr on a viewport w by h: not where it lies off one side of it, nor wholly
+// within hole, the window a later layer covers (holed).
+func (tr Transform) Shows(box geom.AABB, margin, low, top, w, h float32, hole Window,
+	holed bool) bool {
+	var left, right, over, under, inside int
+	for _, x := range [2]float32{box.TopLeft.X - margin, box.BottomRight.X + margin} {
+		for _, y := range [2]float32{box.TopLeft.Y - margin, box.BottomRight.Y + margin} {
+			for _, z := range [2]float32{low, top} {
+				sx, sy, _, ok := tr.Apply(x, y, z, w, h)
+				if !ok {
+					return true
+				}
+				if sx < 0 {
+					left++
+				}
+				if sx > w {
+					right++
+				}
+				if sy < 0 {
+					over++
+				}
+				if sy > h {
+					under++
+				}
+				if holed && sx > hole.X+2 && sx < hole.X+hole.W-2 && sy > hole.Y+2 &&
+					sy < hole.Y+hole.H-2 {
+					inside++
+				}
+			}
+		}
+	}
+	return left < 8 && right < 8 && over < 8 && under < 8 && inside < 8
 }
