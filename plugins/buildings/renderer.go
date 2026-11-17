@@ -47,6 +47,10 @@ type solids struct {
 	next  *stock
 	stale bool
 
+	// whether the ground is hazed, as the ticks left it and as the frame drawn has it
+	hazes bool
+	hazed bool
+
 	// the sectors the camera composed last sees, and the ranges of those in the layer drawn
 	sectors []seen
 	ranges  []render.InstanceRange
@@ -83,6 +87,7 @@ var (
 
 // Publish lays the parts anew where the level's buildings changed.
 func (r *solids) Publish() {
+	r.hazes = r.p.ground != nil && r.p.ground.Hazes()
 	if !r.stale {
 		return
 	}
@@ -117,6 +122,7 @@ func (r *solids) Publish() {
 
 // Swap has the buildings laid last drawn.
 func (r *solids) Swap() {
+	r.hazed = r.hazes
 	if r.next == nil {
 		return
 	}
@@ -267,7 +273,7 @@ func (r *solids) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	var seeing, up float32
 	var way [3]float32
 	if r.p.sky != nil {
-		seeing, up, way = r.p.sky.Air().Seen(cam, true)
+		seeing, up, way = r.p.sky.Air().Seen(cam, r.hazed)
 	}
 	r.set("SolidHaze", seeing, up, 0, 0)
 	r.set("SolidHazeWay", way[:]...)

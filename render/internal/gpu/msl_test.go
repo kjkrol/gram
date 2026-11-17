@@ -5,8 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gogpu/naga"
+	"github.com/gogpu/naga/backend"
 	"github.com/gogpu/naga/msl"
+	"github.com/gogpu/naga/wgsl"
 )
 
 const indexedWGSL = `
@@ -35,55 +36,43 @@ fn fs_main(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> {
 }
 `
 
-// The test asserts naga's bug, which decides whether gram's workaround stays: Metal refuses the
-// access left unscoped, so gram's WGSL reads such a parameter from a var or through a pointer.
-// It fails once naga scopes the access, and the workaround can go.
-func TestMSL_NagaStillLeavesAnIndexedParameterUnscopedBesideAnOperator(t *testing.T) {
-	fn := mslFunc(t, mslOf(t, indexedWGSL), "uint byteInNow(")
-	if !strings.Contains(fn, ": DefaultConstructible() * 255.0") {
-		t.Errorf("naga scopes a parameter indexed at run time now: the vars in byteIn (the "+
-			"board's tiles_common.wgsl, the painter's paint_common.wgsl), the word on the "+
-			"pointers in the painter's paint_ground.wgsl and the trap in gram-render can go:\n%s",
-			fn)
+// a bounds check's zero followed by anything but the end of its own expression
+var unscoped = regexp.MustCompile(`DefaultConstructible\(\)\s*[^);\s]`)
+
+// Metal refuses a bounds-checked access left unscoped beside an operator
+// (`k < 4 ? t[k] : DefaultConstructible() * 255.0`), which naga wrote before v0.21. gram's WGSL
+// indexes parameters at run time (byteIn), so the test says if that comes back.
+func TestMSL_ABoundsCheckedAccessIsScopedBesideItsOperator(t *testing.T) {
+	policies := map[string]backend.BoundsCheckPolicy{
+		"restrict":  backend.BoundsCheckRestrict,
+		"read zero": backend.BoundsCheckReadZeroSkipWrite,
 	}
-}
-
-// a declaration whose whole value is the bounds check, the access a load of its own
-var loadAlone = regexp.MustCompile(
-	`^\s*[\w:]+ \w+ = [^?=;]+ \? [^?;]+ : DefaultConstructible\(\);$`)
-
-func TestMSL_AVarAndAPointerIndexedAtRunTimeAreLoadedBeforeTheirOperator(t *testing.T) {
-	code := mslOf(t, indexedWGSL)
-	for _, head := range []string{"uint byteInVar(", "bool same("} {
-		fn := mslFunc(t, code, head)
-		loads := 0
-		for _, line := range strings.Split(fn, "\n") {
-			if !strings.Contains(line, "DefaultConstructible()") {
-				continue
+	for name, policy := range policies {
+		code := mslOf(t, indexedWGSL, policy)
+		for _, head := range []string{"uint byteInNow(", "uint byteInVar(", "bool same("} {
+			if fn := mslFunc(t, code, head); unscoped.MatchString(fn) {
+				t.Errorf("%s, %s: a bounds-checked access unscoped beside an operator:\n%s",
+					name, head, fn)
 			}
-			loads++
-			if !loadAlone.MatchString(line) {
-				t.Errorf("%s: a bounds-checked access inside an expression: %s", head, line)
-			}
-		}
-		if loads == 0 {
-			t.Errorf("%s: no bounds-checked access, nothing checked:\n%s", head, fn)
 		}
 	}
 }
 
-// mslOf is source in MSL as wgpu's Metal backend writes it
-func mslOf(t *testing.T, source string) string {
+// mslOf is source in MSL under one bounds-check policy for indices, buffers and image loads;
+// wgpu's Metal backend asks for BoundsCheckRestrict.
+func mslOf(t *testing.T, source string, policy backend.BoundsCheckPolicy) string {
 	t.Helper()
-	ast, err := naga.Parse(source)
+	module, _, err := wgsl.Parse(source, wgsl.ParseOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	module, err := naga.LowerWithSource(ast, source)
-	if err != nil {
-		t.Fatal(err)
+	checks := backend.BoundsCheckPolicies{
+		Index:        policy,
+		Buffer:       policy,
+		ImageLoad:    policy,
+		BindingArray: backend.BoundsCheckUnchecked,
 	}
-	code, _, err := msl.Compile(module, msl.DefaultOptions())
+	code, _, err := msl.Compile(module, msl.Options{BoundsCheckPolicies: checks})
 	if err != nil {
 		t.Fatal(err)
 	}

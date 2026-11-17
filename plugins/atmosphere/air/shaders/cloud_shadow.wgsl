@@ -83,8 +83,6 @@ fn cloudSunSlant() -> vec2<f32> {
     return sun.xy / max(sun.z, length(sun.xy) / shadowReach);
 }
 
-const shadowReach: f32 = 6.0;
-
 // cloudShade is how much the clouds darken the ground under a cover of cover: as much as they take
 // of the sun, more under a strong one.
 fn cloudShade(cover: f32) -> f32 {

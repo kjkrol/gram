@@ -200,18 +200,31 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
 - A fragment shader takes `@builtin(position)` once, in its input struct, never also as a
   parameter: naga and Vulkan let it by, Metal refuses (`wgsl_test.go`). On Metal gogpu ignores
   `@invariant`; a shader writing `frag_depth` should draw with a depth buffer.
-- naga's MSL writer leaves a function parameter indexed at run time (`t[k]`, `near[j].sprite`)
-  as a bounds-checked ternary without parentheses, which Metal reads as
-  `DefaultConstructible() == …` and refuses (naga v0.20.5 still; `msl_test.go` says when it is
-  fixed): load such a parameter from a `var` first or take an array by
-  `ptr<function, array<T, N>>`; a load from a var or a pointer is baked before its operator.
-  Without a Mac, a shader's Metal verdict is naga's `msl.Compile` of its `Source()` read for the
-  pattern, or clang on the output.
-- Before v0.20.4 naga left a `var` without an initialiser undefined (stray shadows in single
-  pixels; gram's `var c = T(...)` stays harmless); before v0.20.3 it read a module-scope vector
-  `const` as zero against a runtime value, miscompiled `+=` on a local array's element and took no
-  `all()`/`any()` (`compile_test.go`); gram's WGSL still tests a vector by its components.
-  Re-check at a bump.
+- One module, one namespace: naga refuses a name declared twice at module scope (since v0.21). A
+  program is its fragment on the library, the bindings and every material registered, so a
+  function, a struct, a constant, a sampler (`nearest`, `linear`, `wrapped`) and a frame image by
+  its name (`Sheet`) are each declared once among them all. A clash shows only in a program that
+  joins the two pieces (the sky's material with the bake's blocks): a new module-scope name is
+  checked by running the demos, not one package's tests.
+- gram's own SPIR-V (`compiled` in `spirv.go`) holds indices in range and bounds loops, naga's
+  defaults, and leaves image loads and buffers to the device, as wgpu's own compile does where the
+  device checks them (it turns robust access on wherever it can): a `textureLoad` keeps its
+  coordinates in range itself. naga's check of every image load is what costs (the comment there);
+  the options are part of a kept SPIR-V's name.
+- Metal is not run here: a shader's Metal verdict is naga's `msl.Compile` of its `Source()` under
+  wgpu's Metal policies (`msl_test.go`), or clang on the output. A freeze there with the GPU
+  idle is read on the Mac with `sample <name> 5` and Ctrl+\ in the game's terminal (the Go
+  stacks).
+- On Metal a submission holds at most `metalPasses` render passes (`device.go`, the check in
+  `ensure`): wgpu records two command buffers a pass and its Metal queue gives out 64 before one
+  is committed (gogpu/wgpu#428), so a frame of more passes in one encoder froze. The stand-in
+  goes with the upstream fix; a pass begun without `ensure` (a clear) is why it stands well
+  under the limit.
+- At a bump `compile_test.go`, `msl_test.go` and `write_test.go` guard what gram leans on, and the
+  island's frame is measured against the tree before (the image loads were the cost at naga
+  v0.22); gram's WGSL still tests a vector by its components. wgpu v0.35.0 takes `hal/*` out of
+  its public packages: the `allbackends` import in `device.go` goes with it, on a gogpu built for
+  that wgpu.
 
 ## Dropped
 

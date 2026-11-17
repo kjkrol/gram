@@ -5,7 +5,7 @@
 // what stands laid over it (world.SheetImage, U.SheetPx texels a world unit), in the ambient
 // light and the sun's on level ground, nothing off the board; hazed and fogged as the cells are.
 
-struct Sheet {
+struct Sector {
     @builtin(position) clip: vec4<f32>,
     @location(0) world: vec3<f32>,
 }
@@ -15,18 +15,18 @@ fn vs_main(
     @builtin(vertex_index) vid: u32,
     @location(0) box: vec4<f32>,
     @location(1) at: vec4<f32>,
-) -> Sheet {
+) -> Sector {
     // two triangles: top-left, top-right, bottom-right, then top-left, bottom-right, bottom-left
     var across = array<f32, 6>(0.0, 1.0, 1.0, 0.0, 1.0, 0.0);
     var down = array<f32, 6>(0.0, 0.0, 1.0, 0.0, 1.0, 1.0);
     let k = vid % 6u;
     let p = vec3<f32>(mix(box.x, box.z, across[k]), mix(box.y, box.w, down[k]), at.x);
     let off = p.xy - U.Eye.xy;
-    return Sheet(U.ViewProj * vec4<f32>(p.xy, p.z - U.Bend * dot(off, off), 1.0), p);
+    return Sector(U.ViewProj * vec4<f32>(p.xy, p.z - U.Bend * dot(off, off), 1.0), p);
 }
 
 @fragment
-fn fs_main(s: Sheet) -> @location(0) vec4<f32> {
+fn fs_main(s: Sector) -> @location(0) vec4<f32> {
     let albedo = imageSrc0Linear(imageSrc0Origin() + s.world.xy * U.TopPx);
     if albedo.a < 0.5 {
         discard;

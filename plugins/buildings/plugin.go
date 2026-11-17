@@ -25,6 +25,9 @@ const BuildingRole = "buildings.building"
 // Sky is the air between the eye and a building far off, the atmosphere's.
 type Sky interface{ Air() air.Weather }
 
+// Ground says whether the air hazes what stands on it, the topography's Read.
+type Ground interface{ Hazes() bool }
+
 // Plugin stands the buildings of a level's file: the kinds a game defines on its Types, drawn
 // as solids at every level, entities where their settlement's sectors come near.
 type Plugin struct {
@@ -35,6 +38,7 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	board       *board.Plugin
 	sky         Sky
+	ground      Ground
 	types       Types
 	module      *module
 	solids      *solids
@@ -76,9 +80,11 @@ func NewPlugin(w *world.Plugin, brd *board.Plugin) *Plugin {
 	return p
 }
 
-// WithAir has the buildings far off hazed by the air of sky, as the ground is.
-func (p *Plugin) WithAir(sky Sky) *Plugin {
+// WithAir has the buildings hazed by the air of sky where ground is hazed, and clear where it
+// is not.
+func (p *Plugin) WithAir(sky Sky, ground Ground) *Plugin {
 	p.sky = sky
+	p.ground = ground
 	return p
 }
 

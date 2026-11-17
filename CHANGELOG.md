@@ -70,12 +70,12 @@
   (`Write.Stand`): walls on a rectangle turned any way and a roof over them (`Flat`, `Gable`,
   `Hip`, `Pyramid`), a kind's `Spec` its storey, its colours, its windows' bay and its `Part`s
   (a tower, a room on the roof). The plugin draws them itself at every level, in the frame's
-  light, the relief's shade and the air's haze (`WithAir`): whole at the close and standard
-  scales, bodies without windows at the strategic one, windows lit at dusk, each layer of a
-  camera's picture drawing the sectors it shows; no sheet holds them, and they are saved with
-  the game (`Resources`). A building is an entity where its settlement's sector unfolds
-  (`Raise`, a command a settlement gives itself under `world.Unfold`), standing for good,
-  turned, its shadow baked, gone as the sector folds (`BuildingRole`).
+  light, the relief's shade and the air's haze where the ground is hazed (`WithAir`): whole at the
+  close and standard scales, bodies without windows at the strategic one, windows lit at dusk, each
+  layer of a camera's picture drawing the sectors it shows; no sheet holds them, and they are saved
+  with the game (`Resources`). A building is an entity where its settlement's sector unfolds
+  (`Raise`, a command a settlement gives itself under `world.Unfold`), standing for good, turned,
+  its shadow baked, gone as the sector folds (`BuildingRole`).
 - `world.Stand`: the rectangle a thing standing turned covers on the ground; the light bakes
   its shadow over it. `world.SpawnPartIn` and `Read.Unfolding`: a plugin gives, in an
   aggregate's name, the parts of the stretch an `Unfold` told of.
@@ -124,6 +124,9 @@
   that cell as it was: it ran into the way led onto it.
 - A way narrower than a pixel and a half of the ground's sheet is painted that wide: a road
   slanting across a big board's cells was a row of dots from close by.
+- On Linux the backend is gogpu's to pick again (gram #48): since v0.34.8 wgpu frees the EGL
+  context it builds on a game's Wayland connection in time (gogpu/wgpu#379), so a game quits
+  clean without the engine asking for Vulkan alone.
 
 **Changed**
 - The ground's water is alive at every level short of the sheet (L5): the sea's waves, its
@@ -148,6 +151,18 @@
   the routes the same (`routes.golden` unchanged). A hierarchy kept between runs
   (`navigation.Cache`) is built anew once, its file's nodes keyed anew. A game saved with a unit
   in the middle of a step loads it holding its step's cells on the ground.
+- gogpu v0.54.1, wgpu v0.34.15, naga v0.22.4, gputypes v0.9.1 and gpucontext v0.32.0 (were
+  v0.54.0, v0.34.6, v0.20.5, v0.8.0 and v0.31.3). naga refuses a name declared twice at module
+  scope: a game's own shader (a material, a part of the sky) shares one module with the
+  library, the frame's images, the samplers (`nearest`, `linear`, `wrapped`) and every other
+  material registered, so its functions, structs and constants need names of their own.
+- A program's SPIR-V is compiled with its indices held in range and its loops bounded, as naga
+  does by default now; its image loads and buffers are left to the device, which wgpu has check
+  them wherever it can. naga's MSL scopes a bounds-checked access, so the shaders index a
+  parameter at run time directly again.
+- On Metal the frame's commands go to the GPU every 20 render passes, a stand-in till wgpu
+  mends it (gogpu/wgpu#428): its core records two command buffers a pass and its Metal queue
+  gives out 64 before one is committed, so a frame of more passes froze the game.
 
 **Improved**
 - Measured against v0.21.0 (`BENCHMARKS.md`, "Four levels a cell"): the navigation's ticks within
@@ -158,6 +173,10 @@
   near 139 for 148, its drawing on the CPU 2.7 ms for 5.0. The island's frame
   (`Benchmark_Frame_Topography`) is as it was at the full level and without water, the far
   levels dearer by the water they now show (`BENCHMARKS.md`).
+- Measured against `main` on the libraries above (Intel UHD 620): the island's frame
+  (`Benchmark_Frame_Topography`) within 1 % at every level, 43 to 67 allocations more a frame
+  inside wgpu; Madeira's start view 113.5 FPS for 116.1, its drawing on the CPU 2.6 ms for 2.2.
+  naga's own check of every image load would take 2.4–3.3 % of the frame.
 
 ## v0.21.0 — 2026-11-10
 

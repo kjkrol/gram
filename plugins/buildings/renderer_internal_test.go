@@ -68,3 +68,25 @@ func TestSpec_ABuildingsBoxHoldsItTurned(t *testing.T) {
 		t.Errorf("its shadow is cast from %v, want its walls and half its roof of 10", h)
 	}
 }
+
+type ground bool
+
+func (g ground) Hazes() bool { return bool(g) }
+
+func TestSolids_AreHazedOnlyWhereTheGroundIs(t *testing.T) {
+	r := &solids{p: &Plugin{}}
+	for _, hazed := range []bool{false, true, false} {
+		r.p.WithAir(nil, ground(hazed))
+		r.Publish()
+		r.Swap()
+		if r.hazed != hazed {
+			t.Errorf("the ground hazed %v, its buildings %v", hazed, r.hazed)
+		}
+	}
+	r.p.WithAir(nil, nil)
+	r.Publish()
+	r.Swap()
+	if r.hazed {
+		t.Error("buildings on no ground are hazed")
+	}
+}

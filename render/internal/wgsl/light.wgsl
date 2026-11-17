@@ -5,6 +5,10 @@
 // and how far it reaches (w), U.Lamp0Color .. U.Lamp7Color its light at full strength,
 // U.LampCount how many shine.
 
+// shadowReach is how many times its caster's height a shadow reaches at most, whatever casts it
+// (light.ShadowReach).
+const shadowReach: f32 = 6.0;
+
 // lightWay is the way towards the distant light, of length 1.
 fn lightWay() -> vec3<f32> {
     return U.LightWay / max(length(U.LightWay), 1e-6);

@@ -11,7 +11,22 @@ import (
 	"sync"
 
 	"github.com/gogpu/naga"
+	"github.com/gogpu/naga/backend"
+	"github.com/gogpu/naga/spirv"
 )
+
+// compiled is how naga writes a program's SPIR-V: indices held in range, loops bounded, buffers
+// and image loads left to the device, which wgpu's Vulkan backend has check them wherever it
+// can, asking naga the same of its own compile there. naga's check of every image load took
+// 3 % of a frame of the island.
+var compiled = naga.CompileOptions{SPIRV: spirv.Options{
+	BoundsCheckPolicies: backend.BoundsCheckPolicies{
+		Index:        backend.BoundsCheckRestrict,
+		Buffer:       backend.BoundsCheckUnchecked,
+		ImageLoad:    backend.BoundsCheckUnchecked,
+		BindingArray: backend.BoundsCheckUnchecked,
+	},
+}}
 
 // spirvOf is source compiled to SPIR-V by naga, kept in the shader cache and read back from it
 // the next time: GRAM_SHADER_CACHE "off" keeps none, a folder keeps it there, the user's cache
@@ -23,7 +38,7 @@ func spirvOf(source string) ([]uint32, error) {
 			return wordsOf(b), nil
 		}
 	}
-	b, err := naga.Compile(source)
+	b, err := naga.CompileWithOptions(source, compiled)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +51,8 @@ func spirvOf(source string) ([]uint32, error) {
 	return wordsOf(b), nil
 }
 
-// cachedAt is where source's SPIR-V is kept, named by it and naga's version; "" for none
+// cachedAt is where source's SPIR-V is kept, named by it, naga's version and how it is compiled;
+// "" for none
 func cachedAt(source string) string {
 	dir := os.Getenv("GRAM_SHADER_CACHE")
 	switch dir {
@@ -49,7 +65,8 @@ func cachedAt(source string) string {
 		}
 		dir = filepath.Join(base, "gram", "shaders")
 	}
-	sum := sha256.Sum256([]byte(nagaVersion() + "\n" + source))
+	how := fmt.Sprintf("%+v", compiled)
+	sum := sha256.Sum256([]byte(nagaVersion() + "\n" + how + "\n" + source))
 	return filepath.Join(dir, hex.EncodeToString(sum[:])+".spv")
 }
 

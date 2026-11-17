@@ -16,9 +16,9 @@ fn dry(c: vec2<f32>) -> bool {
     return b.z > 0.5 && topOf(b.xy).shine <= 0.0;
 }
 
-// nearest is the way from p to the cell c where it is land and nearer than best away (squared),
+// nearer is the way from p to the cell c where it is land and nearer than best away (squared),
 // with how far squared; best and no way where it is not.
-fn nearest(c: vec2<f32>, p: vec2<f32>, best: vec3<f32>) -> vec3<f32> {
+fn nearer(c: vec2<f32>, p: vec2<f32>, best: vec3<f32>) -> vec3<f32> {
     if !dry(c) {
         return best;
     }
@@ -47,12 +47,12 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
         let lo = -1 - r;
         let hi = r;
         for (var x = lo; x <= hi; x++) {
-            best = nearest(g + vec2<f32>(f32(x), f32(lo)), p, best);
-            best = nearest(g + vec2<f32>(f32(x), f32(hi)), p, best);
+            best = nearer(g + vec2<f32>(f32(x), f32(lo)), p, best);
+            best = nearer(g + vec2<f32>(f32(x), f32(hi)), p, best);
         }
         for (var y = lo + 1; y < hi; y++) {
-            best = nearest(g + vec2<f32>(f32(lo), f32(y)), p, best);
-            best = nearest(g + vec2<f32>(f32(hi), f32(y)), p, best);
+            best = nearer(g + vec2<f32>(f32(lo), f32(y)), p, best);
+            best = nearer(g + vec2<f32>(f32(hi), f32(y)), p, best);
         }
     }
     if best.z >= reach * reach {

@@ -39,6 +39,9 @@ type device struct {
 	pass       *wgpu.RenderPassEncoder
 	passTarget *target
 	passDepth  *Depth
+	// the render passes begun in enc and the most a submission holds, zero any number
+	passes     int
+	mostPasses int
 	passFrame  *wgpu.BindGroup // the frame's images bound in the pass, kept till they change
 	// the pass's descriptor, kept: gogpu converts it before BeginRenderPass returns
 	passDesc     wgpu.RenderPassDescriptor
@@ -78,6 +81,11 @@ type device struct {
 
 var cur *device
 
+// metalPasses is the most render passes a submission holds on Metal: wgpu's queue there gives
+// out 64 command buffers before one is committed and its core records two a pass, so a frame
+// of more passes in one submission waited for the next buffer for ever (gogpu/wgpu#428).
+const metalPasses = 20
+
 // Use has the package draw on dev, the device of the engine's window.
 func Use(dev *wgpu.Device, backend gputypes.Backend) error {
 	if cur != nil && cur.dev == dev {
@@ -86,6 +94,9 @@ func Use(dev *wgpu.Device, backend gputypes.Backend) error {
 	d := &device{dev: dev, backend: backend, queue: dev.Queue(),
 		groups: map[[4]*Texture]*wgpu.BindGroup{},
 		frames: map[[FrameImages]*Texture]*wgpu.BindGroup{}}
+	if backend == gputypes.BackendMetal {
+		d.mostPasses = metalPasses
+	}
 	if err := d.setup(); err != nil {
 		return err
 	}
@@ -240,6 +251,7 @@ func (d *device) trySubmit() error {
 	}
 	enc := d.enc
 	d.enc = nil
+	d.passes = 0
 	d.verts, d.indices, d.draws, d.uniforms = d.verts[:0], d.indices[:0], d.draws[:0], d.uniforms[:0]
 	cmds, err := enc.Finish()
 	if err != nil {
@@ -299,6 +311,7 @@ func (d *device) begin(t *target, dp *Depth, clearDepth bool) *wgpu.RenderPassEn
 	}
 	t.load = gputypes.LoadOpLoad
 	d.pass, d.passTarget, d.passDepth, d.passFrame = pass, t, dp, nil
+	d.passes++
 	return pass
 }
 
@@ -338,6 +351,9 @@ func (d *device) bindFrame(pass *wgpu.RenderPassEncoder, g *wgpu.BindGroup) {
 }
 
 func (d *device) ensure(nv, ni int) {
+	if d.mostPasses > 0 && d.passes >= d.mostPasses {
+		d.submit()
+	}
 	needV := uint64(len(d.verts) + nv*vertexSize)
 	needI := uint64(len(d.indices) + (ni*2+3)&^3)
 	needD := alignUp(uint64(len(d.draws)), d.align) + drawSize
