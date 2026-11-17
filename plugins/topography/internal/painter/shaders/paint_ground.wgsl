@@ -226,8 +226,6 @@ fn runOf(g: vec4<f32>, flow: f32) -> vec2<f32> {
 
 // earlier reports whether a cell of land before the k-th round, row by row, is of its sprite.
 fn earlier(near: ptr<function, array<Top, 9>>, k: i32) -> bool {
-    // near by pointer: naga's MSL leaves a parameter indexed at run time unscoped beside an
-    // operator, which Metal refuses (gram-render: Traps)
     for (var j = 0; j < k; j++) {
         if land((*near)[j]) && (*near)[j].sprite == (*near)[k].sprite {
             return true;

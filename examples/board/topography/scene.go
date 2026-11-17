@@ -99,7 +99,7 @@ func (m *mainScene) screen() *ui.Element {
 	}
 	a.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
 	a.topography.WithAtmosphere(a.atmosphere.Read(0))
-	a.buildings.WithAir(a.atmosphere.Read(0))
+	a.buildings.WithAir(a.atmosphere.Read(0), a.topography.Read(0))
 	a.vision.WithViews(world.Show(a.selection.Read(0).IsSelected))
 
 	cam := a.cameras.Write().New(cameras.Isometrically, camera.Config{Zoom: StartZoom})

@@ -1083,7 +1083,9 @@ keeps only what those do not.
 ## buildings
 
 - Made over the world and the board (`NewPlugin(w, brd)`, after the forest, run right after the
-  world in `update`); `WithAir(sky)` in the scene beside the topography's `WithAtmosphere`.
+  world in `update`); `WithAir(sky, ground)` in the scene beside the topography's
+  `WithAtmosphere`: the buildings are hazed only where the ground is (its `Haze` setting, read
+  at the publish), or in bad weather they stand in the fog's colour on a clear ground.
   The buildings are lines kept by sector in `Res.Stood` (`Write.Spawn` off a level's file,
   `Write.Stand` from a game's code), saved with the game; `Restore` lays them anew.
 - A building is drawn by the plugin's own Direct (`renderer.go`, `shaders/solid.wgsl`: an

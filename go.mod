@@ -3,11 +3,11 @@ module github.com/kjkrol/gram
 go 1.27.1
 
 require (
-	github.com/gogpu/gogpu v0.54.0
-	github.com/gogpu/gpucontext v0.31.3
-	github.com/gogpu/gputypes v0.8.0
-	github.com/gogpu/naga v0.20.5
-	github.com/gogpu/wgpu v0.34.6
+	github.com/gogpu/gogpu v0.54.1
+	github.com/gogpu/gpucontext v0.32.0
+	github.com/gogpu/gputypes v0.9.1
+	github.com/gogpu/naga v0.22.4
+	github.com/gogpu/wgpu v0.34.15
 	github.com/kjkrol/aabbworld v1.21.2
 	github.com/kjkrol/ceremony v0.3.3
 	github.com/kjkrol/goke/v3 v3.6.1

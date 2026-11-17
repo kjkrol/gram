@@ -72,8 +72,6 @@ fn shadowFar(at: vec4<f32>, size: vec4<f32>, sun: vec3<f32>) -> f32 {
     return most;
 }
 
-const shadowReach: f32 = 6.0;
-
 @fragment
 fn fs_main(c: Cast) -> @location(0) vec4<f32> {
     let sun = lightWay();

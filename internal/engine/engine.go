@@ -195,12 +195,6 @@ func (e *Engine) Run() {
 	cfg := gogpu.DefaultConfig().WithTitle(e.props.Title).
 		WithSize(e.props.ScreenWidth, e.props.ScreenHeight).WithResizable(e.props.Resizable).
 		WithContinuousRender(true).WithVSync(os.Getenv("GRAM_VSYNC") != "off")
-	// a stand-in for gogpu/wgpu#379 (gram #48): in Auto mode wgpu's GL instance builds an EGL
-	// context on the app's Wayland connection and frees it after gogpu has closed that, a
-	// segfault at quit; GOGPU_GRAPHICS_API still picks a backend by hand
-	if runtime.GOOS == "linux" && cfg.GraphicsAPI == gogpu.GraphicsAPIAuto {
-		cfg = cfg.WithGraphicsAPI(gogpu.GraphicsAPIVulkan)
-	}
 	if os.Getenv("GRAM_FULLSCREEN") != "" {
 		cfg = cfg.WithFullscreen()
 		e.adapter.start = true

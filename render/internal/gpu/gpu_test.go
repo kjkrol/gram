@@ -879,3 +879,43 @@ func TestAppendF32s_LaysEveryFloatAsAppendF32Does(t *testing.T) {
 		t.Errorf("appendF32s of none laid %v", got)
 	}
 }
+
+func TestDevice_SubmitsBeforeASubmissionHoldsMorePassesThanItsBackendTakes(t *testing.T) {
+	needGPU(t)
+	held := func(most int) (was int) {
+		cur.mu.Lock()
+		defer cur.mu.Unlock()
+		was, cur.mostPasses = cur.mostPasses, most
+		return was
+	}
+	defer held(held(2))
+	layout := NewLayout([]Uniform{{"Shade", 1}})
+	p := NewProgram("passes", layout.Fields, `
+fn Fragment(dst: vec4<f32>, src: vec2<f32>, color: vec4<f32>, custom: vec4<f32>) -> vec4<f32> {
+    return vec4<f32>(U.Shade, 0.0, 0.0, 1.0);
+}`)
+	u := make([]byte, layout.Size)
+	layout.Put(u, "Shade", []float32{1})
+	v := func(x, y float32) Vertex { return Vertex{DstX: x, DstY: y} }
+	verts := []Vertex{v(0, 0), v(1, 0), v(0, 1), v(1, 1)}
+	indices := []uint16{0, 1, 2, 1, 2, 3}
+	dsts := make([]*Texture, 5)
+	for i := range dsts {
+		dsts[i] = NewTexture(1, 1)
+		Triangles(&Draw{Target: Image{Texture: dsts[i]}, Program: p, Uniforms: u, Blend: Copy},
+			verts, indices)
+		cur.mu.Lock()
+		n := cur.passes
+		cur.mu.Unlock()
+		if n > 2 {
+			t.Fatalf("%d passes in a submission of a backend taking 2", n)
+		}
+	}
+	for i, dst := range dsts {
+		pix := make([]byte, 4)
+		dst.ReadPixels(pix)
+		if got := pixel(pix, 1, 0, 0); !near(got, [4]byte{255, 0, 0, 255}) {
+			t.Errorf("the pass %d drew %v, want red", i, got)
+		}
+	}
+}
