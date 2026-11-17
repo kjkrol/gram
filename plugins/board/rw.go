@@ -64,11 +64,12 @@ func (r *Read) Occupancy() cell.OccupancyRead { return r.p.occupancy }
 func (r *Read) Mobility() cell.Mobility { return r.p.mobility }
 
 // Pace is the share of its top speed a unit moving in d keeps on the step from from onto to's
-// kind k on level, the step's slope the Map's; 0 refuses the step.
+// kind k on level, the step's slope the Map's on the ground and the floors' own over it or
+// under it; 0 refuses the step.
 func (r *Read) Pace(from, to cell.ID, k cell.Kind, level cell.Level, d cell.Domain) float64 {
 	s := cell.Step{From: from, To: to, Level: level, Kind: k, Domain: d}
 	if !k.Graded && from != to {
-		s.Slope = r.p.board.mapping.Rise(from, to)
+		s.Slope = r.board.rise(from, to, level)
 	}
 	return cell.PaceOf(r.p.mobility, s)
 }

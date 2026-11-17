@@ -33,6 +33,9 @@ type Level struct {
 	l       *leveler
 	heights func(p geom.Vec) float32
 	waiting []waiting // in the file's order
+	laid    Layout
+	kinds   map[cell.ID]string
+	crossed map[cell.ID]bool
 }
 
 type waiting struct {
@@ -45,6 +48,29 @@ type waiting struct {
 // Heights is the ground's heights the level's relief gives, in world units; nil for a level
 // without one.
 func (l *Level) Heights() func(p geom.Vec) float32 { return l.heights }
+
+// Kind is the name of the kind the level lays the cell c as and whether it lays a way across
+// it: what a game standing things by its board reads in the Spawn section, where the board has
+// no cells yet.
+func (l *Level) Kind(c cell.ID) (name string, crossed bool) {
+	if l.kinds == nil {
+		l.kinds = make(map[cell.ID]string, len(l.laid.Cells))
+		for _, e := range l.laid.Cells {
+			if e.Kind != "" {
+				l.kinds[e.Cell] = e.Kind
+			}
+		}
+		l.crossed = make(map[cell.ID]bool, len(l.laid.Ways))
+		for _, w := range l.laid.Ways {
+			l.crossed[w.Cell] = true
+		}
+	}
+	name, ok := l.kinds[c]
+	if !ok {
+		name = l.laid.Default
+	}
+	return name, l.crossed[c]
+}
 
 // Lay seeds the board out of the YAML level at path of fsys and keeps its entities for Spawn.
 func (p *Plugin) Lay(fsys fs.FS, path string) (*Level, error) {
@@ -93,6 +119,7 @@ func (p *Plugin) Lay(fsys fs.FS, path string) (*Level, error) {
 	if file.Board != nil || file.Ways.given() {
 		p.write.Seed(layout)
 	}
+	level.laid = layout
 	p.level = level
 	return level, nil
 }
@@ -371,8 +398,16 @@ func (l *leveler) ways(w *levelWays, layout *Layout, heights func(geom.Vec) floa
 					roads.Set(c, node)
 					laidBy[c] = path.node
 				}
-				if i > 0 {
-					roads.Link(path.cells[i-1], c)
+				if i == 0 {
+					continue
+				}
+				switch prev := path.cells[i-1]; {
+				case path.onto(i):
+					roads.Lead(prev, c)
+				case path.onto(i - 1):
+					roads.Lead(c, prev)
+				default:
+					roads.Link(prev, c)
 				}
 			}
 		}

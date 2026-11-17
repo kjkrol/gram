@@ -30,10 +30,11 @@
 // # Cage
 //
 // Read(0) is a cameras.Cage for a game to hand its cameras (cameras.Config.Cage): a point is
-// [Read.Free] over the ground, over the kind standing on its cell to its Height and out of a
-// deck's slab, and under the ground in the room over a floor sunk there; [Read.Span] is the
-// lowest and the highest the ground reaches, [Read.Grain] how finely a line of sight steps near
-// a deck. The ground over the mouth of a floor sunk under it, lower than its roof, is not drawn.
+// [Read.Free] over the ground, over the sea lying on it to its level, over the kind standing on
+// its cell to its Height and out of a deck's slab, and under the ground in the room over a floor
+// sunk there; [Read.Span] is the lowest and the highest the ground reaches, [Read.Grain] how
+// finely a line of sight steps near a deck. The ground over the mouth of a floor sunk under it,
+// lower than its roof, is not drawn.
 //
 // # Light and shadows
 //
@@ -52,6 +53,15 @@
 // sways on a cell (cell.Kind.Sway) leans its grain with the weather's wind, the gusts going over
 // the ground as a wave. How the light is styled is a painter.Shading ([Plugin.WithShading]):
 // the sun's light in bands, the shade tinted, the sun warmed.
+//
+// # Water
+//
+// Water lies on the ground it covers and is alive at every level short of the sheet: the sea's
+// waves, its swell breaking into surf by the shore and the rivers running, what of them is
+// finer than a pixel or two left out, the surf an even pale line far off. The sea over ground
+// lower than its level, 0, is a surface of its own at that level, styled by a painter.Sea
+// ([Plugin.WithSea]): the deeper the ground lies under it, the less of it shows through, its
+// shallows of a colour of their own, its bed darker under the water.
 //
 // # Drawing and commands
 //

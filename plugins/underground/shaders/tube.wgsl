@@ -3,9 +3,11 @@
 // U.TubeViewProj as the ground's mesh is (camera.Transform, sunk by U.TubeBend·d² off
 // U.TubeEye). The faces of a stretch, six vertices each: its floor, its roof, the wall on its
 // left and on its right going from a to b, and the walls closing it at a and at b; faces says
-// which of the four walls stand, a bit each. Where a stretch turns into another at b its left
-// wall ends c.z short of b and its right wall as far past it, so the two meet on the plane
-// between them; a stretch of c.w 1 is the frame round a mouth, in the light of the day.
+// which of the four walls stand, a bit each, and past them whether it is the frame round a
+// mouth, in the light of the day. Where a stretch turns into another at b its left wall ends
+// c.z short of b and its right wall as far past it, and where one turns into it at a its left
+// wall begins c.w past a and its right wall as far before it, so the two meet on the plane
+// between them.
 
 struct Tube {
     @builtin(position) clip: vec4<f32>,
@@ -25,7 +27,7 @@ fn vs_main(
     @builtin(vertex_index) vid: u32,
     @location(0) a: vec4<f32>, // where it begins on its floor, and half its width
     @location(1) b: vec4<f32>, // where it ends on its floor, and its room up to its roof
-    // its walls standing (faces), how far along its line it begins, its mitre at b, a frame
+    // its faces, how far along its line it begins, its mitres at b and at a
     @location(2) c: vec4<f32>,
 ) -> Tube {
     var across = array<f32, 6>(0.0, 1.0, 0.0, 1.0, 1.0, 0.0);
@@ -45,7 +47,7 @@ fn vs_main(
     switch face {
         case 0u, 1u: { // the floor, the roof
             let side = v * 2.0 - 1.0;
-            let cut = -side * c.z * u;
+            let cut = side * (c.w * (1.0 - u) - c.z * u);
             p = a.xyz + run * u + vec3<f32>(n * side * half + d * cut, 0.0);
             if face == 1u {
                 p.z += clear;
@@ -54,7 +56,7 @@ fn vs_main(
         }
         case 2u, 3u: { // the walls along it
             let side = 5.0 - 2.0 * f32(face); // 1 on its left, -1 on its right
-            let cut = -side * c.z * u;
+            let cut = side * (c.w * (1.0 - u) - c.z * u);
             p = a.xyz + run * u + vec3<f32>(n * side * half + d * cut, v * clear);
             at = vec2<f32>(c.y + u * length + cut, v * clear);
             stands = (u32(c.x) & (1u << (face - 2u))) != 0u;
@@ -75,7 +77,7 @@ fn vs_main(
     t.face = face;
     t.at = at;
     t.room = vec2<f32>(2.0 * half, clear);
-    t.frame = c.w;
+    t.frame = f32((u32(c.x) >> 4u) & 1u);
     return t;
 }
 

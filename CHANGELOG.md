@@ -14,8 +14,10 @@
   mouth square to its tunnel (one out across its head's corner, or turning in its first cell,
   is refused; `site.Square` leads the tool's slanting line out across the edges and two cells
   on) and framed by a jamb either side and a lintel
-  running in as far as the tube shows through the ground cut over it, the way in open, a turn's
-  stretches cut on the plane between them, the ground beside a corner a tunnel crosses closing
+  running in as far as the tube shows through the ground cut over it, the way in open, a turn
+  drawn in pieces along a curve, each meeting the next on the plane between them (a kink of
+  45° or 90° in the cell's middle before), its course from above following the curve, the
+  ground beside a corner a tunnel crosses closing
   over it too (`site.Rules.Width`), the floor a road's with its lines;
   a unit walks in at a mouth and through, no taller than the room, and a body in the room
   meets its walls (the board's field: either side of a tunnel, a turn closed outside, round a
@@ -63,12 +65,77 @@
   tree taller than wide is drawn on a finer sprite, up to four times.
 - The topography cuts the ground over the mouth of a floor sunk under it and frees the cameras'
   cage in the room over such a floor (`Read.Free`).
+- `plugins/buildings`: buildings as solids, each as long, as wide and as high as its line of a
+  level's file says (`{kind, mid, size, turn, floors}`, `Write.Spawn`) or a game's own code
+  (`Write.Stand`): walls on a rectangle turned any way and a roof over them (`Flat`, `Gable`,
+  `Hip`, `Pyramid`), a kind's `Spec` its storey, its colours, its windows' bay and its `Part`s
+  (a tower, a room on the roof). The plugin draws them itself at every level, in the frame's
+  light, the relief's shade and the air's haze (`WithAir`): whole at the close and standard
+  scales, bodies without windows at the strategic one, windows lit at dusk, each layer of a
+  camera's picture drawing the sectors it shows; no sheet holds them, and they are saved with
+  the game (`Resources`). A building is an entity where its settlement's sector unfolds
+  (`Raise`, a command a settlement gives itself under `world.Unfold`), standing for good,
+  turned, its shadow baked, gone as the sector folds (`BuildingRole`).
+- `world.Stand`: the rectangle a thing standing turned covers on the ground; the light bakes
+  its shadow over it. `world.SpawnPartIn` and `Read.Unfolding`: a plugin gives, in an
+  aggregate's name, the parts of the stretch an `Unfold` told of.
+- `camera.Inner` and `Transform.Shows`: the window a later layer of a picture covers, and
+  whether a box may show through a camera's layer, for a source drawing by sectors.
+- `render.Instances`: an instanced mesh's instances kept on the GPU (`NewInstances`,
+  `PackInstances` by groups, `DrawMeshOptions.Kept` and `Spans`, `JoinSpan`), drawn in ranges
+  with nothing sent a frame.
+- `board.Level.Kind`: the kind a level lays a cell as and whether a way crosses it, for what a
+  game stands by its board in the Spawn section, where the board has no cells yet.
+- The sea over ground lower than its level is a surface of its own at that level
+  (`painter.Sea`, `topography.Plugin.WithSea`): its water hides its bed the more the deeper it
+  lies (`Clear`) and turns to the colour of its shallows where it is shallow (`Shallows`,
+  `Shoal`); the cameras' cage keeps an eye over the water (`Read.Free`).
+- `cmd/gramap` sinks the sea's bed (`bed: {zoom, deepest}`): as deep as the Terrain Tiles tell
+  at a zoom that has the sea's depths (the fine ones have none), whole metres and `deepest` at
+  most, running even from the shore to there where the coarser tiles tell land under the sea.
+  Madeira in relief has its bed down to 100 m: narrow off its south coast, a shelf off its
+  north.
+- Madeira's demo stands its settlements as buildings, a cottage, a town's house or a chapel a
+  built cell with no road or river across it, solids at every distance with their windows lit
+  at dusk (4300 of them; houses were sprites in the sheet), and its sea lies over its bed, its
+  shallows turquoise.
 
 **Fixed**
+- A board wider than 512 cells had no water at all, neither waves nor a river running, at any
+  distance: its water's layers, twice the board across, did not fit the painter's sheet at
+  the albedo's four pixels a cell. They are painted at fewer where the board is wide, two at
+  the least; Madeira's 640 cells get theirs at three.
+- A key let go in another window (the Alt of Alt+Tab, the Shift of a screenshot's shortcut)
+  is let go in the game as its window loses the keyboard: gogpu's keyboard state kept it
+  down, every key after it read as a chord, and no plain shortcut answered.
+- A floor climbing from piece to piece is a ramp to whoever walks it: its surface runs evenly
+  from a piece's middle to the next one's and to the ground at its ends
+  (`Footing().Surface`), a unit at a piece's low edge stands on it (`LevelFor`,
+  `BoardRead.FloorDip`), and a route takes a floor running on, and steps onto it and off it
+  at its ends, whatever it climbs a cell. A tunnel climbing more a cell than a walker's step
+  was no way to a route: Madeira's walkers went round over the hill.
+- A step on a floor of a kind that is not `Graded` is paced by the floors' own slope, not by
+  the ground's under it (`board.Read.Pace`, and the pace a unit walks at); a slantwise step on
+  a deck is priced as the deck's, not as one across the bare ground beside a way
+  (`routes.golden` changes in that one step).
+- Ground nobody enters, of no height of its own, stops nobody on a bridge over it: it stands
+  no higher than the underside of the lowest deck over its cell.
+- A way led onto a bridge, a ford or a tunnel (`{onto: [x, y]}`) leaves a way running across
+  that cell as it was: it ran into the way led onto it.
 - A way narrower than a pixel and a half of the ground's sheet is painted that wide: a road
   slanting across a big board's cells was a row of dots from close by.
 
 **Changed**
+- The ground's water is alive at every level short of the sheet (L5): the sea's waves, its
+  swell breaking into surf by the shore and the rivers running were dropped level by level
+  from L3 (`lod`'s words for the ground: L3 drops the grid alone, L4 the baked shade, the
+  lamps and the mouths' glint, L5 the water). What is finer than a pixel or two is left out
+  as before; as the fine waves go out of sight the long swells of the open sea come in, a
+  river's ripples are drawn as wide as shows, and the surf far off is an even pale line, its
+  foam torn into patches less regular than before.
+- A `painter.Detail` finer than three cells across shows as its own span on the screen lets
+  it: a texture laid as big as in life gives its grain near and the ground's colour far off,
+  without flicker.
 - A gramap recipe says how many times bigger than life its game draws the figures
   (`area: {figures}`) and gives a deck's `thickness`, a man's `figure` and a tunnel's `clear`
   in metres of life; Madeira's bridges span six cells at most (four before), the demo's rules
@@ -85,6 +152,12 @@
 **Improved**
 - Measured against v0.21.0 (`BENCHMARKS.md`, "Four levels a cell"): the navigation's ticks within
   ±3 %, a search +1.6 %, a group's field +2–7 %, the board and the world's frame unchanged.
+- Madeira's demo with its buildings as solids and the water it lacked, against `main` on an
+  integrated GPU (Intel UHD 620, `GRAM_VSYNC=off`, the adapter still): the start view 128 FPS
+  for 161 in a window of 1024 by 768 and 75 for 90 in full screen at 1920 by 1080, Funchal
+  near 139 for 148, its drawing on the CPU 2.7 ms for 5.0. The island's frame
+  (`Benchmark_Frame_Topography`) is as it was at the full level and without water, the far
+  levels dearer by the water they now show (`BENCHMARKS.md`).
 
 ## v0.21.0 — 2026-11-10
 

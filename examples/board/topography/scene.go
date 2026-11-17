@@ -48,9 +48,8 @@ var (
 	lanternColor = render.Light{1, 0.75, 0.4}
 	wallColor    = color.RGBA{R: 235, G: 230, B: 218, A: 255}
 	roofColor    = color.RGBA{R: 190, G: 92, B: 60, A: 255}
-	roofShade    = color.RGBA{R: 148, G: 66, B: 44, A: 255}
-	ridgeColor   = color.RGBA{R: 214, G: 132, B: 96, A: 255}
 	wagonColor   = color.RGBA{R: 120, G: 80, B: 45, A: 255}
+	shoalColor   = color.RGBA{R: 64, G: 164, B: 176, A: 255}
 	wheelColor   = color.RGBA{R: 50, G: 38, B: 28, A: 255}
 )
 
@@ -87,7 +86,12 @@ func (m *mainScene) screen() *ui.Element {
 		Style(BrookCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).
 		Style(StreamCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).
 		Style(RiverCell, painter.Style{Shine: 0.9, Flow: 22, MixWith: WaterCell}).
-		WithShading(shading(a.look))
+		WithShading(shading(a.look)).
+		WithSea(painter.Sea{
+			Clear:    scale.Units(1),
+			Shoal:    scale.Units(30),
+			Shallows: shoalColor,
+		})
 	for _, name := range snowable() {
 		s := a.topography.Read(0).StyleOf(name)
 		s.Detail = d[snowyCell(name)]
@@ -95,6 +99,7 @@ func (m *mainScene) screen() *ui.Element {
 	}
 	a.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
 	a.topography.WithAtmosphere(a.atmosphere.Read(0))
+	a.buildings.WithAir(a.atmosphere.Read(0))
 	a.vision.WithViews(world.Show(a.selection.Read(0).IsSelected))
 
 	cam := a.cameras.Write().New(cameras.Isometrically, camera.Config{Zoom: StartZoom})

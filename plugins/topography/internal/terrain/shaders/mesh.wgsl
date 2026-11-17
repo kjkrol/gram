@@ -104,12 +104,12 @@ fn mouthed(p: vec3<f32>) -> bool {
 // as it lies and before the sight's end at every level, drawn at the level LEVEL (lod.Level),
 // each dropping more, the close levels drawn as Standard:
 //   2  everything
-//   3  the grid; the shore: the waves come in with no swell, surf or foam, no water runs down
-//      the ways and no mouth glints
-//   4  the waves and their glint, the still water a level mirror of the sky; the baked shade and
-//      the lamps, every cell taking every shade; the albedo at half its size
-//   5  the clouds' shadow and the wind's sway (vs_main), the details' grain and the water's
-//      picture: a sheet of the albedo's flat colour, a quarter its size
+//   3  the grid
+//   4  the baked shade and the lamps, every cell taking every shade; the albedo at half its size
+//   5  the clouds' shadow and the wind's sway (vs_main), the details' grain and the water, its
+//      waves, its surf and its running: a sheet of the albedo's flat colour, a quarter its size
+// The water is alive at every level short of 5, what of it is finer than a pixel or two left
+// out (water's sea and stream).
 @fragment
 fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     let p = g.world;
@@ -148,25 +148,12 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
             lit = groundShadeOf(p.xy).r;
         }
     }
-    var diffuse = max(dot(n, sun), 0.0);
-    if U.Bands > 0.5 {
-        diffuse = banded(diffuse, U.Bands);
-    }
-    var sunColor = U.LightColor;
-    if U.Warmth > 0.0 {
-        sunColor = mix(U.LightColor, U.LightColor * vec3<f32>(1.08, 0.92, 0.7), U.Warmth);
-    }
-    let shade = 1.0 - diffuse * lit;
-    var light = U.Ambience * mix(vec3<f32>(1.0), U.ShadowTint, shade);
-    light += sunColor * diffuse * lit * U.LightStrength;
-    if LEVEL <= 3u && takes(taken, takesLamps) {
-        light += lampLightAt(p);
-    }
+    let light = lightOn(n, sun, p, lit, taken);
     var ground = levelAlbedo(p.xy);
     if LEVEL <= 4u && U.DetailPx > 0.0 && inside {
         let show = detailShow(span);
         if show > 0.0 {
-            ground *= mix(vec3<f32>(1.0), grain(p.xy, g.sway, cellDetailAt(flags)), show);
+            ground *= mix(vec3<f32>(1.0), grain(p.xy, g.sway, cellDetailAt(flags), span), show);
         }
     }
     var rgb = ground * light;
@@ -181,24 +168,31 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     var mouth = vec3<f32>(0.0);
     if LEVEL <= 4u && U.WaterPx > 0.0 && wetAt(p.xy) {
         still = waterAt(p.xy, vec2<f32>(1.0, 0.0));
-        if LEVEL <= 2u {
+        // far off the flow is read where the water that shines runs, and no mouth: read for
+        // every pixel of the sea they cost the strategic level a twelfth of its frame
+        if LEVEL <= 2u || still.r > 0.004 {
             run = waterAt(p.xy, vec2<f32>(0.0, 0.0));
+        }
+        if LEVEL <= 3u {
             mouth = waterAt(p.xy, vec2<f32>(0.0, 1.0));
         }
     }
-    // the sea's glint, the waves turning to the shore and breaking on it near enough; a level
-    // coarser the open sea everywhere, coarser still a level mirror
-    if still.b > 0.004 {
-        if LEVEL <= 3u {
-            var shore = vec4<f32>(0.0);
-            if LEVEL <= 2u && span >= 16.0 {
-                shore = shoreAt(p.xy);
-            }
-            let sea = SeaGlintAt(p.xy, still.g / still.b, wet, shore, pixel, toward);
-            rgb = over(sea * still.b, rgb);
-        } else {
-            rgb = over(LevelWater(still.g / still.b, toward) * still.b, rgb);
+    // the sea lies at its level over ground lower than it, its surface its own (sea.wgsl): the
+    // ground here is its bed, darker under the water, glinting nowhere
+    let sunk = still.b > 0.004 && p.z < -sunkBy * U.Span;
+    if sunk {
+        rgb *= mix(1.0, bedWet, smoothstep(0.0, -bedWetting * U.Cell, p.z));
+    }
+    // the sea's glint, the waves turning to the shore and breaking on it. The shore is read
+    // under a condition of its own: read for every pixel of water, it cost a fifth of the frame
+    // on every pixel of the ground (an Intel GPU, Benchmark_Frame_Topography)
+    if still.b > 0.004 && !sunk {
+        var shore = vec4<f32>(0.0);
+        if span >= shoreFrom {
+            shore = shoreAt(p.xy);
         }
+        let sea = SeaGlintAt(p.xy, still.g / still.b, wet, shore, pixel, toward);
+        rgb = over(sea * still.b, rgb);
     }
     if cover > 0.0 {
         rgb *= 1.0 - cloudShade(cover);
@@ -208,11 +202,11 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
         rgb = rgb * (1.0 - U.GridLine.a * e) + U.GridLine.rgb * e;
     }
     // the water running down the ways and the cells it runs over, and where a way turns into water
-    if LEVEL <= 2u && run.b > 0.004 && span > 16.0 {
-        let v = (run.rg / run.b * 2.0 - 1.0) * U.FlowSpan;
-        rgb = over(RunningWater(p.xy, still.r / run.b * clamp((span - 16.0) / 8.0, 0.0, 1.0), wet, vec4<f32>(v, 0.0, 0.0)) * run.b, rgb);
+    if run.b > 0.004 {
+        let v = vec4<f32>((run.rg / run.b * 2.0 - 1.0) * U.FlowSpan, 0.0, 0.0);
+        rgb = over(RunningWaterAt(p.xy, still.r / run.b, wet, v, pixel, toward) * run.b, rgb);
     }
-    if LEVEL <= 2u && mouth.g > 0.004 && detail > 0.0 {
+    if LEVEL <= 3u && mouth.g > 0.004 && detail > 0.0 && !sunk {
         rgb = over(SeaGlintAt(p.xy, mouth.r / mouth.g * detail, wet, vec4<f32>(0.0), pixel, toward) * mouth.g, rgb);
     }
     if U.Visibility > 0.0 {
@@ -225,24 +219,11 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     return vec4<f32>(rgb, 1.0);
 }
 
-// levelAlbedo is albedo at p from the board painted flat as the level reads it, U.AlbedoPx
-// pixels a cell: shrunk at the strategic levels, so far off a cell's pattern does not shimmer.
-fn levelAlbedo(p: vec2<f32>) -> vec3<f32> {
-    return imageSrc1Linear(imageSrc1Origin() + p / U.Cell * U.AlbedoPx).rgb;
-}
-
-// banded is the light d quantised into bands steps, each edge softened a little.
-fn banded(d: f32, bands: f32) -> f32 {
-    let b = d * bands;
-    let k = floor(b);
-    return (k + smoothstep(0.42, 0.58, b - k)) / bands;
-}
-
 // grain is what the details make of the ground's colour at p: their tone doubled, so a tile of
 // mean tone leaves the colour as it is; where what stands sways (sway: how much, the wave over
 // it), the grain leans with the wind (swayShift of a cell at a full lean) and the wave lightens
 // its crests and darkens its troughs, in bands as the light is.
-fn grain(p: vec2<f32>, sway: vec2<f32>, own: f32) -> vec3<f32> {
+fn grain(p: vec2<f32>, sway: vec2<f32>, own: f32, span: f32) -> vec3<f32> {
     var q = p;
     var sheen = 0.0;
     if sway.x > 0.0 {
@@ -252,18 +233,12 @@ fn grain(p: vec2<f32>, sway: vec2<f32>, own: f32) -> vec3<f32> {
             sheen = (step(0.3, sway.y) - step(0.3, -sway.y)) * sway.x * swaySheen;
         }
     }
-    return detailAt(q, own) * 2.0 * (1.0 + sheen);
+    return detailAt(q, own, span) * 2.0 * (1.0 + sheen);
 }
 
 const swayShift = 0.3;
 const swaySheen = 0.12;
 
-// hazeDepth is how much air lies between the eye and the ground point p, world units: its
-// distance from U.Eye, or seen from above (U.HazeUp) the air over p up to that height, along the
-// lines of sight U.HazeWay.
-fn hazeDepth(p: vec3<f32>) -> f32 {
-    if U.HazeUp <= 0.0 {
-        return distance(U.Eye, p);
-    }
-    return max(U.HazeUp - p.z, 0.0) / max(-U.HazeWay.z, 0.05);
-}
+// how dark the sea's bed is under the water, and over how much of a cell's depth it darkens
+const bedWet = 0.45;
+const bedWetting = 0.02;

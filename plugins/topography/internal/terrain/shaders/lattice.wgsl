@@ -20,3 +20,7 @@ fn corner(i: vec2<f32>) -> f32 {
     let c = imageSrc0At(imageSrc0Origin() + i + 0.5);
     return U.Low + (c.r * 255.0 * 256.0 + c.g * 255.0) / 65535.0 * U.Span;
 }
+
+// how much of the heights' span the ground lies under the sea's level, 0, for the sea to lie on
+// it as a surface of its own (sea.wgsl): two of the 16 bits' steps (terrain.sunkBy)
+const sunkBy: f32 = 2.0 / 65535.0;

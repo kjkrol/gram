@@ -219,6 +219,18 @@ What is left to do. Take an item out when it lands.
 
 - **The surf follows the cells** — the line of breaking waves (`water.Shore`) runs along the
   cells' edges, not the rounded coast.
+- **The sea over its bed, what is left** (2026-11-16) — the sea's pixels are drawn twice, the
+  bed and the surface over it, the bed under deep water for nothing (Madeira's start view 128
+  FPS for 161 without the water and the buildings, an Intel UHD 620): the bed left out where
+  the game's `Clear` hides it needs the ground's shader told so without a uniform more, which
+  an Intel GPU does not forgive it. A sea cell all of whose corners touch land has no depth
+  and stays plain water beside the shallows. At L5 the sea is a sheet without its shallows.
+  The coarser tiles tell land up to 1.5 km past the coast, so Madeira's steep south has
+  shallows wider than in life.
+- **Madeira's buildings, what is left** (2026-11-16) — a cottage, a town's house and a chapel
+  of 6 by 4 m, no wider than the island's world holds a thing (`Entities.MaxSize` a cell) and
+  turned by quarters alone; a building takes its foot from the lowest ground under it, so on
+  a steep cell it stands on a tall plinth; buildings shade the ground and not each other.
 - **Roads in the isometric view** — dark and thin, covered by the routes: their colour and width.
 - **Mipmaps for the ground's details** — `gpu.Texture` holds one level, so a kind's
   `painter.Detail` fades out below 40 px a cell instead of growing coarse, and sampled minified
@@ -237,8 +249,7 @@ What is left to do. Take an item out when it lands.
   forest has no silhouette on the horizon).
 - **Underground, what is left** (2026-11-10) — the tool digs a straight tunnel alone (a level's file turns one at
   `via`); the sheets photograph the ground over a mouth uncut, and its frame is in no
-  sheet; a tunnel turns by the grid's ways alone, a kink of 45° a cell (a curve wants pieces
-  bent, the map of 10 m its cells); a chamber's wall is left out whole beside a tunnel coming
+  sheet; a chamber's wall is left out whole beside a tunnel coming
   in; its lamps are the shader's own, no
   `light.Source`; on a hex board no mouth is cut and no chamber walled (`topography.mouths`,
   `tubes.room` read a square grid); `cell.Built` grew by two floors a cell (to measure against a

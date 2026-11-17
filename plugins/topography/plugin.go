@@ -398,6 +398,15 @@ func (p *Plugin) WithShading(s painter.Shading) *Plugin {
 	return p
 }
 
+// WithSea styles the sea lying over ground lower than its level as s says: how deep it hides
+// its bed and the colour of its shallows. Nothing on a hex board.
+func (p *Plugin) WithSea(s painter.Sea) *Plugin {
+	if p.ground != nil {
+		p.ground.SetSea(s)
+	}
+	return p
+}
+
 type reporter struct{ p *Plugin }
 
 func (r reporter) Report(line func(label, value string)) {

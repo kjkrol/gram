@@ -63,7 +63,7 @@ func lay(t *testing.T, p *Plugin, file string) (*Level, error) {
 func TestLay_TheDrawingLaysTheLegendsKinds(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(4, 2, 10)
 	p := newLevelBoard(t, g, 0)
-	_, err := lay(t, p, `
+	level, err := lay(t, p, `
 board:
   default: grass
   legend:
@@ -76,6 +76,11 @@ board:
 `)
 	if err != nil {
 		t.Fatal(err)
+	}
+	wet, _ := level.Kind(g.At(1, 0))
+	if land, crossed := level.Kind(g.At(0, 0)); wet != "water" || land != "grass" || crossed {
+		t.Errorf("before the board has its cells the level tells %q and %q, a way across it "+
+			"%v; want water and the default, grass, and none", wet, land, crossed)
 	}
 	laid := map[cell.ID]cell.Entry{}
 	for _, e := range p.seeded.Cells {
@@ -158,7 +163,7 @@ func TestLay_TheReliefIsInMetres(t *testing.T) {
 func TestLay_WaysRunAlongTheirPaths(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(6, 6, 10)
 	p := newLevelBoard(t, g, 0)
-	if _, err := lay(t, p, `
+	level, err := lay(t, p, `
 ways:
   roads:
     road:
@@ -166,8 +171,14 @@ ways:
       paths: [[[0, 2], {onto: [3, 2]}], [{onto: [3, 2]}, [5, 2]], [[1, 2], [1, 5]]]
   rivers:
     - [{at: [3, 0], kind: river, width: 2}, {at: [3, 4], width: 6}, [3, 5]]
-`); err != nil {
+`)
+	if err != nil {
 		t.Fatal(err)
+	}
+	_, branch := level.Kind(g.At(1, 3))
+	if _, beside := level.Kind(g.At(0, 0)); !branch || beside {
+		t.Errorf("before the board has its cells the level tells a way across the branch's "+
+			"cell %v and across one off every path %v, want one and none", branch, beside)
 	}
 	if err := p.Populate(); err != nil {
 		t.Fatal(err)
@@ -436,5 +447,35 @@ func TestLay_AHexRoadLiesAsTransportTycoonLaysIt(t *testing.T) {
 			!strings.Contains(err.Error(), c.want)) {
 			t.Errorf("%s: %v, want %q", name, err, c.want)
 		}
+	}
+}
+
+func TestLay_AWayLedOntoACellLeavesTheWayRunningThereAsItWas(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(5, 5, 10)
+	p := newLevelBoard(t, g, 0)
+	if _, err := lay(t, p, `
+ways:
+  roads:
+    road:
+      width: 4
+      paths: [[[0, 2], {onto: [2, 2]}], [[2, 0], [2, 4]]]
+`); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Populate(); err != nil {
+		t.Fatal(err)
+	}
+	brd := p.Read(0).Board()
+	on, _ := grid.Link(g, g.At(1, 2), g.At(2, 2))
+	back, _ := grid.Link(g, g.At(2, 2), g.At(1, 2))
+	if brd.Way(g.At(1, 2)).Links&on == 0 {
+		t.Error("the way does not lead onto the cell")
+	}
+	if l := brd.Way(g.At(2, 2)).Links; l&back != 0 {
+		t.Errorf("the street running across the cell led onto: links %08b, running back into "+
+			"the way led onto it", l)
+	}
+	if !brd.Along(g.At(1, 2), g.At(2, 2)) || !brd.Along(g.At(2, 2), g.At(1, 2)) {
+		t.Error("a step between the way and the cell it leads onto goes over the ground")
 	}
 }

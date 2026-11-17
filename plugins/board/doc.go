@@ -91,7 +91,9 @@
 //	  - {kind: scout, side: player, name: ann, start: [0, 1]}
 //
 // [Plugin.Lay] seeds the board out of the file in the Spawn section and hands back a [Level]:
-// its relief for a topography's Seed ([Level.Heights]) and its entities, which [Spawn] seeds the
+// its relief for a topography's Seed ([Level.Heights]), the kinds it lays its cells as for what
+// a game stands by them there, where the board has no cells yet ([Level.Kind]), and its
+// entities, which [Spawn] seeds the
 // world with a type of row at a time, the row's fields tagged yaml being the entry's keys:
 //
 //	level, err := s.board.Lay(mapFile, "map.yaml")

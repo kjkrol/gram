@@ -70,7 +70,7 @@ roads:
 
 func TestBuild_RoadsLieAsTransportTycoonLaysThem(t *testing.T) {
 	r, height := isle(t)
-	c, err := build(r, height, nil, nil, false)
+	c, err := build(r, height, nil, nil, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestBuild_RoadsLieAsTransportTycoonLaysThem(t *testing.T) {
 
 func TestBuild_EveryLegRunsFromPlaceToPlace(t *testing.T) {
 	r, height := isle(t)
-	c, err := build(r, height, nil, nil, false)
+	c, err := build(r, height, nil, nil, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestBuild_AFlatBridgeIsACellLong(t *testing.T) {
 	r, height := isle(t)
 	r.Flat = flatCfg{Longest: 1}
 	r.Roads.Fords = false
-	c, err := build(r.asFlat(), height, nil, nil, true)
+	c, err := build(r.asFlat(), height, nil, nil, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,12 +253,12 @@ func TestTerrarium_ReadsTheTilesHeights(t *testing.T) {
 
 func TestBuild_TheAreaGrowsForSeaRoundTheLand(t *testing.T) {
 	r, height := isle(t)
-	plain, err := build(r, height, nil, nil, true)
+	plain, err := build(r, height, nil, nil, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	r.Area.Sea = 12
-	c, err := build(r, height, nil, nil, true)
+	c, err := build(r, height, nil, nil, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -706,7 +706,7 @@ ways:
 
 func TestText_WithoutFieldsOrSettlementsTheMapIsAsBefore(t *testing.T) {
 	r, height := knoll(t)
-	c, err := build(r, height, nil, nil, false)
+	c, err := build(r, height, nil, nil, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -895,7 +895,7 @@ func TestCheck_TakesAMapWithFieldsAndSettlements(t *testing.T) {
 	}
 	r.Settlements = settlementsCfg{Cells: r.Kinds.Built, Sizes: map[string]int{"town": 6}}
 	r.Roads.Places = map[string]place{"town": {At: lonLatAt(r, 5, 3), Size: "town"}}
-	c, err := build(r, height, nil, nil, false)
+	c, err := build(r, height, nil, nil, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -924,4 +924,56 @@ func lonLatAt(r recipe, x, y int) [2]float64 {
 	south := (float64(y) + 0.5 - float64(a.Cells[1])/2) * a.Cell
 	lon, lat := lonLatOf(a.Centre, east, south)
 	return [2]float64{lon, lat}
+}
+
+func TestBuild_SinksTheSeasBedAsTheCoarserTilesTell(t *testing.T) {
+	r, height := isle(t)
+	r.Bed = bedCfg{Zoom: 10, Deepest: 60}
+	// the coarser tiles: land 1.5 km past the isle's shore, then a bed falling 50 m a kilometre
+	deep := func(lon, lat float64) (float64, error) {
+		x, y := metresOf(r.Area.Centre, lon, lat)
+		off := (math.Hypot(x/9000, y/4000) - 1) * 4000
+		return 30 - off*0.02 - max(off-1500, 0)*0.05, nil
+	}
+	plain, err := build(r, height, nil, nil, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := build(r, height, deep, nil, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cols := c.cols + 1
+	at := func(x, y int) float64 { return c.corners[y*cols+x] }
+	for k, h := range c.corners {
+		x, y := k%cols, k/cols
+		switch {
+		case !c.afloat(x, y) && h != plain.corners[k]:
+			t.Fatalf("the corner [%d, %d] a land's cell touches moved from %v to %v", x, y,
+				plain.corners[k], h)
+		case c.afloat(x, y) && (h > -1 || h < -60 || h != math.Round(h)):
+			t.Fatalf("the bed at [%d, %d] lies at %v, want whole metres from 1 down to 60", x, y,
+				h)
+		}
+	}
+	if far := at(0, 0); far != -60 {
+		t.Errorf("far off the bed lies at %v, want the deepest, 60 m", far)
+	}
+	// south from the isle, west of its valley: from the shore's level down, never back up
+	x, y := c.cols/4, c.rows/2
+	for y < c.rows && !c.afloat(x, y) {
+		y++
+	}
+	edge := at(x, c.rows)
+	if first := at(x, y+1); first >= 0 || first <= edge {
+		t.Errorf("two cells off the shore, where the coarser tiles tell land, the bed lies at "+
+			"%v, want it under the sea's level and over the %v they tell at the edge", first,
+			edge)
+	}
+	for ; y < c.rows; y++ {
+		if at(x, y+1) > at(x, y) {
+			t.Fatalf("the bed rises seaward from %v at [%d, %d] to %v", at(x, y), x, y,
+				at(x, y+1))
+		}
+	}
 }

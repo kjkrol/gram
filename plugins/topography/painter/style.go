@@ -44,3 +44,13 @@ type Shading struct {
 	ShadowTint color.RGBA
 	Warmth     float32
 }
+
+// Sea is how the sea over ground lower than its level looks: Clear, world units, is how deep
+// its water hides all but 1/e of the ground under it (zero: a metre of life), and Shallows the
+// colour it turns to over shallow ground, all but 1/e of it gone Shoal world units deep (zero:
+// none).
+type Sea struct {
+	Clear    float32
+	Shoal    float32
+	Shallows color.RGBA
+}

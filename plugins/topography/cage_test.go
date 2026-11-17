@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/internal/topotest"
@@ -98,5 +99,28 @@ func TestCage_IsFreeOverTheGroundAndWhatStandsOnIt(t *testing.T) {
 	}
 	if step, thin := p.Read(0).Grain(hx, hy); step != 0 || thin != 0 {
 		t.Errorf("away from any deck the grain is %v, %v, want none", step, thin)
+	}
+}
+
+func TestCage_TheSeaIsSolidUpToItsLevelOverTheGroundUnderIt(t *testing.T) {
+	w := topotest.NewWorld(0)
+	b, grid := topotest.LevelBoard(w)
+	p := topography.NewPlugin(w, b, nil, topography.Config{})
+	sea := grid.At(2, 1)
+	p.Write().Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float32 {
+		if c == sea {
+			return -24
+		}
+		return 0
+	}))
+	b.Write().Board().Set(sea, cell.Kind{Name: cell.Named("sea"), Pace: 1, Allows: cell.Water})
+	centre := grid.CellCenter(sea)
+	x, y := float32(centre.X), float32(centre.Y)
+	if bottom := p.Write().Relief().At(centre); bottom >= -1 {
+		t.Fatalf("the harbour's floor lies at %v, want it sunk", bottom)
+	}
+	if p.Read(0).Free(x, y, -1) || !p.Read(0).Free(x, y, 1) {
+		t.Errorf("over the sea: free under its level %v, over it %v; want solid, then free",
+			p.Read(0).Free(x, y, -1), p.Read(0).Free(x, y, 1))
 	}
 }

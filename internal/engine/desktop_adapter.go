@@ -3,6 +3,7 @@ package engine
 import (
 	"log"
 	"os"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,6 +25,7 @@ type InputAdapter interface {
 type DesktopAdapter struct {
 	app     *gogpu.App
 	pointer pointer
+	keys    keyboard
 
 	mu      sync.Mutex
 	pending []gpucontext.InputEvent
@@ -92,12 +94,10 @@ func (a *DesktopAdapter) Capture(e *control.InputEvents) {
 	a.drain(func(ev gpucontext.InputEvent) {
 		switch ev := ev.(type) {
 		case gpucontext.KeyEvent:
-			if k := keyOf(ev.Key); k != control.KeyUnknown {
-				action := control.ActionRelease
-				if ev.Pressed {
-					action = control.ActionPress
-				}
-				e.AddKeyEvent(k, action)
+			a.keys.take(ev, e)
+		case gpucontext.FocusEvent:
+			if !ev.Focused {
+				a.keys.leave(e)
 			}
 		case gpucontext.PointerEvent:
 			at := a.pointer.take(ev, w, h, fills)
@@ -114,11 +114,10 @@ func (a *DesktopAdapter) Capture(e *control.InputEvents) {
 	})
 	a.pointer.apply(e)
 	e.ScrollDelta = -scroll.Y
-	kb, mouse := a.app.Input().Keyboard(), a.app.Input().Mouse()
-	e.Modifiers.Shift = kb.Pressed(input.KeyShiftLeft) || kb.Pressed(input.KeyShiftRight)
-	e.Modifiers.Ctrl = kb.Pressed(input.KeyControlLeft) || kb.Pressed(input.KeyControlRight)
-	e.Modifiers.Alt = kb.Pressed(input.KeyAltLeft) || kb.Pressed(input.KeyAltRight)
-	e.MiddleDown = mouse.Pressed(input.MouseButtonMiddle)
+	e.Modifiers.Shift = a.keys.held(control.KeyShift)
+	e.Modifiers.Ctrl = a.keys.held(control.KeyControl)
+	e.Modifiers.Alt = a.keys.held(control.KeyAlt)
+	e.MiddleDown = a.app.Input().Mouse().Pressed(input.MouseButtonMiddle)
 	if logInput {
 		a.log(e, w, h, fills)
 	}
@@ -243,6 +242,52 @@ func (p *pointer) apply(e *control.InputEvents) {
 		}
 	}
 	p.abs, p.known = p.last, true
+}
+
+// keyboard is the keys the window has given down and not let go. gogpu's own keyboard state
+// keeps a key down when it is let go in another window (the Alt of Alt+Tab, the Shift of a
+// screenshot's shortcut), which held every key after it in a chord: the keys go as the window
+// loses the keyboard.
+type keyboard struct {
+	down []gpucontext.Key
+}
+
+// take folds one key event into e
+func (k *keyboard) take(ev gpucontext.KeyEvent, e *control.InputEvents) {
+	key := keyOf(ev.Key)
+	if key == control.KeyUnknown {
+		return
+	}
+	i := slices.Index(k.down, ev.Key)
+	action := control.ActionRelease
+	switch {
+	case ev.Pressed:
+		action = control.ActionPress
+		if i < 0 {
+			k.down = append(k.down, ev.Key)
+		}
+	case i >= 0:
+		k.down = slices.Delete(k.down, i, i+1)
+	}
+	e.AddKeyEvent(key, action)
+}
+
+// leave lets every key down go into e, both Shifts one Shift
+func (k *keyboard) leave(e *control.InputEvents) {
+	for len(k.down) > 0 {
+		key := keyOf(k.down[0])
+		k.down = slices.DeleteFunc(k.down, func(d gpucontext.Key) bool { return keyOf(d) == key })
+		e.AddKeyEvent(key, control.ActionRelease)
+	}
+}
+
+func (k *keyboard) held(key control.Key) bool {
+	for _, d := range k.down {
+		if keyOf(d) == key {
+			return true
+		}
+	}
+	return false
 }
 
 func buttonOf(b gpucontext.Button) (control.MouseButton, bool) {

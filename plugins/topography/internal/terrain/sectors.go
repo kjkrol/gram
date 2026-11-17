@@ -5,6 +5,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/lod"
+	"github.com/kjkrol/gram/render"
 )
 
 // span is a run of the ground's triangles' indices, drawn at a level
@@ -201,7 +202,79 @@ func (r *Renderer) runs(cam camera.Camera, dst []span) []span {
 	})
 	skirt := r.skirted
 	skirt.level = skirtLevel
-	dst = append(dst, skirt)
+	return join(append(dst, skirt))
+}
+
+// the runs of the sea drawn through cam: the sectors its View sees short of L5, each at its
+// level, joined where they follow one another at one level; the whole sea at Standard in a world
+// of no sectors
+func (r *Renderer) seaRuns(cam camera.Camera, dst []span) []span {
+	if r.seaGrid == nil {
+		return append(dst, span{0, len(r.seaTris), lod.Standard})
+	}
+	r.cfg.Seen(cam).Sectors(func(i int, _ geom.AABB, level lod.Level) {
+		if s := r.seaSpans[i]; s.count > 0 && level <= lod.Strategic {
+			s.level = level
+			dst = append(dst, s)
+		}
+	})
+	return join(dst)
+}
+
+// laySea lays the sea's triangles: the cells water may lie on with a corner under the sea's level
+// as sea.wgsl tells it (sunkBy of the heights' span), split as the ground's are, by the sectors
+// the ground is laid by
+func (r *Renderer) laySea(cols, rows int, cell float32, heights []float32) {
+	all, wet, by := r.painted.Wetness == 0, r.painted.Wet, r.span*sunkBy
+	sunk := func(x, y int) bool {
+		if i := y*(cols-1) + x; !all && (i >= len(wet) || !wet[i]) {
+			return false
+		}
+		k := y*cols + x
+		return min(heights[k], heights[k+1], heights[k+cols], heights[k+cols+1]) < -by
+	}
+	lay := func(c cells) {
+		for y := c.y0; y < c.y1; y++ {
+			for x := c.x0; x < c.x1; x++ {
+				if !sunk(x, y) {
+					continue
+				}
+				i0, i2 := uint32(y*cols+x), uint32((y+1)*cols+x)
+				h0, h1, h2, h3 := heights[i0], heights[i0+1], heights[i2], heights[i2+1]
+				if f32.Abs(h0-h3) < f32.Abs(h1-h2) {
+					r.seaTris = append(r.seaTris, i0, i0+1, i2+1, i0, i2+1, i2)
+				} else {
+					r.seaTris = append(r.seaTris, i0, i0+1, i2, i0+1, i2+1, i2)
+				}
+			}
+		}
+	}
+	r.seaTris = r.seaTris[:0]
+	if r.seaGrid == nil {
+		lay(cells{0, 0, cols - 1, rows - 1})
+	} else {
+		r.seaSpans = append(r.seaSpans[:0], make([]span, r.seaGrid.Len())...)
+		for i := range r.seaSpans {
+			from := len(r.seaTris)
+			lay(cellsIn(r.seaGrid.Box(i), cell, cols, rows))
+			r.seaSpans[i] = span{first: from, count: len(r.seaTris) - from}
+		}
+	}
+	if r.seaMesh != nil {
+		r.seaMesh.Release()
+		r.seaMesh = nil
+	}
+	if len(r.seaTris) > 0 {
+		r.seaMesh = render.NewIndices(r.seaTris)
+	}
+}
+
+// how much of the heights' span a corner lies under the sea's level for the sea to lie on its
+// cell: two of the 16 bits' steps the lattice holds them in (lattice.wgsl's sunkBy)
+const sunkBy = 2.0 / 65535
+
+// the runs dst sorted, those following one another at one level joined
+func join(dst []span) []span {
 	sortSpans(dst)
 	joined := dst[:0]
 	for _, s := range dst {

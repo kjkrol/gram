@@ -13,6 +13,7 @@ import (
 	"image"
 	"image/color"
 	"math"
+	"slices"
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/lod"
@@ -42,27 +43,55 @@ func init() {
 	}
 }
 
+// the sea's shader for each level it draws at, sea.wgsl's LEVEL, the close levels drawn as
+// Standard, none past Strategic
+var seaByLevel [lod.Omitted]*render.Shader
+
+func init() {
+	for l := lod.Standard; l <= lod.Strategic; l++ {
+		seaByLevel[l] = sea(l)
+	}
+	for l := range lod.Standard {
+		seaByLevel[l] = seaByLevel[lod.Standard]
+	}
+}
+
+var uniforms = []render.Uniform{
+	{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1},
+	{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1},
+	{Name: "Span", Size: 1}, {Name: "ShoreReach", Size: 1}, {Name: "Px", Size: 1},
+	{Name: "AlbedoSize", Size: 2}, {Name: "WaterPx", Size: 1}, {Name: "FlowSpan", Size: 1},
+	{Name: "Shadows", Size: 1}, {Name: "GridFrom", Size: 1},
+	// in the alignment the vec4 GridLine leaves free
+	{Name: "AlbedoPx", Size: 1},
+	{Name: "GridLine", Size: 4}, {Name: "GridWidth", Size: 1},
+	{Name: "Skirt", Size: 2}, {Name: "Perspective", Size: 1},
+	{Name: "HazeUp", Size: 1}, {Name: "HazeWay", Size: 3},
+	{Name: "Sight", Size: 4}, {Name: "DetailPx", Size: 1},
+	{Name: "Bands", Size: 1}, {Name: "ShadowTint", Size: 3}, {Name: "Warmth", Size: 1},
+	{Name: "Mouths", Size: 1},
+}
+
 func leveled(level lod.Level) *render.Shader {
 	src := render.Files(shaders, "shaders/lattice.wgsl", "shaders/light.wgsl",
 		"shaders/surface.wgsl", "shaders/detail.wgsl", "shaders/sway.wgsl", "shaders/grid.wgsl",
-		"shaders/mesh.wgsl")
+		"shaders/ground.wgsl", "shaders/mesh.wgsl")
 	src = append([]byte(fmt.Sprintf("const LEVEL: u32 = %du;\n", level)), src...)
-	return render.NewMeshShaderWith(fmt.Sprintf("terrain-level%d", level), src, []render.Uniform{
-		{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1},
-		{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1},
-		{Name: "Span", Size: 1}, {Name: "ShoreReach", Size: 1}, {Name: "Px", Size: 1},
-		{Name: "AlbedoSize", Size: 2}, {Name: "WaterPx", Size: 1}, {Name: "FlowSpan", Size: 1},
-		{Name: "Shadows", Size: 1}, {Name: "GridFrom", Size: 1},
-		// in the alignment the vec4 GridLine leaves free
-		{Name: "AlbedoPx", Size: 1},
-		{Name: "GridLine", Size: 4}, {Name: "GridWidth", Size: 1},
-		{Name: "Skirt", Size: 2}, {Name: "Perspective", Size: 1},
-		{Name: "HazeUp", Size: 1}, {Name: "HazeWay", Size: 3},
-		{Name: "Sight", Size: 4}, {Name: "DetailPx", Size: 1},
-		{Name: "Bands", Size: 1}, {Name: "ShadowTint", Size: 3}, {Name: "Warmth", Size: 1},
-		{Name: "Mouths", Size: 1},
-	})
+	return render.NewMeshShaderWith(fmt.Sprintf("terrain-level%d", level), src, uniforms)
 }
+
+func sea(level lod.Level) *render.Shader {
+	src := render.Files(shaders, "shaders/lattice.wgsl", "shaders/light.wgsl",
+		"shaders/surface.wgsl", "shaders/ground.wgsl", "shaders/sea.wgsl")
+	src = append([]byte(fmt.Sprintf("const LEVEL: u32 = %du;\n", level)), src...)
+	own := append(slices.Clone(uniforms), render.Uniform{Name: "SeaClear", Size: 1},
+		render.Uniform{Name: "SeaShoal", Size: 1}, render.Uniform{Name: "SeaShallows", Size: 3})
+	return render.NewMeshShaderWith(fmt.Sprintf("sea-level%d", level), src, own)
+}
+
+// how deep the sea is, in metres, along the eye's way through it, as it hides all but 1/e of the
+// ground under it where the game says none: a harbour's water
+const seaClear = 1.0
 
 // enough rings for the world's curve to bend the skirt under the horizon smoothly
 const skirtRings = 12
@@ -157,6 +186,7 @@ type Renderer struct {
 	cfg     Config
 	hazed   bool
 	shading painter.Shading
+	sea     painter.Sea
 
 	// quadrants: heights, normals, wet cells, shores
 	lattice   *render.Image
@@ -185,6 +215,17 @@ type Renderer struct {
 	uniforms map[string][]float32
 	boxed    map[string]any
 	photo    photoMesh
+
+	// the sea's surface over the cells it lies on deeper than their ground: its triangles, by
+	// sector where the world has them, the heights' version and the wetness they were laid at,
+	// and the runs a frame draws
+	seaTris  []uint32
+	seaSpans []span
+	seaMesh  *render.Indices
+	seaAt    [2]uint64
+	seaGrid  view.Sectors
+	seaDrawn []span
+	seaOpts  render.DrawMeshOptions
 }
 
 var _ render.Direct = (*Renderer)(nil)
@@ -193,6 +234,7 @@ var _ render.Direct = (*Renderer)(nil)
 func New(ground Ground, surface Surface, sky Sky, cfg Config) *Renderer {
 	r := &Renderer{ground: ground, surface: surface, sky: sky, cfg: cfg, uniforms: map[string][]float32{}, boxed: map[string]any{}}
 	r.opts = render.DrawMeshOptions{WriteDepth: true, Primed: true, Uniforms: map[string]any{}}
+	r.seaOpts = render.DrawMeshOptions{Uniforms: r.opts.Uniforms}
 	r.photo.init(cfg.Painted)
 	return r
 }
@@ -204,32 +246,34 @@ func Shaders() []*render.Shader { return byLevel[lod.Standard:] }
 // Levels is how many sectors the last frame drew at each level.
 func (r *Renderer) Levels() [lod.Levels]int { return r.counts }
 
-// Compose has the ground drawn Direct, in the opaque pass, and hands the frame its heights
-// (render.GroundHeights), as the image holds them from this frame on.
+// Compose has the ground drawn Direct, in the opaque pass, and the sea's surface over it among
+// what is seen through, and hands the frame its heights (render.GroundHeights), as the image
+// holds them from this frame on.
 func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	f.DrawOpaque()
 	cols, rows, cell, _, _ := r.ground.Lattice()
 	if !r.heightsOf(cam) {
 		return
 	}
+	if r.seaMesh != nil && r.painted.Water != nil {
+		f.DrawAt(f.OnGround(0))
+	}
 	f.GroundHeights(render.GroundHeights{Image: r.lattice, Corners: [2]int{cols, rows}, Cell: cell,
 		Low: r.low, Span: r.span})
 }
 
 // Draw draws the ground into the target through cam under the frame's uniforms u, each sector
-// seen at its level. It draws nothing through a camera without Rays, or off a square grid.
+// seen at its level, or among what is seen through the sea's surface over it. It draws nothing
+// through a camera without Rays, or off a square grid.
 func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if t.Screen == nil || t.Depth == nil || !r.prepare(cam, u) {
 		return
 	}
-	albedo := r.painted.Albedo
-	if albedo == nil {
-		if r.plain == nil {
-			r.plain = render.NewImage(1, 1)
-			r.plain.Fill(color.RGBA{128, 128, 128, 255})
-		}
-		albedo = r.plain
+	if t.Pass == render.SeeThrough {
+		r.drawSea(t, cam)
+		return
 	}
+	albedo := r.albedo()
 	r.opts.Images = [4]*render.Image{r.lattice, nil, r.painted.Water, r.painted.Kinds}
 	r.opts.Depth = t.Depth
 	r.drawn = r.runs(cam, r.drawn[:0])
@@ -241,6 +285,37 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		t.Screen.DrawMesh(r.mesh, byLevel[level], &r.opts)
 	})
 	r.drawPhotos(t, cam)
+}
+
+// drawSea draws the sea's surface into the target through cam, over the sectors cam sees short
+// of L5, each at its level, tested against the depth the frame holds and leaving it
+func (r *Renderer) drawSea(t render.Target, cam camera.Camera) {
+	if r.seaMesh == nil || r.painted.Water == nil {
+		return
+	}
+	albedo := r.albedo()
+	r.seaOpts.Images = [4]*render.Image{r.lattice, nil, r.painted.Water, r.painted.Kinds}
+	r.seaOpts.Depth = t.Depth
+	r.seaDrawn = r.seaRuns(cam, r.seaDrawn[:0])
+	r.eachLevel(r.seaDrawn, func(level lod.Level, ranges []render.IndexRange) {
+		r.seaOpts.Ranges = ranges
+		shrunk, apx := r.albedoAt(level, albedo)
+		r.seaOpts.Images[1] = shrunk
+		r.set("AlbedoPx", apx)
+		t.Screen.DrawMesh(r.seaMesh, seaByLevel[level], &r.seaOpts)
+	})
+}
+
+// the board painted flat, plain grey where the surface has none
+func (r *Renderer) albedo() *render.Image {
+	if r.painted.Albedo != nil {
+		return r.painted.Albedo
+	}
+	if r.plain == nil {
+		r.plain = render.NewImage(1, 1)
+		r.plain.Fill(color.RGBA{128, 128, 128, 255})
+	}
+	return r.plain
 }
 
 // the board painted flat as level reads it, whole short of Strategic, halved at it and quartered
@@ -363,6 +438,10 @@ func (r *Renderer) refresh(cam camera.Camera) bool {
 		r.buf = flags(cols, rows, r.painted.Wet, r.painted.Wetness == 0, r.painted.Takes,
 			r.painted.Sway, r.painted.CellDetails, r.buf[:0])
 		r.write(0, rows, cols, rows)
+	}
+	if k := [2]uint64{r.heightsAt, r.painted.Wetness + 1}; r.seaAt != k || r.seaGrid != r.grid {
+		r.seaAt, r.seaGrid = k, r.grid
+		r.laySea(cols, rows, cell, heights)
 	}
 	return true
 }
@@ -585,6 +664,9 @@ func (r *Renderer) hazing() bool {
 // SetShading styles the light on the ground as s says.
 func (r *Renderer) SetShading(s painter.Shading) { r.shading = s }
 
+// SetSea styles the sea over ground lower than its level as s says.
+func (r *Renderer) SetSea(s painter.Sea) { r.sea = s }
+
 func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	cols, rows, cell, _, _ := r.ground.Lattice()
 	r.set("ViewProj", t.M[:]...)
@@ -640,6 +722,14 @@ func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	}
 	r.set("ShadowTint", tint[:]...)
 	r.set("Warmth", r.shading.Warmth)
+	clear := r.sea.Clear
+	if clear <= 0 {
+		clear = r.cfg.Scale.Units(seaClear)
+	}
+	r.set("SeaClear", clear)
+	r.set("SeaShoal", r.sea.Shoal)
+	c := r.sea.Shallows
+	r.set("SeaShallows", float32(c.R)/255, float32(c.G)/255, float32(c.B)/255)
 }
 
 // times farther from the world's middle than its edge: to the horizon seen from under the

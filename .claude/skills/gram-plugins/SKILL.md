@@ -1,6 +1,6 @@
 ---
 name: gram-plugins
-description: Reference of gram's built-in plugins, one entry each — world (with entity, view, clock), motion (with steering), light, board (cells, units, standing entities, bridges, maps as files, gramap), topography, atmosphere, collision, navigation, selection, players and owner, dialog, cameras, driving, gravity, vision, bridges, underground, telemetry, minimap, bullet: how each is wired and in what order, what it rests on, its invariants, the user's decisions, the traps and the ideas dropped. Use when working in or with a specific plugin, before reading its code.
+description: Reference of gram's built-in plugins, one entry each — world (with entity, view, clock), motion (with steering), light, board (cells, units, standing entities, bridges, maps as files, gramap), topography, atmosphere, collision, navigation, selection, players and owner, dialog, cameras, driving, gravity, vision, bridges, underground, buildings, telemetry, minimap, bullet: how each is wired and in what order, what it rests on, its invariants, the user's decisions, the traps and the ideas dropped. Use when working in or with a specific plugin, before reading its code.
 ---
 
 # gram-plugins
@@ -309,6 +309,23 @@ keeps only what those do not.
   alike, at the slope of the step to the neighbour the unit goes into, so what the planner allows
   the unit walks. Steep is the relief's (`Map.Rise`), never a kind's; what it does to a unit is
   the mobility's.
+- **A floor carries its own step** (2026-11-13): a tunnel climbing more a cell than a step
+  was no way to a route, and a floor of a kind not `Graded` was priced by the ground under
+  it, a cliff under a bridge over a ravine (a `Graded` kind reads no slope at all, so the
+  built-in decks never showed it). `board.Read.Pace` and the standing pass's pace take
+  the floors' own heights over the run of the cells' middles (`BoardRead.rise`, `ledRise`: by
+  the level the unit stands on, from the band's own cell where it crosses a corner of
+  another, off a deck onto its head and onto a floor beginning there); `pathfind.price`
+  prices a slantwise step on a deck as the deck's. A floor's top is its middle's:
+  `Footing().Surface` grades a raised band as a sunk one, to the ground at the shared edge
+  where it ends, `stoodOn` and the finder's `levelOf` allow the band's dip at its low edge
+  (`terrain.Read.Dip`, `pathfind.Storey.Dip`), and `pathfind.passes` lets a floor running on
+  climb and be stepped onto and off at its ends, the pacing judging the slope. A solid kind
+  of no height stands no higher than the underside of a deck over its cell
+  (`field.underDecks`). `rise` and `ledRise` ask `Storeyed()` first: read for every unit a
+  tick, the floors' lookups cost 6–12 % of the navigation's tick on a board with none
+  (measured 2026-11-16). A route that avoids a structure it should take: probe the steps one
+  by one (a unit from head to head) before blaming the prices.
 - No share exceeds 1 (`Define` refuses a kind admitting someone at no pace or above 1, `PaceOf`
   panics naming the kind): the planner's h, the grid's distance, rests on it.
 - `cell.DefaultHiking` is Tobler's hiking function cut at the flat: a descent never quicker than
@@ -403,7 +420,15 @@ keeps only what those do not.
   cells; their heads, first cells and corners are pinned for every later levelling (`held`
   plans each anew as `hold` does the bridges). What decides the yield is the 10° of
   `ground.RoadSlope` and the room of figures 15 times life, not the planner. `GRAMAP_MADEIRA=1
-  go test ./cmd/gramap -run TestMadeira` holds both of Madeira's maps to their SHA-256.
+  go test ./cmd/gramap -run TestMadeira` holds both of Madeira's maps to their SHA-256. The
+  map's one lantern (`{kind: lantern, at: [184, 76]}`) is written by hand: put it back after a
+  map is made anew. The sea's bed (`bed.go`, `bed: {zoom, deepest}`, 2026-11-16): the tiles of
+  the map's own zoom have the sea at 0, zoom 10 and coarser have its depths (ETOPO1), with
+  land told up to 1.5 km past the fine coast: a corner the sea alone touches (`afloat`) takes
+  the coarse depth where it is under 0 and is evened between the shore and there where it is
+  not (Gauss-Seidel, in a fixed order), whole metres, one at least (a sea cell with a corner
+  afloat is always sunk for the terrain), `deepest` at most. Sinking comes last in `build`:
+  the rivers drain to a sea at 0.
   Fields and settlements (`fields.go`, `settle.go`, `d/gramap`, 2026-11-06): `fields:` rows
   `{cells, kind, grain, least}` lay a field entity a block of `grain` cells from (0, 0) over the
   cells of a kind where at least `least` lie, written as `{kind, from: [x, y], to: [x, y],
@@ -482,13 +507,17 @@ keeps only what those do not.
   cost about 1.2 ms a frame so), and not on the skirt, whose huge far triangles showed it as
   angular shadows on the horizon.
 - By sector and level, from the camera's View (`gram-plugins` world): a shader a level (`const
-  LEVEL`): L2 everything on the whole lattice, L3 without shore, running water or mouth glint,
-  L4 on the coarse lattice (every second corner, the edge ring one cell stitched by fans to
-  every outer corner, crack-free) with still water a mirror and no lamps or baked shade, the
-  painter's albedo at half its size; L5 on the coarser lattice (every fourth corner, the same
-  ring; a Madeira sector 94 triangles against 190 and 512; `lattice.coarse(c, step, dst)`, a
-  sector too small for the step falling back) with the albedo at a quarter as the only colour,
-  lit by ambient and the sun's diffuse alone so it does not glow at night; the albedo's halves
+  LEVEL`): L2 everything on the whole lattice, L3 without the grid, L4 on the coarse lattice
+  (every second corner, the edge ring one cell stitched by fans to every outer corner,
+  crack-free) without the mouths' glint, the lamps or the baked shade, the painter's albedo at
+  half its size; the water is alive through L4 (the user's word, 2026-11-16: waves, surf and
+  running rivers seen from afar), what is finer than two pixels left out by `seenAt`, long
+  sine swells coming in as the 15-unit waves go out of sight (`farFrom`), a river's ripples
+  drawn no narrower than four pixels and carried as many of their widths (`farRipple`); L5 on the
+  coarser lattice (every fourth corner, the same ring; a Madeira sector 94 triangles against 190 and
+  512; `lattice.coarse(c, step, dst)`, a sector too small for the step falling back) with the albedo
+  at a quarter as the only colour, lit by ambient and the sun's diffuse alone so it does not glow at
+  night; the albedo's halves
   (`Painter.Shrunk`, `Painted.AlbedoHalf/Quarter`, `DrawImage` at 0.5 after every bake, the
   changed cells' rectangles widened to fours after a partial one) are bound as `Images[1]` by
   level with the uniform `AlbedoPx` (the shader reads the albedo in its pixels; `U.Px` serves the
@@ -527,6 +556,28 @@ keeps only what those do not.
   (the sheet's
   albedo flat on the L4 tops) and one quad a sector from its tops' image at L5, the sheet over
   it. No care rings, no care settings (the user's rule: one level a sector).
+- **The terrain's fragment shader stands at a cliff on an Intel GPU** (measured 2026-11-16,
+  `Benchmark_Frame_Topography`, its `iso,no-water` rung the detector: no water is read there,
+  so what it loses is the shader's shape alone). The shore read for every pixel of water in
+  place of under a condition of its own (`if span >= shoreFrom { shore = shoreAt(p.xy) }`)
+  cost 24 % of the frame on every pixel, land too; four lattice reads in an `&&` chain
+  (`sunken`) and an early `return` for the deep bed cost as much or more than they saved.
+  Every change to `mesh.wgsl`, or to what it inlines of `water`, is measured there before it
+  is believed; a read for every pixel of the sea costs the strategic level about a twelfth of
+  its frame (the flow is read where `still.r` says water runs, the mouths not at L4).
+- **A board too wide had no water** (till 2026-11-16): the water's layers lie in quadrants,
+  twice the board across, and are painted at fewer pixels a cell than the albedo to fit
+  `maxSheet` (`minWaterPx` 2; Madeira's 640 cells get 3 where the albedo has 6). Before, the
+  sheet was nil and the island had neither waves nor a river running at any distance.
+- **The sea over its bed** (`shaders/sea.wgsl`, `laySea`, `painter.Sea`): where the ground goes
+  under the level, 0, the ground's shader draws the bed (darker under the water, `p.z <
+  -sunkBy·Span` alone decides: no read) and the sea is a mesh of its own at the level over
+  the wet cells with a corner under it, drawn among what is seen through at `OnGround(0)`,
+  two passes over those pixels; `Clear` hides the bed, `Shoal` and `Shallows` tint the
+  shallows (the uniforms are the sea's shader's own: the ground's block takes no more). A sea
+  cell all of whose corners touch land has no depth and is drawn by the ground, plain beside
+  the shallows; at L5 there is no surface and no tint. The cage is free over the sea's level
+  (`topAt`).
 - The billboards stand upright across the screen's level right, as tall on the screen as their
   `Height` and inside their box, shorter the steeper the view.
 - Its parts are packages none of which imports the plugin. selection must not import topography,
@@ -929,6 +980,13 @@ keeps only what those do not.
   floor whoever has its feet under its roof and within a step over its floor (`stoodOn`); feet
   at +Inf (a pick from above) never. A sunk band's floor is graded between its pieces
   (`surfaces.graded`), the tube's stretches drawn to the same mean at the edge.
+- A tube turning in its cell is `bends` pieces along a curve (`bent`: from the edge it comes
+  in by to the one it goes out by, the cell's middle the control point), each cut on the
+  plane between it and the next at either end (`joint`; the shader's `c.z` at b, `c.w` at a,
+  a frame's piece told by a bit of its faces) and square to the grid's way at the cell's
+  edges, where the straight stretches beyond meet it; cut at b alone the outer wall left a
+  slit at every piece. The lamps are counted along the curve, and the course drawn from
+  above follows its pieces (2026-11-16, the user's word: a tunnel turns in arcs).
 - **A mouth is square to its tunnel** (2026-11-11): `site.Plan` refuses a tunnel out across its
   head's corner, since the tube, wider than the corner, runs under the two cells beside, whose
   ground stands in it or, cut, leaves holes under the frame; `site.Square` leads the tool's
@@ -1021,6 +1079,41 @@ keeps only what those do not.
 - The sector's side comes from the world (`Read.SectorSide`). The demos: topography's `woods`
   (`forest.go`: laurel, pine, heather by height; `tree.go` the specs), forest-army's `forest`
   with its felled role and two stands.
+
+## buildings
+
+- Made over the world and the board (`NewPlugin(w, brd)`, after the forest, run right after the
+  world in `update`); `WithAir(sky)` in the scene beside the topography's `WithAtmosphere`.
+  The buildings are lines kept by sector in `Res.Stood` (`Write.Spawn` off a level's file,
+  `Write.Stand` from a game's code), saved with the game; `Restore` lays them anew.
+- A building is drawn by the plugin's own Direct (`renderer.go`, `shaders/solid.wgsl`: an
+  instance a part, the vertices from `vertex_index`, five vec4, kept on the GPU a sector,
+  `render.Instances`), at every level, from the lines, never from the entities, and is in no
+  sheet (the user's word, 2026-11-12; CLAUDE.md). Its foot is the lowest ground under its
+  body's corners, its storeys are counted from the highest; the buffers are laid in `Publish`
+  once the board's heights are there.
+- The level is the sector's in the camera's view (`view.Sectors`): fine parts under
+  `Strategic`, coarse (bodies, no windows, no `Fine` parts) from it. **A picture drawn in
+  layers draws the Direct once a layer**: `Draw` keeps the sectors showing in the layer's
+  window and not wholly within the next layer's (`camera.Inner`, `Transform.Shows`), a
+  sector's box widened by `overhang`, half the widest building.
+- The shade and the lamps are worked out a vertex, not a fragment; a wall takes no shade of the
+  blocks (`standingShadeAt` would shade it with its own block), so buildings shade the ground,
+  not each other.
+- A building is an entity only in a stretch unfolded: the game's settlement gives `Raise`
+  under its `Unfold`; the plugin's system, run after the world's in the same step, finds the
+  stretch (`world.Read.Unfolding`; a preview is skipped) and puts a `world.SpawnPartIn` a line
+  in the settlement's name. Its box is the turned rectangle's, so `Entities.MaxSize` must hold
+  it: raising `MaxSize` doubles the space's buckets (`MaxSize × capacity` up to a power of
+  two) and `Sectors.Buckets` with them. Madeira 100 m keeps `MaxSize` a cell and stands
+  buildings of 6 by 4 m (29 by 19 units at 15 times life), turned by quarters alone.
+- **In the Spawn section the board has no cells yet** (seeded, populated after): a game
+  standing things by its cells there reads `board.Level.Kind` (the demo's `settle`), never
+  `Board().Bare`, which tells nothing till the first step; its rules read the board.
+- Madeira's settlements (`building.go`, `settlement.go`): a building a built cell no way
+  crosses (nothing stands on a road or in a river), against the edge its cell's seed picks
+  (`lot`), the quarters across the cell its yard: the lamp of a part's heart and a garden's
+  tree stand there, by the same `lot` in the rules as in `settle`.
 
 ## roads, with site
 

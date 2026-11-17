@@ -56,6 +56,18 @@ func (n *Network) Link(a, b cell.ID) bool {
 	return true
 }
 
+// Lead has a run on to its neighbour b and b not back: a way led onto what stands in b's cell,
+// a bridge, a ford or a tunnel, leaves a way running in that cell as it was; false where they
+// are no neighbours.
+func (n *Network) Lead(a, b cell.ID) bool {
+	ab, ok := grid.Link(n.grid, a, b)
+	if !ok {
+		return false
+	}
+	n.links[a] |= ab
+	return true
+}
+
 // Flow has from run down on to its neighbour to, linked back where the network runs through to;
 // a river's last cell runs on to the sea, which is no part of it. It is false where they are no
 // neighbours.

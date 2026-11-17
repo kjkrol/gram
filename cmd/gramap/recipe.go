@@ -21,6 +21,7 @@ type recipe struct {
 	Ground      groundCfg      `yaml:"ground"`
 	Cover       coverCfg       `yaml:"cover"`
 	Rivers      riversCfg      `yaml:"rivers"`
+	Bed         bedCfg         `yaml:"bed"`
 	Roads       roadsCfg       `yaml:"roads"`
 	Tunnels     tunnelsCfg     `yaml:"tunnels"`
 	Fields      []fieldCfg     `yaml:"fields"`
@@ -296,6 +297,10 @@ func (r recipe) validate() error {
 	land := append(r.Kinds.land(), r.Cover.kinds()...)
 	if err := r.Cover.validate(); err != nil {
 		return err
+	}
+	if b := r.Bed; b.Zoom < 0 || b.Zoom > 14 || b.Zoom > 0 && b.Deepest <= 0 {
+		return fmt.Errorf("bed: want a zoom of the tiles, 1 to 14, and the deepest it lies, " +
+			"metres")
 	}
 	for i, f := range r.Fields {
 		switch {

@@ -6,6 +6,11 @@ area:
   units: 32
   figures: 15 # times bigger than life the demos draw their figures: a man, a deck, a tunnel
   sea: 10 # cells of sea round the land at least: the area grows where it has fewer
+# the sea's bed, as deep as the tiles tell at a zoom that has the sea's depths, the finer ones
+# having none; deeper than deepest the water hides it anyway
+bed:
+  zoom: 10
+  deepest: 100 # metres
 kinds: {built: built} # the settlements' cells, drawn "@"
 ground:
   rock: {slope: 0.9, above: 1600}
