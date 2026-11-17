@@ -34,6 +34,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/bridges"
 	"github.com/kjkrol/gram/plugins/bridges/site"
+	"github.com/kjkrol/gram/plugins/buildings"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
@@ -63,7 +64,7 @@ const (
 	WorldHeight  = GridHeight * CellSize
 	ScreenWidth  = 1024
 	ScreenHeight = 768
-	// the trees and houses unfolded round the camera and what walks among them
+	// the trees and buildings unfolded round the camera and what walks among them
 	MaxEntCount = 40_000
 
 	// a sector's side in cells, gramap's fields' grain: Buckets of the space's buckets, which
@@ -101,6 +102,7 @@ type arena struct {
 	bridges    *bridges.Plugin
 	tunnels    *underground.Plugin
 	forest     *forest.Plugin
+	buildings  *buildings.Plugin
 	selection  *selection.Plugin
 	driving    *driving.Plugin
 	nav        *navigation.Plugin
@@ -130,9 +132,11 @@ func main() {
 		Title: "gram board topography",
 		Description: "Madeira in relief, its ground textured as -look says (natural or ghibli), " +
 			"the hour, the date and the weather shown as -hud says (bar: one at the top; " +
-			"widgets: apart, by the corners). Its forests and settlements are photographed " +
-			"into a sheet from afar, kept between runs, and plant their trees and stand their " +
-			"houses as the camera comes near; caravans, a wagon and three porters, and " +
+			"widgets: apart, by the corners). Its forests and its settlements' yards are " +
+			"photographed into a sheet from afar, kept between runs, and plant their trees " +
+			"as the camera comes near; the settlements' buildings stand as solids at every " +
+			"distance, a cottage, a town's house or a chapel a built cell, their windows lit " +
+			"at dusk; caravans, a wagon and three porters, and " +
 			"travellers go to and fro along the roads, far off an icon of their kind a sector " +
 			"with their number over it (F10: points, the numbers off); a band of thirty " +
 			"walkers stands on the plateau, one icon far off, and a lookout at its eastern " +
@@ -231,6 +235,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.tunnels = underground.NewPlugin(a.world, a.board, underground.Config{Rules: tunnelling}).
 		WithShaper(a.topography.Write())
 	a.forest = forest.NewPlugin(a.world, a.board)
+	a.buildings = buildings.NewPlugin(a.world, a.board)
 	a.selection = selection.NewPlugin(a.world)
 	a.driving = driving.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board)
 	a.nav = navigation.NewPlugin(a.board, a.world, a.motion, a.selection, a.driving).
@@ -413,7 +418,6 @@ func (a *arena) defineFigures() {
 		hawk{},
 		ford{},
 		lantern{},
-		house{},
 		lamp{},
 		settlement{trees: a.forest},
 		wagon{},
@@ -425,6 +429,7 @@ func (a *arena) defineFigures() {
 	a.bridges.Figures(bridge{})
 	a.tunnels.Figures(tunnel{})
 	a.forest.Figures(growth{})
+	a.buildings.Figures(homes{})
 	a.atmosphere.Skies(earth{})
 }
 
@@ -456,6 +461,16 @@ func (a *arena) spawn() error {
 		return err
 	}
 	if err := board.Spawn[fieldRow](level, nil); err != nil {
+		return err
+	}
+	built := laid(a.board, level)
+	err = board.Each(level, func(name string, r fieldRow, _ string) error {
+		if name == SettlementKind {
+			settle(a.board, a.buildings.Write(), r, built)
+		}
+		return nil
+	})
+	if err != nil {
 		return err
 	}
 	if err := a.bridges.Write().Spawn(level); err != nil {
@@ -493,6 +508,7 @@ func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.bridges.RunPlan(ctx, d)
 	a.tunnels.RunPlan(ctx, d)
 	a.world.RunPlan(ctx, d)
+	a.buildings.RunPlan(ctx, d)
 	a.light.RunPlan(ctx, d)
 	a.motion.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)

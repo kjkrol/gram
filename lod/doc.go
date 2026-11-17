@@ -16,9 +16,9 @@
 //	L0 close             its L0 look, else as at L2   as at L2           as at L2
 //	L1 close, no detail  its L1 look, else as at L2   as at L2           as at L2
 //	L2 full              sprite, edged, upright       covers, ways, grid full
-//	L3 no detail         flat sprite                  tile and ways      no shore, still water
-//	L4 shape             blob; what stands: sheet     colour             coarse, no waves
-//	L5 colour            blob, thinned; sheet in half colour             coarser, albedo quartered
+//	L3 no detail         flat sprite                  tile and ways      no grid
+//	L4 shape             blob; what stands: sheet     colour             coarse, no shade or lamps
+//	L5 colour            blob, thinned; sheet in half colour             coarser, no water
 //	L6 nothing           nothing                      nothing            nothing
 //
 // The levels are three scales of two rungs each, exact and coarse, and the omission: the close

@@ -14,14 +14,14 @@ import (
 	"github.com/kjkrol/gram/lod"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/buildings"
 	"github.com/kjkrol/gram/plugins/forest"
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/uid"
 )
 
-// the plots a sector of a settlement may hold a house or its lamp at: its cells' quarters
+// the plots a sector of a settlement may hold a lamp or a tree at: its cells' quarters
 const (
 	quarterColumns = 2 * sectorCells
 	quarterPlots   = quarterColumns * quarterColumns
@@ -59,10 +59,10 @@ const (
 	gardens   = 8
 )
 
-// settlement stands over a field of the map's built cells: each sector of it come down to L3
-// stands a house on each of them, in the quarter its seed picks, one of litFrom cells or more
-// a lamp facing the house nearest its middle, and by the sea a palm or a dragon tree beside
-// some houses, of the trees' kinds.
+// settlement stands over a field of the map's built cells, a building on each of them (settle):
+// each sector of it come down to L3 raises them, one of litFrom cells or more lights a lamp in
+// the yard of the cell nearest its middle, and by the sea a palm or a dragon tree, of the
+// trees' kinds, grows in some yards.
 type settlement struct{ trees *forest.Plugin }
 
 var (
@@ -72,20 +72,22 @@ var (
 
 func (s settlement) Rules(b *board.Plugin) {
 	w := b.Read(0).World()
-	home, lit := kind.EntryOf(HouseKind, houseRow{}), kind.EntryOf(LampKind, lampRow{})
+	lit := kind.EntryOf(LampKind, lampRow{})
 	palm, dragon := s.trees.Types().Entry(PalmKind), s.trees.Types().Entry(DragonKind)
-	rules := make([]act.Rule, 0, quarterPlots)
+	built := func(at geom.Vec) bool { return lotAt(b, at) }
+	rules := make([]act.Rule, 0, quarterPlots+1)
+	rules = append(rules, act.Branch[world.Unfold]{
+		Name: "its buildings stand",
+		When: cond.Self.If(cond.Always),
+		Then: act.Self.Do(buildings.Raise{}),
+	})
 	for k := range quarterPlots {
 		rules = append(rules, act.Branch[world.Unfold]{
 			Name: fmt.Sprintf("plot %d", k),
 			When: cond.Self.If(builtAt(b, k)),
 			Then: act.OneOf(
 				act.Branch[world.Unfold]{
-					When: cond.Self.If(houseAt(b, k)),
-					Then: act.Self.Do(world.SpawnPart{Entry: home, At: quarterShaken[k]}),
-				},
-				act.Branch[world.Unfold]{
-					When: cond.Self.If(lampAt(b, k)),
+					When: cond.Self.If(lampAt(b, k, built)),
 					Then: act.Self.Do(world.SpawnPart{Entry: lit, At: quarterShaken[k]}),
 				},
 				act.Branch[world.Unfold]{
@@ -107,51 +109,49 @@ func (settlement) Define(b *board.Plugin) {
 		append(overField(b), ceremony.Plays(w.Roles().Named(SettlementRole)))...))
 }
 
-// its houses at L2 and L3; from L4 they stand in the sheet as they were built
+// its lamps and its yards' trees at L2 and L3; from L4 they stand in the sheet
 func (settlement) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[fieldRow](w.Kinds(), SettlementKind), fieldPx, unseen)
 }
 
-// builtAt is the word of the k-th plot of a sector of a settlement lying on a built cell of the
+// builtAt is the word of the k-th plot of a sector of a settlement lying on a lot of the
 // settlement's part there
 func builtAt(b *board.Plugin, k int) cond.Word[world.Unfold] {
 	return cond.NewWord(fmt.Sprintf("built %d", k), func(u world.Unfold) bool {
 		at := middle(u.Box).Add(quarterLattice[k])
-		return within(u.Box, at) && on(b, at, BuiltCell)
+		return within(u.Box, at) && lotAt(b, at)
 	})
 }
 
-// houseAt is the word of the k-th plot of a sector of a settlement being the quarter of its
-// cell the settlement's seed stands the cell's house in
-func houseAt(b *board.Plugin, k int) cond.Word[world.Unfold] {
-	return cond.NewWord(fmt.Sprintf("house %d", k), func(u world.Unfold) bool {
-		at := middle(u.Box).Add(quarterLattice[k])
-		q, home := quarters(b, u.ID, at)
-		return q == home
-	})
+// lotAt reports whether at lies on a lot: a built cell no road or river runs across
+func lotAt(b *board.Plugin, at geom.Vec) bool {
+	bd := b.Read(0).Board()
+	c, ok := bd.Grid.CellAt(at)
+	return ok && on(b, at, BuiltCell) && !bd.Way(c).Runs()
 }
 
-// lampAt is the word of the k-th plot of a sector of a settlement being the quarter facing the
-// house of the built cell nearest the middle of its part there, of litFrom built cells or more
-func lampAt(b *board.Plugin, k int) cond.Word[world.Unfold] {
+// lampAt is the word of the k-th plot of a sector of a settlement being the quarter across its
+// cell from its lot's, in the yard of the built cell nearest the middle of its part there, of
+// litFrom built cells or more
+func lampAt(b *board.Plugin, k int, built func(geom.Vec) bool) cond.Word[world.Unfold] {
 	return cond.NewWord(fmt.Sprintf("lamp %d", k), func(u world.Unfold) bool {
 		at := middle(u.Box).Add(quarterLattice[k])
-		if q, home := quarters(b, u.ID, at); q != 3-home {
+		if q, l := quarters(b, at); q != 3-l.home {
 			return false
 		}
 		c, _ := b.Read(0).Board().Grid.CellAt(at)
-		heart, n := heartOf(b, u.Box)
+		heart, n := heartOf(b, u.Box, built)
 		return n >= litFrom && c == heart
 	})
 }
 
-// gardenAt is the word of the k-th plot of a sector of a settlement being the quarter beside
-// its cell's house, the cell one of every gardens whose seed draws lot and its ground lower
-// than below, metres
-func gardenAt(b *board.Plugin, k, lot int, below float32) cond.Word[world.Unfold] {
-	return cond.NewWord(fmt.Sprintf("garden %d %d", lot, k), func(u world.Unfold) bool {
+// gardenAt is the word of the k-th plot of a sector of a settlement being the other quarter of
+// its cell's yard, the cell one of every gardens whose seed draws the number drawn and its
+// ground lower than below, metres
+func gardenAt(b *board.Plugin, k, drawn int, below float32) cond.Word[world.Unfold] {
+	return cond.NewWord(fmt.Sprintf("garden %d %d", drawn, k), func(u world.Unfold) bool {
 		at := middle(u.Box).Add(quarterLattice[k])
-		if q, home := quarters(b, u.ID, at); q != home^1 {
+		if q, l := quarters(b, at); q != l.yard() {
 			return false
 		}
 		heights := b.Read(0).Heights()
@@ -161,13 +161,13 @@ func gardenAt(b *board.Plugin, k, lot int, below float32) cond.Word[world.Unfold
 		bd := b.Read(0).Board()
 		c, _ := bd.Grid.CellAt(at)
 		i, _ := bd.Ordinal(c)
-		return int(lod.Seed(u.ID, uint64(i))>>8%gardens) == lot
+		return int(lod.Seed(0, uint64(i))>>8%gardens) == drawn
 	})
 }
 
-// quarters are the quarter of its cell at lies in and the one the seed of whole stands the
-// cell's house in: 0 and 1 the upper left and right, 2 and 3 the lower
-func quarters(b *board.Plugin, whole uid.UID64, at geom.Vec) (q, home int) {
+// quarters are the quarter of its cell at lies in, 0 and 1 the upper left and right, 2 and 3
+// the lower, and the cell's lot
+func quarters(b *board.Plugin, at geom.Vec) (q int, l lot) {
 	bd := b.Read(0).Board()
 	c, _ := bd.Grid.CellAt(at)
 	mid := bd.CellCenter(c)
@@ -177,20 +177,19 @@ func quarters(b *board.Plugin, whole uid.UID64, at geom.Vec) (q, home int) {
 	if at.Y > mid.Y {
 		q |= 2
 	}
-	i, _ := bd.Ordinal(c)
-	return q, int(lod.Seed(whole, uint64(i)) % 4)
+	return q, lotOf(b, c)
 }
 
 // heartOf is the built cell of box nearest its middle, the first of a tie by rows, and how
 // many cells of box are built
-func heartOf(b *board.Plugin, box geom.AABB) (heart cell.ID, n int) {
+func heartOf(b *board.Plugin, box geom.AABB, built func(geom.Vec) bool) (heart cell.ID, n int) {
 	bd := b.Read(0).Board()
 	mid := middle(box)
 	best := float32(-1)
 	for y := box.TopLeft.Y + CellSize/2; y < box.BottomRight.Y; y += CellSize {
 		for x := box.TopLeft.X + CellSize/2; x < box.BottomRight.X; x += CellSize {
 			at := geom.NewVec(x, y)
-			if !on(b, at, BuiltCell) {
+			if !built(at) {
 				continue
 			}
 			n++

@@ -91,7 +91,7 @@ fields:
 
 func TestBuild_DrawsTheLandAsItsCoverSays(t *testing.T) {
 	r, height, land := covered(t)
-	c, err := build(r, height, nil, land, false)
+	c, err := build(r, height, nil, nil, land, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestBuild_DrawsTheLandAsItsCoverSays(t *testing.T) {
 
 func TestBuild_AFlatMapLaysItsForestByNoise(t *testing.T) {
 	r, height, land := covered(t)
-	c, err := build(r.asFlat(), height, nil, land, true)
+	c, err := build(r.asFlat(), height, nil, nil, land, true)
 	if err != nil {
 		t.Fatal(err)
 	}

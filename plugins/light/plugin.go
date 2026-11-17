@@ -75,15 +75,16 @@ type Plugin struct {
 	base    goke.OptComp[world.Base]
 	z       goke.OptComp[world.Z]
 
-	relief    Relief
-	reliefAt  uint64 // one more than the relief's version the lattice holds; 0 none
-	lat       render.Lattice
-	groundAt  func(x, y float32) float32 // ground, bound once
-	blocks    *goke.Query
-	blockBase goke.Comp[world.Base]
-	blockZ    goke.Comp[world.Z]
-	blockOf   goke.Comp[Shadow]
-	blockLie  goke.OptComp[world.Lie]
+	relief     Relief
+	reliefAt   uint64 // one more than the relief's version the lattice holds; 0 none
+	lat        render.Lattice
+	groundAt   func(x, y float32) float32 // ground, bound once
+	blocks     *goke.Query
+	blockBase  goke.Comp[world.Base]
+	blockZ     goke.Comp[world.Z]
+	blockOf    goke.Comp[Shadow]
+	blockLie   goke.OptComp[world.Lie]
+	blockStand goke.OptComp[world.Stand]
 
 	lights  render.Buffered[render.Lights]
 	casts   []cast                // each sector's blocks as last published
@@ -418,10 +419,11 @@ func (p *Plugin) moved() bool {
 // gather puts every Baked block into b's set of the sector its middle lies in, n of them, summing
 // their hashes; it reports whether any block stands
 func (p *Plugin) gather(b *render.Lights, r *world.Read, n int) bool {
-	stands, casts, sets := false, p.casts, b.Casts
+	some, casts, sets := false, p.casts, b.Casts
 	for p.blocks.All(); p.blocks.Next(); {
 		cur := p.blocks.Cursor()
 		bases, zs, lies := p.blockBase.Slice(cur), p.blockZ.Slice(cur), p.blockLie.Slice(cur)
+		stands := p.blockStand.Slice(cur)
 		for i, s := range p.blockOf.Slice(cur) {
 			if s.Cast != Baked {
 				continue
@@ -438,6 +440,9 @@ func (p *Plugin) gather(b *render.Lights, r *world.Read, n int) bool {
 			}
 			if lies != nil && lies[i].Length > 0 {
 				bl = lying(bases[i].Pos.Center(), bases[i].Vel.Dir, lies[i], alt-zs[i].Height, alt)
+			} else if stands != nil && stands[i].Length > 0 {
+				over := world.Lie{Length: stands[i].Length, Width: stands[i].Width}
+				bl = lying(bases[i].Pos.Center(), bases[i].Vel.Dir, over, alt, alt+zs[i].Height)
 			}
 			k := 0
 			if n > 1 {
@@ -445,10 +450,10 @@ func (p *Plugin) gather(b *render.Lights, r *world.Read, n int) bool {
 			}
 			casts[k].now += hashed(bl)
 			sets[k].Blocks = append(sets[k].Blocks, bl)
-			stands = true
+			some = true
 		}
 	}
-	return stands
+	return some
 }
 
 // bounds is the joint rectangle of bs (origin and size) and the highest of their tops; zero for

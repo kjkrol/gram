@@ -34,7 +34,7 @@ type chart struct {
 // source is what OpenStreetMap has within a box: south, west, north, east
 type source func(box [4]float64, classes []string, buildings bool) (*osmData, error)
 
-func build(r recipe, height elevation, osm source, land landcover, flat bool) (*chart,
+func build(r recipe, height, deep elevation, osm source, land landcover, flat bool) (*chart,
 	error) {
 	origin, cells, err := grow(r, height)
 	if err != nil {
@@ -114,6 +114,11 @@ func build(r recipe, height elevation, osm source, land landcover, flat bool) (*
 		return nil, err
 	}
 	w.settle()
+	if deep != nil && !flat {
+		if err := w.sink(deep); err != nil {
+			return nil, err
+		}
+	}
 	return w, nil
 }
 

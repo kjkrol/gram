@@ -1,6 +1,7 @@
 package terrain
 
 import (
+	"bytes"
 	"image"
 	"image/color"
 	"math"
@@ -13,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/light"
+	"github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gputest"
@@ -140,6 +142,11 @@ func TestTerrainShaders_Compile(t *testing.T) {
 			t.Errorf("L%d: %v", lod.Standard+lod.Level(k), err)
 		}
 	}
+	for l := lod.Standard; l <= lod.Strategic; l++ {
+		if err := seaByLevel[l].Compile(); err != nil {
+			t.Errorf("the sea at L%d: %v", l, err)
+		}
+	}
 	for k, s := range photoShaders {
 		if err := s.Compile(); err != nil {
 			t.Errorf("the sheets at L%d: %v", lod.Strategic+lod.Level(k), err)
@@ -246,10 +253,14 @@ func TestTerrain_DrawsEachLevelWithoutWhatItsWordDrops(t *testing.T) {
 			t.Errorf("the land at L%d is %v, at L2 %v: want alike without a baked shade, a "+
 				"lamp, a grain or a grid", level, land[level], land[lod.L2])
 		}
-		if near(sea[level], sea[level-1], 2) {
-			t.Errorf("the sea at L%d is %v, as at L%d: want it without what L%d drops", level,
-				sea[level], level-1, level)
-		}
+	}
+	if !near(sea[lod.L3], sea[lod.L2], 2) {
+		t.Errorf("the sea at L3 is %v, at L2 %v: want it alike, its mouth glinting too",
+			sea[lod.L3], sea[lod.L2])
+	}
+	if near(sea[lod.L4], sea[lod.L3], 2) || near(sea[lod.L5], sea[lod.L4], 2) {
+		t.Errorf("the sea at L3 %v, at L4 %v, as a sheet %v: want L4 without the mouth's "+
+			"glint and the sheet without its water", sea[lod.L3], sea[lod.L4], sea[lod.L5])
 	}
 	// the sheet: the sea's albedo in the light the land is in, no water
 	light := float32(land[lod.L5].R) / float32(landColour.R)
@@ -708,4 +719,88 @@ func whiteRow(t *testing.T, pix []byte) float32 {
 		t.Fatal("no dome seen")
 	}
 	return sum / n
+}
+
+// level ground but for the corners of the cell (4, 10), deep under the sea's level
+type harbour struct{}
+
+func (harbour) Lattice() (cols, rows int, cell float32, heights []float32, ok bool) {
+	h := make([]float32, 17*17)
+	for _, k := range []int{10*17 + 4, 10*17 + 5, 11*17 + 4, 11*17 + 5} {
+		h[k] = -24
+	}
+	return 17, 17, 32, h, true
+}
+func (harbour) Version() uint64 { return 0 }
+
+// seaDraw draws the wet cell over ground through cam at L2 under u, its sea styled as look
+// says, in the opaque pass alone and then among what is seen through too, and reads the screen
+// back after each
+func seaDraw(t *testing.T, ground Ground, cam camera.Camera, u render.Uniforms,
+	look painter.Sea) (r *Renderer, opaque, through []byte) {
+	t.Helper()
+	grid := &atLevel{level: lod.L2}
+	v := view.NewSeen(cam, grid)
+	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 512, Height: 512, BucketSize: 128})
+	if err != nil {
+		t.Fatal(err)
+	}
+	views := []*view.View{v}
+	view.NewSystem(space, &views, 512, 512).Update(nil, 0)
+	r = New(ground, &wetCell{}, noAir{}, Config{Seen: func(camera.Camera) *view.View { return v }})
+	r.SetSea(look)
+	draw := func(passes ...render.Pass) []byte {
+		screen := render.NewImage(64, 64)
+		depth := render.NewDepth()
+		screen.ClearDepth(depth)
+		for _, p := range passes {
+			r.Draw(render.Target{Screen: screen, Depth: depth, Pass: p}, cam, u)
+		}
+		pix := make([]byte, 4*64*64)
+		screen.ReadPixels(pix)
+		return pix
+	}
+	return r, draw(render.Opaque), draw(render.Opaque, render.SeeThrough)
+}
+
+func TestTerrain_LaysTheSeaAtItsLevelOverTheGroundUnderIt(t *testing.T) {
+	gputest.Need(t)
+	u := render.UniformsOf(map[string]any{"LightWay": []float32{0.3, 0.2, 1},
+		"LightStrength": []float32{1}, "LightColor": []float32{1, 1, 1},
+		"Ambience": []float32{0.2, 0.2, 0.2}, "Fog": []float32{0.5, 0.6, 0.9},
+		"SkyOverhead": []float32{0.2, 0.4, 0.9}, "Toward": []float32{0, 0.98, 0.2},
+		"Pixel": []float32{2}})
+	cam := overSea{cameratest.NewFromSpace(64, 64, 0)}
+	at := func(pix []byte, x, y int) color.RGBA {
+		i := 4 * (y*64 + x)
+		return color.RGBA{pix[i], pix[i+1], pix[i+2], pix[i+3]}
+	}
+	r, opaque, through := seaDraw(t, flatland{}, cam, u, painter.Sea{})
+	if r.seaMesh != nil || !bytes.Equal(opaque, through) {
+		t.Error("the sea lying at its level is drawn a surface of its own, want it the ground's")
+	}
+	flat := at(opaque, 40, 40)
+	r, opaque, through = seaDraw(t, harbour{}, cam, u, painter.Sea{})
+	if len(r.seaTris) != 6 {
+		t.Errorf("the sea's surface is %d corners of triangles, want the sunk cell's two",
+			len(r.seaTris))
+	}
+	if land := at(through, 5, 5); land != at(opaque, 5, 5) {
+		t.Errorf("the land under the sea's surface drawn is %v, want it as the ground drew it %v",
+			land, at(opaque, 5, 5))
+	}
+	bed, sea := at(opaque, 40, 40), at(through, 40, 40)
+	if bed.B >= flat.B {
+		t.Errorf("the harbour's floor is %v, the sea painted on level ground %v: want the floor "+
+			"darker, no water on it", bed, flat)
+	}
+	if sea.A != 255 || sea.B < sea.R+40 || bed == sea {
+		t.Errorf("the sea over the harbour's floor %v is %v, want its water over it", bed, sea)
+	}
+	shoal := painter.Sea{Shoal: 240, Shallows: color.RGBA{R: 40, G: 250, B: 40, A: 255}}
+	_, _, through = seaDraw(t, harbour{}, cam, u, shoal)
+	if green := at(through, 40, 40); green.G < sea.G+40 {
+		t.Errorf("the sea 24 deep with shallows green to 240 is %v, plain %v: want it turned "+
+			"towards their colour", green, sea)
+	}
 }

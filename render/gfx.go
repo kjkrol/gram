@@ -14,6 +14,12 @@ type Indices = gfx.Indices
 // IndexRange is Count of a mesh's indices from First.
 type IndexRange = gfx.IndexRange
 
+// Instances are an instanced mesh's instances, kept on the GPU once drawn.
+type Instances = gfx.Instances
+
+// InstanceRange is Count of the instances kept from First.
+type InstanceRange = gfx.InstanceRange
+
 // Shader is a WGSL fragment with its uniforms, built on the materials.
 type Shader = gfx.Shader
 
@@ -64,6 +70,21 @@ func NewDepth() *Depth { return gfx.NewDepth() }
 
 // NewIndices keeps the triangles of indices.
 func NewIndices(indices []uint32) *Indices { return gfx.NewIndices(indices) }
+
+// NewInstances keeps the instances of data, to be drawn as DrawMeshOptions.Kept.
+func NewInstances(data []float32) *Instances { return gfx.NewInstances(data) }
+
+// PackInstances keeps the instances of every block's groups, floats each, a block after
+// another and a block's groups in the order of their keys, and says where each group lies.
+func PackInstances(floats int, blocks ...map[int][]float32) (*Instances,
+	[]map[int]InstanceRange) {
+	return gfx.PackInstances(floats, blocks...)
+}
+
+// JoinSpan is spans with r after them, one with the last where it follows it at once.
+func JoinSpan(spans []InstanceRange, r InstanceRange) []InstanceRange {
+	return gfx.JoinSpan(spans, r)
+}
 
 // NewShaderWith is a shader on the composer's library and every material registered, with
 // fragment's own uniforms and fragment after them. No material may be registered once it has

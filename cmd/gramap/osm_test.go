@@ -195,7 +195,7 @@ settlements: {source: osm, least: 3, cells: built}
 
 func TestBuild_FollowsOpenStreetMapsRoadThroughItsTunnel(t *testing.T) {
 	r, height, osm := ridged(t)
-	c, err := build(r, height, osm, nil, false)
+	c, err := build(r, height, nil, osm, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +234,7 @@ func TestBuild_FollowsOpenStreetMapsRoadThroughItsTunnel(t *testing.T) {
 
 func TestSettle_BuildsWhereOpenStreetMapHasTheBuildings(t *testing.T) {
 	r, height, osm := ridged(t)
-	c, err := build(r, height, osm, nil, false)
+	c, err := build(r, height, nil, osm, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +249,7 @@ func TestSettle_BuildsWhereOpenStreetMapHasTheBuildings(t *testing.T) {
 
 // the maps of Madeira as the recipe makes them, by the SHA-256 of their text
 var madeira = map[bool]string{
-	false: "c8e18aa456dadb5eac695aeb4ab7356bbafcd2c3825dd0557c644115ad926f80",
+	false: "db6f0b73312bcee4969fdfa5ec7cdee1284906533547c95c83062eb66dcaeba2",
 	true:  "123d909c3286f484a3c7a68e10bd458cb815644f2f04273889f24f32950255ff",
 }
 
@@ -283,12 +283,13 @@ func TestMadeira_IsTheMapItWas(t *testing.T) {
 		return data, err
 	}
 	land := newLandcover(filepath.Join(dir, "gramap", "cover"))
+	deep := newTerrarium(r.Bed.Zoom, filepath.Join(dir, "gramap", "terrarium"))
 	for flat, want := range madeira {
 		rc := r
 		if flat {
 			rc = r.asFlat()
 		}
-		c, err := build(rc, tiles.at, osm, land, flat)
+		c, err := build(rc, tiles.at, deep.at, osm, land, flat)
 		if err != nil {
 			t.Fatal(err)
 		}

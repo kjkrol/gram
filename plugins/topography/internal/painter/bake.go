@@ -30,10 +30,13 @@ type groundSheet struct {
 // Dressed marks a cell whose pixels hold more than one kind in CellDetails.
 const Dressed = public.Dressed
 
+// the water is painted at fewer pixels a cell than the albedo where the board is wide: its
+// layers lie in quadrants, twice the board across
 const (
-	bakePx    = 16
-	minBakePx = 4
-	maxSheet  = 4096
+	bakePx     = 16
+	minBakePx  = 4
+	minWaterPx = 2
+	maxSheet   = 4096
 )
 
 // Surface is the whole board painted flat out of atlas, px pixels a cell, and its water, wpx
@@ -115,7 +118,7 @@ func (l *Painter) newSheet(atlas render.AtlasSource) *groundSheet {
 	s.img = render.NewImage(cols*px, rows*px)
 	s.half = render.NewImage(max(cols*px/2, 1), max(rows*px/2, 1))
 	s.quarter = render.NewImage(max(cols*px/4, 1), max(rows*px/4, 1))
-	if wpx := min(px, maxSheet/(2*cols), maxSheet/(2*rows)); wpx >= minBakePx {
+	if wpx := min(px, maxSheet/(2*cols), maxSheet/(2*rows)); wpx >= minWaterPx {
 		s.water, s.wpx = render.NewImage(2*cols*wpx, 2*rows*wpx), wpx
 	}
 	s.kinds = render.NewImage(cols*px, rows*px)

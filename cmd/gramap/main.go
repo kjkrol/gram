@@ -110,7 +110,11 @@ func run(recipePath, out, cache string, flat bool) error {
 		return data, err
 	}
 	land := newLandcover(filepath.Join(filepath.Dir(cache), "cover"))
-	c, err := build(r, newTerrarium(zoom, cache).at, osm, land, flat)
+	var deep elevation
+	if r.Bed.Zoom > 0 {
+		deep = newTerrarium(r.Bed.Zoom, cache).at
+	}
+	c, err := build(r, newTerrarium(zoom, cache).at, deep, osm, land, flat)
 	if err != nil {
 		return err
 	}

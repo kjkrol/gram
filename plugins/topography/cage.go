@@ -6,7 +6,8 @@ import (
 )
 
 // Free reports whether nothing solid fills the point (x, y, z): the ground, but for the room
-// over a floor sunk under it, the kind standing on its cell to its Height, a deck's slab.
+// over a floor sunk under it, the water over it to the sea's level, the kind standing on its
+// cell to its Height, a deck's slab.
 func (r *Read) Free(x, y, z float32) bool {
 	at := geom.NewVec(x, y)
 	under := z < r.topAt(at)
@@ -45,7 +46,12 @@ func (r *Read) topAt(at geom.Vec) float32 {
 	top := r.p.relief.GroundAt(at)
 	brd := r.board()
 	if c, ok := brd.CellAt(at); ok {
-		top += brd.Kind(c).Height
+		k := brd.Kind(c)
+		top += k.Height
+		// the sea lies at its level over the ground lower than it
+		if k.Allows&cell.Water != 0 {
+			top = max(top, 0)
+		}
 	}
 	return top
 }

@@ -590,6 +590,31 @@ func TestPainter_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
 	}
 }
 
+func TestPainter_AWideBoardKeepsItsWaterAtFewerPixelsACell(t *testing.T) {
+	gputest.Need(t)
+	st := map[cell.Name]Style{}
+	g := grid.DefaultGrids{}.Square(640, 4, 32)
+	brd, brdW := newBoard(g)
+	land := styled(st, cell.Kind{Name: cell.Named("k63"), Allows: cell.Land, SpriteID: 1}, Style{})
+	sea := styled(st, cell.Kind{Name: cell.Named("k64"), Allows: cell.Water, SpriteID: 2},
+		Style{Under: true, Shine: 0.9})
+	brdW.SetAll(land)
+	brdW.Set(g.At(1, 1), sea)
+	d := New(brd, fixed(reliefFor(brd)), true, st)
+	_, sheet, px, wpx := d.Surface(solids(map[render.SpriteID]color.RGBA{1: green, 2: blue}))
+	if sheet == nil || px != 6 || wpx != 3 {
+		t.Fatalf("a board of 640 cells across: the albedo at %d pixels a cell, the water %v at "+
+			"%d; want 6 and its water at 3, the most its quadrants fit", px, sheet != nil, wpx)
+	}
+	b := bakedOf(t, d, d.albedo.atlas, 32)
+	if s := b.waterAt(water.ShineLayer, 48, 48); !close(s, color.RGBA{0, 230, 255, 255}, 1) {
+		t.Errorf("the sea shines %v, want still water at 0.9", s)
+	}
+	if s := b.waterAt(water.ShineLayer, 112, 48); s.R != 0 || s.G != 0 {
+		t.Errorf("the land two cells off shines %v, want no water", s)
+	}
+}
+
 func TestPainter_TheWetCellsAreTheWaterAndTheCellsBesideIt(t *testing.T) {
 	gputest.Need(t)
 	st := map[cell.Name]Style{}

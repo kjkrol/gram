@@ -260,11 +260,15 @@ func (l BoardLevels) Storeys(c cell.ID, dst *[cell.Storeys]pathfind.Storey) (mad
 		}
 		top := level + f.Height
 		made |= 1 << s
+		dst[s] = pathfind.Storey{
+			Top:     top,
+			Dip:     brd.FloorDip(c, *f),
+			Bound:   top - f.Thickness,
+			Carries: f.Allows,
+		}
 		if f.Sunk() {
 			sunk |= 1 << s
-			dst[s] = pathfind.Storey{Top: top, Bound: top + f.Clear, Carries: f.Allows}
-		} else {
-			dst[s] = pathfind.Storey{Top: top, Bound: top - f.Thickness, Carries: f.Allows}
+			dst[s].Bound = top + f.Clear
 		}
 	}
 	return made, sunk

@@ -154,6 +154,11 @@ no world and a modal panel over the ticking world: `examples/start/scenes`.
   Where the window fills the screen a place is pinned to the last row and column (Cocoa's
   flipped origin puts the bottom row at h). F11 is `control.FullscreenKey()`: Ctrl+Cmd+F on darwin.
 - `GRAM_INPUT_LOG=1` is the first thing to read when zones or clicks misbehave on a platform.
+- The keys held and the modifiers are the adapter's own count of the window's key events
+  (`keyboard`), let go all at once on a `gpucontext.FocusEvent` lost: gogpu's keyboard state
+  (v0.54.1 still, gogpu #571) keeps a key let go in another window down, so after Alt+Tab or
+  a screenshot's Shift every key was a chord and no shortcut answered (2026-11-16): drop the
+  count once a release gogpu takes up lets go of the keys itself.
 
 ## Every demo in one pass
 

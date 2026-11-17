@@ -683,3 +683,52 @@ func indent(s string) string {
 	}
 	return b.String()
 }
+
+func TestSpawn_ADeckOverARavineIsWalkedAsLevelAsItLies(t *testing.T) {
+	// a ravine 20 deep and two cells wide, its walls a cell each, a bridge from rim to rim
+	var corners strings.Builder
+	for y := 0; y <= 6; y++ {
+		for x := 0; x <= 10; x++ {
+			if x > 0 {
+				corners.WriteString(" ")
+			}
+			if x > 3 && x < 6 {
+				corners.WriteString("0")
+			} else {
+				corners.WriteString("20")
+			}
+		}
+		corners.WriteString("\n")
+	}
+	file := fstest.MapFS{"map.yaml": {Data: []byte("board:\n  default: earth\n  entities:\n" +
+		"    - {kind: bridge, from: [2, 3], to: [6, 3]}\nrelief:\n  corners: |\n" +
+		indent(corners.String()))}}
+	d := newDale(t)
+	d.board.Read(0).CellKinds().Define("earth", cell.Kind{Pace: 1, Allows: cell.Land})
+	level, err := d.board.Lay(file, "map.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.bridges.Write().Spawn(level); err != nil {
+		t.Fatal(err)
+	}
+	d.topo.Write().Seed(level.Heights())
+	if err := d.board.Populate(); err != nil {
+		t.Fatal(err)
+	}
+	d.start(level.Heights())
+	d.ticks(2)
+	// a kind that is not Graded: a Graded one reads no slope at all
+	walked := cell.Kind{Pace: 1, Allows: cell.Land}
+	read := d.board.Read(0)
+	for name, step := range map[string][2]uint32{
+		"over the wall it leaves its head by": {2, 3},
+		"over the wall before its far head":   {4, 5},
+	} {
+		from, to := d.g.At(step[0], 3), d.g.At(step[1], 3)
+		if got := read.Pace(from, to, walked, cell.OnDeck, cell.Land); math.Abs(got-1) > 1e-3 {
+			t.Errorf("a step along the deck %s keeps %.3f of the pace, want all of it: the "+
+				"deck lies level whatever the ground does under it", name, got)
+		}
+	}
+}

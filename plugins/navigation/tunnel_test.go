@@ -104,3 +104,69 @@ func TestNavigation_ATunnelTooLowSendsTheTallOverTheRidge(t *testing.T) {
 			"the ridge and past it", at, highest)
 	}
 }
+
+// the ridge between ground at 0 and ground 12 up east of it, a tunnel through it climbing 3 a
+// cell from one to the other: more than a walker's step
+func climbingTunnel() bridgeSite {
+	g := grid.DefaultGrids{}.Square(8, 8, 32)
+	floors := map[float32]float32{0: 0, 15: 3, 30: 6, 21: 9, 12: 12} // by the ground's level
+	return bridgeSite{
+		heights: func(p geom.Vec) float32 {
+			switch {
+			case p.X <= 64:
+				return 0
+			case p.X < 160:
+				return 30
+			}
+			return 12
+		},
+		from: g.At(1, 3),
+		to:   g.At(5, 3),
+		floor: func(level float32) cell.Floor {
+			return cell.Floor{
+				Allows: cell.Land,
+				Height: floors[level] - level,
+				Clear:  4,
+				Pace:   1,
+				Graded: true,
+				Width:  12,
+				Storey: 1,
+			}
+		},
+	}
+}
+
+func TestNavigation_WalksThroughATunnelClimbingMoreACellThanItsStep(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(8, 8, 32)
+	var z goke.Comp[world.Z]
+	var base goke.Comp[world.Base]
+	var q *goke.Query
+	ecs, _, _, _ := bridged(t, climbingTunnel(), geom.NewVec(16, 112), g.At(7, 3), EitherLevel,
+		goke.SystemFn{OnInit: func(si *goke.SysInit) {
+			q = si.NewQueryBuilder(&base, &z).Build()
+		}})
+	under, highest, at := false, float32(0), geom.Vec{}
+	for range 60 * 30 {
+		ecs.Tick(time.Second / 60)
+		for q.All(); q.Next(); {
+			for i, b := range base.Slice(q.Cursor()) {
+				if b.Pos.Size.X != 3 {
+					continue
+				}
+				at = b.Pos.Center()
+				alt := z.Slice(q.Cursor())[i].Altitude
+				highest = max(highest, alt)
+				if c, _ := g.CellAt(at); c == g.At(3, 3) && alt < 10 {
+					under = true
+				}
+			}
+		}
+	}
+	if c, _ := g.CellAt(at); c != g.At(7, 3) {
+		t.Fatalf("after 30 s the walker stands at %v, want past the ridge", at)
+	}
+	if !under || highest > 14 {
+		t.Errorf("through the ridge's middle under it %v, as high as %.1f on the way; want "+
+			"the tunnel's floor all the way up to the ground 12 up", under, highest)
+	}
+}

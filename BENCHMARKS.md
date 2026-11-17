@@ -638,6 +638,31 @@ same), the photographs themselves settled after setup; the baked shade costs not
 here. The CPU is busy a fifth of the frame (the profile), the
 readback's copy and the Vulkan calls, and waits the rest.
 
+**The water alive at every level short of the sheet** (2026-11-16; the base and the tree
+alternately, two rounds of two): the sea's waves, the surf and the rivers running drawn at L3
+and L4 too, where L3 dropped the shore and the running water and L4 showed a level mirror, and
+the sea over ground lower than its level a surface of its own.
+
+| Rung | `main` | The tree | Change |
+|:---|---:|---:|---:|
+| readback alone | 7.86 ms | 8.01 ms | +1.9% |
+| isometric | 17.2 ms | 17.4 ms | +1.3% |
+| isometric, no water layer | 16.2 ms | 16.5 ms | +1.9% |
+| isometric, every sector at L2 | 17.1 ms | 17.4 ms | +2.1% |
+| isometric, every sector at L3 | 15.1 ms | 16.6 ms | +10.0% |
+| isometric, every sector at L4 | 13.7 ms | 15.0 ms | +9.3% |
+| isometric, every sector at L4, the sheets | 15.2 ms | 16.4 ms | +7.7% |
+| isometric, every sector at L5 | 10.8 ms | 11.1 ms | +1.9% |
+| isometric in layers | 13.7 ms | 14.0 ms | +2.5% |
+| perspective | 20.3 ms | 21.0 ms | +3.4% |
+
+What it says: the far levels pay for the water they now show, 1.3–1.5 ms a frame of a screen
+half sea, a river-rich island's running water more than half of it at L4; the rest moved with
+the round (the readback's +1.9%). The rung without water is the detector of the shader's shape:
+the same tree with the shore read for every pixel of water, not under a condition of its own,
+drew `isometric` and `no water layer` 24% slower, on every pixel of the ground, and a read of
+the flow and the mouths for every pixel of the sea took L4 to +11.5%.
+
 ## The flat board's frame — `Benchmark_Frame_Flat`
 
 A flat board of 96×64 cells 32 wide (grass, sand round lakes of water, roads every 12 cells both
@@ -790,6 +815,22 @@ spread over many frames):
 | motion/collision | 1024×1024 | 173 | 5.14 ms | 1.49 ms | 0.59 ms |
 | look/animation | 768×512 | 1,090 | 0.04 ms | 0.25 ms | 0.16 ms |
 | rules/dialog | 768×480 | 1,208 | 0.02 ms | 0.17 ms | 0.15 ms |
+
+**Madeira with its buildings and its water** (2026-11-16; a copy of `main` and the tree with a
+probe stilling the adapter, alternately, 32 s a run with `GRAM_VSYNC=off`, the medians after
+12 s): the settlements' 4300 buildings solids at every distance, the sea over its bed, and
+the water the board lacked till then, too wide for its sheet.
+
+| View | `main` | The tree |
+|:---|---:|---:|
+| the start, 1024×768 | 161 FPS | 128 FPS |
+| the start, full screen 1920×1080 | 90 FPS | 75 FPS |
+| the sea south of Funchal filling the start's frame, 1024×768 | 170 FPS | 133 FPS |
+| Funchal near (L2), 1024×768 | 148 FPS, drawing 5.0 ms | 139 FPS, drawing 2.7 ms |
+
+At the start a frame's presenting goes from 4.0 to about 5.3 ms: the ground's path under the
+water 0.5 ms, the sea's surface 0.4 ms, the buildings 0.3 ms (each switched off in turn). Near,
+the buildings as instances halve the CPU's drawing of what were two sprites a house.
 
 What they say: the collector runs once every four to seven seconds in every demo and gctrace's
 cumulative CPU share stays at 0%; at 60 FPS no demo's frame is bound by it, nor by anything but

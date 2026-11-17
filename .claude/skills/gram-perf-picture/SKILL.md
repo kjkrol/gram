@@ -12,6 +12,12 @@ Protokół i pułapki pomiaru: `gram-perf`; jak się rysuje: `gram-render`. Licz
 ## Pomiar
 
 - `Frame_Topography` (wyspa w 1440p) to pole każdej zmiany `render`.
+- Shader terenu stoi na progu kompilatora Intela: jego szczebel `iso,no-water` nie czyta wody,
+  więc traci tylko na kształcie kodu. Odczyt brzegu dla każdego piksela wody zamiast pod
+  własnym warunkiem kosztował 24% klatki na każdym pikselu, także lądu (2026-11-16); cztery
+  odczyty kraty w łańcuchu `&&` i wczesny `return` też przegrały. Każdą zmianę `mesh.wgsl` i
+  tego, co wciąga z `water`, mierzy się na tym szczeblu, zanim się jej uwierzy; FPS dema przy
+  1024×768 tego nie pokazał wyraźnie, benchmark tak.
 - `Painter_Bake` (`plugins/topography/internal/painter`) i `Composer_Render`
   (`render/internal/compose`) leżą poza `bench/`: `measure.sh` ich nie widzi.
 - Klatki dem i ich GC mierzy `gram-probe`; klatka headless niesie readback (`CLAUDE.md`).
@@ -29,8 +35,9 @@ Protokół i pułapki pomiaru: `gram-perf`; jak się rysuje: `gram-render`. Licz
   (wyklucza znaczniki pozostałych poziomów, bo goke nie ma OR), więc system bliskiej skali tyka
   tylko tam, gdzie ktoś patrzy z bliska.
 - Grunt w rozdzielczości kamery, z wariantem shadera po poziomie sektora z widoku kamery
-  (`lod`, jedna drabina: L2 pełnia, L3 bez brzegu i wody biegnącej, L4 siatka co drugi narożnik
-  bez fal z albedo w pół, L5 siatka co czwarty narożnik z albedo w ćwierć, L6 nic; żadnych
+  (`lod`, jedna drabina: L2 pełnia, L3 bez siatki pól, L4 siatka co drugi narożnik bez cienia
+  wypalonego i lamp z albedo w pół, woda żywa do L4 włącznie, L5 siatka co czwarty narożnik z
+  albedo w ćwierć i bez wody, L6 nic; żadnych
   pierścieni staranności); figury ostre nad nim, w każdym pikselu, każdy rodzaj wersją swojego
   poziomu (L4 i L5 plama koloru, na L5 rzedzona `Keep`); to, co stoi (`world.Fixed`), od L4 w
   płachcie sektora: sfotografowane na GPU z wyglądu L3 (albedo i relief: szczyt f16 i normalna),

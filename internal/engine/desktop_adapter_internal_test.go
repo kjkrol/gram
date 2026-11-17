@@ -163,3 +163,38 @@ func TestPointer_FillingTheScreenTheFarEdgeIsTheLastRowAndColumn(t *testing.T) {
 		t.Errorf("in a window, the place (800, 600) is %v, want it as reported", at)
 	}
 }
+
+func TestKeyboard_TheKeysDownGoAsTheWindowLosesTheKeyboard(t *testing.T) {
+	var k keyboard
+	e := &control.InputEvents{}
+	key := func(key gpucontext.Key, down bool) {
+		k.take(gpucontext.KeyEvent{Key: key, Pressed: down}, e)
+	}
+	key(gpucontext.KeyLeftShift, true)
+	key(gpucontext.KeyRightShift, true)
+	key(gpucontext.KeyLeftAlt, true)
+	key(gpucontext.KeyW, true)
+	key(gpucontext.KeyW, false)
+	if !k.held(control.KeyShift) || !k.held(control.KeyAlt) || k.held(control.KeyW) {
+		t.Fatalf("held Shift %v, Alt %v, W %v; want Shift and Alt, W let go",
+			k.held(control.KeyShift), k.held(control.KeyAlt), k.held(control.KeyW))
+	}
+	e.ResetTransient()
+	k.leave(e)
+	want := []control.KeyEvent{
+		{Key: control.KeyShift, Action: control.ActionRelease},
+		{Key: control.KeyAlt, Action: control.ActionRelease},
+	}
+	if !slices.Equal(e.KeyEvents, want) {
+		t.Errorf("the window losing the keyboard lets go %v, want Shift and Alt once each",
+			e.KeyEvents)
+	}
+	if k.held(control.KeyShift) || k.held(control.KeyAlt) {
+		t.Error("a modifier is still held after the window lost the keyboard")
+	}
+	e.ResetTransient()
+	key(gpucontext.KeyP, true)
+	if k.held(control.KeyShift) || k.held(control.KeyAlt) || len(e.KeyEvents) != 1 {
+		t.Errorf("P pressed after the window came back gives %v, want P alone", e.KeyEvents)
+	}
+}

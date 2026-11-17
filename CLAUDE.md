@@ -65,11 +65,11 @@ make demo-rules-guard                                           # guards on a pl
 make demo-board-atlas                                           # a small flat board from the game's own atlas, the water a material
 make demo-board-flat                                            # Madeira on the simple map: a flat board, bands for the ways, bridges and fords
 make demo-board-roads                                           # two villages either side of a river: roads laid with Shift+R, planned, priced and built; an old tunnel under the hill, Shift+T digs another; I brings the winter
-make demo-board-topography                                      # Madeira in relief: light, water, roads, bridges, the camera on a stick (Q/E, R/F, Tab), the weather; the ground textured from photographs; forests and settlements as fields, caravans on the roads, far off in the sheets kept between runs
+make demo-board-topography                                      # Madeira in relief: light, water, roads, bridges, the camera on a stick (Q/E, R/F, Tab), the weather; the ground textured from photographs; forests and settlements as fields, caravans on the roads, far off in the sheets kept between runs; the settlements' buildings solids at every distance; the sea over its bed, its shallows, waves and surf
 make demo-board-topography-ghibli                               # the same ground painted, the light in bands (-look ghibli)
 make demo-board-topography-widgets                              # the hour, the date and the weather apart by the corners, not in a bar (-hud widgets)
 make demo-board-forest-army                                     # a forest and two armies folded far off and unfolded near: trees, soldiers, a battle either way
-go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS, its roads, tunnels, bridges and buildings OpenStreetMap's, what grows where the land cover's (CORINE), its growth and settlements as fields
+go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS, its roads, tunnels, bridges and buildings OpenStreetMap's, what grows where the land cover's (CORINE), its growth and settlements as fields, the sea's bed the tiles' at a coarser zoom (`bed:`)
 make demo-navigation-square                                     # units sent round a wall, over a river by a bridge a wagon is too wide for; walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-hex                                        # the same on a hex board
 make demo-navigation-spawn                                      # walkers spawned under the cursor (N) hold their cells, the cells held shown
@@ -317,11 +317,15 @@ Decisions the user has made; they are not up for revisiting in passing.
   (2026-11-06): its `Unfold` told as though its sector came down, the parts its rules give
   photographed where they would stand, on the ground the world is given (`Write.SetGround`, the
   topography's), none spawned, nothing saved, so a forest is in the sheet before anyone comes
-  near and only the game's rules say what stands in it; the sheets are **kept in tiles** between
-  runs where the game says (`world.Config.Sheets`: a folder read as the sheets are made, written
-  back sector by sector as they settle where it asks `Keep`; the policy is the game's, a static
-  world shipping its tiles read-only, a dynamic one writing them back; a change to how a game
-  plants its fields is a new `Version`); **what crosses sectors belongs to a cell of the
+  near and only the game's rules say what stands in it; **what a plugin draws as a solid of
+  its own, it draws at every level** (the user's word, 2026-11-12: a building is in no sheet,
+  which holds sprites seen from above and which a camera with an eye does not see;
+  `buildings` draws its solids whole at the close and standard scales and their bodies alone
+  at the strategic one, the level its sector's in the camera's view); the sheets are **kept
+  in tiles** between runs where the game says (`world.Config.Sheets`: a folder read as the sheets
+  are made, written back sector by sector as they settle where it asks `Keep`; the policy is the
+  game's, a static world shipping its tiles read-only, a dynamic one writing them back; a change to
+  how a game plants its fields is a new `Version`); **what crosses sectors belongs to a cell of the
   tiers** (the user's word, 2026-11-07): the grid has tiers over its sectors (`sector.Grid.Tiers`,
   a cell of tier k 2ᵏ×2ᵏ sectors), a standing thing no longer than `Config.Sectors.Small` (a
   quarter of a sector's side unless set) lives in its centre's sector, a longer one in the lowest
@@ -436,7 +440,9 @@ climate, the weather), `collision`, `navigation`, `selection`, `dialog`, `player
 `players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`, `underground` (tunnels
 and chambers dug under the ground by `underground/site`'s rules, walked and ridden through, drawn
 from inside), `forest` (forests
-planted over the board's cells: kinds of trees, stands by the ground's height), `roads` (roads laid
+planted over the board's cells: kinds of trees, stands by the ground's height), `buildings` (the
+buildings of a level's file or of a game's own standing as solids, drawn by the plugin at every
+level, entities where their settlement's sector unfolds), `roads` (roads laid
 with a tool: planned, priced, judged by the game's rules and built, by `roads/site`'s rules, which
 `cmd/gramap` plans its roads by too), `bullet`, `minimap`
 (small pictures round the players' cameras), `telemetry`

@@ -89,7 +89,7 @@ func TestFrame_StandsRoundTheMouthLevelOverTheRoofAsItRunsIn(t *testing.T) {
 		t.Fatalf("a frame of %d floats, want two jambs and a lintel", len(got))
 	}
 	for k := 0; k < len(got); k += tubeFloats {
-		if p := got[k : k+tubeFloats]; p[11] != 1 || p[0] <= 50 || p[4] != 34 {
+		if p := got[k : k+tubeFloats]; int(p[8])&framed == 0 || p[0] <= 50 || p[4] != 34 {
 			t.Errorf("the piece %v, want a frame's from outside the mouth at x 50 to 16 in", p)
 		}
 	}
@@ -105,5 +105,75 @@ func TestFrame_StandsRoundTheMouthLevelOverTheRoofAsItRunsIn(t *testing.T) {
 	if jamb := sunk[:tubeFloats]; jamb[2] != 2 || jamb[2]+jamb[7] <= 14 {
 		t.Errorf("the jamb %v of a floor falling to 2, want it from 2 to over the roof at 14",
 			jamb)
+	}
+}
+
+func TestBent_LaysATurnInPiecesMeetingWallToWallAndSquareAtItsEdges(t *testing.T) {
+	f := cell.Floor{Width: 6, Clear: 4}
+	m := geom.NewVec(15, 15)
+	out := func(x, y float32) leg {
+		l := f32.Hypot(x, y)
+		return leg{u: geom.NewVec(x/l, y/l), long: 10 * l, far: 2,
+			end: geom.NewVec(m.X+5*x, m.Y+5*y)}
+	}
+	for name, legs := range map[string][2]leg{
+		"a square turn": {out(-1, 0), out(0, 1)},
+		"half a turn":   {out(-1, 0), out(1, 1)},
+	} {
+		a, b := legs[0], legs[1]
+		got := bent(nil, a, b, m, 3, f)
+		if len(got) != bends*tubeFloats {
+			t.Fatalf("%s: %d floats, want %d pieces", name, len(got), bends)
+		}
+		type wall struct{ begin, end [2]geom.Vec } // left, right
+		walls := make([]wall, bends)
+		for k := range bends {
+			p := got[k*tubeFloats : (k+1)*tubeFloats]
+			pa, pb := geom.NewVec(p[0], p[1]), geom.NewVec(p[4], p[5])
+			l := f32.Hypot(pb.X-pa.X, pb.Y-pa.Y)
+			d := geom.NewVec((pb.X-pa.X)/l, (pb.Y-pa.Y)/l)
+			n := geom.NewVec(-d.Y*p[3], d.X*p[3])
+			end, begin := p[10], p[11]
+			for i, side := range [2]float32{1, -1} {
+				walls[k].begin[i] = geom.NewVec(pa.X+side*(n.X+d.X*begin),
+					pa.Y+side*(n.Y+d.Y*begin))
+				walls[k].end[i] = geom.NewVec(pb.X-side*(-n.X+d.X*end),
+					pb.Y-side*(-n.Y+d.Y*end))
+			}
+			if k > 0 {
+				q := got[(k-1)*tubeFloats : k*tubeFloats]
+				if q[4] != p[0] || q[5] != p[1] || q[6] != p[2] {
+					t.Errorf("%s: piece %d begins at %v, the one before ends at %v", name, k,
+						p[:3], q[4:7])
+				}
+				if f32.Abs(q[9]+f32.Hypot(q[4]-q[0], q[5]-q[1])-p[9]) > 1e-3 {
+					t.Errorf("%s: the lamps counted %v on into piece %d, from %v", name, p[9],
+						k, q[9])
+				}
+				for i := range 2 {
+					w, v := walls[k-1].end[i], walls[k].begin[i]
+					if f32.Hypot(w.X-v.X, w.Y-v.Y) > 1e-3 {
+						t.Errorf("%s: a wall of piece %d ends at %v, the next begins at %v",
+							name, k-1, w, v)
+					}
+				}
+			}
+		}
+		if got[0] != a.end.X || got[1] != a.end.Y || got[len(got)-8] != b.end.X ||
+			got[len(got)-7] != b.end.Y {
+			t.Errorf("%s: the turn runs from %v to %v, want from %v to %v", name, got[:2],
+				got[len(got)-8:len(got)-6], a.end, b.end)
+		}
+		for i := range 2 {
+			at, to := walls[0].begin[i], walls[bends-1].end[i]
+			if s := (at.X-a.end.X)*a.u.X + (at.Y-a.end.Y)*a.u.Y; f32.Abs(s) > 1e-3 {
+				t.Errorf("%s: a wall begins %v off the edge it comes in by, want square on it",
+					name, s)
+			}
+			if s := (to.X-b.end.X)*b.u.X + (to.Y-b.end.Y)*b.u.Y; f32.Abs(s) > 1e-3 {
+				t.Errorf("%s: a wall ends %v off the edge it goes out by, want square on it",
+					name, s)
+			}
+		}
 	}
 }
