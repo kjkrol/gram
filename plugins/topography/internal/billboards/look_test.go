@@ -90,22 +90,25 @@ type fixedSky struct {
 func (s fixedSky) Distant() light.Distant { return s.sun }
 func (s fixedSky) DrawnAir() air.Weather  { return s.air }
 
-func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
+// the shader leans a billboard's top by the frame's gusts (the air's gust.wgsl), as far as its
+// instance says it sways
+func TestBillboards_HandTheShaderHowMuchTheySway(t *testing.T) {
 	w, p, cam := isometricIsland()
 	cam.CenterOn(48, 48, 0)
 	p.WithAtmosphere(fixedSky{sun: sky.DefaultSun, air: air.Weather{Wind: [2]float32{40, 0}}})
 
 	look := w.Read(0).Look()
 	box := plane.NewAABB(geom.NewVec(40, 40), 10, 10)
-	lean := func(sway float32) float32 {
+	sways := func(sway float32) float32 {
 		var f render.Frame
 		f.Reset(cam)
 		look.(world.DirectLook).Begin(&render.Frame{}, cam)
 		look.Sprite(&f, cam, box, world.Z{}, sheet{}, render.Appearance{Sway: sway}, render.WhiteLight)
 		return billboards.Stood(look)[0][5]
 	}
-	if still, swaying := lean(0), lean(1); still != 0 || swaying == 0 {
-		t.Errorf("a billboard's top leans %v unswaying, %v swaying; want upright and leaning", still, swaying)
+	if still, swaying := sways(0), sways(0.6); still != 0 || swaying != 0.6 {
+		t.Errorf("a billboard is handed swaying %v where it does not and %v where it sways 0.6; "+
+			"want 0 and 0.6", still, swaying)
 	}
 }
 

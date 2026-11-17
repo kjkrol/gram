@@ -1,8 +1,10 @@
 // The clouds worked out coarser than the screen (aloft.Renderer, image0) laid over a view
 // U.LayView pixels wide, U.LayCoarse pixels of it a pixel of theirs each way, a coarse pixel's
 // worth blurred: their steps put off at random a pixel showed as grain. Each lies as deep as the
-// nearest of the coarse pixels round it left in the depth read (depthAt), so what stands nearer
-// hides them.
+// nearest to the eye of the coarse pixels its blur draws on left in the depth read (depthAt), so
+// what stands nearer hides them, and a cloud's edge fades over the pixels beside it: as deep as
+// its own coarse pixel alone, one with no cloud of its own lay nowhere and cut the edge off
+// along its side, a square of the coarse image.
 
 struct Out {
     @builtin(position) clip: vec4<f32>,
@@ -37,7 +39,14 @@ fn fs_main(o: Out) -> Laid {
     if l.color.a < 1.0 / 512.0 {
         discard;
     }
-    l.depth = coarseDepth(at);
+    // reversed: the nearest is the greatest, and a pixel with no cloud holds none
+    var depth = 0.0;
+    for (var dy = -1.0; dy <= 1.0; dy += 1.0) {
+        for (var dx = -1.0; dx <= 1.0; dx += 1.0) {
+            depth = max(depth, coarseDepth(at + vec2<f32>(dx, dy)));
+        }
+    }
+    l.depth = depth;
     return l;
 }
 

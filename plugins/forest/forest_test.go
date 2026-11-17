@@ -496,6 +496,7 @@ func TestStands_WhenChoosesTheStandAndFelledTellsAForestShortOfTrees(t *testing.
 type stood struct {
 	world.Look
 	bodies, boards map[render.SpriteID]bool
+	sways          map[render.SpriteID]float32
 }
 
 var _ world.UprightLook = stood{}
@@ -503,6 +504,9 @@ var _ world.UprightLook = stood{}
 func (s stood) Sprite(_ *render.Frame, _ camera.Camera, _ plane.AABB, _ world.Z,
 	_ render.AtlasSource, a render.Appearance, _ render.Illumination) {
 	s.boards[a.SpriteID] = true
+	if s.sways != nil {
+		s.sways[a.SpriteID] = a.Sway
+	}
 }
 
 func (s stood) Upright(_ *render.Frame, _ camera.Camera, _ plane.AABB, _ world.Z,
@@ -546,6 +550,51 @@ func TestTypes_ATreeIsABodyAtL2OnlyWhereItsSpecSaysBody(t *testing.T) {
 		t.Errorf("at L2 an oak stood as a body %v, as a billboard %v; want a billboard",
 			look.bodies[oaks], look.boards[oaks])
 	}
+}
+
+func TestTypes_ATreeSwaysAsMuchAsItsSpecSays(t *testing.T) {
+	supple := pine
+	supple.Sway = 0.7
+	g := newGrove(t, planting(forest.Stand{Mix: []forest.Share{{Tree: "oak"}, {Tree: "pine"}}},
+		tree{"oak", oak}, tree{"pine", supple}), func(b *board.Plugin) {
+		b.WithMap(bare{ramp{b.Read(0).Board().Grid}})
+	})
+	look := stood{
+		Look:   g.w.Read(0).Look(),
+		bodies: map[render.SpriteID]bool{},
+		boards: map[render.SpriteID]bool{},
+		sways:  map[render.SpriteID]float32{},
+	}
+	g.w.Write().SetLook(look)
+	g.w.Write().NewView(g.cam)
+	g.zoom(1)
+	g.run(3)
+	if err := g.eng.Frame(); err != nil {
+		t.Fatal(err)
+	}
+	g.w.Read(0).Picture().DrawWorld(nil, g.cam)
+	_, oaks, _, _ := g.w.Kinds().Lookup("oak")
+	_, pines, _, _ := g.w.Kinds().Lookup("pine")
+	if !look.boards[pines] || !look.boards[oaks] {
+		t.Fatalf("pines drawn %v, oaks %v; want both to check", look.boards[pines],
+			look.boards[oaks])
+	}
+	if look.sways[pines] != 0.7 || look.sways[oaks] != 0 {
+		t.Errorf("a pine of Sway 0.7 is drawn swaying %v and an oak of none %v; want 0.7 and 0",
+			look.sways[pines], look.sways[oaks])
+	}
+}
+
+func TestTypes_ASwayPastOnePanics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("a tree swaying 1.5 was defined, want a panic")
+		}
+	}()
+	wild := pine
+	wild.Sway = 1.5
+	newGrove(t, planting(forest.Stand{Mix: []forest.Share{{Tree: "pine"}}}, tree{"pine", wild}),
+		func(*board.Plugin) {})
 }
 
 func (g *grove) forest() uid.UID64 {

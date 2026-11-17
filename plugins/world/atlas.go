@@ -28,6 +28,7 @@ type Atlas struct {
 	upright  map[render.SpriteID]bool
 	canopy   map[render.SpriteID]bool
 	cutout   map[render.SpriteID]bool
+	sway     map[render.SpriteID]float32
 	edges    map[render.SpriteID]render.SpriteID
 	twins    map[tag.Tag[effect.States]]map[render.SpriteID]render.SpriteID // under an effect
 	// the effects in the order first looked under: the last wins
@@ -142,6 +143,7 @@ func (p *Plugin) NewAtlas() *Atlas {
 		upright:  map[render.SpriteID]bool{},
 		canopy:   map[render.SpriteID]bool{},
 		cutout:   map[render.SpriteID]bool{},
+		sway:     map[render.SpriteID]float32{},
 		edges:    map[render.SpriteID]render.SpriteID{},
 		twins:    map[tag.Tag[effect.States]]map[render.SpriteID]render.SpriteID{},
 		declared: map[render.SpriteID][]leveled{},
@@ -437,6 +439,13 @@ func (s Slot) Canopy() Slot {
 // is not.
 func (s Slot) Cutout() Slot {
 	s.a.cutout[s.id] = true
+	return s
+}
+
+// Swaying has the sprite's entity bend in the wind by amount, 0 to 1, where no effect has turned
+// its render.Appearance's Sway. Its looks under effects, its frames and its twins too.
+func (s Slot) Swaying(amount float32) Slot {
+	s.a.sway[s.id] = amount
 	return s
 }
 
@@ -737,6 +746,14 @@ func (a *Atlas) withKin(marked map[render.SpriteID]bool) map[render.SpriteID]boo
 	out := map[render.SpriteID]bool{}
 	for id := range marked {
 		a.kin(id, func(k render.SpriteID) { out[k] = true })
+	}
+	return out
+}
+
+func (a *Atlas) swaying() map[render.SpriteID]float32 {
+	out := map[render.SpriteID]float32{}
+	for id, amount := range a.sway {
+		a.kin(id, func(k render.SpriteID) { out[k] = amount })
 	}
 	return out
 }

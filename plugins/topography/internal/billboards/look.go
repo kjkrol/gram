@@ -84,7 +84,7 @@ func (l Look) DrawSprites(t render.Target, cam camera.Camera, u render.Uniforms)
 func (l Look) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z,
 	atlas render.AtlasSource, a render.Appearance, lit render.Illumination) {
 	if l.gpu.on { // a billboard ignores the Angle: it stands up, not flat
-		l.gpu.add(cam, box, z, atlas, a.SpriteID, lit, a.Sway, f.Time())
+		l.gpu.add(cam, box, z, atlas, a.SpriteID, lit, a.Sway)
 		return
 	}
 	if a.Sway > 0 { // from above the top leans as far as the entity is wide

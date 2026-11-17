@@ -87,21 +87,18 @@ func (s *sprites) begin(cam camera.Camera) {
 	}
 }
 
+// sway is how much it bends in the wind: the shader leans its top by the frame's gusts
 func (s *sprites) add(cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource,
-	id render.SpriteID, lit render.Illumination, sway, t float32) {
+	id render.SpriteID, lit render.Illumination, sway float32) {
 	x0, y0 := box.TopLeft.X, box.TopLeft.Y
 	x1, y1 := box.BottomRight.X, box.BottomRight.Y
 	alt, h := z.Altitude, tall(z, y0, y1)
 	cx, cy := (x0+x1)/2, (y0+y1)/2
-	var lx, ly float32
-	if sway > 0 {
-		lx, ly = s.weather.Sway(t, cx, cy, sway)
-	}
 	haze := s.hazeAt(cx, cy, alt)
 	u0, v0, u1, v1 := atlas.UV(id)
 	l := lit.Light
 	b := batchOf(&s.batches, atlas, s.cutout)
-	b.inst = append(b.inst, cx, cy, alt, h, x1-x0, lx*h, ly*h, haze, u0, v0, u1, v1,
+	b.inst = append(b.inst, cx, cy, alt, h, x1-x0, sway, 0, haze, u0, v0, u1, v1,
 		l[0], l[1], l[2], s.up, s.groundAt(cx, cy), float32(lit.Takes), 0, 0)
 }
 

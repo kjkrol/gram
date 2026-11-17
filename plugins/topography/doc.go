@@ -50,8 +50,9 @@
 // default. How a kind looks beyond its sprite is its painter.Style ([Plugin.Style]): its
 // shine, its flow, how it spreads, and its painter.Detail, a texture laid over its cells seen
 // near as a grain round the kind's own colour, fading out as a cell shrinks on the screen; what
-// sways on a cell (cell.Kind.Sway) leans its grain with the weather's wind, the gusts going over
-// the ground as a wave. How the light is styled is a painter.Shading ([Plugin.WithShading]):
+// sways on a cell (cell.Kind.Sway) leans its grain with the weather's wind and lightens under
+// its gusts, bands going over the ground with it; the sea's waves run with the wind and stand
+// steeper under a gust. How the light is styled is a painter.Shading ([Plugin.WithShading]):
 // the sun's light in bands, the shade tinted, the sun warmed.
 //
 // # Water

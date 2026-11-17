@@ -196,7 +196,8 @@ func TestTiles_LayAHexBoardsTilesInTheOrderOfItsCells(t *testing.T) {
 func TestTiles_LeanWhatSwaysWithTheWind(t *testing.T) {
 	gputest.Need(t)
 	grass := cell.Kind{SpriteID: 1, Pace: 1, Allows: cell.Land}
-	reeds := cell.Kind{SpriteID: 2, Pace: 1, Allows: cell.Land, Sway: 1, Height: 20}
+	// tall, so the steady wind's lean is one to test
+	reeds := cell.Kind{SpriteID: 2, Pace: 1, Allows: cell.Land, Sway: 1, Height: 40}
 	yellow := color.RGBA{R: 200, G: 190, B: 80, A: 255}
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
 	brd, brdW := board.NewBoard(g)
@@ -224,7 +225,7 @@ func TestTiles_LeanWhatSwaysWithTheWind(t *testing.T) {
 	}{{5, 3, false}, {6, 5, true}} {
 		mx, my := float32(c.x)*32+16, float32(c.y)*32+16
 		lx, ly := air.Weather{Wind: wind}.Sway(1.3, mx, my, 1)
-		lx, ly = lx*20, ly*20
+		lx, ly = lx*40, ly*40
 		if lx > -4 {
 			t.Fatalf("the reeds at %d, %d lean %v, %v; want a lean to test", c.x, c.y, lx, ly)
 		}

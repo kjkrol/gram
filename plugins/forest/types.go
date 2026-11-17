@@ -19,7 +19,8 @@ import (
 )
 
 // Spec is what a kind of tree is: how tall it stands and how wide its crown, in world units, how
-// it looks and casts its shade, whether it stops what collides, and the game's roles it plays.
+// it looks, casts its shade and bends in the wind, whether it stops what collides, and the game's
+// roles it plays.
 type Spec struct {
 	Height float32
 	// Crown is the side of the tree's box.
@@ -39,6 +40,8 @@ type Spec struct {
 	// Body has it drawn at L2 as a body, its Side on the four faces and over the top of its box;
 	// a billboard of its Side unless set.
 	Body bool
+	// Sway is how much it bends in the wind, 0 not at all to 1 as far as the wind blows it.
+	Sway float32
 	// Roles are the game's roles it plays besides TreeRole.
 	Roles []string
 }
@@ -82,6 +85,9 @@ func (t *Types) Define(name string, spec Spec) {
 	}
 	if spec.Trunk < 0 || spec.Trunk >= 1 {
 		panic(fmt.Sprintf("forest: tree %q: its Trunk is a share of its Height under 1", name))
+	}
+	if spec.Sway < 0 || spec.Sway > 1 {
+		panic(fmt.Sprintf("forest: tree %q: its Sway is 0 to 1", name))
 	}
 	if _, ok := t.specs[name]; ok {
 		panic(fmt.Sprintf("forest: tree %q is defined twice", name))
@@ -174,6 +180,9 @@ func (t Type) look(a *world.Atlas) {
 	s := a.Add(t.kind, px, side).Canopy().Cutout()
 	if t.spec.Body {
 		s = s.Upright()
+	}
+	if t.spec.Sway > 0 {
+		s = s.Swaying(t.spec.Sway)
 	}
 	// nothing of its own from L4 out: the sheets photograph it in its L3 look only where its
 	// kind declares none there

@@ -84,9 +84,9 @@
 //
 // How entities are drawn is declared on the world's [Atlas] by the figures' Looks, gathered once
 // the Stage is set up, before its scenes: a kind's look, its look Under an effect, Turning,
-// Facing, Animated, Lying, Upright, Canopy, Cutout, Edges, and Styled: how another plugin draws
-// about the kind
-// (an outline, a cone, a route), a render.Style of that plugin's, read off [Read.Styles].
+// Facing, Animated, Lying, Upright, Canopy, Cutout, Swaying, Edges, and Styled: how another
+// plugin draws about the kind (an outline, a cone, a route), a render.Style of that plugin's,
+// read off [Read.Styles].
 // Closing the atlas hands it to the world ([Write.SetAtlas]), which gives it the entity renderer
 // and applies what was declared; a game declaring looks by hand closes its own
 // ([Plugin.NewAtlas]) before. Each

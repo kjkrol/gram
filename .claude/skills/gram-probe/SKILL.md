@@ -71,7 +71,10 @@ Each script's header says its arguments and variables.
    about.
 4. **Pictures**: `GRAM_SHOT` with the probe, compared per pixel (max difference, pixels
    differing): a steady state gives the same picture ±1, every other difference is named in the
-   report. Each view the change touches.
+   report. Each view the change touches. A probe placing the camera reads `cam.Zoom()` from the
+   60th tick on and puts `cameras.Zoom` and `CenterAt` again till it holds; what moves (a wind,
+   a wave) is judged by two frames of one run, a scratch copy's shot saving a second frame, never
+   by two runs, whose cameras settle a few pixels apart.
 5. **Frame rate**: `GRAM_FPS_LOG=1 GRAM_VSYNC=off`, 35 s a run, after the warm-up or over the
    seconds a passing regime lasts; steady and the moment it works hardest. The warm-up is not a
    fixed 8 s: on a board with far routes the navigation builds its hierarchy in budget on its own
@@ -104,6 +107,8 @@ a window behind is not paced, and a fullscreen one is bound by the GPU.
   the template does, and guard a nil `*cgoke.Active`.
 - A panic in the probe surfaces as a gogpu render-thread nil dereference: the cause is the
   probe's line.
+- A demo's window opened while the user works takes their keys and clicks: a shot whose view
+  is not the probe's is taken again.
 - A probe that saves and loads (F5/F9, `eng.Save`/`Load`) must not register its system with
   `ctx.RegSys` in Install (goke: "Load called after other components were already registered"):
   register it in `ctx.Setup`, as board/forest-army's probe does (2026-11-04).

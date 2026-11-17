@@ -81,11 +81,13 @@ type renderer struct {
 	standing map[render.SpriteID]bool
 	canopy   map[render.SpriteID]bool
 	cutout   map[render.SpriteID]bool
+	sway     map[render.SpriteID]float32
 	edges    map[render.SpriteID]render.SpriteID
-	// the six by sprite, for the frame's loop: a map a layer an entity was a fifth of Compose
+	// the seven by sprite, for the frame's loop: a map a layer an entity was a fifth of Compose
 	flags    []spriteFlag
 	shadedOf []render.MaterialID
 	edgeOf   []render.SpriteID
+	swayOf   []float32
 	quads    []camera.Quad
 	// by sprite, whether it is a material: shaded's keys
 	materials []bool
@@ -146,6 +148,12 @@ func (s *renderer) mark(canopy, cutout map[render.SpriteID]bool) {
 	s.table()
 }
 
+// sways names the sprites whose entities bend in the wind, and by how much
+func (s *renderer) sways(sway map[render.SpriteID]float32) {
+	s.sway = sway
+	s.table()
+}
+
 type spriteFlag uint8
 
 const (
@@ -155,13 +163,15 @@ const (
 	flagEdged
 	flagCanopy
 	flagCutout
+	flagSways
 )
 
-// table lays shaded, lying, standing, canopy, cutout and edges out by sprite
+// table lays shaded, lying, standing, canopy, cutout, sway and edges out by sprite
 func (s *renderer) table() {
 	clear(s.flags)
 	clear(s.shadedOf)
 	clear(s.edgeOf)
+	clear(s.swayOf)
 	for id, m := range s.shaded {
 		s.flag(id, flagShaded)
 		s.shadedOf[id] = m
@@ -190,6 +200,10 @@ func (s *renderer) table() {
 		s.flag(id, flagEdged)
 		s.edgeOf[id] = e
 	}
+	for id, amount := range s.sway {
+		s.flag(id, flagSways)
+		s.swayOf[id] = amount
+	}
 }
 
 func (s *renderer) flag(id render.SpriteID, f spriteFlag) {
@@ -197,6 +211,7 @@ func (s *renderer) flag(id render.SpriteID, f spriteFlag) {
 		s.flags = append(s.flags, 0)
 		s.shadedOf = append(s.shadedOf, 0)
 		s.edgeOf = append(s.edgeOf, 0)
+		s.swayOf = append(s.swayOf, 0)
 	}
 	s.flags[id] |= f
 }
@@ -355,6 +370,9 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			a := l.Appearance
 			a.SpriteID = id
 			fl := s.of(id)
+			if fl&flagSways != 0 && a.Sway == 0 {
+				a.Sway = s.swayOf[id]
+			}
 			if fl&flagShaded != 0 {
 				s.material(f, cam, e, box, s.shadedOf[id], l.progress)
 				continue

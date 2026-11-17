@@ -1,6 +1,6 @@
 // The world's entities in relief, drawn on the GPU (topography's sprites): an instance an entity —
-// where its feet stand and how tall it is; how wide, how far its top leans with the wind and how
-// hazed it is; its sprite's corners on the atlas, the first image; the light it is drawn in and how
+// where its feet stand and how tall it is; how wide, how much it sways in the wind and how hazed
+// it is; its sprite's corners on the atlas, the first image; the light it is drawn in and how
 // much of it is the sun's; the ground under its feet and the shade it takes (render.Taking) — a
 // billboard standing upright in the world
 // across U.Right, the screen's way across, as tall on the screen as what stands there, at the
@@ -29,7 +29,9 @@ fn vs_main(
     let up = 1.0 - down[vid];
     let base = feet.xyz;
     let side = U.Right * ((a - 0.5) * shape.x);
-    let p = base + side + vec3<f32>(shape.yz * up, up * feet.w);
+    // its top leans with the wind as far as it stands high (the air's gust.wgsl)
+    let lean = windLean(shape.y, feet.xy) * feet.w;
+    let p = base + side + vec3<f32>(lean * up, up * feet.w);
     let q = upright(p, base);
     let at = project(q + nudge(q));
     var b: Board;
