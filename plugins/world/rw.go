@@ -409,10 +409,12 @@ func (w *Write) SetAtlas(atlas render.AtlasSource) {
 	p.renderer.shade(nil, nil)
 	p.renderer.lie(nil, nil, nil)
 	p.renderer.mark(nil, nil)
+	p.renderer.sways(nil)
 	if wa, ok := atlas.(*Atlas); ok {
 		p.renderer.shade(wa.shaded, wa.phased)
 		p.renderer.lie(wa.lain(), wa.edged(), wa.stood())
 		p.renderer.mark(wa.canopies(), wa.cutouts())
+		p.renderer.sways(wa.swaying())
 		p.styles = &wa.styles
 	}
 }

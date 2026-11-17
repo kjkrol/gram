@@ -1,17 +1,20 @@
-// The sea: waves running with the wind, a swell coming ashore and breaking into surf.
+// The sea: waves carried by the wind and steeper under its gusts, a swell coming ashore and
+// breaking into surf.
 
 // SeaGlint is a glint over a tile: water rippled by small waves the wind runs across it, at p,
 // shine in red, lit of the sun reaching it — the clouds' shadow taken off — as the fraction and its
 // shore in custom: the water's own colour under it shaded wave by wave, the sky it reflects and the
 // surf's foam laid over it, the sun it throws back added.
 fn SeaGlint(p: vec2<f32>, shine: f32, lit: f32, shore: vec4<f32>) -> vec4<f32> {
-    return SeaGlintAt(p, shine, lit, shore, U.Pixel, U.Toward);
+    return SeaGlintAt(p, shine, lit, shore, U.Pixel, U.Toward, gustAt(p, U.Pixel));
 }
 
-// SeaGlintAt is SeaGlint where a pixel spans pixel world units, the eye lying toward: waves finer
-// than a pixel or two there are left out, lest they flicker.
-fn SeaGlintAt(p: vec2<f32>, shine: f32, lit: f32, shore: vec4<f32>, pixel: f32, toward: vec3<f32>) -> vec4<f32> {
-    let w = sea(p, shore, pixel);
+// SeaGlintAt is SeaGlint where a pixel spans pixel world units, the eye lying toward, under a
+// gust blowing as hard as gust (gustAt): waves finer than a pixel or two there are left out,
+// lest they flicker.
+fn SeaGlintAt(p: vec2<f32>, shine: f32, lit: f32, shore: vec4<f32>, pixel: f32, toward: vec3<f32>,
+    gust: f32) -> vec4<f32> {
+    let w = sea(p, shore, pixel, gust);
     let n = w.normal;
     let sun = lightWay();
     // a wave's side turned from the light is darker and the side turned to it catches it, whatever
@@ -44,15 +47,16 @@ struct Sea {
     foam: f32,
 }
 
-// sea is the sea's surface at p, a pixel spanning pixel world units there. Waves run across it as
-// time goes by; near a shore (the way to it, how far and how near) a swell comes in facing it and
-// breaks into foam the last stretch before it, whatever the sun. What is finer than a pixel or
-// two is left at its mean: far off the surf is an even pale line along the shore.
-fn sea(p: vec2<f32>, shore: vec4<f32>, pixel: f32) -> Sea {
+// sea is the sea's surface at p, a pixel spanning pixel world units there, under a gust blowing as
+// hard as gust. Waves run across it with the wind; near a shore (the way to it, how far and how
+// near) a swell comes in facing it and breaks into foam the last stretch before it, whatever the
+// sun. What is finer than a pixel or two is left at its mean: far off the surf is an even pale
+// line along the shore.
+fn sea(p: vec2<f32>, shore: vec4<f32>, pixel: f32, gust: f32) -> Sea {
     let t = U.Clock;
-    // the waves run along x, the steeper the harder the wind blows: turned with the wind, every
-    // wander of it would swing the whole sea about the world's corner, to and fro
-    let rough = clamp(calmSea + length(U.Wind) / fullWind, calmSea, stormSea);
+    // the steeper the harder the wind blows, and under a gust: its dark patch going over the water
+    let rough = clamp(calmSea + length(U.Wind) / fullWind, calmSea, stormSea)
+        * (1.0 + gustRough * gust);
     var slope = chop(p, 47.0, 9.0, 0.35, vec2<f32>(0.0, 0.0), t, pixel);
     slope += chop(p, 27.0, 7.0, -0.45, vec2<f32>(17.3, 5.1), t, pixel);
     slope += chop(p, 15.0, 5.5, 0.6, vec2<f32>(3.7, 23.9), t, pixel);
@@ -94,13 +98,16 @@ fn sea(p: vec2<f32>, shore: vec4<f32>, pixel: f32) -> Sea {
     return Sea(normalize(vec3<f32>(-slope.x, -slope.y, 1.0)), clamp(foam, 0.0, 1.0));
 }
 
-// chop is the slope at q of waves about span world units across, noise carried along x at speed
-// world units a second, turned by turn radians off it and stretched across it so the crests run long — each size of them another noise, apart by at:
-// never the same twice, as regular waves would be; none where a pixel spans too much of them.
+// chop is the slope at q of waves about span world units across, noise carried the way the wind
+// has blown (U.Blown), speed world units a second in a wind of seaWind, and a little along x
+// besides, so a sea in still air still breathes; turned by turn radians off x and stretched across
+// it so the crests run long — each size of them another noise, apart by at: never the same twice,
+// as regular waves would be; none where a pixel spans too much of them. Carried, not turned with
+// the wind: turned, every wander of it would swing the whole sea about the world's corner.
 fn chop(q: vec2<f32>, span: f32, speed: f32, turn: f32, at: vec2<f32>, t: f32, pixel: f32) -> vec2<f32> {
     let c = cos(turn);
     let s = sin(turn);
-    let m = q - vec2<f32>(speed * t, 0.0);
+    let m = q - U.Blown * (speed / seaWind) - vec2<f32>(speed * seaIdle * t, 0.0);
     let r = vec2<f32>(c * m.x + s * m.y, -s * m.x + c * m.y); // turned off the wind
     let seen = seenAt(span, pixel);
     if seen <= 0.0 {
@@ -157,7 +164,13 @@ const seaGlintSharpness: f32 = 1200.0;
 const seaGlint: f32 = 0.8;
 
 // How rough the sea is: calm with no wind, as the waves were made at fullWind (world units a
-// second), and at most stormSea times that.
+// second), and at most stormSea times that; under a gust's middle gustRough rougher again.
 const calmSea: f32 = 0.35;
 const fullWind: f32 = 40.0;
 const stormSea: f32 = 1.8;
+const gustRough: f32 = 0.7;
+
+// seaWind is the wind, world units a second, in which the waves run at the speeds they were made
+// with; seaIdle the share of those they run along x whatever the wind.
+const seaWind: f32 = 20.0;
+const seaIdle: f32 = 0.25;

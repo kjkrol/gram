@@ -9,7 +9,9 @@
 // the sky, the fog and the water: at the horizon the Fog ([Overcast], the sky greyed by the
 // clouds), overhead deeper ([Overhead]), skyAt in WGSL between them. [Weather.Haze] is how much
 // of a point the air hides from a camera's eye ([Hazer] for a frame's worth) and [Weather.Sway]
-// how far what sways leans in the wind.
+// how far what sways leans in the wind: a little in the steady wind, its whole lean under a gust
+// ([Weather.Gust]), a band [GustBand] wide lying across the wind and carried along by it. The
+// shaders lean by the same gusts (gustAt and windLean in WGSL).
 //
 // # Dome
 //

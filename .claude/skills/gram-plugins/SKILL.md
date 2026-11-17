@@ -451,6 +451,9 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
   kinds sheet is read only where a cell is `painter.Dressed` (a way on it or beside it, a ground
   running in), since reading it at every pixel cost too much on an Intel GPU. The details have no
   mipmaps; mipmaps in `render/internal/gpu` are the next step, for the far look as much.
+- The wind's gust is worked out at the lattice's corners too (`gustAt(p, U.Cell)`: a band narrower
+  than about two cells cannot show, so the cell widens it) and shows on the ground only where its
+  grain does: near, in the picture's sharp layers.
 - The clouds' shadow is worked out at the lattice's corners, not per pixel (the high layer alone
   cost about 1.2 ms a frame so), and not on the skirt, whose huge far triangles showed it as
   angular shadows on the horizon.
@@ -561,6 +564,22 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
 - The sky: noon lies `NorthWest` by default, beyond the isometric view's sea; below the horizon
   the moon lights (`sky.Moon`, a knob: the relief demo's blood moon is a rule of
   `sky.Moonrise`).
+- **The wind's gusts are one field** (2026-11-17, the user's variant: bands 16 m of life wide, 60
+  to 100 long, some 40 apart, at the figures' scale): `gust.wgsl` among the air's materials
+  (`gustAt`, `windLean`, `windLeanUnder`) and `Weather.Gust` its twin, thrown by whole numbers so
+  Go and a GPU agree (a `sin` hash does not). The ground's grain, the billboards, the sea and a
+  flat board's tiles all lean by it; nothing keeps a wave of its own. The bands are anchored to
+  the world, carried by `Drift` (`U.Blown`) and each turns about its own middle: the heading
+  wanders every tick, and a pattern laid in coordinates turned with the wind swings far off its
+  pivot (the old wave; why the sea's noise is carried, never turned). The squares' side is fitted
+  so they come round whole as the drift wraps. `GustCell` and `Blown` sit in the padding of the
+  shared uniform block (864 bytes before and after): a new uniform of the air's is checked against
+  the block's size, the terrain's being at the edge of what an Intel GPU keeps in registers. The
+  winds are still world units a second, not metres through the scale.
+- The clouds laid over the screen (`aloft`'s `lay.wgsl`) lie as deep as the nearest of the 3×3
+  coarse pixels their blur draws on (2026-11-17): as deep as their own coarse pixel alone, one
+  with no cloud (depth 0, the farthest) cut its neighbour's edge into a square. What stands nearer
+  still hides them; a cloud a coarse pixel off a thing's edge bleeds over it, softly.
 - A game's sky (`atmosphere.Sky`): `Renderer.Dress` panics on a uniform or module-scope name two
   parts declare, or a part and the library (`render.SharedUniforms`); a part without WGSL draws
   nothing; a later part replaces an earlier. naga's traps are `gram-render`'s.
@@ -991,6 +1010,10 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
   `Types.Entry(name)` is a tree for a rule of another aggregate (the settlement's palms); it is
   checked with the stands' mixes as the looks are declared, since the Rules of a board's figure
   run before the forest's kinds are defined.
+- `Spec.Sway` is the tree's look `Slot.Swaying` (the world's renderer hands the look that sway
+  where the entity's `Appearance.Sway` is 0, so an effect may still turn the knob); the
+  billboard's instance carries it and the shader leans the top by the air's gusts. Seen from above
+  the lean is the CPU's (`Weather.Sway`).
 - Made over the world and the board (`NewPlugin(w, brd)`), no pass of its own: the trees come and go
   by the world's `Unfold`, `Fold` and `Folding`. `Types.Define(name, Spec)` registers a kind of tree
   on `board.StandingTemplate` (so `Fixed`) with the plugin's `TreeRole` (its rule despawns the tree

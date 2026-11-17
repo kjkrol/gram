@@ -23,6 +23,7 @@ type counting struct {
 	Look
 	sprites []render.SpriteID
 	angles  []float32
+	sways   []float32
 	boxes   []plane.AABB
 	frame   *render.Frame
 }
@@ -31,6 +32,7 @@ func (c *counting) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z 
 	atlas render.AtlasSource, a render.Appearance, lit render.Illumination) {
 	c.sprites = append(c.sprites, a.SpriteID)
 	c.angles = append(c.angles, a.Angle)
+	c.sways = append(c.sways, a.Sway)
 	c.boxes = append(c.boxes, box)
 	c.Look.Sprite(f, cam, box, z, atlas, a, lit)
 }
@@ -215,6 +217,30 @@ func TestRenderer_Compose_ATurnedSpriteFollowsItsWay(t *testing.T) {
 		if len(look.angles) != 1 || look.angles[0] != tc.want {
 			t.Errorf("%s: drew angles %v, want [%v]", tc.name, look.angles, tc.want)
 		}
+	}
+}
+
+func TestRenderer_Compose_ASwayingSpritesEntitySwaysAsItsLookSays(t *testing.T) {
+	sway := func(of map[render.SpriteID]float32) []float32 {
+		look := &counting{Look: ilook.NewFlat(1000, 1000, false, false)}
+		drawAs(t, look, func(r *renderer) { r.sways(of) }, nil, nil, geom.Vec{}, quarters[0])
+		return look.sways
+	}
+	if got := sway(nil); len(got) != 1 || got[0] != 0 {
+		t.Errorf("an entity of a sprite that does not sway is drawn swaying %v, want [0]", got)
+	}
+	if got := sway(map[render.SpriteID]float32{1: 0.6}); len(got) != 1 || got[0] != 0.6 {
+		t.Errorf("an entity of a sprite swaying 0.6 is drawn swaying %v, want [0.6]", got)
+	}
+}
+
+func TestAtlas_Swaying_HoldsForTheSpritesKin(t *testing.T) {
+	a := &Atlas{
+		sway:   map[render.SpriteID]float32{1: 0.4},
+		unders: map[render.SpriteID][]render.SpriteID{1: {7}},
+	}
+	if got := a.swaying(); got[1] != 0.4 || got[7] != 0.4 || len(got) != 2 {
+		t.Errorf("a sprite swaying 0.4 and its twin under an effect sway %v, want 0.4 both", got)
 	}
 }
 

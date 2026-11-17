@@ -18,6 +18,7 @@ var weatherUniforms = []render.Uniform{
 	{Name: "Cover", Size: 1},
 	{Name: "Billow", Size: 1},
 	{Name: "AirFalls", Size: 1},
+	{Name: "GustCell", Size: 1},
 	{Name: "EyeAt", Size: 3},
 	{Name: "LookDir", Size: 3},
 	{Name: "LookDX", Size: 3},
@@ -31,6 +32,7 @@ var weatherUniforms = []render.Uniform{
 	{Name: "CloudsShadeGround", Size: 1},
 	{Name: "CloudsShadeFigures", Size: 1},
 	{Name: "Visibility", Size: 1},
+	{Name: "Blown", Size: 2},
 	{Name: "SkyOverhead", Size: 3},
 }
 
@@ -45,8 +47,8 @@ var levelNames = func() (n [maxLevels][2]string) {
 }()
 
 var weatherMaterials = render.RegisterMaterials(render.Files(shaders, "shaders/dome.wgsl",
-	"shaders/cloud_noise.wgsl", "shaders/cloud_shadow.wgsl", "shaders/clouds.wgsl"),
-	levelUniforms(weatherUniforms), "CloudShadow")
+	"shaders/cloud_noise.wgsl", "shaders/cloud_shadow.wgsl", "shaders/clouds.wgsl",
+	"shaders/gust.wgsl"), levelUniforms(weatherUniforms), "CloudShadow")
 
 func levelUniforms(u []render.Uniform) []render.Uniform {
 	for _, names := range levelNames {
@@ -69,8 +71,9 @@ func CloudShadow() render.MaterialID { return cloudShadow }
 
 // Weather is the air over the world; the zero Weather is a calm, clear day at 0°. Wind is in
 // world units a second, Clouds, Rain and Snow 0 to 1, Billow 0 torn shreds to 1 big heaps,
-// Temperature degrees Celsius, Drift how far the wind has carried the clouds, Sight how far one
-// sees through clear air (Sight), world units, 0 without end, Bases how high each Layer of clouds
+// Temperature degrees Celsius, Drift how far the wind has carried the clouds, Gusts how wide a
+// band of its gusts is (GustBand), world units, 0 a steady wind, Sight how far one sees through
+// clear air (Sight), world units, 0 without end, Bases how high each Layer of clouds
 // hangs (Bases, BasesOver), Relief the ground the low ones hang over (ReliefOf; none, at their
 // Base), Ceilings the shares of their three bands, under the peaks, covering them and over them
 // (LowBand; none, a third each), OneLayer all of them High's height, heaps and shreds mixed,
@@ -84,6 +87,7 @@ type Weather struct {
 	Rain, Snow  float32
 	Temperature float32
 	Drift       [2]float32
+	Gusts       float32
 	Sight       float32
 	Bases       [2]float32
 	Relief      [2]float32
@@ -170,6 +174,9 @@ func (w Weather) Frame(f *render.Frame, sun light.Distant, x, y float32) {
 	f.Uniform("Wind", w.Wind[0], w.Wind[1])
 	f.Uniform("Drift", float32(wrap(float64(w.Drift[0]), HeapTile)),
 		float32(wrap(float64(w.Drift[1]), HeapTile)))
+	f.Uniform("Blown", float32(wrap(float64(w.Drift[0]), blownSpan)),
+		float32(wrap(float64(w.Drift[1]), blownSpan)))
+	f.Uniform("GustCell", gustSide(w.Gusts))
 	f.Uniform("CloudBases", w.Base(Low), w.Base(High))
 	f.Uniform("CloudRelief", w.Relief[0], w.Relief[1])
 	c0, c1 := w.cuts()

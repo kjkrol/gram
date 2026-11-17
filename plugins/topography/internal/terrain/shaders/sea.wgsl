@@ -8,19 +8,25 @@ struct Surface {
     @location(0) world: vec3<f32>,
     @location(1) deep: f32, // world units the ground lies under the level, less than 0 over it
     @location(2) cloud: f32, // how much of the sun the clouds take
+    @location(3) gust: f32, // how hard the gust blows over it
 }
 
 // vs_main lays the lattice corner vid, counted row by row, at the sea's level, sunk by U.Bend as
-// the ground's corner is (mesh.wgsl), under as much of the clouds' shadow as falls on it.
+// the ground's corner is (mesh.wgsl), under as much of the clouds' shadow as falls on it and the
+// gust blowing over it.
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32) -> Surface {
     let cols = u32(U.Corners.x);
     let i = vec2<f32>(f32(vid % cols), f32(vid / cols));
     let p = vec3<f32>(i * U.Cell, 0.0);
     let off = p.xy - U.Eye.xy;
-    var s = Surface(U.ViewProj * vec4<f32>(p.xy, -U.Bend * dot(off, off), 1.0), p, -corner(i), 0.0);
+    var s = Surface(U.ViewProj * vec4<f32>(p.xy, -U.Bend * dot(off, off), 1.0), p, -corner(i), 0.0,
+        0.0);
     if LEVEL <= 4u && U.Cover > 0.0 && U.CloudsShadeGround > 0.5 {
         s.cloud = cloudsShadeAt(p, U.Cell);
+    }
+    if LEVEL <= 4u {
+        s.gust = gustAt(p.xy, U.Cell);
     }
     return s;
 }
@@ -68,7 +74,7 @@ fn fs_main(s: Surface) -> @location(0) vec4<f32> {
     if span >= shoreFrom {
         shore = shoreAt(p.xy);
     }
-    let sea = SeaGlintAt(p.xy, still.g / still.b, wet, shore, pixel, toward);
+    let sea = SeaGlintAt(p.xy, still.g / still.b, wet, shore, pixel, toward, s.gust);
     var water = levelAlbedo(p.xy);
     if U.SeaShoal > 0.0 {
         water = mix(water, U.SeaShallows, exp(-s.deep / U.SeaShoal));

@@ -8,7 +8,7 @@ struct Ground {
     @builtin(position) @invariant clip: vec4<f32>,
     @location(0) world: vec3<f32>,
     @location(1) cloud: f32, // how much of the sun the clouds take, blended between the corners
-    @location(2) sway: vec2<f32>, // how much what stands here sways, the wind's wave over it
+    @location(2) sway: vec2<f32>, // how much what stands here sways, how hard the gust blows
 }
 
 // vs_main stands the lattice corner vid, counted row by row, at its height, under as much of the
@@ -38,8 +38,9 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> Ground {
     if LEVEL <= 4u && U.Cover > 0.0 && U.CloudsShadeGround > 0.5 && vid < lattice {
         g.cloud = cloudsShadeAt(p, U.Cell);
     }
-    if LEVEL <= 4u && U.DetailPx > 0.0 && vid < lattice {
-        g.sway = vec2<f32>(swayAmountAt(i), swayWave(p.xy));
+    // the gust over what stands and over the water alike
+    if LEVEL <= 4u && (U.DetailPx > 0.0 || U.WaterPx > 0.0) && vid < lattice {
+        g.sway = vec2<f32>(swayAmountAt(i), gustAt(p.xy, U.Cell));
     }
     return g;
 }
@@ -191,7 +192,7 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
         if span >= shoreFrom {
             shore = shoreAt(p.xy);
         }
-        let sea = SeaGlintAt(p.xy, still.g / still.b, wet, shore, pixel, toward);
+        let sea = SeaGlintAt(p.xy, still.g / still.b, wet, shore, pixel, toward, g.sway.y);
         rgb = over(sea * still.b, rgb);
     }
     if cover > 0.0 {
@@ -207,7 +208,8 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
         rgb = over(RunningWaterAt(p.xy, still.r / run.b, wet, v, pixel, toward) * run.b, rgb);
     }
     if LEVEL <= 3u && mouth.g > 0.004 && detail > 0.0 && !sunk {
-        rgb = over(SeaGlintAt(p.xy, mouth.r / mouth.g * detail, wet, vec4<f32>(0.0), pixel, toward) * mouth.g, rgb);
+        rgb = over(SeaGlintAt(p.xy, mouth.r / mouth.g * detail, wet, vec4<f32>(0.0), pixel, toward,
+            g.sway.y) * mouth.g, rgb);
     }
     if U.Visibility > 0.0 {
         rgb = mix(rgb, U.Fog, 1.0 - exp(-hazeDepth(p) / U.Visibility));
@@ -220,24 +222,27 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
 }
 
 // grain is what the details make of the ground's colour at p: their tone doubled, so a tile of
-// mean tone leaves the colour as it is; where what stands sways (sway: how much, the wave over
-// it), the grain leans with the wind (swayShift of a cell at a full lean) and the wave lightens
-// its crests and darkens its troughs, in bands as the light is.
+// mean tone leaves the colour as it is; where what stands sways (sway: how much, how hard the
+// gust blows over it), the grain leans with the wind (swayShift of a cell at a full lean) and
+// lightens under the gust, in bands as the light is.
 fn grain(p: vec2<f32>, sway: vec2<f32>, own: f32, span: f32) -> vec3<f32> {
     var q = p;
     var sheen = 0.0;
     if sway.x > 0.0 {
-        q += swayLean(sway.x, sway.y) * U.Cell * swayShift;
-        sheen = sway.y * swayStrength() * sway.x * swaySheen;
+        q += windLeanUnder(sway.x, sway.y) * U.Cell * swayShift;
+        sheen = sway.y * windStrength() * sway.x * swaySheen;
         if U.Bands > 0.5 {
-            sheen = (step(0.3, sway.y) - step(0.3, -sway.y)) * sway.x * swaySheen;
+            sheen = step(swayBand, sway.y * windStrength()) * sway.x * swaySheen;
         }
     }
     return detailAt(q, own, span) * 2.0 * (1.0 + sheen);
 }
 
+// how far a cell's grain shifts at a full lean, of the cell; how much lighter what sways wholly
+// is under a gust's middle in a full wind; the gust a band of the light begins at
 const swayShift = 0.3;
-const swaySheen = 0.12;
+const swaySheen = 0.3;
+const swayBand = 0.15;
 
 // how dark the sea's bed is under the water, and over how much of a cell's depth it darkens
 const bedWet = 0.45;

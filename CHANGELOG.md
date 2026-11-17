@@ -34,6 +34,17 @@
   `navigation.On` names a goal's level past `OnDeck`.
 - `world.Unseen`: a kind none of the world's looks draw, its plugin drawing it by a source of
   its own.
+- **The wind blows in gusts**: bands lying across the wind and carried along by it, 16 m of life
+  wide and four to six times as long, some three widths apart, at the size a world's figures are
+  drawn at (`air.GustWide`, `air.GustBand(scale)`, `air.Weather.Gusts`; 64 world units wide in a
+  world without a scale). `air.Weather.Gust` is how hard they blow over a point, `gustAt` the
+  same in WGSL, thrown by whole numbers so Go and every GPU agree; `windLean` and
+  `windLeanUnder` lean what sways there. The bands are anchored to the world and each turns
+  about its own middle as the wind veers, so a wander of the wind swings nothing.
+- `forest.Spec.Sway` and `world.Slot.Swaying`: a kind's look says how much its entity bends in
+  the wind where no effect has turned its `render.Appearance.Sway`. A tree's top leans with
+  the gusts, a little in the steady wind and its whole lean as a band goes over it, rocking,
+  each tree to its own beat.
 - `cmd/gramap` takes a map's roads, tunnels, bridges and buildings from OpenStreetMap (`roads:
   {source: osm, classes: [...]}`, asked of the Overpass API once and kept beside the tiles; ©
   OpenStreetMap contributors, ODbL): the roads thinned to lines and cut into legs at their
@@ -109,6 +120,12 @@
   out.
 
 **Fixed**
+- A cloud's edge showed the squares of the coarse image the clouds are worked out in, four to
+  eight pixels a side and more in a picture's outer layers, most where a low cloud met a slope
+  or passed something standing: a pixel of the screen lay as deep as its own coarse pixel
+  alone, so one with no cloud of its own lay nowhere and cut its neighbour's blurred edge off
+  along its side. It lies as deep as the nearest of the coarse pixels its blur draws on, and
+  the edge fades.
 - A board wider than 512 cells had no water at all, neither waves nor a river running, at any
   distance: its water's layers, twice the board across, did not fit the painter's sheet at
   the albedo's four pixels a cell. They are painted at fewer where the board is wide, two at
@@ -137,6 +154,17 @@
   clean without the engine asking for Vulkan alone.
 
 **Changed**
+- The wind over the ground goes in the gusts' bands: what sways on a cell leans its grain and
+  lightens as a band goes over it. It was a wave with a front without end across the wind, 377
+  world units from crest to crest, running 92 to 152 units a second whatever the wind blew.
+  `air.Weather.Sway` leans by the gusts too, and with it a flat board's swaying tiles and a
+  figure seen from above; a wind without `Gusts` leans what sways a quarter of its lean and
+  rocks it.
+- The sea's waves run the way the wind has blown (`U.Blown`), a quarter as fast along x in
+  still air, and stand steeper under a gust, its darker patch going over the water: they ran
+  along x whatever the wind. `SeaGlintAt` takes the gust.
+- A billboard's instance carries how much it sways and its shader leans it: the lean was
+  worked out on the CPU a billboard a frame.
 - The ground's water is alive at every level short of the sheet (L5): the sea's waves, its
   swell breaking into surf by the shore and the rivers running were dropped level by level
   from L3 (`lod`'s words for the ground: L3 drops the grid alone, L4 the baked shade, the

@@ -182,18 +182,9 @@ fn leanOf(b: vec2<f32>, mid: vec2<f32>) -> vec2<f32> {
     if U.TileSways < 0.5 {
         return vec2<f32>(0.0);
     }
-    let blow = length(U.Wind);
     let amount = f32(byteOf(b, 0.0, 1.0, 3)) / 255.0;
-    if blow <= 0.0 || amount <= 0.0 {
-        return vec2<f32>(0.0);
-    }
-    let w = U.Wind / blow;
-    let strength = min(blow / 40.0, 1.5);
-    let gust = dot(mid, w) / 60.0;
-    let rock = sin(U.Clock * 2.2 * (0.7 + 0.3 * strength) - gust);
-    let lean = amount * 0.35 * strength * (0.5 + 0.5 * rock);
     let rise = f32(pairOf(b, 1.0, 1.0, 0)) / 64.0;
-    return w * lean * rise;
+    return windLean(amount, mid) * rise;
 }
 
 // stepOf is the step from a cell's middle to its neighbour in the grid's direction i: a square
