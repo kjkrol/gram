@@ -63,13 +63,9 @@ make demo-rules-dialog                                          # conversations 
 make demo-rules-vision                                          # sight, avoidance and a hunter
 make demo-rules-guard                                           # guards on a plan: patrol, step aside, rest, run to the gate while the alarm (A) is on
 make demo-board-atlas                                           # a small flat board from the game's own atlas, the water a material
-make demo-board-flat                                            # Madeira on the simple map: a flat board, bands for the ways, bridges and fords
 make demo-board-roads                                           # two villages either side of a river: roads laid with Shift+R, planned, priced and built; an old tunnel under the hill, Shift+T digs another; I brings the winter
-make demo-board-topography                                      # Madeira in relief: light, water, roads, bridges, the camera on a stick (Q/E, R/F, Tab), the weather; the ground textured from photographs; forests and settlements as fields, caravans on the roads, far off in the sheets kept between runs; the settlements' buildings solids at every distance; the sea over its bed, its shallows, waves and surf
-make demo-board-topography-ghibli                               # the same ground painted, the light in bands (-look ghibli)
-make demo-board-topography-widgets                              # the hour, the date and the weather apart by the corners, not in a bar (-hud widgets)
+make demo-board-buildings                                       # a village street on a slope: buildings as solids of a map's lines, whole and lit at dusk near, bodies alone far off; a hero on WSAD
 make demo-board-forest-army                                     # a forest and two armies folded far off and unfolded near: trees, soldiers, a battle either way
-go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS, its roads, tunnels, bridges and buildings OpenStreetMap's, what grows where the land cover's (CORINE), its growth and settlements as fields, the sea's bed the tiles' at a coarser zoom (`bed:`)
 make demo-navigation-square                                     # units sent round a wall, over a river by a bridge a wagon is too wide for; walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-hex                                        # the same on a hex board
 make demo-navigation-spawn                                      # walkers spawned under the cursor (N) hold their cells, the cells held shown
@@ -110,11 +106,13 @@ change needs confirmation; for what a demo does tick by tick without a window, t
 skill.
 
 **A change is checked on the demos that use what it changed**: `grep -rl
-'"github.com/kjkrol/gram/plugins/<pkg>"' examples` lists them (the atmosphere: board/topography,
-board/flat, look/sky); a demo without the package shows nothing of it. Every demo is the field only
-for a change to `render`, the engine or the world. Pictures and frame rates compare a copy of the
-tree from before the change with the working one, alternately, in each regime the change has
-(steady, and the moment it works hardest): `gram-probe`, § Checking a change.
+'"github.com/kjkrol/gram/plugins/<pkg>"' examples` lists them (the atmosphere: look/sky); a demo
+without the package shows nothing of it. The ground, the sky, the forests and the towns at an
+island's scale run in a sibling repository, `gram-madeira-square` (`/home/karol/CODE`, joined by
+`go.work`: `make relief`, `make flat`): a change to what they use is checked there too. Every demo
+is the field only for a change to `render`, the engine or the world. Pictures and frame rates
+compare a copy of the tree from before the change with the working one, alternately, in each regime
+the change has (steady, and the moment it works hardest): `gram-probe`, § Checking a change.
 
 CI (`.github/workflows/go.yml`) runs
 `xvfb-run -a go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...` on Go 1.27.0,
@@ -429,25 +427,23 @@ systems. A plugin's root holds its entries, its public subpackages the vocabular
 `internal` the machinery (`gram-plugin`). **Layering: the world knows its entities and nothing
 else; the ground is the board's, the sky the atmosphere's, `render` generic.**
 
-Built-in plugins (`gram-plugins`): `world` (the foundation: space, entities, the registers,
-the clock), `motion` (steering, movement and the leavers past an open edge, made first and run
-right after the world; whatever steers or pushes takes it), `light` (a distant light and the
-lamps, the shadows baked and cast; made before the board and the topography, which draw by it),
-`board` (grid and terrain, cells as entities, what stands on the board, bridges, maps as files;
-`cmd/gramap` makes maps of the
-Earth), `topography` (a map in relief, the cameras' cage), `atmosphere` (the time of day, the
-climate, the weather), `collision`, `navigation`, `selection`, `dialog`, `players` (with
-`players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`, `underground` (tunnels
-and chambers dug under the ground by `underground/site`'s rules, walked and ridden through, drawn
-from inside), `forest` (forests
-planted over the board's cells: kinds of trees, stands by the ground's height), `buildings` (the
-buildings of a level's file or of a game's own standing as solids, drawn by the plugin at every
-level, entities where their settlement's sector unfolds), `roads` (roads laid
-with a tool: planned, priced, judged by the game's rules and built, by `roads/site`'s rules, which
-`cmd/gramap` plans its roads by too), `bullet`, `minimap`
-(small pictures round the players' cameras), `telemetry`
-(the panel in the corner, a scene of its own in every Stage with a world). Each package has a
-`doc.go` describing what it brings, ending with its `# Vocabulary`.
+Built-in plugins (`gram-plugins`): `world` (the foundation: space, entities, the registers, the
+clock), `motion` (steering, movement and the leavers past an open edge, made first and run right
+after the world; whatever steers or pushes takes it), `light` (a distant light and the lamps, the
+shadows baked and cast; made before the board and the topography, which draw by it), `board` (grid
+and terrain, cells as entities, what stands on the board, bridges, maps as files; maps of the Earth
+are made by `gramap`, in `gram-madeira-square`), `topography` (a map in relief, the cameras' cage),
+`atmosphere` (the time of day, the climate, the weather), `collision`, `navigation`, `selection`,
+`dialog`, `players` (with `players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`,
+`underground` (tunnels and chambers dug under the ground by `underground/site`'s rules, walked and
+ridden through, drawn from inside), `forest` (forests planted over the board's cells: kinds of
+trees, stands by the ground's height), `buildings` (the buildings of a level's file or of a game's
+own standing as solids, drawn by the plugin at every level, entities where their settlement's sector
+unfolds), `roads` (roads laid with a tool: planned, priced, judged by the game's rules and built, by
+`roads/site`'s rules, which a map maker plans its roads by too, as `gramap` does), `bullet`,
+`minimap` (small pictures round the players' cameras), `telemetry` (the panel in the corner, a scene
+of its own in every Stage with a world). Each package has a `doc.go` describing what it brings,
+ending with its `# Vocabulary`.
 
 ## Testing conventions
 

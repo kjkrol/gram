@@ -27,8 +27,11 @@ Each script's header says its arguments and variables.
   is needed (`GRAM_GPU=software` draws wrong but runs).
 - `run_demo.sh build|run`: `probe.sh` without the tempo, built and run apart, for frames;
   `PROBE_TREE` and `PROBE_SEED` as there, `PROBE_SED` over every copied `.go` file.
-  `probes/`: `generic` (entities moved a second), `keys` (`PROBE_KEYS`), `picture`
-  (board/topography's tactical picture), `light`, `square`, `bullet`; a new one is
+  `PROBE_DEMOS=<a repository>` takes the demo dir from there, for either script: the relief and
+  the flat demo of gram-madeira-square, whose own `.claude/probes/picture` sets the tactical
+  picture.
+  `probes/`: `generic` (entities moved a second), `keys` (`PROBE_KEYS`), `light`, `square`,
+  `bullet`; a new one is
   `zz_probe_script.go` beside a copy of `zz_probe_common.go`.
 - `fpsstats.sh`, `gcstats.sh`: medians of the per-second lines, the gctrace lines summed;
   `medians.py`: medians of `-count=N` benchmark runs.
@@ -69,21 +72,20 @@ Each script's header says its arguments and variables.
 4. **Pictures**: `GRAM_SHOT` with the probe, compared per pixel (max difference, pixels
    differing): a steady state gives the same picture ±1, every other difference is named in the
    report. Each view the change touches.
-5. **Frame rate**: `GRAM_FPS_LOG=1 GRAM_VSYNC=off`, 35 s a run, after the warm-up or over
-   the seconds a passing regime lasts; steady and the moment it works hardest. The warm-up is
-   not a fixed 8 s: on a board with far routes the navigation builds its hierarchy in budget on
-   its own goroutine (~2.5 ms a tick till it is done, Madeira 100 m ~33 s of game) the first
-   time, and loads it from the game's cache after (`navigation.Cache`, 2026-11-10; the
-   topography's in `~/.cache/gram/topography/hierarchy`): a probe of a demo keeping one points
-   `XDG_CACHE_HOME` at the scratchpad, runs once to fill it and measures the runs after, or
-   reads `navigation.Read.Counts().Builds` (the "Routes" line's `builds`) and starts once it
-   stops growing; a comparison of two trees over the same window is fair meanwhile, the
-   absolute numbers are not. A slow draw drags
-   the tick with it: look for the first of the two to go. The probe stills the adapter whole:
-   the resolution (`Adapt{Still}`, `Picture`), the levers and the level shift
-   (`cameras.Detail{Follows: false}`), else the picture moves under the budget as it runs. The
-   "Sectors" and "Sectors seen" lines of the world's reporters say the levels a camera state
-   gives; a zoom across a threshold re-marks every awake entity at once (a spike to look at).
+5. **Frame rate**: `GRAM_FPS_LOG=1 GRAM_VSYNC=off`, 35 s a run, after the warm-up or over the
+   seconds a passing regime lasts; steady and the moment it works hardest. The warm-up is not a
+   fixed 8 s: on a board with far routes the navigation builds its hierarchy in budget on its own
+   goroutine (~2.5 ms a tick till it is done, Madeira 100 m ~33 s of game) the first time, and loads
+   it from the game's cache after (`navigation.Cache`, 2026-11-10; the relief demo's,
+   gram-madeira-square's, in `~/.cache/gram-madeira-square/relief/hierarchy`): a probe of a demo
+   keeping one points `XDG_CACHE_HOME` at the scratchpad, runs once to fill it and measures the runs
+   after, or reads `navigation.Read.Counts().Builds` (the "Routes" line's `builds`) and starts once
+   it stops growing; a comparison of two trees over the same window is fair meanwhile, the absolute
+   numbers are not. A slow draw drags the tick with it: look for the first of the two to go. The
+   probe stills the adapter whole: the resolution (`Adapt{Still}`, `Picture`), the levers and the
+   level shift (`cameras.Detail{Follows: false}`), else the picture moves under the budget as it
+   runs. The "Sectors" and "Sectors seen" lines of the world's reporters say the levels a camera
+   state gives; a zoom across a threshold re-marks every awake entity at once (a spike to look at).
 6. **Where the time goes**: `pprof.StartCPUProfile`/`StopCPUProfile` at two ticks of a probe;
    a plugin's own pass in `bench/`, on the copy and the tree alike. Hours of game time (a
    weather crossing the sky): a scratch program ticking the plugin's goke ECS in a loop.

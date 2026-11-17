@@ -3,13 +3,14 @@
 # own under the work dir, hooks the probe into the copy, runs it at tempo x4 and prints the lines
 # logged with "P:". The demo's own files are never touched. PROBE_TREE builds against another
 # copy of gram (a baseline), PROBE_SED edits the copied demo.go (a sed expression), PROBE_SEED
-# puts a seed in place of the demo's uint64(time.Now().UnixNano()).
+# puts a seed in place of the demo's uint64(time.Now().UnixNano()). PROBE_DEMOS is the folder the
+# demo dir lies under where it is not gram's own tree (a sibling repository's demos).
 set -e
 R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
 G=${PROBE_TREE:-$R}
 W=$4/probews
 rm -rf "$W"; mkdir -p "$W/demo"
-cp -r "$G/$1"/* "$W/demo/"
+cp -r "${PROBE_DEMOS:-$G}/$1"/* "$W/demo/"
 cp "$2" "$W/demo/zz_probe.go"
 [ -n "$PROBE_SED" ] && sed -i "$PROBE_SED" "$W/demo/demo.go"
 [ -n "$PROBE_SEED" ] && sed -i "s/uint64(time.Now().UnixNano())/$PROBE_SEED/" "$W/demo/demo.go"

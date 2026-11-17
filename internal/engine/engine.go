@@ -13,8 +13,8 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
-	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/parallel"
 	"github.com/kjkrol/gram/render"
 )
 

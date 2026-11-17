@@ -46,7 +46,7 @@ const (
 	gradePushes = 1 << 20
 )
 
-// grade levels the ground under a Graded road as cmd/gramap's grade did on a square map, on either
+// grade levels the ground under a Graded road as gramap's grade did on a square map, on either
 // grid: the corners a cell's road holds level joined into classes, a class at the mean of its
 // corners and within the Rules' cut and fill of each, the ramps between them no steeper than the
 // Rules let them, a class with a corner that may not move held at it; then the road's cells are

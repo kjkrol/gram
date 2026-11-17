@@ -17,7 +17,9 @@
 // one ecs.Setup after the Stage's Init. What a plugin needs of another it takes in its
 // constructor. What a plugin draws it gives Draws, render.Sources of the Stage's one picture
 // (world.Read.Picture), ordered there by height; Looks has its looks declared and its atlases
-// closed once the Stage is set up, before its scenes are made.
+// closed once the Stage is set up, before its scenes are made. Pool is the goroutines the whole
+// game shares (plugin/parallel): a plugin that splits a pass among them keeps the pool and
+// begins a batch a pass.
 //
 // # Rules
 //

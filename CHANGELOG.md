@@ -99,6 +99,14 @@
   built cell with no road or river across it, solids at every distance with their windows lit
   at dusk (4300 of them; houses were sprites in the sheet), and its sea lies over its bed, its
   shallows turquoise.
+- `plugin/parallel`: the pool of goroutines a game shares, public (it was `internal/parallel`):
+  `plugin.Installer.Pool()` handed out a type no module outside gram could name, so none could
+  keep the pool in a plugin of its own or write an installer (a tool laying a map on a board, a
+  plugin's tests).
+- `examples/board/buildings` (`make demo-board-buildings`): a village street on a slope under a
+  circling sun, buildings of a map's lines and one of the game's own code, every roof and a
+  tower, whole and lit at dusk near, bodies alone and no longer entities with the camera drawn
+  out.
 
 **Fixed**
 - A board wider than 512 cells had no water at all, neither waves nor a river running, at any
@@ -163,6 +171,13 @@
 - On Metal the frame's commands go to the GPU every 20 render passes, a stand-in till wgpu
   mends it (gogpu/wgpu#428): its core records two command buffers a pass and its Metal queue
   gives out 64 before one is committed, so a frame of more passes froze the game.
+
+**Removed**
+- The demos of Madeira (`examples/board/topography`, `examples/board/flat`) and `cmd/gramap`,
+  with all this version says of them above, live in
+  [gram-madeira-square](https://github.com/kjkrol/gram-madeira-square) as `relief`, `flat` and
+  its own `cmd/gramap`: the same maps, byte for byte. gram keeps the engine and
+  `plugins/board/water`, which gramap drains its rivers by.
 
 **Improved**
 - Measured against v0.21.0 (`BENCHMARKS.md`, "Four levels a cell"): the navigation's ticks within

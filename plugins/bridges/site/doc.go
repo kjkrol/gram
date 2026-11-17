@@ -1,6 +1,6 @@
 // Package site is where a bridge may stand: [Plan] a bridge from one head to another over a
 // [Ground] under the [Rules], or say why not ([Refusal]). It runs no game, so the bridges plugin
-// and cmd/gramap keep one set of rules.
+// and a map maker (gramap, in gram-madeira-square) keep one set of rules.
 //
 // A bridge runs straight along one of the grid's directions from a head to a head, tiles flat
 // at its deck, over Rules.Longest cells at most, its deck Rules.Clearance over the ground under

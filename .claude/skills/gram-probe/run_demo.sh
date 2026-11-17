@@ -3,7 +3,8 @@
 # module of its own under the work dir, hooks the probe into the copy (no tempo change) and
 # builds <work dir>/bin. PROBE_TREE builds another copy of gram (a baseline), as probe.sh does;
 # PROBE_SEED fixes the demo's random seed, PROBE_SED edits the copied demo's .go files (a sed
-# expression).
+# expression). PROBE_DEMOS is the folder the demo dir lies under where it is not gram's own
+# tree (a sibling repository's demos).
 # run_demo.sh run <work dir> <real seconds> <log file>: runs the binary under timeout, the
 # environment passed through, the whole output kept in the log file.
 set -e
@@ -13,7 +14,7 @@ case "$1" in
 build)
 	W=$4/probews
 	rm -rf "$W"; mkdir -p "$W/demo"
-	cp -r "$G/$2"/* "$W/demo/"
+	cp -r "${PROBE_DEMOS:-$G}/$2"/* "$W/demo/"
 	if [ -d "$3" ]; then cp "$3"/*.go "$W/demo/"; else cp "$3" "$W/demo/zz_probe.go"; fi
 	[ -n "$PROBE_SEED" ] && sed -i "s/uint64(time.Now().UnixNano())/$PROBE_SEED/" "$W/demo/demo.go"
 	[ -n "$PROBE_SED" ] && sed -i "$PROBE_SED" "$W"/demo/*.go

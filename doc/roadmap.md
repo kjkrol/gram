@@ -51,14 +51,14 @@ What is left to do. Take an item out when it lands.
 - **Leaps, climbing and swimming planned** — the planner never plans a leap (a railing, a gap),
   a climb or a swim; a unit under gravity does them only by hand.
 - **Bridges that turn** — a bridge runs straight; a knee (two links not opposite) is refused by
-  the board's rules and not made by `cmd/gramap`.
+  the board's rules and not made by `gramap`.
 - **Bridges and roads taken down** — a player builds both and takes neither down.
 - **The road planner's reach** — `roads/site.Route` prices a step by the slope left after the
   permitted levelling and knows no turn cost, so down a slope it lays a staircase of bends,
   which the levelling must flatten into one chain; a bend or a diagonal step is judged a cell or
   a pair at a time, so a chain of level cells building up across many is seen only by `Plan`;
   a road standing costs its length whatever the ground's `Price`, so a dearer ground never
-  steers a route off it. cmd/gramap works round them with its ladder of allowances and its
+  steers a route off it. gramap works round them with its ladder of allowances and its
   dearer refused ground; a planner carrying the road's height, as gramap's old one did, would
   see the climb whole.
 - **A save in the tactical pause** — what waits for a step is lost by a save taken while the
@@ -215,7 +215,7 @@ What is left to do. Take an item out when it lands.
   640×320); the hierarchy's first build takes ~33 s of game (main's 25); each band of the shade
   stretches every block's shadow down to the lowest ground (~11 000 px a tree).
 
-## Landscape and Madeira
+## Landscape
 
 - **The surf follows the cells** — the line of breaking waves (`water.Shore`) runs along the
   cells' edges, not the rounded coast.
@@ -225,12 +225,9 @@ What is left to do. Take an item out when it lands.
   the game's `Clear` hides it needs the ground's shader told so without a uniform more, which
   an Intel GPU does not forgive it. A sea cell all of whose corners touch land has no depth
   and stays plain water beside the shallows. At L5 the sea is a sheet without its shallows.
-  The coarser tiles tell land up to 1.5 km past the coast, so Madeira's steep south has
-  shallows wider than in life.
-- **Madeira's buildings, what is left** (2026-11-16) — a cottage, a town's house and a chapel
-  of 6 by 4 m, no wider than the island's world holds a thing (`Entities.MaxSize` a cell) and
-  turned by quarters alone; a building takes its foot from the lowest ground under it, so on
-  a steep cell it stands on a tall plinth; buildings shade the ground and not each other.
+- **Buildings, what is left** (2026-11-16) — a building takes its foot from the lowest ground
+  under it, so on a steep cell it stands on a tall plinth; buildings shade the ground and not
+  each other; none is drawn on a map without heights.
 - **Roads in the isometric view** — dark and thin, covered by the routes: their colour and width.
 - **Mipmaps for the ground's details** — `gpu.Texture` holds one level, so a kind's
   `painter.Detail` fades out below 40 px a cell instead of growing coarse, and sampled minified
@@ -256,28 +253,6 @@ What is left to do. Take an item out when it lands.
   component apart for the storeys past the first); the camera behind a unit hangs over a low roof where the
   arm does not fit (it is to drop under it: the map of 10 m); the mouths were looked at from
   outside on shots of every one, the ride through (V) by the user alone.
-- **Maps from OpenStreetMap, what is left** (2026-11-11) — Madeira at 100 m lays three
-  quarters of its roads' length: 308 stretches of four to seven cells are left out where a
-  road of `ground.RoadSlope` (10°) does not fit a hundred metres of that ground (hairpins
-  tighter than a cell are gone), so the network has gaps a unit crosses on bare ground; of 114 tunnels 25 lie with a road at either head, 7 are dug and left out for no
-  road could be laid to a head cut into the ground (a road planned from the head outward
-  would reach them), and 82 stay roads, most for a room of 45 m (figures 15 times life) the ground does not
-  close over within the reshape allowed, or a head beside running water, which never moves; a
-  tunnel shorter than four cells and a bridge shorter than one are plain road. A head drawn
-  outward along its road, a steeper class of road (a mountain track) and the map of 10 m with
-  figures as in life are the ways on. gramap asks one server and its mirror and names the
-  left-out stretches only by their count; the flat demo's committed map predates the
-  settlements and was not made anew.
-- **What grows where, what is left** (2026-11-11) — the kinds of growth are CORINE's classes
-  at 25 ha a shape, the species within a kind picked by the height of the ground alone (no open
-  map of Madeira's species exists); the map of 10 m wants ESA WorldCover's 10 m tree cover for
-  the edges. Madeira's start view draws 8 % slower with the growth over 55 000 cells where the
-  forest took 19 000: a third of it follows the number of trees, the rest was not found (the
-  sheets holding more sectors is the guess). The flat demo keeps its forest by noise.
-- **Buildings of many kinds** (stage 0d, to plan) — OpenStreetMap has 113 762 buildings on
-  Madeira, some 13 000 with a type and 11 745 with their levels: the kind of building a cell
-  by the tags, 34 kinds proposed (dwellings, tourism and trade, public, industry and
-  infrastructure) and 18 landmarks in their true places.
 - **Winter without the slowdown** — snow and ice on Madeira (`weathering`) slow the game down
   badly; a lead: `weathering` asks `air.FallsAt` of every cell once a second of game time, and
   since the clouds came in two layers it works out both layers' noise on the CPU.

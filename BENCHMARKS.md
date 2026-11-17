@@ -777,6 +777,10 @@ collector in its first thirty lines.
 
 ## The demos — the garbage collector and the frames
 
+board/topography and board/flat, measured here and in the sections after, are the relief and the
+flat demo of [gram-madeira-square](https://github.com/kjkrol/gram-madeira-square) since v0.22.0:
+the same probes run them from there (`PROBE_DEMOS`).
+
 Every demo in a copy with a probe (`gram-probe`'s `run_demo.sh`, no tempo change, `PROBE_SEED=7`),
 at `c1f2d419` on 2026-10-28, the machine above (Intel UHD 620, Vulkan, KDE on Wayland, the
 screen 1920×1080 at 60 Hz): 60 s fullscreen with vsync on, the compositor pacing the frames at
