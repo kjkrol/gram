@@ -4,7 +4,7 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/plugin/parallel"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/uid"
 )

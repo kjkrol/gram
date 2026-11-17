@@ -11,6 +11,9 @@ settings without a key and the house rules are `CLAUDE.md`'s; how a plugin is bu
 `gram-plugin`'s, how it draws `gram-render`'s, its numbers the `gram-perf-*` skills'. An entry
 keeps only what those do not.
 
+The relief demo and the flat demo named below are gram-madeira-square's (`relief/`, `flat/`):
+Madeira at 100 m a cell, gram's own examples till v0.22.0.
+
 ## Wiring
 
 - `makePlugins` makes them in the order used: motion first, handed to whatever steers or pushes;
@@ -18,7 +21,7 @@ keeps only what those do not.
   topography after the world, the light and the board; the roads after the board and the
   topography; the minimap after the cameras; the players last, handed every
   `plugin.CommandHandler`, whose `Tunable`s the settings screen lists in that order.
-- `Update` as board/topography runs it: bridges, world, light, motion, collision, gravity, board,
+- `Update` as the relief demo runs it: bridges, world, light, motion, collision, gravity, board,
   navigation, driving, vision, atmosphere, selection, topography, cameras, minimap, players.
   Fixed: the light and motion after the world; gravity right after collision, the board after it;
   navigation before the driving; the topography once the world has moved, before the cameras;
@@ -330,7 +333,7 @@ keeps only what those do not.
   panics naming the kind): the planner's h, the grid's distance, rests on it.
 - `cell.DefaultHiking` is Tobler's hiking function cut at the flat: a descent never quicker than
   the flat, `Air` free over anything. A game's own domain bits tell its classes of unit apart
-  (board/topography's `HighlandDomain`). A save from before the shares holds costs where shares
+  (the relief demo's `HighlandDomain`). A save from before the shares holds costs where shares
   are read and panics at its first step.
 - `unit.At.Next` is the cell the leader steps the unit into; the standing pass prices that step's
   slope while the heading lies within a quarter turn of it, else the step toward the heading's
@@ -389,65 +392,10 @@ keeps only what those do not.
   relief by cells the cell where level ground turns into a ramp bends, so a climbing road leads
   onto a bridge or a ford); the shaping (`relief.KeepRoads`) takes back what would break one and
   the bridge tool refuses it; every error names the file and the line.
-- `cmd/gramap` (Madeira's maps, from `cmd/gramap/madeira.yaml`): heights from the Terrain Tiles
-  on AWS, rivers by `water.Drain`, roads routed by `roads/site`'s Planner (gramap's `Leaps`
-  bridge water and valleys, a leap's cost the bridge's length at the recipe's `bridge` plus its
-  heads' earth) and levelled together by `site.Plan` over the whole network after every leg; a
-  leg stays only if the network still levels and every bridge stands (`bridges/site.Plan` on the
-  graded ground), else the refused cell and its ring are made 3× dearer and it is planned anew,
-  48 tries a rung, then left out and named; fords where a river is shallow; the recipe's `roads:`
-  are `site.Rules` in metres (`cut`, `fill`, `earth`, `step`, `spread`, `slope`, `fords`, `metre`,
-  `cubic`, `climb`) with `route: {cut, fill}` the planner's own allowance (Madeira 40 m against
-  200 m of levelling: a planner forgiving the levelling's whole allowance sees no slope between
-  cells and runs up gorges the levelling cannot fix); a leg is routed up a ladder of
-  rungs, forgiving none of the route allowance first, then a quarter, a half and all of it, and
-  the planner sees a cell the levelling could flatten as flat at its corners' mean; a cell
-  flanking a diagonal bridge's head is barred (its corners are fixed at the deck and on the
-  ground); the map is laid on a board and run a step before it is written, the old file's
-  `units:` kept — and `units:` alone: a hand-placed row of `entities:` goes with a regeneration.
-  With `roads: {source: osm}` (2026-11-11, a map with relief alone; `-flat` plans the routes
-  as before) OpenStreetMap leads the same planner (`osm.go`, `guide.go`, `follow.go`,
-  `tunnels.go`): the ways' cells thinned (Zhang–Suen, so two carriageways are one line) and cut
-  into legs at junctions; a leg planned in the corridor two cells round its trace, cells off it
-  twice dearer, leaps offered only over OpenStreetMap's bridges and water (weighing bridges at
-  every expanded node was 89% of the old run); legs levelled sixteen at a time with all laid,
-  the one through the refused cell taken out and tried alone, then in halves down to four
-  cells, so a long road loses a stretch, never itself. Tunnels first: ways joined into chains,
-  a twin tube skipped, the line straightened to the grid's ways (`via`) and led out of each
-  head across an edge, two cells on before it slants (`squared`), each head cut down and
-  the far corners of its first cell raised (the site wants the ground over the first cell's
-  middle at the roof: 2 × clear over the head, 90 m at figures 15), drawn back up to four
-  cells; their heads, first cells and corners are pinned for every later levelling (`held`
-  plans each anew as `hold` does the bridges). What decides the yield is the 10° of
-  `ground.RoadSlope` and the room of figures 15 times life, not the planner. `GRAMAP_MADEIRA=1
-  go test ./cmd/gramap -run TestMadeira` holds both of Madeira's maps to their SHA-256. The
-  map's one lantern (`{kind: lantern, at: [184, 76]}`) is written by hand: put it back after a
-  map is made anew. The sea's bed (`bed.go`, `bed: {zoom, deepest}`, 2026-11-16): the tiles of
-  the map's own zoom have the sea at 0, zoom 10 and coarser have its depths (ETOPO1), with
-  land told up to 1.5 km past the fine coast: a corner the sea alone touches (`afloat`) takes
-  the coarse depth where it is under 0 and is evened between the shore and there where it is
-  not (Gauss-Seidel, in a fixed order), whole metres, one at least (a sea cell with a corner
-  afloat is always sunk for the terrain), `deepest` at most. Sinking comes last in `build`:
-  the rivers drain to a sea at 0.
-  Fields and settlements (`fields.go`, `settle.go`, `d/gramap`, 2026-11-06): `fields:` rows
-  `{cells, kind, grain, least}` lay a field entity a block of `grain` cells from (0, 0) over the
-  cells of a kind where at least `least` lie, written as `{kind, from: [x, y], to: [x, y],
-  cells: n}` rows of the board's `entities:` (the demo's `fieldRow`); `settlements:` `{cells,
-  sizes, default}` lays `cells` of a kind round each road place, as many as its size's word
-  names (a place `[x, y]` or `{at, size}`, `none` for a pass), by a BFS roadside first over land
-  that is not wet, road, rock, bridge or another settlement; the legend's `@`. The thresholds,
-  the words and the sizes are the game's, in its recipe, sizes in cells never in houses (the
-  user's word, 2026-11-06: gramap stays general; what stands on a built cell is the game's
-  Unfold rules). `check.go` defines `built` like soil and stand-in field kinds so the map lays
-  on a board. A field's `cells:` is a kind or a list of kinds (2026-11-11): one field a block
-  over all the land cover's kinds, since a field a kind a block tripled the fields and cost the
-  world's publish 0.6 ms of every 30 (Madeira: 315 growth fields and 195 settlements). The land
-  cover (`cover.go`, 2026-11-11): CORINE Land Cover 2018's shapes and the Natura 2000 sites
-  from the EEA's ArcGIS REST services (GeoJSON, no login, the answers kept in `cover/` beside
-  the tiles through the same `overpass` cache), rasterised by the cells' middles a row at a
-  time, holes by the even-odd rule; `soil()` takes the cover's kind before the slope's rock
-  (the laurisilva grows on slopes: with the rock first it lost 40 % of its cells) and after the
-  altitude's. CORINE knows no species: the game's stands pick them by height.
+- Maps of the Earth are made by `gramap`, in gram-madeira-square (its own skill there): it
+  writes the level's file above and plans its roads, bridges and tunnels by the `site`
+  packages; it stays general, what stands on a built cell being the game's Unfold rules (the
+  user's word, 2026-11-06).
 - The board's field (collision's `Field`) and cover (sight's) read the cell entities whenever
   asked; nothing copies them.
 - The flat board is drawn on the GPU from an image of its cells (`look/tiles.go`): the CPU writes
@@ -611,7 +559,7 @@ keeps only what those do not.
 - A weather asked while the clock stands (the settings screen's pause) is entered at once, the
   climate run with no time passing (`Climate.Asked`). `Running` is not saved.
 - The sky: noon lies `NorthWest` by default, beyond the isometric view's sea; below the horizon
-  the moon lights (`sky.Moon`, a knob: board/topography's blood moon is a rule of
+  the moon lights (`sky.Moon`, a knob: the relief demo's blood moon is a rule of
   `sky.Moonrise`).
 - A game's sky (`atmosphere.Sky`): `Renderer.Dress` panics on a uniform or module-scope name two
   parts declare, or a part and the library (`render.SharedUniforms`); a part without WGSL draws
@@ -628,7 +576,7 @@ keeps only what those do not.
   crossed, never marched.
 - Trap: a hand-built `air.Weather` (tests) without a `Relief` has one deck on `Bases[Low]`, and
   without `Bases` its clouds lie at 0: tests set them. `Weather.Base` and `Share` answer for
-  `OneLayer` (board/flat) too.
+  `OneLayer` (the flat demo) too.
 - From above (`aloft`) the heaps are marched at random offsets a pixel (an even pattern showed
   stripes; slices showed as stacked discs from the side). From an eye under the layer the low
   bodies stand before the ground up to the highest ground (`aloftBelow`) and the sky's cumulus
@@ -800,7 +748,7 @@ keeps only what those do not.
   trailed (no loop of trails); a closed column's head waits while a gap over its slack closes,
   `StallAfter` more once it stops closing; no stall counts while paced or while the head waits;
   a step aside keeps the formation.
-- Long routes: ends `From` cells apart or more (64 by default; board/topography 32) climb a
+- Long routes: ends `From` cells apart or more (64 by default; the relief demo 32) climb a
   hierarchy of hpastar's, one a domain serving the classes of its units' bodies: the table comes
   from `board.Plugin.UnitKinds` at Setup (at most 8 a domain, the nearest merged beyond into a
   class no laxer), and a unit is planned everywhere as its body's class or the nearest no laxer
@@ -901,7 +849,7 @@ keeps only what those do not.
 - The plugin's `DefaultBindings` read its settings through `Keys.bindings(p)`; a game's own
   `Keys.Bindings()` does not. A demo whose WSAD drive binds
   `cameras.Keys{Wheel, ZoomIn, ZoomOut}` alone.
-- The grab (`Config.Grab`, no default; on in board/topography and board/flat) pans by the whole
+- The grab (`Config.Grab`, no default; on in the relief demo and the flat demo) pans by the whole
   way from the press on its first pass, and yields to navigation's `LookAt` while there is a
   selection.
 - A setting's zero is its default, since an older save decodes to zero: `StillEdges` (a zero
@@ -925,7 +873,7 @@ keeps only what those do not.
 ## gravity
 
 - A zero `Pull` is the Earth's as the figures feel it (`world.Scale.Figures`).
-- A leap no higher than a railing never clears it: board/topography's walkers leap 1.5 m over
+- A leap no higher than a railing never clears it: the relief demo's walkers leap 1.5 m over
   1 m railings.
 
 ## vision

@@ -1,7 +1,8 @@
 // Package site is where a road may run and what laying it takes: [Route] finds the cheapest way
 // from cell to cell over a [Ground] under the [Rules], [Plan] turns a way into an [Estimate]
 // (the cells, their links, the corners levelled and what it all comes to) or says why not
-// ([Refusal]). It runs no game, so the roads plugin and cmd/gramap keep one set of rules.
+// ([Refusal]). It runs no game, so the roads plugin and a map maker (gramap, in
+// gram-madeira-square) keep one set of rules.
 //
 // A road is a cell.Way laid cell after cell. A Graded one lies as Transport Tycoon lays it
 // (ground.RoadFits: level, or an even ramp straight up across opposite edges), a track follows
@@ -15,7 +16,7 @@
 // one road over one Ground, reads the ground anew on every route and allocates nothing once
 // warm; [Leaps] add a map maker's bridges to the ways it may take.
 //
-// Plan levels the ground as cmd/gramap graded Madeira's roads, on a square and a hex grid alike:
+// Plan levels the ground as gramap graded Madeira's roads, on a square and a hex grid alike:
 // the corners the neighbouring cells share classed together where a road cell lies level and
 // along the edges where it ramps, the ramps relaxed to the slope allowed, the ground round the
 // road following within the shaping's step, the corners that may not move holding. The

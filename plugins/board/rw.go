@@ -1,7 +1,7 @@
 package board
 
 import (
-	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/plugin/parallel"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/ground"

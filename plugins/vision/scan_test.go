@@ -14,7 +14,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/internal/f32"
-	"github.com/kjkrol/gram/internal/parallel"
+	"github.com/kjkrol/gram/plugin/parallel"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
