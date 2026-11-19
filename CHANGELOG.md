@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.23.0 — 2026-11-19
 
 **Added**
 - `world.Box`, a part of a body: a block along its line, `Wide` across it level and `Tip` the

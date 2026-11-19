@@ -261,15 +261,14 @@ What is left to do. Take an item out when it lands.
   gramap's recipe (today the game's `Stand` by the ground's height alone); the far look of a forest
   from a low eye (a field's L4 piece as a canopy card of the trees' height in the relief's Look: a
   forest has no silhouette on the horizon).
-- **Underground, what is left** (2026-11-10) — the tool digs a straight tunnel alone (a level's file turns one at
-  `via`); the sheets photograph the ground over a mouth uncut, and its frame is in no
-  sheet; a chamber's wall is left out whole beside a tunnel coming
-  in; its lamps are the shader's own, no
-  `light.Source`; on a hex board no mouth is cut and no chamber walled (`topography.mouths`,
-  `tubes.room` read a square grid); `cell.Built` grew by two floors a cell (to measure against a
-  component apart for the storeys past the first); the camera behind a unit hangs over a low roof where the
-  arm does not fit (it is to drop under it: the map of 10 m); the mouths were looked at from
-  outside on shots of every one, the ride through (V) by the user alone.
+- **Underground, what is left** (2026-11-10) — the tool digs a straight tunnel alone (a level's file
+  turns one at `via`); the sheets photograph the ground over a mouth uncut, and its frame is in no
+  sheet; its lamps are the shader's own, no `light.Source`; on a hex board no mouth is cut and no
+  chamber walled (`topography.mouths`, `tubes.room` read a square grid); `cell.Built` grew by two
+  floors a cell (to measure against a component apart for the storeys past the first); the camera
+  behind a unit hangs over a low roof where the arm does not fit (it is to drop under it: the map of
+  10 m); the mouths were looked at from outside on shots of every one, the ride through (V) by the
+  user alone.
 - **Winter without the slowdown** — snow and ice on Madeira (`weathering`) slow the game down
   badly; a lead: `weathering` asks `air.FallsAt` of every cell once a second of game time, and
   since the clouds came in two layers it works out both layers' noise on the CPU.
