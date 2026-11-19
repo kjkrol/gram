@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.22.0 — unreleased
+## v0.22.0 — 2026-11-19
 
 **Added**
 - `plugins/underground`: tunnels and chambers dug under the ground by one set of rules
