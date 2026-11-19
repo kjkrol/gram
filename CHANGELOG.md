@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.22.1 — 2026-11-19
 
 **Fixed**
 - `plugins/navigation`: a hierarchy kept in the cache (`navigation.Cache`) and cut while it was
