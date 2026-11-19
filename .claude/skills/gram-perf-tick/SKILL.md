@@ -96,6 +96,12 @@ reguły, efekty, znaczniki) i planszę (grunt, wysokość, stanie).
   marszu; jego cena nad reliefem (`Map.Rise` i `exp` na jednostkę na krok) przyjęta jako cena
   strategii (`gram-perf-navigation`).
 
+- **Komórkę planszy gorąca ścieżka czyta w miejscu** (`terrain.Read.BuiltOf`,
+  `BoardRead.built`), nigdy kopią `cell.Built`: pola pokoju (`Standing`, `Door`) urosły `Floor`
+  z 40 do 56 B, `Built` do 192 B, a kopia przez wartość przy każdym odczycie kosztowała przejście
+  stania 5–11 % (2026-11-19). Pola `Floor` leżą od najszerszego, bez dopełnień (48 B); nowe pole
+  idzie na swoje miejsce w tym porządku.
+
 ## Odrzucone
 
 - `Position` na GPU: zostaje autorytatywny na CPU, bo jedenaście systemów czyta go losowo do

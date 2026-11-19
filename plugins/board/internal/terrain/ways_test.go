@@ -23,7 +23,12 @@ func TestBoard_BareIsTheGroundUnderTheWay(t *testing.T) {
 	brdW.SetAll(earth)
 	brdW.SetWay(c, cell.Way{Kind: river, Width: 6})
 	if brd.Kind(c).Allows != river.Allows || brd.Bare(c) != earth {
-		t.Errorf("under the river the cell is %+v, bare %+v; want the river over the earth, the earth bare", brd.Kind(c), brd.Bare(c))
+		t.Errorf(
+			"under the river the cell is %+v, bare %+v; want the river over the earth, the earth "+
+				"bare",
+			brd.Kind(c),
+			brd.Bare(c),
+		)
 	}
 }
 
@@ -37,8 +42,14 @@ func TestBoard_LaysAWayOverTheGround(t *testing.T) {
 	v := seeded.Version()
 	seededW.SetWay(c, way)
 	if seeded.Version() == v || seeded.Way(c) != way || seeded.Kind(c).Allows != river.Allows {
-		t.Errorf("seed: version %d→%d, way %+v, kind %+v; want the change counted and the river over the earth",
-			v, seeded.Version(), seeded.Way(c), seeded.Kind(c))
+		t.Errorf(
+			"seed: version %d→%d, way %+v, kind %+v; want the change counted and the river over "+
+				"the earth",
+			v,
+			seeded.Version(),
+			seeded.Way(c),
+			seeded.Kind(c),
+		)
 	}
 
 	cw := newCellWorld(t, false)
@@ -46,9 +57,16 @@ func TestBoard_LaysAWayOverTheGround(t *testing.T) {
 	brdW.SetAll(earth)
 	v = brd.Version()
 	brdW.SetWay(cw.target, way)
-	if brd.Version() == v || brd.Way(cw.target) != way || brd.Kind(cw.target).Allows != river.Allows {
-		t.Errorf("entities: version %d→%d, way %+v, kind %+v; want the change counted and the river over the earth",
-			v, brd.Version(), brd.Way(cw.target), brd.Kind(cw.target))
+	if brd.Version() == v || brd.Way(cw.target) != way ||
+		brd.Kind(cw.target).Allows != river.Allows {
+		t.Errorf(
+			"entities: version %d→%d, way %+v, kind %+v; want the change counted and the river "+
+				"over the earth",
+			v,
+			brd.Version(),
+			brd.Way(cw.target),
+			brd.Kind(cw.target),
+		)
 	}
 	v = brd.Version()
 	brdW.SetWay(cw.target, way)

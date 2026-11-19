@@ -60,8 +60,9 @@ var (
 	sources  [][]byte
 	uniforms = append([]gpu.Uniform(nil), libraryUniforms...)
 	entries  []string // by MaterialID
-	// the frame's, by their binding: the library's own first, the ground's heights and shade
-	images = []string{"GroundHeights", "GroundShade", "GroundShadeWas"}
+	// the frame's, by their binding: the library's own first, the ground's heights and shade and
+	// the shelters' rows (light.wgsl's shelteredLight)
+	images = []string{"GroundHeights", "GroundShade", "GroundShadeWas", "Shelters"}
 	sealed bool // a shader has been built on the materials: no more may come
 )
 
@@ -70,7 +71,9 @@ var (
 // shader has been built on the materials.
 func RegisterMaterials(source []byte, reads []gpu.Uniform, entry ...string) []MaterialID {
 	if sealed {
-		panic(fmt.Sprintf("render: materials %v registered after a shader was built on them", entry))
+		panic(
+			fmt.Sprintf("render: materials %v registered after a shader was built on them", entry),
+		)
 	}
 	if len(entries)+len(entry) > 1<<8 {
 		panic("render: too many materials")
@@ -120,6 +123,11 @@ func Layout(own []gpu.Uniform) *gpu.Layout {
 func SourceWith(fragment []byte) string {
 	sealed = true
 	var b strings.Builder
+	// before the library: naga leaves what a bitcast reads before its declaration unresolved
+	// (gogpu/naga#261)
+	for i, name := range images {
+		fmt.Fprintf(&b, "@group(3) @binding(%d) var %s: texture_2d<f32>;\n", i, name)
+	}
 	for _, n := range []string{"library.wgsl", "noise.wgsl", "light.wgsl"} {
 		src, err := library.ReadFile(n)
 		if err != nil {
@@ -127,9 +135,6 @@ func SourceWith(fragment []byte) string {
 		}
 		b.Write(src)
 		b.WriteString("\n")
-	}
-	for i, name := range images {
-		fmt.Fprintf(&b, "@group(3) @binding(%d) var %s: texture_2d<f32>;\n", i, name)
 	}
 	for _, src := range sources {
 		b.Write(src)
@@ -139,7 +144,12 @@ func SourceWith(fragment []byte) string {
 	b.WriteString("fn material(k: f32, p: vec2<f32>, red: f32, fraction: f32, ")
 	b.WriteString("custom: vec4<f32>) -> vec4<f32> {\n")
 	for i, e := range entries {
-		fmt.Fprintf(&b, "    if k < %d.5 {\n        return %s(p, red, fraction, custom);\n    }\n", i, e)
+		fmt.Fprintf(
+			&b,
+			"    if k < %d.5 {\n        return %s(p, red, fraction, custom);\n    }\n",
+			i,
+			e,
+		)
 	}
 	b.WriteString("    return vec4<f32>(0.0);\n}\n\n")
 	b.Write(fragment)

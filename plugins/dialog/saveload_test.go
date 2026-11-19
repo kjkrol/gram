@@ -40,7 +40,8 @@ func (s *talkerStage) Init(ctx game.Initializer) error {
 		return err
 	}
 	s.dialog.DefineEffects()
-	if err := s.dialog.Load(fstest.MapFS{"a.yaml": {Data: []byte("greet:\n  say: [\"Hi\"]\n")}}, "a.yaml"); err != nil {
+	if err := s.dialog.Load(fstest.MapFS{"a.yaml": {Data: []byte("greet:\n  say: [\"Hi\"]\n")}},
+		"a.yaml"); err != nil {
 		return err
 	}
 	ctx.Setup(talkerProbe{s})

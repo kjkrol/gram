@@ -68,7 +68,12 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Plugin {
 	for id := command.Issuer(1); int(id) <= owner.Players; id++ {
 		if tag := worldPlugin.Kinds().DefineTag[owner.Family](owner.Name(id)); tag != owner.Of(id) {
-			panic(fmt.Sprintf("players: the owners' family has tags of its own before %q", owner.Name(id)))
+			panic(
+				fmt.Sprintf(
+					"players: the owners' family has tags of its own before %q",
+					owner.Name(id),
+				),
+			)
 		}
 	}
 	p := &Plugin{worldPlugin: worldPlugin, now: time.Now}
@@ -96,7 +101,8 @@ func (p *Plugin) Local(name string) *Player {
 // Add adds a player without a keyboard, an AI or a remote client, whose commands come in
 // through Issue.
 func (p *Plugin) Add(name string) *Player {
-	if err := p.worldPlugin.InSection(fmt.Sprintf("player %q added", name), section.Players); err != nil {
+	if err := p.worldPlugin.InSection(fmt.Sprintf("player %q added", name),
+		section.Players); err != nil {
 		panic("players: " + err.Error())
 	}
 	pl := &Player{
@@ -150,7 +156,11 @@ func (p *Plugin) handlerOf(t reflect.Type) plugin.CommandHandler {
 
 // Handle takes a scene's input for the tick: the players' bindings turn it into commands,
 // the players' own are carried out at once and the game's own keys (OwnKeys) are run.
-func (p *Plugin) Handle(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
+func (p *Plugin) Handle(
+	events *control.InputEvents,
+	runtime game.Runtime,
+	composition game.Composition,
+) {
 	p.EventHandler().HandleEvents(events)
 	p.carry(runtime, composition)
 	p.controls.keys.Handle(events, runtime, composition)

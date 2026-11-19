@@ -126,7 +126,12 @@ var _ goke.System = (*System)(nil)
 const bumpInterval = 500 * time.Millisecond
 
 // NewSystem moves the units over grid's terrain, holding their steps in occupancy.
-func NewSystem(pathFinder *spacing.Finder, grid grid.Grid, terrain cell.Terrain, occupancy cell.Occupancy) *System {
+func NewSystem(
+	pathFinder *spacing.Finder,
+	grid grid.Grid,
+	terrain cell.Terrain,
+	occupancy cell.Occupancy,
+) *System {
 	s := &System{
 		grid:       grid,
 		span:       grid.CellSpan(),
@@ -167,7 +172,8 @@ func (s *System) Init(si *goke.SysInit) {
 	s.query = qb.Build()
 	s.outside = s.query.Fork()
 	s.orderID = si.RegComp[order.MoveOrder]()
-	s.blockedID, s.arrivedID, s.lastOrderID = si.RegComp[order.Blocked](), si.RegComp[order.Arrived](), si.RegComp[order.LastOrder]()
+	s.blockedID, s.arrivedID, s.lastOrderID = si.RegComp[order.Blocked](),
+		si.RegComp[order.Arrived](), si.RegComp[order.LastOrder]()
 	s.arrivedEditor = s.query.NewEditorBuilder().Remove(goke.Remove[order.MoveOrder]()).Build()
 	s.statesID = si.RegComp[tag.Tags[unit.States]]()
 	s.abstractID = si.RegComp[sector.Abstract]()
@@ -894,7 +900,15 @@ func (s *System) standing(cb *goke.CmdBuf, cursor *goke.Cursor) {
 	if len(s.told) == 0 || s.hand.Slice(cursor) != nil {
 		return
 	}
-	cells, bases, movers, zs := s.cell.Slice(cursor), s.base.Slice(cursor), s.mover.Slice(cursor), s.z.Slice(cursor)
+	cells, bases, movers, zs := s.cell.Slice(
+		cursor,
+	), s.base.Slice(
+		cursor,
+	), s.mover.Slice(
+		cursor,
+	), s.z.Slice(
+		cursor,
+	)
 	level := s.levels.Of(cursor)
 	for i, id := range cursor.IDs {
 		t, ok := s.told[id]
@@ -972,17 +986,40 @@ func (s *System) touch(cb *goke.CmdBuf, d time.Duration) {
 		if t.refused {
 			cell, from = t.cell, t.from
 		}
-		head := t.headOn || t.refused && s.felt[[2]uid.UID64{t.other, t.self}] || !t.refused && headOn(self, other, t.way)
+		head := t.headOn || t.refused && s.felt[[2]uid.UID64{t.other, t.self}] ||
+			!t.refused && headOn(self, other, t.way)
 		s.fire(tick, hosted, self, other, t.way, cell, head)
 		s.fire(tick, hosted, other, self, geom.NewVec(-t.way.X, -t.way.Y), from, head)
 	}
 }
 
-func (s *System) fire(tick host.Tick, hosted bool, self, other bodies.Body, way geom.Vec, cell cell.ID, head bool) {
-	t := order.Touch{Self: self.ID, Other: other.ID, Way: way, Moving: self.Moving, OtherMoving: other.Moving,
-		GivingWay: self.GivingWay, OtherGivingWay: other.GivingWay, LastGoal: self.LastGoal,
-		Ally: owner.Allies(self.Owners, other.Owners), Groupmate: self.Group != 0 && self.Group == other.Group,
-		HeadOn: head && self.Moving && other.Moving, WaitedOut: self.WaitedOut, Cornered: self.Cornered}
+func (s *System) fire(
+	tick host.Tick,
+	hosted bool,
+	self, other bodies.Body,
+	way geom.Vec,
+	cell cell.ID,
+	head bool,
+) {
+	t := order.Touch{
+		Self:           self.ID,
+		Other:          other.ID,
+		Way:            way,
+		Moving:         self.Moving,
+		OtherMoving:    other.Moving,
+		GivingWay:      self.GivingWay,
+		OtherGivingWay: other.GivingWay,
+		LastGoal:       self.LastGoal,
+		Ally: owner.Allies(
+			self.Owners,
+			other.Owners,
+		),
+		Groupmate: self.Group != 0 && self.Group == other.Group,
+		HeadOn: head && self.Moving &&
+			other.Moving,
+		WaitedOut: self.WaitedOut,
+		Cornered:  self.Cornered,
+	}
 	t.Ahead, t.Along, t.SameWay = s.bearing(self, other, way)
 	t.OtherTrailing = other.Trailing
 	if self.Moving {
@@ -1040,7 +1077,8 @@ func headOn(a, b bodies.Body, way geom.Vec) bool {
 		l := f32.Hypot(v.X, v.Y)
 		return l > 1e-9 && (v.X*dir.X+v.Y*dir.Y)/l > 0.5
 	}
-	return a.Moving && b.Moving && towards(a.Vel, geom.NewVec(-way.X, -way.Y)) && towards(b.Vel, way)
+	return a.Moving && b.Moving && towards(a.Vel, geom.NewVec(-way.X, -way.Y)) &&
+		towards(b.Vel, way)
 }
 
 func (s *System) tell(cb *goke.CmdBuf, d time.Duration) {
@@ -1068,7 +1106,12 @@ func (s *System) tell(cb *goke.CmdBuf, d time.Duration) {
 	clear(s.blocking)
 }
 
-func (s *System) carryOut(m bodies.Member, o *order.MoveOrder, st steering.Helm, d time.Duration) (stop, held bool) {
+func (s *System) carryOut(
+	m bodies.Member,
+	o *order.MoveOrder,
+	st steering.Helm,
+	d time.Duration,
+) (stop, held bool) {
 	if t, ok := s.told[m.ID]; ok {
 		switch {
 		case t.stop:
@@ -1076,7 +1119,8 @@ func (s *System) carryOut(m bodies.Member, o *order.MoveOrder, st steering.Helm,
 		case t.aside:
 			s.stepAside(m, o, t.asideOf)
 		case t.detour:
-			if other, ok := s.keep.Other(t.detourOf); ok && s.keep.Detour(m, o, other) == spacing.GiveUp {
+			if other, ok := s.keep.Other(t.detourOf); ok &&
+				s.keep.Detour(m, o, other) == spacing.GiveUp {
 				return true, false
 			}
 		case t.pass:
@@ -1159,7 +1203,13 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 	for s.query.Paced(0); s.query.Next(); {
 		cursor := s.query.Cursor()
 		bases, orders, movers := s.base.Slice(cursor), s.order.Slice(cursor), s.mover.Slice(cursor)
-		cells, owned, lasts := s.cell.Slice(cursor), s.owners.Slice(cursor), s.lastOrder.Slice(cursor)
+		cells, owned, lasts := s.cell.Slice(
+			cursor,
+		), s.owners.Slice(
+			cursor,
+		), s.lastOrder.Slice(
+			cursor,
+		)
 		zs, minded := s.z.Slice(cursor), s.mind.Slice(cursor) != nil
 		steers, paces := s.steer.Slice(cursor), s.pace.Slice(cursor)
 		level := s.levels.Of(cursor)
@@ -1168,8 +1218,17 @@ func (s *System) gather(dst []bodies.Body) []bodies.Body {
 		}
 		for i, id := range cursor.IDs {
 			pos := bases[i].Pos
-			b := bodies.Body{ID: id, At: pos.Center(), Half: geom.NewVec(pos.Size.X/2, pos.Size.Y/2), Vel: bases[i].Vel.Delta(), Domain: unit.DomainAt(movers, i),
-				Moving: orders != nil, Cell: cells[i].Cell, Minded: minded, Facing: bases[i].Vel.Dir}
+			b := bodies.Body{
+				ID:     id,
+				At:     pos.Center(),
+				Half:   geom.NewVec(pos.Size.X/2, pos.Size.Y/2),
+				Vel:    bases[i].Vel.Delta(),
+				Domain: unit.DomainAt(movers, i),
+				Moving: orders != nil,
+				Cell:   cells[i].Cell,
+				Minded: minded,
+				Facing: bases[i].Vel.Dir,
+			}
 			b.Share, b.MaxSpeed, b.Level = 1, steers[i].MaxSpeed, level
 			if paces != nil {
 				b.Share = paces[i].Share
@@ -1282,7 +1341,12 @@ func (s *System) ahead(have, want geom.Vec, p *order.Path, waypoint, target cell
 
 const maxAhead = 8
 
-func (s *System) drive(m bodies.Member, st steering.Helm, heading, have geom.Vec, route []geom.Vec, reach, speed float32,
+func (s *System) drive(
+	m bodies.Member,
+	st steering.Helm,
+	heading, have geom.Vec,
+	route []geom.Vec,
+	reach, speed float32,
 ) {
 	at := lookahead(have, route, reach)
 	if at == have {

@@ -41,7 +41,11 @@ func TestNavigation_IceMeltingAheadRerouteWithoutSteppingIn(t *testing.T) {
 	for tick := range 60 * 10 {
 		_, centre, ordered := pw.tick()
 		if c, _ := pw.grid.CellAt(centre); c == bridge {
-			t.Fatalf("tick %d: the unit's centre is over the melted bridge at %v", tick, bridgeCentre)
+			t.Fatalf(
+				"tick %d: the unit's centre is over the melted bridge at %v",
+				tick,
+				bridgeCentre,
+			)
 		}
 		if !ordered {
 			if c, _ := pw.grid.CellAt(centre); c != goal {
@@ -99,7 +103,12 @@ func TestNavigation_WeakBrakesStillComeToRestOnTheGoal(t *testing.T) {
 			}
 			if !ordered {
 				if want := pw.grid.CellCenter(goal); centre != want {
-					t.Errorf("%s: came to rest at %v, want the goal's centre %v", name, centre, want)
+					t.Errorf(
+						"%s: came to rest at %v, want the goal's centre %v",
+						name,
+						centre,
+						want,
+					)
 				}
 				arrived = true
 				break
@@ -110,7 +119,12 @@ func TestNavigation_WeakBrakesStillComeToRestOnTheGoal(t *testing.T) {
 		}
 	}
 	if brakingFrom["slipping"] <= brakingFrom["firm"] {
-		t.Errorf("braking began %v from the goal slipping and %v firm; want the slipping unit to brake earlier", brakingFrom["slipping"], brakingFrom["firm"])
+		t.Errorf(
+			"braking began %v from the goal slipping and %v firm; want the slipping unit to "+
+				"brake earlier",
+			brakingFrom["slipping"],
+			brakingFrom["firm"],
+		)
 	}
 }
 

@@ -7,7 +7,8 @@
 
 // faded is how much of a sprite shows by the fades its custom asks for: 1 where it asks none.
 fn faded(custom: vec4<f32>) -> f32 {
-    let fade = smoothstep(vec4<f32>(0.0), vec4<f32>(1.0), clamp(custom - 1.0, vec4<f32>(0.0), vec4<f32>(1.0)));
+    let fade = smoothstep(vec4<f32>(0.0), vec4<f32>(1.0), clamp(custom - 1.0, vec4<f32>(0.0),
+        vec4<f32>(1.0)));
     let f = mix(vec4<f32>(1.0), fade, step(vec4<f32>(0.5), custom));
     return f.x * f.y * f.z * f.w;
 }
@@ -59,7 +60,8 @@ fn groundDrawnAt(p: vec2<f32>) -> f32 {
     }
     let g = clamp(p / U.GroundLattice.z, vec2<f32>(0.0), U.GroundLattice.xy - 1.0001);
     let i = floor(g);
-    return groundSplit(g - i, groundCorner(i), groundCorner(i + vec2<f32>(1.0, 0.0)), groundCorner(i + vec2<f32>(0.0, 1.0)), groundCorner(i + 1.0));
+    return groundSplit(g - i, groundCorner(i), groundCorner(i + vec2<f32>(1.0, 0.0)),
+        groundCorner(i + vec2<f32>(0.0, 1.0)), groundCorner(i + 1.0));
 }
 
 // groundSplit is the height at f, 0 to 1 across and down a cell whose corners stand at h0 to h3,

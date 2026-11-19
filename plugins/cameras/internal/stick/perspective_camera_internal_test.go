@@ -221,7 +221,8 @@ func TestPerspCamera_LookFromPutsTheEyeAndLookAtTheFoot(t *testing.T) {
 func TestPerspCamera_BoundsHoldTheGroundShownAndVisibleTheBoxesOnTheScreen(t *testing.T) {
 	c := testPersp(nil, nil)
 	b := c.Bounds()
-	if b.TopLeft.X < 0 || b.TopLeft.Y < 0 || b.BottomRight.X > 640 || b.BottomRight.Y > 640 || b.TopLeft.X >= b.BottomRight.X {
+	if b.TopLeft.X < 0 || b.TopLeft.Y < 0 || b.BottomRight.X > 640 || b.BottomRight.Y > 640 ||
+		b.TopLeft.X >= b.BottomRight.X {
 		t.Errorf("Bounds %v, want a rectangle inside the 640x640 world", b)
 	}
 	if b.TopLeft.X > 320 || b.BottomRight.X < 320 || b.TopLeft.Y > 320 || b.BottomRight.Y < 320 {
@@ -250,10 +251,21 @@ func TestPerspCamera_SetViewportKeepsTheEyeAndTheFieldOfView(t *testing.T) {
 		t.Errorf("Viewport %v x %v after SetViewport(500, 400)", w, h)
 	}
 	if sx, sy := c.Project(320, 320, 0); !near(sx, 250) || !near(sy, 200) || c.eye() != e {
-		t.Errorf("the point in the middle moved to (%v, %v), the eye to %v; want (250, 200) and %v", sx, sy, c.eye(), e)
+		t.Errorf(
+			"the point in the middle moved to (%v, %v), the eye to %v; want (250, 200) and %v",
+			sx,
+			sy,
+			c.eye(),
+			e,
+		)
 	}
 	if x, _ := c.Unproject(250, 0, 0); !near(x, top) {
-		t.Errorf("the top of the screen looks at x %v, want %v: the same field of view over a taller screen", x, top)
+		t.Errorf(
+			"the top of the screen looks at x %v, want %v: the same field of view over a taller "+
+				"screen",
+			x,
+			top,
+		)
 	}
 }
 
@@ -281,21 +293,39 @@ func TestPerspCamera_InsideAUnitTheEyeIsTheUnitsLookingWhereItIsTurned(t *testin
 	free := c.pose()
 	c.enterInside([3]float32{300, 300, 20}, 0, 0)
 	if e := c.eye(); e != [3]float32{300, 300, 20} || !near(c.Pitch(), 0) {
-		t.Fatalf("inside, the eye stands at %v looking down at %v, want (300, 300, 20) along the ground", e, c.Pitch())
+		t.Fatalf(
+			"inside, the eye stands at %v looking down at %v, want (300, 300, 20) along the ground",
+			e,
+			c.Pitch(),
+		)
 	}
 	// 100 ahead, up the screen at heading 0
 	ax, ay := float32(300-100*math.Sqrt2/2), float32(300-100*math.Sqrt2/2)
 	if sx, sy := c.Project(ax, ay, 20); !near(sx, 200) || !near(sy, 150) {
-		t.Errorf("the point ahead at the eye's height is drawn at (%v, %v), want the middle", sx, sy)
+		t.Errorf(
+			"the point ahead at the eye's height is drawn at (%v, %v), want the middle",
+			sx,
+			sy,
+		)
 	}
 	heading := c.Heading()
 	c.Pan(10, -8)
 	if c.eye() != [3]float32{300, 300, 20} || c.Heading() != heading || c.Pitch() != 0 {
-		t.Errorf("after Pan inside the eye is at %v looking from %v at %v, want nothing moved", c.eye(), c.Heading(), c.Pitch())
+		t.Errorf(
+			"after Pan inside the eye is at %v looking from %v at %v, want nothing moved",
+			c.eye(),
+			c.Heading(),
+			c.Pitch(),
+		)
 	}
 	c.Turn(0.5)
 	if !near(c.Heading(), heading+0.5) || c.eye() != [3]float32{300, 300, 20} {
-		t.Errorf("after Turn(0.5) inside the heading is %v and the eye at %v, want %v on the spot", c.Heading(), c.eye(), heading+0.5)
+		t.Errorf(
+			"after Turn(0.5) inside the heading is %v and the eye at %v, want %v on the spot",
+			c.Heading(),
+			c.eye(),
+			heading+0.5,
+		)
 	}
 	c.Tilt(-1)
 	if c.Pitch() >= 0 {
@@ -311,7 +341,12 @@ func TestPerspCamera_InsideAUnitTheEyeIsTheUnitsLookingWhereItIsTurned(t *testin
 	zoom := c.Zoom()
 	c.ZoomIn(2, 0, 0)
 	if e := c.eye(); !near(c.Zoom()/zoom, 2) || e != [3]float32{300, 300, 20} {
-		t.Errorf("zoomed in inside the zoom is %v times what it was and the eye at %v, want twice, narrowed, and the eye where it was", c.Zoom()/zoom, e)
+		t.Errorf(
+			"zoomed in inside the zoom is %v times what it was and the eye at %v, want twice, "+
+				"narrowed, and the eye where it was",
+			c.Zoom()/zoom,
+			e,
+		)
 	}
 	c.CenterOn(310, 300, 25)
 	if e := c.eye(); e != [3]float32{310, 300, 25} {
@@ -323,26 +358,51 @@ func TestPerspCamera_InsideAUnitTheEyeIsTheUnitsLookingWhereItIsTurned(t *testin
 	c.setPose(free)
 	if c.inside || c.narrow != 1 || vec.Norm(vec.Sub(c.eye(), c.rest())) > 1e-3 ||
 		!near(c.Pitch(), free.pitch) {
-		t.Errorf("set back free the eye is inside %v, narrowed %v, at %v looking down at %v; want free as it was", c.inside, c.narrow, c.eye(), c.Pitch())
+		t.Errorf(
+			"set back free the eye is inside %v, narrowed %v, at %v looking down at %v; want "+
+				"free as it was",
+			c.inside,
+			c.narrow,
+			c.eye(),
+			c.Pitch(),
+		)
 	}
 	c.enterInside([3]float32{300, 300, 20}, 0, 0)
 	c.Tilt(-1)
 	c.Restore()
 	if c.inside || c.Pitch() < c.minPitch {
-		t.Error("a restored camera is inside, or looks at the sky: a save keeps the view, not the eye in a unit")
+		t.Error(
+			"a restored camera is inside, or looks at the sky: a save keeps the view, not the " +
+				"eye in a unit",
+		)
 	}
 }
 
 func TestPerspCamera_RayIsTheWayAScreenPointLooks(t *testing.T) {
 	c := testPersp(nil, nil)
 	dx, dy, dz, ok := c.Ray(200, 150)
-	if f := c.proj.forward; !ok || !near(dx, f[0]) || !near(dy, f[1]) || !near(dz, f[2]) || !near(dx*dx+dy*dy+dz*dz, 1) {
-		t.Errorf("the middle of the screen looks along (%v, %v, %v) %v, want the eye's way %v, of length 1", dx, dy, dz, ok, f)
+	if f := c.proj.forward; !ok || !near(dx, f[0]) || !near(dy, f[1]) || !near(dz, f[2]) ||
+		!near(dx*dx+dy*dy+dz*dz, 1) {
+		t.Errorf(
+			"the middle of the screen looks along (%v, %v, %v) %v, want the eye's way %v, of "+
+				"length 1",
+			dx,
+			dy,
+			dz,
+			ok,
+			f,
+		)
 	}
 	_, _, up, _ := c.Ray(200, 0)
 	_, _, down, _ := c.Ray(200, 300)
 	if !(up > dz && down < dz) {
-		t.Errorf("the top of the screen looks %v up and the bottom %v, want higher and lower than the middle's %v", up, down, dz)
+		t.Errorf(
+			"the top of the screen looks %v up and the bottom %v, want higher and lower than the "+
+				"middle's %v",
+			up,
+			down,
+			dz,
+		)
 	}
 }
 

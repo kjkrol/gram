@@ -31,16 +31,34 @@ type profiledWorld struct {
 	q         *goke.Query
 }
 
-func newProfiledWorld(t *testing.T, w, h uint32, start cell.ID, mt MoveOrder, profile steering.Steering, withSteering bool) *profiledWorld {
+func newProfiledWorld(
+	t *testing.T,
+	w, h uint32,
+	start cell.ID,
+	mt MoveOrder,
+	profile steering.Steering,
+	withSteering bool,
+) *profiledWorld {
 	t.Helper()
 	pw := &profiledWorld{}
-	u := navUnit{box: cellBox(grid.DefaultGrids{}.Square(w, h, legCellSize), start, legEntitySize), at: start, order: &mt}
+	u := navUnit{
+		box:   cellBox(grid.DefaultGrids{}.Square(w, h, legCellSize), start, legEntitySize),
+		at:    start,
+		order: &mt,
+	}
 	if withSteering {
 		u.profile = &profile
 	}
-	nw := newNavWorld(t, w, h, legCellSize, []navUnit{u}, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		pw.q = si.NewQueryBuilder(&pw.pos).Optional(&pw.orderComp).Optional(&pw.course).Build()
-	}})
+	nw := newNavWorld(
+		t,
+		w,
+		h,
+		legCellSize,
+		[]navUnit{u},
+		goke.SystemFn{OnInit: func(si *goke.SysInit) {
+			pw.q = si.NewQueryBuilder(&pw.pos).Optional(&pw.orderComp).Optional(&pw.course).Build()
+		}},
+	)
 	pw.grid, pw.terrain, pw.ecs, pw.id = nw.grid, nw.board, nw.ecs, nw.ids[0]
 	return pw
 }
@@ -64,7 +82,15 @@ func (pw *profiledWorld) cellAt(x, y uint32) cell.ID {
 func TestNavigation_TurnsBeforeTheBendAndNeverStops(t *testing.T) {
 	const turnRate = 0.1
 	pw := newProfiledWorld(t, 6, 6, cell.ID(0), MoveOrder{}, steering.Steering{}, true)
-	pw = newProfiledWorld(t, 6, 6, pw.cellAt(0, 2), MoveOrder{Target: pw.cellAt(5, 4)}, steering.Steering{MaxSpeed: 64, TurnRate: turnRate}, true)
+	pw = newProfiledWorld(
+		t,
+		6,
+		6,
+		pw.cellAt(0, 2),
+		MoveOrder{Target: pw.cellAt(5, 4)},
+		steering.Steering{MaxSpeed: 64, TurnRate: turnRate},
+		true,
+	)
 
 	var prev float32
 	haveHeading := false
@@ -72,22 +98,35 @@ func TestNavigation_TurnsBeforeTheBendAndNeverStops(t *testing.T) {
 	for tick := range 60 * 20 {
 		vel, _, ordered := pw.tick()
 		if tick == 0 {
-			continue // the world steps before navigation: an order is carried out from the next tick
+			// the world steps before navigation: an order is carried out from the next tick
+			continue
 		}
 		if !ordered {
 			if turned < 0.2 {
-				t.Errorf("arrived having turned only %.2f rad in total; the route should have bent", turned)
+				t.Errorf(
+					"arrived having turned only %.2f rad in total; the route should have bent",
+					turned,
+				)
 			}
 			return
 		}
 		if vel.Value <= 0 {
-			t.Fatalf("tick %d: Velocity.Value = %v on the way; a unit must never stop between waypoints", tick, vel.Value)
+			t.Fatalf(
+				"tick %d: Velocity.Value = %v on the way; a unit must never stop between waypoints",
+				tick,
+				vel.Value,
+			)
 		}
 		h := f32.Atan2(vel.Dir.Y, vel.Dir.X)
 		if haveHeading {
 			delta := f32.Abs(f32.Mod(h-prev+3*math.Pi, 2*math.Pi) - math.Pi)
 			if delta > turnRate+f32.Eps(2*math.Pi) {
-				t.Fatalf("tick %d: heading swung by %.3f rad in one tick, want at most TurnRate %.3f", tick, delta, turnRate)
+				t.Fatalf(
+					"tick %d: heading swung by %.3f rad in one tick, want at most TurnRate %.3f",
+					tick,
+					delta,
+					turnRate,
+				)
 			}
 			turned += delta
 		}
@@ -140,7 +179,10 @@ func TestNavigation_PassesAWaypointByProjectionNotDistance(t *testing.T) {
 
 	c, mt := readCellAndMoveOrder(t, q, &here, &orderComp)
 	if mt.Path.Index != 1 {
-		t.Errorf("Path.Index = %d, want 1: the waypoint behind the plane counts as passed", mt.Path.Index)
+		t.Errorf(
+			"Path.Index = %d, want 1: the waypoint behind the plane counts as passed",
+			mt.Path.Index,
+		)
 	}
 	if mt.Leg.Active {
 		t.Error("the leg onto the passed waypoint is still active")
@@ -153,17 +195,29 @@ func TestNavigation_PassesAWaypointByProjectionNotDistance(t *testing.T) {
 func TestNavigation_BrakesToRestOnTheGoal(t *testing.T) {
 	pw := newProfiledWorld(t, 6, 1, cell.ID(0), MoveOrder{}, steering.Steering{}, true)
 	target := pw.cellAt(5, 0)
-	pw = newProfiledWorld(t, 6, 1, pw.cellAt(0, 0), MoveOrder{Target: target}, steering.Steering{MaxSpeed: 64, Accel: 128, V0: 16}, true)
+	pw = newProfiledWorld(
+		t,
+		6,
+		1,
+		pw.cellAt(0, 0),
+		MoveOrder{Target: target},
+		steering.Steering{MaxSpeed: 64, Accel: 128, V0: 16},
+		true,
+	)
 
 	var speeds []float32
 	for tick := range 60 * 20 {
 		vel, centre, ordered := pw.tick()
 		if tick == 0 {
-			continue // the world steps before navigation: an order is carried out from the next tick
+			// the world steps before navigation: an order is carried out from the next tick
+			continue
 		}
 		if ordered {
 			if vel.Value <= 0 {
-				t.Fatalf("Velocity.Value = %v before arriving; braking must not stop the unit short", vel.Value)
+				t.Fatalf(
+					"Velocity.Value = %v before arriving; braking must not stop the unit short",
+					vel.Value,
+				)
 			}
 			speeds = append(speeds, vel.Value)
 			continue
@@ -174,7 +228,12 @@ func TestNavigation_BrakesToRestOnTheGoal(t *testing.T) {
 			t.Errorf("Velocity.Value = %v a tick after arriving, want 0", vel.Value)
 		}
 		if want := pw.grid.CellCenter(target); centre != want || arrivedAt != want {
-			t.Errorf("arrived at %v and came to rest at %v, want both at the goal's centre %v", arrivedAt, centre, want)
+			t.Errorf(
+				"arrived at %v and came to rest at %v, want both at the goal's centre %v",
+				arrivedAt,
+				centre,
+				want,
+			)
 		}
 		n := len(speeds)
 		if n < 3 || speeds[n-1] >= speeds[n-3] {
@@ -197,7 +256,12 @@ func TestNavigation_LeavesAloneAnEntityWithoutSteering(t *testing.T) {
 	for range 30 {
 		vel, centre, ordered := pw.tick()
 		if !ordered || centre != before || vel.Value != 0 {
-			t.Fatalf("an entity without Steering was navigated: ordered=%v centre=%v vel=%v", ordered, centre, vel)
+			t.Fatalf(
+				"an entity without Steering was navigated: ordered=%v centre=%v vel=%v",
+				ordered,
+				centre,
+				vel,
+			)
 		}
 	}
 }
@@ -219,13 +283,22 @@ func TestNavigation_RunsThroughQueuedGoalsWithoutStopping(t *testing.T) {
 	mid, last := pw.cellAt(3, 0), pw.cellAt(6, 0)
 	mt := MoveOrder{Target: mid}
 	mt.Enqueue(Goal{Cell: last})
-	pw = newProfiledWorld(t, 8, 1, pw.cellAt(0, 0), mt, steering.Steering{MaxSpeed: 64, Accel: 128, V0: 16}, true)
+	pw = newProfiledWorld(
+		t,
+		8,
+		1,
+		pw.cellAt(0, 0),
+		mt,
+		steering.Steering{MaxSpeed: 64, Accel: 128, V0: 16},
+		true,
+	)
 
 	passedMid := false
 	for tick := range 60 * 30 {
 		vel, centre, ordered := pw.tick()
 		if tick == 0 {
-			continue // the world steps before navigation: an order is carried out from the next tick
+			// the world steps before navigation: an order is carried out from the next tick
+			continue
 		}
 		if !ordered {
 			if !passedMid {
@@ -237,7 +310,10 @@ func TestNavigation_RunsThroughQueuedGoalsWithoutStopping(t *testing.T) {
 			return
 		}
 		if vel.Value <= 0 {
-			t.Fatalf("Velocity.Value = %v while still ordered; a queued goal must not stop the unit", vel.Value)
+			t.Fatalf(
+				"Velocity.Value = %v while still ordered; a queued goal must not stop the unit",
+				vel.Value,
+			)
 		}
 		if centre.X > pw.grid.CellCenter(mid).X {
 			passedMid = true
@@ -268,7 +344,9 @@ func TestNavigation_QueuedGoalIsPassedByProjection(t *testing.T) {
 		f.Next()
 		id := f.Cursor.IDs[0]
 		here.Slice(&f.Cursor)[0] = unit.At{Cell: at(1)}
-		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: geomBox(26, 8, 4)} // past cell 2's centre plane, off its centre
+		pos.Slice(&f.Cursor)[0].Pos = world.Position{
+			AABB: geomBox(26, 8, 4),
+		} // past cell 2's centre plane, off its centre
 		mt := MoveOrder{Target: at(2), Leg: Leg{From: at(1), To: at(2), Active: true}}
 		mt.Path.Steps[0], mt.Path.Length = at(2), 1
 		mt.Enqueue(Goal{Cell: at(5)})
@@ -287,10 +365,17 @@ func TestNavigation_QueuedGoalIsPassedByProjection(t *testing.T) {
 
 	_, mt := readCellAndMoveOrder(t, q, &here, &orderComp)
 	if mt.Target != at(5) || mt.Queued != 0 {
-		t.Errorf("order = target %v, queued %d; want the queued goal promoted and the queue empty", mt.Target, mt.Queued)
+		t.Errorf(
+			"order = target %v, queued %d; want the queued goal promoted and the queue empty",
+			mt.Target,
+			mt.Queued,
+		)
 	}
 	if mt.Path.Length != 0 {
-		t.Errorf("Path.Length = %d, want 0 so the route to the new goal is planned afresh", mt.Path.Length)
+		t.Errorf(
+			"Path.Length = %d, want 0 so the route to the new goal is planned afresh",
+			mt.Path.Length,
+		)
 	}
 	if mt.Leg.Active {
 		t.Error("the leg onto the passed goal is still active")
@@ -313,7 +398,15 @@ func TestNavigation_ASharpTurnSlowsTheUnit(t *testing.T) {
 	pw := newProfiledWorld(t, 8, 1, cell.ID(0), MoveOrder{}, steering.Steering{}, true)
 	// under way westwards at full speed, with the goal to the east: a U-turn before anything else
 	profile := steering.Steering{MaxSpeed: 64, Accel: 400, V0: 64, TurnRate: 0.1}
-	pw = newProfiledWorld(t, 8, 1, pw.cellAt(2, 0), MoveOrder{Target: pw.cellAt(7, 0)}, profile, true)
+	pw = newProfiledWorld(
+		t,
+		8,
+		1,
+		pw.cellAt(2, 0),
+		MoveOrder{Target: pw.cellAt(7, 0)},
+		profile,
+		true,
+	)
 	pw.heading(geom.NewVec(-1, 0), 64)
 
 	slowest, slowestAt := float32(64), 0
@@ -331,7 +424,11 @@ func TestNavigation_ASharpTurnSlowsTheUnit(t *testing.T) {
 		}
 	}
 	if slowest > 64*traffic.TurnCrawl*1.5 {
-		t.Errorf("slowest speed through the U-turn was %v, want it down near the crawl (%v)", slowest, 64*traffic.TurnCrawl)
+		t.Errorf(
+			"slowest speed through the U-turn was %v, want it down near the crawl (%v)",
+			slowest,
+			64*traffic.TurnCrawl,
+		)
 	}
 	if !recovered {
 		t.Error("the unit never got back to full speed once it faced its goal")
@@ -360,7 +457,9 @@ func TestNavigation_ALegIsTurnedRoundWhenTheRouteGoesBack(t *testing.T) {
 		f.Next()
 		id := f.Cursor.IDs[0]
 		here.Slice(&f.Cursor)[0] = unit.At{Cell: at(2)}
-		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: geomBox(27, 5, 4)} // just into cell 2, on a leg from 1
+		pos.Slice(&f.Cursor)[0].Pos = world.Position{
+			AABB: geomBox(27, 5, 4),
+		} // just into cell 2, on a leg from 1
 		mt := MoveOrder{Target: at(0), Leg: Leg{From: at(1), To: at(2), Active: true}}
 		mt.Path.Steps[0], mt.Path.Steps[1], mt.Path.Length = at(1), at(0), 2 // the route back home
 		orderComp.Slice(&f.Cursor)[0] = mt

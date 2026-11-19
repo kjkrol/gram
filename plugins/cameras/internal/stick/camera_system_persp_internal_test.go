@@ -152,13 +152,15 @@ func TestInside_RidesInTheWalkerLookingTheWayItFaces(t *testing.T) {
 	}
 	if e := r.cam.persp.eye(); !near(e[0], 305) || !near(e[1], 305) || !near(e[2], 7) {
 		t.Errorf(
-			"the eye is at %v, want on the walker's top at (305, 305, 7): its centre, 5 up and 2 high (world.Z.Top)",
+			"the eye is at %v, want on the walker's top at (305, 305, 7): its centre, 5 up and 2 "+
+				"high (world.Z.Top)",
 			e,
 		)
 	}
 	if h := r.cam.Heading(); !near(h, wrapAngle(behind(1, 0))) || !near(r.cam.Pitch(), 0) {
 		t.Errorf(
-			"the heading is %v and the pitch %v, want %v — east running up the screen — along the ground",
+			"the heading is %v and the pitch %v, want %v — east running up the screen — along "+
+				"the ground",
 			h,
 			r.cam.Pitch(),
 			wrapAngle(behind(1, 0)),
@@ -170,7 +172,8 @@ func TestInside_RidesInTheWalkerLookingTheWayItFaces(t *testing.T) {
 	if e := r.cam.persp.eye(); !near(e[0], 405) || !near(e[1], 305) || !near(e[2], 7) ||
 		!near(r.cam.Heading(), wrapAngle(behind(0, 1))) {
 		t.Errorf(
-			"the walker gone east and turned south, the eye is at %v looking from %v, want (405, 305, 7) from %v",
+			"the walker gone east and turned south, the eye is at %v looking from %v, want (405, "+
+				"305, 7) from %v",
 			r.cam.persp.eye(),
 			r.cam.Heading(),
 			wrapAngle(behind(0, 1)),
@@ -205,7 +208,8 @@ func TestInside_RidesInTheWalkerLookingTheWayItFaces(t *testing.T) {
 	if r.sys.fastened(r.cam) != nil || r.cam.insideUnit() || r.cam.inPersp ||
 		contract.HowOf(r.cam) != contract.Centred {
 		t.Fatalf(
-			"after V again: kept %v, first person %v, in perspective %v, fastened %+v; want back in the isometric view, over the walker",
+			"after V again: kept %v, first person %v, in perspective %v, fastened %+v; want back "+
+				"in the isometric view, over the walker",
 			r.sys.fastened(r.cam) != nil,
 			r.cam.insideUnit(),
 			r.cam.inPersp,
@@ -237,7 +241,8 @@ func TestInside_RidesInTheWalkerLookingTheWayItFaces(t *testing.T) {
 	if r.cam.insideUnit() || !r.cam.inPersp || r.sys.fastened(r.cam) != nil ||
 		contract.HowOf(r.cam) != contract.Centred {
 		t.Fatalf(
-			"Tab while riding: first person %v, in perspective %v, fastened %+v; want back in the free perspective, over the walker",
+			"Tab while riding: first person %v, in perspective %v, fastened %+v; want back in "+
+				"the free perspective, over the walker",
 			r.cam.insideUnit(),
 			r.cam.inPersp,
 			r.cam.Fastening(),
@@ -319,7 +324,8 @@ func TestLook_TurnsTheViewAtOnceAndTheWalkerToFaceIt(t *testing.T) {
 	r.tick(time.Second / 60)
 	if h := r.cam.Heading(); !near(h, wrapAngle(behind(float32(want.X), float32(want.Y)))) {
 		t.Errorf(
-			"a tick on, the walker not turned yet, the view looks from %v, want where the mouse put it",
+			"a tick on, the walker not turned yet, the view looks from %v, want where the mouse "+
+				"put it",
 			h,
 		)
 	}

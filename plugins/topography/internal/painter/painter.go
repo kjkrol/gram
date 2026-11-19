@@ -103,7 +103,8 @@ func (t *tile) px() float32 {
 		if cam := t.r.camera; cam != nil && t.r.varies {
 			z := t.r.topOf(t.ID).z
 			scale := float32(0)
-			for k, p := range [4][2]float32{{t.X0, t.Y0}, {t.X1, t.Y0}, {t.X0, t.Y1}, {t.X1, t.Y1}} {
+			for k, p := range [4][2]float32{{t.X0, t.Y0}, {t.X1, t.Y0}, {t.X0, t.Y1}, {t.X1,
+				t.Y1}} {
 				if camera.InFront(cam, p[0], p[1], z[k]) {
 					scale = max(scale, camera.ScaleAt(cam, p[0], p[1], z[k]))
 				}
@@ -192,7 +193,8 @@ func (l *Painter) topOf(c cell.ID) *cellTop {
 	style := l.styles[kind.Name]
 	r := l.ground().Corners(c)
 	t.alt, t.sprite, t.ver = r.Level(), kind.SpriteID, v
-	t.shine, t.flow, t.spread, t.under, t.raised = style.Shine, style.Flow, style.Spread, style.Under, kind.Height > 0
+	t.shine, t.flow, t.spread, t.under, t.raised = style.Shine, style.Flow, style.Spread,
+		style.Under, kind.Height > 0
 	t.way = l.laneOf(l.board.Way(c))
 	if l.square {
 		t.ground = [4]float32(r)

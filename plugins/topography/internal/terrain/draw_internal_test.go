@@ -49,14 +49,26 @@ func (noAir) Distant() light.Distant { return light.Distant{} }
 type downward struct{ camera.Camera }
 
 func (downward) Rays() (camera.RayField, bool) {
-	return camera.RayField{Origin: [3]float32{0, 0, 200}, DX: [3]float32{8, 0, 0}, DY: [3]float32{0, 8, 0}, Dir: [3]float32{0, 0, -1}}, true
+	return camera.RayField{
+		Origin: [3]float32{0, 0, 200},
+		DX:     [3]float32{8, 0, 0},
+		DY:     [3]float32{0, 8, 0},
+		Dir:    [3]float32{0, 0, -1},
+	}, true
 }
 
 func TestTerrain_DrawsTheLevelEvenlyAndABumpWhereItStands(t *testing.T) {
 	gputest.Need(t)
 	r := New(bumped{}, &grey{}, noAir{}, Config{})
 	screen := render.NewImage(64, 64)
-	u := render.UniformsOf(map[string]any{"LightWay": []float32{0.3, 0.2, 1}, "LightStrength": []float32{1}, "LightColor": []float32{1, 1, 1}, "Ambience": []float32{0.2, 0.2, 0.2}})
+	u := render.UniformsOf(
+		map[string]any{
+			"LightWay":      []float32{0.3, 0.2, 1},
+			"LightStrength": []float32{1},
+			"LightColor":    []float32{1, 1, 1},
+			"Ambience":      []float32{0.2, 0.2, 0.2},
+		},
+	)
 	depth := render.NewDepth()
 	screen.ClearDepth(depth)
 	r.Draw(render.Target{Screen: screen, Depth: depth},
@@ -71,7 +83,11 @@ func TestTerrain_DrawsTheLevelEvenlyAndABumpWhereItStands(t *testing.T) {
 		}
 	}
 	if v := red(14, 40); v >= level-3 && v <= level+3 {
-		t.Errorf("the raised corner's slope at pixel (14, 40) is %d, like the level %d: no bump there", v, level)
+		t.Errorf(
+			"the raised corner's slope at pixel (14, 40) is %d, like the level %d: no bump there",
+			v,
+			level,
+		)
 	}
 }
 
@@ -125,6 +141,41 @@ func TestTerrain_CutsTheGroundOverAMouthUnderItsRoofAlone(t *testing.T) {
 		"beside the mouth":                           {132, 258},
 		"before the edge it opens across":            {124, 272},
 		"on the far half of its cell":                {156, 272},
+	} {
+		if !drawn(at[0], at[1]) {
+			t.Errorf("the ground %s, at %v, is not drawn", name, at)
+		}
+	}
+}
+
+func TestTerrain_CutsTheGroundRisingIntoARoomStandingOnIt(t *testing.T) {
+	gputest.Need(t)
+	// on the cell (4, 8), where the ground climbs from 0 to 40 eastward, a room's floor 10 up
+	// and its roof 20 over that: the ground is cut from 136 to 152 across
+	surface := &mouthed{mouths: []Mouth{{X: 4, Y: 8, Floor: 10, Clear: 20}}}
+	r := New(sloped{}, surface, noAir{}, Config{})
+	screen := render.NewImage(64, 64)
+	u := render.UniformsOf(map[string]any{"LightWay": []float32{0.3, 0.2, 1},
+		"LightStrength": []float32{1}, "LightColor": []float32{1, 1, 1},
+		"Ambience": []float32{0.2, 0.2, 0.2}})
+	depth := render.NewDepth()
+	screen.ClearDepth(depth)
+	r.Draw(render.Target{Screen: screen, Depth: depth},
+		downward{cameratest.NewFromSpace(64, 64, 0)}, u)
+	pix := make([]byte, 4*64*64)
+	screen.ReadPixels(pix)
+	drawn := func(x, y float32) bool { return pix[4*(int(y/8)*64+int(x/8))+3] != 0 }
+	for _, at := range [][2]float32{{140, 260}, {148, 284}} {
+		if drawn(at[0], at[1]) {
+			t.Errorf("the ground in the room, over its floor and under its roof, at %v is drawn",
+				at)
+		}
+	}
+	for name, at := range map[string][2]float32{
+		"under the floor":              {130, 272},
+		"over the roof":                {158, 272},
+		"beside the room's cell":       {140, 250},
+		"in the next cell up the hill": {170, 272},
 	} {
 		if !drawn(at[0], at[1]) {
 			t.Errorf("the ground %s, at %v, is not drawn", name, at)

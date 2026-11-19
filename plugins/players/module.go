@@ -34,7 +34,10 @@ func (m *module) SetupSystems() []goke.System {
 		for _, pl := range m.p.players {
 			for _, b := range pl.bindings {
 				if !m.p.worldPlugin.Write().Carrier().Takes(b.Type()) {
-					missing = append(missing, fmt.Sprintf("%v (%q for %s)", b.Type(), b.Label, pl.Name))
+					missing = append(
+						missing,
+						fmt.Sprintf("%v (%q for %s)", b.Type(), b.Label, pl.Name),
+					)
 				}
 			}
 		}

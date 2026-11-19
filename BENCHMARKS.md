@@ -793,7 +793,9 @@ second second; the rest run as they start. "tick" is a frame's simulation: at 60
 demo (motion/collision) runs two steps in it. "moved" is the share of the entities whose box
 changed between two ticks, sampled every second. Fullscreen because a window behind the
 desktop's active one, or any window once the screen saver is up, is paced at 20 FPS by the
-compositor with vsync on, a frame then holding up to five steps.
+compositor with vsync on, a frame then holding up to five steps. "Drawing" is the CPU readying a
+frame for the GPU, the engine's `Draw`: every source's Compose and the recording of the commands
+it sends; the GPU draws every pixel, and the time it takes falls in "presenting".
 
 | Demo | GC cycles | Live heap, peak | Tick | Drawing | Presenting | Moved |
 |:---|---:|---:|---:|---:|---:|---:|
@@ -834,7 +836,36 @@ the water the board lacked till then, too wide for its sheet.
 
 At the start a frame's presenting goes from 4.0 to about 5.3 ms: the ground's path under the
 water 0.5 ms, the sea's surface 0.4 ms, the buildings 0.3 ms (each switched off in turn). Near,
-the buildings as instances halve the CPU's drawing of what were two sprites a house.
+the buildings as instances halve the CPU's readying of the frame for what were two sprites a
+house.
+
+**Houses a unit walks into** (2026-11-19; a copy of `main` and the tree with a probe stilling the
+adapter, alternately, 25 s a run with `GRAM_VSYNC=off`, the medians after 12 s): the buildings
+near drawn among the figures, sharp at every shown pixel where they were drawn at the ground's
+resolution, giving way to the uncovered; the buildings demo's houses with doors and rooms, its
+hero walked into the cottage. Madeira in a window of 1024 by 768, the buildings demo of 1024 by
+640; two rounds where two numbers stand.
+
+| View | `main` | The tree |
+|:---|---:|---:|
+| Madeira, the start | 110.5 and 105.7 FPS | 106.9 and 105.1 FPS |
+| Funchal near (L2, 23 sectors) | 82.6 and 80.9 FPS | 81.4 and 81.1 FPS |
+| board/buildings, the start, readying | 304.1, 295.1 FPS; 0.53 ms | 286.3, 279.1 FPS; 0.62 ms |
+| board/buildings, the hero before the cottage | | 281.1 and 273.2 FPS |
+| board/buildings, the hero in it, the house bared | | 307.5 and 293.0 FPS |
+
+Funchal's houses drawn sharp near cost nothing measurable (0.6 % over the two rounds, the
+machine drifting 5 % between them). The buildings demo's rooms take the CPU 0.09 ms more a
+frame to ready (their insides kept on the GPU, laid anew only as a lamp changes), the rest of
+its 6 % the GPU's: the houses near drawn at every pixel, the rooms seen through their windows.
+The frame with the hero inside, his light worked out at the pixel under the house's shelter
+and the house bared, is no dearer. The world's own drawing (`Benchmark_World_Draw`, the full
+level) readies a figure some 2 ns slower, 1.3 to 2.5 %, the shelter it may stand under carried
+in its light; its publishing is unchanged. The standing pass (`Benchmark_Board_Altitude`, a board
+without rooms) went 5 to 11 % slower as a floor grew by its room's fields (`cell.Built` 144 bytes
+to 192, copied out at every read), and is 2 to 4 % faster than `main` with the floor's fields
+laid widest first (`cell.Floor` 48 bytes, `Built` 168) and the cells read in place where a step
+reads them; the navigation's tick within its noise.
 
 What they say: the collector runs once every four to seven seconds in every demo and gctrace's
 cumulative CPU share stays at 0%; at 60 FPS no demo's frame is bound by it, nor by anything but

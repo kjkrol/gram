@@ -53,6 +53,10 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   of sight alone**: through these cameras it is the height, so a disc given its middle's depth
   at every pixel opened what stood behind it and higher; a disc lies in its own plane facing
   the eye, half its reach before the thing, and carries that plane's depth pixel by pixel.
+  A plugin's own solid gives way the same (`world.Write.GivesWay`, 2026-11-19: the buildings
+  near): the world lays the uncovered then though no look of its own gives way, the source
+  asks `Read.GivesWayDrawn(cam)` in Compose and discards by `givesWayAt`; a room an uncovered
+  unit stands in goes whole into the uncovered depth, so all over it opens.
   The topography's disc is left out where the ground hides the thing's middle from the eye
   (`hidden`: the ground's heights met along the way towards the eye, half a cell a step in the
   vertex stage), or what stands before a hill would open on the hill. What is drawn with the
@@ -95,15 +99,26 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   the box of their reach (2026-11-08).
 - Frame images (`render.RegisterImage`, `f.Image` in Compose) are read in WGSL by name through
   `linear` or `wrapped`; the light never binds `GroundShade` while it bakes into it. A new shader
-  honours a drawn thing's `render.Taking` bits. Eight names at most, all eight in use (the
-  world's `Sheet` and `SheetRelief` the last two, 2026-11-05: a ninth needs a name freed); a
-  draw's own image slots are four, so a renderer short of them binds a frame image per draw
-  through `opts.Uniforms` (the terrain's `GroundDetail`); the same name carries the L4 image or
-  its L5 half by the draw. No mipmaps (`MipLevelCount` 1, no `MipmapFilter`): a smaller copy is
+  honours a drawn thing's `render.Taking` bits. Nine names, all in use (the ninth `Shelters`,
+  render's own, 2026-11-19: with a draw's four and its depth, 14 of the 16 a stage samples on a
+  device's default limits; a tenth needs a name freed or the limits asked); a draw's own image
+  slots are four, so a renderer short of them binds a frame image per draw through
+  `opts.Uniforms` (the terrain's `GroundDetail`); the same name carries the L4 image or its L5
+  half by the draw. No mipmaps (`MipLevelCount` 1, no `MipmapFilter`): a smaller copy is
   drawn (`DrawImage` at 0.5 with `FilterLinear` is an exact 2×2 mean; its GeoM counts in the
   texture's pixels, so a `SubImage` target is translated by `Bounds().Min`) or made by a shader.
   A height in an RGBA8 image goes as f16 through `pack2x16float` (naga 0.20.5 has it on every
-  backend), the low byte in R, the high in G, read back with `textureLoad` (the sheet's relief).
+  backend), the low byte in R, the high in G, read back with `textureLoad` (the sheet's relief);
+  a float32 goes whole in a texel's four bytes, read back
+  `bitcast<f32>(pack4x8unorm(textureLoad(...)))` (the shelters' rows).
+- **A thing under a roof is lit on the GPU** (2026-11-19, the user's word): `Lights.Shelters`
+  laid in the frame's `Shelters` image as their version moves on, a row a shelter; its place
+  and one more ride in the float of a Taking past `givesWay` (×512, `shelterOf`); such a
+  thing's instance carries the frame's lamps alone, `Illumination.Sheltered`, and the library's
+  `shelteredLight` adds at its pixel the sun where the way to it leaves by an opening, the sky's
+  and the thrown round's shares and the shelter's lamp. Every shader lighting a figure takes it:
+  `render.Sprites`, the topography's billboards and lying things a pixel at a time, the bodies a
+  part at a time (no varying to spare); the far points stay in the open's light.
 - Navigation's route line and goal are marks `OnTop` (route < goal < the selection's outline),
   never lifts in the world (2026-11-04); the GPU route lines `Untested` with `ReadGround` kept,
   so the ground still hides a route behind a hill while what stands over it does not.
@@ -259,6 +274,9 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
 
 ## Traps
 
+- naga up to v0.22.6 leaves what a `bitcast<T>(...)` reads unresolved where it is declared later
+  in the module (gogpu/naga#261: its dependency order skips a bitcast's argument): `SourceWith`
+  declares the frame's images before the library. Re-check at a bump.
 - **The world's y runs south**: its frame is left-handed seen with z up, so the way across a
   picture looking along `ahead` is `(-ahead.y, ahead.x)`, and a cross product written for a
   right-handed frame mirrors it (the bodies' first photographs were mirrors of what the camera

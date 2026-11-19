@@ -57,7 +57,9 @@ func TestResting_APairPartedStillMeetsWhileItTouches(t *testing.T) {
 		comp.Load(func(r walkerRow) collision.Physics { return collision.Physics{Mass: r.mass} }),
 	})
 	thing := kind.Named[walkerRow](w.Kinds(), "thing")
-	w.Write().Seed(thing.Entry(walkerRow{x: 100, mass: 1, vel: 120}), thing.Entry(walkerRow{x: 116, mass: f32.Inf(1)}))
+	w.Write().
+		Seed(thing.Entry(walkerRow{x: 100, mass: 1, vel: 120}), thing.Entry(walkerRow{x: 116,
+			mass: f32.Inf(1)}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +95,10 @@ func TestResting_APairPartedStillMeetsWhileItTouches(t *testing.T) {
 		t.Errorf("standing against the post for three ticks, met %d times; want once a tick", met)
 	}
 	if struck != 0 {
-		t.Errorf("standing against the post, struck %d times; want none: resting is no strike", struck)
+		t.Errorf(
+			"standing against the post, struck %d times; want none: resting is no strike",
+			struck,
+		)
 	}
 	resting := 0
 	for q.All(); q.Next(); {

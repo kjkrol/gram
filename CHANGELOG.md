@@ -18,20 +18,50 @@
   drawn in pieces along a curve, each meeting the next on the plane between them (a kink of
   45° or 90° in the cell's middle before), its course from above following the curve, the
   ground beside a corner a tunnel crosses closing
-  over it too (`site.Rules.Width`), the floor a road's with its lines;
+  over it too (`site.Rules.Width`), drawn in its kind's look (`Spec.Look`, `underground.Look`:
+  its walls', floor's, roof's and frame's colours, rough rock, timber sets round it, a road's
+  lines; the zero a road's tunnel, concrete and asphalt with its lines);
   a unit walks in at a mouth and through, no taller than the room, and a body in the room
   meets its walls (the board's field: either side of a tunnel, a turn closed outside, round a
   chamber but for the door of a tunnel coming in); a camera riding it (V) stays
-  under the roof; inside it is drawn as a tube with its own lamps, lit by none of the sun; from
-  above its course and the units in it are marks over the world (`Courses`, a switch under
-  Game). The roads demo has an old tunnel under its hill, the roads and the topography demos
-  the tool.
+  under the roof; inside it is drawn as a tube with its own lamps, lit by none of the sun, and
+  is a room of the interiors plugin, whoever walks in it lit as it is drawn; from above its
+  course and the units in it are marks over the world (`Courses`, a switch under Game). The
+  roads demo has an old tunnel under its hill, the roads and the topography demos the tool.
 - **A cell has levels**: its ground and up to three storeys (`cell.Levels`), each a `cell.Floor`
   raised over the cell or sunk under it (a negative `Height`, the room `Clear` over it), naming
   its `Storey`; `cell.Built` holds the storeys past the first in `More` (`Built.On`,
   `Built.Storey`, `Built.Levelled`, `Floor.Level`, `Floor.Sunk`), so a tunnel runs under a road
-  and a bridge over a tunnel on one cell. `BoardRead.ReachesOn`, `BoardRead.Sunk`;
-  `navigation.On` names a goal's level past `OnDeck`.
+  and a bridge over a tunnel on one cell. `BoardRead.ReachesOn`; `navigation.On` names a goal's
+  level past `OnDeck`.
+- **A room on the board**: a floor with its room `Clear` over it, dug under the ground or
+  `Standing` on it at any height (`cell.Floor.Room`, `Floor.Dug`), walled round its whole cells
+  but where its `Links` lead, on into its storey or out by its `Door` (`cell.Gap`, a width and a
+  height): a unit and a route go in by the door alone, no taller than the door and no wider. The
+  ground under a standing room is shut and its foundation solid, the topography cuts the ground
+  rising into it and frees the cameras' cage inside it (`BoardRead.Rooms`, `Dug`, `Housed`).
+- `plugins/interiors`: the rooms of the board's cells, a room's handle marked `Room`; whoever
+  stands in a room carries `Inside`, the rules told once as one comes in and goes out
+  (`Entered`, `Left`), and is `light.Sheltered` under its handle's shelter.
+- **Light under a roof, worked out on the GPU**: a `light.Shelter` (a knob of a room's handle:
+  its openings, its shares of the sky's light and of the sun's thrown round, its lamp, burning
+  from dusk or by day too) is laid in the frame's `Shelters` image (`render.Shelter`,
+  `Lights.Shelters`), and a thing drawn under one (`Shadowing.Shelter`, `Illumination.Shelter`,
+  `render.Sprites.Shelter`) is lit pixel by pixel: the sun where the way to it leaves by an
+  opening, the sky's share, the lamp, no shade of the open air and no shadow cast (the WGSL
+  library's `shelteredLight`; the topography's billboards and lying things a pixel at a time,
+  the bodies a part at a time). A frame hands its programs nine images.
+- **A house a unit walks into**: a building whose line gives a door (`buildings.Row.Door`,
+  `door: [x, y]`), of a kind with one (`Spec.Door`), stands square to the board on whole cells,
+  its room over them (`buildings.RoomStorey`), the floor level at the ground in the middle of the
+  door, dug into the slope uphill and on its plinth downhill, its storeys counted from it. Near,
+  the buildings are drawn among the figures and give way to the uncovered as the world's
+  switches say (`world.Write.GivesWay`, `Read.GivesWayDrawn`, `Read.Uncovered`); a room an
+  uncovered unit stands in is bared whole, its floor, its far walls and what stands in it seen,
+  the door and the windows of its storey open, the sun falling in by them as it moves round and
+  its lamp lit at dusk (`Plugin.WithRooms`).
+- `cameras.Plugin.Bindings`: the views' keys beside keys of a game's own, for a game walking
+  its unit on the keys that scroll the camera.
 - `world.Unseen`: a kind none of the world's looks draw, its plugin drawing it by a source of
   its own.
 - **The wind blows in gusts**: bands lying across the wind and carried along by it, 16 m of life
@@ -72,11 +102,11 @@
   `GiveWay`); the topography's billboards, the bodies' cards, the bodies whole and what lies
   do in relief, through an eye too, and open nothing for what the ground hides. A kind's look
   says either on the world's atlas (`world.Slot.Uncovered`, `Slot.GivesWay`), laid by a look
-  that draws them so (`world.UncoveringLook`). Before which cameras is the world's to set, two
-  switches under Game saved with the game: in the tactical view, a camera loose over the
-  world or centred on a unit, unless `world.GiveWay{On: false}` says not; riding a unit,
-  behind it or inside it, only where `world.GiveWayRiding{On: true}` says (`Settings.Covers`,
-  `Settings.GivesWayRiding`, `Read.GivesWay`).
+  that draws them so (`world.UncoveringLook`, `Uncovers` and `GivesWay`). Before which
+  cameras is the world's to set, two switches under Game saved with the game: in the tactical
+  view, a camera loose over the world or centred on a unit, unless `world.GiveWay{On: false}`
+  says not; riding a unit, behind it or inside it, only where `world.GiveWayRiding{On: true}`
+  says (`Settings.Covers`, `Settings.GivesWayRiding`, `Read.GivesWay`).
 - `render.Atlas.AddShot`: a sprite drawn on the GPU into its place on the sheet, before the
   sheet is first read.
 - A fragment writing a depth no nearer than its triangle's may say so
@@ -154,7 +184,11 @@
 - `examples/board/buildings` (`make demo-board-buildings`): a village street on a slope under a
   circling sun, buildings of a map's lines and one of the game's own code, every roof and a
   tower, whole and lit at dusk near, bodies alone and no longer entities with the camera drawn
-  out.
+  out; the hero walks in by a house's door onto its level floor, the house giving way over its
+  room, the sun falling in by the windows.
+- `examples/board/mine` (`make demo-board-mine`): a mine in a hillock, a timbered shaft from its
+  mouth at the hill's foot down under the plain into a cave beneath the hilltop; a miner walks
+  in on WSAD, V rides him through it.
 
 **Fixed**
 - A cloud's edge showed the squares of the coarse image the clouds are worked out in, four to
@@ -263,13 +297,16 @@
 - Madeira's demo with its buildings as solids and the water it lacked, against `main` on an
   integrated GPU (Intel UHD 620, `GRAM_VSYNC=off`, the adapter still): the start view 128 FPS
   for 161 in a window of 1024 by 768 and 75 for 90 in full screen at 1920 by 1080, Funchal
-  near 139 for 148, its drawing on the CPU 2.7 ms for 5.0. The island's frame
+  near 139 for 148, the CPU readying its frame 2.7 ms for 5.0. The island's frame
   (`Benchmark_Frame_Topography`) is as it was at the full level and without water, the far
   levels dearer by the water they now show (`BENCHMARKS.md`).
 - Measured against `main` on the libraries above (Intel UHD 620): the island's frame
   (`Benchmark_Frame_Topography`) within 1 % at every level, 43 to 67 allocations more a frame
-  inside wgpu; Madeira's start view 113.5 FPS for 116.1, its drawing on the CPU 2.6 ms for 2.2.
-  naga's own check of every image load would take 2.4–3.3 % of the frame.
+  inside wgpu; Madeira's start view 113.5 FPS for 116.1, the CPU readying its frame 2.6 ms for
+  2.2. naga's own check of every image load would take 2.4–3.3 % of the frame.
+- The board's standing pass reads a cell's floors in place where a step reads them, the floor's
+  fields laid widest first: 2 to 4 % faster than v0.21.0's on a board without rooms
+  (`Benchmark_Board_Altitude`), where the room's fields alone made it 5 to 11 % slower.
 - Madeira's trees as bodies against `main` with its drawn trees, over the island's densest
   forest on an integrated GPU (Intel UHD 620, `GRAM_VSYNC=off`, the adapter still): as cards
   131 FPS for 136 in a window of 1024 by 768 and 51 for 52–53 at 1920 by 1080; whole, where they

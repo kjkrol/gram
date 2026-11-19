@@ -14,7 +14,8 @@ func TestPlugin_Res_PublishesConfig(t *testing.T) {
 	}
 	plugin := world.NewPlugin(cfg)
 
-	if got := plugin.Res.Config; got.Space != cfg.Space || got.Entities != cfg.Entities || got.Heights != cfg.Heights {
+	if got := plugin.Res.Config; got.Space != cfg.Space || got.Entities != cfg.Entities ||
+		got.Heights != cfg.Heights {
 		t.Errorf("Res.Config = %+v, want %+v", plugin.Res.Config, cfg)
 	}
 	if plugin.Res.Telemetry.Count != 0 {

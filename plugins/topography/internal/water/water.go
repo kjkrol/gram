@@ -11,7 +11,12 @@ var shaders embed.FS
 
 // the shaders call the clouds' functions (plugins/atmosphere/air)
 var (
-	materials    = render.RegisterMaterials(render.Files(shaders, "shaders/water.wgsl", "shaders/sea.wgsl", "shaders/stream.wgsl"), nil, "SeaGlint", "RunningWater")
+	materials = render.RegisterMaterials(
+		render.Files(shaders, "shaders/water.wgsl", "shaders/sea.wgsl", "shaders/stream.wgsl"),
+		nil,
+		"SeaGlint",
+		"RunningWater",
+	)
 	seaGlint     = materials[0]
 	runningWater = materials[1]
 )

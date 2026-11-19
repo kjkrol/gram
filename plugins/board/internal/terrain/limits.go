@@ -11,7 +11,7 @@ func (t *Cells) limit(sites []site) {
 	for _, s := range sites {
 		b := &s.built
 		if b.Floor.Load <= 0 && b.More[0].Load <= 0 && b.More[1].Load <= 0 &&
-			b.Wall.Gap.Width <= 0 {
+			b.Wall.Gap.Width <= 0 && !doored(b) {
 			continue
 		}
 		i, ok := t.Ordinal(s.cell)
@@ -26,12 +26,23 @@ func (t *Cells) limit(sites []site) {
 	}
 }
 
-// Limited reports whether a floor's Load or a wall's Gap limits whom a cell takes anywhere.
+// doored reports whether a room of b's cell opens by a door
+func doored(b *cell.Built) bool {
+	for k := range uint8(cell.Storeys) {
+		if f := b.Storey(k); f.Room() && f.Door.Width > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// Limited reports whether a floor's Load, a wall's Gap or a room's door limits whom a cell takes
+// anywhere.
 func (r *Read) Limited() bool { return len(r.t.limited) > 0 }
 
 // Limits are what c limits a body moving in d by beyond its kind, on level:
 // the Load of the floor carrying it where its ground would not, and the Gap of the wall keeping d
-// off; zero where nothing does.
+// off or of the door of the room it is in; zero where nothing does.
 func (r *Read) Limits(c cell.ID, d cell.Domain, level cell.Level) (load float32, gap cell.Gap) {
 	t := r.t
 	if len(t.limited) == 0 || r.store == nil {
@@ -46,7 +57,10 @@ func (r *Read) Limits(c cell.ID, d cell.Domain, level cell.Level) (load float32,
 		return 0, cell.Gap{}
 	}
 	f := b.On(level)
-	if b.Wall.Keeps&d != 0 && !f.Sunk() {
+	switch {
+	case f.Room() && f.Door.Width > 0:
+		gap = f.Door
+	case b.Wall.Keeps&d != 0 && !f.Room():
 		gap = b.Wall.Gap
 	}
 	switch {

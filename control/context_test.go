@@ -15,13 +15,21 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-func isoCamera(width, height uint32, screenW, screenH float32, heights func(geom.Vec) float32) camera.Camera {
+func isoCamera(
+	width, height uint32,
+	screenW, screenH float32,
+	heights func(geom.Vec) float32,
+) camera.Camera {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: width, Height: height},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 100},
 		Heights:  true,
 	})
-	b := board.NewPlugin(grid.DefaultGrids{}.Square(width/32, height/32, 32), &cell.MultipleOccupancy{}, w)
+	b := board.NewPlugin(
+		grid.DefaultGrids{}.Square(width/32, height/32, 32),
+		&cell.MultipleOccupancy{},
+		w,
+	)
 	topo := topography.NewPlugin(w, b, nil, topography.Config{})
 	topo.Write().Relief().SetHeights(heights)
 	cam := cameras.NewPlugin(w, cameras.Config{
@@ -72,6 +80,9 @@ func TestContext_WorldThroughACameraThatPicksNothingIsTheGroundAtSeaLevel(t *tes
 	screen := geom.NewVec(float32(sx), float32(sy))
 	if p := (control.Context{Camera: cam}).World(screen); f32.Abs(p.X-250) < 1 &&
 		f32.Abs(p.Y-100) < 1 {
-		t.Error("through a camera that picks nothing the click landed on the plateau point: the height was not ignored")
+		t.Error(
+			"through a camera that picks nothing the click landed on the plateau point: the " +
+				"height was not ignored",
+		)
 	}
 }

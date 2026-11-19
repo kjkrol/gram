@@ -125,7 +125,12 @@ func TestPairs_NamesOverlappingNeighborsOnce(t *testing.T) {
 }
 
 func TestPairs_FarApart_NothingNamed(t *testing.T) {
-	found, _ := broadTick(t, 1, placed{x: 0, collides: true}, placed{x: 900, y: 900, collides: true})
+	found, _ := broadTick(
+		t,
+		1,
+		placed{x: 0, collides: true},
+		placed{x: 900, y: 900, collides: true},
+	)
 
 	if len(found) != 0 {
 		t.Errorf("found %v between two entities a world apart, want nothing", found)
@@ -154,6 +159,11 @@ func TestPairs_FollowsAnEntityTheWorldMoved(t *testing.T) {
 		placed{x: 100, collides: true})
 
 	if !paired(found, ids[0], ids[1]) {
-		t.Errorf("found %v, want (%v, %v) once the world's move brought A into B", found, ids[0], ids[1])
+		t.Errorf(
+			"found %v, want (%v, %v) once the world's move brought A into B",
+			found,
+			ids[0],
+			ids[1],
+		)
 	}
 }

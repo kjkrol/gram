@@ -37,10 +37,20 @@ func TestDefine_RegistersTheSpecAndHandsBackTheKind(t *testing.T) {
 	unit := kind.Named[row](reg, "unit")
 
 	if reg.name != "unit" || reg.row != reflect.TypeFor[row]() || len(reg.spec) != 2 {
-		t.Errorf("the registry was given (%q, %v, %d comps), want (unit, row, 2)", reg.name, reg.row, len(reg.spec))
+		t.Errorf(
+			"the registry was given (%q, %v, %d comps), want (unit, row, 2)",
+			reg.name,
+			reg.row,
+			len(reg.spec),
+		)
 	}
 	if unit.Name() != "unit" || unit.ID() != 3 || unit.SpriteID() != 7 {
-		t.Errorf("the kind says (%q, %d, %d), want what the registry assigned: (unit, 3, 7)", unit.Name(), unit.ID(), unit.SpriteID())
+		t.Errorf(
+			"the kind says (%q, %d, %d), want what the registry assigned: (unit, 3, 7)",
+			unit.Name(),
+			unit.ID(),
+			unit.SpriteID(),
+		)
 	}
 
 	entry := unit.Entry(row{hp: 5})
@@ -59,7 +69,11 @@ func TestDefine_RefusesALoadThatReadsAnotherRowType(t *testing.T) {
 		}
 	}()
 
-	kind.Define[row](&shelf{}, "unit", kind.Spec{comp.Load(func(hp int) stat { return stat{HP: hp} })})
+	kind.Define[row](
+		&shelf{},
+		"unit",
+		kind.Spec{comp.Load(func(hp int) stat { return stat{HP: hp} })},
+	)
 	t.Error("Define accepted a Load over int for a kind whose rows are row")
 }
 
@@ -70,8 +84,11 @@ func TestNamed_RefusesAnUnknownNameAndOtherRows(t *testing.T) {
 		do   func()
 		want []string
 	}{
-		"unknown":    {func() { kind.Named[row](reg, "stranger") }, []string{`no kind is defined as "stranger"`}},
-		"other rows": {func() { kind.Named[int](reg, "unit") }, []string{`"unit"`, "int", "kind_test.row"}},
+		"unknown": {func() { kind.Named[row](reg, "stranger") },
+			[]string{`no kind is defined as "stranger"`}},
+		"other " +
+			"rows": {func() { kind.Named[int](reg, "unit") }, []string{`"unit"`, "int",
+			"kind_test.row"}},
 	} {
 		func() {
 			defer func() {

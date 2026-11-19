@@ -47,7 +47,10 @@ func NewFont(ttf []byte, size float64) (*Font, error) {
 	if err != nil {
 		return nil, fmt.Errorf("render: font: %w", err)
 	}
-	face, err := opentype.NewFace(f, &opentype.FaceOptions{Size: size, DPI: 72, Hinting: font.HintingFull})
+	face, err := opentype.NewFace(
+		f,
+		&opentype.FaceOptions{Size: size, DPI: 72, Hinting: font.HintingFull},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("render: font: %w", err)
 	}

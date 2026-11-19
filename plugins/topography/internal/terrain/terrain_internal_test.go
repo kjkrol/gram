@@ -18,7 +18,12 @@ func TestEncode_HoldsTheHeightsWithinTheSpan(t *testing.T) {
 	heights := []float32{-12.5, 0, 3.25, 180, 99.99}
 	low, span, buf := encode(heights, nil)
 	if low != -12.5 || span != 192.5 || len(buf) != 4*len(heights) {
-		t.Fatalf("low %v, span %v, %d bytes; want -12.5, 192.5 and four a corner", low, span, len(buf))
+		t.Fatalf(
+			"low %v, span %v, %d bytes; want -12.5, 192.5 and four a corner",
+			low,
+			span,
+			len(buf),
+		)
 	}
 	for i, h := range heights {
 		if got := decode(buf[4*i], buf[4*i+1], low, span); f32.Abs(
@@ -116,12 +121,17 @@ func TestNormals_LeanAwayFromTheRidge(t *testing.T) {
 	if len(buf) != 4*cols*rows {
 		t.Fatalf("%d bytes for %d corners, want four each", len(buf), cols*rows)
 	}
-	at := func(x, y int) [3]float32 { i := 4 * (y*cols + x); return decodeNormal(buf[i], buf[i+1], buf[i+2]) }
+	at := func(x, y int) [3]float32 {
+		i := 4 * (y*cols + x)
+		return decodeNormal(buf[i], buf[i+1],
+			buf[i+2])
+	}
 	near := func(a, b float32) bool { return f32.Abs(float32(a-b)) < 0.02 }
 	if n := at(8, 5); !near(n[0], 0) || !near(n[1], 0) || !near(n[2], 1) {
 		t.Errorf("the ridge's crest faces %v, want straight up", n)
 	}
-	if w, e := at(7, 5), at(9, 5); w[0] >= -0.3 || e[0] <= 0.3 || !near(w[0], -e[0]) || !near(w[1], 0) {
+	if w, e := at(7, 5), at(9, 5); w[0] >= -0.3 || e[0] <= 0.3 || !near(w[0], -e[0]) ||
+		!near(w[1], 0) {
 		t.Errorf("the ridge's west side faces %v and its east %v, want leaning apart, alike", w, e)
 	}
 	if n := at(0, 5); !near(n[2], 1) {
@@ -156,7 +166,12 @@ type eye struct {
 func (e eye) Rays() (camera.RayField, bool) {
 	// looking along +x, the screen's x across y, its y down: the ray through (sx, sy) runs along
 	// (1, (sx-200)/400, -(sy-150)/400)
-	return camera.RayField{Origin: e.at, Dir: [3]float32{1, -0.5, 0.375}, DDX: [3]float32{0, 1.0 / 400, 0}, DDY: [3]float32{0, 0, -1.0 / 400}}, true
+	return camera.RayField{
+		Origin: e.at,
+		Dir:    [3]float32{1, -0.5, 0.375},
+		DDX:    [3]float32{0, 1.0 / 400, 0},
+		DDY:    [3]float32{0, 0, -1.0 / 400},
+	}, true
 }
 
 func (e eye) Project(x, y, z float32) (float32, float32) {
@@ -205,7 +220,12 @@ func TestSkirt_RingsTheLatticeFromItsEdge(t *testing.T) {
 	}
 	tris := skirt(cols, rows, nil)
 	if len(tris) != 6*n*skirtRings {
-		t.Fatalf("%d indices, want two triangles for each of %d corners in %d rings", len(tris), n, skirtRings)
+		t.Fatalf(
+			"%d indices, want two triangles for each of %d corners in %d rings",
+			len(tris),
+			n,
+			skirtRings,
+		)
 	}
 	last := uint32(cols*rows + skirtRings*n)
 	for _, i := range tris {
@@ -259,7 +279,11 @@ func TestRenderer_PreparesTheFramesUniformsWithItsOwnOver(t *testing.T) {
 	f := &flat{grid: 6, line: [4]float32{0.5, 0, 0, 0.5}, width: 3}
 	r := New(hill{}, f, stillSky{}, Config{})
 	cam := eye{Camera: cameratest.NewFromSpace(512, 512, 0), at: [3]float32{100, 256, 4}}
-	frame := map[string]any{"Pixel": []float32{0.5}, "LightWay": []float32{1, 2, 3}, "Cell": []float32{9, 9}}
+	frame := map[string]any{
+		"Pixel":    []float32{0.5},
+		"LightWay": []float32{1, 2, 3},
+		"Cell":     []float32{9, 9},
+	}
 	u := render.UniformsOf(frame)
 	if !r.prepare(cam, u) {
 		t.Fatal("nothing to draw")

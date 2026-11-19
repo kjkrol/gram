@@ -48,7 +48,14 @@ func (d *device) stage(size uint64) (*staging, error) {
 			for n < size {
 				n *= 2
 			}
-			buf, err := d.dev.CreateBuffer(&wgpu.BufferDescriptor{Label: "staging", Size: n, Usage: wgpu.BufferUsageMapWrite | wgpu.BufferUsageCopySrc, MappedAtCreation: true})
+			buf, err := d.dev.CreateBuffer(
+				&wgpu.BufferDescriptor{
+					Label:            "staging",
+					Size:             n,
+					Usage:            wgpu.BufferUsageMapWrite | wgpu.BufferUsageCopySrc,
+					MappedAtCreation: true,
+				},
+			)
 			if err != nil {
 				return nil, fmt.Errorf("gpu: a staging buffer of %d bytes: %w", n, err)
 			}

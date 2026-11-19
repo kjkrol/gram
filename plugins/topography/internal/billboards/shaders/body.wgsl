@@ -65,7 +65,14 @@ fn vs_main(
     if takes(ground.z, givesWay) {
         hazed += 2.0;
     }
-    c.light = vec4<f32>(light.rgb * shade, hazed);
+    var lit = light.rgb * shade;
+    let shelter = shelterOf(ground.z);
+    if shelter > 0u {
+        // under a roof, the light that gets in at the part's middle and none of the open air's
+        // shade: a part at a time, the card having no varying to spare
+        lit = shelteredLight(foot.xyz + shapeTurned(0.5 * (a + b), turn), shelter - 1u, light.rgb);
+    }
+    c.light = vec4<f32>(lit, hazed);
     return c;
 }
 

@@ -29,7 +29,8 @@ func TestKeepOf_WantsAPointerToAStruct(t *testing.T) {
 	for _, v := range []any{keptGame{}, 7, (*keptGame)(nil), new(int)} {
 		func() {
 			defer func() {
-				if r := recover(); r == nil || !strings.Contains(r.(string), "pointer to a struct") {
+				if r := recover(); r == nil ||
+					!strings.Contains(r.(string), "pointer to a struct") {
 					t.Errorf("KeepOf(%T): %v, want a panic naming a pointer to a struct", v, r)
 				}
 			}()

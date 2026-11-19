@@ -63,8 +63,9 @@ make demo-rules-dialog                                          # conversations 
 make demo-rules-vision                                          # sight, avoidance and a hunter
 make demo-rules-guard                                           # guards on a plan: patrol, step aside, rest, run to the gate while the alarm (A) is on
 make demo-board-atlas                                           # a small flat board from the game's own atlas, the water a material
+make demo-board-mine                                            # a mine in a hillock: a timbered shaft from its mouth at the hill's foot down into a cave under the plain; a miner on WSAD, V rides him through it
 make demo-board-roads                                           # two villages either side of a river: roads laid with Shift+R, planned, priced and built; an old tunnel under the hill, Shift+T digs another; I brings the winter
-make demo-board-buildings                                       # a village street on a slope: buildings as solids of a map's lines, whole and lit at dusk near, bodies alone far off; a hero on WSAD
+make demo-board-buildings                                       # a village street on a slope: buildings as solids of a map's lines, whole and lit at dusk near, bodies alone far off; a hero on WSAD walks in by a door, the house giving way over its room, the sun falling in by the windows
 make demo-board-forest-army                                     # a forest and two armies folded far off and unfolded near: trees, soldiers, a battle either way
 make demo-navigation-square                                     # units sent round a wall, over a river by a bridge a wagon is too wide for; walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-hex                                        # the same on a hex board
@@ -279,6 +280,11 @@ Decisions the user has made; they are not up for revisiting in passing.
   over the cell or sunk under it with the room over it, naming its `Storey`; a level is a
   `cell.Level` wherever a unit is held, routed or stepped (the occupancy, a route's steps, the
   hierarchy's nodes), never a "deck or not". A tunnel runs under a road, a bridge over a tunnel.
+  A room is a floor with `Clear` over it, dug (sunk) or `Standing` on the ground at any height (a
+  house's, the user's word, 2026-11-19: a door, a level floor inside also on a slope, the sun
+  through the windows), walled round its whole cells but where its `Links` lead, on into its
+  storey or out by its `Door`; who stands in a room is `interiors`', the light that gets in its
+  handle's `light.Shelter`.
 - **One ladder of LOD** (the user's word, 2026-11-03): the world gives every sector one level,
   `lod.L0`..`lod.L6`, three scales of two rungs each, exact and coarse, and the omission (the
   user's word, 2026-11-05): L0–L1 the close scale (`lod.Close`: needles, pores; a game enters it
@@ -382,8 +388,10 @@ Decisions the user has made; they are not up for revisiting in passing.
 - **Physics, not blocking**, for a unit under gravity: into the water and off an edge as it
   pleases, the rules deciding.
 - **The light plugin gives the instruments, never the sun**: a `light.Distant` light (way,
-  strength, ambient, colours), lamps, and what each thing casts and takes (`light.Shadow`, a
-  cell's `cell.Kind.Takes`); what shines is a `light.Source` on an entity. The sun is the
+  strength, ambient, colours), lamps, what each thing casts and takes (`light.Shadow`, a
+  cell's `cell.Kind.Takes`) and the roofs (`light.Shelter`: what of the sky's light gets under
+  one, by its openings; a thing under one is lit there pixel by pixel on the GPU, the user's
+  word, 2026-11-19); what shines is a `light.Source` on an entity. The sun is the
   atmosphere's: its sky writes the sun of the hour into the `light.Shining` beside its own
   entity's Source; a scene without a sky sets a `WithDistant` light. The light declares and
   publishes (`render.Lights` once a frame); **render lights** (2026-10-24): the composer picks a
@@ -408,7 +416,9 @@ Decisions the user has made; they are not up for revisiting in passing.
   round what a game uncovers (`Slot.Uncovered`: its units), worked out on the GPU by `render`;
   before a camera loose over the world or centred on a unit from the start, before one riding
   a unit (FPP, TPP) not, each a checkbox on a boolean of the world's settings
-  (`world.GiveWay`, `world.GiveWayRiding`).
+  (`world.GiveWay`, `world.GiveWayRiding`). A plugin's solid gives way the same, drawn among the
+  figures (`world.Write.GivesWay`: the buildings near, a house's room an uncovered unit stands in
+  bared whole).
 - **What is drawn over what is Z's alone**, never a layer, the order of adding or the order a
   plugin registers in: every piece of the world lies at a height (`render.At`; what lies on a
   surface at a small lift over it — a cell held, a bridge in hand, a field's piece at
@@ -462,11 +472,14 @@ are made by `gramap`, in `gram-madeira-square`), `topography` (a map in relief, 
 `atmosphere` (the time of day, the climate, the weather), `collision`, `navigation`, `selection`,
 `dialog`, `players` (with `players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`,
 `underground` (tunnels and chambers dug under the ground by `underground/site`'s rules, walked and
-ridden through, drawn from inside), `forest` (forests planted over the board's cells: kinds of
-trees, stands by the ground's height), `buildings` (the buildings of a level's file or of a game's
-own standing as solids, drawn by the plugin at every level, entities where their settlement's sector
-unfolds), `roads` (roads laid with a tool: planned, priced, judged by the game's rules and built, by
-`roads/site`'s rules, which a map maker plans its roads by too, as `gramap` does), `bullet`,
+ridden through, drawn from inside), `interiors` (the rooms of the board's cells, dug and standing:
+who stands in each, told to the rules as one comes in and goes out, lit there by what gets in),
+`forest` (forests planted over the board's cells: kinds of trees, stands by the ground's height),
+`buildings` (the buildings of a level's file or of a game's own standing as solids, drawn by the
+plugin at every level, entities where their settlement's sector unfolds; one with a door stands a
+room on its whole cells), `roads` (roads laid with a tool: planned, priced, judged by the game's
+rules and built, by `roads/site`'s rules, which a map maker plans its roads by too, as `gramap`
+does), `bullet`,
 `minimap` (small pictures round the players' cameras), `telemetry` (the panel in the corner, a scene
 of its own in every Stage with a world). Each package has a `doc.go` describing what it brings,
 ending with its `# Vocabulary`.

@@ -1,5 +1,5 @@
 # A village street on a slope, a cell 8 m: its buildings each a line, its middle and its size in
-# world units (a metre four of them), its turn in degrees.
+# world units (a metre four of them), its turn in degrees, where its door opens on its wall.
 board:
   default: grass
   legend:
@@ -29,17 +29,17 @@ board:
     ................................
   entities:
     - {kind: village, from: [0, 0], to: [31, 19]}
-    - {kind: cottage, mid: [144, 272], size: [28, 22], turn: 0, floors: 1}
-    - {kind: cottage, mid: [240, 272], size: [28, 22], turn: 90, floors: 2}
-    - {kind: townhouse, mid: [336, 272], size: [30, 24], turn: 0, floors: 3}
-    - {kind: townhouse, mid: [368, 272], size: [30, 24], turn: 0, floors: 2}
-    - {kind: townhouse, mid: [400, 272], size: [30, 24], turn: 0, floors: 3}
-    - {kind: hall, mid: [544, 272], size: [56, 28], turn: 0, floors: 1}
+    - {kind: cottage, mid: [144, 272], size: [32, 32], turn: 0, floors: 1, door: [144, 288]}
+    - {kind: cottage, mid: [240, 272], size: [32, 32], turn: 90, floors: 2, door: [240, 288]}
+    - {kind: townhouse, mid: [336, 272], size: [32, 32], turn: 0, floors: 3, door: [336, 288]}
+    - {kind: townhouse, mid: [368, 272], size: [32, 32], turn: 0, floors: 2, door: [368, 288]}
+    - {kind: townhouse, mid: [400, 272], size: [32, 32], turn: 0, floors: 3, door: [400, 288]}
+    - {kind: hall, mid: [544, 272], size: [64, 32], turn: 0, floors: 1, door: [528, 288]}
     - {kind: chapel, mid: [736, 256], size: [48, 24], turn: 20, floors: 1}
-    - {kind: cottage, mid: [176, 400], size: [28, 22], turn: 180, floors: 1}
-    - {kind: townhouse, mid: [304, 400], size: [30, 24], turn: 0, floors: 2}
-    - {kind: townhouse, mid: [336, 400], size: [30, 24], turn: 0, floors: 3}
-    - {kind: hall, mid: [480, 400], size: [56, 28], turn: 0, floors: 1}
+    - {kind: cottage, mid: [176, 400], size: [32, 32], turn: 180, floors: 1, door: [176, 384]}
+    - {kind: townhouse, mid: [304, 400], size: [32, 32], turn: 0, floors: 2, door: [304, 384]}
+    - {kind: townhouse, mid: [336, 400], size: [32, 32], turn: 0, floors: 3, door: [336, 384]}
+    - {kind: hall, mid: [480, 400], size: [64, 32], turn: 0, floors: 1, door: [464, 384]}
 relief:
   corners: |
     10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10.1 10.3 10.6 11.2 11.9 12.8 13.4 13.7 13.4 12.8 11.9 11.2 10.6

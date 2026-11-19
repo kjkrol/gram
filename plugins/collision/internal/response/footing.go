@@ -48,6 +48,10 @@ func overhangs(g Ground, s Body, push geom.Vec) bool {
 		return false
 	}
 	box := s.Box
-	moved := geom.NewAABBAt(geom.NewVec(box.TopLeft.X+push.X, box.TopLeft.Y+push.Y), box.BottomRight.X-box.TopLeft.X, box.BottomRight.Y-box.TopLeft.Y)
+	moved := geom.NewAABBAt(
+		geom.NewVec(box.TopLeft.X+push.X, box.TopLeft.Y+push.Y),
+		box.BottomRight.X-box.TopLeft.X,
+		box.BottomRight.Y-box.TopLeft.Y,
+	)
 	return Worse(g, s.Layers, box, moved)
 }

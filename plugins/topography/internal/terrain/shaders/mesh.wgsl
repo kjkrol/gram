@@ -77,15 +77,25 @@ const mouthPast: f32 = 0.1;
 const mouthBeside: f32 = 0.02;
 const mouthOver: f32 = 1.1;
 
+// how far under a room's floor the ground in it is cut too, in cells: a byte's step of where the
+// floor lies and the corners' 16 bits round it
+const roomUnder: f32 = 0.01;
+
 // mouthed says whether the ground at p is cut away: it lies over the mouth of a floor sunk under
 // its cell (terrain.Mouth, the marks at the cell's corner), on the half of the cell the floor
-// comes out through, within its width and lower than its roof.
+// comes out through, within its width and lower than its roof; or in a room standing on its
+// cell, over its floor and under its roof.
 fn mouthed(p: vec3<f32>) -> bool {
     let i = clamp(floor(p.xy / U.Cell), vec2<f32>(0.0), U.Corners - 2.0);
     let mark = imageSrc0At(imageSrc0Origin() + i + 0.5);
     let code = u32(mark.b * 255.0 + 0.5);
     if code == 0u {
         return false;
+    }
+    if code == 5u {
+        let floor = corner(i) + (mark.a - 0.5) * 2.0 * U.Cell;
+        let room = imageSrc0At(imageSrc0Origin() + vec2<f32>(U.Corners.x, 0.0) + i + 0.5).a;
+        return p.z > floor - roomUnder * U.Cell && p.z < floor + room * U.Cell * mouthOver;
     }
     let way = vec2<f32>(f32((code - 1u) % 3u) - 1.0, f32((code - 1u) / 3u) - 1.0);
     let mid = (i + 0.5) * U.Cell;

@@ -10,7 +10,8 @@ struct Dot {
 
 // vs_main lays the corner vid of the star's square, three spreads and a half pixel from it.
 @vertex
-fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>, @location(1) colour: vec4<f32>) -> Dot {
+fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>,
+    @location(1) colour: vec4<f32>) -> Dot {
     var across = array<f32, 6>(-1.0, 1.0, -1.0, 1.0, 1.0, -1.0);
     var down = array<f32, 6>(-1.0, -1.0, 1.0, -1.0, 1.0, 1.0);
     let off = vec2<f32>(across[vid], down[vid]) * (3.0 * at.z + 0.5);

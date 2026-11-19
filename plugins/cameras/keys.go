@@ -102,17 +102,25 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 	see(k.Farther, "See farther", SightStep)
 	see(k.Nearer, "See nearer", 1/SightStep)
 	if k.Wheel {
-		out = append(out, control.Build(control.Wheel{}, "Zoom", func(c control.Context) (Zoom, bool) {
-			if c.Wheel > 0 {
-				return Zoom{Camera: c.Camera, Factor: ZoomStep, At: c.World(c.Cursor)}, true
-			}
-			return Zoom{Camera: c.Camera, Factor: 1 / ZoomStep, At: c.World(c.Cursor)}, true
-		}))
+		out = append(
+			out,
+			control.Build(control.Wheel{}, "Zoom", func(c control.Context) (Zoom, bool) {
+				if c.Wheel > 0 {
+					return Zoom{Camera: c.Camera, Factor: ZoomStep, At: c.World(c.Cursor)}, true
+				}
+				return Zoom{Camera: c.Camera, Factor: 1 / ZoomStep, At: c.World(c.Cursor)}, true
+			}),
+		)
 	}
 	if k.Drag {
-		out = append(out, control.Build(control.ButtonHeld{Button: control.MouseButtonMiddle}, "Pan", func(c control.Context) (Pan, bool) {
-			return Pan{Camera: c.Camera, Dx: -c.Delta.X, Dy: -c.Delta.Y}, true
-		}).In(camera.Free))
+		out = append(
+			out,
+			control.Build(control.ButtonHeld{Button: control.MouseButtonMiddle}, "Pan",
+				func(c control.Context) (Pan, bool) {
+					return Pan{Camera: c.Camera, Dx: -c.Delta.X, Dy: -c.Delta.Y}, true
+				}).
+				In(camera.Free),
+		)
 	}
 	if k.Grab {
 		out = append(out, control.Build(control.ButtonHeld{Button: control.MouseButtonRight},
@@ -132,34 +140,37 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 			}).In(camera.Free).Yielding())
 	}
 	if k.Edge {
-		out = append(out, control.Build(control.CursorAtEdge{}, "Scroll", func(c control.Context) (Pan, bool) {
-			if p != nil && !p.read.EdgesScroll() {
-				return Pan{}, false
-			}
-			// the deeper in the zone, the faster: a quarter the speed at its inner bound
-			var dx, dy float32
-			side := c.Edges()
-			speed := edgeStep(c) * (0.25 + 0.75*side.Depth)
-			if side.Corner != control.NoCorner {
-				// a corner that turns scrolls nothing
-				turning := k.CornersTurn && (p == nil || p.read.CornersTurn())
-				sx, sy := side.Corner.Signs()
-				return Pan{Camera: c.Camera, Dx: sx * speed, Dy: sy * speed}, !turning
-			}
-			switch {
-			case side.Left:
-				dx = -speed
-			case side.Right:
-				dx = speed
-			}
-			switch {
-			case side.Top:
-				dy = -speed
-			case side.Bottom:
-				dy = speed
-			}
-			return Pan{Camera: c.Camera, Dx: dx, Dy: dy}, dx != 0 || dy != 0
-		}).In(camera.Free))
+		out = append(
+			out,
+			control.Build(control.CursorAtEdge{}, "Scroll", func(c control.Context) (Pan, bool) {
+				if p != nil && !p.read.EdgesScroll() {
+					return Pan{}, false
+				}
+				// the deeper in the zone, the faster: a quarter the speed at its inner bound
+				var dx, dy float32
+				side := c.Edges()
+				speed := edgeStep(c) * (0.25 + 0.75*side.Depth)
+				if side.Corner != control.NoCorner {
+					// a corner that turns scrolls nothing
+					turning := k.CornersTurn && (p == nil || p.read.CornersTurn())
+					sx, sy := side.Corner.Signs()
+					return Pan{Camera: c.Camera, Dx: sx * speed, Dy: sy * speed}, !turning
+				}
+				switch {
+				case side.Left:
+					dx = -speed
+				case side.Right:
+					dx = speed
+				}
+				switch {
+				case side.Top:
+					dy = -speed
+				case side.Bottom:
+					dy = speed
+				}
+				return Pan{Camera: c.Camera, Dx: dx, Dy: dy}, dx != 0 || dy != 0
+			}).In(camera.Free),
+		)
 		if k.CornersTurn {
 			out = append(out, control.Build(control.CursorInCorner{},
 				"Turn the world in a corner: anticlockwise in the bottom-left and the top-right, "+

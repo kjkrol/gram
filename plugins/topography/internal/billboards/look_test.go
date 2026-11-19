@@ -78,7 +78,12 @@ func TestBillboards_StandEntitiesUprightOnTheirCentre(t *testing.T) {
 	cameratest.Tilt(cam, math.Pi)
 	drawn = look.Drawn(cam, box.AABB, world.Z{Altitude: 6})
 	if x0, y0 := cam.Project(40, 40, 0); drawn[0][0] != x0 || drawn[0][1] != y0 {
-		t.Errorf("from above the entity is drawn at %v, want over its box's corner (%v, %v)", drawn[0], x0, y0)
+		t.Errorf(
+			"from above the entity is drawn at %v, want over its box's corner (%v, %v)",
+			drawn[0],
+			x0,
+			y0,
+		)
 	}
 }
 
@@ -103,7 +108,15 @@ func TestBillboards_HandTheShaderHowMuchTheySway(t *testing.T) {
 		var f render.Frame
 		f.Reset(cam)
 		look.(world.DirectLook).Begin(&render.Frame{}, cam)
-		look.Sprite(&f, cam, box, world.Z{}, sheet{}, render.Appearance{Sway: sway}, render.WhiteLight)
+		look.Sprite(
+			&f,
+			cam,
+			box,
+			world.Z{},
+			sheet{},
+			render.Appearance{Sway: sway},
+			render.WhiteLight,
+		)
 		return billboards.Stood(look)[0][5]
 	}
 	if still, swaying := sways(0), sways(0.6); still != 0 || swaying != 0.6 {

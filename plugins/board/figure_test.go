@@ -78,7 +78,11 @@ func TestFiguresAndTiles_RunTheirPartsOverTheBoardAndLookOnTheirAtlases(t *testi
 	b.Read(0).CellKinds().Named("mud") // the tile's kind is the board's: unknown, it panics by name
 	w.NewAtlas().Looks()
 	if f.ran[len(f.ran)-1] != "look" || tile.ran[len(tile.ran)-1] == "look" {
-		t.Errorf("the world's Looks: figure %v, tile %v; want the figure looked, not the tile", f.ran, tile.ran)
+		t.Errorf(
+			"the world's Looks: figure %v, tile %v; want the figure looked, not the tile",
+			f.ran,
+			tile.ran,
+		)
 	}
 	b.Surfaces(surfaced(func(*board.Atlas, *board.Plugin) {
 		if tile.ran[len(tile.ran)-1] != "look" {

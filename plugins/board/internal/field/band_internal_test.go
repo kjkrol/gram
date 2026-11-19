@@ -29,10 +29,15 @@ func bandWorld(t *testing.T, height float32, level func(cell.ID) float32,
 
 func solid(f *Field, band collision.Band) map[uint64]collide.Sides {
 	out := map[uint64]collide.Sides{}
-	f.Solid(world.Layers(cell.Land), band, geom.NewAABBAt(geom.NewVec(0, 0), 80, 10), func(fb collision.FieldBox) bool {
-		out[fb.Cell] = fb.Open
-		return true
-	})
+	f.Solid(
+		world.Layers(cell.Land),
+		band,
+		geom.NewAABBAt(geom.NewVec(0, 0), 80, 10),
+		func(fb collision.FieldBox) bool {
+			out[fb.Cell] = fb.Open
+			return true
+		},
+	)
 	return out
 }
 
@@ -57,7 +62,10 @@ func TestBand_ASolidCellStandsFromBelowUpToItsHeight(t *testing.T) {
 	}
 	f, cellAt = bandWorld(t, 10, raised)
 	if got := solid(f, collision.Band{Bottom: 0, Top: 2}); len(got) != 2 {
-		t.Errorf("a short walker at the foot of a wall on a slope: %d solid cells, want two", len(got))
+		t.Errorf(
+			"a short walker at the foot of a wall on a slope: %d solid cells, want two",
+			len(got),
+		)
 	}
 	if got := solid(f, collision.Band{Bottom: 12, Top: 34}); len(got) != 2 {
 		t.Errorf("a walker on the slope: %d solid cells, want two", len(got))
@@ -68,7 +76,10 @@ func TestBand_ASolidCellStandsFromBelowUpToItsHeight(t *testing.T) {
 
 	f, _ = bandWorld(t, 0, flat)
 	if got := solid(f, collision.Band{Bottom: 40, Top: 50}); len(got) != 2 {
-		t.Errorf("a wall of no height under a flyer: %d solid cells, want the two of the wall", len(got))
+		t.Errorf(
+			"a wall of no height under a flyer: %d solid cells, want the two of the wall",
+			len(got),
+		)
 	}
 	if f.solidBand(cellAt(3), 0) != collision.Everywhere {
 		t.Error("a wall of no height stands at every height")
@@ -89,14 +100,20 @@ func TestBand_ASideIsOpenTowardsANeighbourUnderTheEntity(t *testing.T) {
 
 	walker := solid(f, collision.Band{Bottom: 0, Top: 20})
 	if open := walker[uint64(cellAt(4))]; open&collide.Left != 0 {
-		t.Errorf("to a walker the high wall opens %04b towards the low one, want that face closed", open)
+		t.Errorf(
+			"to a walker the high wall opens %04b towards the low one, want that face closed",
+			open,
+		)
 	}
 	shot := solid(f, collision.Band{Bottom: 16, Top: 20})
 	if _, low := shot[uint64(cellAt(3))]; low {
 		t.Error("the low wall is solid to a shot flying over it")
 	}
 	if open := shot[uint64(cellAt(4))]; open&collide.Left == 0 {
-		t.Errorf("to the shot the high wall opens %04b, want its face towards the low wall open", open)
+		t.Errorf(
+			"to the shot the high wall opens %04b, want its face towards the low wall open",
+			open,
+		)
 	}
 }
 

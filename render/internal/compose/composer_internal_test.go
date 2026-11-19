@@ -202,7 +202,11 @@ func TestComposer_AColourJoiningARunSamplesItsSheetsWhite(t *testing.T) {
 	}
 	c.render(nil, false, 0)
 	if len(verts) != 8 || verts[4].SrcX != 40 || verts[7].SrcY != 40 {
-		t.Errorf("the line samples (%v, %v), want the sheet's white at (40, 40)", verts[4].SrcX, verts[4].SrcY)
+		t.Errorf(
+			"the line samples (%v, %v), want the sheet's white at (40, 40)",
+			verts[4].SrcX,
+			verts[4].SrcY,
+		)
 	}
 }
 
@@ -236,11 +240,20 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 			f.Sprite(h(float32(i%7)), a, 0, unit, even(1))
 			f.Line(h(float32(i%5)), 0, 0, 5, 5, 1, white)
 			f.Soft(h(1), unit, black, Fade{Top: 3})
-			f.Overlay(&Overlay{Material: tint, World: box(0, 0, 32, 32), Red: [4]float32{1, 1, 1, 1}})
+			f.Overlay(
+				&Overlay{Material: tint, World: box(0, 0, 32, 32), Red: [4]float32{1, 1, 1, 1}},
+			)
 		}
 		f.Uniform("LightWay", 0, 0, 1)
 		f.Image("TestProbe", nil)
-		f.SpriteFan(h(2), a, 0, [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}}, [4]float32{0, 0, 5, 5}, 1)
+		f.SpriteFan(
+			h(2),
+			a,
+			0,
+			[][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}},
+			[4]float32{0, 0, 5, 5},
+			1,
+		)
 	}), overlyingSource{items(func(f *Frame) {
 		for i := range 50 {
 			f.Sprite(h(float32(2+i%3)), a, 0, unit, even(1))
@@ -301,8 +314,15 @@ func TestFrame_ALineIsAQuadOfItsWidthFadingAtItsSides(t *testing.T) {
 	if across := v[2].DstY - v[0].DstY; math.Abs(float64(across)) != 3 {
 		t.Errorf("the line spans %v across, want its width 2 and a pixel of fade", across)
 	}
-	if v[0].Custom0 != 1 || v[0].Custom1 != 4 || v[2].Custom0 != 4 || v[2].Custom1 != 1 || v[0].Custom2 != 0 {
-		t.Errorf("fades %v %v / %v %v, want 1 plus 0 and 3 to either side, no fade along", v[0].Custom0, v[0].Custom1, v[2].Custom0, v[2].Custom1)
+	if v[0].Custom0 != 1 || v[0].Custom1 != 4 || v[2].Custom0 != 4 || v[2].Custom1 != 1 ||
+		v[0].Custom2 != 0 {
+		t.Errorf(
+			"fades %v %v / %v %v, want 1 plus 0 and 3 to either side, no fade along",
+			v[0].Custom0,
+			v[0].Custom1,
+			v[2].Custom0,
+			v[2].Custom1,
+		)
 	}
 	// straight alpha in, premultiplied for the GPU
 	red, alpha := float64(v[0].ColorR), float64(v[0].ColorA)
@@ -321,10 +341,19 @@ func TestFrame_SoftFadesOnlyTheSidesAsked(t *testing.T) {
 	f.Soft(h(0), Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}, black, Fade{Left: 5, Bottom: 4})
 	v := f.verts
 	if v[0].Custom0 != 1 || v[1].Custom0 != 3 || v[3].Custom0 != 3 {
-		t.Errorf("left fade %v %v %v, want 1 on the left, 1 + 10/5 on the right", v[0].Custom0, v[1].Custom0, v[3].Custom0)
+		t.Errorf(
+			"left fade %v %v %v, want 1 on the left, 1 + 10/5 on the right",
+			v[0].Custom0,
+			v[1].Custom0,
+			v[3].Custom0,
+		)
 	}
 	if v[2].Custom3 != 1 || v[0].Custom3 != 6 {
-		t.Errorf("bottom fade %v %v, want 1 at the bottom, 1 + 20/4 at the top", v[2].Custom3, v[0].Custom3)
+		t.Errorf(
+			"bottom fade %v %v, want 1 at the bottom, 1 + 20/4 at the top",
+			v[2].Custom3,
+			v[0].Custom3,
+		)
 	}
 	if v[0].Custom1 != 0 || v[0].Custom2 != 0 {
 		t.Errorf("right and top fade %v %v, want none", v[0].Custom1, v[0].Custom2)
@@ -335,7 +364,14 @@ func TestFrame_AFanIsTrianglesRoundItsFirstPoint(t *testing.T) {
 	a := &sheet{}
 	c, _ := drawn(topDown(), items(func(f *Frame) {
 		f.Sprite(h(0), a, 0, unit, even(1))
-		f.SpriteFan(h(0), a, 0, [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}, {-5, 5}}, [4]float32{-5, 0, 5, 5}, 1)
+		f.SpriteFan(
+			h(0),
+			a,
+			0,
+			[][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}, {-5, 5}},
+			[4]float32{-5, 0, 5, 5},
+			1,
+		)
 	}))
 	var idx []uint16
 	c.draw = func(_ *Image, _ []Vertex, i []uint16, _ *Image, _ [4]float32) {
@@ -392,24 +428,51 @@ func TestFrame_AnOverlayIsAQuadOverTheSpriteMarkedWithItsMaterialAndWhatItReads(
 	f.Reset(topDown())
 	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
 	f.Sprite(h(3), sheet{}, 0, dst, even(0.5))
-	f.Overlay(&Overlay{Material: 3, World: box(100, 200, 132, 232), Red: [4]float32{0.9, 0.9, 0.9, 0.9},
-		Fraction: [4]float32{1, 0.5, 0, 0.25}, Custom: [4][4]float32{{1, 0, 8, 0.75}, {1, 0, 40, 0}, {1, 0, 8, 0.75}, {1, 0, 40, 0}}})
+	f.Overlay(
+		&Overlay{Material: 3, World: box(100, 200, 132, 232), Red: [4]float32{0.9, 0.9, 0.9, 0.9},
+			Fraction: [4]float32{
+				1,
+				0.5,
+				0,
+				0.25,
+			}, Custom: [4][4]float32{{1, 0, 8, 0.75}, {1, 0, 40, 0}, {1, 0, 8, 0.75}, {1, 0, 40,
+				0}}},
+	)
 	if f.Len() != 2 || len(f.items) != 1 {
 		t.Fatalf("%d pieces in %d items, want the sprite and its overlay in one", f.Len(),
 			len(f.items))
 	}
 	v := f.verts[4:]
-	for k, want := range [4][4]float32{{0.9, 100, 200, 9}, {0.9, 132, 200, 8.5}, {0.9, 100, 232, 8}, {0.9, 132, 232, 8.25}} {
+	for k, want := range [4][4]float32{{0.9, 100, 200, 9}, {0.9, 132, 200, 8.5}, {0.9, 100, 232, 8},
+		{0.9, 132, 232, 8.25}} {
 		if got := [4]float32{v[k].ColorR, v[k].ColorG, v[k].ColorB, v[k].ColorA}; got != want {
-			t.Errorf("overlay corner %d is %v, want red, where it lies and 2 + 2·3 + its fraction: %v", k, got, want)
+			t.Errorf(
+				"overlay corner %d is %v, want red, where it lies and 2 + 2·3 + its fraction: %v",
+				k,
+				got,
+				want,
+			)
 		}
 		if v[k].DstX != dst[k][0] || v[k].DstY != dst[k][1] || v[k].SrcX != 40 || v[k].SrcY != 40 {
-			t.Errorf("overlay corner %d lies at %v,%v sampling %v,%v; want the tile's corner and the white texel",
-				k, v[k].DstX, v[k].DstY, v[k].SrcX, v[k].SrcY)
+			t.Errorf(
+				"overlay corner %d lies at %v,%v sampling %v,%v; want the tile's corner and the "+
+					"white texel",
+				k,
+				v[k].DstX,
+				v[k].DstY,
+				v[k].SrcX,
+				v[k].SrcY,
+			)
 		}
 	}
 	if v[0].Custom0 != 1 || v[0].Custom2 != 8 || v[0].Custom3 != 0.75 || v[1].Custom2 != 40 {
-		t.Errorf("the overlay carries customs %v %v %v / %v, want its corners'", v[0].Custom0, v[0].Custom2, v[0].Custom3, v[1].Custom2)
+		t.Errorf(
+			"the overlay carries customs %v %v %v / %v, want its corners'",
+			v[0].Custom0,
+			v[0].Custom2,
+			v[0].Custom3,
+			v[1].Custom2,
+		)
 	}
 }
 
@@ -419,15 +482,29 @@ func TestFrame_AnOverlayFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
 	var f Frame
 	f.Reset(cam)
 	f.SpriteRect(h(0), sheet{}, 0, 992, 0, 1008, 10, even(1)) // 8 before the seam, 8 after
-	f.Overlay(&Overlay{World: box(992, 0, 1008, 10), Fraction: [4]float32{0, 1, 0, 1}, Custom: [4][4]float32{{0}, {16}, {0}, {16}}})
+	f.Overlay(
+		&Overlay{
+			World:    box(992, 0, 1008, 10),
+			Fraction: [4]float32{0, 1, 0, 1},
+			Custom:   [4][4]float32{{0}, {16}, {0}, {16}},
+		},
+	)
 	v := f.verts
 	if len(v) != 16 {
 		t.Fatalf("%d vertices, want the two pieces' 8 and their overlays' 8", len(v))
 	}
 	g := v[8:]
-	if g[1].ColorG != 1000 || g[1].ColorA != 2.5 || g[4].ColorG != 1000 || g[5].ColorG != 1008 || g[4].DstX != v[4].DstX || g[1].Custom0 != 8 {
-		t.Errorf("at the seam the overlays lie at x %v and %v, fraction %v, custom %v; want 1000 both sides, halfway 2.5 and 8",
-			g[1].ColorG, g[4].ColorG, g[1].ColorA, g[1].Custom0)
+	if g[1].ColorG != 1000 || g[1].ColorA != 2.5 || g[4].ColorG != 1000 || g[5].ColorG != 1008 ||
+		g[4].DstX != v[4].DstX ||
+		g[1].Custom0 != 8 {
+		t.Errorf(
+			"at the seam the overlays lie at x %v and %v, fraction %v, custom %v; want 1000 both "+
+				"sides, halfway 2.5 and 8",
+			g[1].ColorG,
+			g[4].ColorG,
+			g[1].ColorA,
+			g[1].Custom0,
+		)
 	}
 }
 
@@ -438,7 +515,14 @@ func TestFrame_AGlazeShowsAsMuchAsItsOpacity(t *testing.T) {
 	f.Glaze(h(0), sheet{}, 0, square, even(0.8), [4]float32{0, 0.5, 1, 2})
 	for k, want := range [4]float32{0, 0.5, 1, 1} {
 		if v := f.verts[k]; v.ColorA != want || math.Abs(float64(v.ColorR-0.8*want)) > 1e-6 {
-			t.Errorf("corner %d glazed %v, alpha %v; want %v, %v", k, v.ColorR, v.ColorA, 0.8*want, want)
+			t.Errorf(
+				"corner %d glazed %v, alpha %v; want %v, %v",
+				k,
+				v.ColorR,
+				v.ColorA,
+				0.8*want,
+				want,
+			)
 		}
 	}
 }
@@ -474,7 +558,13 @@ func TestFrame_APartOfASheetSamplesThePixelsAskedFor(t *testing.T) {
 	f.SpritePart(h(0), sheet{}, [4]float32{16, 32, 24, 40}, square, even(1))
 	v := f.verts
 	if v[0].SrcX != 16 || v[0].SrcY != 32 || v[3].SrcX != 24 || v[3].SrcY != 40 {
-		t.Errorf("the part samples %v,%v to %v,%v; want 16,32 to 24,40", v[0].SrcX, v[0].SrcY, v[3].SrcX, v[3].SrcY)
+		t.Errorf(
+			"the part samples %v,%v to %v,%v; want 16,32 to 24,40",
+			v[0].SrcX,
+			v[0].SrcY,
+			v[3].SrcX,
+			v[3].SrcY,
+		)
 	}
 }
 
@@ -485,11 +575,26 @@ func TestFrame_AnOverlayTakesWhatItShouldOfTheSpriteUnderIt(t *testing.T) {
 	band := World{{10, 0}, {14, 4}, {0, 10}, {4, 14}}
 	weight := [4]float32{0, 0.5, 0.25, 1}
 	f.SpriteBlend(h(0), sheet{}, 0, dst, even(1), weight, 0.2)
-	f.Overlay(&Overlay{Material: 2, World: band, Custom: [4][4]float32{{3}, {3}, {3}, {3}}, Blended: true})
+	f.Overlay(
+		&Overlay{
+			Material: 2,
+			World:    band,
+			Custom:   [4][4]float32{{3}, {3}, {3}, {3}},
+			Blended:  true,
+		},
+	)
 	v := f.verts
 	for k, w := range weight {
 		if s := v[4+k]; s.Custom0 != 3 || s.Custom2 != w || s.Custom3 != v[k].Custom3 {
-			t.Errorf("blended corner %d: customs %v %v %v; want its own 3, the sprite's weight %v and mark", k, s.Custom0, s.Custom2, s.Custom3, w)
+			t.Errorf(
+				"blended corner %d: customs %v %v %v; want its own 3, the sprite's weight %v and "+
+					"mark",
+				k,
+				s.Custom0,
+				s.Custom2,
+				s.Custom3,
+				w,
+			)
 		}
 		if got := [2]float32{v[4+k].ColorG, v[4+k].ColorB}; got != band[k] {
 			t.Errorf("corner %d lies at %v, want %v", k, got, band[k])
@@ -512,7 +617,11 @@ func TestComposer_HandsTheShaderTheFramesUniformsAndZeroesTheStale(t *testing.T)
 	c.render(nil, false, 0)
 	sun, cover := c.uniforms["LightWay"], c.uniforms["Cover"]
 	if len(sun) != 3 || sun[0] != 0.6 || sun[2] != 0.8 || len(cover) != 1 || cover[0] != 0.6 {
-		t.Errorf("the shader is handed Sun %v and Cover %v, want the frame's (0.6, 0, 0.8) and 0.6", sun, cover)
+		t.Errorf(
+			"the shader is handed Sun %v and Cover %v, want the frame's (0.6, 0, 0.8) and 0.6",
+			sun,
+			cover,
+		)
 	}
 	if toward := c.uniforms["Toward"]; toward[2] != 1 {
 		t.Errorf("the shader is handed Toward %v, want the eye above", toward)
@@ -531,8 +640,13 @@ func TestComposer_HandsTheShaderTheFramesUniformsAndZeroesTheStale(t *testing.T)
 	set = false
 	c.compose(topDown(), wholePart)
 	c.render(nil, false, 0)
-	if sun, cover := c.uniforms["LightWay"], c.uniforms["Cover"]; sun[0] != 0 || sun[2] != 0 || cover[0] != 0 {
-		t.Errorf("a frame that set nothing hands the shader Sun %v and Cover %v, want zero", sun, cover)
+	if sun, cover := c.uniforms["LightWay"], c.uniforms["Cover"]; sun[0] != 0 || sun[2] != 0 ||
+		cover[0] != 0 {
+		t.Errorf(
+			"a frame that set nothing hands the shader Sun %v and Cover %v, want zero",
+			sun,
+			cover,
+		)
 	}
 	set = true
 	cam := topDown()
@@ -698,7 +812,14 @@ fn Fragment(dst: vec4<f32>, src: vec2<f32>, color: vec4<f32>, custom: vec4<f32>)
 			t.Error("a material registered after a shader was built on them did not panic")
 		}
 	}()
-	wgsl.RegisterMaterials([]byte("fn Late(p: vec2<f32>, red: f32, fraction: f32, custom: vec4<f32>) -> vec4<f32> { return vec4<f32>(0.0); }"), nil, "Late")
+	wgsl.RegisterMaterials(
+		[]byte(
+			"fn Late(p: vec2<f32>, red: f32, fraction: f32, custom: vec4<f32>) -> vec4<f32> { "+
+				"return vec4<f32>(0.0); }",
+		),
+		nil,
+		"Late",
+	)
 }
 
 func TestComposer_TheMarksTakeNoSight(t *testing.T) {
@@ -840,7 +961,12 @@ func TestComposer_DrawLayerPlacesThePiecesAndDrawsTheDirectsThroughTheCroppedCam
 	c.Lay(cam, false)
 	crop.Uncrop()
 	crop.Crop(camera.Window{X: 16, Y: 12, W: 32, H: 24}, 0.5)
-	c.DrawLayer(gfx.NewImage(16, 12), cam, camera.Window{X: 16, Y: 12, W: 32, H: 24}, camera.Window{})
+	c.DrawLayer(
+		gfx.NewImage(16, 12),
+		cam,
+		camera.Window{X: 16, Y: 12, W: 32, H: 24},
+		camera.Window{},
+	)
 	crop.Uncrop()
 	c.DrawWorld(gfx.NewImage(64, 48), cam)
 	if want := [][4]float32{{0.5, 0.5, -8, -6}, {}}; !slices.Equal(places, want) {
@@ -864,7 +990,12 @@ func TestComposer_DrawLayerTwiceDrawsEveryDirectTwice(t *testing.T) {
 	cam := topDown()
 	c.Lay(cam, false)
 	c.DrawLayer(gfx.NewImage(32, 32), cam, camera.Window{W: 64, H: 64}, camera.Window{})
-	c.DrawLayer(gfx.NewImage(16, 16), cam, camera.Window{X: 16, Y: 16, W: 32, H: 32}, camera.Window{})
+	c.DrawLayer(
+		gfx.NewImage(16, 16),
+		cam,
+		camera.Window{X: 16, Y: 16, W: 32, H: 32},
+		camera.Window{},
+	)
 	want := []string{"ground composed", "route composed", "figures composed",
 		"ground drawn", "route drawn", "figures drawn", "ground drawn", "route drawn",
 		"figures drawn"}
@@ -885,7 +1016,12 @@ func TestComposer_TwoLayersOfOneSizeKeepTheirGroundsApart(t *testing.T) {
 	cam := topDown()
 	c.Lay(cam, true)
 	c.DrawLayer(gfx.NewImage(32, 32), cam, camera.Window{W: 64, H: 64}, camera.Window{})
-	c.DrawLayer(gfx.NewImage(32, 32), cam, camera.Window{X: 16, Y: 16, W: 32, H: 32}, camera.Window{})
+	c.DrawLayer(
+		gfx.NewImage(32, 32),
+		cam,
+		camera.Window{X: 16, Y: 16, W: 32, H: 32},
+		camera.Window{},
+	)
 	if len(c.laid) != 2 || c.laid[0].ground == c.laid[1].ground {
 		t.Errorf("two layers of 32 by 32 laid %d grounds, the same depth %v; want two apart",
 			len(c.laid), len(c.laid) == 2 && c.laid[0].ground == c.laid[1].ground)

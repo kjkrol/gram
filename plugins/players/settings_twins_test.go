@@ -51,7 +51,10 @@ func demoTunables() []plugin.CommandHandler {
 		&stubTunable{"gram.light", []control.Setting{sw("Lamps", ""),
 			sw("Lamps' shadows", control.Graphics), sw("Coarse shadows", control.Graphics),
 			sw("Shadows", control.Graphics)}},
-		&stubTunable{"gram.world", []control.Setting{sw("Sectors drawn", ""), sw("Sectors' bands", "")}},
+		&stubTunable{
+			"gram.world",
+			[]control.Setting{sw("Sectors drawn", ""), sw("Sectors' bands", "")},
+		},
 		&stubTunable{"gram.clock", []control.Setting{rg("Tempo", "")}},
 	}
 }
@@ -62,7 +65,9 @@ func demoRig(t *testing.T) *Plugin {
 		Space:    world.SpaceCfg{Width: 100, Height: 100},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
-	all := append([]plugin.CommandHandler{cameras.NewPlugin(w, cameras.Config{})}, demoTunables()...)
+	all := append(
+		[]plugin.CommandHandler{cameras.NewPlugin(w, cameras.Config{})},
+		demoTunables()...)
 	p := NewPlugin(w, all...)
 	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)

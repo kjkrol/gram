@@ -36,7 +36,8 @@ fn Fragment(dst: vec4<f32>, src: vec2<f32>, color: vec4<f32>, custom: vec4<f32>)
         }
         last = s;
     }
-    let seen = smoothstep(-sightSoft, 0.0, clearance) * (1.0 - smoothstep(radius - sightSoft, radius, dist + cost));
+    let seen = smoothstep(-sightSoft, 0.0, clearance) * (1.0 - smoothstep(radius - sightSoft,
+        radius, dist + cost));
     return vec4<f32>(seen, seen, seen, 1.0);
 }
 

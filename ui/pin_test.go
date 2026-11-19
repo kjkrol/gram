@@ -53,7 +53,11 @@ func TestPin_PointsAtItsEntityFromTheEdgeWhileItIsOutOfSight(t *testing.T) {
 	standing(root, label, spot{id: 1, placed: true, x: 5000, y: 300})
 	in := label.pin.instances[0]
 	if in.box.BottomRight.X > 1200 || in.box.TopLeft.X < 1000 || len(in.arrow) != 3 {
-		t.Fatalf("stood at %v with arrow %v, want at the right edge pointing right", in.box, in.arrow)
+		t.Fatalf(
+			"stood at %v with arrow %v, want at the right edge pointing right",
+			in.box,
+			in.arrow,
+		)
 	}
 	if tip := in.arrow[0]; tip.X <= in.box.BottomRight.X {
 		t.Errorf("the arrow's tip %v does not point past the box towards the entity", tip)
@@ -152,7 +156,10 @@ func (h *half) Shows(id uid.UID64) bool { return h.own[id] || !h.not[id] }
 func halves(label *Element) (root *Element, red, blue *half) {
 	red = &half{own: map[uid.UID64]bool{1: true}, not: map[uid.UID64]bool{2: true}}
 	blue = &half{own: map[uid.UID64]bool{2: true}, not: map[uid.UID64]bool{1: true}}
-	root = Layers(Columns(Share(1, Image(&shifted{}).Input(red)), Share(1, Image(&shifted{}).Input(blue))), label)
+	root = Layers(
+		Columns(Share(1, Image(&shifted{}).Input(red)), Share(1, Image(&shifted{}).Input(blue))),
+		label,
+	)
 	return root, red, blue
 }
 

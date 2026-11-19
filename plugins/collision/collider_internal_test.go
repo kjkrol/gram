@@ -15,11 +15,20 @@ func TestCollider_AddContact_CapsAtMaxContacts(t *testing.T) {
 
 	got := c.Contacts()
 	if len(got) != MaxContacts {
-		t.Fatalf("%d contacts recorded, want %d (extras past the cap dropped)", len(got), MaxContacts)
+		t.Fatalf(
+			"%d contacts recorded, want %d (extras past the cap dropped)",
+			len(got),
+			MaxContacts,
+		)
 	}
 	for i, contact := range got {
 		if contact.Other != uid.UID64(i) {
-			t.Errorf("contact %d is against %v, want %v — the first ones are the ones kept", i, contact.Other, uid.UID64(i))
+			t.Errorf(
+				"contact %d is against %v, want %v — the first ones are the ones kept",
+				i,
+				contact.Other,
+				uid.UID64(i),
+			)
 		}
 	}
 }

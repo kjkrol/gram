@@ -101,7 +101,7 @@ func (r *marker) Publish() {
 		tubes := r.p.tubes.bufs[1-r.p.tubes.front]
 		for k := 0; k+tubeFloats <= len(tubes); k += tubeFloats {
 			t := tubes[k : k+tubeFloats]
-			if t[8] != wallLeft|wallRight {
+			if int(t[8])&faceBits != wallLeft|wallRight {
 				continue // a chamber's cell, a mouth's frame
 			}
 			a, c := geom.NewVec(t[0], t[1]), geom.NewVec(t[4], t[5])
@@ -112,7 +112,7 @@ func (r *marker) Publish() {
 		}
 	}
 	b.units, b.heights = b.units[:0], b.heights[:0]
-	if b.shown && brd.Sunk() && r.units != nil {
+	if b.shown && brd.Dug() && r.units != nil {
 		for r.units.All(); r.units.Next(); {
 			cur := r.units.Cursor()
 			bases, zs := r.base.Slice(cur), r.z.Slice(cur)

@@ -75,7 +75,11 @@ func (RouteStyle) Style() {}
 var _ render.Style = RouteStyle{}
 
 // DefaultRouteStyle is a thin orange line and an orange-yellow outline.
-var DefaultRouteStyle = RouteStyle{Line: color.RGBA{R: 255, G: 140, B: 0, A: 220}, Goal: color.RGBA{R: 255, G: 200, B: 40, A: 255}, Width: 1.5}
+var DefaultRouteStyle = RouteStyle{
+	Line:  color.RGBA{R: 255, G: 140, B: 0, A: 220},
+	Goal:  color.RGBA{R: 255, G: 200, B: 40, A: 255},
+	Width: 1.5,
+}
 
 // the selection's width
 const goalWidth = 2
@@ -372,7 +376,16 @@ func (r *Renderer) drawPath(entityCenter, travel geom.Vec, cells []cell.ID, end,
 		if i == len(cells)-1 {
 			to = end
 		}
-		if i == 0 && hasPassedCenter(to, entityCenter, travel, r.space.Width, r.space.Height, r.space.Edges) && len(cells) > 1 {
+		if i == 0 &&
+			hasPassedCenter(
+				to,
+				entityCenter,
+				travel,
+				r.space.Width,
+				r.space.Height,
+				r.space.Edges,
+			) &&
+			len(cells) > 1 {
 			continue
 		}
 		r.line(from, to)
@@ -443,7 +456,9 @@ func (r *Renderer) goal(size, at geom.Vec, alt float32) {
 		r.footprint = r.look().Footprint(r.camera, box, alt, r.footprint)
 	} else {
 		var q render.Corners
-		for i, p := range [4][2]float32{{box.TopLeft.X, box.TopLeft.Y}, {box.BottomRight.X, box.TopLeft.Y}, {box.TopLeft.X, box.BottomRight.Y}, {box.BottomRight.X, box.BottomRight.Y}} {
+		for i, p := range [4][2]float32{{box.TopLeft.X, box.TopLeft.Y}, {box.BottomRight.X,
+			box.TopLeft.Y}, {box.TopLeft.X, box.BottomRight.Y}, {box.BottomRight.X,
+			box.BottomRight.Y}} {
 			q[i][0], q[i][1] = r.camera.Project(p[0], p[1], alt)
 		}
 		r.footprint = append(r.footprint, q)
@@ -674,7 +689,11 @@ func (r *Renderer) queued(m bodies.Member, mt *order.MoveOrder) [][]cell.ID {
 	return pv.routes
 }
 
-func hasPassedCenter(cellCenter, entityCenter, travel geom.Vec, width, height uint32, edges aabbworld.Edges) bool {
+func hasPassedCenter(
+	cellCenter, entityCenter, travel geom.Vec,
+	width, height uint32,
+	edges aabbworld.Edges,
+) bool {
 	ex := spacing.ShortestAxisDelta(cellCenter.X, entityCenter.X, width, edges.WrapsX())
 	ey := spacing.ShortestAxisDelta(cellCenter.Y, entityCenter.Y, height, edges.WrapsY())
 	return ex*travel.X+ey*travel.Y > 0

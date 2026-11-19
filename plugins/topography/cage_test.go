@@ -2,9 +2,13 @@ package topography_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/cameras"
@@ -23,12 +27,20 @@ func TestPlugin_ViewsMakeIsometricCameras(t *testing.T) {
 		cam.MoveTo(0, 0)
 		return cam
 	}
-	for name, cam := range map[string]camera.Camera{"the first": isometric(), "another": isometric()} {
+	for name, cam := range map[string]camera.Camera{"the first": isometric(),
+		"another": isometric()} {
 		if !cam.Projection().Sorts() || cam.Projection().Wraps() {
-			t.Errorf("%s camera draws through %T, want the plugin's isometric projection", name, cam.Projection())
+			t.Errorf(
+				"%s camera draws through %T, want the plugin's isometric projection",
+				name,
+				cam.Projection(),
+			)
 		}
 		if sx, sy := cam.Project(0, 0, 10); sx == 0 && sy == 0 {
-			t.Errorf("%s camera draws a height 10 at the screen's origin: heights are not lifted", name)
+			t.Errorf(
+				"%s camera draws a height 10 at the screen's origin: heights are not lifted",
+				name,
+			)
 		}
 		if vw, vh := cam.Viewport(); vw != 128 || vh != 64 {
 			t.Errorf("%s camera is %v x %v, want the configured 128 x 64", name, vw, vh)
@@ -55,7 +67,8 @@ func TestPlugin_ThePickLandsOnTheTopOfAKindStandingOnItsCell(t *testing.T) {
 		if !ok {
 			t.Fatal("the topography's camera is no camera.Picker")
 		}
-		if perspective && !cam.(interface{ LookFrom(x, y, z float32) bool }).LookFrom(200, 200, 120) {
+		if perspective &&
+			!cam.(interface{ LookFrom(x, y, z float32) bool }).LookFrom(200, 200, 120) {
 			t.Fatal("the perspective view is not reached")
 		}
 		centre := grid.CellCenter(wall)
@@ -63,7 +76,16 @@ func TestPlugin_ThePickLandsOnTheTopOfAKindStandingOnItsCell(t *testing.T) {
 		sx, sy := cam.Project(float32(centre.X), float32(centre.Y), 30)
 		x, y, _, ok := picker.Pick(sx, sy)
 		if c, in := grid.CellAt(geom.NewVec(float32(x), float32(y))); !ok || !in || c != wall {
-			t.Errorf("perspective %v: the top of the wall picked (%v, %v) %v, cell %v, want the wall's cell %v", perspective, x, y, ok, c, wall)
+			t.Errorf(
+				"perspective %v: the top of the wall picked (%v, %v) %v, cell %v, want the "+
+					"wall's cell %v",
+				perspective,
+				x,
+				y,
+				ok,
+				c,
+				wall,
+			)
 		}
 	}
 }
@@ -122,5 +144,57 @@ func TestCage_TheSeaIsSolidUpToItsLevelOverTheGroundUnderIt(t *testing.T) {
 	if p.Read(0).Free(x, y, -1) || !p.Read(0).Free(x, y, 1) {
 		t.Errorf("over the sea: free under its level %v, over it %v; want solid, then free",
 			p.Read(0).Free(x, y, -1), p.Read(0).Free(x, y, 1))
+	}
+}
+
+func TestCage_IsFreeInARoomStandingOnTheGroundWhereverTheGroundLies(t *testing.T) {
+	w := topotest.NewWorld(0)
+	b, grid := topotest.LevelBoard(w)
+	p := topography.NewPlugin(w, b, nil, topography.Config{})
+	// the ground climbs 12 northward across the room's cell (1, 1), its floor 4 up, its roof 10
+	// over that: dug into the slope by its northern half
+	p.Write().Relief().SetHeights(func(q geom.Vec) float32 { return (64 - q.Y) * 12 / 32 })
+	room := grid.At(1, 1)
+	rooms := board.NewEntities(b, board.Shape{Size: 16}, func(c cell.ID) cell.ID { return c })
+	rooms.Define("room", comp.Load(func(c cell.ID) cell.Floor {
+		return cell.Floor{Allows: cell.Land, Height: 4 - p.Write().Relief().Altitude(c),
+			Storey: 1, Clear: 10, Standing: true}
+	}))
+	w.Write().Seed(rooms.Named("room").Entry(room))
+	ctx := topotest.NewInstallCtx()
+	for _, install := range []func() error{
+		func() error { return w.Install(ctx) },
+		func() error { return b.Install(ctx) },
+		func() error { return p.Install(ctx) },
+	} {
+		if err := install(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Populate(); err != nil {
+		t.Fatal(err)
+	}
+	ctx.ECS().Setup(ctx.Systems()...)
+	ctx.ECS().SetPlan(func(rc goke.RunCtx, d time.Duration) {
+		w.RunPlan(rc, d)
+		b.RunPlan(rc, d)
+		p.RunPlan(rc, d)
+		rc.Sync()
+		w.Write().Clock().Replay(rc, d)
+	})
+	ctx.ECS().Tick(time.Second / 60)
+	cage := p.Read(0)
+	for name, c := range map[string]struct {
+		x, y, z float32
+		free    bool
+	}{
+		"in the room under the slope's ground": {48, 36, 8, true},
+		"in the room over its floor":           {48, 60, 5, true},
+		"under its floor":                      {48, 60, 2, false},
+		"under the ground beside it":           {80, 36, 5, false},
+	} {
+		if got := cage.Free(c.x, c.y, c.z); got != c.free {
+			t.Errorf("%s at (%v, %v, %v): free %v, want %v", name, c.x, c.y, c.z, got, c.free)
+		}
 	}
 }

@@ -16,10 +16,15 @@ type Heights interface {
 // Cover is what stands on the board and holds sight back, walked along a ray: Walk calls visit,
 // nearest first, for every stretch of the ray from origin along the unit dir up to length inside a
 // cell whose cover dims an observer on the layers blockers (zero: every layer), with the band it
-// spans (±Inf for a cover of no height) and how see-through it is (tau; ≤ 0 blocks). visit returning false
-// ends the walk.
+// spans (±Inf for a cover of no height) and how see-through it is (tau; ≤ 0 blocks). visit
+// returning false ends the walk.
 type Cover interface {
-	Walk(origin, dir geom.Vec, length float32, blockers world.Layers, visit func(near, far, bottom, top, tau float32) bool)
+	Walk(
+		origin, dir geom.Vec,
+		length float32,
+		blockers world.Layers,
+		visit func(near, far, bottom, top, tau float32) bool,
+	)
 }
 
 // Profile is Heights that knows its ground along a ray exactly: Along calls visit, nearest first,

@@ -23,7 +23,13 @@ func TestAround_TellsEachCellOnceRingByRing(t *testing.T) {
 				order = append(order, c)
 			})
 			if order[0] != middle {
-				t.Errorf("%s, %d rings: first told %d, want the seed %d", name, rings, order[0], middle)
+				t.Errorf(
+					"%s, %d rings: first told %d, want the seed %d",
+					name,
+					rings,
+					order[0],
+					middle,
+				)
 			}
 			for c, n := range told {
 				if n != 1 {
@@ -31,7 +37,12 @@ func TestAround_TellsEachCellOnceRingByRing(t *testing.T) {
 				}
 			}
 			if rings > 0 && len(told) <= 1 {
-				t.Errorf("%s, %d rings: told %d cells, want the rings round the seed too", name, rings, len(told))
+				t.Errorf(
+					"%s, %d rings: told %d cells, want the rings round the seed too",
+					name,
+					rings,
+					len(told),
+				)
 			}
 		}
 	}

@@ -12,7 +12,10 @@ func TestSquareGrid_NonToroidal_EdgeExcludesNeighbors(t *testing.T) {
 	g := NewSquare(4, 4, 10)
 	corner := g.Neighbors(cellAtXY(g, 0, 0))
 	if len(corner) != 3 {
-		t.Errorf("corner cell has %d neighbors, want 3 (2 orthogonal + 1 diagonal, no wrap)", len(corner))
+		t.Errorf(
+			"corner cell has %d neighbors, want 3 (2 orthogonal + 1 diagonal, no wrap)",
+			len(corner),
+		)
 	}
 }
 
@@ -92,7 +95,12 @@ func TestSquareGrid_Distance_OctileNeverOverestimatesDiagonalCost(t *testing.T) 
 	g := NewSquare(4, 4, 10)
 	d := g.Distance(cellAtXY(g, 0, 0), cellAtXY(g, 3, 3))
 	if want := 3 * math.Sqrt2; d > want+1e-9 {
-		t.Errorf("Distance(diagonal pair) = %v, want <= %v (true diagonal-move cost, must never overestimate)", d, want)
+		t.Errorf(
+			"Distance(diagonal pair) = %v, want <= %v (true diagonal-move cost, must never "+
+				"overestimate)",
+			d,
+			want,
+		)
 	}
 }
 
@@ -121,7 +129,11 @@ func TestSquareGrid_WrapsAlongOneAxisOnly(t *testing.T) {
 	}
 	want := []cell.ID{g.idAt(1, 0), g.idAt(3, 0), g.idAt(0, 1), g.idAt(1, 1), g.idAt(3, 1)}
 	if len(got) != len(want) {
-		t.Fatalf("corner has %d neighbors, want %d: across the X seam but not the top", len(got), len(want))
+		t.Fatalf(
+			"corner has %d neighbors, want %d: across the X seam but not the top",
+			len(got),
+			len(want),
+		)
 	}
 	for _, c := range want {
 		if !got[c] {

@@ -102,12 +102,15 @@ func TestGame_SaveLoad_RoundTrip(t *testing.T) {
 	var appearance goke.Comp[render.Appearance]
 	state := &saveTestState{N: 42}
 	extra := &saveTestResourceB{S: "hello"}
-	g := &saveLoadTestGame{tracked: []plugin.Serializable{state, extra}, setup: func(si *goke.SysInit) {
-		f := si.NewFactory(&appearance)
-		f.Create(1)
-		f.Next()
-		appearance.Slice(&f.Cursor)[0] = render.Appearance{SpriteID: 7}
-	}}
+	g := &saveLoadTestGame{
+		tracked: []plugin.Serializable{state, extra},
+		setup: func(si *goke.SysInit) {
+			f := si.NewFactory(&appearance)
+			f.Create(1)
+			f.Next()
+			appearance.Slice(&f.Cursor)[0] = render.Appearance{SpriteID: 7}
+		},
+	}
 	eng := engine.NewEngine(oneStageGame{stage: g, props: props})
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
@@ -186,7 +189,9 @@ func TestGame_SaveLoad_KeepsWhatAKindGivesItsEntities(t *testing.T) {
 	var q *goke.Query
 	loaded := &saveLoadTestGame{
 		define: define,
-		setup:  func(si *goke.SysInit) { q = si.NewQueryBuilder(&mark).Include(goke.Include[saveTestTag]()).Build() },
+		setup: func(si *goke.SysInit) {
+			q = si.NewQueryBuilder(&mark).Include(goke.Include[saveTestTag]()).Build()
+		},
 	}
 	eng2 := engine.NewEngine(oneStageGame{stage: loaded, props: props})
 	if err := eng2.Load("", ""); err != nil {

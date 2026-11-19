@@ -93,7 +93,13 @@ func (a *Atlas) Close() {
 		}
 		sprite := newCanvas(s.size, s.size)
 		s.draw(sprite, s.size)
-		draw.Draw(sheet.RGBA, image.Rect(int(s.x0), int(s.y0), int(s.x0)+s.size, int(s.y0)+s.size), sprite.RGBA, image.Point{}, draw.Over)
+		draw.Draw(
+			sheet.RGBA,
+			image.Rect(int(s.x0), int(s.y0), int(s.x0)+s.size, int(s.y0)+s.size),
+			sprite.RGBA,
+			image.Point{},
+			draw.Over,
+		)
 		s.draw = nil
 	}
 	a.image = gfx.NewImage(sheet.Bounds().Dx(), sheet.Bounds().Dy())

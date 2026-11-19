@@ -772,6 +772,8 @@ func (g giving) GiveWay(on bool) { *g.on = on }
 
 func (giving) Uncovers() bool { return false }
 
+func (giving) GivesWay() bool { return false }
+
 func (g giving) Sprite(_ *render.Frame, _ camera.Camera, _ plane.AABB, _ world.Z,
 	_ render.AtlasSource, a render.Appearance, _ render.Illumination) {
 	g.gave[a.SpriteID] = *g.on

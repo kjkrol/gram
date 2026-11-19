@@ -83,9 +83,11 @@ type renderer struct {
 	bodied   map[render.SpriteID]*Bodied
 	sway     map[render.SpriteID]float32
 	edges    map[render.SpriteID]render.SpriteID
-	// the sprites uncovered and those giving way to them
-	bared  map[render.SpriteID]bool
-	giving map[render.SpriteID]bool
+	// the sprites uncovered and those giving way to them, and whether a plugin's source gives way
+	// to them too (Write.GivesWay)
+	bared      map[render.SpriteID]bool
+	giving     map[render.SpriteID]bool
+	othersGive bool
 	// these by sprite, for the frame's loop: a map a layer an entity was a fifth of Compose
 	flags    []spriteFlag
 	shadedOf []render.MaterialID
@@ -312,7 +314,7 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	cutAny := false
 	// only where a kind's look declares either, and what gives way does before this camera, is
 	// a figure's way told to the look, and only as it changes from the figure before
-	if len(s.bared) == 0 || len(s.giving) == 0 || !figs.givesWay(cam) {
+	if len(s.bared) == 0 || len(s.giving) == 0 && !s.othersGive || !figs.givesWay(cam) {
 		uncovering = nil
 	}
 	bare, gives := false, false
@@ -411,6 +413,10 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			cutouts.Cutout(true)
 		}
 		lit := f.Lit(mid.X, mid.Y, z.Altitude, e.shadow.Take)
+		// guarded: Compose is past what the compiler inlines a call into
+		if e.shadow.Shelter != 0 {
+			lit = lit.Sheltered(e.shadow.Shelter)
+		}
 		for _, l := range layers {
 			id, ok := levels.at(l.SpriteID, level)
 			if !ok {
@@ -468,12 +474,12 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			cutouts.Cutout(false)
 		}
 	}
-	// the pass of the uncovered only where the look took both one uncovered and one giving way
+	// the pass of the uncovered only where the look took one uncovered and something gives way
 	bared := false
 	if uncovering != nil {
 		uncovering.Uncover(false)
 		uncovering.GiveWay(false)
-		bared = uncovering.Uncovers()
+		bared = uncovering.Uncovers() && (uncovering.GivesWay() || s.othersGive)
 	}
 	if v != nil && len(figs.far.groups) > 0 {
 		drew = s.drawBanners(f, figs, v, sorts, &lowest, &low, &any) || drew

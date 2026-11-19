@@ -28,6 +28,17 @@ type Illumination struct {
 	// Direct is the share of Light that is the distant light's, 0 to 1: what a shadow takes away.
 	Direct float32
 	Takes  Taking
+	// Shelter is the shelter it is drawn under, as Shadowing's: its Light then the lamps' alone,
+	// the shaders adding what of the sky's light gets in pixel by pixel.
+	Shelter uint16
+}
+
+// Sheltered is i under the shelter s names (Shadowing.Shelter); i itself for none.
+func (i Illumination) Sheltered(s uint16) Illumination {
+	if s == 0 {
+		return i
+	}
+	return Illumination{Light: i.Lamps, Lamps: i.Lamps, Takes: TakesLamps, Shelter: s}
 }
 
 // Uniformer takes the uniforms of a frame by name.

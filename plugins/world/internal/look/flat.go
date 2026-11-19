@@ -47,8 +47,11 @@ func (l *Flat) Uncover(on bool) { l.sprites.Uncover(on) }
 // GiveWay has the sprites laid next give way to those uncovered.
 func (l *Flat) GiveWay(on bool) { l.sprites.GiveWay(on) }
 
-// Uncovers reports whether the sprites gathered hold one uncovered and one giving way.
-func (l *Flat) Uncovers() bool { return l.direct && l.sprites.Uncovers() && l.sprites.GivesWay() }
+// Uncovers reports whether the sprites gathered hold one uncovered.
+func (l *Flat) Uncovers() bool { return l.direct && l.sprites.Uncovers() }
+
+// GivesWay reports whether the sprites gathered hold one giving way.
+func (l *Flat) GivesWay() bool { return l.direct && l.sprites.GivesWay() }
 
 // Cutout has the sprites laid next drawn in the cutout pass, or among what is seen through.
 func (l *Flat) Cutout(on bool) { l.sprites.Cutout(on) }
@@ -72,6 +75,7 @@ func (l *Flat) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z enti
 	l.sprites.Layer(stands, false)
 	l.sprites.Take(lit.Takes)
 	l.sprites.Direct(lit.Direct)
+	l.sprites.Shelter(lit.Shelter)
 	l.lay(f, cam, stands, box, atlas, a, lit.Light)
 }
 
@@ -88,6 +92,7 @@ func (l *Flat) Lie(f *render.Frame, cam camera.Camera, box plane.AABB, z entity.
 	l.sprites.Layer(lies, true)
 	l.sprites.Take(lit.Takes)
 	l.sprites.Direct(lit.Direct)
+	l.sprites.Shelter(lit.Shelter)
 	l.lay(f, cam, lies, box, atlas, a, lit.Light)
 }
 
@@ -100,6 +105,7 @@ func (l *Flat) Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geom.
 	l.sprites.Layer(lies, true)
 	l.sprites.Take(lit.Takes)
 	l.sprites.Direct(lit.Direct)
+	l.sprites.Shelter(lit.Shelter)
 	light := lit.Light
 	if dir == (geom.Vec{}) {
 		dir = geom.NewVec(1, 0)
@@ -173,7 +179,12 @@ func (l *Flat) turned(f *render.Frame, cam camera.Camera, at render.At, box plan
 			ox, oy := x-cx, y-cy
 			return [2]float32{cx + ox*cos + oy*sin, cy + oy*cos - ox*sin}
 		}
-		dst := render.Corners{turn(q.X0, q.Y0), turn(q.X1, q.Y0), turn(q.X0, q.Y1), turn(q.X1, q.Y1)}
+		dst := render.Corners{
+			turn(q.X0, q.Y0),
+			turn(q.X1, q.Y0),
+			turn(q.X0, q.Y1),
+			turn(q.X1, q.Y1),
+		}
 		f.SpritePart(at, atlas, [4]float32{sx0, sy0, sx1, sy1}, dst, render.Lit(light))
 	}
 }

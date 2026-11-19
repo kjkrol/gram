@@ -28,7 +28,15 @@ func TestEndpointAt_DiagonalReachesTheCorner(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			x, y := endpointAt(size, c.angleDeg)
 			if f32.Abs(x-c.wantX) > tolerance || f32.Abs(y-c.wantY) > tolerance {
-				t.Errorf("endpointAt(%d, %v) = (%v,%v), want (%v,%v)", size, c.angleDeg, x, y, c.wantX, c.wantY)
+				t.Errorf(
+					"endpointAt(%d, %v) = (%v,%v), want (%v,%v)",
+					size,
+					c.angleDeg,
+					x,
+					y,
+					c.wantX,
+					c.wantY,
+				)
 			}
 		})
 	}

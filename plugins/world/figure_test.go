@@ -73,6 +73,10 @@ func TestFigures_RunEachPartInItsSectionAndLookOnTheAtlas(t *testing.T) {
 	a := w.NewAtlas()
 	a.Looks()
 	if f.ran[len(f.ran)-1] != "look" || f.atlas != a || p.ran[len(p.ran)-1] != "look" {
-		t.Errorf("after Looks the figures ran %v and %v, want each looked on the atlas", f.ran, p.ran)
+		t.Errorf(
+			"after Looks the figures ran %v and %v, want each looked on the atlas",
+			f.ran,
+			p.ran,
+		)
 	}
 }

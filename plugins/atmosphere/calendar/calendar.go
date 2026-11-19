@@ -94,13 +94,35 @@ func (m Moment) Written() string {
 
 // MoonName is the moon's phase by name.
 func (m Moment) MoonName() string {
-	names := [...]string{"new moon", "waxing crescent", "first quarter", "waxing gibbous", "full moon", "waning gibbous", "last quarter", "waning crescent"}
+	names := [...]string{
+		"new moon",
+		"waxing crescent",
+		"first quarter",
+		"waxing gibbous",
+		"full moon",
+		"waning gibbous",
+		"last quarter",
+		"waning crescent",
+	}
 	return names[int(m.Moon()*8+0.5)%8]
 }
 
 var (
-	monthDays     = [12]int{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
-	monthNames    = [12]string{"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"}
+	monthDays  = [12]int{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+	monthNames = [12]string{
+		"January",
+		"February",
+		"March",
+		"April",
+		"May",
+		"June",
+		"July",
+		"August",
+		"September",
+		"October",
+		"November",
+		"December",
+	}
 	firstOfSpring = 78 // 20 March, days from the first of January
 )
 
@@ -163,7 +185,11 @@ func (c *Calendar) At(t time.Duration) Moment {
 	days := float64(c.cfg.midst(c.cfg.Season)) + c.cfg.begins() + gone
 	whole := math.Floor(days)
 	year := int64(c.cfg.Year.Days())
-	return Moment{Date: int32(((int64(whole) % year) + year) % year), Time: float32(days - whole), Year: c.cfg.Year}
+	return Moment{
+		Date: int32(((int64(whole) % year) + year) % year),
+		Time: float32(days - whole),
+		Year: c.cfg.Year,
+	}
 }
 
 // Daily is the period and the offset of every day at hour (0 to 1 of the day), for clock.Every.

@@ -53,8 +53,16 @@ func TestClock_ReplaysTheSimulationAsTheTempoSays(t *testing.T) {
 			t.Fatal(err)
 		}
 		before := r.c.Read().Time()
-		if got := r.ticks(60); got != c.runs || r.c.Read().Time()-before != time.Duration(c.runs)*step {
-			t.Errorf("at tempo %g: %d runs, %v gone by; want %d and %v", c.tempo, got, r.c.Read().Time()-before, c.runs, time.Duration(c.runs)*step)
+		if got := r.ticks(60); got != c.runs ||
+			r.c.Read().Time()-before != time.Duration(c.runs)*step {
+			t.Errorf(
+				"at tempo %g: %d runs, %v gone by; want %d and %v",
+				c.tempo,
+				got,
+				r.c.Read().Time()-before,
+				c.runs,
+				time.Duration(c.runs)*step,
+			)
 		}
 	}
 	r.c.SetPaused(true)
@@ -86,7 +94,14 @@ func TestClock_TheTimeShownRunsOnBetweenTheTicks(t *testing.T) {
 		r.ticks(1)
 		r.c.Pending(0)
 		if r.c.Read().Shown() != before || before-after != step/2 {
-			t.Errorf("at ½, tick %d: shown %v a tick after, %v then, %v held toward the next; want half a step apart and meeting", i, after, r.c.Read().Shown(), before)
+			t.Errorf(
+				"at ½, tick %d: shown %v a tick after, %v then, %v held toward the next; want "+
+					"half a step apart and meeting",
+				i,
+				after,
+				r.c.Read().Shown(),
+				before,
+			)
 		}
 	}
 	r.c.SetPaused(true)
@@ -102,7 +117,10 @@ func TestClock_StepsNumberTheStepsOfTheSimulation(t *testing.T) {
 		ecs := goke.New()
 		var seen []uint64
 		ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
-			c.Simulate(rc, func(goke.RunCtx, time.Duration) { seen = append(seen, c.Read().Steps()) })
+			c.Simulate(
+				rc,
+				func(goke.RunCtx, time.Duration) { seen = append(seen, c.Read().Steps()) },
+			)
 			c.Replay(rc, d)
 		})
 		ecs.Setup()
@@ -161,7 +179,11 @@ func TestClock_CommandsPauseAndShiftTheTempo(t *testing.T) {
 	}
 	r.ticks(1)
 	if r.c.Paused() || r.c.Tempo() != 0.5 {
-		t.Errorf("after Pause and three Slower: paused %v, tempo %g; want going at ½", r.c.Paused(), r.c.Tempo())
+		t.Errorf(
+			"after Pause and three Slower: paused %v, tempo %g; want going at ½",
+			r.c.Paused(),
+			r.c.Tempo(),
+		)
 	}
 }
 

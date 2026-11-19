@@ -114,8 +114,7 @@ func (r *BoardRead) footing(p geom.Vec, feet, reach float32) (c cell.ID, level c
 	if c, level, ok = r.LevelFor(p, feet, reach); !ok {
 		return c, cell.OnGround, false, false
 	}
-	b := r.Built(c)
-	return c, level, b.Levelled(), true
+	return c, level, r.built(c).Levelled(), true
 }
 
 // DecksOver calls visit with every Floor over p and the cell it is built on, a neighbour's band
@@ -140,8 +139,14 @@ func (r *BoardRead) FloorDip(c cell.ID, f cell.Floor) float32 {
 // Storeyed reports whether a floor gives any cell of the board a level beside its ground.
 func (r *BoardRead) Storeyed() bool { return r.cells.Storeyed() }
 
-// Sunk reports whether a floor lies sunk under any cell of the board.
-func (r *BoardRead) Sunk() bool { return r.cells.Sunk() }
+// Rooms reports whether a floor of the board has a room over it, dug or standing.
+func (r *BoardRead) Rooms() bool { return r.cells.Rooms() }
+
+// Dug reports whether a room is dug under the ground of any cell of the board.
+func (r *BoardRead) Dug() bool { return r.cells.Dug() }
+
+// Housed reports whether a room stands on the ground of any cell of the board.
+func (r *BoardRead) Housed() bool { return r.cells.Housed() }
 
 // NearDeck reports whether a Floor lies over any of the cell under p.
 func (r *BoardRead) NearDeck(p geom.Vec) bool {
@@ -198,6 +203,14 @@ func (r *BoardRead) Limits(c cell.ID, d cell.Domain, level cell.Level) (load flo
 // Built is what the entities standing on c build over it as of the board's last step; none off
 // the board.
 func (r *BoardRead) Built(c cell.ID) cell.Built { return r.cells.Built(c) }
+
+// built is Built read in place, never to be written through
+func (r *BoardRead) built(c cell.ID) *cell.Built {
+	if b := r.cells.BuiltOf(c); b != nil {
+		return b
+	}
+	return &terrain.NoBuilt
+}
 
 // Bare is c's kind bare of what runs across it, a way or a bridge: the ground a step beside them
 // crosses; off the board, the zero kind.
@@ -272,11 +285,11 @@ func (r *BoardRead) rise(from, to cell.ID, level cell.Level) float64 {
 	if !r.cells.Storeyed() {
 		return r.b.mapping.Rise(from, to)
 	}
-	off := r.Built(from)
+	off := r.built(from)
 	if level == cell.OnGround && !off.Levelled() {
 		return r.b.mapping.Rise(from, to)
 	}
-	onto := r.Built(to)
+	onto := r.built(to)
 	f := onto.On(level)
 	g := off.On(level)
 	if level == cell.OnGround {
@@ -284,7 +297,7 @@ func (r *BoardRead) rise(from, to cell.ID, level cell.Level) float64 {
 		g = cell.Floor{}
 		if way, ok := grid.Link(r.Grid, from, to); ok {
 			for s := range uint8(cell.Storeys) {
-				if h := off.Storey(s); h.Height != 0 && h.Links&way != 0 {
+				if h := off.Storey(s); h.Level() != cell.OnGround && h.Links&way != 0 {
 					g = *h
 				}
 			}
@@ -312,18 +325,18 @@ func (r *BoardRead) ledRise(from, to cell.ID, on cell.Level) float64 {
 	if !r.cells.Storeyed() {
 		return r.b.mapping.Rise(from, to)
 	}
-	onto := r.Built(to)
+	onto := r.built(to)
 	if on != cell.OnGround {
 		if onto.On(on) == (cell.Floor{}) {
 			on = cell.OnGround
 		}
 		return r.rise(from, to, on)
 	}
-	off := r.Built(from)
+	off := r.built(from)
 	if back, ok := grid.Link(r.Grid, to, from); ok {
 		for s := range uint8(cell.Storeys) {
-			if h := onto.Storey(s); h.Height != 0 && h.Links&back != 0 &&
-				off.Storey(s).Height == 0 {
+			if h := onto.Storey(s); h.Level() != cell.OnGround && h.Links&back != 0 &&
+				off.Storey(s).Level() == cell.OnGround {
 				return r.rise(from, to, h.Level())
 			}
 		}
@@ -353,14 +366,14 @@ func (s surfaces) Surface(p geom.Vec, d cell.Domain, feet, step float32) (floor,
 	if d == 0 {
 		d = cell.Land
 	}
-	sunk := f32.Inf(-1)
+	room := f32.Inf(-1)
 	s.r.DecksOver(p, func(c cell.ID, f cell.Floor) {
 		deck := s.graded(c, f, p, s.r.altitude(c)+f.Height)
-		if f.Sunk() {
-			// under the ground whoever has its feet under the floor's roof stands on it
+		if f.Room() {
+			// whoever has its feet in a room stands on its floor, whatever the ground does
 			if roof := deck + f.Clear; f.Allows&d != 0 && deck <= feet+step && feet < roof &&
-				deck > sunk {
-				sunk, ceiling = deck, min(ceiling, roof)
+				deck > room {
+				room, ceiling = deck, min(ceiling, roof)
 			}
 			return
 		}
@@ -371,8 +384,8 @@ func (s surfaces) Surface(p geom.Vec, d cell.Domain, feet, step float32) (floor,
 			ceiling = min(ceiling, under)
 		}
 	})
-	if !f32.IsInf(sunk, -1) {
-		floor = sunk
+	if !f32.IsInf(room, -1) {
+		floor = room
 	}
 	return floor, ceiling
 }
@@ -402,7 +415,7 @@ func (s surfaces) graded(c cell.ID, f cell.Floor, p geom.Vec, level float32) flo
 		if !ok {
 			return level
 		}
-		nb := r.Built(n)
+		nb := r.built(n)
 		// at its end it comes out on the ground before it
 		edge := r.edge(c, n)
 		if nf := nb.Storey(f.Storey); nf.Height != 0 && nf.Sunk() == f.Sunk() {

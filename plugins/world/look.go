@@ -42,7 +42,8 @@ type LyingLook interface {
 	// Lay lays the sprite level at z's Altitude over the rectangle lie says, on the middle of box
 	// and headed dir, and, lie being Edged, the sprite edge along both its long sides.
 	Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geom.Vec, lie Lie, z Z,
-		atlas render.AtlasSource, a render.Appearance, edge render.SpriteID, lit render.Illumination)
+		atlas render.AtlasSource, a render.Appearance, edge render.SpriteID,
+		lit render.Illumination)
 }
 
 // UprightLook is a Look that stands the sprites declared Upright true on the four sides and the
@@ -79,13 +80,15 @@ type FoggyLook interface {
 }
 
 // UncoveringLook is a Look that has the figures it lays next uncovered, and give way to those
-// uncovered, while on (Slot.Uncovered, Slot.GivesWay; render.Target.Uncovered). Uncovers
-// reports whether it has laid both since it began: its frame then draws what is uncovered first.
+// uncovered, while on (Slot.Uncovered, Slot.GivesWay; render.Target.Uncovered). Uncovers and
+// GivesWay report whether it has laid either since it began: where something gives way to what
+// is uncovered, its frame draws that first.
 type UncoveringLook interface {
 	Look
 	Uncover(on bool)
 	GiveWay(on bool)
 	Uncovers() bool
+	GivesWay() bool
 }
 
 // CutoutLook is a Look drawing the figures it lays next in the cutout pass while on: whole, cut at

@@ -433,7 +433,8 @@ func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
 			b.Pos.AABB = plane.NewAABB(geom.NewVec(at.X-10, at.Y-10), 20, 20)
 		}
 	}
-	step := func(fn func(b *world.Base, z *world.Z, m *unit.Mover, d *steering.Driven, st *steering.Course)) (alt, lift float32) {
+	step := func(fn func(b *world.Base, z *world.Z, m *unit.Mover, d *steering.Driven,
+		st *steering.Course)) (alt, lift float32) {
 		flown(qw, fn)
 		qw.ECS.Tick(time.Second / 60)
 		flown(
@@ -445,10 +446,13 @@ func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
 		return alt, lift
 	}
 	hill := qw.Topo.Write().Relief().At(qw.Grid.CellCenter(onHill))
-	if alt, _ := step(func(*world.Base, *world.Z, *unit.Mover, *steering.Driven, *steering.Course) {}); alt != 40 {
+	if alt, _ := step(func(*world.Base, *world.Z, *unit.Mover, *steering.Driven,
+		*steering.Course) {
+	}); alt != 40 {
 		t.Fatalf("steered from nowhere it flies at %v, want its lift 40 over the grass", alt)
 	}
-	if alt, lift := step(func(b *world.Base, _ *world.Z, _ *unit.Mover, d *steering.Driven, _ *steering.Course) {
+	if alt, lift := step(func(b *world.Base, _ *world.Z, _ *unit.Mover, d *steering.Driven,
+		_ *steering.Course) {
 		*d = steering.Driven{Flown: true}
 		put(onHill)(b)
 	}); alt != 40 ||
@@ -461,7 +465,8 @@ func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
 			40-hill,
 		)
 	}
-	if alt, _ := step(func(b *world.Base, _ *world.Z, _ *unit.Mover, _ *steering.Driven, _ *steering.Course) {
+	if alt, _ := step(func(b *world.Base, _ *world.Z, _ *unit.Mover, _ *steering.Driven,
+		_ *steering.Course) {
 		put(onGrass)(b)
 	}); alt != 40 {
 		t.Errorf("flown back over the grass: at %v, want at 40, not falling with the ground", alt)
@@ -474,23 +479,27 @@ func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
 	if want := float32(40 + 10*0.75/60); f32.Abs(alt-want) > f32.Eps(want) {
 		t.Errorf("flown at 10 a second at a rise of 0.6: at %v after a tick, want %v", alt, want)
 	}
-	if alt, _ := step(func(b *world.Base, _ *world.Z, m *unit.Mover, d *steering.Driven, st *steering.Course) {
+	if alt, _ := step(func(b *world.Base, _ *world.Z, m *unit.Mover, d *steering.Driven,
+		st *steering.Course) {
 		d.Climb, st.Speed, st.WantSpeed, m.Clearance = 0, 0, 0, 39
 		put(onHill)(b)
 	}); alt != hill+39 {
 		t.Errorf(
-			"flown over the hill with a clearance of 39: at %v, want %v, the clearance over the ground",
+			"flown over the hill with a clearance of 39: at %v, want %v, the clearance over the "+
+				"ground",
 			alt,
 			hill+39,
 		)
 	}
-	if alt, _ := step(func(b *world.Base, _ *world.Z, m *unit.Mover, _ *steering.Driven, _ *steering.Course) {
+	if alt, _ := step(func(b *world.Base, _ *world.Z, m *unit.Mover, _ *steering.Driven,
+		_ *steering.Course) {
 		m.Clearance, m.Ceiling = 0, 41
 		put(onGrass)(b)
 	}); alt != 41 {
 		t.Errorf("flown under a ceiling of 41: at %v, want held down to it", alt)
 	}
-	if alt, lift := step(func(b *world.Base, _ *world.Z, m *unit.Mover, d *steering.Driven, _ *steering.Course) {
+	if alt, lift := step(func(b *world.Base, _ *world.Z, m *unit.Mover, d *steering.Driven,
+		_ *steering.Course) {
 		*d, m.Ceiling = steering.Driven{}, 0
 		put(onHill)(b)
 	}); alt != hill+41 ||
@@ -543,7 +552,8 @@ func TestAltitude_AFlyerKeepsUnderItsCeiling(t *testing.T) {
 	}
 	if len(alts) != 2 || !alts[40] || !alts[41] {
 		t.Errorf(
-			"hawks fly at %v, want one at its lift 40 over the grass and one held to the ceiling 41 over the hill",
+			"hawks fly at %v, want one at its lift 40 over the grass and one held to the ceiling "+
+				"41 over the hill",
 			alts,
 		)
 	}
@@ -570,7 +580,10 @@ func flown(
 	var q *goke.Query
 	qw.ECS.RegSys(
 		goke.SystemFn{
-			OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base, &z, &mover, &driven, &steer).Build() },
+			OnInit: func(si *goke.SysInit) {
+				q = si.NewQueryBuilder(&base, &z, &mover, &driven,
+					&steer).Build()
+			},
 		},
 	)
 	for q.All(); q.Next(); {

@@ -265,7 +265,8 @@ func TestFind_AStepTouchingNoLimitReadsNone(t *testing.T) {
 		t.Fatal("no route round the wall")
 	}
 	for i := range f.reads {
-		if r := &f.reads[i]; r.search == f.search && r.has&(hasLimits|hasLimits<<1|hasLimits<<2|hasLimits<<3) != 0 {
+		if r := &f.reads[i]; r.search == f.search &&
+			r.has&(hasLimits|hasLimits<<1|hasLimits<<2|hasLimits<<3) != 0 {
 			t.Fatalf("the limits of %v read on a board limiting nothing", r.c)
 		}
 	}

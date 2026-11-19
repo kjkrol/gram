@@ -86,7 +86,11 @@ func (s *ownerStage) ownersOfTheUnit(t *testing.T) tag.Tags[owner.Family] {
 type ownersProbe struct{ s *ownerStage }
 
 func (p ownersProbe) SetupSystems() []goke.System {
-	return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) { p.s.query = si.NewQueryBuilder(&p.s.owners).Build() }}}
+	return []goke.System{
+		goke.SystemFn{
+			OnInit: func(si *goke.SysInit) { p.s.query = si.NewQueryBuilder(&p.s.owners).Build() },
+		},
+	}
 }
 
 type ownerGame struct{ stage *ownerStage }
@@ -136,8 +140,11 @@ func TestThrough_ShowsWhatIsThePlayersOwn(t *testing.T) {
 		t.Fatal("a player's Through is no ui.Owner")
 	}
 	if first.Shows(unit) || !second.Shows(unit) {
-		t.Errorf("the second's unit shown to the first %v, to the second %v; want to the second alone",
-			first.Shows(unit), second.Shows(unit))
+		t.Errorf(
+			"the second's unit shown to the first %v, to the second %v; want to the second alone",
+			first.Shows(unit),
+			second.Shows(unit),
+		)
 	}
 	if !first.Shows(unit + 1000) {
 		t.Error("an entity the players know nothing of is hidden, want shown to all")

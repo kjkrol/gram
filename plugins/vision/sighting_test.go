@@ -10,7 +10,10 @@ import (
 )
 
 func moving(x, y float32, dir geom.Vec) *world.Base {
-	return &world.Base{Pos: world.Position{AABB: plane.NewAABB(geom.NewVec(x, y), 10, 10)}, Vel: world.Velocity{Dir: dir, Value: 1}}
+	return &world.Base{
+		Pos: world.Position{AABB: plane.NewAABB(geom.NewVec(x, y), 10, 10)},
+		Vel: world.Velocity{Dir: dir, Value: 1},
+	}
 }
 
 func TestSighting_ClosingAndNobody(t *testing.T) {

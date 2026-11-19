@@ -56,12 +56,31 @@ func (dp *Depth) gpuView(d *device) *wgpu.TextureView {
 	if dp.readable {
 		usage |= gputypes.TextureUsageTextureBinding
 	}
-	tex, err := d.dev.CreateTexture(&wgpu.TextureDescriptor{Label: "depth", Size: wgpu.Extent3D{Width: uint32(dp.w), Height: uint32(dp.h), DepthOrArrayLayers: 1},
-		MipLevelCount: 1, SampleCount: 1, Dimension: gputypes.TextureDimension2D, Format: DepthFormat, Usage: usage})
+	tex, err := d.dev.CreateTexture(
+		&wgpu.TextureDescriptor{
+			Label: "depth",
+			Size: wgpu.Extent3D{Width: uint32(dp.w), Height: uint32(dp.h),
+				DepthOrArrayLayers: 1},
+			MipLevelCount: 1,
+			SampleCount:   1,
+			Dimension:     gputypes.TextureDimension2D,
+			Format:        DepthFormat,
+			Usage:         usage,
+		},
+	)
 	if err != nil {
 		panic(fmt.Errorf("gpu: a %dx%d depth buffer: %w", dp.w, dp.h, err))
 	}
-	view, err := d.dev.CreateTextureView(tex, &wgpu.TextureViewDescriptor{Format: DepthFormat, Dimension: gputypes.TextureViewDimension2D, Aspect: gputypes.TextureAspectDepthOnly, MipLevelCount: 1, ArrayLayerCount: 1})
+	view, err := d.dev.CreateTextureView(
+		tex,
+		&wgpu.TextureViewDescriptor{
+			Format:          DepthFormat,
+			Dimension:       gputypes.TextureViewDimension2D,
+			Aspect:          gputypes.TextureAspectDepthOnly,
+			MipLevelCount:   1,
+			ArrayLayerCount: 1,
+		},
+	)
 	if err != nil {
 		panic(fmt.Errorf("gpu: a depth view: %w", err))
 	}
@@ -73,7 +92,13 @@ func (dp *Depth) readGroup(d *device) *wgpu.BindGroup {
 	if dp.group != nil && dp.view != nil {
 		return dp.group
 	}
-	g, err := d.dev.CreateBindGroup(&wgpu.BindGroupDescriptor{Label: "gpu depth", Layout: d.layout2, Entries: []wgpu.BindGroupEntry{{Binding: 0, TextureView: dp.gpuView(d)}}})
+	g, err := d.dev.CreateBindGroup(
+		&wgpu.BindGroupDescriptor{
+			Label:   "gpu depth",
+			Layout:  d.layout2,
+			Entries: []wgpu.BindGroupEntry{{Binding: 0, TextureView: dp.gpuView(d)}},
+		},
+	)
 	if err != nil {
 		panic(fmt.Errorf("gpu: a depth group: %w", err))
 	}
@@ -126,7 +151,13 @@ func (x *Indices) gpuBuffer(d *device) *wgpu.Buffer {
 	for _, i := range x.data {
 		data = binary.LittleEndian.AppendUint32(data, i)
 	}
-	buf, err := d.dev.CreateBuffer(&wgpu.BufferDescriptor{Label: "mesh indices", Size: uint64(max(len(data), 4)), Usage: wgpu.BufferUsageIndex | wgpu.BufferUsageCopyDst})
+	buf, err := d.dev.CreateBuffer(
+		&wgpu.BufferDescriptor{
+			Label: "mesh indices",
+			Size:  uint64(max(len(data), 4)),
+			Usage: wgpu.BufferUsageIndex | wgpu.BufferUsageCopyDst,
+		},
+	)
 	if err != nil {
 		panic(fmt.Errorf("gpu: a mesh's indices: %w", err))
 	}
@@ -319,8 +350,23 @@ func Mesh(dw *MeshDraw) {
 	pass := d.begin(t, depth, dw.ClearDepth && dw.Depth != nil)
 	if dw.Primed && dw.Depth != nil {
 		r := dw.Target.rect()
-		pass.SetViewport(gputypes.Viewport{X: float32(r.X), Y: float32(r.Y), Width: float32(r.W), Height: float32(r.H), MaxDepth: 1})
-		pass.SetScissorRect(gputypes.ScissorRect{X: uint32(clip.X), Y: uint32(clip.Y), Width: uint32(clip.W), Height: uint32(clip.H)})
+		pass.SetViewport(
+			gputypes.Viewport{
+				X:        float32(r.X),
+				Y:        float32(r.Y),
+				Width:    float32(r.W),
+				Height:   float32(r.H),
+				MaxDepth: 1,
+			},
+		)
+		pass.SetScissorRect(
+			gputypes.ScissorRect{
+				X:      uint32(clip.X),
+				Y:      uint32(clip.Y),
+				Width:  uint32(clip.W),
+				Height: uint32(clip.H),
+			},
+		)
 		pass.SetPipeline(dw.Program.pipeline(d, dw.Blend, t.format, depthPrime))
 		pass.SetBindGroup(0, d.group0, offs)
 		pass.SetBindGroup(1, group1, nil)
@@ -335,8 +381,23 @@ func Mesh(dw *MeshDraw) {
 	d.bindFrame(pass, group3)
 	// clip space spans the target's rectangle, not the whole texture
 	r := dw.Target.rect()
-	pass.SetViewport(gputypes.Viewport{X: float32(r.X), Y: float32(r.Y), Width: float32(r.W), Height: float32(r.H), MaxDepth: 1})
-	pass.SetScissorRect(gputypes.ScissorRect{X: uint32(clip.X), Y: uint32(clip.Y), Width: uint32(clip.W), Height: uint32(clip.H)})
+	pass.SetViewport(
+		gputypes.Viewport{
+			X:        float32(r.X),
+			Y:        float32(r.Y),
+			Width:    float32(r.W),
+			Height:   float32(r.H),
+			MaxDepth: 1,
+		},
+	)
+	pass.SetScissorRect(
+		gputypes.ScissorRect{
+			X:      uint32(clip.X),
+			Y:      uint32(clip.Y),
+			Width:  uint32(clip.W),
+			Height: uint32(clip.H),
+		},
+	)
 	in.draw(pass, dw, count)
 	pass.SetViewport(gputypes.Viewport{Width: float32(t.w), Height: float32(t.h), MaxDepth: 1})
 }

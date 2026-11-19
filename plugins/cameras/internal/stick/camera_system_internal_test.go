@@ -176,7 +176,8 @@ func TestBehind_FastensTheCameraBehindTheWalkerWhereverItHeads(t *testing.T) {
 	r.tick(time.Second / 60)
 	if !r.centredOn(325, 385) || r.upTheScreen(325, 385, 0, 1) {
 		t.Errorf(
-			"a tick after turning: centred %v, south already up the screen %v; want centred, turning eased",
+			"a tick after turning: centred %v, south already up the screen %v; want centred, "+
+				"turning eased",
 			r.centredOn(325, 385),
 			r.upTheScreen(325, 385, 0, 1),
 		)

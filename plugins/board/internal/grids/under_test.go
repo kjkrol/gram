@@ -20,10 +20,13 @@ func TestSquareGrid_CellsUnderIsWhatTheLatticeFinds(t *testing.T) {
 			geom.NewAABBAt(geom.NewVec(65, 45), 20, 20),  // off the bottom right
 		}
 		for range 200 {
-			boxes = append(boxes, geom.NewAABBAt(geom.NewVec(float32(rng.Float64()*120-30), float32(rng.Float64()*90-20)),
-				float32(rng.Float64()*40),
-				float32(rng.Float64()*40),
-			),
+			boxes = append(
+				boxes,
+				geom.NewAABBAt(
+					geom.NewVec(float32(rng.Float64()*120-30), float32(rng.Float64()*90-20)),
+					float32(rng.Float64()*40),
+					float32(rng.Float64()*40),
+				),
 			)
 		}
 		for _, box := range boxes {

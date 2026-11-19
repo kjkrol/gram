@@ -24,7 +24,8 @@ fn noised(p: vec2<f32>) -> vec3<f32> {
     let c = hash(i + vec2<f32>(0.0, 1.0));
     let d = hash(i + vec2<f32>(1.0, 1.0));
     let k = a - b - c + d;
-    return vec3<f32>(a + (b - a) * u.x + (c - a) * u.y + k * u.x * u.y, du * vec2<f32>(b - a + k * u.y, c - a + k * u.x));
+    return vec3<f32>(a + (b - a) * u.x + (c - a) * u.y + k * u.x * u.y,
+        du * vec2<f32>(b - a + k * u.y, c - a + k * u.x));
 }
 
 // hash is a number 0 to 1 fixed for the whole point i.

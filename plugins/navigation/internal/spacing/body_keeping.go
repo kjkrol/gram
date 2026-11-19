@@ -435,7 +435,8 @@ func (k *BodyKeeping) Watch(
 		return
 	}
 	if o.Stalled += d; o.Stalled >= StallAfter {
-		o.Bumped, o.Stalled, o.Struck, o.Hit, o.HitUnit, o.AsideFor = true, 0, geom.Vec{}, 0, false, 0
+		o.Bumped, o.Stalled, o.Struck, o.Hit, o.HitUnit, o.AsideFor = true, 0, geom.Vec{}, 0, false,
+			0
 	}
 }
 
@@ -614,7 +615,8 @@ func (k *BodyKeeping) asides(m bodies.Member, asker bodies.Body) [2]geom.Vec {
 	}
 	clear := spanAcross(asker.Half, across) + spanAcross(h, across) + gapFor(h)/4
 	var out [2]geom.Vec
-	for i, step := range [2]float32{sign * (clear - f32.Abs(side)), -sign * (clear + f32.Abs(side))} {
+	for i, step := range [2]float32{sign * (clear - f32.Abs(side)), -sign * (clear +
+		f32.Abs(side))} {
 		if f32.Abs(step) < gapFor(h)/4 {
 			step = f32.Copysign(gapFor(h)/4, step)
 		}

@@ -318,7 +318,11 @@ func TestLadder_HoldGoesPastARingOnlyByTheMargin(t *testing.T) {
 func TestLadder_WidenedWidensTheRingsWithTheSight(t *testing.T) {
 	l := lod.Ladder{Sight: 1000, Rings: [lod.Levels - 1]float32{0, 0, 100, 400, 0, 0}}.Widened(2)
 	if l.Sight != 2000 || l.Rings[2] != 200 || l.Rings[3] != 800 || l.Rings[4] != 0 {
-		t.Errorf("Widened(2) = sight %v rings %v, want 2000 and {0 0 200 800 0 0}", l.Sight, l.Rings)
+		t.Errorf(
+			"Widened(2) = sight %v rings %v, want 2000 and {0 0 200 800 0 0}",
+			l.Sight,
+			l.Rings,
+		)
 	}
 }
 

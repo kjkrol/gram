@@ -26,7 +26,8 @@ import (
 
 // the middles of the piece's sides
 func ends(v []render.Vertex) (x0, y0, x1, y1 float32) {
-	return (v[0].DstX + v[2].DstX) / 2, (v[0].DstY + v[2].DstY) / 2, (v[1].DstX + v[3].DstX) / 2, (v[1].DstY + v[3].DstY) / 2
+	return (v[0].DstX + v[2].DstX) / 2, (v[0].DstY + v[2].DstY) / 2, (v[1].DstX + v[3].DstX) / 2,
+		(v[1].DstY + v[3].DstY) / 2
 }
 
 func near32(a, b float32) bool { return f32.Abs(a-b) < 1e-2 }
@@ -43,12 +44,15 @@ func TestPathRenderer_LaysTheRouteOverTheGroundInPiecesAsAMark(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd, brdW := board.NewBoard(grid)
 	brdW.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
-	land := sampled{step: 32, at: ground.MeanOfCells(grid, func(c cell.ID) float32 { // a ridge down the right half
-		if x, _, _ := grid.Coords(c); x >= 2 {
-			return 10
-		}
-		return 0
-	})}
+	land := sampled{
+		step: 32,
+		at: ground.MeanOfCells(grid, func(c cell.ID) float32 { // a ridge down the right half
+			if x, _, _ := grid.Coords(c); x >= 2 {
+				return 10
+			}
+			return 0
+		}),
+	}
 	cam := isoCamera(128, 128, camera.Config{})
 	a, b := geom.NewVec(48, 48), geom.NewVec(112, 48)
 	drawn := func(r *Renderer) (pieces [][]render.Vertex) {
@@ -68,22 +72,46 @@ func TestPathRenderer_LaysTheRouteOverTheGroundInPiecesAsAMark(t *testing.T) {
 	pieces := drawn(r)
 	want := int(f32.Ceil(64 / land.Step()))
 	if len(pieces) != want {
-		t.Fatalf("%d pieces over 64 units with a step of %v, want %d", len(pieces), land.Step(), want)
+		t.Fatalf(
+			"%d pieces over 64 units with a step of %v, want %d",
+			len(pieces),
+			land.Step(),
+			want,
+		)
 	}
 	sx, sy, _, _ := ends(pieces[0])
 	if ax, ay := cam.Project(48, 48, float32(land.At(a))); !near32(sx, ax) || !near32(sy, ay) {
-		t.Errorf("the route starts at (%v, %v), want (%v, %v): on the ground at its start", sx, sy, ax, ay)
+		t.Errorf(
+			"the route starts at (%v, %v), want (%v, %v): on the ground at its start",
+			sx,
+			sy,
+			ax,
+			ay,
+		)
 	}
 	last := pieces[len(pieces)-1]
 	_, _, ex, ey := ends(last)
 	if bx, by := cam.Project(112, 48, float32(land.At(b))); !near32(ex, bx) || !near32(ey, by) {
-		t.Errorf("the route ends at (%v, %v), want (%v, %v): on the ridge at its end", ex, ey, bx, by)
+		t.Errorf(
+			"the route ends at (%v, %v), want (%v, %v): on the ridge at its end",
+			ex,
+			ey,
+			bx,
+			by,
+		)
 	}
 	flat := NewRenderer(brd, RouteStyle{}, 0)
 	pieces = drawn(flat)
 	_, _, ex, ey = ends(pieces[0])
 	if bx, by := cam.Project(112, 48, 0); len(pieces) != 1 || !near32(ex, bx) || !near32(ey, by) {
-		t.Errorf("without heights %d pieces ending at (%v, %v), want one on the ground at 0, (%v, %v)", len(pieces), ex, ey, bx, by)
+		t.Errorf(
+			"without heights %d pieces ending at (%v, %v), want one on the ground at 0, (%v, %v)",
+			len(pieces),
+			ex,
+			ey,
+			bx,
+			by,
+		)
 	}
 }
 
@@ -120,7 +148,13 @@ func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 				}
 			}
 			if !found {
-				t.Errorf("spot %v: no line starts at the box's corner (%v, %v); the lines start at %v", tc.spot, wx, wy, starts)
+				t.Errorf(
+					"spot %v: no line starts at the box's corner (%v, %v); the lines start at %v",
+					tc.spot,
+					wx,
+					wy,
+					starts,
+				)
 			}
 		}
 	}
@@ -222,7 +256,11 @@ func isoCamera(width, height uint32, cfg camera.Config) camera.Camera {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 100},
 		Heights:  true,
 	})
-	b := board.NewPlugin(grid.DefaultGrids{}.Square(width/32, height/32, 32), &cell.MultipleOccupancy{}, w)
+	b := board.NewPlugin(
+		grid.DefaultGrids{}.Square(width/32, height/32, 32),
+		&cell.MultipleOccupancy{},
+		w,
+	)
 	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	return cameras.NewPlugin(w, cameras.Config{
 		Turn:       true,

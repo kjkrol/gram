@@ -176,7 +176,9 @@ func (s *ScanSystem) Init(si *goke.SysInit) {
 		w.profiling.bend = s.bend
 		w.bind(s.space)
 		w.covering.bend = s.covering.bend
-		w.lookup = si.NewQueryBuilder(&w.lookupBase).Optional(&w.lookupTau, &w.lookupLay, &w.lookupZ).Build()
+		w.lookup = si.NewQueryBuilder(&w.lookupBase).
+			Optional(&w.lookupTau, &w.lookupLay, &w.lookupZ).
+			Build()
 		s.scanners = append(s.scanners, w)
 	}
 }
@@ -399,7 +401,14 @@ type job struct {
 }
 
 func (s *ScanSystem) job(cursor *goke.Cursor) job {
-	j := job{ids: cursor.IDs, sights: s.sight.Slice(cursor), seens: s.sighted.Slice(cursor), eyes: s.eye.Slice(cursor), bases: s.base.Slice(cursor), zs: s.z.Slice(cursor)}
+	j := job{
+		ids:    cursor.IDs,
+		sights: s.sight.Slice(cursor),
+		seens:  s.sighted.Slice(cursor),
+		eyes:   s.eye.Slice(cursor),
+		bases:  s.base.Slice(cursor),
+		zs:     s.z.Slice(cursor),
+	}
 	if s.outline.Present(cursor) {
 		j.outlines = s.outline.Slice(cursor)
 	}
@@ -418,7 +427,15 @@ func (j *job) scan(c *scanner, i int) {
 	c.scan(j.ids[i], &j.sights[i], &j.seens[i], &j.bases[i], j.eyes[i], z, outline)
 }
 
-func (c *scanner) scan(id uid.UID64, s *Sight, seen *Sighted, base *world.Base, eye world.Eye, z world.Z, outline *SightOutline) {
+func (c *scanner) scan(
+	id uid.UID64,
+	s *Sight,
+	seen *Sighted,
+	base *world.Base,
+	eye world.Eye,
+	z world.Z,
+	outline *SightOutline,
+) {
 	look := *s
 	look.Facing = s.Looking(base.Vel.Dir)
 	sight := &look
@@ -466,7 +483,12 @@ func (s *ScanSystem) sighting(matched []int) Sighting {
 }
 
 func (s *scanner) cone(sight *Sight, eye world.Eye, z world.Z) aabbworld.Cone {
-	c := aabbworld.Cone{Direction: sight.Facing, HalfAngle: eye.Angle / 2, Radius: sight.Radius, Transparency: s.tau}
+	c := aabbworld.Cone{
+		Direction:    sight.Facing,
+		HalfAngle:    eye.Angle / 2,
+		Radius:       sight.Radius,
+		Transparency: s.tau,
+	}
 	if s.covering.cover != nil {
 		c.Cover = &s.covering
 	}
@@ -526,7 +548,11 @@ type covering struct {
 	sunk     func(near, far, bottom, top, tau float32) bool
 }
 
-func (c *covering) Walk(origin, dir geom.Vec, length float32, visit func(near, far, bottom, top, tau float32) bool) {
+func (c *covering) Walk(
+	origin, dir geom.Vec,
+	length float32,
+	visit func(near, far, bottom, top, tau float32) bool,
+) {
 	if c.bend <= 0 {
 		c.cover.Walk(origin, dir, length, c.blockers, visit)
 		return

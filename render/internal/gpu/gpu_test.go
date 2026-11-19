@@ -52,8 +52,17 @@ fn Fragment(dst: vec4<f32>, src: vec2<f32>, color: vec4<f32>, custom: vec4<f32>)
 	layout.Put(u, "Shade", []float32{0.5})
 	layout.Put(u, "Tint", []float32{0, 0, 0.25})
 	v := func(x, y float32) Vertex { return Vertex{DstX: x, DstY: y} }
-	Triangles(&Draw{Target: Image{Texture: dst}, Program: p, Images: [4]Image{{Texture: src}}, Uniforms: u, Blend: Copy},
-		[]Vertex{v(0, 0), v(4, 0), v(0, 1), v(4, 1)}, []uint16{0, 1, 2, 1, 2, 3})
+	Triangles(
+		&Draw{
+			Target:   Image{Texture: dst},
+			Program:  p,
+			Images:   [4]Image{{Texture: src}},
+			Uniforms: u,
+			Blend:    Copy,
+		},
+		[]Vertex{v(0, 0), v(4, 0), v(0, 1), v(4, 1)},
+		[]uint16{0, 1, 2, 1, 2, 3},
+	)
 	pix := make([]byte, 16)
 	dst.ReadPixels(pix)
 	if p := pixel(pix, 4, 0, 0); p[0] < 126 || p[0] > 129 || p[2] < 62 || p[2] > 65 {
@@ -70,8 +79,21 @@ func TestDrawImage_LaysItOverWhatIsThere(t *testing.T) {
 	Fill(Image{Texture: dst}, 1, 1, 1, 1)
 	src := NewTexture(2, 2)
 	half := []byte{0, 0, 128, 128}
-	src.WritePixels(0, 0, 2, 2, append(append(append(append([]byte{}, half...), half...), half...), half...))
-	DrawImage(Image{Texture: dst}, Image{Texture: src}, Affine{A: 1, D: 1, TX: 1, TY: 1}, [4]float32{1, 1, 1, 1}, false, SourceOver)
+	src.WritePixels(
+		0,
+		0,
+		2,
+		2,
+		append(append(append(append([]byte{}, half...), half...), half...), half...),
+	)
+	DrawImage(
+		Image{Texture: dst},
+		Image{Texture: src},
+		Affine{A: 1, D: 1, TX: 1, TY: 1},
+		[4]float32{1, 1, 1, 1},
+		false,
+		SourceOver,
+	)
 	pix := make([]byte, 64)
 	dst.ReadPixels(pix)
 	if p := pixel(pix, 4, 2, 2); p[0] < 126 || p[0] > 129 || p[2] < 253 {
@@ -141,7 +163,9 @@ func TestDrawImageIn_AllocatesNoMoreThanItsDraw(t *testing.T) {
 
 func TestLayout_FollowsWGSL(t *testing.T) {
 	l := NewLayout([]Uniform{{"A", 1}, {"B", 3}, {"C", 1}, {"D", 2}})
-	if l.offsets["A"] != 0 || l.offsets["B"] != 16 || l.offsets["C"] != 28 || l.offsets["D"] != 32 || l.Size != 48 {
+	if l.offsets["A"] != 0 || l.offsets["B"] != 16 || l.offsets["C"] != 28 ||
+		l.offsets["D"] != 32 ||
+		l.Size != 48 {
 		t.Errorf("offsets %v size %d, want A 0, B 16, C 28, D 32, 48 in all", l.offsets, l.Size)
 	}
 	l = NewLayout([]Uniform{{"A", 1}, {"E", 20}, {"F", 1}})
@@ -231,7 +255,18 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> { return U.Color; }`)
 		u := make([]byte, layout.Size)
 		layout.Put(u, "Depth", []float32{d})
 		layout.Put(u, "Color", c[:])
-		Mesh(&MeshDraw{Target: Image{Texture: dst}, Depth: depth, ClearDepth: clear, Write: true, Program: p, Uniforms: u, Indices: quad, Blend: Copy})
+		Mesh(
+			&MeshDraw{
+				Target:     Image{Texture: dst},
+				Depth:      depth,
+				ClearDepth: clear,
+				Write:      true,
+				Program:    p,
+				Uniforms:   u,
+				Indices:    quad,
+				Blend:      Copy,
+			},
+		)
 	}
 	draw(0.8, [4]float32{1, 0, 0, 1}, true)  // near, red
 	draw(0.2, [4]float32{0, 0, 1, 1}, false) // far, blue: behind
@@ -256,8 +291,10 @@ struct Out {
     @location(0) color: vec4<f32>,
 }
 @vertex
-fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>, @location(1) color: vec4<f32>) -> Out {
-    var corners = array<vec2<f32>, 6>(vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 0.0), vec2<f32>(0.0, 1.0), vec2<f32>(1.0, 0.0), vec2<f32>(1.0, 1.0), vec2<f32>(0.0, 1.0));
+fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>,
+    @location(1) color: vec4<f32>) -> Out {
+    var corners = array<vec2<f32>, 6>(vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 0.0),
+        vec2<f32>(0.0, 1.0), vec2<f32>(1.0, 0.0), vec2<f32>(1.0, 1.0), vec2<f32>(0.0, 1.0));
     let px = at.xy + corners[vid] * at.zw; // a rectangle in the target's pixels
     var o: Out;
     o.clip = vec4<f32>(px.x / D.target.x * 2.0 - 1.0, 1.0 - px.y / D.target.y * 2.0, 0.0, 1.0);
@@ -267,13 +304,22 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>, @locatio
 @fragment
 fn fs_main(o: Out) -> @location(0) vec4<f32> { return o.color; }`).Instanced(2)
 	dst := NewTexture(4, 4)
-	Mesh(&MeshDraw{Target: Image{Texture: dst}, Program: p, Vertices: 6, Blend: Copy, Instances: []float32{
-		0, 0, 2, 4, 1, 0, 0, 1, // the left half, red
-		2, 0, 2, 4, 0, 0, 1, 1, // the right half, blue
-	}})
+	Mesh(
+		&MeshDraw{
+			Target:   Image{Texture: dst},
+			Program:  p,
+			Vertices: 6,
+			Blend:    Copy,
+			Instances: []float32{
+				0, 0, 2, 4, 1, 0, 0, 1, // the left half, red
+				2, 0, 2, 4, 0, 0, 1, 1, // the right half, blue
+			},
+		},
+	)
 	pix := make([]byte, 64)
 	dst.ReadPixels(pix)
-	if l, r := pixel(pix, 4, 0, 2), pixel(pix, 4, 3, 1); l != [4]byte{255, 0, 0, 255} || r != [4]byte{0, 0, 255, 255} {
+	if l, r := pixel(pix, 4, 0, 2), pixel(pix, 4, 3, 1); l != [4]byte{255, 0, 0, 255} ||
+		r != [4]byte{0, 0, 255, 255} {
 		t.Errorf("the left is %v and the right %v, want red and blue", l, r)
 	}
 }

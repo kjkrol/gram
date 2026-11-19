@@ -34,9 +34,13 @@ func TestSunAt_RisesInTheEastStandsOverTheSouthAndSetsInTheWest(t *testing.T) {
 	}
 	if s := south.SunAt(0, 0); s.Dir[2] >= 0 || s.Strength != 0 ||
 		s.AmbientColor != earthDaylight[0].Sky || s.Ambient != earthDaylight[0].Ambient {
-		t.Errorf("at midnight the sun is %+v, want it below the horizon, the night's ambient alone", s)
+		t.Errorf(
+			"at midnight the sun is %+v, want it below the horizon, the night's ambient alone",
+			s,
+		)
 	}
-	if morning, noonSun := south.SunAt(0, 0.3), south.SunAt(0, 0.5); morning.Dir[2] >= noonSun.Dir[2] {
+	if morning, noonSun := south.SunAt(0, 0.3), south.SunAt(0,
+		0.5); morning.Dir[2] >= noonSun.Dir[2] {
 		t.Error("the morning sun stands as high as the noon sun")
 	}
 }
@@ -48,11 +52,20 @@ func TestSunAt_StandsOverNoonWayAtNoonAndTurnsItsWholePathWithIt(t *testing.T) {
 		t.Errorf("at noon the sun is %+v, want it over the north-west 60° up", s)
 	}
 	// at 6 a quarter turn round from noon: south-west, as the east is from the south
-	if s := northWest.SunAt(0, 0.25); !near(s.Dir[0], -s.Dir[1]) || s.Dir[1] <= 0 || !near(s.Dir[2], 0) {
+	if s := northWest.SunAt(0, 0.25); !near(s.Dir[0], -s.Dir[1]) || s.Dir[1] <= 0 ||
+		!near(s.Dir[2], 0) {
 		t.Errorf("at 6 the sun is %+v, want it on the horizon in the south-west", s)
 	}
-	if s, south := northWest.SunAt(0, 0.4), (Config{NoonWay: celestial.South, latitude: Latitude}).SunAt(0, 0.4); s.Strength != south.Strength || s.Ambient != south.Ambient {
-		t.Errorf("turned round the sun lights %v/%v, want the same light as over the south %v/%v", s.Strength, s.Ambient, south.Strength, south.Ambient)
+	if s, south := northWest.SunAt(0, 0.4), (Config{NoonWay: celestial.South,
+		latitude: Latitude}).SunAt(0, 0.4); s.Strength != south.Strength ||
+		s.Ambient != south.Ambient {
+		t.Errorf(
+			"turned round the sun lights %v/%v, want the same light as over the south %v/%v",
+			s.Strength,
+			s.Ambient,
+			south.Strength,
+			south.Ambient,
+		)
 	}
 }
 
@@ -95,7 +108,10 @@ func TestSky_TheSunGoesOnWithTheCalendar(t *testing.T) {
 	noon := r.sky.Sun()
 	r.tick(time.Second / 60)
 	if r.sky.Sun() == noon || r.sky.Sun() != firstDay(0.5+1.0/60/24) {
-		t.Errorf("a tick on the sun is %+v, want the moment's own, moved on from noon's", r.sky.Sun())
+		t.Errorf(
+			"a tick on the sun is %+v, want the moment's own, moved on from noon's",
+			r.sky.Sun(),
+		)
 	}
 }
 
@@ -106,10 +122,17 @@ func TestSky_FrozenLightStandsWhileTheCalendarGoesOn(t *testing.T) {
 	r.tick(0)
 	r.tick(6 * time.Second) // six hours of the day
 	if !r.sky.Frozen() || r.sky.Hour() != 0.5 || r.sky.Sun() != firstDay(0.5) {
-		t.Fatalf("frozen at noon the light is %+v at %v, want noon's still", r.sky.Sun(), r.sky.Hour())
+		t.Fatalf(
+			"frozen at noon the light is %+v at %v, want noon's still",
+			r.sky.Sun(),
+			r.sky.Hour(),
+		)
 	}
 	if m := r.sky.calendar.Now(); !near(m.Time, 0.75) {
-		t.Errorf("the calendar stands at %v, want 18:00: the day goes on under the frozen light", m.Time)
+		t.Errorf(
+			"the calendar stands at %v, want 18:00: the day goes on under the frozen light",
+			m.Time,
+		)
 	}
 	r.sky.Shift(HalfHour)
 	r.sky.Shift(HalfHour)
@@ -174,10 +197,18 @@ func TestReport_SaysWhetherTheLightIsFrozen(t *testing.T) {
 func TestSunAt_ColoursTheSkyAndItsLightThroughTheDay(t *testing.T) {
 	noon, dawn, night := defaults.SunAt(0, 0.5), defaults.SunAt(0, 0.25), defaults.SunAt(0, 0)
 	if noon.AmbientColor[2] <= noon.AmbientColor[0] || noon.Color[0] < 0.95 || noon.Color[2] < 0.9 {
-		t.Errorf("at noon the sky is %v and the sun %v, want a blue sky and a nearly white sun", noon.AmbientColor, noon.Color)
+		t.Errorf(
+			"at noon the sky is %v and the sun %v, want a blue sky and a nearly white sun",
+			noon.AmbientColor,
+			noon.Color,
+		)
 	}
 	if dawn.AmbientColor[0] <= dawn.AmbientColor[2] || dawn.Color[2] >= dawn.Color[0]/2 {
-		t.Errorf("at 6 the sky is %v and the sun %v, want both warm, the sun orange", dawn.AmbientColor, dawn.Color)
+		t.Errorf(
+			"at 6 the sky is %v and the sun %v, want both warm, the sun orange",
+			dawn.AmbientColor,
+			dawn.Color,
+		)
 	}
 	if light := night.Light(0, 0, 1); light[2] <= light[0] || light[2] > 0.2 {
 		t.Errorf("at midnight the ground is lit %v, want a dim blue", light)
@@ -202,7 +233,8 @@ func TestDaylight_AGamesOwnColoursTheSkyItsLightAndTheSun(t *testing.T) {
 	red := render.Light{1, 0, 0}
 	mars := earth
 	mars.Daylight = []Daylight{{Height: 0, Sky: red, Sun: red, Ambient: 0.5}}
-	if sun := mars.SunAt(0, 0.5); sun.AmbientColor != red || sun.Color != red || sun.Ambient != 0.5 {
+	if sun := mars.SunAt(0, 0.5); sun.AmbientColor != red || sun.Color != red ||
+		sun.Ambient != 0.5 {
 		t.Errorf("under a red daylight the sun is %+v, want its sky and light red", sun)
 	}
 	if c := skyOf(t, mars, calendar.Config{}).sky.Heavens().SunColor; c != red {
@@ -238,10 +270,20 @@ func TestNew_ADaylightThatDoesNotRisePanics(t *testing.T) {
 func TestSunAt_StandsHigherAndLongerInSummerThanInWinter(t *testing.T) {
 	summer, winter := defaults.SunAt(0.25, 0.5), defaults.SunAt(0.75, 0.5)
 	if summer.Dir[2] <= winter.Dir[2] {
-		t.Errorf("at noon the sun stands %v high in summer and %v in winter, want it higher in summer", summer.Dir[2], winter.Dir[2])
+		t.Errorf(
+			"at noon the sun stands %v high in summer and %v in winter, want it higher in summer",
+			summer.Dir[2],
+			winter.Dir[2],
+		)
 	}
-	if early, late := defaults.SunAt(0.25, 0.25), defaults.SunAt(0.75, 0.25); early.Dir[2] <= 0 || late.Dir[2] >= 0 {
-		t.Errorf("at 6 the sun stands %v in summer, %v in winter; want it up in summer, still down in winter", early.Dir[2], late.Dir[2])
+	if early, late := defaults.SunAt(0.25, 0.25), defaults.SunAt(0.75, 0.25); early.Dir[2] <= 0 ||
+		late.Dir[2] >= 0 {
+		t.Errorf(
+			"at 6 the sun stands %v in summer, %v in winter; want it up in summer, still down in "+
+				"winter",
+			early.Dir[2],
+			late.Dir[2],
+		)
 	}
 }
 
@@ -252,7 +294,10 @@ func TestLightAt_TheMoonLightsTheNightAsFullAsItIs(t *testing.T) {
 	}
 	full, new := c.LightAt(0, 0, 0.5, DefaultMoon()), c.LightAt(0, 0, 0, DefaultMoon())
 	if full.Strength <= 0.1 || full.Color != moonColor || full.Dir[2] <= 0 {
-		t.Errorf("at midnight under a full moon the light is %+v, want the moon high, bright and pale", full)
+		t.Errorf(
+			"at midnight under a full moon the light is %+v, want the moon high, bright and pale",
+			full,
+		)
 	}
 	if new.Strength != 0 {
 		t.Errorf("at midnight under a new moon the light has strength %v, want none", new.Strength)
@@ -270,7 +315,12 @@ func TestHeavensAt_StandTheSunTheMoonAndThePole(t *testing.T) {
 	}
 	h, l = c.place().HeavensAt(0.2, 0.02, 0.5), c.LightAt(0.2, 0.02, 0.5, DefaultMoon())
 	if h.Moon != l.Dir || h.Full < 0.99 {
-		t.Errorf("at night the heavens' moon is %v, full %v; the light's %v, want it, full", h.Moon, h.Full, l.Dir)
+		t.Errorf(
+			"at night the heavens' moon is %v, full %v; the light's %v, want it, full",
+			h.Moon,
+			h.Full,
+			l.Dir,
+		)
 	}
 	h = c.place().HeavensAt(0.2, 0.5, 0)
 	if up := float64(h.Pole[2]); math.Abs(up-math.Sin(50*math.Pi/180)) > 1e-5 || h.Pole[1] > -0.5 {

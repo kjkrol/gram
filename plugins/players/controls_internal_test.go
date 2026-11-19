@@ -27,8 +27,10 @@ func TestWritten_SpellsATriggerAsAHelpScreenDoes(t *testing.T) {
 		{control.KeyPress{Key: control.KeyBracketRight}, "]"},
 		{control.KeyPress{Key: control.KeyEscape, Mods: control.Mods{Shift: true}}, "Shift+Esc"},
 		{control.KeyHeld{Key: control.KeyQ}, "Q (held)"},
-		{control.ButtonPress{Button: control.MouseButtonRight, Mods: control.Mods{Shift: true}.Holding(control.KeyS)}, "Shift+S+right click"},
-		{control.Drag{Button: control.MouseButtonLeft, Mods: control.Mods{}.Holding(control.KeyL)}, "L+left drag"},
+		{control.ButtonPress{Button: control.MouseButtonRight,
+			Mods: control.Mods{Shift: true}.Holding(control.KeyS)}, "Shift+S+right click"},
+		{control.Drag{Button: control.MouseButtonLeft, Mods: control.Mods{}.Holding(control.KeyL)},
+			"L+left drag"},
 		{control.ButtonHeld{Button: control.MouseButtonMiddle}, "middle drag"},
 		{control.Wheel{}, "wheel"},
 		{control.CursorAtEdge{}, "cursor at an edge"},
@@ -50,7 +52,12 @@ func (g group) text() string {
 }
 
 func TestControls_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
+	w := world.NewPlugin(
+		world.Config{
+			Space:    world.SpaceCfg{Width: 100, Height: 100},
+			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+		},
+	)
 	cams := cameras.NewPlugin(w, cameras.Config{})
 	p := NewPlugin(w, cams)
 	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
@@ -66,10 +73,13 @@ func TestControls_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 		groups[2].name != "Cameras" || groups[3].name != "General" {
 		t.Fatalf("groups %v, want Game, World, Cameras and General in that order", names)
 	}
-	if lines := names["Cameras"]; !strings.Contains(lines, "W (held)") || !strings.Contains(lines, "Scroll up") || !strings.Contains(lines, "wheel") {
+	if lines := names["Cameras"]; !strings.Contains(lines, "W (held)") ||
+		!strings.Contains(lines, "Scroll up") ||
+		!strings.Contains(lines, "wheel") {
 		t.Errorf("the camera's lines %q, want WASD and the wheel among them", lines)
 	}
-	if lines := names["World"]; !strings.Contains(lines, "Shift+P") || !strings.Contains(lines, "Pause the game") {
+	if lines := names["World"]; !strings.Contains(lines, "Shift+P") ||
+		!strings.Contains(lines, "Pause the game") {
 		t.Errorf("the world's lines %q, want the clock's Shift+P", lines)
 	}
 	if lines := names["Game"]; lines != "R Build a road" {
@@ -122,7 +132,12 @@ func TestControls_ListTheGamesOwnBindingsUnderGame(t *testing.T) {
 }
 
 func TestControls_ListWhatHoldsInTheCamerasMode(t *testing.T) {
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
+	w := world.NewPlugin(
+		world.Config{
+			Space:    world.SpaceCfg{Width: 100, Height: 100},
+			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+		},
+	)
 	cams := cameras.NewPlugin(w, cameras.Config{})
 	p := NewPlugin(w, cams)
 	cam := &ridingCam{Camera: cams.Write().New(cameras.FromAbove, camera.Config{})}
@@ -141,11 +156,19 @@ func TestControls_ListWhatHoldsInTheCamerasMode(t *testing.T) {
 		}
 		return ""
 	}
-	if lines := camera(); !strings.Contains(lines, "Scroll up") || !strings.Contains(lines, "cursor at an edge") || s.title() != "Controls" {
-		t.Errorf("free, the camera's lines %q under %q, want the scrolling keys under Controls", lines, s.title())
+	if lines := camera(); !strings.Contains(lines, "Scroll up") ||
+		!strings.Contains(lines, "cursor at an edge") ||
+		s.title() != "Controls" {
+		t.Errorf(
+			"free, the camera's lines %q under %q, want the scrolling keys under Controls",
+			lines,
+			s.title(),
+		)
 	}
 	cam.on = true
-	if lines := camera(); strings.Contains(lines, "Scroll up") || strings.Contains(lines, "cursor at an edge") || !strings.Contains(lines, "wheel") {
+	if lines := camera(); strings.Contains(lines, "Scroll up") ||
+		strings.Contains(lines, "cursor at an edge") ||
+		!strings.Contains(lines, "wheel") {
 		t.Errorf("riding, the camera's lines %q, want the wheel alone", lines)
 	}
 	if !strings.Contains(s.title(), "first person") {
@@ -181,8 +204,17 @@ func (r *ridingCam) Fastening() camera.Fastening {
 func TestSceneKeys_HandleRunsTheKeyPressedWithItsModifiers(t *testing.T) {
 	ran := ""
 	keys := SceneKeys{
-		{Key: control.KeyEscape, Shift: true, Label: "Quit", Do: func(game.Runtime, game.Composition) { ran += "quit " }},
-		{Key: control.KeyB, Label: "Grid", Do: func(game.Runtime, game.Composition) { ran += "grid " }},
+		{
+			Key:   control.KeyEscape,
+			Shift: true,
+			Label: "Quit",
+			Do:    func(game.Runtime, game.Composition) { ran += "quit " },
+		},
+		{
+			Key:   control.KeyB,
+			Label: "Grid",
+			Do:    func(game.Runtime, game.Composition) { ran += "grid " },
+		},
 	}
 	events := &control.InputEvents{}
 	events.AddKeyEvent(control.KeyEscape, control.ActionPress) // no Shift: nothing
@@ -190,7 +222,10 @@ func TestSceneKeys_HandleRunsTheKeyPressedWithItsModifiers(t *testing.T) {
 	events.AddKeyEvent(control.KeyB, control.ActionRelease)
 	keys.Handle(events, nil, nil)
 	if ran != "grid " {
-		t.Errorf("ran %q, want the grid alone: Esc without Shift is nothing, a release nothing", ran)
+		t.Errorf(
+			"ran %q, want the grid alone: Esc without Shift is nothing, a release nothing",
+			ran,
+		)
 	}
 	events = &control.InputEvents{}
 	events.Modifiers.Shift = true
@@ -234,7 +269,12 @@ func (e *engine) Queues() []command.CommandQueue {
 func (*engine) DefaultBindings() []control.Binding { return nil }
 
 func TestHandle_TurnsTheGamesKeysIntoCommands(t *testing.T) {
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
+	w := world.NewPlugin(
+		world.Config{
+			Space:    world.SpaceCfg{Width: 100, Height: 100},
+			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+		},
+	)
 	eng := &engine{}
 	if err := w.Carry(eng); err != nil {
 		t.Fatal(err)
@@ -245,7 +285,15 @@ func TestHandle_TurnsTheGamesKeysIntoCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	built := 0
-	p.OwnKeys(SceneKeys{{Key: control.KeyR, Label: "Build a road", Do: func(game.Runtime, game.Composition) { built++ }}})
+	p.OwnKeys(
+		SceneKeys{
+			{
+				Key:   control.KeyR,
+				Label: "Build a road",
+				Do:    func(game.Runtime, game.Composition) { built++ },
+			},
+		},
+	)
 	rt, comp := &engineStub{props: game.Props{ScreenWidth: 800, ScreenHeight: 600}}, &shown{}
 	press := func(key control.Key, shift bool) {
 		events := &control.InputEvents{}
@@ -259,7 +307,11 @@ func TestHandle_TurnsTheGamesKeysIntoCommands(t *testing.T) {
 	}
 	press(control.KeyK, false)
 	if len(comp.names) != 1 || comp.names[0] != ControlsName || !rt.paused {
-		t.Errorf("K showed %v, paused %v; want the controls shown and the game held", comp.names, rt.paused)
+		t.Errorf(
+			"K showed %v, paused %v; want the controls shown and the game held",
+			comp.names,
+			rt.paused,
+		)
 	}
 	press(control.KeyR, false)
 	if built != 1 {
@@ -345,7 +397,12 @@ func (c *composed) Hide(name string) {
 func (c *composed) Order() []string { return c.names }
 
 func TestHandle_TheTildeTurnsTheTelemetryPanelBasicExtendedHiddenUnderGeneral(t *testing.T) {
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
+	w := world.NewPlugin(
+		world.Config{
+			Space:    world.SpaceCfg{Width: 100, Height: 100},
+			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+		},
+	)
 	tp := telemetry.NewPlugin(w)
 	p := NewPlugin(w, cameras.NewPlugin(w, cameras.Config{}))
 	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
@@ -393,7 +450,12 @@ func (h *toolHandler) DefaultBindings() []control.Binding {
 }
 
 func TestControls_ListAKeyUnderThePluginWhoseDefaultsGaveIt(t *testing.T) {
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
+	w := world.NewPlugin(
+		world.Config{
+			Space:    world.SpaceCfg{Width: 100, Height: 100},
+			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+		},
+	)
 	if err := w.Carry(&engine{}); err != nil {
 		t.Fatal(err)
 	}

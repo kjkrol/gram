@@ -143,19 +143,21 @@ type Painted struct {
 	Takes  []render.Taking
 	Sway   []float32
 	Styled uint64
-	// Mouths are where floors sunk under the ground open to the sky, the ground over each cut
-	// away; MouthsAt counts their changes
+	// Mouths are where floors sunk under the ground open to the sky and rooms stand on it, the
+	// ground in each cut away; MouthsAt counts their changes
 	Mouths   []Mouth
 	MouthsAt uint64
 }
 
 // Mouth is where a floor sunk under the ground comes out: under the cell X, Y, across the edge
 // towards its neighbour Dx, Dy, Half its width either side of its line, its roof Clear over the
-// ground at that edge. The ground lower than the roof is not drawn over it.
+// ground at that edge; the ground lower than the roof is not drawn over it. A Dx and Dy of 0 is
+// a room standing on the whole cell, its Floor that high: the ground in it is not drawn.
 type Mouth struct {
 	X, Y        int
 	Dx, Dy      int8
 	Half, Clear float32
+	Floor       float32
 }
 
 // Sky is the air over the ground, for how far one sees through it.
@@ -232,7 +234,14 @@ var _ render.Direct = (*Renderer)(nil)
 
 // New is a renderer of ground looking as surface says under sky, as cfg says.
 func New(ground Ground, surface Surface, sky Sky, cfg Config) *Renderer {
-	r := &Renderer{ground: ground, surface: surface, sky: sky, cfg: cfg, uniforms: map[string][]float32{}, boxed: map[string]any{}}
+	r := &Renderer{
+		ground:   ground,
+		surface:  surface,
+		sky:      sky,
+		cfg:      cfg,
+		uniforms: map[string][]float32{},
+		boxed:    map[string]any{},
+	}
 	r.opts = render.DrawMeshOptions{WriteDepth: true, Primed: true, Uniforms: map[string]any{}}
 	r.seaOpts = render.DrawMeshOptions{Uniforms: r.opts.Uniforms}
 	r.photo.init(cfg.Painted)
@@ -560,8 +569,9 @@ func openWater(cols, rows int, dst []byte) []byte {
 
 // cut marks the lattice with the mouths the surface has, the marks of those it had last taken
 // off: at the corner a mouth's cell begins at, in the blue the heights leave free the edge it
-// opens across (1 to 9, by its neighbour's column then its row) and in their alpha half its
-// width over a cell's, in the alpha the normals leave free its room over a cell's
+// opens across (1 to 9, by its neighbour's column then its row, 5 a room's whole cell) and in
+// their alpha half its width over a cell's, a room's floor off the corner (roomFloor), in the
+// alpha the normals leave free its room over a cell's
 func (r *Renderer) cut(cols, rows int, cell float32, heights []float32) {
 	mark := func(m Mouth, on bool) {
 		if m.X < 0 || m.Y < 0 || m.X >= cols-1 || m.Y >= rows-1 {
@@ -574,6 +584,9 @@ func (r *Renderer) cut(cols, rows int, cell float32, heights []float32) {
 		if on {
 			r.texel[2] = byte(int(m.Dx)+1+3*(int(m.Dy)+1)) + 1
 			r.texel[3] = byte(min(m.Half/cell, 1)*255 + 0.5)
+			if m.Dx == 0 && m.Dy == 0 {
+				r.texel[3] = roomFloor(m.Floor-heights[m.Y*cols+m.X], cell)
+			}
 			room = byte(min(m.Clear/cell, 1)*255 + 0.5)
 		}
 		r.lattice.SubImage(image.Rect(m.X, m.Y, m.X+1, m.Y+1)).WritePixels(r.texel[:])
@@ -587,6 +600,12 @@ func (r *Renderer) cut(cols, rows int, cell float32, heights []float32) {
 	for _, m := range r.mouthed {
 		mark(m, true)
 	}
+}
+
+// roomFloor is a room's floor off its cell's corner, a cell either way at most, in a byte: half
+// way for none
+func roomFloor(off, cell float32) byte {
+	return byte(min(max(0.5+off/(2*cell), 0), 1)*255 + 0.5)
 }
 
 // (n+1)/2 in red, green and blue; one-sided at the edge

@@ -84,8 +84,19 @@ func issuedBy[C command.Command](i command.Issued[C]) issuer {
 var _ goke.System = (*System)(nil)
 
 // NewSystem carries out moves and looks for the units marked selected, routing over pathFinder.
-func NewSystem(pathFinder *spacing.Finder, moves *command.Queue[order.MoveTo], looks *command.Queue[order.LookAt], selected tag.Tag[selection.Family]) *System {
-	return &System{keep: spacing.NewCellKeeping(pathFinder, pathFinder.Occupancy), moves: moves, looks: looks, selected: selected, kind: pathFinder.Terrain.Kind}
+func NewSystem(
+	pathFinder *spacing.Finder,
+	moves *command.Queue[order.MoveTo],
+	looks *command.Queue[order.LookAt],
+	selected tag.Tag[selection.Family],
+) *System {
+	return &System{
+		keep:     spacing.NewCellKeeping(pathFinder, pathFinder.Occupancy),
+		moves:    moves,
+		looks:    looks,
+		selected: selected,
+		kind:     pathFinder.Terrain.Kind,
+	}
 }
 
 // WithKeeping has k place the units a command sends.
@@ -209,7 +220,15 @@ func (s *System) selectedMembers(by command.Issuer, fn func(bodies.Member)) {
 	for s.query.Paced(0); s.query.Next(); {
 		cursor := s.query.Cursor()
 		cells, marks, orders := s.cell.Slice(cursor), s.marks.Slice(cursor), s.order.Slice(cursor)
-		movers, bases, zs, steers := s.mover.Slice(cursor), s.base.Slice(cursor), s.z.Slice(cursor), s.steer.Slice(cursor)
+		movers, bases, zs, steers := s.mover.Slice(
+			cursor,
+		), s.base.Slice(
+			cursor,
+		), s.z.Slice(
+			cursor,
+		), s.steer.Slice(
+			cursor,
+		)
 		owners, level := s.owners.Slice(cursor), s.levels.Of(cursor)
 		for i, id := range cursor.IDs {
 			var owned tag.Tags[owner.Family]

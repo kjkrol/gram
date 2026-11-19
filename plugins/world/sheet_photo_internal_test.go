@@ -284,7 +284,9 @@ func TestSheets_KeepWhatStandsBetweenFramesTillItsChunkOrTheWorldsRestillsMove(t
 			"%d, %d", f.sheet.photos, s.r.sheet.version[3], s.r.standers.rebuilds, v[3]+1,
 			rebuilds+1)
 	}
-	if at := f.sheet.instances[f.sheet.photos[0].from:f.sheet.photos[0].to]; len(at) != photoFloats ||
+	if at := f.sheet.instances[f.sheet.photos[0].from:f.sheet.photos[0].to]; len(
+		at,
+	) != photoFloats ||
 		at[8] != 30 {
 		t.Errorf("laid %v, want the one raised, 30 up", at)
 	}

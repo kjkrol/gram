@@ -39,8 +39,12 @@ func TestCells_ATemplateRefusedPanicsSayingWhy(t *testing.T) {
 		give comp.Comp
 		want []string
 	}{
-		"the board's own":    {comp.Const(cell.Ground{}), []string{"cell.Ground", "the board gives every cell itself"}},
-		"a row not the cell": {comp.Load(func(r struct{ n int }) fuel { return fuel{r.n} }), []string{"terrain_test.fuel", "a cell's row is its cell.ID"}},
+		"the board's " +
+			"own": {comp.Const(cell.Ground{}), []string{"cell.Ground", "the board gives every " +
+			"cell itself"}},
+		"a row not the " +
+			"cell": {comp.Load(func(r struct{ n int }) fuel { return fuel{r.n} }),
+			[]string{"terrain_test.fuel", "a cell's row is its cell.ID"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			panicsWith(t, func() {

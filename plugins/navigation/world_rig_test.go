@@ -92,7 +92,12 @@ type testBoard struct {
 // the board of p as the tests lay and read it
 func boardOf(p *board.Plugin) testBoard { return testBoard{p.Read(0).Board(), p.Write().Board()} }
 
-func newNavWorld(t *testing.T, cols, rows, cellSize uint32, units []navUnit, after ...goke.System) *navWorld {
+func newNavWorld(
+	t *testing.T,
+	cols, rows, cellSize uint32,
+	units []navUnit,
+	after ...goke.System,
+) *navWorld {
 	t.Helper()
 	return newNavWorldWith(t, cols, rows, cellSize, units, nil, after...)
 }
@@ -110,7 +115,10 @@ func newNavWorldIn(t testing.TB, pool *parallel.Pool, cols, rows, cellSize uint3
 	sectors world.SectorsCfg, ladder lod.Ladder, prepare func(*world.Plugin, *board.Plugin),
 	after ...goke.System) *navWorld {
 	t.Helper()
-	nw := &navWorld{grid: grid.DefaultGrids{}.Square(cols, rows, cellSize), occupancy: &cell.SingleOccupancy{}}
+	nw := &navWorld{
+		grid:      grid.DefaultGrids{}.Square(cols, rows, cellSize),
+		occupancy: &cell.SingleOccupancy{},
+	}
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: cols * cellSize, Height: rows * cellSize},
 		Entities: world.EntitiesCfg{MaxCount: len(units) + 8, MinSize: 1, MaxSize: cellSize},

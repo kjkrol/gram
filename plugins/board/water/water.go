@@ -65,7 +65,12 @@ type Network struct {
 var ErrNotSquare = errors.New("water: drains a square grid alone")
 
 // Drain works out the network over grid for heights, water leaving where sea says.
-func Drain(grid grid.Grid, heights func(geom.Vec) float32, sea func(cell.ID) bool, cfg Config) (*Network, error) {
+func Drain(
+	grid grid.Grid,
+	heights func(geom.Vec) float32,
+	sea func(cell.ID) bool,
+	cfg Config,
+) (*Network, error) {
 	var any cell.ID
 	grid.EachCell(func(c cell.ID) { any = c })
 	if len(grid.CellOutline(any, nil)) != 4 {
@@ -283,7 +288,10 @@ func (n *Network) Net(kinds map[Course]string) *network.Network {
 	net := network.New(n.grid)
 	for c, k := range n.Courses {
 		if k != Dry {
-			net.Set(c, network.Node{Kind: kinds[k], Width: n.Width(c, float32(n.cw)), Fade: n.Fade(c)})
+			net.Set(
+				c,
+				network.Node{Kind: kinds[k], Width: n.Width(c, float32(n.cw)), Fade: n.Fade(c)},
+			)
 		}
 	}
 	for c, k := range n.Courses {

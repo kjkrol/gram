@@ -59,6 +59,9 @@ func TestMeeting_FacingIsTheWordOfTheOneTurnedTowardsTheOther(t *testing.T) {
 		_ = h
 	}
 	if len(told) != 1 {
-		t.Fatalf("facing told %d times, want once: the one west of the lever, turned east", len(told))
+		t.Fatalf(
+			"facing told %d times, want once: the one west of the lever, turned east",
+			len(told),
+		)
 	}
 }

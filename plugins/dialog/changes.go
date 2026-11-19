@@ -109,7 +109,13 @@ func (c *Conditions) Define(name string, cond Condition) {
 		panic(fmt.Sprintf("dialog: the condition %q is defined already", name))
 	}
 	if _, ok := c.p.w.Write().Effects().Lookup(name); ok {
-		panic(fmt.Sprintf("dialog: the condition %q is named as an effect is: an answer's if would not tell them apart", name))
+		panic(
+			fmt.Sprintf(
+				"dialog: the condition %q is named as an effect is: an answer's if would not "+
+					"tell them apart",
+				name,
+			),
+		)
 	}
 	if c.byName == nil {
 		c.byName = map[string]Condition{}
@@ -123,7 +129,11 @@ var ConversationsPart = section.Define("Conversations", section.Commands, sectio
 
 // Conversations is the dialog plugin's section of a Stage, for stage.With: f defines the changes
 // and conditions and loads the conversations.
-func Conversations(f func(d *Plugin) error) section.Section { return section.Of(ConversationsPart, f) }
+func Conversations(
+	f func(d *Plugin) error,
+) section.Section {
+	return section.Of(ConversationsPart, f)
+}
 
 func (p *Plugin) bind(si *goke.SysInit) {
 	for _, ch := range p.changes.byName {

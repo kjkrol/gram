@@ -31,7 +31,14 @@ func benchWorld(b *testing.B, ctx *headless, n int) *goke.ECS {
 }
 
 // view 0: the whole world
-func benchWorldViewed(b *testing.B, ctx *headless, n int, spacing int, view uint32, arrange func(*world.Plugin, kind.Of[mover])) *goke.ECS {
+func benchWorldViewed(
+	b *testing.B,
+	ctx *headless,
+	n int,
+	spacing int,
+	view uint32,
+	arrange func(*world.Plugin, kind.Of[mover]),
+) *goke.ECS {
 	return benchWorldIn(b, ctx, world.Config{}, n, spacing, view, arrange)
 }
 
@@ -59,7 +66,10 @@ func benchWorldIn(b *testing.B, ctx *headless, cfg world.Config, n int, spacing 
 	}
 	entries := make([]kind.Entry, 0, n)
 	for i := range n {
-		entries = append(entries, movers.Entry(mover{float32(10 + (i%side)*spacing), float32(10 + (i/side)*spacing)}))
+		entries = append(
+			entries,
+			movers.Entry(mover{float32(10 + (i%side)*spacing), float32(10 + (i/side)*spacing)}),
+		)
 	}
 	w.Write().Seed(entries...)
 	ctx.cam = ctx.camera(cameras.Config{}, cameras.FromAbove, float32(view), float32(view))
@@ -283,7 +293,13 @@ func Benchmark_World_PositionScan(b *testing.B) {
 			var query *goke.Query
 			ctx := newHeadless()
 			ctx.pending = append(ctx.pending, func() []goke.System {
-				return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) { query = si.NewQueryBuilder(&base).Build() }}}
+				return []goke.System{
+					goke.SystemFn{
+						OnInit: func(si *goke.SysInit) {
+							query = si.NewQueryBuilder(&base).Build()
+						},
+					},
+				}
 			})
 			benchWorld(b, ctx, n)
 			var sink float32

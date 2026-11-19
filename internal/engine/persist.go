@@ -70,7 +70,12 @@ func save(ecs *goke.ECS, basePath, label string, groups map[string][]any) error 
 	return err
 }
 
-func load(ecs *goke.ECS, basePath, label string, comps []goke.CompToken, groups map[string][]any) (map[string][]byte, error) {
+func load(
+	ecs *goke.ECS,
+	basePath, label string,
+	comps []goke.CompToken,
+	groups map[string][]any,
+) (map[string][]byte, error) {
 	in, err := os.Open(filePath(basePath, label))
 	if err != nil {
 		return nil, err

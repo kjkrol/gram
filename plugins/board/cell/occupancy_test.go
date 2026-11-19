@@ -75,13 +75,15 @@ func TestOccupancy_HolderTellsWhoHoldsACell(t *testing.T) {
 }
 
 func TestOccupancy_ReleaseLetsGoOfTheGone(t *testing.T) {
-	for name, occ := range map[string]cell.Occupancy{"single": &cell.SingleOccupancy{}, "multiple": &cell.MultipleOccupancy{}} {
+	for name, occ := range map[string]cell.Occupancy{"single": &cell.SingleOccupancy{},
+		"multiple": &cell.MultipleOccupancy{}} {
 		gone, stays := uid.UID64(1), uid.UID64(2)
 		occ.Enter(10, cell.OnGround, gone, cell.Land)
 		occ.Enter(11, cell.OnGround, gone, cell.Land) // the cell it was stepping into
 		occ.Enter(12, cell.OnGround, stays, cell.Land)
 		occ.Release(func(id uid.UID64) bool { return id == gone })
-		if !occ.CanEnter(10, cell.OnGround, 3, cell.Land) || !occ.CanEnter(11, cell.OnGround, 3, cell.Land) {
+		if !occ.CanEnter(10, cell.OnGround, 3, cell.Land) ||
+			!occ.CanEnter(11, cell.OnGround, 3, cell.Land) {
 			t.Errorf("%s: a cell the gone held still refuses another", name)
 		}
 		if h, ok := occ.(interface {
@@ -105,7 +107,8 @@ func TestSingleOccupancy_IsOnePerDomainOnEachLevel(t *testing.T) {
 		t.Error("a walker may not hold the ground under a deck another walker holds")
 	}
 	o.Enter(here, cell.OnGround, below, cell.Land)
-	if o.CanEnter(here, cell.OnDeck, third, cell.Land) || o.CanEnter(here, cell.OnGround, third, cell.Land) {
+	if o.CanEnter(here, cell.OnDeck, third, cell.Land) ||
+		o.CanEnter(here, cell.OnGround, third, cell.Land) {
 		t.Error("a third walker may hold a level another holds")
 	}
 	if who, ok := o.Holder(here, cell.OnGround, cell.Land); !ok || who != below {

@@ -84,7 +84,12 @@ func TestFindPath_TakesTheRoadRoundWhereTheGroundCostsMore(t *testing.T) {
 		}
 		switch {
 		case c.roadOnly && off > 0:
-			t.Errorf("grass at %v: %d of %d steps off the road, want the road round", c.ground, off, path.Length)
+			t.Errorf(
+				"grass at %v: %d of %d steps off the road, want the road round",
+				c.ground,
+				off,
+				path.Length,
+			)
 		case !c.roadOnly && path.Length != 6:
 			t.Errorf("grass at %v: %d steps, want 6 straight across", c.ground, path.Length)
 		}
@@ -125,7 +130,9 @@ func TestFindPath_FollowsARoadRoundItsBendRatherThanCuttingTheCorner(t *testing.
 	}
 	roadOver(brd, brdW, road, cells...)
 	pf := newPathFinder(grid, brd, nil, &cell.MultipleOccupancy{})
-	if got, _ := pf.price(at(3, 0), at(4, 1), brd.Kind(at(4, 1)), cell.Land); math.Abs(got-2*math.Sqrt2) > 1e-9 {
+	if got, _ := pf.price(at(3, 0), at(4, 1), brd.Kind(at(4, 1)), cell.Land); math.Abs(
+		got-2*math.Sqrt2,
+	) > 1e-9 {
 		t.Errorf("the diagonal across the bend costs %v, want the grass's 2√2", got)
 	}
 	path, ok := pf.findPath(uid.UID64(1), cell.Land, at(0, 0), at(4, 4))
@@ -164,10 +171,13 @@ func TestFindPath_TakesADiagonalRoadAlongItsLinks(t *testing.T) {
 		if !linked {
 			want = 2 * math.Sqrt2
 		}
-		if got, _ := pf.price(at(0, 0), at(1, 1), brd.Kind(at(1, 1)), cell.Land); math.Abs(got-want) > 1e-9 {
+		if got, _ := pf.price(at(0, 0), at(1, 1), brd.Kind(at(1, 1)), cell.Land); math.Abs(
+			got-want,
+		) > 1e-9 {
 			t.Errorf("linked %v: the slantwise step costs %v, want %v", linked, got, want)
 		}
-		if path, ok := pf.findPath(uid.UID64(1), cell.Land, at(0, 0), at(4, 4)); linked && (!ok || path.Length != 4) {
+		if path, ok := pf.findPath(uid.UID64(1), cell.Land, at(0, 0), at(4, 4)); linked &&
+			(!ok || path.Length != 4) {
 			t.Errorf("along the links: ok=%v, %d steps, want 4 slantwise", ok, path.Length)
 		}
 	}
@@ -206,7 +216,11 @@ func TestFindPath_AGradedRoadIsNotPricedByTheSlope(t *testing.T) {
 			}
 		}
 		if graded && (path.Length != 6 || over != 1) {
-			t.Errorf("graded: %d steps, %d over the ridge, want 6 straight over it by the road", path.Length, over)
+			t.Errorf(
+				"graded: %d steps, %d over the ridge, want 6 straight over it by the road",
+				path.Length,
+				over,
+			)
 		}
 		if !graded && over > 0 {
 			t.Error("ungraded: the walker went over the ridge, want round it")

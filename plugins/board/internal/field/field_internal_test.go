@@ -21,10 +21,16 @@ func TestField_TheCoverFollowsEveryChangeOfACell(t *testing.T) {
 	c6 := grid.At(6, 0)
 	cells.Set(c3, veiled)
 	walk := func() (stretches [][2]float32) {
-		f.Walk(geom.NewVec(0, 5), geom.NewVec(1, 0), 80, world.Layers(cell.Land), func(near, far, _, _, tau float32) bool {
-			stretches = append(stretches, [2]float32{near, far})
-			return true
-		})
+		f.Walk(
+			geom.NewVec(0, 5),
+			geom.NewVec(1, 0),
+			80,
+			world.Layers(cell.Land),
+			func(near, far, _, _, tau float32) bool {
+				stretches = append(stretches, [2]float32{near, far})
+				return true
+			},
+		)
 		return stretches
 	}
 	if got := walk(); len(got) != 1 || got[0] != [2]float32{30, 40} {
@@ -58,12 +64,15 @@ func TestGround_OverhangIsTheAreaOverGroundThatDoesNotTakeTheEntity(t *testing.T
 	for _, c := range []struct {
 		layers world.Layers
 		want   float32
-	}{{world.Layers(cell.Land), 40}, {world.Layers(cell.Water), 60}, {world.Layers(cell.Land | cell.Water), 0}, {0, 0}} { // no layers: every plane
+		// no layers: every plane
+	}{{world.Layers(cell.Land), 40}, {world.Layers(cell.Water), 60}, {world.Layers(cell.Land |
+		cell.Water), 0}, {0, 0}} {
 		if got := f.Overhang(c.layers, box); f32.Abs(got-c.want) > f32.Eps(c.want) {
 			t.Errorf("layers %v: overhang %v, want %v", c.layers, got, c.want)
 		}
 	}
-	if got := f.Overhang(world.Layers(cell.Land), geom.NewAABBAt(geom.NewVec(-5, -5), 10, 10)); got != 0 {
+	if got := f.Overhang(world.Layers(cell.Land), geom.NewAABBAt(geom.NewVec(-5, -5), 10,
+		10)); got != 0 {
 		t.Errorf("off the board the overhang is %v, want none", got)
 	}
 }

@@ -10,32 +10,51 @@ type On struct{ Cell ID }
 // ground's). With a Width it is a band that wide from the cell's middle out to each neighbour its
 // Links name; without, the whole cell.
 type Floor struct {
-	Allows    Domain
+	// the widest first, so none of it is padding: every step reads the floors of the cells it
+	// crosses
+
+	Pace      float64
 	Height    float32
 	Thickness float32
 	// Load is the most whoever it carries may weigh, in kg (unit.Mover.Weight); 0 bears anyone.
-	Load   float32
-	Pace   float64
-	Graded bool
+	Load  float32
+	Width float32
+	// Clear is the room over a floor sunk or Standing, up to its roof: whoever is taller stays
+	// out. A room is walled round its cell but where its Links lead: on along its storey, or out
+	// by its Door.
+	Clear float32
+	// Door is the opening of a room in the middle of each edge its Links lead out by to no floor
+	// of its storey: a zero Width is shut.
+	Door   Gap
+	Allows Domain
 	Links  Links
-	Width  float32
 	// Storey is which of the cell's storeys the floor is, the first 0: floors of one storey on a
 	// cell are one floor, floors of two cross over each other.
 	Storey uint8
-	// Clear is the room over a sunk floor, up to its roof: whoever is taller stays out.
-	Clear float32
+	Graded bool
+	// Standing has the room stand on the ground at any height, built, the ground cut where it
+	// rises into it (a house's); without, a room is dug under the ground, the ground its roof.
+	Standing bool
 }
 
-// Level is the level of its cell f makes: the ground's where it lies on it, else its storey's.
+// Level is the level of its cell f makes: the ground's where it lies on it, but for a room
+// standing there, else its storey's.
 func (f Floor) Level() Level {
-	if f.Height == 0 {
+	if f.Height == 0 && !f.Room() {
 		return OnGround
 	}
 	return OnDeck + Level(f.Storey)
 }
 
-// Sunk reports whether f lies under the ground: a tunnel's floor, a cave's.
+// Sunk reports whether f lies under its cell's level: a tunnel's floor, a house's dug into a
+// slope.
 func (f Floor) Sunk() bool { return f.Height < 0 }
+
+// Room reports whether f has a room over it (Clear): dug, sunk under the ground, or Standing.
+func (f Floor) Room() bool { return f.Clear > 0 && (f.Standing || f.Height < 0) }
+
+// Dug reports whether f's room is dug under the ground: a tunnel's, a chamber's.
+func (f Floor) Dug() bool { return f.Clear > 0 && !f.Standing && f.Height < 0 }
 
 // Knob: an effect may turn it (effect.Knob).
 func (Floor) Knob() {}
@@ -87,12 +106,12 @@ type Built struct {
 // On is the floor making b's cell's level l, the zero Floor where none does.
 func (b *Built) On(l Level) Floor {
 	if l == OnGround {
-		if b.Floor.Height == 0 {
+		if b.Floor.Level() == OnGround {
 			return b.Floor
 		}
 		return Floor{}
 	}
-	if f := b.Storey(uint8(l - OnDeck)); f.Height != 0 {
+	if f := b.Storey(uint8(l - OnDeck)); f.Level() != OnGround {
 		return *f
 	}
 	return Floor{}
@@ -111,7 +130,8 @@ const Storeys = Levels - 1
 
 // Levelled reports whether a floor of b gives its cell a level beyond the ground's.
 func (b *Built) Levelled() bool {
-	return b.Floor.Height != 0 || b.More[0].Height != 0 || b.More[1].Height != 0
+	return b.Floor.Level() != OnGround || b.More[0].Level() != OnGround ||
+		b.More[1].Level() != OnGround
 }
 
 // Over is under as whoever crosses the cell meets it with what is built over it, on any level.

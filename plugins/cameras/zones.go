@@ -131,7 +131,9 @@ func (v *zonesView) DrawGlass(dst *render.Image, cam camera.Camera) {
 
 func (p *Plugin) switchZones() {
 	p.zones.Drain(func(i command.Issued[Zones]) { p.write.ShowZones(i.Command.Shown) })
-	p.edgeScrolls.Drain(func(i command.Issued[EdgeScroll]) { p.write.ScrollFromEdges(i.Command.On) })
+	p.edgeScrolls.Drain(
+		func(i command.Issued[EdgeScroll]) { p.write.ScrollFromEdges(i.Command.On) },
+	)
 	p.cornerTurns.Drain(func(i command.Issued[CornerTurn]) {
 		p.write.TurnInCorners(i.Command.On)
 	})

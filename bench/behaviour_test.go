@@ -85,7 +85,10 @@ func newBehaviour(b *testing.B, n int, define func(bh *behaviour) kind.Spec) *be
 	}
 	entries := make([]kind.Entry, 0, n)
 	for i := range n {
-		entries = append(entries, movers.Entry(mover{float32(10 + (i%side)*30), float32(10 + (i/side)*30)}))
+		entries = append(
+			entries,
+			movers.Entry(mover{float32(10 + (i%side)*30), float32(10 + (i/side)*30)}),
+		)
 	}
 	bh.w.Write().Seed(entries...)
 	if err := bh.ctx.Deliver(bh.w.Kinds().Played()...); err != nil {
@@ -110,7 +113,8 @@ func newBehaviour(b *testing.B, n int, define func(bh *behaviour) kind.Spec) *be
 						}
 					}
 					bh.tick++
-					for i, id := range bh.ids { // a pulse carried eight ticks, a sixteenth told a tick
+					// a pulse carried eight ticks, a sixteenth told a tick
+					for i, id := range bh.ids {
 						switch {
 						case i%16 == bh.tick%16:
 							cb.AddOne(id, bh.pulse, pulse{N: int32(bh.tick)})

@@ -69,7 +69,12 @@ func (s *fallSystem) Init(si *goke.SysInit) {
 func (s *fallSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	pull := pullOf(s.pulls, &s.pull)
 	if pull.X != 0 || pull.Y != 0 {
-		panic(fmt.Sprintf("gravity: the pull along Z turned across, %+v; a world keeps its way", pull))
+		panic(
+			fmt.Sprintf(
+				"gravity: the pull along Z turned across, %+v; a world keeps its way",
+				pull,
+			),
+		)
 	}
 	g := max(-pull.Z, 0)
 	s.throw(g)

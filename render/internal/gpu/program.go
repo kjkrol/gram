@@ -22,7 +22,7 @@ func shader(name string) string {
 	if err != nil {
 		panic(err)
 	}
-	return string(b)
+	return strings.ReplaceAll(string(b), "FRAME_IMAGES", fmt.Sprint(FrameImages))
 }
 
 // Vertex is one corner of a triangle drawn: where in the target (Dst) and in the first image
@@ -144,7 +144,11 @@ func NewProgram(label, uniformFields, source string) *Program {
 	b.WriteString(shader("quad"))
 	b.WriteString("\n")
 	b.WriteString(source)
-	return &Program{label: label, source: b.String(), pipelines: map[pipelineKey]*wgpu.RenderPipeline{}}
+	return &Program{
+		label:     label,
+		source:    b.String(),
+		pipelines: map[pipelineKey]*wgpu.RenderPipeline{},
+	}
 }
 
 // NewMesh is a program with a vertex stage of its own, source defining vs_main and fs_main over
@@ -245,7 +249,11 @@ func (p *Program) pipeline(
 	var state *gputypes.BlendState
 	switch blend {
 	case SourceOver:
-		over := gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorOneMinusSrcAlpha, Operation: gputypes.BlendOperationAdd}
+		over := gputypes.BlendComponent{
+			SrcFactor: gputypes.BlendFactorOne,
+			DstFactor: gputypes.BlendFactorOneMinusSrcAlpha,
+			Operation: gputypes.BlendOperationAdd,
+		}
 		state = &gputypes.BlendState{Color: over, Alpha: over}
 	case Darkest:
 		least := gputypes.BlendComponent{
@@ -256,7 +264,8 @@ func (p *Program) pipeline(
 		state = &gputypes.BlendState{Color: least, Alpha: least}
 	}
 	buffers := []gputypes.VertexBufferLayout{{
-		ArrayStride: vertexSize, StepMode: gputypes.VertexStepModeVertex, Attributes: []gputypes.VertexAttribute{
+		ArrayStride: vertexSize, StepMode: gputypes.VertexStepModeVertex,
+		Attributes: []gputypes.VertexAttribute{
 			{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
 			{Format: gputypes.VertexFormatFloat32x2, Offset: 12, ShaderLocation: 1},
 			{Format: gputypes.VertexFormatFloat32x4, Offset: 20, ShaderLocation: 2},
@@ -268,9 +277,19 @@ func (p *Program) pipeline(
 		if p.instance > 0 {
 			attrs := make([]gputypes.VertexAttribute, p.instance)
 			for k := range attrs {
-				attrs[k] = gputypes.VertexAttribute{Format: gputypes.VertexFormatFloat32x4, Offset: uint64(16 * k), ShaderLocation: uint32(k)}
+				attrs[k] = gputypes.VertexAttribute{
+					Format:         gputypes.VertexFormatFloat32x4,
+					Offset:         uint64(16 * k),
+					ShaderLocation: uint32(k),
+				}
 			}
-			buffers = []gputypes.VertexBufferLayout{{ArrayStride: uint64(16 * p.instance), StepMode: gputypes.VertexStepModeInstance, Attributes: attrs}}
+			buffers = []gputypes.VertexBufferLayout{
+				{
+					ArrayStride: uint64(16 * p.instance),
+					StepMode:    gputypes.VertexStepModeInstance,
+					Attributes:  attrs,
+				},
+			}
 		}
 	}
 	var ds *wgpu.DepthStencilState
@@ -301,11 +320,19 @@ func (p *Program) pipeline(
 		Layout:       d.layout,
 		Vertex:       wgpu.VertexState{Module: p.module, EntryPoint: "vs_main", Buffers: buffers},
 		DepthStencil: ds,
-		Primitive:    gputypes.PrimitiveState{Topology: gputypes.PrimitiveTopologyTriangleList, FrontFace: gputypes.FrontFaceCCW, CullMode: gputypes.CullModeNone},
-		Multisample:  gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
-		Fragment: &wgpu.FragmentState{Module: p.module, EntryPoint: entry, Targets: []gputypes.ColorTargetState{
-			{Format: format, Blend: state, WriteMask: mask},
-		}},
+		Primitive: gputypes.PrimitiveState{
+			Topology:  gputypes.PrimitiveTopologyTriangleList,
+			FrontFace: gputypes.FrontFaceCCW,
+			CullMode:  gputypes.CullModeNone,
+		},
+		Multisample: gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+		Fragment: &wgpu.FragmentState{
+			Module:     p.module,
+			EntryPoint: entry,
+			Targets: []gputypes.ColorTargetState{
+				{Format: format, Blend: state, WriteMask: mask},
+			},
+		},
 	})
 	if err != nil {
 		panic(fmt.Errorf("gpu: the %s pipeline: %w", p.label, err))
@@ -348,7 +375,9 @@ func Triangles(dw *Draw, verts []Vertex, indices []uint16) {
 
 func (d *device) triangles(t *target, clip Rect, dw *Draw, verts []Vertex, indices []uint16) {
 	if len(dw.Uniforms) > uniformBlock {
-		panic(fmt.Sprintf("gpu: %d bytes of uniforms, more than %d", len(dw.Uniforms), uniformBlock))
+		panic(
+			fmt.Sprintf("gpu: %d bytes of uniforms, more than %d", len(dw.Uniforms), uniformBlock),
+		)
 	}
 	clip = clip.intersect(Rect{0, 0, t.w, t.h})
 	if clip.W <= 0 || clip.H <= 0 {
@@ -374,7 +403,14 @@ func (d *device) triangles(t *target, clip Rect, dw *Draw, verts []Vertex, indic
 	d.bindFrame(pass, group3)
 	pass.SetVertexBuffer(0, d.vbuf, vOff)
 	pass.SetIndexBuffer(d.ibuf, gputypes.IndexFormatUint16, iOff)
-	pass.SetScissorRect(gputypes.ScissorRect{X: uint32(clip.X), Y: uint32(clip.Y), Width: uint32(clip.W), Height: uint32(clip.H)})
+	pass.SetScissorRect(
+		gputypes.ScissorRect{
+			X:      uint32(clip.X),
+			Y:      uint32(clip.Y),
+			Width:  uint32(clip.W),
+			Height: uint32(clip.H),
+		},
+	)
 	pass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: uint32(len(indices)), InstanceCount: 1})
 }
 
@@ -429,7 +465,10 @@ func (d *device) drawBlock(
 		if im.Texture == nil {
 			r = Rect{}
 		}
-		d.draws = appendF32(appendF32(appendF32(appendF32(d.draws, float32(r.X)), float32(r.Y)), float32(r.W)), float32(r.H))
+		d.draws = appendF32(
+			appendF32(appendF32(appendF32(d.draws, float32(r.X)), float32(r.Y)), float32(r.W)),
+			float32(r.H),
+		)
 	}
 	if place == ([4]float32{}) {
 		place = [4]float32{1, 1, 0, 0}

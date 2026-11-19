@@ -50,13 +50,31 @@ func (h *hands) sum() {
 		})
 	})
 	h.backs.Drain(func(i command.Issued[Back]) {
-		h.add(i.Issuer, i.Entity, i.ByEntity, i.Command.Camera, func(x *hand) { x.ahead = clampWay(x.ahead - 1) })
+		h.add(
+			i.Issuer,
+			i.Entity,
+			i.ByEntity,
+			i.Command.Camera,
+			func(x *hand) { x.ahead = clampWay(x.ahead - 1) },
+		)
 	})
 	h.turns.Drain(func(i command.Issued[Turn]) {
-		h.add(i.Issuer, i.Entity, i.ByEntity, i.Command.Camera, func(x *hand) { x.turn = clampWay(x.turn + i.Command.Way) })
+		h.add(
+			i.Issuer,
+			i.Entity,
+			i.ByEntity,
+			i.Command.Camera,
+			func(x *hand) { x.turn = clampWay(x.turn + i.Command.Way) },
+		)
 	})
 	h.strafes.Drain(func(i command.Issued[Strafe]) {
-		h.add(i.Issuer, i.Entity, i.ByEntity, i.Command.Camera, func(x *hand) { x.side = clampWay(x.side + i.Command.Way) })
+		h.add(
+			i.Issuer,
+			i.Entity,
+			i.ByEntity,
+			i.Command.Camera,
+			func(x *hand) { x.side = clampWay(x.side + i.Command.Way) },
+		)
 	})
 	h.towards.Drain(func(i command.Issued[Toward]) {
 		h.add(i.Issuer, i.Entity, i.ByEntity, i.Command.Camera, func(x *hand) {
@@ -69,7 +87,13 @@ func (h *hands) sum() {
 	})
 }
 
-func (h *hands) add(player command.Issuer, entity uid.UID64, byEntity bool, cam camera.Camera, change func(*hand)) {
+func (h *hands) add(
+	player command.Issuer,
+	entity uid.UID64,
+	byEntity bool,
+	cam camera.Camera,
+	change func(*hand),
+) {
 	if byEntity {
 		x := h.entities[entity]
 		change(&x)

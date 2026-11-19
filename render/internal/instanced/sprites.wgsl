@@ -9,10 +9,11 @@
 // depth test, and what is all but clear of it is left out. A sprite the screen turns other than
 // by quarters is read smooth and its border fades over a pixel; any other texel for texel. It
 // takes the shadows the ground holds (render.GroundShade) as its bits say (lift.z, render.Taking),
-// the sun's share of its light (lift.w) taken away in them. One giving way (lift.z's givesWay,
-// Sprites.GiveWay) is left out at the pixels where something uncovered lies farther than it
-// (U.Uncovering, the library's givesWayAt), read only within the screen's rectangle the
-// uncovered lie in (U.UncoveredIn).
+// the sun's share of its light (lift.w) taken away in them; one under a shelter (lift.z's
+// shelterOf) takes the light that gets in at its pixel (shelteredLight) in their place. One
+// giving way (lift.z's givesWay, Sprites.GiveWay) is left out at the pixels where something
+// uncovered lies farther than it (U.Uncovering, the library's givesWayAt), read only within the
+// screen's rectangle the uncovered lie in (U.UncoveredIn).
 
 struct Piece {
     @builtin(position) clip: vec4<f32>,
@@ -129,8 +130,15 @@ fn fs_main(p: Piece) -> @location(0) vec4<f32> {
         let cover = clamp(0.5 + min(inside.x, inside.y), 0.0, 1.0);
         c = imageSrc0Linear(clamp(p.src, lo + 0.5, hi - 0.5)) * cover;
     }
-    c *= vec4<f32>(p.light.rgb, 1.0);
-    if p.shade.y > 0.0 {
+    let shelter = shelterOf(p.shade.x);
+    if shelter > 0u {
+        // under a roof, the light that gets in at the pixel and none of the open air's shade
+        let lit = shelteredLight(vec3<f32>(p.world, p.shade.z), shelter - 1u, p.light.rgb);
+        c = vec4<f32>(c.rgb * lit, c.a);
+    } else {
+        c *= vec4<f32>(p.light.rgb, 1.0);
+    }
+    if shelter == 0u && p.shade.y > 0.0 {
         var ground = groundHeightAt(p.world);
         if ground == groundNone {
             ground = 0.0;
@@ -148,7 +156,8 @@ fn fs_main(p: Piece) -> @location(0) vec4<f32> {
     c = vec4<f32>(mix(c.rgb, U.Fog * c.a, p.fog), c.a);
     if U.Cut > 0.5 {
         if c.a < 0.5 {
-            discard; // a cutout: what is less than half there is left out, the depth kept for what shows
+            // a cutout: what is less than half there is left out, the depth kept for what shows
+            discard;
         }
     } else if U.Deep > 0.5 && c.a < 0.5 / 255.0 {
         discard; // writing no depth where nothing shows

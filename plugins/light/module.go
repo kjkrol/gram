@@ -23,7 +23,7 @@ func (m *module) SetupSystems() []goke.System { return nil }
 
 func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{goke.LoadComp[Source](), goke.LoadComp[Shining](),
-		goke.LoadComp[Shadow]()}
+		goke.LoadComp[Shadow](), goke.LoadComp[Shelter](), goke.LoadComp[Sheltered]()}
 }
 
 // ownSun has the plugin's own entity shine the scene's distant light, and readies the plugin's
@@ -45,6 +45,7 @@ func (s *ownSun) Init(si *goke.SysInit) {
 	p.blocks = si.NewQueryBuilder(&p.blockBase, &p.blockZ, &p.blockOf).Optional(&p.blockLie).
 		Optional(&p.blockStand).
 		Exclude(goke.Exclude[sector.L6]()).Build()
+	p.shelters = si.NewQueryBuilder(&p.shelterOf, &p.shelterZ).Build()
 }
 
 func (s *ownSun) Update(*goke.CmdBuf, time.Duration) {

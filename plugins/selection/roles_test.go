@@ -55,7 +55,13 @@ func newSquad(t *testing.T) *squad {
 		Entities: world.EntitiesCfg{MaxCount: 16, MinSize: 10, MaxSize: 10},
 	})
 	sel := selection.NewPlugin(w)
-	s := &squad{t: t, w: w, sel: sel, players: players.NewPlugin(w, sel), kinds: map[string]kind.Of[soldier]{}}
+	s := &squad{
+		t:       t,
+		w:       w,
+		sel:     sel,
+		players: players.NewPlugin(w, sel),
+		kinds:   map[string]kind.Of[soldier]{},
+	}
 	s.me, s.rival = s.players.Local("me"), s.players.Add("rival")
 	s.players.Through(s.me).
 		Over(geom.AABB{}, render.NewFeed(cameratest.NewFromSpace(1000, 1000, 0), nil))
@@ -81,7 +87,11 @@ func newSquad(t *testing.T) *squad {
 				}
 				return t
 			}),
-			comp.Load(func(so soldier) tag.Tags[owner.Family] { return tag.Tags[owner.Family](0).With(owner.Of(so.by)) }),
+			comp.Load(
+				func(so soldier) tag.Tags[owner.Family] {
+					return tag.Tags[owner.Family](0).With(owner.Of(so.by))
+				},
+			),
 		}
 		if len(roles) > 0 {
 			spec = append(spec, ceremony.Plays(roles...))
@@ -118,7 +128,10 @@ func (s *squad) start(soldiers []soldier, bindings ...control.Binding) {
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
 	}
-	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) { s.q = si.NewQueryBuilder(&s.base).Build() }})
+	systems = append(
+		systems,
+		goke.SystemFn{OnInit: func(si *goke.SysInit) { s.q = si.NewQueryBuilder(&s.base).Build() }},
+	)
 	s.ecs = ctx.ecs
 	s.ecs.Setup(systems...)
 	s.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
@@ -181,7 +194,13 @@ func (s *squad) expect(e effect.Effect, want ...string) {
 	}
 	for _, so := range s.soldiers {
 		if got[so.name] != wanted[so.name] {
-			s.t.Errorf("%s: under %s %v, want %v", so.name, s.names[e], got[so.name], wanted[so.name])
+			s.t.Errorf(
+				"%s: under %s %v, want %v",
+				so.name,
+				s.names[e],
+				got[so.name],
+				wanted[so.name],
+			)
 		}
 	}
 }
@@ -212,8 +231,10 @@ func TestSelected_OfARoleIsMySelectedUnitsPlayingIt(t *testing.T) {
 		role  func(s *squad) *ceremony.Part
 		under []string
 	}{
-		{"hasty", func(s *squad) *ceremony.Part { return s.hasty }, []string{"my scout", "my veteran"}},
-		{"mortal", func(s *squad) *ceremony.Part { return s.mortal }, []string{"my guard", "my veteran"}},
+		{"hasty", func(s *squad) *ceremony.Part { return s.hasty }, []string{"my scout", "my " +
+			"veteran"}},
+		{"mortal", func(s *squad) *ceremony.Part { return s.mortal }, []string{"my guard", "my " +
+			"veteran"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			s := newSquad(t)

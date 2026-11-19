@@ -162,7 +162,10 @@ func Benchmark_Marker_Toggle(b *testing.B) {
 					w.ecs.Tick(time.Millisecond)
 					w.ecs.Tick(time.Millisecond)
 				}
-				b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N)/float64(2*n/every), "ns/toggle")
+				b.ReportMetric(
+					float64(b.Elapsed().Nanoseconds())/float64(b.N)/float64(2*n/every),
+					"ns/toggle",
+				)
 			})
 		}
 	}
@@ -177,19 +180,23 @@ func Benchmark_Marker_Find(b *testing.B) {
 			b.Run(fmt.Sprintf("share=%d%%/%s", share, way), func(b *testing.B) {
 				w := newMarkerWorld(b, n)
 				w.picking(n, every)
-				mark := w.ecs.RegSys(goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, _ time.Duration) {
-					k := 0
-					for w.all.All(); w.all.Next(); {
-						tags := w.tags.Slice(w.all.Cursor())
-						for i, id := range w.all.Cursor().IDs {
-							if k++; w.pick[k-1] {
-								cb.AddOne(id, w.ids[0], marker{Cell: 1})
-								tags[i] = tags[i].With(marked)
+				mark := w.ecs.RegSys(
+					goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, _ time.Duration) {
+						k := 0
+						for w.all.All(); w.all.Next(); {
+							tags := w.tags.Slice(w.all.Cursor())
+							for i, id := range w.all.Cursor().IDs {
+								if k++; w.pick[k-1] {
+									cb.AddOne(id, w.ids[0], marker{Cell: 1})
+									tags[i] = tags[i].With(marked)
+								}
 							}
 						}
-					}
-				}})
-				w.ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) { ctx.Run(mark, d); ctx.Sync() })
+					}},
+				)
+				w.ecs.SetPlan(
+					func(ctx goke.RunCtx, d time.Duration) { ctx.Run(mark, d); ctx.Sync() },
+				)
 				w.ecs.Tick(time.Millisecond)
 				found := 0
 				b.ResetTimer()

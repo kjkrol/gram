@@ -30,9 +30,25 @@ func valley() (grid.Grid, func(geom.Vec) float32, func(cell.ID) bool) {
 	return g, heights, sea
 }
 
-var names = map[water.Course]string{water.Brook: "brook", water.Stream: "stream", water.River: "river", water.Ford: "ford", water.Mouth: "mouth"}
+var names = map[water.Course]string{
+	water.Brook:  "brook",
+	water.Stream: "stream",
+	water.River:  "river",
+	water.Ford:   "ford",
+	water.Mouth:  "mouth",
+}
 
-var cfg = water.Config{BrookAt: 4, StreamAt: 8, RiverAt: 30, BrookDepth: 1, StreamDepth: 2, RiverDepth: 4, FordEvery: 4, FordSlope: 0.5, WidthPerRoot: 1}
+var cfg = water.Config{
+	BrookAt:      4,
+	StreamAt:     8,
+	RiverAt:      30,
+	BrookDepth:   1,
+	StreamDepth:  2,
+	RiverDepth:   4,
+	FordEvery:    4,
+	FordSlope:    0.5,
+	WidthPerRoot: 1,
+}
 
 func TestDrain_EveryCellDrainsToTheSeaAndTheValleyGathersARiver(t *testing.T) {
 	g, heights, sea := valley()
@@ -124,7 +140,11 @@ func TestDrain_FordsCrossTheRiverWhereItIsGentle(t *testing.T) {
 
 func TestDrain_RefusesAGridOtherThanSquare(t *testing.T) {
 	g := grid.DefaultGrids{}.Hex(6, 6, size)
-	if _, err := water.Drain(g, func(geom.Vec) float32 { return 1 }, func(cell.ID) bool { return false }, cfg); !errors.Is(err, water.ErrNotSquare) {
+	if _, err := water.Drain(g, func(geom.Vec) float32 { return 1 },
+		func(cell.ID) bool { return false }, cfg); !errors.Is(
+		err,
+		water.ErrNotSquare,
+	) {
 		t.Errorf("Drain over a hex grid: %v, want ErrNotSquare", err)
 	}
 }
@@ -155,7 +175,11 @@ func TestDrain_ARiverRunsSlantwiseDownASlantingValley(t *testing.T) {
 		}
 	}
 	if rivers == 0 || slant*2 < rivers {
-		t.Errorf("%d of %d river cells run slantwise, want most down the slanting valley", slant, rivers)
+		t.Errorf(
+			"%d of %d river cells run slantwise, want most down the slanting valley",
+			slant,
+			rivers,
+		)
 	}
 }
 
@@ -168,7 +192,13 @@ func TestNet_LinksACourseUpAndDownAndWidensItWithItsWater(t *testing.T) {
 		kinds[k]++
 		links := net.Links(c)
 		if node, _ := net.Node(c); node.Kind != names[k] || node.Width != n.Width(c, size) {
-			t.Errorf("course %v is laid as %+v, want a %s %v wide", c, node, names[k], n.Width(c, size))
+			t.Errorf(
+				"course %v is laid as %+v, want a %s %v wide",
+				c,
+				node,
+				names[k],
+				n.Width(c, size),
+			)
 		}
 		if l, _ := grid.Link(g, c, n.Down[c]); links&l == 0 {
 			t.Errorf("course %v does not link down to %v", c, n.Down[c])
@@ -185,7 +215,8 @@ func TestNet_LinksACourseUpAndDownAndWidensItWithItsWater(t *testing.T) {
 			t.Errorf("course %v gathering %v runs %v wide", c, n.Gathered[c], w)
 		}
 	}
-	if kinds[water.Brook] == 0 || kinds[water.Stream] == 0 || kinds[water.River]+kinds[water.Ford] == 0 {
+	if kinds[water.Brook] == 0 || kinds[water.Stream] == 0 ||
+		kinds[water.River]+kinds[water.Ford] == 0 {
 		t.Errorf("courses %v, want brooks, streams and a river", kinds)
 	}
 	var dry cell.ID
@@ -225,8 +256,15 @@ func TestDrain_ACourseRunsOnOutIntoTheSea(t *testing.T) {
 			}
 		}
 		if n.Width(c, size) < n.Width(up, size) || n.Fade(c) <= n.Fade(up) {
-			t.Errorf("mouth %v: %v wide, faded %v; the cell before it %v wide, faded %v — want it wider and more faded",
-				c, n.Width(c, size), n.Fade(c), n.Width(up, size), n.Fade(up))
+			t.Errorf(
+				"mouth %v: %v wide, faded %v; the cell before it %v wide, faded %v — want it "+
+					"wider and more faded",
+				c,
+				n.Width(c, size),
+				n.Fade(c),
+				n.Width(up, size),
+				n.Fade(up),
+			)
 		}
 		if l, _ := grid.Link(g, c, up); net.Links(c)&l == 0 {
 			t.Errorf("mouth %v does not link back to %v", c, up)

@@ -27,7 +27,12 @@ func TestUVSpan_PiecesTileTheTextureAcrossTheCorner(t *testing.T) {
 			t.Errorf("%s: the tail ends at %v, want 1", tc.axis, tc.t1)
 		}
 		if math.Abs(float64(tc.h1-tc.t0)) > 1e-6 {
-			t.Errorf("%s: the head ends at %v but the tail starts at %v — the pieces do not meet", tc.axis, tc.h1, tc.t0)
+			t.Errorf(
+				"%s: the head ends at %v but the tail starts at %v — the pieces do not meet",
+				tc.axis,
+				tc.h1,
+				tc.t0,
+			)
 		}
 	}
 
@@ -35,7 +40,10 @@ func TestUVSpan_PiecesTileTheTextureAcrossTheCorner(t *testing.T) {
 		t.Errorf("the right piece ends at %v across, want 1", u1)
 	}
 	if v0, _ := uvSpan(40, sprite, 0); v0 != 0 {
-		t.Errorf("the right piece starts at %v downwards, want 0 — it never wrapped on that axis", v0)
+		t.Errorf(
+			"the right piece starts at %v downwards, want 0 — it never wrapped on that axis",
+			v0,
+		)
 	}
 }
 

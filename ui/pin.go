@@ -103,13 +103,27 @@ type tagged[F any] struct {
 }
 
 func (g *tagged[F]) bind(si *goke.SysInit) {
-	g.query = si.NewQueryBuilder(&g.tags).Optional(&g.base).Optional(&g.z).Optional(&g.label).Build()
+	g.query = si.NewQueryBuilder(&g.tags).
+		Optional(&g.base).
+		Optional(&g.z).
+		Optional(&g.label).
+		Build()
 }
 
-func (g *tagged[F]) each(fn func(id uid.UID64, base *entity.Base, z *entity.Z, label *ceremony.Label)) {
+func (g *tagged[F]) each(
+	fn func(id uid.UID64, base *entity.Base, z *entity.Z, label *ceremony.Label),
+) {
 	for g.query.All(); g.query.Next(); {
 		cur := g.query.Cursor()
-		tags, bases, zs, labels := g.tags.Slice(cur), g.base.Slice(cur), g.z.Slice(cur), g.label.Slice(cur)
+		tags, bases, zs, labels := g.tags.Slice(
+			cur,
+		), g.base.Slice(
+			cur,
+		), g.z.Slice(
+			cur,
+		), g.label.Slice(
+			cur,
+		)
 		for i, id := range cur.IDs {
 			if tags[i].Has(g.t) {
 				fn(id, at(bases, i), at(zs, i), at(labels, i))

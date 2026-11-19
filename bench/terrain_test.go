@@ -98,7 +98,9 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.BoardWrite, [
 		comp.Const(unit.Mover{Domain: cell.Land}),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Restitution: 1}),
-		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 200}), comp.Const(vision.Sighted{}),
+		comp.Const(
+			vision.Sight{Facing: geom.NewVec(1, 0), Radius: 200},
+		), comp.Const(vision.Sighted{}),
 		comp.Const(world.Eye{Angle: math.Pi / 3}),
 	})
 	walkers := kind.Named[walker](w.Kinds(), "walker")
@@ -106,7 +108,13 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.BoardWrite, [
 	for i := range entries {
 		at := geom.NewVec(float32(3+rng.Float64()*(side-16)), float32(3+rng.Float64()*(side-16)))
 		cell, _ := grid.CellAt(at)
-		entries[i] = walkers.Entry(walker{pos: world.Position{AABB: plane.NewAABB(at, 10, 10)}, vel: randomVelocity(rng), cell: cell})
+		entries[i] = walkers.Entry(
+			walker{
+				pos:  world.Position{AABB: plane.NewAABB(at, 10, 10)},
+				vel:  randomVelocity(rng),
+				cell: cell,
+			},
+		)
 	}
 	w.Write().Seed(entries...)
 
@@ -132,7 +140,8 @@ func Benchmark_Board_Terrain(b *testing.B) {
 	for _, sc := range []struct {
 		name            string
 		scattered, fell bool
-	}{{"rough=compact", false, false}, {"rough=scattered", true, false}, {"rough=scattered,felling", true, true}} {
+	}{{"rough=compact", false, false}, {"rough=scattered", true, false}, {"rough=scattered,felling",
+		true, true}} {
 		b.Run(sc.name, func(b *testing.B) {
 			ecs, terrain, cells := benchTerrain(b, sc.scattered)
 			b.ReportAllocs()

@@ -29,7 +29,12 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 	newTarget := grid.At(8, 0)
 
 	moves := &command.Queue[MoveTo]{}
-	cmds := routing.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := routing.NewSystem(
+		spacing.NewFinder(grid, terrain, nil, occupancy),
+		moves,
+		&command.Queue[LookAt]{},
+		selTags.Selected,
+	)
 	selects := &command.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
@@ -90,7 +95,11 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 	}
 
 	if got[selectedID].Target != newTarget {
-		t.Errorf("selected entity's MoveOrder.Target = %v, want %v", got[selectedID].Target, newTarget)
+		t.Errorf(
+			"selected entity's MoveOrder.Target = %v, want %v",
+			got[selectedID].Target,
+			newTarget,
+		)
 	}
 	if got[selectedID].Path.Length != 0 {
 		t.Errorf("selected entity's Path.Length = %d, want 0 (routed as the unit moves)",
@@ -98,7 +107,11 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 	}
 
 	if got[otherID].Target != oldTarget {
-		t.Errorf("unselected entity's MoveOrder.Target = %v, want unchanged %v", got[otherID].Target, oldTarget)
+		t.Errorf(
+			"unselected entity's MoveOrder.Target = %v, want unchanged %v",
+			got[otherID].Target,
+			oldTarget,
+		)
 	}
 	if got[otherID].Path.Length != 1 {
 		t.Errorf("unselected entity's Path.Length = %d, want unchanged 1", got[otherID].Path.Length)
@@ -115,7 +128,12 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 	newTarget := grid.At(8, 0)
 
 	moves := &command.Queue[MoveTo]{}
-	cmds := routing.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := routing.NewSystem(
+		spacing.NewFinder(grid, terrain, nil, occupancy),
+		moves,
+		&command.Queue[LookAt]{},
+		selTags.Selected,
+	)
 	selects := &command.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
@@ -206,7 +224,12 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 	terrain.Set(wall, cell.Kind{Pace: 1, Solid: true})
 
 	moves := &command.Queue[MoveTo]{}
-	cmds := routing.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := routing.NewSystem(
+		spacing.NewFinder(grid, terrain, nil, occupancy),
+		moves,
+		&command.Queue[LookAt]{},
+		selTags.Selected,
+	)
 	selects := &command.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
@@ -262,10 +285,17 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 			}
 			found = true
 			if orders[i].Target != oldTarget {
-				t.Errorf("MoveOrder.Target = %v, want unchanged %v (order to a wall must be dropped)", orders[i].Target, oldTarget)
+				t.Errorf(
+					"MoveOrder.Target = %v, want unchanged %v (order to a wall must be dropped)",
+					orders[i].Target,
+					oldTarget,
+				)
 			}
 			if orders[i].Path.Length != 1 {
-				t.Errorf("Path.Length = %d, want unchanged 1 (order to a wall must be dropped)", orders[i].Path.Length)
+				t.Errorf(
+					"Path.Length = %d, want unchanged 1 (order to a wall must be dropped)",
+					orders[i].Path.Length,
+				)
 			}
 		}
 	}

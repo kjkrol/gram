@@ -12,15 +12,22 @@ type forward struct{}
 func (forward) Command() {}
 
 func TestBinding_InHoldsInItsHowsOnly(t *testing.T) {
-	b := control.Build(control.KeyHeld{Key: control.KeyW}, "w", func(control.Context) (forward, bool) { return forward{}, true })
+	b := control.Build(
+		control.KeyHeld{Key: control.KeyW},
+		"w",
+		func(control.Context) (forward, bool) { return forward{}, true },
+	)
 	if !b.Holds(camera.Loose) || !b.Holds(camera.Inside) {
 		t.Error("a binding given no hows does not hold in every one")
 	}
 	riding, loose := b.In(camera.Inside), b.In(camera.Outside)
-	if riding.Holds(camera.Loose) || !riding.Holds(camera.Inside) || !loose.Holds(camera.Loose) || !loose.Holds(camera.Behind) || loose.Holds(camera.Inside) {
+	if riding.Holds(camera.Loose) || !riding.Holds(camera.Inside) || !loose.Holds(camera.Loose) ||
+		!loose.Holds(camera.Behind) ||
+		loose.Holds(camera.Inside) {
 		t.Error("a binding In one How holds in another, or not in its own")
 	}
-	if loose.Overlaps(riding) || !b.Overlaps(riding) || !riding.Overlaps(riding) || !b.In(camera.Loose, camera.Inside).Overlaps(riding) {
+	if loose.Overlaps(riding) || !b.Overlaps(riding) || !riding.Overlaps(riding) ||
+		!b.In(camera.Loose, camera.Inside).Overlaps(riding) {
 		t.Error("overlaps wrong: bindings in two hows apart overlap, or ones sharing a How do not")
 	}
 	free := b.In(camera.Free)

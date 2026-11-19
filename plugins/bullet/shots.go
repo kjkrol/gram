@@ -104,25 +104,53 @@ func NewShots(w *world.Plugin) *Shots { return &Shots{w: w} }
 // Layers, never the owners' family nor what the kind gives itself.
 func (s *Shots) Define(name string, body Body, extra ...comp.Comp) {
 	if body.Size <= 0 || body.Speed <= 0 || body.Range <= 0 {
-		panic(fmt.Sprintf("bullet: ammo %q: Size, Speed and Range must be positive, got %+v", name, body))
+		panic(
+			fmt.Sprintf(
+				"bullet: ammo %q: Size, Speed and Range must be positive, got %+v",
+				name,
+				body,
+			),
+		)
 	}
 	half := body.Size / 2
 	spec := kind.Spec{
 		comp.Load(func(r Shot) world.Position {
-			return world.Position{AABB: plane.NewAABB(geom.NewVec(r.From.X-half, r.From.Y-half), body.Size, body.Size)}
+			return world.Position{
+				AABB: plane.NewAABB(
+					geom.NewVec(r.From.X-half, r.From.Y-half),
+					body.Size,
+					body.Size,
+				),
+			}
 		}),
 		comp.Load(func(r Shot) world.Velocity { return world.Velocity{Dir: r.Dir} }),
 		comp.Const(body),
 		comp.Load(keenOf),
 		comp.Const(collision.Collider{}),
-		comp.Load(func(r Shot) collision.Sweep { return collision.Sweep{From: r.From, Ignore: r.Shooter, Ignoring: true} }),
+		comp.Load(
+			func(r Shot) collision.Sweep {
+				return collision.Sweep{From: r.From, Ignore: r.Shooter,
+					Ignoring: true}
+			},
+		),
 		comp.Load(func(r Shot) Flight {
-			return Flight{At: r.From, Dir: r.Dir, Range: r.Range, Climb: r.Climb, Shooter: r.Shooter}
+			return Flight{
+				At:      r.From,
+				Dir:     r.Dir,
+				Range:   r.Range,
+				Climb:   r.Climb,
+				Shooter: r.Shooter,
+			}
 		}),
 		comp.Load(func(r Shot) tag.Tags[owner.Family] { return r.Owners }),
 	}
 	if s.w.Read(0).HasHeights() {
-		spec = append(spec, comp.Load(func(r Shot) world.Z { return world.Z{Altitude: r.Altitude, Height: body.Size} }))
+		spec = append(
+			spec,
+			comp.Load(
+				func(r Shot) world.Z { return world.Z{Altitude: r.Altitude, Height: body.Size} },
+			),
+		)
 	}
 	spec = append(spec, extra...)
 	kind.Define[Shot](s.w.Kinds(), name, spec)

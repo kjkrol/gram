@@ -136,7 +136,10 @@ func TestRenderer_ComposesTheOutlinedViewsTheShowRulesShow(t *testing.T) {
 	composeWith(every)
 	composeWith(tagged)
 	if drawn[every] != 2 {
-		t.Errorf("without a Show rule %d views were drawn, want the two with an outline", drawn[every])
+		t.Errorf(
+			"without a Show rule %d views were drawn, want the two with an outline",
+			drawn[every],
+		)
 	}
 	if drawn[tagged] != 1 {
 		t.Errorf("showing the tagged, %d views were drawn, want the one tagged", drawn[tagged])
@@ -174,14 +177,23 @@ func TestRenderer_DrawSkipsShortOutlinesAndOffscreenEntities(t *testing.T) {
 	ecs := goke.New()
 	ecs.Setup(
 		goke.SystemFn{OnInit: func(si *goke.SysInit) { place(si, geom.NewVec(100, 100), good) }},
-		goke.SystemFn{OnInit: func(si *goke.SysInit) { place(si, geom.NewVec(200, 200), SightOutline{Count: 1}) }},
+		goke.SystemFn{
+			OnInit: func(si *goke.SysInit) {
+				place(si, geom.NewVec(200, 200),
+					SightOutline{Count: 1})
+			},
+		},
 		goke.SystemFn{OnInit: func(si *goke.SysInit) { place(si, geom.NewVec(3000, 3000), good) }},
 		goke.SystemFn{OnInit: r.Init},
 	)
 
 	composeWith(r)
 	if drawn != 1 {
-		t.Errorf("drew %d cones, want 1 — the short outline and the offscreen entity should both be skipped", drawn)
+		t.Errorf(
+			"drew %d cones, want 1 — the short outline and the offscreen entity should both be "+
+				"skipped",
+			drawn,
+		)
 	}
 }
 
@@ -206,7 +218,9 @@ func TestRenderer_HiddenComposesNothing(t *testing.T) {
 			f := si.NewFactory(&pos, &sight, &eye, &outline)
 			f.Create(1)
 			for f.Next() {
-				pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}
+				pos.Slice(&f.Cursor)[0].Pos = world.Position{
+					AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10),
+				}
 				sight.Slice(&f.Cursor)[0] = Sight{Facing: geom.NewVec(1.0, 0.0), Radius: 100}
 				eye.Slice(&f.Cursor)[0] = world.Eye{Angle: 1}
 				outline.Slice(&f.Cursor)[0] = good
@@ -264,7 +278,9 @@ func drawAt(t *testing.T, r *Renderer, x, y float32, radius float32) [][]ConePoi
 			f := si.NewFactory(&pos, &sight, &eye, &outline)
 			f.Create(1)
 			for f.Next() {
-				pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: plane.NewAABB(geom.NewVec(x, y), 10, 10)}
+				pos.Slice(&f.Cursor)[0].Pos = world.Position{
+					AABB: plane.NewAABB(geom.NewVec(x, y), 10, 10),
+				}
 				sight.Slice(&f.Cursor)[0] = Sight{Facing: geom.NewVec(1.0, 0.0), Radius: radius}
 				eye.Slice(&f.Cursor)[0] = world.Eye{Angle: 2 * math.Pi}
 				outline.Slice(&f.Cursor)[0] = o
@@ -289,7 +305,14 @@ func TestRenderer_NoFanEdgeSpansTheScreen(t *testing.T) {
 					dx := fan[i].X - fan[i-1].X
 					dy := fan[i].Y - fan[i-1].Y
 					if d := f32.Hypot(float32(dx), float32(dy)); d > float32(limit)+1e-3 {
-						t.Fatalf("fan %d edge %d is %.1f long, over the %.1f a cone can span — the shape was torn at the seam", f, i, d, limit)
+						t.Fatalf(
+							"fan %d edge %d is %.1f long, over the %.1f a cone can span — the "+
+								"shape was torn at the seam",
+							f,
+							i,
+							d,
+							limit,
+						)
 					}
 				}
 			}
@@ -346,7 +369,9 @@ func (slope) Step() float32         { return 10 }
 
 func isoRenderer(t *testing.T) *Renderer {
 	t.Helper()
-	r := NewRenderer(testSpace(t, 1000, 1000, false).Read()).WithGround(func() ground.Heights { return slope{} })
+	r := NewRenderer(
+		testSpace(t, 1000, 1000, false).Read(),
+	).WithGround(func() ground.Heights { return slope{} })
 	r.camera = isoCamera(1000, 1000, 800, 600)
 	r.camera.MoveTo(0, 0)
 	r.ground, r.step, r.grounded = slope{}, 10, true
@@ -375,9 +400,17 @@ func TestRenderer_DrapesTheRingOverTheGroundInItsSteps(t *testing.T) {
 	if z := ring[2].At.Z(); z != x/10+sightLift {
 		t.Errorf("the edge point 20 out lies at %v, want just over the ground there, %v", z, x/10)
 	}
-	from := func(p ConePoint) float32 { return f32.Hypot(float32(p.X-ring[0].X), float32(p.Y-ring[0].Y)) }
+	from := func(p ConePoint) float32 {
+		return f32.Hypot(float32(p.X-ring[0].X),
+			float32(p.Y-ring[0].Y))
+	}
 	if from(ring[8]) <= from(ring[9]) {
-		t.Errorf("the far edge runs outwards (%v then %v from the apex), want it back towards the observer", from(ring[8]), from(ring[9]))
+		t.Errorf(
+			"the far edge runs outwards (%v then %v from the apex), want it back towards the "+
+				"observer",
+			from(ring[8]),
+			from(ring[9]),
+		)
 	}
 }
 
@@ -427,7 +460,11 @@ func isoCamera(width, height uint32, screenW, screenH float32) camera.Camera {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 100},
 		Heights:  true,
 	})
-	b := board.NewPlugin(grid.DefaultGrids{}.Square(width/32, height/32, 32), &cell.MultipleOccupancy{}, w)
+	b := board.NewPlugin(
+		grid.DefaultGrids{}.Square(width/32, height/32, 32),
+		&cell.MultipleOccupancy{},
+		w,
+	)
 	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	cam := cameras.NewPlugin(w, cameras.Config{
 		Turn:       true,
@@ -466,7 +503,10 @@ func TestRenderer_ShadowsLeaveOutWhatIsNotInFrontOfTheEye(t *testing.T) {
 	n := 0
 	f.Each(func(render.At, []render.Vertex) { n++ })
 	if n != 3 {
-		t.Errorf("%d shadow pieces, want the three farther ones: the nearer reach back short of x 146", n)
+		t.Errorf(
+			"%d shadow pieces, want the three farther ones: the nearer reach back short of x 146",
+			n,
+		)
 	}
 }
 

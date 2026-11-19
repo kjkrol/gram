@@ -47,12 +47,17 @@ func (c *installCtx) Setup(providers ...goke.SetupProvider) {
 		c.pending = append(c.pending, p.SetupSystems)
 	}
 }
-func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
-func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
-func (c *installCtx) Hosts(...host.Host)                              {}
-func (c *installCtx) Draws(...render.Source)                          {}
-func (c *installCtx) Looks(func())                                    {}
-func (*installCtx) Pool() *parallel.Pool                              { return nil }
+
+func (c *installCtx) RegSys(
+	factory func() goke.System,
+) goke.Runnable {
+	return c.ecs.RegSys(factory())
+}
+func (c *installCtx) ECS() *goke.ECS         { return c.ecs }
+func (c *installCtx) Hosts(...host.Host)     {}
+func (c *installCtx) Draws(...render.Source) {}
+func (c *installCtx) Looks(func())           {}
+func (*installCtx) Pool() *parallel.Pool     { return nil }
 
 type walker struct {
 	start    cell.ID
@@ -138,10 +143,21 @@ func newFieldIn(t *testing.T, fences []cell.ID, config func(*world.Config) secto
 	for i, wk := range walkers {
 		spec := kind.Spec{
 			comp.Load(func(wk walker) world.Position {
-				return world.Position{AABB: plane.NewAABB(geom.NewVec(f.grid.CellCenter(wk.start).X-11, f.grid.CellCenter(wk.start).Y-11), 22, 22)}
+				return world.Position{
+					AABB: plane.NewAABB(
+						geom.NewVec(
+							f.grid.CellCenter(wk.start).X-11,
+							f.grid.CellCenter(wk.start).Y-11,
+						),
+						22,
+						22,
+					),
+				}
 			}),
 			comp.Const(world.Velocity{}),
-			comp.Const(steering.Steering{MaxSpeed: 96, Accel: 192, Brake: 384, V0: 48, TurnRate: 0.15}),
+			comp.Const(
+				steering.Steering{MaxSpeed: 96, Accel: 192, Brake: 384, V0: 48, TurnRate: 0.15},
+			),
 			comp.Load(func(wk walker) unit.At { return unit.At{Cell: wk.start} }),
 			comp.Const(unit.Mover{Domain: cell.Land}),
 		}
@@ -172,7 +188,11 @@ func newFieldIn(t *testing.T, fences []cell.ID, config func(*world.Config) secto
 	}
 	f.ids = make([]uid.UID64, len(walkers))
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f.walkers = si.NewQueryBuilder(&f.base).Optional(&f.driven).Optional(&f.states).Optional(&f.course).Build()
+		f.walkers = si.NewQueryBuilder(&f.base).
+			Optional(&f.driven).
+			Optional(&f.states).
+			Optional(&f.course).
+			Build()
 		for f.walkers.All(); f.walkers.Next(); {
 			cur := f.walkers.Cursor()
 			for i, id := range cur.IDs {
@@ -243,7 +263,11 @@ func (f *field) read() map[uid.UID64]seen {
 }
 
 func TestHand_WalksTheSelectedUnitsOfThePlayerAlone(t *testing.T) {
-	f := newField(t, walker{start: 12, owner: 1, selected: true}, walker{start: 16, owner: 2, selected: true})
+	f := newField(
+		t,
+		walker{start: 12, owner: 1, selected: true},
+		walker{start: 16, owner: 2, selected: true},
+	)
 	mine, theirs := f.ids[0], f.ids[1]
 	before := f.read()
 	for range 3 {
@@ -255,10 +279,18 @@ func TestHand_WalksTheSelectedUnitsOfThePlayerAlone(t *testing.T) {
 		t.Errorf("the player's unit stands at %v still, want it driven on", after[mine].at)
 	}
 	if after[theirs].at != before[theirs].at || after[theirs].driven != nil {
-		t.Errorf("the other player's unit moved to %v or got a Driven %v, want it left alone", after[theirs].at, after[theirs].driven)
+		t.Errorf(
+			"the other player's unit moved to %v or got a Driven %v, want it left alone",
+			after[theirs].at,
+			after[theirs].driven,
+		)
 	}
 	if s := after[mine]; s.driven == nil || s.driven.Ahead != 1 || !s.driving {
-		t.Errorf("the unit driven carries %+v, Driving %v; want Ahead 1 and Driving", s.driven, s.driving)
+		t.Errorf(
+			"the unit driven carries %+v, Driving %v; want Ahead 1 and Driving",
+			s.driven,
+			s.driving,
+		)
 	}
 }
 
@@ -374,11 +406,21 @@ func TestHand_ATickWithoutAHandBrakesAndThenLetsGo(t *testing.T) {
 	}
 	f.tick(1)
 	if s := f.read()[id]; s.driven == nil || *s.driven != (steering.Driven{}) || !s.driving {
-		t.Fatalf("a tick without a hand: the unit carries %+v, Driving %v; want a zero Driven, still Driving", s.driven, s.driving)
+		t.Fatalf(
+			"a tick without a hand: the unit carries %+v, Driving %v; want a zero Driven, still "+
+				"Driving",
+			s.driven,
+			s.driving,
+		)
 	}
 	f.tick(30)
 	if s := f.read()[id]; s.driven != nil || s.driving || s.speed != 0 {
-		t.Errorf("thirty ticks later the unit carries %+v, Driving %v, speed %v; want let go, standing", s.driven, s.driving, s.speed)
+		t.Errorf(
+			"thirty ticks later the unit carries %+v, Driving %v, speed %v; want let go, standing",
+			s.driven,
+			s.driving,
+			s.speed,
+		)
 	}
 }
 
@@ -392,7 +434,11 @@ func TestHand_TowardDrivesTheUnitThatWay(t *testing.T) {
 	}
 	after := f.read()[id]
 	if after.at.Y <= before.Y+4 || f32.Abs(after.at.X-before.X) > 4 {
-		t.Errorf("driven south from %v the unit is at %v, want it gone down the screen", before, after.at)
+		t.Errorf(
+			"driven south from %v the unit is at %v, want it gone down the screen",
+			before,
+			after.at,
+		)
 	}
 	if after.driven == nil || after.driven.Face != geom.NewVec(0, 1) {
 		t.Errorf("the unit carries %+v, want its Face the way driven", after.driven)
@@ -410,10 +456,19 @@ func TestHand_IsOnTheUnitTheCameraIsFastenedTo(t *testing.T) {
 	}
 	after := f.read()
 	if after[fastened].at == before[fastened].at || !after[fastened].driving {
-		t.Errorf("the unit the camera is fastened to stands at %v still, Driving %v; want it driven on", after[fastened].at, after[fastened].driving)
+		t.Errorf(
+			"the unit the camera is fastened to stands at %v still, Driving %v; want it driven on",
+			after[fastened].at,
+			after[fastened].driving,
+		)
 	}
 	if after[selected].at != before[selected].at || after[selected].driven != nil {
-		t.Errorf("the selected unit moved to %v or got a Driven %v, want it left alone while the camera is fastened to another", after[selected].at, after[selected].driven)
+		t.Errorf(
+			"the selected unit moved to %v or got a Driven %v, want it left alone while the "+
+				"camera is fastened to another",
+			after[selected].at,
+			after[selected].driven,
+		)
 	}
 }
 
@@ -426,7 +481,11 @@ func TestHand_AnEntitysOwnHandDrivesIt(t *testing.T) {
 		f.tick(1)
 	}
 	if after := f.read()[id]; after.at == before || !after.driving {
-		t.Errorf("driving itself the unit stands at %v, Driving %v; want it walked on", after.at, after.driving)
+		t.Errorf(
+			"driving itself the unit stands at %v, Driving %v; want it walked on",
+			after.at,
+			after.driving,
+		)
 	}
 }
 

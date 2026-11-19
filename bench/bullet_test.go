@@ -60,7 +60,8 @@ func benchBullets(b *testing.B, thrown bool, perTick int) *shotWorld {
 	body := bullet.Body{Size: 4, Speed: shotSpeed, Range: shotRange}
 	if thrown {
 		body.Gravity = 300
-		s.climb = body.Gravity * (shotRange / shotSpeed) / 2 // as the shoot system throws at the ground
+		// as the shoot system throws at the ground
+		s.climb = body.Gravity * (shotRange / shotSpeed) / 2
 	}
 	bl.Shots().Define("ball", body)
 	s.ammo = bl.Shots().Named("ball")

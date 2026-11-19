@@ -44,7 +44,8 @@ func TestSourceWith_DeclaresTheImagesAndHandsEachMaterialToItsEntry(t *testing.T
 	}
 	for _, want := range []string{"@group(3) @binding(0) var GroundHeights: texture_2d<f32>;",
 		"@group(3) @binding(3) var Probe: texture_2d<f32>;", "fn glow() {}",
-		"if k < 0.5 {\n        return Glow(", "if k < 1.5 {\n        return Dim(", "fn fs_main() {}"} {
+		"if k < 0.5 {\n        return Glow(", "if k < 1.5 {\n        return Dim(",
+		"fn fs_main() {}"} {
 		if !strings.Contains(src, want) {
 			t.Errorf("the source lacks %q", want)
 		}

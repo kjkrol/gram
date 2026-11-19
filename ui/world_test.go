@@ -33,12 +33,17 @@ func (c *installer) Setup(providers ...goke.SetupProvider) {
 		c.pending = append(c.pending, p.SetupSystems)
 	}
 }
-func (c *installer) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
-func (c *installer) ECS() *goke.ECS                                  { return c.ecs }
-func (c *installer) Hosts(...host.Host)                              {}
-func (c *installer) Draws(...render.Source)                          {}
-func (c *installer) Looks(func())                                    {}
-func (*installer) Pool() *parallel.Pool                              { return nil }
+
+func (c *installer) RegSys(
+	factory func() goke.System,
+) goke.Runnable {
+	return c.ecs.RegSys(factory())
+}
+func (c *installer) ECS() *goke.ECS         { return c.ecs }
+func (c *installer) Hosts(...host.Host)     {}
+func (c *installer) Draws(...render.Source) {}
+func (c *installer) Looks(func())           {}
+func (*installer) Pool() *parallel.Pool     { return nil }
 
 func TestPin_UnderAnEffectFollowsTheEntitiesItIsOn(t *testing.T) {
 	w := world.NewPlugin(world.Config{
@@ -178,9 +183,13 @@ func TestText_OfReadsTheComponentOfTheEntityPinned(t *testing.T) {
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
 	}
-	systems = append(systems, goke.SystemFn{OnInit: d.Init}, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		q = si.NewQueryBuilder(&base).Build()
-	}})
+	systems = append(
+		systems,
+		goke.SystemFn{OnInit: d.Init},
+		goke.SystemFn{OnInit: func(si *goke.SysInit) {
+			q = si.NewQueryBuilder(&base).Build()
+		}},
+	)
 	ctx.ecs.Setup(systems...)
 	said := map[float32]string{}
 	for q.All(); q.Next(); {
@@ -192,6 +201,9 @@ func TestText_OfReadsTheComponentOfTheEntityPinned(t *testing.T) {
 		}
 	}
 	if len(said) != 2 || said[100] != "1" || said[200] != "2" {
-		t.Fatalf("said %v, want 1 at x 100 and 2 at x 200, nothing for the one without a score", said)
+		t.Fatalf(
+			"said %v, want 1 at x 100 and 2 at x 200, nothing for the one without a score",
+			said,
+		)
 	}
 }

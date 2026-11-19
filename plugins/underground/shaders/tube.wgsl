@@ -4,7 +4,8 @@
 // U.TubeEye). The faces of a stretch, six vertices each: its floor, its roof, the wall on its
 // left and on its right going from a to b, and the walls closing it at a and at b; faces says
 // which of the four walls stand, a bit each, and past them whether it is the frame round a
-// mouth, in the light of the day. Where a stretch turns into another at b its left wall ends
+// mouth, in the light of the day, and past that the look of its kind, an index into
+// U.TubeLooks. Where a stretch turns into another at b its left wall ends
 // c.z short of b and its right wall as far past it, and where one turns into it at a its left
 // wall begins c.w past a and its right wall as far before it, so the two meet on the plane
 // between them.
@@ -17,6 +18,7 @@ struct Tube {
     @location(2) at: vec2<f32>,
     @location(3) @interpolate(flat) room: vec2<f32>, // how wide and how high the stretch is
     @location(4) @interpolate(flat) frame: f32,
+    @location(5) @interpolate(flat) look: u32,
 }
 
 const faceFloor = 0u;
@@ -78,48 +80,94 @@ fn vs_main(
     t.at = at;
     t.room = vec2<f32>(2.0 * half, clear);
     t.frame = f32((u32(c.x) >> 4u) & 1u);
+    t.look = u32(c.x) >> 5u;
     return t;
 }
 
 // how far apart the lamps hang under the roof, in rooms' heights, and how far each lights
 const lampEvery = 6.0;
 
+// a look's vec4s in U.TubeLooks: its walls and whether they are rough, its floor and whether a
+// road's lines run on it, its roof and whether sets stand round the stretch, its frame, its lines
+const lookVec4s = 5u;
+
+// how far apart a look's sets stand, in rooms' heights, and how thick each is
+const setEvery = 1.0;
+const setThick = 0.09;
+
+// rough is how much of the light a face of rock throws back at the point p of the world, its
+// room tall high: blotches a third of that across, and finer grain in them; a wall takes its
+// way along the ground and its height, the floor and the roof their place, so the rock runs on
+// from stretch to stretch
+fn rough(p: vec3<f32>, face: u32, tall: f32) -> f32 {
+    var q = p.xy;
+    if face >= 2u {
+        q = vec2<f32>(p.x + p.y, p.z);
+    }
+    q /= 0.33 * tall;
+    return 0.7 + 0.4 * noise(q) + 0.2 * noise(q * 3.7 + vec2<f32>(5.2, 1.3));
+}
+
 // fs_main is the stretch's face in the light under the ground: none of the sun's, a share of
 // the air's, the frame's lamps, and the structure's own lamps under its roof, a strip every
 // lampEvery heights of its room, warm, each lighting the floor and the walls about it.
 @fragment
 fn fs_main(t: Tube) -> @location(0) vec4<f32> {
+    let k = lookVec4s * t.look;
+    let wallsOf = U.TubeLooks[k];
+    let floorOf = U.TubeLooks[k + 1u];
+    let roofOf = U.TubeLooks[k + 2u];
+    let sets = roofOf.w > 0.5;
     if t.frame > 0.5 {
-        // a mouth's frame: concrete in the day's light, its top the lightest
+        // a mouth's frame in the day's light, its top the lightest
         var shade = 0.75;
         if t.face == faceRoof {
             shade = 1.0;
         }
         let day = U.Ambience + vec3<f32>(0.35) + lampLightAt(t.world);
-        return vec4<f32>(vec3<f32>(0.6, 0.59, 0.56) * shade * day, 1.0);
+        return vec4<f32>(U.TubeLooks[k + 3u].rgb * shade * day, 1.0);
     }
-    var rgb = vec3<f32>(0.42, 0.41, 0.39); // the walls' concrete
+    var rgb = wallsOf.rgb;
     let period = lampEvery * t.room.y;
     let along = t.at.x / period;
     let near = abs(fract(along) - 0.5) * 2.0; // 0 under a lamp, 1 halfway between two
     var glow = 0.0;
     if t.face == faceFloor {
-        // a road runs on through: asphalt, a broken line down its middle, a line by each wall
-        rgb = vec3<f32>(0.17, 0.17, 0.18);
-        let off = abs(t.at.y) / t.room.x;
-        let dash = step(fract(t.at.x / (t.room.y * 1.5)), 0.5);
-        let middle = (1.0 - smoothstep(0.012, 0.024, off)) * dash;
-        let edge = smoothstep(0.42, 0.432, off) * (1.0 - smoothstep(0.448, 0.46, off));
-        rgb = mix(rgb, vec3<f32>(0.8, 0.8, 0.75), max(middle, edge));
+        rgb = floorOf.rgb;
+        if floorOf.w > 0.5 {
+            // a road runs on through: a broken line down its middle, a line by each wall
+            let off = abs(t.at.y) / t.room.x;
+            let dash = step(fract(t.at.x / (t.room.y * 1.5)), 0.5);
+            let middle = (1.0 - smoothstep(0.012, 0.024, off)) * dash;
+            let edge = smoothstep(0.42, 0.432, off) * (1.0 - smoothstep(0.448, 0.46, off));
+            rgb = mix(rgb, U.TubeLooks[k + 4u].rgb, max(middle, edge));
+        }
     } else if t.face == faceRoof {
-        rgb = vec3<f32>(0.27, 0.27, 0.27);
-        // the lamp itself: a strip across the roof
+        rgb = roofOf.rgb;
+        // the lamp itself: a strip across the roof, a lamp hung on a set narrower
+        var reach = 0.25;
+        if sets {
+            reach = 0.06;
+        }
         let strip = 1.0 - smoothstep(0.02, 0.05, near);
-        let wide = 1.0 - smoothstep(0.25, 0.3, abs(t.at.y) / t.room.x);
+        let wide = 1.0 - smoothstep(reach, reach + 0.05, abs(t.at.y) / t.room.x);
         glow = strip * wide;
     }
-    let own = vec3<f32>(1.0, 0.86, 0.62) * (0.25 + 0.75 * (1.0 - near) * (1.0 - near));
-    let light = U.Ambience * 0.15 + own + lampLightAt(t.world);
+    if wallsOf.w > 0.5 {
+        rgb *= rough(t.world, t.face, t.room.y);
+    }
+    if sets && t.face < 4u {
+        // a set: a post up each wall and a cap across the roof
+        let s = fract(t.at.x / (setEvery * t.room.y));
+        let on = 1.0 - smoothstep(setThick * 0.5, setThick * 0.5 + 0.02, min(s, 1.0 - s));
+        let grain = 0.85 + 0.15 * noise(vec2<f32>(t.world.x + t.world.y, t.world.z) * 6.0 /
+            t.room.y);
+        if t.face != faceFloor {
+            rgb = mix(rgb, U.TubeLooks[k + 3u].rgb * grain, on);
+        }
+    }
+    let own = U.TubeLamp * (0.25 + 0.75 * (1.0 - near) * (1.0 - near));
+    let light = U.Ambience * U.TubeSky + own + lampLightAt(t.world);
     rgb = rgb * light + vec3<f32>(1.0, 0.92, 0.75) * glow;
     return vec4<f32>(rgb, 1.0);
 }

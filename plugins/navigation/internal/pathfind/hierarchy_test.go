@@ -243,7 +243,16 @@ func TestHierarchy_TheGoalIsReachedBackwardAsForward(t *testing.T) {
 // leveledInto
 func fillOverInto(f *Finder, goalCell cell.ID, body Body) ([]float32, []uint8) {
 	n := f.grid.CellCount()
-	cost, next, cells := make([]float32, cell.Levels*n), make([]uint8, cell.Levels*n), make([]cell.ID, n)
+	cost, next, cells := make(
+		[]float32,
+		cell.Levels*n,
+	), make(
+		[]uint8,
+		cell.Levels*n,
+	), make(
+		[]cell.ID,
+		n,
+	)
 	f.grid.EachCell(func(c cell.ID) {
 		o, _ := f.grid.Ordinal(c)
 		cells[o] = c

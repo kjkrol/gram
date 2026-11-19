@@ -24,9 +24,13 @@ func TestCellKeeping_Orders_EveryMemberGetsACellOfItsOwn(t *testing.T) {
 			Domain: cell.Land})
 	}
 	targets := map[cell.ID]bool{}
-	keep.Orders(members, order.MoveTo{Cell: g.At(15, 15)}, func(_ bodies.Member, o order.MoveOrder) {
-		targets[o.Target] = true
-	})
+	keep.Orders(
+		members,
+		order.MoveTo{Cell: g.At(15, 15)},
+		func(_ bodies.Member, o order.MoveOrder) {
+			targets[o.Target] = true
+		},
+	)
 	if len(targets) != len(members) {
 		t.Errorf("%d cells given, want one to each of the %d", len(targets), len(members))
 	}

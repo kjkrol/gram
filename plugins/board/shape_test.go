@@ -14,6 +14,10 @@ func TestShape_BoxIsSquareBySizeAndWideByWidth(t *testing.T) {
 	}
 	tall := board.Shape{Size: 32, Width: 16}.Box(geom.NewVec(100, 50))
 	if tall.TopLeft != geom.NewVec(92, 34) || tall.BottomRight != geom.NewVec(108, 66) {
-		t.Errorf("a box 16 across and 32 down at (100, 50) is %v..%v", tall.TopLeft, tall.BottomRight)
+		t.Errorf(
+			"a box 16 across and 32 down at (100, 50) is %v..%v",
+			tall.TopLeft,
+			tall.BottomRight,
+		)
 	}
 }

@@ -161,7 +161,10 @@ func NewRenderer(space *aabbworld.SpaceRead) *Renderer {
 	w, h, edges := space.Bounds()
 	return &Renderer{
 		space: space, style: DefaultCone, shadow: DefaultShadow,
-		worldW: float32(w), worldH: float32(h), wraps: edges&aabbworld.Torus != 0, wrap: [2]bool{edges.WrapsX(), edges.WrapsY()}, gpu: newViews(),
+		worldW: float32(
+			w,
+		), worldH: float32(h), wraps: edges&aabbworld.Torus != 0, wrap: [2]bool{edges.WrapsX(),
+			edges.WrapsY()}, gpu: newViews(),
 	}
 }
 

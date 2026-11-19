@@ -21,7 +21,12 @@ func TestNew_StartsWithTheFirstStageUnlessToldOtherwise(t *testing.T) {
 	g := game.New(game.Props{Title: "t"}, named("menu"), named("play"))
 	stages, first := g.Stages()
 	if len(stages) != 2 || first != "menu" || g.Props().Title != "t" {
-		t.Fatalf("stages %v starting with %q, props %+v; want menu and play, menu first", stages, first, g.Props())
+		t.Fatalf(
+			"stages %v starting with %q, props %+v; want menu and play, menu first",
+			stages,
+			first,
+			g.Props(),
+		)
 	}
 	if _, first := g.Starting("play").Stages(); first != "play" {
 		t.Errorf("Starting(play) starts with %q", first)

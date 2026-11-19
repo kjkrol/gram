@@ -276,8 +276,20 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 	pause := func(control.Context) (Pause, bool) { return Pause{}, true }
 	return []control.Binding{
 		control.Build(control.KeyPress{Key: control.KeyP}, "Pause the game", pause),
-		control.Build(control.KeyPress{Key: control.KeyP, Mods: control.Mods{Shift: true}}, "Pause the game", pause),
-		control.Build(control.KeyPress{Key: control.KeyBracketRight}, "Speed the game up", func(control.Context) (Faster, bool) { return Faster{}, true }),
-		control.Build(control.KeyPress{Key: control.KeyBracketLeft}, "Slow the game down", func(control.Context) (Slower, bool) { return Slower{}, true }),
+		control.Build(
+			control.KeyPress{Key: control.KeyP, Mods: control.Mods{Shift: true}},
+			"Pause the game",
+			pause,
+		),
+		control.Build(
+			control.KeyPress{Key: control.KeyBracketRight},
+			"Speed the game up",
+			func(control.Context) (Faster, bool) { return Faster{}, true },
+		),
+		control.Build(
+			control.KeyPress{Key: control.KeyBracketLeft},
+			"Slow the game down",
+			func(control.Context) (Slower, bool) { return Slower{}, true },
+		),
 	}
 }

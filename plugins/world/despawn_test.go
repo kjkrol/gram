@@ -11,7 +11,11 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-func despawnWorld(t *testing.T, wm *module, n int) ([]uid.UID64, *goke.ECS, *goke.Query, *goke.Comp[Base]) {
+func despawnWorld(
+	t *testing.T,
+	wm *module,
+	n int,
+) ([]uid.UID64, *goke.ECS, *goke.Query, *goke.Comp[Base]) {
 	t.Helper()
 	wm.populate(testKind(spawnerTestPos(), Velocity{}), make([]any, n))
 
@@ -31,7 +35,9 @@ func despawnWorld(t *testing.T, wm *module, n int) ([]uid.UID64, *goke.ECS, *gok
 }
 
 func run(ecs *goke.ECS, wm *module, act func(*goke.CmdBuf)) {
-	handle := ecs.RegSys(goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, _ time.Duration) { act(cb) }})
+	handle := ecs.RegSys(
+		goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, _ time.Duration) { act(cb) }},
+	)
 	ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {
 		ctx.Run(handle, d)
 		ctx.Sync()
@@ -94,7 +100,10 @@ func TestDespawn_TwiceInATickCountsOnce(t *testing.T) {
 	})
 
 	if wm.telemetry.Count != 2 {
-		t.Errorf("telemetry.Count = %d, want 2 — the second ask was for an entity already gone", wm.telemetry.Count)
+		t.Errorf(
+			"telemetry.Count = %d, want 2 — the second ask was for an entity already gone",
+			wm.telemetry.Count,
+		)
 	}
 }
 

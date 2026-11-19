@@ -72,7 +72,10 @@ func (s *talkSystem) watch(d time.Duration) {
 			case !effects.Has(id, s.p.talking):
 				*t = Talk{}
 			case s.p.nodes[t.Node] == nil:
-				log.Printf("dialog: entity %d talks at a node no longer defined: the conversation ends", id)
+				log.Printf(
+					"dialog: entity %d talks at a node no longer defined: the conversation ends",
+					id,
+				)
 				s.end(id, t, false)
 			case !s.bodies.Seek(t.With):
 				s.end(id, t, false)

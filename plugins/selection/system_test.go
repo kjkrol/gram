@@ -66,7 +66,12 @@ func newHarnessIn(t *testing.T, cfg world.Config) *harness {
 	return newHarnessViewed(t, cfg, camera.Config{}, nil)
 }
 
-func newHarnessViewed(t *testing.T, cfg world.Config, cam camera.Config, view func(*world.Plugin)) *harness {
+func newHarnessViewed(
+	t *testing.T,
+	cfg world.Config,
+	cam camera.Config,
+	view func(*world.Plugin),
+) *harness {
 	t.Helper()
 	space, err := aabbworld.NewSpace(aabbworld.Config{
 		Width: 1000, Height: 1000,
@@ -94,7 +99,19 @@ func newHarnessViewed(t *testing.T, cfg world.Config, cam camera.Config, view fu
 	sys.marqueeQueue, sys.marquees = &sel.marqueeQueue, &sel.marquees
 	sys.hovers = &sel.hovers
 
-	return &harness{t: t, world: w, space: space, players: pl, local: local, cam: camera, sel: sel, sys: sys, handler: pl.EventHandler(), ecs: goke.New(), tags: tags}
+	return &harness{
+		t:       t,
+		world:   w,
+		space:   space,
+		players: pl,
+		local:   local,
+		cam:     camera,
+		sel:     sel,
+		sys:     sys,
+		handler: pl.EventHandler(),
+		ecs:     goke.New(),
+		tags:    tags,
+	}
 }
 
 func (h *harness) seed(x, y, size float32) *uid.UID64 {
@@ -121,7 +138,10 @@ func (h *harness) start() {
 		if len(h.pending) == 0 {
 			return
 		}
-		factories := map[bool]*goke.Factory{false: si.NewFactory(&h.pos, &h.tag, &h.z, &h.owners), true: si.NewFactory(&h.pos)}
+		factories := map[bool]*goke.Factory{
+			false: si.NewFactory(&h.pos, &h.tag, &h.z, &h.owners),
+			true:  si.NewFactory(&h.pos),
+		}
 		for plain, f := range factories {
 			var seeds []pendingSeed
 			for _, spec := range h.pending {
@@ -142,7 +162,9 @@ func (h *harness) start() {
 						h.tag.Slice(&f.Cursor)[j] = tag.Tags[Family](0).With(h.tags.Selectable)
 						h.z.Slice(&f.Cursor)[j] = world.Z{Altitude: spec.alt}
 						if spec.owner != command.Nobody {
-							h.owners.Slice(&f.Cursor)[j] = tag.Tags[owner.Family](0).With(owner.Of(spec.owner))
+							h.owners.Slice(&f.Cursor)[j] = tag.Tags[owner.Family](
+								0,
+							).With(owner.Of(spec.owner))
 						}
 					}
 					h.items = append(h.items, aabbworld.Item{ID: id, Box: aabb})
@@ -278,7 +300,10 @@ func TestSystem_Update_DragSelectsEntitiesInsideBox_ReplacesOutside(t *testing.T
 		t.Errorf("expected both entities inside the drag box to be Selected")
 	}
 	if h.isSelected(*outside) {
-		t.Error("expected the entity outside the drag box to lose Selected (non-additive drag replaces)")
+		t.Error(
+			"expected the entity outside the drag box to lose Selected (non-additive drag " +
+				"replaces)",
+		)
 	}
 }
 
@@ -323,7 +348,10 @@ func TestSystem_Update_DragAcrossMultipleTicks(t *testing.T) {
 	h.ecs.Tick(time.Second)
 
 	if !h.isSelected(*id) {
-		t.Error("expected the entity inside the drag box to be Selected after release, even though press/release arrived in separate HandleEvents calls")
+		t.Error(
+			"expected the entity inside the drag box to be Selected after release, even though " +
+				"press/release arrived in separate HandleEvents calls",
+		)
 	}
 }
 
@@ -395,7 +423,15 @@ func TestSelection_PassesByWhatIsNotSelectable(t *testing.T) {
 
 type standing struct{}
 
-func (standing) Sprite(*render.Frame, camera.Camera, plane.AABB, world.Z, render.AtlasSource, render.Appearance, render.Illumination) {
+func (standing) Sprite(
+	*render.Frame,
+	camera.Camera,
+	plane.AABB,
+	world.Z,
+	render.AtlasSource,
+	render.Appearance,
+	render.Illumination,
+) {
 }
 
 func (standing) Drawn(cam camera.Camera, box geom.AABB, z world.Z) render.Corners {
@@ -405,8 +441,23 @@ func (standing) Drawn(cam camera.Camera, box geom.AABB, z world.Z) render.Corner
 	return render.Corners{{x0, y0 - alt}, {x1, y0 - alt}, {x0, y1 - alt}, {x1, y1 - alt}}
 }
 
-func (standing) Footprint(cam camera.Camera, box geom.AABB, alt float32, dst []render.Corners) []render.Corners {
-	return append(dst, render.ProjectCorners(cam, float32(box.TopLeft.X), float32(box.TopLeft.Y), float32(box.BottomRight.X), float32(box.BottomRight.Y), alt))
+func (standing) Footprint(
+	cam camera.Camera,
+	box geom.AABB,
+	alt float32,
+	dst []render.Corners,
+) []render.Corners {
+	return append(
+		dst,
+		render.ProjectCorners(
+			cam,
+			float32(box.TopLeft.X),
+			float32(box.TopLeft.Y),
+			float32(box.BottomRight.X),
+			float32(box.BottomRight.Y),
+			alt,
+		),
+	)
 }
 
 func TestSystem_Update_ClickPicksWhereTheLookDrawsTheEntity(t *testing.T) {
@@ -426,7 +477,11 @@ func TestSystem_Update_ClickPicksWhereTheLookDrawsTheEntity(t *testing.T) {
 	sx, sy := cam.ToScreen(505, 505)
 	h.click(int(sx), int(sy)-40, false)
 	if !h.isSelected(*hawk) || h.isSelected(*walker) {
-		t.Errorf("clicking the hawk where it is drawn: hawk %v, walker %v; want the hawk alone", h.isSelected(*hawk), h.isSelected(*walker))
+		t.Errorf(
+			"clicking the hawk where it is drawn: hawk %v, walker %v; want the hawk alone",
+			h.isSelected(*hawk),
+			h.isSelected(*walker),
+		)
 	}
 	h.click(int(sx), int(sy), false)
 	if h.isSelected(*hawk) {
@@ -441,7 +496,8 @@ func TestSystem_Update_ClickPicksWhereTheLookDrawsTheEntity(t *testing.T) {
 
 func (h *harness) hoverAt(x, y float32) {
 	at := geom.NewVec(x, y)
-	if err := h.players.Write().Issue(h.local, Hover{At: at, Screen: control.ScreenRect(at, at), Camera: h.cam}); err != nil {
+	if err := h.players.Write().Issue(h.local, Hover{At: at, Screen: control.ScreenRect(at, at),
+		Camera: h.cam}); err != nil {
 		h.t.Fatal(err)
 	}
 	h.ecs.Tick(time.Second)
@@ -455,11 +511,19 @@ func TestSystem_HoverMarksTheEntityUnderTheCursorAlone(t *testing.T) {
 
 	h.hoverAt(55, 55)
 	if !h.has(*a, h.tags.Hovered) || h.has(*b, h.tags.Hovered) {
-		t.Fatalf("pointing at a: a hovered %v, b %v; want a alone", h.has(*a, h.tags.Hovered), h.has(*b, h.tags.Hovered))
+		t.Fatalf(
+			"pointing at a: a hovered %v, b %v; want a alone",
+			h.has(*a, h.tags.Hovered),
+			h.has(*b, h.tags.Hovered),
+		)
 	}
 	h.hoverAt(305, 305)
 	if h.has(*a, h.tags.Hovered) || !h.has(*b, h.tags.Hovered) {
-		t.Fatalf("pointing at b, nobody's: a hovered %v, b %v; want b alone", h.has(*a, h.tags.Hovered), h.has(*b, h.tags.Hovered))
+		t.Fatalf(
+			"pointing at b, nobody's: a hovered %v, b %v; want b alone",
+			h.has(*a, h.tags.Hovered),
+			h.has(*b, h.tags.Hovered),
+		)
 	}
 	h.ecs.Tick(time.Second) // the cursor left the picture: no Hover this tick
 	if h.has(*b, h.tags.Hovered) {

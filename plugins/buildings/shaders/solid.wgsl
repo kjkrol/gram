@@ -2,7 +2,10 @@
 // eaves, and a roof over them, two slopes along it and one at each end, meeting at a ridge as
 // long as the instance says: none of it a level roof, all of the part a gable's, a point a
 // pyramid's. Drawn through U.SolidViewProj as the ground's mesh is (camera.Transform, sunk by
-// U.SolidBend·d² off U.SolidEye), in the frame's light, the relief's shade and the air's haze.
+// U.SolidBend·d² off U.SolidEye), in the frame's light, the relief's shade and the air's haze. A
+// building with a room has its door and the windows of its room's storey open, where the ground
+// outside lies under their sills; near, what lies over something uncovered gives way
+// (U.SolidUncovering).
 
 struct Solid {
     @builtin(position) clip: vec4<f32>,
@@ -16,27 +19,12 @@ struct Solid {
     @location(5) @interpolate(flat) face: vec4<f32>,
     // the lamps' light, and how much of the sun the relief and the clouds let through
     @location(6) lit: vec4<f32>,
+    // a building with a room: its door's middle, half its width and its height; 0 wide, none
+    @location(7) @interpolate(flat) door: vec4<f32>,
 }
 
 const wallVertices = 12u;
 const slopeVertices = 12u;
-
-fn clipOf(p: vec3<f32>) -> vec4<f32> {
-    let from = p.xy - U.SolidEye.xy;
-    return U.SolidViewProj * vec4<f32>(p.xy, p.z - U.SolidBend * dot(from, from), 1.0);
-}
-
-// facing is 1 where the wall standing out off the part's middle shows its outer face, -1 where
-// the one across the part does: of two walls across each other one at most is seen
-fn facing(mid: vec2<f32>, out: vec2<f32>, run: vec2<f32>, foot: f32, top: f32) -> f32 {
-    let p0 = clipOf(vec3<f32>(mid + out - run, foot)).xyw;
-    let p1 = clipOf(vec3<f32>(mid + out + run, foot)).xyw;
-    let p2 = clipOf(vec3<f32>(mid + out - run, top)).xyw;
-    if dot(p0, cross(p1, p2)) > 0.0 {
-        return 1.0;
-    }
-    return -1.0;
-}
 
 @vertex
 fn vs_main(
@@ -46,6 +34,7 @@ fn vs_main(
     @location(2) c: vec4<f32>, // its roof's rise and half its ridge, a storey, a bay
     @location(3) d: vec4<f32>, // its walls' colour, its seed
     @location(4) e: vec4<f32>, // its roof's colour, the ground its storeys are counted from
+    @location(5) f: vec4<f32>, // its door, as Solid.door
 ) -> Solid {
     var across = array<f32, 6>(0.0, 1.0, 0.0, 1.0, 1.0, 0.0);
     var up = array<f32, 6>(0.0, 0.0, 1.0, 0.0, 1.0, 1.0);
@@ -149,31 +138,39 @@ fn vs_main(
         lamps = lampLightAt(p);
     }
     s.lit = vec4<f32>(lamps, reached);
+    s.door = f;
     return s;
 }
 
-// how much of a bay and of a storey a window takes, and how many of them are lit at night
-const paneWide = 0.44;
-const paneFrom = 0.32;
-const paneTo = 0.8;
-const litShare = 0.3;
-
-fn chance(p: vec3<f32>) -> f32 {
-    return fract(sin(dot(p, vec3<f32>(12.9898, 78.233, 37.719))) * 43758.5453);
+// givenWay reports whether what lies at depth at the target's pixel px gives way, within the
+// rectangle of the target the uncovered lie in (U.SolidUncoveredIn)
+fn givenWay(px: vec2<f32>, depth: f32) -> bool {
+    if U.SolidUncovering < 0.5 || px.x < U.SolidUncoveredIn.x || px.y < U.SolidUncoveredIn.y ||
+        px.x > U.SolidUncoveredIn.z || px.y > U.SolidUncoveredIn.w {
+        return false;
+    }
+    return givesWayAt(px, depth);
 }
 
-// hazeDepth is how much air lies between the eye and the point p, world units, as the ground's
-// shader has it: its distance from the eye, or seen from above (U.SolidHaze.y) the air over p up
-// to that height along the lines of sight U.SolidHazeWay.
-fn hazeDepth(p: vec3<f32>) -> f32 {
-    if U.SolidHaze.y <= 0.0 {
-        return distance(U.SolidEye, p);
+// opened reports whether a wall's point p of a building with a room lies in an opening: its door,
+// or a pane of its room's storey (pane) where the ground outside lies under its sill
+fn opened(p: vec3<f32>, way: vec2<f32>, door: vec4<f32>, floor: f32, pane: vec3<f32>,
+    storey: f32) -> bool {
+    if door.z <= 0.0 {
+        return false;
     }
-    return max(U.SolidHaze.y - p.z, 0.0) / max(-U.SolidHazeWay.z, 0.05);
+    if doorOf(p, way, door, floor) {
+        return true;
+    }
+    return pane.z > 0.5 && pane.y < 0.5 &&
+        groundHeightAt(p.xy + way * 0.5) < floor + U.SolidPane.y * storey;
 }
 
 @fragment
 fn fs_main(s: Solid) -> @location(0) vec4<f32> {
+    if givenWay(s.clip.xy, s.clip.z) {
+        discard;
+    }
     let sun = lightWay();
     var day = 0.0;
     if sun.z > 0.0 {
@@ -196,22 +193,19 @@ fn fs_main(s: Solid) -> @location(0) vec4<f32> {
             // the tiles' courses down the slope
             rgb *= 0.93 + 0.07 * step(0.5, fract(s.at.y / (0.12 * storey)));
         }
-    } else if bay > 0.0 && s.at.y > 0.0 && s.at.y < s.tiles.w {
-        // a window a bay a storey, the bays counted from the wall's middle and none cut by its
-        // corners
-        let bays = max(floor(2.0 * s.face.w / bay), 1.0);
-        let step = 2.0 * s.face.w / bays;
-        let x = (s.at.x + s.face.w) / step;
-        let y = s.at.y / storey;
-        let inX = abs(fract(x) - 0.5) < paneWide / 2.0;
-        let inY = fract(y) > paneFrom && fract(y) < paneTo;
-        if inX && inY && floor(y) * storey + storey <= s.tiles.w + 1e-3 {
+    } else {
+        let floor = s.world.z - s.at.y;
+        let pane = paneOf(s.at.x, s.at.y, s.face.w, bay, storey, s.tiles.w);
+        if opened(s.world, s.normal.xy, s.door, floor, pane, storey) {
+            discard;
+        }
+        if pane.z > 0.5 {
             rgb = vec3<f32>(0.16, 0.2, 0.25);
             let side = dot(s.normal.xy, vec2<f32>(3.0, 5.0));
-            let which = vec3<f32>(floor(x) + 7.0 * s.walls.w, floor(y), side);
+            let which = vec3<f32>(pane.x + 7.0 * s.walls.w, pane.y, side);
             // as the sky's light goes: the moon's is as strong as a low sun's
             let dusk = 1.0 - smoothstep(0.08, 0.2, dot(U.Ambience, vec3<f32>(0.3, 0.59, 0.11)));
-            if chance(which) < litShare {
+            if chance(which) < U.SolidPane.w {
                 glow = vec3<f32>(1.0, 0.82, 0.5) * 0.9 * dusk;
             }
         }

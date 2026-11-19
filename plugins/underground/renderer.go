@@ -2,14 +2,19 @@ package underground
 
 import (
 	"embed"
+	"fmt"
+	"image/color"
+	"slices"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -22,7 +27,20 @@ var tubeShader = render.NewMeshShaderWith("underground tubes",
 		{Name: "TubeViewProj", Size: 16},
 		{Name: "TubeEye", Size: 3},
 		{Name: "TubeBend", Size: 1},
+		{Name: "TubeSky", Size: 1},
+		{Name: "TubeLamp", Size: 3},
+		{Name: "TubeLooks", Size: maxLooks * lookFloats},
 	}).Instanced(3)
+
+// how much of the sky's light gets under the ground, and the light a structure's lamps burn
+// with (straight colour times strength), as the tube draws them; tubeLit is their light along a
+// stretch averaged, as it lights whoever stands in it
+const (
+	tubeSky = 0.15
+	tubeLit = 0.5
+)
+
+var tubeLamp = [3]float32{1, 0.86, 0.62}
 
 // a stretch's floats and its vertices: a floor, a roof and four walls, two triangles each
 const (
@@ -48,6 +66,26 @@ const (
 	wallBegin
 	wallEnd
 	framed
+	// the look of its kind of structure, an index into the shader's table, from here on
+	lookShift = iota
+	faceBits  = 1<<lookShift - 1
+)
+
+// how many looks the shader's table holds, the road's first, and the floats of each: its
+// walls, its floor, its roof, its frame and its lines, each a vec4
+const (
+	maxLooks   = 8
+	lookFloats = 20
+)
+
+// the road's tunnel, the zero Look: concrete walls, roof and frame, an asphalt floor and its
+// lines
+var (
+	concrete = color.RGBA{R: 107, G: 105, B: 99, A: 255}
+	asphalt  = color.RGBA{R: 43, G: 43, B: 46, A: 255}
+	ceiling  = color.RGBA{R: 69, G: 69, B: 69, A: 255}
+	portal   = color.RGBA{R: 153, G: 150, B: 143, A: 255}
+	painted  = color.RGBA{R: 204, G: 204, B: 191, A: 255}
 )
 
 // how many straight pieces a stretch turning in its cell is laid in
@@ -61,6 +99,13 @@ type tubes struct {
 	query *goke.Query
 	floor goke.Comp[cell.Floor]
 	on    goke.Comp[cell.On]
+	base  goke.OptComp[world.Base]
+
+	// the looks of the kinds of structure, the road's first, as the shader's table holds them,
+	// and each kind's pieces' index into it, shifted into place
+	looks  []Look
+	table  [maxLooks * lookFloats]float32
+	lookOf map[kind.ID]float32
 
 	// the stretches drawn and those written next, and one more than the board's changes each
 	// holds
@@ -80,7 +125,70 @@ var (
 )
 
 func (r *tubes) Init(si *goke.SysInit) {
-	r.query = si.NewQueryBuilder(&r.floor, &r.on).Build()
+	r.query = si.NewQueryBuilder(&r.floor, &r.on).Optional(&r.base).Build()
+}
+
+// style draws the pieces of the kind id, the structure name, in look: a look the shader's table
+// holds already is shared, a new one takes the next place, past maxLooks a panic
+func (r *tubes) style(id kind.ID, name string, look Look) {
+	if len(r.looks) == 0 {
+		r.looks = append(r.looks, Look{})
+		r.table = [maxLooks * lookFloats]float32{}
+		copy(r.table[:lookFloats], look0())
+	}
+	k := slices.Index(r.looks, look)
+	if k < 0 {
+		if len(r.looks) == maxLooks {
+			panic(fmt.Sprintf("underground: %q: more than %d looks of structures", name,
+				maxLooks))
+		}
+		k = len(r.looks)
+		r.looks = append(r.looks, look)
+		copy(r.table[k*lookFloats:], look.floats())
+	}
+	if r.lookOf == nil {
+		r.lookOf = map[kind.ID]float32{}
+	}
+	r.lookOf[id] = float32(k << lookShift)
+}
+
+// look0 is the road's tunnel as the shader's table holds it
+func look0() []float32 {
+	return Look{Walls: concrete, Floor: asphalt, Roof: ceiling, Frame: portal,
+		Lines: painted}.floats()
+}
+
+// floats is l as the shader's table holds it: its walls and whether they are rough, its floor
+// and whether a road's lines run on it, its roof and whether sets stand round it, its frame and
+// its lines, a zero colour the road's
+func (l Look) floats() []float32 {
+	if l == (Look{}) {
+		return look0()
+	}
+	flag := func(b bool) float32 {
+		if b {
+			return 1
+		}
+		return 0
+	}
+	out := make([]float32, 0, lookFloats)
+	for _, c := range [5]struct {
+		own, road color.RGBA
+		flag      float32
+	}{
+		{l.Walls, concrete, flag(l.Rough)},
+		{l.Floor, asphalt, flag(l.Lines != color.RGBA{})},
+		{l.Roof, ceiling, flag(l.Sets)},
+		{l.Frame, portal, 0},
+		{l.Lines, painted, 0},
+	} {
+		if c.own == (color.RGBA{}) {
+			c.own = c.road
+		}
+		out = append(out, float32(c.own.R)/255, float32(c.own.G)/255, float32(c.own.B)/255,
+			c.flag)
+	}
+	return out
 }
 
 // Publish lays the stretches anew where the board's cells changed since the buffer was written.
@@ -105,17 +213,21 @@ func (r *tubes) lay(dst []float32) []float32 {
 	g := brd.Grid
 	for r.query.All(); r.query.Next(); {
 		cur := r.query.Cursor()
-		floors, ons := r.floor.Slice(cur), r.on.Slice(cur)
+		floors, ons, bases := r.floor.Slice(cur), r.on.Slice(cur), r.base.Slice(cur)
 		for i, f := range floors {
-			if !f.Sunk() {
+			if !f.Dug() {
 				continue
+			}
+			var look float32
+			if bases != nil {
+				look = r.lookOf[bases[i].TypeID]
 			}
 			c := ons[i].Cell
 			m := g.CellCenter(c)
 			_, level := brd.Map().Top(c)
 			z := level + f.Height
 			if f.Width <= 0 {
-				dst = r.room(dst, c, f, m, z)
+				dst = r.room(dst, c, f, m, z, look)
 				continue
 			}
 			var legs []leg
@@ -132,7 +244,7 @@ func (r *tubes) lay(dst []float32) []float32 {
 					_, nl := brd.Map().Top(n)
 					// it meets the floor it runs on to halfway, and at a mouth the ground
 					// before it
-					if nf := nb.Storey(f.Storey); nf.Sunk() {
+					if nf := nb.Storey(f.Storey); nf.Dug() {
 						lg.far, lg.mouth = (z+nl+nf.Height)/2, false
 					} else {
 						lg.far = nl
@@ -141,20 +253,20 @@ func (r *tubes) lay(dst []float32) []float32 {
 				legs = append(legs, lg)
 			}
 			if len(legs) == 2 && legs[0].u.X*legs[1].u.X+legs[0].u.Y*legs[1].u.Y > -1+1e-3 {
-				dst = bent(dst, legs[0], legs[1], m, z, f)
+				dst = bent(dst, legs[0], legs[1], m, z, f, look)
 			} else {
 				for _, lg := range legs {
 					// the lamps are counted along the stretch's line, from where it crosses
 					// the world's corner
 					from := -(lg.end.X*lg.u.X + lg.end.Y*lg.u.Y)
 					dst = append(dst, lg.end.X, lg.end.Y, lg.far, f.Width/2, m.X, m.Y, z, f.Clear,
-						wallLeft|wallRight, from, r.mitre(g, f, lg.way), 0)
+						wallLeft|wallRight+look, from, r.mitre(g, f, lg.way), 0)
 				}
 			}
 			for _, lg := range legs {
 				if lg.mouth {
 					dst = frame(dst, lg.end, lg.u, lg.far, (z-lg.far)/(lg.long/2),
-						frameIn*lg.long, f)
+						frameIn*lg.long, f, look)
 				}
 			}
 		}
@@ -177,8 +289,8 @@ type leg struct {
 // bent appends to dst the stretch of f turning in its cell, from a's edge to b's through its
 // middle m at z, in bends pieces along a curve: each meeting the next on the plane between
 // them, and the first and the last cut square to the way out of the cell, as the stretches
-// beyond them are
-func bent(dst []float32, a, b leg, m geom.Vec, z float32, f cell.Floor) []float32 {
+// beyond them are; look is its kind's, shifted into place
+func bent(dst []float32, a, b leg, m geom.Vec, z float32, f cell.Floor, look float32) []float32 {
 	var q [bends + 1]geom.Vec
 	var h [bends + 1]float32
 	for k := range bends + 1 {
@@ -215,7 +327,7 @@ func bent(dst []float32, a, b leg, m geom.Vec, z float32, f cell.Floor) []float3
 			end = joint(geom.NewVec(-d.X, -d.Y), toward(q[k+1], q[k+2]), half)
 		}
 		dst = append(dst, q[k].X, q[k].Y, h[k], half, q[k+1].X, q[k+1].Y, h[k+1], f.Clear,
-			wallLeft|wallRight, from, end, begin)
+			wallLeft|wallRight+look, from, end, begin)
 		from += f32.Hypot(q[k+1].X-q[k].X, q[k+1].Y-q[k].Y)
 	}
 	return dst
@@ -258,8 +370,9 @@ func (r *tubes) mitre(g grid.Grid, f cell.Floor, way int) float32 {
 // frame appends to dst the frame round the mouth of f at end, the tunnel running in against u,
 // its floor rising climb a unit: a jamb either side of the tube and a lintel over it, standing
 // out of the ground and running in as far as the tube shows through the ground cut over it,
-// level, from the lowest of the floor there to over the highest of the roof
-func frame(dst []float32, end, u geom.Vec, floor, climb, in float32, f cell.Floor) []float32 {
+// level, from the lowest of the floor there to over the highest of the roof; look is its kind's
+func frame(dst []float32, end, u geom.Vec, floor, climb, in float32, f cell.Floor,
+	look float32) []float32 {
 	thick := frameThick * f.Clear
 	out := frameOut * f.Clear
 	// off the tube's own faces, which lie in the same planes
@@ -271,15 +384,16 @@ func frame(dst []float32, end, u geom.Vec, floor, climb, in float32, f cell.Floo
 	for _, side := range [2]float32{-1, 1} {
 		off := side * ((f.Width+thick)/2 + gap)
 		dst = append(dst, a.X-u.Y*off, a.Y+u.X*off, low, thick/2,
-			b.X-u.Y*off, b.Y+u.X*off, low, top-low, faces, 0, 0, 0)
+			b.X-u.Y*off, b.Y+u.X*off, low, top-low, faces+look, 0, 0, 0)
 	}
 	return append(dst, a.X, a.Y, floor+f.Clear+gap, f.Width/2+thick+gap,
-		b.X, b.Y, floor+f.Clear+gap, top-floor-f.Clear-gap, faces, 0, 0, 0)
+		b.X, b.Y, floor+f.Clear+gap, top-floor-f.Clear-gap, faces+look, 0, 0, 0)
 }
 
 // room appends to dst a whole cell's stretch, from its west edge to its east, a wall on every
-// side no floor of its storey lies beyond
-func (r *tubes) room(dst []float32, c cell.ID, f cell.Floor, m geom.Vec, z float32) []float32 {
+// side no floor of its storey lies beyond; look is its kind's
+func (r *tubes) room(dst []float32, c cell.ID, f cell.Floor, m geom.Vec, z,
+	look float32) []float32 {
 	brd := r.p.board.Read(0).Board()
 	g := brd.Grid
 	half := g.CellSpan() / 2
@@ -291,14 +405,15 @@ func (r *tubes) room(dst []float32, c cell.ID, f cell.Floor, m geom.Vec, z float
 		if d, ok := grid.Direction(g, way[0], way[1]); ok {
 			if n, ok := g.Toward(c, d); ok {
 				nb := brd.Built(n)
-				open = nb.Storey(f.Storey).Sunk()
+				open = nb.Storey(f.Storey).Dug()
 			}
 		}
 		if !open {
 			walls += wall
 		}
 	}
-	return append(dst, m.X-half, m.Y, z, half, m.X+half, m.Y, z, f.Clear, walls, m.X-half, 0, 0)
+	return append(dst, m.X-half, m.Y, z, half, m.X+half, m.Y, z, f.Clear, walls+look, m.X-half,
+		0, 0)
 }
 
 func (r *tubes) Compose(f *render.Frame, _ camera.Camera) {
@@ -333,6 +448,13 @@ func (r *tubes) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	r.set("TubeViewProj", tr.M[:]...)
 	r.set("TubeEye", tr.Eye[:]...)
 	r.set("TubeBend", tr.Bend)
+	r.set("TubeSky", tubeSky)
+	r.set("TubeLamp", tubeLamp[:]...)
+	if len(r.looks) == 0 {
+		// a structure dug by no kind of the plugin's: the road's
+		copy(r.table[:lookFloats], look0())
+	}
+	r.set("TubeLooks", r.table[:]...)
 	r.opts.Depth, r.opts.WriteDepth = t.Depth, true
 	r.opts.Vertices, r.opts.Instances = tubeVertices, instances
 	t.Screen.DrawMesh(nil, tubeShader, &r.opts)

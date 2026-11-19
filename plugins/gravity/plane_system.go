@@ -70,7 +70,12 @@ func (s *planeSystem) Init(si *goke.SysInit) {
 func (s *planeSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	pull := pullOf(s.pulls, &s.pull)
 	if pull.Z != 0 {
-		panic(fmt.Sprintf("gravity: the pull across turned along Z, %+v; a world keeps its way", pull))
+		panic(
+			fmt.Sprintf(
+				"gravity: the pull across turned along Z, %+v; a world keeps its way",
+				pull,
+			),
+		)
 	}
 	g := geom.NewVec(pull.X, pull.Y)
 	s.throw(g)

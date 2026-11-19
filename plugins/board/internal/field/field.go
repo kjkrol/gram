@@ -60,7 +60,12 @@ func (f *Field) Changes() uint64 { return f.cells.Changes() }
 // Walk is the cover of the board along a ray, the Cover contract: every cell whose kind has a
 // Veil that dims an observer on blockers, in order, with the stretch of the ray inside it, its
 // band (±Inf for a kind of no Height) and τ = 1 − Veil.
-func (f *Field) Walk(origin, dir geom.Vec, length float32, blockers world.Layers, visit func(near, far, bottom, top, tau float32) bool) {
+func (f *Field) Walk(
+	origin, dir geom.Vec,
+	length float32,
+	blockers world.Layers,
+	visit func(near, far, bottom, top, tau float32) bool,
+) {
 	if f.square != nil {
 		f.walkSquare(origin, dir, length, blockers, visit)
 		return
@@ -98,7 +103,13 @@ func (f *Field) Veil(c cell.ID) {
 		*v = veil{}
 		return
 	}
-	*v = veil{bottom: f32.Inf(-1), top: f32.Inf(1), tau: 1 - min(k.Veil, 1), veils: world.Layers(k.Veils), ok: true}
+	*v = veil{
+		bottom: f32.Inf(-1),
+		top:    f32.Inf(1),
+		tau:    1 - min(k.Veil, 1),
+		veils:  world.Layers(k.Veils),
+		ok:     true,
+	}
 	// a veil of no height stands at every height, as a wall of none does
 	if k.Height > 0 {
 		v.bottom = f.altitude(c)
@@ -110,7 +121,12 @@ func (f *Field) Veil(c cell.ID) {
 func (f *Field) Veils() { f.grid.EachCell(f.Veil) }
 
 // the walk sums t cell after cell, so in float64
-func (f *Field) walkSquare(origin, dir geom.Vec, length float32, blockers world.Layers, visit func(near, far, bottom, top, tau float32) bool) {
+func (f *Field) walkSquare(
+	origin, dir geom.Vec,
+	length float32,
+	blockers world.Layers,
+	visit func(near, far, bottom, top, tau float32) bool,
+) {
 	sq := f.square
 	size := float64(sq.CellSize)
 	if size == 0 {
@@ -146,7 +162,12 @@ func ddaAxis(o, d float64, c int64, size float64) (step int64, next, delta float
 	return 0, math.Inf(1), math.Inf(1)
 }
 
-func (f *Field) walkSteps(origin, dir geom.Vec, length float32, blockers world.Layers, visit func(near, far, bottom, top, tau float32) bool) {
+func (f *Field) walkSteps(
+	origin, dir geom.Vec,
+	length float32,
+	blockers world.Layers,
+	visit func(near, far, bottom, top, tau float32) bool,
+) {
 	w, h := f.grid.CellBounds()
 	step := float64(min(w, h)) / 4
 	if step <= 0 {
@@ -182,7 +203,12 @@ func (f *Field) walkSteps(origin, dir geom.Vec, length float32, blockers world.L
 // collision.Field contract: every cell that stops it, a wall's not where box fits through its gap,
 // and every raised deck's slab over its step, as boxes. A side is open where the neighbour across
 // it does not stop the entity; on a wrapping square grid the boxes lie in box's frame.
-func (f *Field) Solid(layers world.Layers, band collision.Band, box geom.AABB, visit func(collide.FieldBox) bool) {
+func (f *Field) Solid(
+	layers world.Layers,
+	band collision.Band,
+	box geom.AABB,
+	visit func(collide.FieldBox) bool,
+) {
 	sq := f.square
 	body := sizeOf(box)
 	if sq == nil {
@@ -205,13 +231,18 @@ func (f *Field) Solid(layers world.Layers, band collision.Band, box geom.AABB, v
 			for _, n := range [4]struct {
 				dx, dy int64
 				side   collide.Sides
-			}{{-1, 0, collide.Left}, {1, 0, collide.Right}, {0, -1, collide.Top}, {0, 1, collide.Bottom}} {
+			}{{-1, 0, collide.Left}, {1, 0, collide.Right}, {0, -1, collide.Top}, {0, 1,
+				collide.Bottom}} {
 				nc, ok := f.square.Fold(x+n.dx, y+n.dy)
 				if !ok || !f.stops(nc, layers, band, body) {
 					open |= n.side
 				}
 			}
-			fb := collide.FieldBox{Box: geom.NewAABBAt(geom.NewVec(float32(x)*size, float32(y)*size), size, size), Cell: uint64(c), Open: open}
+			fb := collide.FieldBox{
+				Box:  geom.NewAABBAt(geom.NewVec(float32(x)*size, float32(y)*size), size, size),
+				Cell: uint64(c),
+				Open: open,
+			}
 			if !visit(fb) {
 				return
 			}
@@ -224,7 +255,7 @@ func (f *Field) Solid(layers world.Layers, band collision.Band, box geom.AABB, v
 // A deck's ends are free where the bridge ends or a head takes over.
 func (f *Field) Walls(layers world.Layers, band collision.Band, box geom.AABB,
 	visit func(collide.FieldWall) bool) {
-	if !f.cells.Banded() && !f.cells.Sunk() {
+	if !f.cells.Banded() && !f.cells.Rooms() {
 		return
 	}
 	f.seen = f.seen[:0]
@@ -253,7 +284,7 @@ func (f *Field) Walls(layers world.Layers, band collision.Band, box geom.AABB,
 
 func (f *Field) wallsOf(c cell.ID, m geom.Vec, layers world.Layers, band collision.Band,
 	visit func(collide.FieldWall) bool) bool {
-	if f.cells.Sunk() && !f.rooms(c, m, band, visit) {
+	if f.cells.Rooms() && !f.rooms(c, m, band, visit) {
 		return false
 	}
 	f.decks = f.cells.Bands(c, f.decks[:0])
@@ -265,7 +296,7 @@ func (f *Field) wallsOf(c cell.ID, m geom.Vec, layers world.Layers, band collisi
 		f.seen = append(f.seen, at)
 		fl, top := d.Built.Floor, f.altitude(d.Cell)+d.Built.Floor.Height
 		mid := geom.NewVec(m.X+d.Off.X, m.Y+d.Off.Y)
-		if fl.Sunk() {
+		if fl.Room() {
 			if !f.bore(d.Cell, fl, mid, band, visit) {
 				return false
 			}
@@ -318,15 +349,16 @@ func (f *Field) wallsOf(c cell.ID, m geom.Vec, layers world.Layers, band collisi
 // a hex's side is its step over √3
 const sqrt3 = 1.7320508
 
-// roomOf is the room over the sunk floor fl of c, from its floor up to its roof
+// roomOf is the room over the floor fl of c, from its floor up to its roof
 func (f *Field) roomOf(c cell.ID, fl cell.Floor) collision.Band {
 	floor := f.altitude(c) + fl.Height
 	return collision.Band{Bottom: floor, Top: floor + fl.Clear}
 }
 
-// bore visits the walls either side of the sunk band fl of c, its middle at mid, for a body in
-// its room; where it turns, along each of its links from behind the middle out to the cell's
-// edge, less what would stand across the other, so the turn is closed outside and open inside
+// bore visits the walls either side of the band fl of c with a room, its middle at mid, for a
+// body in its room; where it turns, along each of its links from behind the middle out to the
+// cell's edge, less what would stand across the other, so the turn is closed outside and open
+// inside
 func (f *Field) bore(c cell.ID, fl cell.Floor, mid geom.Vec, band collision.Band,
 	visit func(collide.FieldWall) bool) bool {
 	if !f.roomOf(c, fl).Meets(band) {
@@ -418,15 +450,15 @@ func within(p, u, v geom.Vec, half float32) (lo, hi float32) {
 	return lo, hi
 }
 
-// rooms visits the walls of the chambers under c, its middle at m, for a body in one's room:
-// along every edge no floor of its storey lies sunk beyond, a tunnel coming in through it left
-// its width of door
+// rooms visits the walls of the rooms of whole cells on c, its middle at m, for a body in one's
+// room: along every edge but where its links lead on into its storey, a band of its storey coming
+// in through it leaving its width of door, its own open door its width where it leads out
 func (f *Field) rooms(c cell.ID, m geom.Vec, band collision.Band,
 	visit func(collide.FieldWall) bool) bool {
 	b := f.cells.Built(c)
-	for k := uint8(1); k < cell.Storeys; k++ {
+	for k := range uint8(cell.Storeys) {
 		fl := *b.Storey(k)
-		if !fl.Sunk() || fl.Width > 0 || !f.roomOf(c, fl).Meets(band) {
+		if !fl.Room() || fl.Width > 0 || !f.roomOf(c, fl).Meets(band) {
 			continue
 		}
 		half := terrain.RailHalf(f.grid.CellSpan())
@@ -438,11 +470,13 @@ func (f *Field) rooms(c cell.ID, m geom.Vec, band collision.Band,
 			if n, ok := f.grid.Toward(c, i); ok {
 				nb := f.cells.Built(n)
 				nf := *nb.Storey(k)
-				if nf.Sunk() && nf.Width == 0 {
+				switch {
+				case nf.Room() && nf.Width == 0 && fl.Links.Has(i):
 					continue
-				}
-				if nf.Sunk() && nf.Links.Has(f.grid.Opposite(i)) {
+				case nf.Room() && nf.Width > 0 && nf.Links.Has(f.grid.Opposite(i)):
 					door = nf.Width/2 + half
+				case nf.Allows == 0 && fl.Links.Has(i) && fl.Door.Width > 0:
+					door = fl.Door.Width/2 + half
 				}
 			}
 			s := f.grid.Step(i)
@@ -537,6 +571,12 @@ func (f *Field) bare(c cell.ID, m geom.Vec, layers world.Layers, box, cb geom.AA
 	if b.Floor.Width == 0 {
 		allows |= b.Floor.Allows
 	}
+	// whoever is over a room standing on the cell is in the room
+	for s := range uint8(cell.Storeys) {
+		if fl := b.Storey(s); fl.Room() && fl.Standing && fl.Width == 0 {
+			allows |= fl.Allows
+		}
+	}
 	if keeps != 0 && through(b.Wall.Gap, sizeOf(box), collision.Everywhere) {
 		keeps = 0
 	}
@@ -597,7 +637,13 @@ func (f *Field) solidCells(layers world.Layers, band collision.Band, box geom.AA
 // body is the size of the entity's box
 func (f *Field) stops(c cell.ID, layers world.Layers, band collision.Band, body geom.Vec) bool {
 	k := f.cells.KindOf(c)
-	if solidFor(k, layers) && f.underDecks(c, f.solidBand(c, k.Height)).Meets(band) {
+	// under a room standing on the cell its foundation stands in place of the ground's kind
+	housed := f.cells.Housed() && f.housed(c)
+	if solidFor(k, layers) && !housed &&
+		f.underDecks(c, f.solidBand(c, k.Height)).Meets(band) {
+		return true
+	}
+	if housed && f.footed(c, band) {
 		return true
 	}
 	b := f.cells.Built(c)
@@ -612,6 +658,34 @@ func (f *Field) stops(c cell.ID, layers world.Layers, band collision.Band, body 
 	}
 	deck := f.altitude(c) + fl.Height
 	return collision.Band{Bottom: deck - fl.Thickness, Top: deck}.Meets(band.Above())
+}
+
+// housed says whether a room of whole cells stands on c's ground
+func (f *Field) housed(c cell.ID) bool {
+	b := f.cells.Built(c)
+	for k := range uint8(cell.Storeys) {
+		if fl := b.Storey(k); fl.Room() && fl.Standing && fl.Width == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// footed says whether c stands a room on the ground whose foundation, from below up to its floor,
+// a body on band meets over its step
+func (f *Field) footed(c cell.ID, band collision.Band) bool {
+	b := f.cells.Built(c)
+	for k := range uint8(cell.Storeys) {
+		fl := b.Storey(k)
+		if !fl.Room() || !fl.Standing || fl.Width > 0 {
+			continue
+		}
+		floor := f.altitude(c) + fl.Height
+		if (collision.Band{Bottom: f32.Inf(-1), Top: floor}).Meets(band.Above()) {
+			return true
+		}
+	}
+	return false
 }
 
 // underDecks is the solid band of c's ground no higher than the underside of the lowest deck

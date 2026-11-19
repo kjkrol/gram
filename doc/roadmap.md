@@ -236,9 +236,17 @@ What is left to do. Take an item out when it lands.
   the game's `Clear` hides it needs the ground's shader told so without a uniform more, which
   an Intel GPU does not forgive it. A sea cell all of whose corners touch land has no depth
   and stays plain water beside the shallows. At L5 the sea is a sheet without its shallows.
-- **Buildings, what is left** (2026-11-16) — a building takes its foot from the lowest ground
-  under it, so on a steep cell it stands on a tall plinth; buildings shade the ground and not
-  each other; none is drawn on a map without heights.
+- **Buildings, what is left** (2026-11-16) — a building without a door takes its foot from the
+  lowest ground under it, so on a steep cell it stands on a tall plinth; buildings shade the
+  ground and not each other; none is drawn on a map without heights; a unit's live shadow falls
+  on no building drawn near (it lies on the ground's depth).
+- **Rooms, what is left** (2026-11-19) — a house's room is its ground floor: no storeys over it
+  and no stairs; a house with a door stands square to a square grid on whole cells (none on a
+  hex board, none turned); the cameras' cage takes in no building's solid, so a camera riding a
+  unit (V) is not held in a house's room and its arm passes through walls (Madeira's houses
+  alike); the rain and the snow fall into a room and sight passes its walls; a lamp of the
+  interiors lights whoever stands in its room alone, never the ground or what stands beside it
+  outside.
 - **Roads in the isometric view** — dark and thin, covered by the routes: their colour and width.
 - **Mipmaps for the ground's details** — `gpu.Texture` holds one level, so a kind's
   `painter.Detail` fades out below 40 px a cell instead of growing coarse, and sampled minified

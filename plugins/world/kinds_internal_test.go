@@ -59,7 +59,11 @@ func TestPopulate_ConstAndLoadComponents(t *testing.T) {
 		appearances, stats := appearance.Slice(cur), stat.Slice(cur)
 		for i := range cur.IDs {
 			if appearances[i].SpriteID != unit.SpriteID() {
-				t.Errorf("SpriteID = %v, want the kind's %v", appearances[i].SpriteID, unit.SpriteID())
+				t.Errorf(
+					"SpriteID = %v, want the kind's %v",
+					appearances[i].SpriteID,
+					unit.SpriteID(),
+				)
 			}
 			hps = append(hps, stats[i].HP)
 		}

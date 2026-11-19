@@ -31,11 +31,19 @@ func TestSelect_AnotherPlayersSelectionStays(t *testing.T) {
 	h.sel.selects.Put(2, Select{Box: everywhere})
 	h.ecs.Tick(time.Second)
 	if !h.isSelected(*theirs) || h.isSelected(*mine) {
-		t.Fatalf("player 2 selected its own %v and mine %v; want its own alone", h.isSelected(*theirs), h.isSelected(*mine))
+		t.Fatalf(
+			"player 2 selected its own %v and mine %v; want its own alone",
+			h.isSelected(*theirs),
+			h.isSelected(*mine),
+		)
 	}
 	h.click(105, 105, false)
 	if !h.isSelected(*mine) || !h.isSelected(*theirs) {
-		t.Errorf("after my click mine %v, player 2's %v selected; want both", h.isSelected(*mine), h.isSelected(*theirs))
+		t.Errorf(
+			"after my click mine %v, player 2's %v selected; want both",
+			h.isSelected(*mine),
+			h.isSelected(*theirs),
+		)
 	}
 }
 
@@ -47,6 +55,10 @@ func TestSelect_NobodySelectsTheOwnerlessAlone(t *testing.T) {
 	h.sel.selects.Put(command.Nobody, Select{Box: everywhere})
 	h.ecs.Tick(time.Second)
 	if !h.isSelected(*nobodys) || h.isSelected(*mine) {
-		t.Errorf("nobody's %v, mine %v selected; want nobody's alone", h.isSelected(*nobodys), h.isSelected(*mine))
+		t.Errorf(
+			"nobody's %v, mine %v selected; want nobody's alone",
+			h.isSelected(*nobodys),
+			h.isSelected(*mine),
+		)
 	}
 }

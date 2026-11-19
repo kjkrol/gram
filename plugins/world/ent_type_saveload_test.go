@@ -151,10 +151,17 @@ func TestType_SurvivesAReorderedDictionary(t *testing.T) {
 
 	wolf := loader.kinds["wolf"]
 	if wolf.ID() != 0 {
-		t.Fatalf("wolf has ID %d in this build, want 0 — the fixture is not testing a reorder", wolf.ID())
+		t.Fatalf(
+			"wolf has ID %d in this build, want 0 — the fixture is not testing a reorder",
+			wolf.ID(),
+		)
 	}
 	if got := onlyType(t, loader); got != wolf.ID() {
-		t.Errorf("loaded entity carries TypeID %d, want %d — the id wolf holds in this build", got, wolf.ID())
+		t.Errorf(
+			"loaded entity carries TypeID %d, want %d — the id wolf holds in this build",
+			got,
+			wolf.ID(),
+		)
 	}
 }
 

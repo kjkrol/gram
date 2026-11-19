@@ -66,11 +66,24 @@ func (flatAtlas) Atlas() *render.Image                            { return nil }
 func (flatAtlas) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 1, 1 }
 func (flatAtlas) White() (u, v float32)                           { return 0, 0 }
 
-func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules []Rule, dir geom.Vec, at ...geom.Vec) *counting {
+func drawThrough(
+	t *testing.T,
+	pick func(ids []uid.UID64, v *view.View),
+	rules []Rule,
+	dir geom.Vec,
+	at ...geom.Vec,
+) *counting {
 	return drawShaded(t, nil, pick, rules, dir, at...)
 }
 
-func drawShaded(t *testing.T, shaded map[render.SpriteID]render.MaterialID, pick func(ids []uid.UID64, v *view.View), rules []Rule, dir geom.Vec, at ...geom.Vec) *counting {
+func drawShaded(
+	t *testing.T,
+	shaded map[render.SpriteID]render.MaterialID,
+	pick func(ids []uid.UID64, v *view.View),
+	rules []Rule,
+	dir geom.Vec,
+	at ...geom.Vec,
+) *counting {
 	look := &counting{Look: ilook.NewFlat(1000, 1000, false, false)}
 	drawAs(t, look, func(r *renderer) { r.shade(shaded, nil) }, pick, rules, dir, at...)
 	return look
@@ -144,14 +157,21 @@ func composed(r *renderer, cam camera.Camera) *render.Frame {
 // the speed the entities drawAs makes walk at, 0 standing
 var drawSpeed float32
 
-var quarters = []geom.Vec{geom.NewVec(100, 100), geom.NewVec(700, 100), geom.NewVec(100, 700), geom.NewVec(700, 700)}
+var quarters = []geom.Vec{
+	geom.NewVec(100, 100),
+	geom.NewVec(700, 100),
+	geom.NewVec(100, 700),
+	geom.NewVec(700, 700),
+}
 
 func TestRenderer_Compose_DrawsOnlyWhatTheViewContains(t *testing.T) {
 	firstOnly := func(ids []uid.UID64, v *view.View) {
 		v.Culled = true
 		v.In.Add(ids[0])
 	}
-	if drawn := drawThrough(t, firstOnly, nil, geom.NewVec(1, 0), quarters...).sprites; len(drawn) != 1 {
+	if drawn := drawThrough(t, firstOnly, nil, geom.NewVec(1, 0), quarters...).sprites; len(
+		drawn,
+	) != 1 {
 		t.Errorf("a View holding one entity drew %d sprites, want 1", len(drawn))
 	}
 	if drawn := drawThrough(t, nil, nil, geom.NewVec(1, 0), quarters...).sprites; len(drawn) != 4 {
@@ -212,7 +232,10 @@ func TestRenderer_Compose_ATurnedSpriteFollowsItsWay(t *testing.T) {
 		{"west", geom.NewVec(-1, 0), -180}, // atan2's range: the same turn as 180
 		{"still: the Appearance's own angle holds", geom.Vec{}, 0},
 	} {
-		a := &Atlas{turned: map[render.SpriteID]bool{1: true}, unders: map[render.SpriteID][]render.SpriteID{}}
+		a := &Atlas{
+			turned: map[render.SpriteID]bool{1: true},
+			unders: map[render.SpriteID][]render.SpriteID{},
+		}
 		look := drawThrough(t, nil, a.rules(func() time.Duration { return 0 }), tc.dir, quarters[0])
 		if len(look.angles) != 1 || look.angles[0] != tc.want {
 			t.Errorf("%s: drew angles %v, want [%v]", tc.name, look.angles, tc.want)
@@ -245,7 +268,14 @@ func TestAtlas_Swaying_HoldsForTheSpritesKin(t *testing.T) {
 }
 
 func TestRenderer_Compose_AShadedSpriteIsOneMaterialQuad(t *testing.T) {
-	look := drawShaded(t, map[render.SpriteID]render.MaterialID{1: 7}, nil, nil, geom.NewVec(0, -1), quarters[0])
+	look := drawShaded(
+		t,
+		map[render.SpriteID]render.MaterialID{1: 7},
+		nil,
+		nil,
+		geom.NewVec(0, -1),
+		quarters[0],
+	)
 	if len(look.sprites) != 0 {
 		t.Fatalf("a shaded entity still drew sprites %v, want none", look.sprites)
 	}
@@ -258,7 +288,14 @@ func TestRenderer_Compose_AShadedSpriteIsOneMaterialQuad(t *testing.T) {
 		}
 		cx, cy := float32(quarters[0].X+5), float32(quarters[0].Y+5)
 		if v.Custom0 != cx || v.Custom1 != cy || v.Custom2 != 5 {
-			t.Errorf("Custom = (%v, %v, %v), want the middle (%v, %v) and half the side 5", v.Custom0, v.Custom1, v.Custom2, cx, cy)
+			t.Errorf(
+				"Custom = (%v, %v, %v), want the middle (%v, %v) and half the side 5",
+				v.Custom0,
+				v.Custom1,
+				v.Custom2,
+				cx,
+				cy,
+			)
 		}
 		if north := float32(math.Pi / 2); v.Custom3 != north {
 			t.Errorf("Custom3 = %v, want %v — headed up the screen", v.Custom3, north)
@@ -280,7 +317,13 @@ func TestRenderer_Compose_AnAnimatedSpriteShowsItsFrameOfTheClock(t *testing.T) 
 	} {
 		a := &Atlas{animated: map[render.SpriteID]animation{1: {frames: frames,
 			loops: render.Loops{N: len(frames), Period: period}}}}
-		look := drawThrough(t, nil, a.rules(func() time.Duration { return now }), geom.NewVec(1, 0), quarters[0])
+		look := drawThrough(
+			t,
+			nil,
+			a.rules(func() time.Duration { return now }),
+			geom.NewVec(1, 0),
+			quarters[0],
+		)
 		if len(look.sprites) != 1 || look.sprites[0] != want {
 			t.Errorf("at %v drew %v, want frame %v", now, look.sprites, want)
 		}
@@ -308,7 +351,15 @@ func TestRenderer_Compose_ALyingSpriteLiesWhereTheLookLaysIt(t *testing.T) {
 			lies.sprites)
 	}
 	stands := &counting{Look: ilook.NewFlat(1000, 1000, false, false)}
-	drawAs(t, stands, func(r *renderer) { r.lie(a.lain(), nil, nil) }, nil, nil, geom.Vec{}, quarters[0])
+	drawAs(
+		t,
+		stands,
+		func(r *renderer) { r.lie(a.lain(), nil, nil) },
+		nil,
+		nil,
+		geom.Vec{},
+		quarters[0],
+	)
 	if len(stands.sprites) != 1 {
 		t.Errorf("a look laying nothing drew %v, want the deck as a sprite", stands.sprites)
 	}
@@ -460,6 +511,7 @@ func (w *waying) Uncover(on bool) { w.bare = on }
 func (w *waying) GiveWay(on bool) { w.gives = on }
 
 func (w *waying) Uncovers() bool { return false }
+func (w *waying) GivesWay() bool { return false }
 
 func (w *waying) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z,
 	atlas render.AtlasSource, a render.Appearance, lit render.Illumination) {

@@ -54,6 +54,16 @@ type Lattice = light.Lattice
 // Shadowing is how a thing casts its shadow and which shade it takes (light.Shadowing).
 type Shadowing = light.Shadowing
 
+// Shelter is a roof over part of the world, the distant light getting in by its openings
+// (light.Shelter).
+type Shelter = light.Shelter
+
+// Opening is where a shelter's wall lets the distant light in (light.Opening).
+type Opening = light.Opening
+
+// MaxOpenings is how many of a shelter's openings let the distant light in.
+const MaxOpenings = light.MaxOpenings
+
 // ShadowPolicy is how a thing casts its live shadow at a distance from the eye
 // (light.ShadowPolicy).
 type ShadowPolicy = light.ShadowPolicy

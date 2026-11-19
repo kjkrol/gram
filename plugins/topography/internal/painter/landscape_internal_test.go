@@ -147,7 +147,9 @@ func TestBake_RunningWaterRunsDownItsSlopeAndNotIntoItsBanks(t *testing.T) {
 	brdW.Set(g.At(0, 1), styled(st, cell.Kind{Name: cell.Named("k2"), Allows: cell.Water,
 		SpriteID: 2}, Style{Shine: 1}))
 	// falling 0.4 southward, the banks rising half as fast away from the stream
-	reliefFor(brd).SetHeights(func(p geom.Vec) float32 { return 40 - 0.4*p.Y + 0.5*f32.Abs(p.X-48) })
+	reliefFor(
+		brd,
+	).SetHeights(func(p geom.Vec) float32 { return 40 - 0.4*p.Y + 0.5*f32.Abs(p.X-48) })
 	d := New(brd, fixed(reliefFor(brd)), true, st)
 	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 2: blue}), 32)
 	south := 0.5 + 10*f32.Sqrt(0.4)/(2*water.FlowSpan)
@@ -288,7 +290,10 @@ func TestBake_BlendsWeighTheNeighboursGroundsAtTheTilesPoints(t *testing.T) {
 	if got := b.albedoAt(41, 41); !close(got, green, 2) {
 		t.Errorf("away from the sand the earth is %v, want %v", got, green)
 	}
-	brdW.Set(g.At(2, 1), cell.Kind{Allows: cell.Water, SpriteID: 3}) // the sea keeps its cells square
+	brdW.Set(
+		g.At(2, 1),
+		cell.Kind{Allows: cell.Water, SpriteID: 3},
+	) // the sea keeps its cells square
 	b = bakedOf(t, d, atlas, 32)
 	if got := b.albedoAt(63, 47); !close(got, green, 2) {
 		t.Errorf("by the sea the earth is %v, want its own %v", got, green)
@@ -331,7 +336,8 @@ func TestWater_TheShaderCompilesWithTheBoardsMaterials(t *testing.T) {
 	if err := render.Compile(); err != nil {
 		t.Fatal(err)
 	}
-	if src := string(render.ShaderSource()); !strings.Contains(src, "return SeaGlint(") || !strings.Contains(src, "return CloudShadow(") {
+	if src := string(render.ShaderSource()); !strings.Contains(src, "return SeaGlint(") ||
+		!strings.Contains(src, "return CloudShadow(") {
 		t.Error("the shader hands no overlay to the sea's or the clouds' material")
 	}
 }
@@ -400,8 +406,11 @@ func TestShores_LieTheWayOfTheNearestCellThatDoesNotShine(t *testing.T) {
 	d := New(brd, fixed(reliefFor(brd)), true, st)
 	img, reach, _ := d.Shores(nil)
 	if reach != 96 || img.Bounds().Dx() != 11 || img.Bounds().Dy() != 5 {
-		t.Fatalf("the shores are %v reaching %v, want 11 by 5 corners reaching 3 cells", img.Bounds(),
-			reach)
+		t.Fatalf(
+			"the shores are %v reaching %v, want 11 by 5 corners reaching 3 cells",
+			img.Bounds(),
+			reach,
+		)
 	}
 	pix := make([]byte, 4*11*5)
 	img.ReadPixels(pix)
@@ -621,8 +630,16 @@ func TestPainter_TheWetCellsAreTheWaterAndTheCellsBesideIt(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(8, 6, 32)
 	brd, brdW := newBoard(grid)
 	land := styled(st, cell.Kind{Name: cell.Named("k60"), Allows: cell.Land, SpriteID: 1}, Style{})
-	sea := styled(st, cell.Kind{Name: cell.Named("k61"), Allows: cell.Water, SpriteID: 2}, Style{Under: true, Shine: 0.9})
-	river := styled(st, cell.Kind{Name: cell.Named("k62"), Allows: cell.Land | cell.Water, SpriteID: 0}, Style{Shine: 0.9, Flow: 30})
+	sea := styled(
+		st,
+		cell.Kind{Name: cell.Named("k61"), Allows: cell.Water, SpriteID: 2},
+		Style{Under: true, Shine: 0.9},
+	)
+	river := styled(
+		st,
+		cell.Kind{Name: cell.Named("k62"), Allows: cell.Land | cell.Water, SpriteID: 0},
+		Style{Shine: 0.9, Flow: 30},
+	)
 	brdW.SetAll(land)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	brdW.Set(at(0, 0), sea)
@@ -638,7 +655,8 @@ func TestPainter_TheWetCellsAreTheWaterAndTheCellsBesideIt(t *testing.T) {
 	for _, c := range []struct {
 		x, y int
 		wet  bool
-	}{{0, 0, true}, {1, 1, true}, {2, 2, false}, {6, 3, true}, {5, 3, true}, {7, 5, true}, {3, 4, false}} {
+	}{{0, 0, true}, {1, 1, true}, {2, 2, false}, {6, 3, true}, {5, 3, true}, {7, 5, true}, {3, 4,
+		false}} {
 		if got := wet[c.y*8+c.x]; got != c.wet {
 			t.Errorf("cell (%d, %d) wet %v, want %v", c.x, c.y, got, c.wet)
 		}
@@ -647,7 +665,13 @@ func TestPainter_TheWetCellsAreTheWaterAndTheCellsBesideIt(t *testing.T) {
 	d.Surface(sheetAtlas{render.NewImage(24, 8)})
 	wet, w := d.Wet()
 	if w == v || !wet[4*8+3] || !wet[3*8+2] {
-		t.Errorf("after the sea came to (3, 4): flags at %d, it %v, its neighbour (2, 3) %v; want both wet anew", w, wet[4*8+3], wet[3*8+2])
+		t.Errorf(
+			"after the sea came to (3, 4): flags at %d, it %v, its neighbour (2, 3) %v; want "+
+				"both wet anew",
+			w,
+			wet[4*8+3],
+			wet[3*8+2],
+		)
 	}
 }
 

@@ -30,7 +30,16 @@ func TestViewCamera_ItsTransformDrawsWhereItProjects(t *testing.T) {
 			wx, wy := cam.Project(p[0], p[1], p[2])
 			sx, sy, _, ok := tr.Apply(p[0], p[1], p[2], 400, 300)
 			if !ok || f32.Abs(float32(sx-wx)) > 0.05 || f32.Abs(float32(sy-wy)) > 0.05 {
-				t.Errorf("view %d (perspective %v): %v drawn at (%v, %v), projected at (%v, %v)", view, cam.inPersp, p, sx, sy, wx, wy)
+				t.Errorf(
+					"view %d (perspective %v): %v drawn at (%v, %v), projected at (%v, %v)",
+					view,
+					cam.inPersp,
+					p,
+					sx,
+					sy,
+					wx,
+					wy,
+				)
 			}
 		}
 		cam.next()

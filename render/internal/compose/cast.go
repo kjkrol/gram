@@ -61,7 +61,19 @@ func (c *Caster) Draw(
 	c.instances = c.instances[:0]
 	for k := 0; k+castFloats <= len(casts); k += castFloats {
 		in := casts[k : k+castFloats]
-		rect, ok := castCovers(tr, in[0], in[1], in[2], in[3], in[4], in[5], low, high+castHeadroom, w, h)
+		rect, ok := castCovers(
+			tr,
+			in[0],
+			in[1],
+			in[2],
+			in[3],
+			in[4],
+			in[5],
+			low,
+			high+castHeadroom,
+			w,
+			h,
+		)
 		if !ok {
 			continue
 		}

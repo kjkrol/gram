@@ -366,7 +366,11 @@ func (s *weatherSystem) next(w *Weather, k int, season calendar.Season) int32 {
 }
 
 // -1 when none may come
-func (s *weatherSystem) throw(w *Weather, season calendar.Season, weight func(i int) float32) int32 {
+func (s *weatherSystem) throw(
+	w *Weather,
+	season calendar.Season,
+	weight func(i int) float32,
+) int32 {
 	total := float32(0)
 	for i, st := range s.cfg.Weathers {
 		total += weight(i) * s.likely(st, season)

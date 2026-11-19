@@ -30,7 +30,11 @@ type burstSystem struct {
 	found []uid.UID64
 }
 
-func newBurstSystem(w *world.Plugin, bursts *command.Queue[Burst], blasts *host.PairRules[Blast]) *burstSystem {
+func newBurstSystem(
+	w *world.Plugin,
+	bursts *command.Queue[Burst],
+	blasts *host.PairRules[Blast],
+) *burstSystem {
 	return &burstSystem{w: w, space: w.Write().Space(), bursts: bursts, blasts: blasts,
 		tickOf: w.Read(0).Tick}
 }
@@ -54,13 +58,23 @@ func (s *burstSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 			return
 		}
 		cur := s.seek.Cursor()
-		self, centre, r := s.blasts.Read(sought, s.cols.Row(cur), int(cur.Slot)), s.base.At(cur).Pos.Center(), i.Command.Radius
+		self, centre, r := s.blasts.Read(
+			sought,
+			s.cols.Row(cur),
+			int(cur.Slot),
+		), s.base.At(
+			cur,
+		).Pos.Center(), i.Command.Radius
 		s.found = s.found[:0]
-		s.space.Query(geom.NewAABB(geom.NewVec(centre.X-r, centre.Y-r), geom.NewVec(centre.X+r, centre.Y+r)), aabbworld.AnyCapability, func(id uid.UID64) {
-			if id != i.Entity && !s.among(id) {
-				s.found = append(s.found, id)
-			}
-		})
+		s.space.Query(
+			geom.NewAABB(geom.NewVec(centre.X-r, centre.Y-r), geom.NewVec(centre.X+r, centre.Y+r)),
+			aabbworld.AnyCapability,
+			func(id uid.UID64) {
+				if id != i.Entity && !s.among(id) {
+					s.found = append(s.found, id)
+				}
+			},
+		)
 		for _, id := range s.found {
 			if !s.seek.Seek(id) {
 				continue
@@ -71,7 +85,12 @@ func (s *burstSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 			if d > r {
 				continue
 			}
-			s.blasts.Dispatch(t, self, s.blasts.Read(sought, s.cols.Row(other), int(other.Slot)), Blast{Self: i.Entity, Other: id, Distance: d})
+			s.blasts.Dispatch(
+				t,
+				self,
+				s.blasts.Read(sought, s.cols.Row(other), int(other.Slot)),
+				Blast{Self: i.Entity, Other: id, Distance: d},
+			)
 		}
 		s.w.Write().Despawn(cb, i.Entity)
 	})

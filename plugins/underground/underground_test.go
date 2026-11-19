@@ -392,7 +392,10 @@ func TestWalls_StandEitherSideOfATunnelForABodyInItsRoomAlone(t *testing.T) {
 	under := geom.NewAABBAt(geom.NewVec(50, 30), 10, 10)
 	walls := d.walls(collision.Band{Bottom: 0, Top: 2}, under)
 	if len(walls) != 2 {
-		t.Fatalf("a body in the tunnel meets %d walls under a cell, want one either side", len(walls))
+		t.Fatalf(
+			"a body in the tunnel meets %d walls under a cell, want one either side",
+			len(walls),
+		)
 	}
 	for name, tc := range map[string]struct {
 		at   geom.Vec

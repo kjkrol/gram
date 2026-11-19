@@ -101,7 +101,8 @@ func (a *DesktopAdapter) Capture(e *control.InputEvents) {
 			}
 		case gpucontext.PointerEvent:
 			at := a.pointer.take(ev, w, h, fills)
-			if b, ok := buttonOf(ev.Button); ok && (ev.Type == gpucontext.PointerDown || ev.Type == gpucontext.PointerUp) {
+			if b, ok := buttonOf(ev.Button); ok && (ev.Type == gpucontext.PointerDown ||
+				ev.Type == gpucontext.PointerUp) {
 				action := control.ActionRelease
 				if ev.Type == gpucontext.PointerDown {
 					action = control.ActionPress
@@ -317,20 +318,30 @@ func keyOf(k gpucontext.Key) control.Key {
 }
 
 var keys = map[gpucontext.Key]control.Key{
-	gpucontext.KeyEscape: control.KeyEscape, gpucontext.KeyEnter: control.KeyEnter, gpucontext.KeySpace: control.KeySpace,
-	gpucontext.KeyTab: control.KeyTab, gpucontext.KeyBackspace: control.KeyBackspace, gpucontext.KeyDelete: control.KeyDelete,
-	gpucontext.KeyInsert: control.KeyInsert, gpucontext.KeyHome: control.KeyHome, gpucontext.KeyEnd: control.KeyEnd,
+	gpucontext.KeyEscape: control.KeyEscape, gpucontext.KeyEnter: control.KeyEnter,
+	gpucontext.KeySpace: control.KeySpace,
+	gpucontext.KeyTab:   control.KeyTab, gpucontext.KeyBackspace: control.KeyBackspace,
+	gpucontext.KeyDelete: control.KeyDelete,
+	gpucontext.KeyInsert: control.KeyInsert, gpucontext.KeyHome: control.KeyHome,
+	gpucontext.KeyEnd:    control.KeyEnd,
 	gpucontext.KeyPageUp: control.KeyPageUp, gpucontext.KeyPageDown: control.KeyPageDown,
-	gpucontext.KeyUp: control.KeyArrowUp, gpucontext.KeyDown: control.KeyArrowDown, gpucontext.KeyLeft: control.KeyArrowLeft, gpucontext.KeyRight: control.KeyArrowRight,
+	gpucontext.KeyUp: control.KeyArrowUp, gpucontext.KeyDown: control.KeyArrowDown,
+	gpucontext.KeyLeft: control.KeyArrowLeft, gpucontext.KeyRight: control.KeyArrowRight,
 	gpucontext.KeyLeftShift: control.KeyShift, gpucontext.KeyRightShift: control.KeyShift,
 	gpucontext.KeyLeftControl: control.KeyControl, gpucontext.KeyRightControl: control.KeyControl,
 	gpucontext.KeyLeftAlt: control.KeyAlt, gpucontext.KeyRightAlt: control.KeyAlt,
 	gpucontext.KeyMinus: control.KeyMinus, gpucontext.KeyEqual: control.KeyEqual,
-	gpucontext.KeyLeftBracket: control.KeyBracketLeft, gpucontext.KeyRightBracket: control.KeyBracketRight,
-	gpucontext.KeyBackslash: control.KeyBackslash, gpucontext.KeySemicolon: control.KeySemicolon, gpucontext.KeyApostrophe: control.KeyQuote,
-	gpucontext.KeyGrave: control.KeyBackquote, gpucontext.KeyComma: control.KeyComma, gpucontext.KeyPeriod: control.KeyPeriod,
-	gpucontext.KeySlash: control.KeySlash, gpucontext.KeyCapsLock: control.KeyCapsLock,
-	gpucontext.KeyNumpadAdd: control.KeyNumpadAdd, gpucontext.KeyNumpadSubtract: control.KeyNumpadSubtract,
-	gpucontext.KeyNumpadMultiply: control.KeyNumpadMultiply, gpucontext.KeyNumpadDivide: control.KeyNumpadDivide,
-	gpucontext.KeyNumpadDecimal: control.KeyNumpadDecimal, gpucontext.KeyNumpadEnter: control.KeyNumpadEnter,
+	gpucontext.KeyLeftBracket:  control.KeyBracketLeft,
+	gpucontext.KeyRightBracket: control.KeyBracketRight,
+	gpucontext.KeyBackslash:    control.KeyBackslash, gpucontext.KeySemicolon: control.KeySemicolon,
+	gpucontext.KeyApostrophe: control.KeyQuote,
+	gpucontext.KeyGrave:      control.KeyBackquote, gpucontext.KeyComma: control.KeyComma,
+	gpucontext.KeyPeriod: control.KeyPeriod,
+	gpucontext.KeySlash:  control.KeySlash, gpucontext.KeyCapsLock: control.KeyCapsLock,
+	gpucontext.KeyNumpadAdd:      control.KeyNumpadAdd,
+	gpucontext.KeyNumpadSubtract: control.KeyNumpadSubtract,
+	gpucontext.KeyNumpadMultiply: control.KeyNumpadMultiply,
+	gpucontext.KeyNumpadDivide:   control.KeyNumpadDivide,
+	gpucontext.KeyNumpadDecimal:  control.KeyNumpadDecimal,
+	gpucontext.KeyNumpadEnter:    control.KeyNumpadEnter,
 }

@@ -261,7 +261,12 @@ func halfOf(pos world.Position) geom.Vec { return geom.NewVec(pos.Size.X/2, pos.
 // the one query the system offers its hosted rules
 const sought = 0
 
-func newCollisionSystem(space *aabbworld.Space, between *host.PairRules[Meeting], each *host.Rules[Struck], fieldOf func() Field) *collisionSystem {
+func newCollisionSystem(
+	space *aabbworld.Space,
+	between *host.PairRules[Meeting],
+	each *host.Rules[Struck],
+	fieldOf func() Field,
+) *collisionSystem {
 	d := &collisionSystem{space: space, between: between, each: each, fieldOf: fieldOf}
 	d.met = make(map[restingPair]struct{}, 256)
 	d.struckAt, d.hitAt = d.struck, d.hit
@@ -362,7 +367,13 @@ func (d *collisionSystem) mark() (moved, stood bool) {
 	d.walk.All()
 	for d.walk.Next() {
 		cursor := d.walk.Cursor()
-		bases, colliders, physics := d.base.Slice(cursor), d.collider.Slice(cursor), d.physics.Slice(cursor)
+		bases, colliders, physics := d.base.Slice(
+			cursor,
+		), d.collider.Slice(
+			cursor,
+		), d.physics.Slice(
+			cursor,
+		)
 		fixed := d.walkFixed.Present(cursor)
 		// far off, or travelling the abstract graph, a box collides with nothing
 		if !d.walk.Due() || d.walkAbstract.Present(cursor) {
@@ -387,7 +398,10 @@ func (d *collisionSystem) mark() (moved, stood bool) {
 			colliders[i].clearContacts()
 			if sweeps != nil {
 				if d.wraps {
-					panic("collision: Sweep in a wrapping world; a swept entity's step must not cross a seam")
+					panic(
+						"collision: Sweep in a wrapping world; a swept entity's step must not " +
+							"cross a seam",
+					)
 				}
 				d.sweeping = true
 			}
@@ -608,7 +622,11 @@ func (s contactSide) side() response.Side {
 }
 
 func (s contactSide) body() response.Body {
-	return response.Body{Layers: s.Layers, Box: s.Base.Pos.AABB.AABB, Immovable: s.Physics.immovable()}
+	return response.Body{
+		Layers:    s.Layers,
+		Box:       s.Base.Pos.AABB.AABB,
+		Immovable: s.Physics.immovable(),
+	}
 }
 
 // the share is a's part of the push apart; a pair with a swept side is never pushed
@@ -756,7 +774,10 @@ func (d *collisionSystem) contactGround(id uid.UID64, cell uint64, pen geom.Vec)
 	if self.Sweep != nil {
 		sides.along = d.field.along
 	}
-	d.pending = append(d.pending, pendingContact{sides: sides, terrain: true, cell: cell, sensed: self.Physics == nil})
+	d.pending = append(
+		d.pending,
+		pendingContact{sides: sides, terrain: true, cell: cell, sensed: self.Physics == nil},
+	)
 }
 
 func (d *collisionSystem) nearest() {
@@ -796,11 +817,26 @@ func (d *collisionSystem) record() {
 		}
 		s := &p.sides
 		if p.terrain {
-			s.A.Collider.add(Contact{Impact: s.impact, Normal: s.normal, Terrain: true, Cell: p.cell, Along: s.along, Sensed: p.sensed})
+			s.A.Collider.add(
+				Contact{
+					Impact:  s.impact,
+					Normal:  s.normal,
+					Terrain: true,
+					Cell:    p.cell,
+					Along:   s.along,
+					Sensed:  p.sensed,
+				},
+			)
 			continue
 		}
 		s.A.Collider.addContact(s.B.Entity, s.impact, s.normal, s.along, p.sensed)
-		s.B.Collider.addContact(s.A.Entity, s.impact, geom.NewVec(-s.normal.X, -s.normal.Y), s.along, p.sensed)
+		s.B.Collider.addContact(
+			s.A.Entity,
+			s.impact,
+			geom.NewVec(-s.normal.X, -s.normal.Y),
+			s.along,
+			p.sensed,
+		)
 		d.contacts = append(d.contacts, *s)
 	}
 }

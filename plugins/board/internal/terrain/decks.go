@@ -235,8 +235,14 @@ func (r *Read) Ends(c cell.ID, f cell.Floor, off geom.Vec) (a, b geom.Vec, freeA
 // Storeyed reports whether a floor gives any cell a level beside its ground.
 func (r *Read) Storeyed() bool { return r.t.storeyed > 0 }
 
-// Sunk reports whether a floor lies sunk under any cell.
-func (r *Read) Sunk() bool { return r.t.sunk > 0 }
+// Rooms reports whether a floor has a room over it on any cell.
+func (r *Read) Rooms() bool { return r.t.rooms > 0 }
+
+// Dug reports whether a room is dug under the ground of any cell.
+func (r *Read) Dug() bool { return r.t.dug > 0 }
+
+// Housed reports whether a room stands on the ground of any cell.
+func (r *Read) Housed() bool { return r.t.housed > 0 }
 
 // NearDeck reports whether a Floor lies over any of c: its own, or a neighbour's band reaching into
 // it.
@@ -389,7 +395,7 @@ func (r *Read) Lane(from, to cell.ID, d cell.Domain, level cell.Level) float32 {
 		return lane
 	}
 	for _, step := range [2][2]cell.ID{{from, to}, {to, from}} {
-		b := r.Built(step[0])
+		b := r.builtIn(step[0])
 		f := b.On(level)
 		if !band(f) || f.Allows&d == 0 || !r.ReachesOn(step[0], step[1], level) {
 			continue
@@ -407,23 +413,27 @@ func (r *Read) Lane(from, to cell.ID, d cell.Domain, level cell.Level) float32 {
 // neighbour n: a band along its link to n, a whole floor across any edge, and through a corner
 // only along a link.
 func (r *Read) Reaches(c, n cell.ID) bool {
-	b := r.Built(c)
-	return r.t.reaches(b.Floor, c, n)
+	return r.reaches(r.builtIn(c).Floor, c, n)
 }
 
 // ReachesOn is Reaches of the floor making c's level.
 func (r *Read) ReachesOn(c, n cell.ID, level cell.Level) bool {
-	b := r.Built(c)
-	return r.t.reaches(b.On(level), c, n)
+	return r.reaches(r.builtIn(c).On(level), c, n)
 }
 
-func (t *Cells) reaches(f cell.Floor, c, n cell.ID) bool {
+// a room of whole cells reaches on along its links into its storey, out of it by its door alone
+func (r *Read) reaches(f cell.Floor, c, n cell.ID) bool {
+	t := r.t
 	if f.Allows == 0 {
 		return false
 	}
 	for i := range t.grid.Directions() {
 		if m, ok := t.grid.Toward(c, i); ok && m == n {
-			if band(f) || t.grid.Corner(i) {
+			switch {
+			case f.Room() && f.Width == 0:
+				return f.Links.Has(i) &&
+					(f.Door.Width > 0 || r.builtIn(n).Storey(f.Storey).Allows != 0)
+			case band(f) || t.grid.Corner(i):
 				return f.Links.Has(i)
 			}
 			return true
@@ -433,14 +443,21 @@ func (t *Cells) reaches(f cell.Floor, c, n cell.ID) bool {
 }
 
 func (t *Cells) decked(sites []site) {
-	t.bands, t.narrowest, t.thinnest, t.sunk, t.storeyed = 0, 0, 0, 0, 0
+	t.bands, t.narrowest, t.thinnest, t.storeyed = 0, 0, 0, 0
+	t.rooms, t.dug, t.housed = 0, 0, 0
 	for _, s := range sites {
 		for k := range uint8(cell.Storeys) {
 			f := *s.built.Storey(k)
-			if f.Sunk() {
-				t.sunk++
+			if f.Room() {
+				t.rooms++
 			}
-			if f.Height != 0 {
+			if f.Dug() {
+				t.dug++
+			}
+			if f.Room() && f.Standing {
+				t.housed++
+			}
+			if f.Level() != cell.OnGround {
 				t.storeyed++
 			}
 			t.deck(s.cell, f)

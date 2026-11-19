@@ -28,7 +28,12 @@ func TestMoveTo_SendsThePlayersOwnSelectedUnitsAlone(t *testing.T) {
 	newTarget := grid.At(8, 0)
 
 	moves := &command.Queue[MoveTo]{}
-	cmds := routing.NewSystem(spacing.NewFinder(grid, terrain, nil, &cell.MultipleOccupancy{}), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := routing.NewSystem(
+		spacing.NewFinder(grid, terrain, nil, &cell.MultipleOccupancy{}),
+		moves,
+		&command.Queue[LookAt]{},
+		selTags.Selected,
+	)
 	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
 	var orderComp goke.Comp[MoveOrder]
@@ -68,7 +73,12 @@ func TestMoveTo_SendsThePlayersOwnSelectedUnitsAlone(t *testing.T) {
 		}
 	}
 	if got[ids[0]] != newTarget || got[ids[1]] != oldTarget || got[ids[2]] != oldTarget {
-		t.Errorf("targets: player 1's %v, player 2's %v, nobody's %v; want player 1's alone sent to %v",
-			got[ids[0]], got[ids[1]], got[ids[2]], newTarget)
+		t.Errorf(
+			"targets: player 1's %v, player 2's %v, nobody's %v; want player 1's alone sent to %v",
+			got[ids[0]],
+			got[ids[1]],
+			got[ids[2]],
+			newTarget,
+		)
 	}
 }

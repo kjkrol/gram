@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/render/internal/gfx"
 	"github.com/kjkrol/gram/render/internal/light"
 	"github.com/kjkrol/gram/render/internal/wgsl"
 )
@@ -37,6 +38,11 @@ type lighting struct {
 	atlas   AtlasSource
 	baker   Baker
 	caster  Caster
+
+	// the shelters' rows (Lights.Shelters), as laid at their version and one more
+	shelters   *gfx.Image
+	sheltersAt uint64
+	shelterPix []byte
 }
 
 // a thing casting a live shadow, as a source said (Frame.Cast)
@@ -46,6 +52,27 @@ type caster struct {
 	cast        light.Casting
 	atlas       AtlasSource
 	sprite      SpriteID
+}
+
+// shelter hands f the shelters' rows, laid anew where their version moved on since
+func (l *lighting) shelter(f *Frame) {
+	n := len(l.now.Shelters)
+	if n == 0 {
+		return
+	}
+	if l.shelters == nil || l.sheltersAt != l.now.SheltersVersion+1 {
+		l.sheltersAt = l.now.SheltersVersion + 1
+		l.shelterPix = light.ShelterRows(l.shelterPix[:0], l.now.Shelters)
+		if l.shelters == nil || l.shelters.Bounds().Dy() != n {
+			if l.shelters != nil {
+				l.shelters.Deallocate()
+			}
+			l.shelters = gfx.NewImage(light.ShelterTexels, n)
+		}
+		pix := l.shelterPix
+		l.shelters.Defer(func(dst *gfx.Image) { dst.WritePixels(pix) })
+	}
+	f.Image("Shelters", l.shelters)
 }
 
 // begin readies the light for the frame f through cam, its ground's shade planned unless p is the
@@ -59,6 +86,7 @@ func (l *lighting) begin(f *Frame, cam camera.Camera, p part) {
 		return
 	}
 	f.lighting = l
+	l.shelter(f)
 	l.now.Sun.Frame(f)
 	l.beam = l.now.Sun.Beam()
 	l.up = light.Illumination{Light: l.beam.Shaded(0, 0, 1, 1)}

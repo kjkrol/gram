@@ -1,6 +1,6 @@
 ---
 name: gram-plugins
-description: Reference of gram's built-in plugins, one entry each — world (with entity, view, clock), motion (with steering), light, board (cells, units, standing entities, bridges, maps as files, gramap), topography, atmosphere, collision, navigation, selection, players and owner, dialog, cameras, driving, gravity, vision, bridges, underground, buildings, telemetry, minimap, bullet: how each is wired and in what order, what it rests on, its invariants, the user's decisions, the traps and the ideas dropped. Use when working in or with a specific plugin, before reading its code.
+description: Reference of gram's built-in plugins, one entry each — world (with entity, view, clock), motion (with steering), light, board (cells, units, standing entities, bridges, maps as files, gramap), topography, atmosphere, collision, navigation, selection, players and owner, dialog, cameras, driving, gravity, vision, bridges, underground, interiors, forest, buildings, roads, telemetry, minimap, bullet: how each is wired and in what order, what it rests on, its invariants, the user's decisions, the traps and the ideas dropped. Use when working in or with a specific plugin, before reading its code.
 ---
 
 # gram-plugins
@@ -978,7 +978,20 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
   `spacing/path_finder.go` asserts `*board.BoardRead` against them all.
 - The pieces carry `world.Unseen` (the world draws none of them, the plugin's tube does),
   `vision.Transparency{1}` and no shadow; the mouth is the one part with a look. The tube and the
-  marks read every sunk floor of the board, whoever built it.
+  marks read every dug floor of the board (`Floor.Dug`), whoever built it; a standing room is
+  its builder's to draw.
+- **A kind's look is a place in the shader's table** (`Spec.Look`, 2026-11-19: a mine is no road
+  tunnel): `TubeLooks`, eight looks of five vec4 in the tube's uniforms, the road's first; the
+  index rides in the faces' float past `lookShift`, the kind found by `world.Base.TypeID`, so a
+  floor dug by no kind of the plugin's is the road's; the marker masks the index off
+  (`faceBits`). A stretch runs from a cell's edge to its middle, so its along-coordinate is
+  mirrored on a cell's second half: the lamps and the sets are symmetric about it, a texture is
+  not and takes the world's coordinates (the rock's noise seamed twice a cell from `at`).
+- **A room is a floor with `Clear`, dug or `Standing`** (`Floor.Room`, 2026-11-19), never one
+  worked out from its height: a tunnel's piece at a mouth lies at Height 0 and is no room. A
+  structure's handle carries `interiors.Room{Sky}` and a `Lamp` by day, so whoever walks in is
+  lit as the tube draws it; the chambers' cells link to each other, a room walled but where its
+  links lead.
 - The ground is cut over a mouth by the terrain's shader from marks in the lattice's free
   channels (the heights' blue and alpha, the normals' alpha at the cell's corner), found by the
   topography in its Publish as the board's passage moves; `U.Mouths` keeps a board without
@@ -986,6 +999,24 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
 - The cameras needed no change: the cage is free in the room over a sunk floor
   (`topography.Read.Free`), so the eye inside a unit is the unit's and the arm behind it
   shortens before the walls.
+
+## interiors
+
+- Made over the world and the board (`NewPlugin(w, brd)`), its `RunPlan` after the board's; it
+  is a `world.Self`, without which it was never installed. A room is a `world.Whole` marked
+  `Room`, a tag (a query takes it by `goke.Include`), whose pieces are floors with a room; the
+  handle's `world.Z.Altitude` is its floor.
+- **Whoever builds a room says what gets in**, on its handle's `light.Shelter`: the buildings lay
+  a house's openings once, from the panes the shader draws (`paneOf`'s constants) where the
+  ground outside lies under their sills, and its door; the underground none. Never a second
+  copy of the windows worked out apart. A component holds no slice (a save could not encode it):
+  `Shelter.Openings` is an array of 32, `Opens` adding one.
+- **The light inside is the GPU's** (the user's word, 2026-11-19): the interiors write
+  `light.Sheltered{In}` alone; the light lays the shelters in the frame at places kept by entity
+  (`shelters.place`), so its publish and the world's marks agree in either order, and the
+  shaders work the sun through the openings out at the pixel (`gram-render`). A room's identity
+  may be 0, goke's first entity: whether one is in a room is the presence of `Inside` and
+  `Sheltered`, never a zero.
 
 ## forest
 
@@ -1099,6 +1130,24 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
   crosses (nothing stands on a road or in a river), against the edge its cell's seed picks
   (`lot`), the quarters across the cell its yard: the lamp of a part's heart and a garden's
   tree stand there, by the same `lot` in the rules as in `settle`.
+- **A house with a door** (the user's word, 2026-11-19: a unit walks in, a level floor also on
+  a slope, the sun through the windows): square to a square grid on whole cells (`houseOf`
+  refuses one turned or off them with its line), its room on `RoomStorey`, the last (bridges
+  the first, the underground those between); the floor at the ground in the middle of the
+  door, laid off a level's heights in the Spawn section, where the board has none yet. Its
+  pieces carry `world.Unseen`, the plugin drawing the room with its building.
+- **Near, the solids are drawn among the figures** (`near.go`, an `Overlying` source, so they
+  give way: `world.Write.GivesWay`, asked `Read.GivesWayDrawn(cam)`); far, at the strategic
+  scale, with the ground as before. A room an uncovered entity stands in (the interiors'
+  `Read`) is drawn bared: its floor, its far walls with their openings and the inside, the
+  near walls and the roof given way over it whole. A unit's live shadow lies on the ground's
+  depth alone, so it falls on no near building. The rooms' insides are kept on the GPU with the
+  stock, a buffer of their own (the user's word, 2026-11-19: nothing sent a frame that has not
+  changed): a frame finds the bared rooms by their places, a range of one each, and a lamp
+  burning other than the stock was laid with re-lays it.
+- In the board's field a standing room's cells skip their solid kind and stand a foundation
+  under the floor (`footed`), and its door's gap is half a wall's thickness wider either side:
+  a walker stopped at the cell's edge and in the doorway before.
 
 ## roads, with site
 

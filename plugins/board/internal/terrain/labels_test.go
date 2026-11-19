@@ -68,12 +68,20 @@ func (p *cellProbe) read(t *testing.T) map[cell.ID]cellState {
 	return out
 }
 
-func installCells(t *testing.T, g grid.Grid, prepare func(w *world.Plugin, brd *board.Plugin)) (*goke.ECS, *world.Plugin, *board.Plugin, *cellProbe) {
+func installCells(
+	t *testing.T,
+	g grid.Grid,
+	prepare func(w *world.Plugin, brd *board.Plugin),
+) (*goke.ECS, *world.Plugin, *board.Plugin, *cellProbe) {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 4 * boardtest.CellSize, Height: 4 * boardtest.CellSize},
-		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: boardtest.UnitSize, MaxSize: boardtest.UnitSize},
-		Heights:  true,
+		Space: world.SpaceCfg{Width: 4 * boardtest.CellSize, Height: 4 * boardtest.CellSize},
+		Entities: world.EntitiesCfg{
+			MaxCount: 4,
+			MinSize:  boardtest.UnitSize,
+			MaxSize:  boardtest.UnitSize,
+		},
+		Heights: true,
 	})
 	brd := board.NewPlugin(g, &cell.MultipleOccupancy{}, w)
 	brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land})
@@ -130,9 +138,24 @@ func TestCells_RolesAndLabelsReachTheCellEntities(t *testing.T) {
 				}})
 			})
 			want := map[cell.ID]cellState{
-				a: {hasRoles: true, roles: tag.Tags[cond.Roles](0).With(trapdoor.Tag()), labelled: true, label: ceremony.LabelOf("", "west")},
-				b: {hasRoles: true, roles: tag.Tags[cond.Roles](0).With(plate.Tag()), labelled: true, label: ceremony.LabelOf("plate", "west")},
-				c: {hasRoles: true, roles: tag.Tags[cond.Roles](0).With(trapdoor.Tag(), plate.Tag()), labelled: true, label: ceremony.LabelOf("", "east")},
+				a: {
+					hasRoles: true,
+					roles:    tag.Tags[cond.Roles](0).With(trapdoor.Tag()),
+					labelled: true,
+					label:    ceremony.LabelOf("", "west"),
+				},
+				b: {
+					hasRoles: true,
+					roles:    tag.Tags[cond.Roles](0).With(plate.Tag()),
+					labelled: true,
+					label:    ceremony.LabelOf("plate", "west"),
+				},
+				c: {
+					hasRoles: true,
+					roles:    tag.Tags[cond.Roles](0).With(trapdoor.Tag(), plate.Tag()),
+					labelled: true,
+					label:    ceremony.LabelOf("", "east"),
+				},
 				d: {hasRoles: true, roles: tag.Tags[cond.Roles](0).With(trapdoor.Tag())},
 				e: {hasRoles: true, labelled: true, label: ceremony.LabelOf("lever", "")},
 			}

@@ -20,14 +20,16 @@ fn Ember(p: vec2<f32>, red: f32, fraction: f32, custom: vec4<f32>) -> vec4<f32> 
 
     // breath while standing, flicker while running
     let breath = 1.0 + (0.12 - 0.10 * red) * sin(U.Clock * 2.2);
-    let flicker = 1.0 + (0.15 + 0.55 * red) * (noise(p * 0.35 + vec2<f32>(U.Clock * (1.0 + 6.0 * red), -U.Clock * 2.0)) - 0.5);
+    let flicker = 1.0 + (0.15 + 0.55 * red) * (noise(p * 0.35 + vec2<f32>(U.Clock * (1.0 + 6.0 *
+        red), -U.Clock * 2.0)) - 0.5);
     let reach = 0.55 * breath;
     let glow = clamp(1.0 - d / reach, 0.0, 1.0) * flicker;
     if glow <= 0.0 {
         return vec4<f32>(0.0);
     }
     let heat = glow * glow;
-    let tint = mix(vec3<f32>(0.9, 0.25, 0.05), vec3<f32>(1.0, 0.9, 0.55), heat); // orange rim, white-hot core
+    // orange rim, white-hot core
+    let tint = mix(vec3<f32>(0.9, 0.25, 0.05), vec3<f32>(1.0, 0.9, 0.55), heat);
     let a = min(heat * 1.6, 1.0);
     return vec4<f32>(tint * a, a); // premultiplied: the flame glazes the meadow
 }

@@ -16,7 +16,10 @@ var (
 	// one for its relief
 	photoShader = render.NewMeshShaderWith("world's sheet",
 		render.Files(shaders, "shaders/sheet_photo.wgsl"), []render.Uniform{
-			{Name: "SheetTarget", Size: 2}, {Name: "SheetPx", Size: 1}, {Name: "SheetSplit", Size: 1},
+			{
+				Name: "SheetTarget",
+				Size: 2,
+			}, {Name: "SheetPx", Size: 1}, {Name: "SheetSplit", Size: 1},
 		}).Instanced(5)
 	// the darkroom's slots copied into the sheets at L4, those halved into the sheets at L5, and
 	// the rectangles drawn into filled before

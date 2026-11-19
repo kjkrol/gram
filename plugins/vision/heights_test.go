@@ -14,7 +14,10 @@ import (
 func z(altitude, height float32) *world.Z { return &world.Z{Altitude: altitude, Height: height} }
 
 func eyed(eye float32) *look {
-	return &look{Sight: vision.Sight{Facing: geom.NewVec(1.0, 0.0), Radius: 300}, Eye: world.Eye{Height: eye, Angle: math.Pi / 4}}
+	return &look{
+		Sight: vision.Sight{Facing: geom.NewVec(1.0, 0.0), Radius: 300},
+		Eye:   world.Eye{Height: eye, Angle: math.Pi / 4},
+	}
 }
 
 func TestHeights_AWalkerIsStoppedByTheWallAHawkLooksOver(t *testing.T) {
@@ -23,11 +26,21 @@ func TestHeights_AWalkerIsStoppedByTheWallAHawkLooksOver(t *testing.T) {
 		{x: 100, y: 0, size: 60, z: z(0, 10)},
 		{x: 240, y: 0, z: z(0, 2)},
 	}
-	_, seen, _ := sceneIn(t, quasi, append([]spawn{{x: 0, y: 0, z: z(0, 2), sight: eyed(1.5)}}, wallAndWalker...)...)
+	_, seen, _ := sceneIn(
+		t,
+		quasi,
+		append([]spawn{{x: 0, y: 0, z: z(0, 2), sight: eyed(1.5)}}, wallAndWalker...)...)
 	if seen[0].Count != 1 || seen[0].Dists[0] > 100 {
-		t.Errorf("the walker saw %d at %v, want the wall alone", seen[0].Count, seen[0].Dists[:seen[0].Count])
+		t.Errorf(
+			"the walker saw %d at %v, want the wall alone",
+			seen[0].Count,
+			seen[0].Dists[:seen[0].Count],
+		)
 	}
-	_, seen, _ = sceneIn(t, quasi, append([]spawn{{x: 0, y: 0, z: z(40, 2), sight: eyed(1)}}, wallAndWalker...)...)
+	_, seen, _ = sceneIn(
+		t,
+		quasi,
+		append([]spawn{{x: 0, y: 0, z: z(40, 2), sight: eyed(1)}}, wallAndWalker...)...)
 	if seen[0].Count != 2 {
 		t.Errorf("the hawk saw %d, want the wall and the walker behind it", seen[0].Count)
 	}
@@ -46,12 +59,21 @@ func (plateau) Step() float32 { return 10 }
 func TestHeights_AHillHidesTheLowlandFromAWalkerAndNotFromAHawk(t *testing.T) {
 	onHill := &relief{ground: plateau{}, step: 10}
 	target := spawn{x: 240, y: 0, z: z(0, 2)}
-	_, seen, outlines := sceneIn(t, onHill, spawn{x: 0, y: 0, z: z(0, 2), sight: eyed(1.5), outline: true}, target)
+	_, seen, outlines := sceneIn(
+		t,
+		onHill,
+		spawn{x: 0, y: 0, z: z(0, 2), sight: eyed(1.5), outline: true},
+		target,
+	)
 	if seen[0].Count != 0 {
 		t.Errorf("the walker saw %d past the hill, want nothing", seen[0].Count)
 	}
 	if b := outlines[0].Shadows[outlines[0].Count/2][0]; b.From > 100 || b.To < 240 {
-		t.Errorf("the walker's shadow ahead is %+v, want the ground from the hill past the target out of sight", b)
+		t.Errorf(
+			"the walker's shadow ahead is %+v, want the ground from the hill past the target out "+
+				"of sight",
+			b,
+		)
 	}
 	_, seen, _ = sceneIn(t, onHill, spawn{x: 0, y: 0, z: z(40, 2), sight: eyed(1)}, target)
 	if seen[0].Count != 1 {
@@ -103,7 +125,11 @@ func TestHeights_BlockersLookOverAWallOnAnotherLayer(t *testing.T) {
 
 func TestHeights_AViewReachesItsRadiusWithTheGroundOutOfSightAsShadows(t *testing.T) {
 	onPlateau := &relief{ground: plateau{}, step: 10}
-	_, _, outlines := sceneIn(t, onPlateau, spawn{x: 70, y: 0, z: z(12, 2), sight: eyed(1.5), outline: true})
+	_, _, outlines := sceneIn(
+		t,
+		onPlateau,
+		spawn{x: 70, y: 0, z: z(12, 2), sight: eyed(1.5), outline: true},
+	)
 	o := outlines[0]
 	mid := int(o.Count) / 2
 	for i := range int(o.Count) {
@@ -113,10 +139,17 @@ func TestHeights_AViewReachesItsRadiusWithTheGroundOutOfSightAsShadows(t *testin
 	}
 	b := o.Shadows[mid][0]
 	if b == (vision.Band{}) || b.From < 20 || b.From > 45 || b.To < 150 || b.To > 200 {
-		t.Errorf("shadow straight ahead = %+v, want one from just past the edge 25 away to where the lowland is seen again, about 180", b)
+		t.Errorf(
+			"shadow straight ahead = %+v, want one from just past the edge 25 away to where the "+
+				"lowland is seen again, about 180",
+			b,
+		)
 	}
 	if o.Shadows[mid][1] != (vision.Band{}) {
-		t.Errorf("a second shadow %+v straight ahead, want the lowland seen to the radius", o.Shadows[mid][1])
+		t.Errorf(
+			"a second shadow %+v straight ahead, want the lowland seen to the radius",
+			o.Shadows[mid][1],
+		)
 	}
 }
 
@@ -128,7 +161,11 @@ func TestHeights_AFlatWorldDrawsNoShadows(t *testing.T) {
 	o := outlines[0]
 	for i := range int(o.Count) {
 		if o.Shadows[i][0] != (vision.Band{}) {
-			t.Fatalf("a flat world's outline has shadow %+v at angle %d, want none", o.Shadows[i][0], i)
+			t.Fatalf(
+				"a flat world's outline has shadow %+v at angle %d, want none",
+				o.Shadows[i][0],
+				i,
+			)
 		}
 	}
 	if mid := o.Depths[o.Count/2]; mid > 100 {

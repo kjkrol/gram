@@ -1,10 +1,11 @@
 package world_test
 
 import (
-	"github.com/kjkrol/ceremony/plan"
-	"github.com/kjkrol/ceremony/store"
 	"testing"
 	"time"
+
+	"github.com/kjkrol/ceremony/plan"
+	"github.com/kjkrol/ceremony/store"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
@@ -151,7 +152,10 @@ func TestPlan_OrdersTheWorldsCommands(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	if n, _, _ := stage.minds(); n != 0 {
-		t.Errorf("%d entities with a mind after the leaver's wait, want none: it despawned itself", n)
+		t.Errorf(
+			"%d entities with a mind after the leaver's wait, want none: it despawned itself",
+			n,
+		)
 	}
 }
 

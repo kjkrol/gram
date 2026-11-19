@@ -31,7 +31,8 @@ func newNight(t *testing.T, cfg atmosphere.Config, define func(n *night),
 	t.Helper()
 	n := &night{}
 	st := stage.New("night").
-		World(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}, Heights: true}).
+		World(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128},
+			Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}, Heights: true}).
 		Plugins(func(w *world.Plugin) { n.w, n.a = w, atmosphere.NewPlugin(w, nil, cfg) }).
 		Effects(func(ctx game.Initializer) { n.ecs = ctx.ECS(); define(n) }).
 		Rules(func() {
@@ -108,7 +109,11 @@ func TestMoonrise_FiresOnceARiseAndFullPicksTheFullOnes(t *testing.T) {
 		full = n.w.Write().Effects().Named("full risen")
 	}, func(n *night) {
 		n.w.Roles().Define("moon watcher",
-			act.Branch[sky.Moonrise]{Name: "a rise", When: cond.Self.If(cond.Always), Then: act.Self.Put(risen)},
+			act.Branch[sky.Moonrise]{
+				Name: "a rise",
+				When: cond.Self.If(cond.Always),
+				Then: act.Self.Put(risen),
+			},
 			act.Branch[sky.Moonrise]{
 				Name: "a full rise",
 				When: cond.Self.If(sky.FullMoon()),
@@ -131,9 +136,18 @@ func TestMoonrise_FiresOnceARiseAndFullPicksTheFullOnes(t *testing.T) {
 		wasRisen, wasFull = r, f
 	}
 	if rises < 5 || rises > 8 {
-		t.Errorf("in eight days the moon rose %d times, want about six: once a day, a day lost each time round", rises)
+		t.Errorf(
+			"in eight days the moon rose %d times, want about six: once a day, a day lost each "+
+				"time round",
+			rises,
+		)
 	}
 	if fulls < 2 || fulls >= rises {
-		t.Errorf("of %d rises %d were of a full moon, want two at least — one each time round — and not all", rises, fulls)
+		t.Errorf(
+			"of %d rises %d were of a full moon, want two at least — one each time round — and "+
+				"not all",
+			rises,
+			fulls,
+		)
 	}
 }

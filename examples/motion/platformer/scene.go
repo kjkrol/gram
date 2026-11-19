@@ -25,5 +25,6 @@ var (
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
 	view := a.cameras.Write().New(cameras.FromAbove, camera.Config{Zoom: 2, Follow: HeroName})
-	return ui.Image(render.NewFeed(view, a.world.Read(0).Picture())).Input(a.players.Through(a.player))
+	return ui.Image(render.NewFeed(view, a.world.Read(0).Picture())).
+		Input(a.players.Through(a.player))
 }

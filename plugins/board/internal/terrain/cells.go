@@ -42,8 +42,10 @@ type Cells struct {
 	built     int // a board of none seeks none
 	railed    int
 	bands     int
-	sunk      int // the floors sunk under the ground
-	storeyed  int // the floors raised or sunk: the levels beside the ground
+	rooms     int // the floors with a room over them
+	dug       int // the rooms dug under the ground
+	housed    int // the rooms standing on the ground
+	storeyed  int // the floors raised, sunk or roomed: the levels beside the ground
 	narrowest float32
 	thinnest  float32
 	reached   []bool // by ordinal: a neighbour's band reaches into the cell
@@ -130,7 +132,7 @@ func (r *Read) Kind(c cell.ID) cell.Kind {
 // level, Kind.
 func (r *Read) KindAt(c cell.ID, on cell.Level) cell.Kind {
 	t := r.t
-	b := r.Built(c)
+	b := r.builtIn(c)
 	if !b.Levelled() {
 		return r.Kind(c)
 	}
@@ -172,6 +174,9 @@ func (r *Read) KindOn(c cell.ID, p geom.Vec, feet, reach float32,
 	}
 	// the ground beside the floors: a floor lying on it counts where p is on it
 	kind, on, top := cell.Built{Wall: b.Wall, Rail: b.Rail}.Over(k), cell.OnGround, f32.Inf(-1)
+	if housed(b) {
+		kind = closed(kind)
+	}
 	r.DecksOver(c, p, func(d Deck) bool {
 		f := d.Built.Floor
 		h, ok := r.stoodOn(f, d.Cell, feet, reach, ground)
@@ -179,7 +184,8 @@ func (r *Read) KindOn(c cell.ID, p geom.Vec, feet, reach float32,
 			return true
 		}
 		top = h
-		if built := (cell.Built{Floor: f, Wall: b.Wall}); f.Height != 0 && ground != nil {
+		if built := (cell.Built{Floor: f, Wall: b.Wall}); f.Level() != cell.OnGround &&
+			(ground != nil || f.Room()) {
 			kind, on = levelled(k, built), f.Level()
 		} else {
 			kind, on = built.Over(k), cell.OnGround
@@ -217,22 +223,42 @@ func (r *Read) LevelFor(p geom.Vec, feet, reach float32,
 }
 
 // stoodOn is how high f, built on c, lies and whether whoever has its feet at feet and steps
-// reach high stands on it: a raised floor within its reach, as low as it runs at its edges, a
-// sunk one under whose roof its feet are, a floor lying on the ground whatever its feet
+// reach high stands on it: a floor with a room where its feet are in the room, a pick from above
+// in a room standing on the ground alone, a raised floor within its reach, as low as it runs at
+// its edges, a floor lying on the ground whatever its feet
 func (r *Read) stoodOn(f cell.Floor, c cell.ID, feet, reach float32,
 	ground func(cell.ID) float32) (h float32, ok bool) {
 	h = f.Height
-	if ground == nil {
-		return h, !f.Sunk()
+	if ground != nil {
+		h += ground(c)
 	}
-	h += ground(c)
 	switch {
+	case f.Room() && f32.IsInf(feet, 1):
+		return h, f.Standing
+	case f.Room():
+		dip := float32(0)
+		if ground != nil {
+			dip = r.Dip(f, c, ground)
+		}
+		return h, feet >= h-reach-dip && feet < h+f.Clear
+	case ground == nil:
+		return h, !f.Sunk()
 	case f.Height > 0:
 		return h, feet >= h-reach || feet >= h-reach-r.Dip(f, c, ground)
-	case f.Sunk():
-		return h, feet >= h-reach-r.Dip(f, c, ground) && feet < h+f.Clear
 	}
 	return h, true
+}
+
+// housed reports whether a room standing on the ground is built over b's cell: none stands on
+// its ground, under the room's floor or cut away
+func housed(b *cell.Built) bool {
+	return b.Floor.Standing || b.More[0].Standing || b.More[1].Standing
+}
+
+// closed is k admitting nobody
+func closed(k cell.Kind) cell.Kind {
+	k.Allows = 0
+	return k
 }
 
 // Dip is how far under its middle the band f of c, raised or sunk, lies at its lowest edge: on
@@ -253,7 +279,7 @@ func (r *Read) Dip(f cell.Floor, c cell.ID, ground func(cell.ID) float32) float3
 		if !ok {
 			continue
 		}
-		nb := r.Built(n)
+		nb := r.builtIn(n)
 		var edge float32
 		switch nf := nb.Storey(f.Storey); {
 		case nf.Height != 0 && nf.Sunk() == f.Sunk():
@@ -270,22 +296,26 @@ func (r *Read) Dip(f cell.Floor, c cell.ID, ground func(cell.ID) float32) float3
 
 // level is k as whoever crosses b's cell on l meets it: on the ground with the floors lying on
 // it alone, on a storey with its floor
-func level(k cell.Kind, b cell.Built, l cell.Level) cell.Kind {
+func level(k cell.Kind, b *cell.Built, l cell.Level) cell.Kind {
 	if l == cell.OnGround {
 		on := cell.Built{Wall: b.Wall, Rail: b.Rail}
-		if b.Floor.Height == 0 {
+		if b.Floor.Level() == cell.OnGround {
 			on.Floor = b.Floor
+		}
+		if housed(b) {
+			return closed(on.Over(k))
 		}
 		return on.Over(k)
 	}
 	return levelled(k, cell.Built{Floor: b.On(l), Wall: b.Wall})
 }
 
-// levelled is k on b's floor, raised or sunk: a sunk floor runs under the cell's wall
+// levelled is k on b's floor, raised or sunk: a room keeps out of the cell's wall, which stands
+// on its ground
 func levelled(k cell.Kind, b cell.Built) cell.Kind {
 	floor := b.Floor
 	b.Floor = cell.Floor{}
-	if floor.Sunk() {
+	if floor.Room() {
 		b.Wall = cell.Wall{}
 	}
 	on := cell.Kind{Name: k.Name, Pace: k.Pace, SpriteID: k.SpriteID}
@@ -308,19 +338,35 @@ func (t *Cells) Standing(c cell.ID, each func(uid.UID64)) {
 // Built is what the entities standing on c build over it; none off the board or before the cells
 // are made.
 func (r *Read) Built(c cell.ID) cell.Built {
-	t := r.t
-	if t.built == 0 || r.store == nil {
-		return cell.Built{}
-	}
-	i, ok := t.Ordinal(c)
-	if !ok {
-		return cell.Built{}
-	}
-	if b := r.store.builtOf(i); b != nil {
+	if b := r.BuiltOf(c); b != nil {
 		return *b
 	}
 	return cell.Built{}
 }
+
+// BuiltOf is Built read in place, never to be written through: nil where nothing is built.
+func (r *Read) BuiltOf(c cell.ID) *cell.Built {
+	t := r.t
+	if t.built == 0 || r.store == nil {
+		return nil
+	}
+	i, ok := t.Ordinal(c)
+	if !ok {
+		return nil
+	}
+	return r.store.builtOf(i)
+}
+
+// builtIn is BuiltOf, nothing built where it is nil
+func (r *Read) builtIn(c cell.ID) *cell.Built {
+	if b := r.BuiltOf(c); b != nil {
+		return b
+	}
+	return &NoBuilt
+}
+
+// NoBuilt is nothing built, read where a cell has nothing over it, never written.
+var NoBuilt cell.Built
 
 // Bare is c's ground kind, bare of what runs across it — a way, a bridge — with what else is built
 // over it; off the board, the zero kind.
@@ -627,6 +673,12 @@ func (p *passage) fingerprint() uint64 {
 		f32(f.Width)
 		if k > 0 || f.Clear != 0 {
 			f32(f.Clear)
+		}
+		// past what a cell was fingerprinted by before rooms stood on the ground
+		if f.Standing || f.Door != (cell.Gap{}) {
+			bits(f.Standing)
+			f32(f.Door.Width)
+			f32(f.Door.Height)
 		}
 	}
 	u64(uint64(b.Wall.Keeps))

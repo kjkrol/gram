@@ -13,7 +13,11 @@ func TestScale_TheEarthUnderTheWorld(t *testing.T) {
 		t.Errorf("2 m is %v world units, want 0.064", u)
 	}
 	drop := s.Drop(s.Units(60000)) * s.Metres // 60 km off, in metres
-	if want := float32(60000.0 * 60000 * (1 - world.Refraction) / (2 * world.EarthRadius)); f32.Abs(drop-want) > 1e-6*want || drop < 240 || drop > 250 {
+	if want := float32(60000.0 * 60000 * (1 - world.Refraction) / (2 * world.EarthRadius)); f32.Abs(
+		drop-want,
+	) > 1e-6*want ||
+		drop < 240 ||
+		drop > 250 {
 		t.Errorf("60 km off the ground sinks %v m, want about 246", drop)
 	}
 	if h := s.Horizon(s.Units(2)) * s.Metres; h < 5300 || h > 5500 {

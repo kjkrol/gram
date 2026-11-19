@@ -28,7 +28,8 @@ func newModule(space *aabbworld.SpaceRead, host *host.PairRules[Sighting], heigh
 	if heights != nil {
 		m.sys.heights, m.sys.groundOf, m.sys.step = true, heights.groundOf, heights.step
 		m.sys.scanner.heights, m.sys.scanner.step = true, heights.step
-		m.sys.bend, m.sys.scanner.bend, m.sys.covering.bend = heights.bend, heights.bend, heights.bend
+		m.sys.bend, m.sys.scanner.bend, m.sys.covering.bend = heights.bend, heights.bend,
+			heights.bend
 		m.sys.scanner.profiling.bend = heights.bend
 	}
 	return m

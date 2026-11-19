@@ -24,7 +24,8 @@ fn cloudsLook(px: vec2<f32>, height: f32) -> vec4<f32> {
     }
     let toward = max(dot(view, lightWay()), 0.0);
     let t2 = toward * toward;
-    return vec4<f32>(haze, smoothstep(0.1, 0.6, view.z), t2 * t2 * t2, smoothstep(skyLift, 3.0 * skyLift, view.z));
+    return vec4<f32>(haze, smoothstep(0.1, 0.6, view.z), t2 * t2 * t2, smoothstep(skyLift,
+        3.0 * skyLift, view.z));
 }
 
 // skyClouds is the clouds of noise field under their layer's air mass m on the sky, premultiplied,

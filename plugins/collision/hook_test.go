@@ -131,7 +131,10 @@ func heardOf(name string, a, b *ceremony.Part) act.Rule {
 		When: when,
 		Then: act.Steps(
 			act.Self.Do(heard{Rule: name}),
-			act.Branch[any]{When: cond.Self.If(cond.Always), Then: act.Other.Do(heard{Rule: name, Other: true})},
+			act.Branch[any]{
+				When: cond.Self.If(cond.Always),
+				Then: act.Other.Do(heard{Rule: name, Other: true}),
+			},
 		),
 	}
 }
@@ -139,7 +142,8 @@ func heardOf(name string, a, b *ceremony.Part) act.Rule {
 func bulletsAgainstTargets() []act.Rule { return []act.Rule{heardOf("bullets", bullet, target)} }
 
 func TestBetween_HandsOverThePairWithSelfOnTheFirstTag(t *testing.T) {
-	for name, order := range map[string][2]bool{"bullet spawned first": {true, false}, "target spawned first": {false, true}} {
+	for name, order := range map[string][2]bool{"bullet spawned first": {true, false}, "target " +
+		"spawned first": {false, true}} {
 		t.Run(name, func(t *testing.T) {
 			first := &tagged{x: 100, bullet: order[0], target: !order[0]}
 			second := &tagged{x: 105, bullet: order[1], target: !order[1]}
@@ -154,7 +158,13 @@ func TestBetween_HandsOverThePairWithSelfOnTheFirstTag(t *testing.T) {
 				t.Fatalf("the rule fired %d times, want once", len(got))
 			}
 			if got[0].self != shot.id || got[0].other != struck.id {
-				t.Errorf("fired for %v about %v, want for the bullet %v about the target %v", got[0].self, got[0].other, shot.id, struck.id)
+				t.Errorf(
+					"fired for %v about %v, want for the bullet %v about the target %v",
+					got[0].self,
+					got[0].other,
+					shot.id,
+					struck.id,
+				)
 			}
 		})
 	}
@@ -172,7 +182,12 @@ func TestBetween_IgnoresPairsThatDoNotCarryBothTags(t *testing.T) {
 }
 
 func TestBetween_SameTagOnBothSides_RunsOncePerContact(t *testing.T) {
-	got := meet(t, []act.Rule{heardOf("bullets", bullet, bullet)}, &tagged{x: 100, bullet: true}, &tagged{x: 105, bullet: true})
+	got := meet(
+		t,
+		[]act.Rule{heardOf("bullets", bullet, bullet)},
+		&tagged{x: 100, bullet: true},
+		&tagged{x: 105, bullet: true},
+	)
 
 	if len(got) != 1 {
 		t.Errorf("the rule fired %d times, want once for one contact", len(got))
@@ -185,7 +200,12 @@ func TestBetween_Anything_MatchesWhateverIsThere(t *testing.T) {
 	got := meet(t, []act.Rule{heardOf("anything", bullet, nil)}, shot, wall)
 
 	if len(got) != 1 || got[0].self != shot.id || got[0].other != wall.id {
-		t.Errorf("fired %+v, want for the bullet %v about the untagged %v once", got, shot.id, wall.id)
+		t.Errorf(
+			"fired %+v, want for the bullet %v about the untagged %v once",
+			got,
+			shot.id,
+			wall.id,
+		)
 	}
 }
 
@@ -243,7 +263,11 @@ func TestHook_StopsAtTheFirstItCannotHost(t *testing.T) {
 	var refused error
 
 	got := meetWith(t, func(engine registrar) {
-		refused = engine.Hook(heardOf("before", bullet, target), fromElsewhere(true), heardOf("after", bullet, target))
+		refused = engine.Hook(
+			heardOf("before", bullet, target),
+			fromElsewhere(true),
+			heardOf("after", bullet, target),
+		)
 	}, &tagged{x: 100, bullet: true}, &tagged{x: 105, target: true})
 
 	if !errors.Is(refused, host.ErrUnhosted) {

@@ -183,7 +183,14 @@ func (g GeoM) Apply(x, y float64) (float64, float64) {
 }
 
 func (g GeoM) affine() gpu.Affine {
-	return gpu.Affine{A: float32(g.a1 + 1), B: float32(g.b), C: float32(g.c), D: float32(g.d1 + 1), TX: float32(g.tx), TY: float32(g.ty)}
+	return gpu.Affine{
+		A:  float32(g.a1 + 1),
+		B:  float32(g.b),
+		C:  float32(g.c),
+		D:  float32(g.d1 + 1),
+		TX: float32(g.tx),
+		TY: float32(g.ty),
+	}
 }
 
 // DrawImageOptions is how DrawImage draws: through GeoM, sampled by Filter; with a Fade, the
@@ -209,7 +216,14 @@ func (i *Image) DrawImage(src *Image, op *DrawImageOptions) {
 		i.drawSoft(src, o)
 		return
 	}
-	gpu.DrawImage(i.gpu(), src.gpu(), o.GeoM.affine(), [4]float32{1, 1, 1, 1}, o.Filter == FilterLinear, gpu.SourceOver)
+	gpu.DrawImage(
+		i.gpu(),
+		src.gpu(),
+		o.GeoM.affine(),
+		[4]float32{1, 1, 1, 1},
+		o.Filter == FilterLinear,
+		gpu.SourceOver,
+	)
 }
 
 func (i *Image) drawSoft(src *Image, o DrawImageOptions) {
@@ -263,7 +277,12 @@ type DrawTrianglesShaderOptions struct {
 }
 
 // DrawTrianglesShader draws the triangles indices picks out of verts with s, laid over the image.
-func (i *Image) DrawTrianglesShader(verts []Vertex, indices []uint16, s *Shader, op *DrawTrianglesShaderOptions) {
+func (i *Image) DrawTrianglesShader(
+	verts []Vertex,
+	indices []uint16,
+	s *Shader,
+	op *DrawTrianglesShaderOptions,
+) {
 	var imgs [4]gpu.Image
 	var u map[string]any
 	if op != nil {

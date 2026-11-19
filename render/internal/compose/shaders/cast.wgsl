@@ -44,11 +44,14 @@ fn fs_main(s: Shade) -> Laid {
         discard; // nothing drawn there
     }
     let px = s.clip.xy - U.ViewAt;
-    let w = U.Unproject * vec4<f32>(px.x / U.ViewSize.x * 2.0 - 1.0, 1.0 - px.y / U.ViewSize.y * 2.0, depth, 1.0);
+    let w = U.Unproject * vec4<f32>(px.x / U.ViewSize.x * 2.0 - 1.0,
+        1.0 - px.y / U.ViewSize.y * 2.0, depth, 1.0);
     let rel = w.xy / w.w - s.at.xy;
     let local = vec2<f32>(dot(rel, s.at.zw), dot(rel, vec2<f32>(-s.at.w, s.at.z)));
-    let edges = vec4<f32>(s.size.x + local.x, s.size.x - local.x, s.size.y + local.y, s.size.y - local.y) / max(s.size.z, 1e-3);
-    let f = smoothstep(vec4<f32>(0.0), vec4<f32>(1.0), clamp(edges, vec4<f32>(0.0), vec4<f32>(1.0)));
+    let edges = vec4<f32>(s.size.x + local.x, s.size.x - local.x, s.size.y + local.y,
+        s.size.y - local.y) / max(s.size.z, 1e-3);
+    let f = smoothstep(vec4<f32>(0.0), vec4<f32>(1.0), clamp(edges, vec4<f32>(0.0),
+        vec4<f32>(1.0)));
     let a = s.size.w * f.x * f.y * f.z * f.w * cast(local, s.size, s.sprite);
     if a < 0.002 {
         discard;

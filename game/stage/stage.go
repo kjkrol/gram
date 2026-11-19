@@ -19,7 +19,11 @@ type Step interface {
 
 // ScenesStep is what Scenes is given: a function making the Stage's scenes.
 type ScenesStep interface {
-	func() []game.Scene | func() ([]game.Scene, error) | func(game.Initializer) []game.Scene | func(game.Initializer) ([]game.Scene, error)
+	func() []game.Scene | func() ([]game.Scene, error) | func(
+		game.Initializer,
+	) []game.Scene | func(
+		game.Initializer,
+	) ([]game.Scene, error)
 }
 
 // SpawnStep is what Spawn is given: a function seeding a fresh game.
@@ -48,7 +52,15 @@ type step struct {
 func (d *def) add(part section.Part, run func(game.Initializer) error) {
 	for _, s := range d.steps {
 		if after, _, ok := s.part.Between(); ok && after >= part {
-			panic(fmt.Sprintf("stage %q: %v is written after the section of %v, which comes after %v", d.name, part, s.part, after))
+			panic(
+				fmt.Sprintf(
+					"stage %q: %v is written after the section of %v, which comes after %v",
+					d.name,
+					part,
+					s.part,
+					after,
+				),
+			)
 		}
 	}
 	d.steps = append(d.steps, step{part: part, run: run})
@@ -59,10 +71,24 @@ func (d *def) with(sections []section.Section) {
 	for _, sec := range sections {
 		_, before, ok := sec.Part.Between()
 		if !ok {
-			panic(fmt.Sprintf("stage %q: %v is a Stage's own part, no plugin's section", d.name, sec.Part))
+			panic(
+				fmt.Sprintf(
+					"stage %q: %v is a Stage's own part, no plugin's section",
+					d.name,
+					sec.Part,
+				),
+			)
 		}
 		if d.last >= before {
-			panic(fmt.Sprintf("stage %q: the section of %v is written after %v; it comes before %v", d.name, sec.Part, d.last, before))
+			panic(
+				fmt.Sprintf(
+					"stage %q: the section of %v is written after %v; it comes before %v",
+					d.name,
+					sec.Part,
+					d.last,
+					before,
+				),
+			)
 		}
 		d.steps = append(d.steps, step{part: sec.Part, run: func(game.Initializer) error {
 			used := make([]any, len(d.used))

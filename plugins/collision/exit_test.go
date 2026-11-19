@@ -23,7 +23,10 @@ type pushedOut struct {
 	wall bool
 }
 
-func pushedOutWorld(t *testing.T, hooked bool) (*goke.ECS, *heards, *goke.Query, *goke.Comp[world.Base]) {
+func pushedOutWorld(
+	t *testing.T,
+	hooked bool,
+) (*goke.ECS, *heards, *goke.Query, *goke.Comp[world.Base]) {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000, Edges: aabbworld.OpenX},

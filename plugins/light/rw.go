@@ -96,12 +96,20 @@ func (w *Write) Finer() bool {
 // lighting is what the world asks of the light as it publishes its entities
 type lighting struct{ p *Plugin }
 
-func (l lighting) Join(qb *goke.QueryBuilder) { qb.Optional(&l.p.shadow) }
+func (l lighting) Join(qb *goke.QueryBuilder) {
+	qb.Optional(&l.p.shadow).Optional(&l.p.sheltered)
+}
 
-// Mark is the entity's Shadow; a Patch taking all for none.
+// Mark is the entity's Shadow, a Patch taking all for none, and where it is Sheltered the place
+// of its shelter, no shadow cast.
 func (l lighting) Mark(cur *goke.Cursor, i int) render.Shadowing {
+	var out render.Shadowing
 	if s := l.p.shadow.Slice(cur); s != nil {
-		return render.Shadowing{Cast: s[i].Cast, Take: s[i].Take}
+		out = render.Shadowing{Cast: s[i].Cast, Take: s[i].Take}
 	}
-	return render.Shadowing{}
+	if s := l.p.sheltered.Slice(cur); s != nil {
+		out.Cast = NoShadow
+		out.Shelter = l.p.sheltering.place(s[i].In) + 1
+	}
+	return out
 }

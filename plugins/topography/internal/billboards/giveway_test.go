@@ -52,7 +52,7 @@ func (s *covering) Compose(f *render.Frame, cam camera.Camera) {
 	stand(s.g.bodies[1], s.at, s.up, true)
 	ways.Uncover(false)
 	cut.Cutout(false)
-	if ways.Uncovers() {
+	if ways.Uncovers() && ways.GivesWay() {
 		f.DrawUncovered()
 	}
 	f.DrawCutout()
@@ -229,7 +229,7 @@ func (s *decked) Compose(f *render.Frame, cam camera.Camera) {
 		world.Z{Height: b.Tall}, s.g.atlas, b, 0, true, render.Appearance{}, render.WhiteLight)
 	cut.Cutout(false)
 	ways.Uncover(false)
-	if ways.Uncovers() {
+	if ways.Uncovers() && ways.GivesWay() {
 		f.DrawUncovered()
 	}
 	f.DrawCutout()

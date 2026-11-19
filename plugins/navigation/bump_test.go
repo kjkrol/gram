@@ -67,7 +67,11 @@ const roadCell = 32
 
 func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	t.Helper()
-	rw := &roadWorld{t: t, grid: grid.DefaultGrids{}.Square(width, 3, roadCell), byRow: map[int]uid.UID64{}}
+	rw := &roadWorld{
+		t:     t,
+		grid:  grid.DefaultGrids{}.Square(width, 3, roadCell),
+		byRow: map[int]uid.UID64{},
+	}
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: width * roadCell, Height: 3 * roadCell},
 		Entities: world.EntitiesCfg{MaxCount: len(units), MinSize: 22, MaxSize: 22},
@@ -129,14 +133,23 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 			profile.MaxSpeed, profile.TurnRate = 144, 0.1
 		}
 		s := kind.Spec{
-			comp.Load(func(u roadUnit) world.Position { return world.Position{AABB: cellBox(rw.grid, u.start, 22)} }),
+			comp.Load(
+				func(u roadUnit) world.Position {
+					return world.Position{AABB: cellBox(rw.grid,
+						u.start, 22)}
+				},
+			),
 			comp.Const(world.Velocity{}),
 			comp.Const(profile),
 			comp.Const(collision.Collider{}),
 			comp.Const(world.Layers(domain)),
 		}
 		if !u.loose {
-			s = append(s, comp.Load(func(u roadUnit) unit.At { return unit.At{Cell: u.start} }), comp.Const(unit.Mover{Domain: domain}))
+			s = append(
+				s,
+				comp.Load(func(u roadUnit) unit.At { return unit.At{Cell: u.start} }),
+				comp.Const(unit.Mover{Domain: domain}),
+			)
 		}
 		if !u.sensor {
 			physics := collision.Physics{}
@@ -149,7 +162,15 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 			s = append(s, comp.Const(steering.Pace{Share: 1}))
 		}
 		if ordered {
-			s = append(s, comp.Load(func(u roadUnit) MoveOrder { return MoveOrder{Target: u.target, Group: u.group} }))
+			s = append(
+				s,
+				comp.Load(
+					func(u roadUnit) MoveOrder {
+						return MoveOrder{Target: u.target,
+							Group: u.group}
+					},
+				),
+			)
 		}
 		if selected {
 			s = append(s, comp.Tagged(sel.Tags().Selectable, sel.Tags().Selected))
@@ -170,7 +191,11 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	}
 	kindIDs := make([]kind.ID, len(units))
 	for i, u := range units {
-		kind.Define[roadUnit](w.Kinds(), string(rune('a'+i)), spec(u.ordered, u.domain, u.wide, u.selected, u))
+		kind.Define[roadUnit](
+			w.Kinds(),
+			string(rune('a'+i)),
+			spec(u.ordered, u.domain, u.wide, u.selected, u),
+		)
 		k := kind.Named[roadUnit](w.Kinds(), string(rune('a'+i)))
 		kindIDs[i] = k.ID()
 		w.Write().Seed(k.Entry(u))
@@ -232,7 +257,10 @@ func (rw *roadWorld) state(id uid.UID64) (cell cell.ID, order *MoveOrder) {
 }
 
 // replans counts how many times each unit's route changed
-func (rw *roadWorld) run(units []roadUnit, limit time.Duration) (ticks int, replans map[uid.UID64]int) {
+func (rw *roadWorld) run(
+	units []roadUnit,
+	limit time.Duration,
+) (ticks int, replans map[uid.UID64]int) {
 	replans = map[uid.UID64]int{}
 	last := map[uid.UID64][]cell.ID{}
 	for ticks = 0; time.Duration(ticks)*time.Second/60 < limit; ticks++ {
@@ -246,7 +274,12 @@ func (rw *roadWorld) run(units []roadUnit, limit time.Duration) (ticks int, repl
 			here, o := rw.state(id)
 			if o == nil {
 				if here != u.target && rw.grid.Distance(here, u.target) > 1.5 {
-					rw.t.Fatalf("unit %d lost its order at %v, neither on nor beside its target %v", id, here, u.target)
+					rw.t.Fatalf(
+						"unit %d lost its order at %v, neither on nor beside its target %v",
+						id,
+						here,
+						u.target,
+					)
 				}
 				continue
 			}
@@ -277,7 +310,12 @@ func TestBump_TwoUnitsHeadOnOnARoadPassEachOther(t *testing.T) {
 	}
 	for id, n := range replans {
 		if n > 10 {
-			t.Errorf("unit %d re-planned %d times, want a handful: one per bump, at most one per bumpInterval", id, n)
+			t.Errorf(
+				"unit %d re-planned %d times, want a handful: one per bump, at most one per "+
+					"bumpInterval",
+				id,
+				n,
+			)
 		}
 	}
 }
@@ -307,7 +345,11 @@ func TestBump_ATargetAStrangerStandsOnIsSettledBeside(t *testing.T) {
 		cell, o := rw.state(rw.byRow[0])
 		if o == nil {
 			if cell == rw.at(4, 1) || rw.grid.Distance(cell, rw.at(4, 1)) > 1.5 {
-				t.Fatalf("tick %d: settled at %v, want a cell beside the occupied target", tick, cell)
+				t.Fatalf(
+					"tick %d: settled at %v, want a cell beside the occupied target",
+					tick,
+					cell,
+				)
 			}
 			return
 		}
@@ -334,7 +376,11 @@ func TestBump_AFlyerPassesOverWalkersUntouched(t *testing.T) {
 		t.Fatalf("the hawk did not reach the far end within 6 s; replans %v", replans)
 	}
 	if replans[hawk] > 1 {
-		t.Errorf("the hawk re-planned %d times, want its first straight route kept: nothing on the Land layer stops it", replans[hawk])
+		t.Errorf(
+			"the hawk re-planned %d times, want its first straight route kept: nothing on the "+
+				"Land layer stops it",
+			replans[hawk],
+		)
 	}
 	for _, row := range []int{1, 2, 3} {
 		if cell, _ := rw.state(rw.byRow[row]); cell != units[row].start {
@@ -346,7 +392,9 @@ func TestBump_AFlyerPassesOverWalkersUntouched(t *testing.T) {
 // a wide turner looks further ahead than half a cell, passing a cell before its centre is in it
 func TestNavigation_AWideTurnerKeepsItsRoute(t *testing.T) {
 	rw := newRoadWorld(t, 24, []roadUnit{{start: 0, ordered: true}})
-	units := []roadUnit{{start: rw.at(0, 0), target: rw.at(23, 1), ordered: true, domain: cell.Air, wide: true}}
+	units := []roadUnit{
+		{start: rw.at(0, 0), target: rw.at(23, 1), ordered: true, domain: cell.Air, wide: true},
+	}
 	rw = newRoadWorld(t, 24, units)
 	hawk := rw.byRow[0]
 	ticks, replans := rw.run(units, 10*time.Second)
@@ -354,7 +402,10 @@ func TestNavigation_AWideTurnerKeepsItsRoute(t *testing.T) {
 		t.Fatalf("the hawk did not arrive within 10 s; replans %v", replans)
 	}
 	if replans[hawk] > 1 {
-		t.Errorf("the hawk's route changed %d times on the way, want the first one kept", replans[hawk]-1)
+		t.Errorf(
+			"the hawk's route changed %d times on the way, want the first one kept",
+			replans[hawk]-1,
+		)
 	}
 }
 
@@ -386,7 +437,11 @@ func TestLook_AClickOnTheUnitsOwnCellTurnsItThere(t *testing.T) {
 	rw.nav.moves.Add(command.Nobody, MoveTo{Cell: rw.at(2, 1), At: north})
 	dir := rw.heading(unit, 2*time.Second)
 	if cell, o := rw.state(unit); o != nil || cell != rw.at(2, 1) {
-		t.Fatalf("after the click the unit is on %v with order %v, want it still on its cell with none", cell, o)
+		t.Fatalf(
+			"after the click the unit is on %v with order %v, want it still on its cell with none",
+			cell,
+			o,
+		)
 	}
 	if dir.Y > -0.9 {
 		t.Errorf("heading %v, want it turned north towards the point clicked", dir)
@@ -412,7 +467,12 @@ func TestLook_LookAtStopsAWalkingUnitAtTheEndOfItsStepAndTurnsIt(t *testing.T) {
 		t.Fatalf("the unit still has an order %+v, want it stopped", *o)
 	}
 	if rw.grid.Distance(cell, here) > 1.5 {
-		t.Errorf("the unit stopped on %v, %v cells from where it was told to look; want the end of its step", cell, rw.grid.Distance(cell, here))
+		t.Errorf(
+			"the unit stopped on %v, %v cells from where it was told to look; want the end of "+
+				"its step",
+			cell,
+			rw.grid.Distance(cell, here),
+		)
 	}
 	if dir.Y < 0.9 {
 		t.Errorf("heading %v, want it turned south towards the point", dir)
@@ -434,10 +494,20 @@ func TestBump_ASensedContactBumpsNobody(t *testing.T) {
 			rw = newRoadWorld(t, 10, units)
 			ticks, replans := rw.run(units, 10*time.Second)
 			if bumped := replans[rw.byRow[0]] > 1; bumped != tc.bumped {
-				t.Errorf("the walker went round what it struck: %v, want %v (replans %v)", bumped, tc.bumped, replans)
+				t.Errorf(
+					"the walker went round what it struck: %v, want %v (replans %v)",
+					bumped,
+					tc.bumped,
+					replans,
+				)
 			}
 			if arrived := ticks < 60*10; arrived == tc.bumped {
-				t.Errorf("the walker arrived within 10 s: %v, want %v (through a sensor, never past a body)", arrived, !tc.bumped)
+				t.Errorf(
+					"the walker arrived within 10 s: %v, want %v (through a sensor, never past a "+
+						"body)",
+					arrived,
+					!tc.bumped,
+				)
 			}
 		})
 	}

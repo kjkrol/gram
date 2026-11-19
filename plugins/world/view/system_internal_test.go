@@ -11,9 +11,16 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-func viewOf(t *testing.T, edges aabbworld.Edges, cam camera.Camera, at ...geom.Vec) (*View, []uid.UID64) {
+func viewOf(
+	t *testing.T,
+	edges aabbworld.Edges,
+	cam camera.Camera,
+	at ...geom.Vec,
+) (*View, []uid.UID64) {
 	t.Helper()
-	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 1000, Height: 1000, Edges: edges, BucketSize: 64})
+	space, err := aabbworld.NewSpace(
+		aabbworld.Config{Width: 1000, Height: 1000, Edges: edges, BucketSize: 64},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,7 +28,10 @@ func viewOf(t *testing.T, edges aabbworld.Edges, cam camera.Camera, at ...geom.V
 	var ids []uid.UID64
 	for i, p := range at {
 		id := uid.UID64(i + 1)
-		items = append(items, aabbworld.Item{ID: id, Box: space.WrapAABB(geom.NewAABBAt(p, 10, 10))})
+		items = append(
+			items,
+			aabbworld.Item{ID: id, Box: space.WrapAABB(geom.NewAABBAt(p, 10, 10))},
+		)
 		ids = append(ids, id)
 	}
 	space.Rebuild(items)
@@ -32,7 +42,12 @@ func viewOf(t *testing.T, edges aabbworld.Edges, cam camera.Camera, at ...geom.V
 }
 
 func TestViewSystem_AViewOnAQuarterHoldsOnlyWhatIsInIt(t *testing.T) {
-	quarters := []geom.Vec{geom.NewVec(100, 100), geom.NewVec(700, 100), geom.NewVec(100, 700), geom.NewVec(700, 700)}
+	quarters := []geom.Vec{
+		geom.NewVec(100, 100),
+		geom.NewVec(700, 100),
+		geom.NewVec(100, 700),
+		geom.NewVec(700, 700),
+	}
 	cam := cameratest.NewFromSpace(1000, 1000, 0, geom.NewAABBAt(geom.NewVec(0, 0), 500, 500))
 
 	v, ids := viewOf(t, 0, cam, quarters...)

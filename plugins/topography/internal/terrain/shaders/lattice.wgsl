@@ -11,7 +11,8 @@
 fn height(p: vec2<f32>) -> f32 {
     let g = clamp(p / U.Cell, vec2<f32>(0.0), U.Corners - 1.0001);
     let i = floor(g);
-    return groundSplit(g - i, corner(i), corner(i + vec2<f32>(1.0, 0.0)), corner(i + vec2<f32>(0.0, 1.0)), corner(i + vec2<f32>(1.0, 1.0)));
+    return groundSplit(g - i, corner(i), corner(i + vec2<f32>(1.0, 0.0)), corner(i + vec2<f32>(0.0,
+        1.0)), corner(i + vec2<f32>(1.0, 1.0)));
 }
 
 // corner is the height at the lattice corner i, decoded from 16 bits of the lattice's top-left

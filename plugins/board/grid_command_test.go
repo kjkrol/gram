@@ -26,7 +26,12 @@ func TestGrid_ShowsAndHidesTheGrid(t *testing.T) {
 		}
 		bw.Tick()
 		if state.ShowGridLines != want {
-			t.Errorf("after %d Grid commands the grid shows %v, want %v", i+1, state.ShowGridLines, want)
+			t.Errorf(
+				"after %d Grid commands the grid shows %v, want %v",
+				i+1,
+				state.ShowGridLines,
+				want,
+			)
 		}
 	}
 }

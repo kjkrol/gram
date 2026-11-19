@@ -30,7 +30,13 @@ const tickLen = time.Second / 60
 
 var east = geom.NewVec(1, 0)
 
-func installWorldAndBoard(t *testing.T, w *world.Plugin, brd *board.Plugin, grid grid.Grid, installed ...func(ctx *boardtest.InstallCtx)) *goke.ECS {
+func installWorldAndBoard(
+	t *testing.T,
+	w *world.Plugin,
+	brd *board.Plugin,
+	grid grid.Grid,
+	installed ...func(ctx *boardtest.InstallCtx),
+) *goke.ECS {
 	t.Helper()
 	ctx := boardtest.NewInstallCtx()
 	if err := w.Install(ctx); err != nil {
@@ -51,7 +57,8 @@ func installWorldAndBoard(t *testing.T, w *world.Plugin, brd *board.Plugin, grid
 		comp.Load(func(m boardtest.Mover) unit.At { return unit.At{Cell: m.Here} }),
 		comp.Const(unit.Mover{Domain: cell.Land}),
 	})
-	w.Write().Seed(kind.Named[boardtest.Mover](w.Kinds(), "unit").Entry(boardtest.Mover{Here: start}))
+	w.Write().
+		Seed(kind.Named[boardtest.Mover](w.Kinds(), "unit").Entry(boardtest.Mover{Here: start}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +177,11 @@ func TestStanding_ALandUnitDrivenIntoAHoleFellAndKeepsFalling(t *testing.T) {
 			fellAt = tick
 		}
 		if told["wrong cell"] {
-			t.Fatalf("tick %d: Standing names a cell other than the one under the centre, %v", tick, over)
+			t.Fatalf(
+				"tick %d: Standing names a cell other than the one under the centre, %v",
+				tick,
+				over,
+			)
 		}
 	}
 	if fellAt < 0 {
@@ -223,9 +234,13 @@ func TestStanding_ReportsEveryUnitOnTheBoard(t *testing.T) {
 func TestStanding_WorksWithoutCollision(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, boardtest.CellSize)
 	w := world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 4 * boardtest.CellSize, Height: 4 * boardtest.CellSize},
-		Entities: world.EntitiesCfg{MaxCount: 2, MinSize: boardtest.UnitSize, MaxSize: boardtest.UnitSize},
-		Heights:  true,
+		Space: world.SpaceCfg{Width: 4 * boardtest.CellSize, Height: 4 * boardtest.CellSize},
+		Entities: world.EntitiesCfg{
+			MaxCount: 2,
+			MinSize:  boardtest.UnitSize,
+			MaxSize:  boardtest.UnitSize,
+		},
+		Heights: true,
 	})
 	orders := carried(t, w, &heards{})
 	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
@@ -236,7 +251,11 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 		if err := ctx.Deliver(footing(grid)); err != nil {
 			t.Fatal(err)
 		}
-		met := act.Branch[collision.Meeting]{Name: "met", When: cond.Self.If(cond.Always), Then: act.Self.Do(heard{})}
+		met := act.Branch[collision.Meeting]{
+			Name: "met",
+			When: cond.Self.If(cond.Always),
+			Then: act.Self.Do(heard{}),
+		}
 		if err := ctx.Deliver(met); !errors.Is(err, host.ErrUnhosted) {
 			t.Errorf("Between on board: %v, want ErrUnhosted", err)
 		}
@@ -288,7 +307,11 @@ func TestStanding_BoxNamesEveryCellTheEntityTouches(t *testing.T) {
 		When: cond.Self.If(cond.NewWord("straddling", straddling)),
 		Then: act.Self.Do(heard{Rule: "straddles"}),
 	}
-	bw, _ := boardtest.SquareWorldWith(t, straddles, boardtest.Mover{Here: start, Offset: boardtest.CellSize / 2})
+	bw, _ := boardtest.SquareWorldWith(
+		t,
+		straddles,
+		boardtest.Mover{Here: start, Offset: boardtest.CellSize / 2},
+	)
 	orders := carried(t, bw.World, &heards{})
 	bw.Tick()
 	if told := only(t, orders.told()); !told["straddles"] {

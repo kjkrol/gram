@@ -26,7 +26,11 @@ func (s *Scene) Issue(fn func(cmd command.Command) error) *Scene {
 
 // HandleEvents routes this tick's input: a click to the topmost element it hits, the scene's
 // keys to their commands, what is left to Input.
-func (s *Scene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
+func (s *Scene) HandleEvents(
+	events *control.InputEvents,
+	runtime game.Runtime,
+	composition game.Composition,
+) {
 	s.runtime = runtime
 	s.passed = *events
 	s.passed.ClickQueue = s.passed.ClickQueue[:0:0]
@@ -218,7 +222,11 @@ func scrollAt(e *Element, p geom.Vec) *Element {
 }
 
 func (s *Scene) press(events *control.InputEvents) {
-	mods := control.Mods{Shift: events.Modifiers.Shift, Ctrl: events.Modifiers.Ctrl, Alt: events.Modifiers.Alt}
+	mods := control.Mods{
+		Shift: events.Modifiers.Shift,
+		Ctrl:  events.Modifiers.Ctrl,
+		Alt:   events.Modifiers.Alt,
+	}
 	for _, k := range events.KeyEvents {
 		if k.Action != control.ActionPress {
 			continue
@@ -241,7 +249,11 @@ func (s *Scene) press(events *control.InputEvents) {
 func (s *Scene) giveAbout(cmd command.Command, id uid.UID64, pinned bool) {
 	cmd, ok := about(cmd, id, pinned)
 	if !ok {
-		log.Printf("ui: scene %q: a command for ui.It (or an About) given outside an element pinned to an entity", s.name)
+		log.Printf(
+			"ui: scene %q: a command for ui.It (or an About) given outside an element pinned to "+
+				"an entity",
+			s.name,
+		)
 		return
 	}
 	s.give(cmd)

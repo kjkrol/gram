@@ -4,9 +4,10 @@ package kinds
 
 import (
 	"fmt"
-	cgoke "github.com/kjkrol/ceremony/goke"
 	"reflect"
 	"slices"
+
+	cgoke "github.com/kjkrol/ceremony/goke"
 
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/tag"
@@ -53,13 +54,27 @@ type family struct {
 
 // New is an empty register; heights says whether the world takes a Z.
 func New(heights bool) *Registry {
-	return &Registry{entries: make(map[string]Kind), families: make(map[reflect.Type]*family), heights: heights}
+	return &Registry{
+		entries:  make(map[string]Kind),
+		families: make(map[reflect.Type]*family),
+		heights:  heights,
+	}
 }
 
 // Register takes spec on as name and assigns its ID and SpriteID by call order.
-func (k *Registry) Register(name string, row reflect.Type, spec kind.Spec) (kind.ID, render.SpriteID) {
+func (k *Registry) Register(
+	name string,
+	row reflect.Type,
+	spec kind.Spec,
+) (kind.ID, render.SpriteID) {
 	if len(k.order) == kind.MaxKinds {
-		panic(fmt.Sprintf("world: cannot define kind %q: a world holds at most %d kinds", name, kind.MaxKinds))
+		panic(
+			fmt.Sprintf(
+				"world: cannot define kind %q: a world holds at most %d kinds",
+				name,
+				kind.MaxKinds,
+			),
+		)
 	}
 	if _, taken := k.entries[name]; taken {
 		panic(fmt.Sprintf("world: kind %q is defined twice", name))
@@ -74,7 +89,12 @@ func (k *Registry) Register(name string, row reflect.Type, spec kind.Spec) (kind
 			seen[t] = true
 		}
 		if _, z := c.(comp.Template[entity.Z]); z && !k.heights {
-			panic(fmt.Sprintf("world: kind %q carries a Z in a flat world; set world.Config.Heights", name))
+			panic(
+				fmt.Sprintf(
+					"world: kind %q carries a Z in a flat world; set world.Config.Heights",
+					name,
+				),
+			)
 		}
 		switch t := c.(type) {
 		case comp.Template[entity.Position]:
@@ -89,7 +109,14 @@ func (k *Registry) Register(name string, row reflect.Type, spec kind.Spec) (kind
 		}
 	}
 	if positions != 1 || velocities != 1 {
-		panic(fmt.Sprintf("world: kind %q names %d Position and %d Velocity components, want one of each", name, positions, velocities))
+		panic(
+			fmt.Sprintf(
+				"world: kind %q names %d Position and %d Velocity components, want one of each",
+				name,
+				positions,
+				velocities,
+			),
+		)
 	}
 	k.order = append(k.order, name)
 	k.entries[name] = r
@@ -210,7 +237,12 @@ func (k *Registry) RemapTypes(si *goke.SysInit) {
 	for old, name := range k.saved {
 		r, ok := k.entries[name]
 		if !ok {
-			panic(fmt.Sprintf("world: the save names kind %q, which this build no longer defines", name))
+			panic(
+				fmt.Sprintf(
+					"world: the save names kind %q, which this build no longer defines",
+					name,
+				),
+			)
 		}
 		lut[old] = r.TypeID
 		moved = moved || r.TypeID != kind.ID(old)
@@ -227,7 +259,13 @@ func (k *Registry) RemapTypes(si *goke.SysInit) {
 		bases := base.Slice(cursor)
 		for i := range cursor.IDs {
 			if int(bases[i].TypeID) >= len(lut) {
-				panic(fmt.Sprintf("world: loaded entity carries TypeID %d, beyond the %d the save named", bases[i].TypeID, len(lut)))
+				panic(
+					fmt.Sprintf(
+						"world: loaded entity carries TypeID %d, beyond the %d the save named",
+						bases[i].TypeID,
+						len(lut),
+					),
+				)
 			}
 			bases[i].TypeID = lut[bases[i].TypeID]
 		}
@@ -247,7 +285,14 @@ func (k *Registry) RemapTags(si *goke.SysInit) {
 		for old, name := range saved {
 			fresh := slices.Index(f.names, name)
 			if fresh < 0 {
-				panic(fmt.Sprintf("world: the save names tag %q in family %v, which this build no longer defines", name, t))
+				panic(
+					fmt.Sprintf(
+						"world: the save names tag %q in family %v, which this build no longer "+
+							"defines",
+						name,
+						t,
+					),
+				)
 			}
 			lut[old] = uint8(fresh)
 			moved = moved || fresh != old

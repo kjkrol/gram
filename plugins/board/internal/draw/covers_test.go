@@ -94,7 +94,12 @@ func TestCover_LiesAlongALineOfItsOwn(t *testing.T) {
 		t.Errorf("the middle of a bare cell is %v, want its kind's %v", c, green)
 	}
 	if c := at(2*32+2, 2*32+2); !near(c, green) {
-		t.Errorf("the outer corner of the covered block is %v, want the kind's %v: the line cuts the corner", c, green)
+		t.Errorf(
+			"the outer corner of the covered block is %v, want the kind's %v: the line cuts the "+
+				"corner",
+			c,
+			green,
+		)
 	}
 	if c := at(3*32, 2*32+16); !near(c, snow) {
 		t.Errorf("the edge between two covered cells is %v, want the cover's %v unbroken", c, snow)

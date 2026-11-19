@@ -138,12 +138,12 @@ func (p *Plugin) Publish() {
 // how far past its cell's middle the ground over a mouth is cut away, in the way to the middle
 const mouthClimb = 1.2
 
-// mouths appends to dst where the floors sunk under the board's cells come out: every link of a
-// band running on to a neighbour no floor of its storey lies under
+// mouths appends to dst where the floors sunk under the board's cells come out, every link of a
+// band running on to a neighbour no floor of its storey lies under, and the cells rooms stand on
 func (p *Plugin) mouths(dst []terrain.Mouth) []terrain.Mouth {
 	brd := p.board
 	shape, ok := grid.ShapeOf(brd.Grid)
-	if !ok || shape.Hex || !brd.Sunk() {
+	if !ok || shape.Hex || !brd.Dug() && !brd.Housed() {
 		return dst
 	}
 	for y := range shape.Rows {
@@ -152,7 +152,13 @@ func (p *Plugin) mouths(dst []terrain.Mouth) []terrain.Mouth {
 			b := brd.Built(c)
 			for s := range uint8(cell.Storeys) {
 				f := b.Storey(s)
-				if !f.Sunk() || f.Width <= 0 {
+				if f.Room() && f.Standing && f.Width == 0 {
+					_, level := brd.Map().Top(c)
+					dst = append(dst, terrain.Mouth{X: int(x), Y: int(y), Clear: f.Clear,
+						Floor: level + f.Height})
+					continue
+				}
+				if !f.Dug() || f.Width <= 0 {
 					continue
 				}
 				for way := range brd.Directions() {
@@ -160,7 +166,7 @@ func (p *Plugin) mouths(dst []terrain.Mouth) []terrain.Mouth {
 					if !f.Links.Has(way) || !ok {
 						continue
 					}
-					if nb := brd.Built(n); nb.Storey(s).Sunk() {
+					if nb := brd.Built(n); nb.Storey(s).Room() {
 						continue
 					}
 					// a floor climbing in from its mouth has its roof higher past the cell's

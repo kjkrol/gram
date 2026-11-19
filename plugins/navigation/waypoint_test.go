@@ -31,10 +31,18 @@ type commandWorld struct {
 
 func newCommandWorld(t *testing.T) *commandWorld {
 	t.Helper()
-	cw := &commandWorld{grid: grid.DefaultGrids{}.Square(10, 1, 10), moves: &command.Queue[MoveTo]{}}
+	cw := &commandWorld{
+		grid:  grid.DefaultGrids{}.Square(10, 1, 10),
+		moves: &command.Queue[MoveTo]{},
+	}
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
-	cmds := routing.NewSystem(spacing.NewFinder(cw.grid, terrain, nil, &cell.SingleOccupancy{}), cw.moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := routing.NewSystem(
+		spacing.NewFinder(cw.grid, terrain, nil, &cell.SingleOccupancy{}),
+		cw.moves,
+		&command.Queue[LookAt]{},
+		selTags.Selected,
+	)
 	cw.oldTarget = cw.cellAt(3)
 
 	cw.ecs = goke.New()
@@ -134,7 +142,10 @@ func TestCommandSystem_Update_AFullQueueIgnoresAnotherWaypoint(t *testing.T) {
 		t.Fatalf("Queued = %d, want the queue full at %d", got.Queued, MaxWaypoints)
 	}
 	if got.Waypoints[MaxWaypoints-1].Cell != cw.cellAt(MaxWaypoints-1) {
-		t.Errorf("last queued = %v, want the eighth goal kept and the ninth dropped", got.Waypoints[MaxWaypoints-1])
+		t.Errorf(
+			"last queued = %v, want the eighth goal kept and the ninth dropped",
+			got.Waypoints[MaxWaypoints-1],
+		)
 	}
 }
 
@@ -148,6 +159,10 @@ func TestCommandSystem_Update_APlainClickReplacesTheQueue(t *testing.T) {
 		t.Errorf("queue = %v, want it dropped by a plain click", got.Waypoints[:got.Queued])
 	}
 	if got.Target == cw.oldTarget {
-		t.Errorf("Target = %v, want it replaced by a cell at or beside %v", got.Target, cw.cellAt(6))
+		t.Errorf(
+			"Target = %v, want it replaced by a cell at or beside %v",
+			got.Target,
+			cw.cellAt(6),
+		)
 	}
 }

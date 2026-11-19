@@ -209,8 +209,11 @@ fn cloudMix(torn: f32, heap: f32, billow: f32) -> f32 {
 
 // shreds is torn clouds at q, in clouds' widths: four octaves of value noise, 0 to 1.
 fn shreds(q: vec2<f32>) -> f32 {
-    let n = cloudNoise(q, cloudTile) + 0.5 * cloudNoise(2.0 * q + vec2<f32>(17.37, 17.61), 2.0 * cloudTile) +
-        0.25 * cloudNoise(4.0 * q + vec2<f32>(31.29, 31.83), 4.0 * cloudTile) + 0.125 * cloudNoise(8.0 * q + vec2<f32>(53.51, 53.17), 8.0 * cloudTile);
+    let n = cloudNoise(q, cloudTile) + 0.5 * cloudNoise(2.0 * q + vec2<f32>(17.37, 17.61),
+        2.0 * cloudTile) +
+        0.25 * cloudNoise(4.0 * q + vec2<f32>(31.29, 31.83),
+            4.0 * cloudTile) + 0.125 * cloudNoise(8.0 * q + vec2<f32>(53.51, 53.17),
+            8.0 * cloudTile);
     return n / 1.875;
 }
 
@@ -249,7 +252,8 @@ fn heapCores(q: vec2<f32>) -> f32 {
             inside = max(inside, into);
         }
     }
-    let lobes = cloudNoise(4.0 * q + vec2<f32>(0.37, 0.61), 4.0 * heapTile) + 0.5 * cloudNoise(8.0 * q + vec2<f32>(0.53, 0.29), 8.0 * heapTile) - 0.75;
+    let lobes = cloudNoise(4.0 * q + vec2<f32>(0.37, 0.61),
+        4.0 * heapTile) + 0.5 * cloudNoise(8.0 * q + vec2<f32>(0.53, 0.29), 8.0 * heapTile) - 0.75;
     return top + heapLobes * lobes * clamp(1.0 - inside, 0.0, 1.0);
 }
 
@@ -376,7 +380,8 @@ fn cloudCoverSoft(field: f32, soft: f32, m: vec4<f32>) -> f32 {
     if cover <= 0.0 {
         return 0.0;
     }
-    let n = clamp((field - 0.5) * cloudContrast + 0.5, 0.0, 1.0); // the noise bunches round a half: spread it out
+    // the noise bunches round a half: spread it out
+    let n = clamp((field - 0.5) * cloudContrast + 0.5, 0.0, 1.0);
     let edge = mix(cloudEdge, heapEdge, clamp(m.y, 0.0, 1.0));
     return smoothstep(1.0 - cover - soft, 1.0 - cover + edge + soft, n);
 }

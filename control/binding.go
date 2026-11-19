@@ -372,11 +372,20 @@ func (b Binding) Overlaps(o Binding) bool {
 }
 
 // Build is a Binding issuing a C built from the Context when trigger fires; build may decline.
-func Build[C command.Command](trigger Trigger, label string, build func(c Context) (C, bool)) Binding {
-	return Binding{Trigger: trigger, Label: label, command: reflect.TypeFor[C](), build: func(c Context) (command.Command, bool) {
-		cmd, ok := build(c)
-		return cmd, ok
-	}}
+func Build[C command.Command](
+	trigger Trigger,
+	label string,
+	build func(c Context) (C, bool),
+) Binding {
+	return Binding{
+		Trigger: trigger,
+		Label:   label,
+		command: reflect.TypeFor[C](),
+		build: func(c Context) (command.Command, bool) {
+			cmd, ok := build(c)
+			return cmd, ok
+		},
+	}
 }
 
 // Contextual is a command that reads where it was given: In is the command for the Context its
@@ -385,19 +394,30 @@ type Contextual interface {
 	In(c Context) command.Command
 }
 
-// Give is a Binding issuing cmd whenever trigger fires, a Contextual one for the Context. A
-// command kept in a register (a ceremony.command.Command) must come from it: one made on the spot panics.
+// Give is a Binding issuing cmd whenever trigger fires, a Contextual one for the Context. A command
+// kept in a register (a ceremony.command.Command) must come from it: one made on the spot panics.
 func Give(trigger Trigger, label string, cmd command.Command) Binding {
 	if d, ok := cmd.(interface{ Defined() bool }); ok && !d.Defined() {
-		panic(fmt.Sprintf("control: the key for %q is given a command no register holds: define it by name first (world.Commands) and give what Named hands back", label))
+		panic(
+			fmt.Sprintf(
+				"control: the key for %q is given a command no register holds: define it by name "+
+					"first (world.Commands) and give what Named hands back",
+				label,
+			),
+		)
 	}
 	cmd = command.Unwrap(cmd)
-	return Binding{Trigger: trigger, Label: label, command: reflect.TypeOf(cmd), build: func(c Context) (command.Command, bool) {
-		if in, ok := cmd.(Contextual); ok {
-			return in.In(c), true
-		}
-		return cmd, true
-	}}
+	return Binding{
+		Trigger: trigger,
+		Label:   label,
+		command: reflect.TypeOf(cmd),
+		build: func(c Context) (command.Command, bool) {
+			if in, ok := cmd.(Contextual); ok {
+				return in.In(c), true
+			}
+			return cmd, true
+		},
+	}
 }
 
 // Type is the type of command the binding issues; nil for one made with neither Build nor Give.

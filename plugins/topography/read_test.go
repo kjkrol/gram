@@ -34,9 +34,13 @@ func readCage(r *topography.Read) caged {
 }
 
 func TestRead_TheWorkersReadTheCageAtOnceAsTheGameDoes(t *testing.T) {
-	qw := topotest.NewQuasiWorld(t, false, func(*board.Units[topotest.Recruit], grid.Grid) []kind.Entry {
-		return nil
-	})
+	qw := topotest.NewQuasiWorld(
+		t,
+		false,
+		func(*board.Units[topotest.Recruit], grid.Grid) []kind.Entry {
+			return nil
+		},
+	)
 	qw.ECS.Tick(time.Second / 60)
 	qw.ECS.Tick(time.Second / 60)
 	want := readCage(qw.Topo.Read(0))

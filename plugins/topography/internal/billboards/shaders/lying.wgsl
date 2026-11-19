@@ -66,6 +66,11 @@ fn fs_main(l: Lain) -> @location(0) vec4<f32> {
     if U.Cover > 0.0 && U.CloudsShadeFigures > 0.5 && takes(l.shade.z, takesClouds) {
         clouds = 1.0 - cloudShade(cloudsShadeAt(l.world, 1.0));
     }
-    let shade = (1.0 - l.shade.x * (1.0 - reached)) * clouds;
-    return vec4<f32>(mix(c.rgb * l.light.rgb * shade, U.Fog * c.a, l.light.a), c.a);
+    var light = l.light.rgb * (1.0 - l.shade.x * (1.0 - reached)) * clouds;
+    let shelter = shelterOf(l.shade.z);
+    if shelter > 0u {
+        // under a roof, the light that gets in at the pixel and none of the open air's shade
+        light = shelteredLight(l.world, shelter - 1u, l.light.rgb);
+    }
+    return vec4<f32>(mix(c.rgb * light, U.Fog * c.a, l.light.a), c.a);
 }

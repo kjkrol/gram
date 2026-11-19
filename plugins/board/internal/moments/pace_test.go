@@ -143,7 +143,13 @@ func TestPace_IsPricedByTheStepLedWhereItLiesAhead(t *testing.T) {
 		{"led into no neighbour", far, eastward, east, hiking(0.3)},
 		{"led within its own cell, on the level", c, eastward, west, 1},
 		{"led nowhere", 0, eastward, east, hiking(0.3)},
-		{"backing west, led west", west, world.Velocity{Dir: geom.NewVec(1, 0), Value: -1}, west, 1},
+		{
+			"backing west, led west",
+			west,
+			world.Velocity{Dir: geom.NewVec(1, 0), Value: -1},
+			west,
+			1,
+		},
 	}
 	for _, tc := range cases {
 		w := walker{box: cellBox(grid, c, 4), vel: tc.vel, domain: cell.Land, next: tc.next}

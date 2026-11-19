@@ -24,8 +24,10 @@ struct Board {
     @location(3) @interpolate(flat) ways: vec3<f32>,
     // and the way toward the light as its ways are told (cardSun)
     @location(4) @interpolate(flat) sun: vec3<f32>,
-    // the shade it takes, with whether it gives way (givenWay)
+    // the shade it takes, with whether it gives way (givenWay) and the shelter it is under
     @location(5) @interpolate(flat) taking: f32,
+    // where in the world the pixel lies, for the light that gets under a shelter
+    @location(6) world: vec3<f32>,
 }
 
 @vertex
@@ -93,6 +95,7 @@ fn vs_main(
     b.uv = mix(uv.xy, uv.zw, vec2<f32>(a, down[vid]));
     b.light = vec4<f32>(light.rgb, shape.w);
     b.shade = shade;
+    b.world = p;
     b.ways = vec3<f32>(0.0);
     b.sun = vec3<f32>(0.0);
     b.taking = ground.y;
@@ -152,7 +155,13 @@ fn fs_main(b: Board) -> @location(0) vec4<f32> {
     if b.ways.z > 0.5 {
         rgb *= shapeTone(cardFacing(imageSrc0At(b.uv + b.ways.xy), b.sun));
     }
-    return vec4<f32>(mix(rgb * b.light.rgb * b.shade, U.Fog * c.a, b.light.a), c.a);
+    var light = b.light.rgb * b.shade;
+    let shelter = shelterOf(b.taking);
+    if shelter > 0u {
+        // under a roof, the light that gets in at the pixel and none of the open air's shade
+        light = shelteredLight(b.world, shelter - 1u, b.light.rgb);
+    }
+    return vec4<f32>(mix(rgb * light, U.Fog * c.a, b.light.a), c.a);
 }
 
 // cardFacing is how squarely a body faces the light where its card's texel of ways says: the

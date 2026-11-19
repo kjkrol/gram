@@ -52,5 +52,5 @@ func (hero) Look(a *world.Atlas, w *world.Plugin) {
 		dst.FillRect(s*0.3, s*0.45, s*0.4, s*0.5, heroColor)
 		dst.FillRect(s*0.15, s*0.5, s*0.15, s*0.3, heroColor)
 		dst.FillRect(s*0.7, s*0.5, s*0.15, s*0.3, heroColor)
-	})
+	}).Uncovered()
 }

@@ -27,7 +27,10 @@ func TestCellSpacing_RoutesAreBlindToOthers(t *testing.T) {
 	rw.ecs.Tick(time.Second / 60)
 	_, o := rw.state(rw.byRow[0])
 	if o == nil || !slices.Contains(o.Path.Steps[:o.Path.Length], rw.at(5, 1)) {
-		t.Fatalf("the route %v does not run through the cell someone stands on, want it planned blind", o)
+		t.Fatalf(
+			"the route %v does not run through the cell someone stands on, want it planned blind",
+			o,
+		)
 	}
 }
 
@@ -56,7 +59,13 @@ func TestCellSpacing_OneStandingInTheWayStepsAsideAndStays(t *testing.T) {
 		t.Fatalf("the mover stands at %v with %+v, want through at (9,1)", mc, mo)
 	}
 	if c, o := rw.state(stander); !gaveWay || o != nil || c != rw.at(5, 0) && c != rw.at(5, 2) {
-		t.Errorf("the standing unit gave way %v and stands at %v with %+v; want it aside, square off the road, for good", gaveWay, c, o)
+		t.Errorf(
+			"the standing unit gave way %v and stands at %v with %+v; want it aside, square off "+
+				"the road, for good",
+			gaveWay,
+			c,
+			o,
+		)
 	}
 }
 
@@ -76,7 +85,12 @@ func TestCellSpacing_NoRoomToGiveWayAndNoWayRoundTheMoverGivesUp(t *testing.T) {
 	for range 60 * 12 {
 		rw.ecs.Tick(time.Second / 60)
 		if c, o := rw.state(stander); c != rw.at(5, 1) || o != nil {
-			t.Fatalf("the standing unit moved to %v with order %v, want it standing: nowhere to give way", c, o)
+			t.Fatalf(
+				"the standing unit moved to %v with order %v, want it standing: nowhere to give "+
+					"way",
+				c,
+				o,
+			)
 		}
 		if c, o := rw.state(mover); o == nil {
 			if c != rw.at(4, 1) {
@@ -100,12 +114,22 @@ func TestCellSpacing_OneStandingStepsAsideOffTheWay(t *testing.T) {
 	coming := bodies.Body{ID: 3, At: grid.CellCenter(at(0, 1)), Cell: at(0, 1), Moving: true}
 	o, ok := k.StepAside(m, coming)
 	if !ok || !o.GivingWay || o.Target != at(1, 0) && o.Target != at(1, 2) || o.Queued != 0 {
-		t.Errorf("stepped aside with %+v %v, want an order square off the way, (1,0) or (1,2), and nothing after", o, ok)
+		t.Errorf(
+			"stepped aside with %+v %v, want an order square off the way, (1,0) or (1,2), and "+
+				"nothing after",
+			o,
+			ok,
+		)
 	}
 	occ.Enter(at(1, 0), cell.OnGround, uid.UID64(4), cell.Land)
 	occ.Enter(at(1, 2), cell.OnGround, uid.UID64(5), cell.Land)
 	if o, ok := k.StepAside(m, coming); !ok || o.Target != at(0, 0) && o.Target != at(0, 2) {
-		t.Errorf("with the cells across held it stepped aside to %v %v, want slantwise beside the one coming, never ahead of it", o.Target, ok)
+		t.Errorf(
+			"with the cells across held it stepped aside to %v %v, want slantwise beside the one "+
+				"coming, never ahead of it",
+			o.Target,
+			ok,
+		)
 	}
 }
 

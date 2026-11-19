@@ -55,9 +55,21 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 		return LookAt{At: c.World(c.Cursor)}, c.Dragged() && p.sel.Read(0).Any(c.Player)
 	}
 	return []control.Binding{
-		control.Build(control.Drag{Button: control.MouseButtonRight}, "Move selected units here", to(false)),
-		control.Build(control.Drag{Button: control.MouseButtonRight, Mods: control.Mods{Shift: true}}, "Add a waypoint", to(true)),
-		control.Build(control.ButtonHeld{Button: control.MouseButtonRight}, "Turn selected units to look at the cursor", turn),
+		control.Build(
+			control.Drag{Button: control.MouseButtonRight},
+			"Move selected units here",
+			to(false),
+		),
+		control.Build(
+			control.Drag{Button: control.MouseButtonRight, Mods: control.Mods{Shift: true}},
+			"Add a waypoint",
+			to(true),
+		),
+		control.Build(
+			control.ButtonHeld{Button: control.MouseButtonRight},
+			"Turn selected units to look at the cursor",
+			turn,
+		),
 	}
 }
 

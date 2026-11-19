@@ -1,11 +1,12 @@
 package world_test
 
 import (
+	"testing"
+	"time"
+
 	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/ceremony/store"
-	"testing"
-	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
@@ -54,8 +55,13 @@ func (p effectProbe) SetupSystems() []goke.System {
 	}}}
 }
 
-func (g *effectStage) Loaded() error                           { return nil }
-func (g *effectStage) Spawn() error                            { g.world.Write().Seed(g.unit.Entry(struct{}{})); return nil }
+func (g *effectStage) Loaded() error { return nil }
+
+func (g *effectStage) Spawn() error {
+	g.world.Write().Seed(g.unit.Entry(struct{}{}))
+	return nil
+}
+
 func (g *effectStage) Update(ctx goke.RunCtx, d time.Duration) { g.world.RunPlan(ctx, d) }
 func (g *effectStage) Stack() game.Scenes {
 	if g.stack == nil {

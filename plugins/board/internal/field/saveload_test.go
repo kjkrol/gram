@@ -32,9 +32,13 @@ func (g *fieldStage) Name() string { return "stage" }
 
 func (g *fieldStage) Init(ctx game.Initializer) error {
 	g.world = ctx.UseWorld(world.Config{
-		Space:    world.SpaceCfg{Width: 6 * boardtest.CellSize, Height: 16 * boardtest.CellSize},
-		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: boardtest.UnitSize, MaxSize: boardtest.UnitSize},
-		Heights:  true,
+		Space: world.SpaceCfg{Width: 6 * boardtest.CellSize, Height: 16 * boardtest.CellSize},
+		Entities: world.EntitiesCfg{
+			MaxCount: 8,
+			MinSize:  boardtest.UnitSize,
+			MaxSize:  boardtest.UnitSize,
+		},
+		Heights: true,
 	})
 	g.motion = motion.NewPlugin(g.world)
 	if err := ctx.Use(g.motion); err != nil {
@@ -85,7 +89,12 @@ func (g *fieldStage) Stack() game.Scenes {
 func (g *fieldStage) solidCells() int {
 	n := 0
 	all := geom.NewAABBAt(geom.NewVec(0, 0), 6*boardtest.CellSize, 16*boardtest.CellSize)
-	g.board.Read(0).Cover().(collision.Field).Solid(world.Layers(cell.Land), collision.Everywhere, all, func(collision.FieldBox) bool { n++; return true })
+	g.board.Read(0).Cover().(collision.Field).Solid(
+		world.Layers(cell.Land),
+		collision.Everywhere,
+		all,
+		func(collision.FieldBox) bool { n++; return true },
+	)
 	return n
 }
 

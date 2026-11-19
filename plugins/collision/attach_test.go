@@ -60,7 +60,10 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 	})
 
 	collidable := func() int {
-		return w.Read(0).Space().Query(geom.NewAABBAt(geom.NewVec(90, 90), 40, 40), aabbworld.CanCollide, func(uid.UID64) {})
+		return w.Read(0).
+			Space().
+			Query(geom.NewAABBAt(geom.NewVec(90, 90), 40, 40), aabbworld.CanCollide,
+				func(uid.UID64) {})
 	}
 	tick := func() int {
 		stats.Counter = 0
@@ -69,7 +72,10 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 	}
 
 	if got := tick(); got != 1 {
-		t.Fatalf("%d contacts on the first tick, want 1 — carrying Collider is all it should take", got)
+		t.Fatalf(
+			"%d contacts on the first tick, want 1 — carrying Collider is all it should take",
+			got,
+		)
 	}
 
 	collider := ecs.RegComp[collision.Collider]()
@@ -78,7 +84,11 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 		t.Errorf("%d contacts on the tick Collider came off, want 0", got)
 	}
 	if got := collidable(); got != 1 {
-		t.Errorf("the space lists %d collidable entities after the tick Collider came off, want the other one", got)
+		t.Errorf(
+			"the space lists %d collidable entities after the tick Collider came off, want the "+
+				"other one",
+			got,
+		)
 	}
 	if got := tick(); got != 0 {
 		t.Errorf("%d contacts a tick later, want 0", got)

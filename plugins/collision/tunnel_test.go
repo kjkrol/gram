@@ -27,7 +27,9 @@ func TestWorldAndCollisions_MixedSizes_NeverTunnel(t *testing.T) {
 	m := motion.NewPlugin(w)
 	c := collision.NewPlugin(w, m)
 	kind.Define[runner](w.Kinds(), "runner", kind.Spec{
-		comp.Load(func(r runner) world.Position { return posAt(r.x, 500-r.side/2, r.side, r.side) }),
+		comp.Load(
+			func(r runner) world.Position { return posAt(r.x, 500-r.side/2, r.side, r.side) },
+		),
 		comp.Load(func(r runner) world.Velocity {
 			return world.Velocity{Dir: geom.NewVec(r.heading, 0), Value: 100000}
 		}),
@@ -66,14 +68,24 @@ func TestWorldAndCollisions_MixedSizes_NeverTunnel(t *testing.T) {
 		t.Errorf("the 2-unit entity moved %v in its first tick, want 1", got)
 	}
 	if got := big.x - bigX; got != 50 {
-		t.Errorf("the 100-unit entity moved %v in its first tick, want 50 — the small one must not cap it", got)
+		t.Errorf(
+			"the 100-unit entity moved %v in its first tick, want 50 — the small one must not "+
+				"cap it",
+			got,
+		)
 	}
 
 	for tick := range 120 {
 		ecs.Tick(time.Second / 60)
 		smallX, bigX = where()
 		if smallX+small.side > bigX+big.side/2 {
-			t.Fatalf("tick %d: the small entity is at %v, past the middle of the big one at %v — it tunnelled", tick, smallX, bigX)
+			t.Fatalf(
+				"tick %d: the small entity is at %v, past the middle of the big one at %v — it "+
+					"tunnelled",
+				tick,
+				smallX,
+				bigX,
+			)
 		}
 	}
 }

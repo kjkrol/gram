@@ -418,7 +418,11 @@ func (d *drawing) Init(si *goke.SysInit) {
 		})
 	}
 	if len(d.pins) > 0 {
-		d.query = si.NewQueryBuilder(&d.states).Optional(&d.base).Optional(&d.z).Optional(&d.label).Build()
+		d.query = si.NewQueryBuilder(&d.states).
+			Optional(&d.base).
+			Optional(&d.z).
+			Optional(&d.label).
+			Build()
 		d.spots = map[*Element][]spot{}
 	}
 	for _, e := range d.pins {
@@ -469,7 +473,15 @@ func (d *drawing) find(spots map[*Element][]spot) {
 	}
 	for d.query.All(); d.query.Next(); {
 		cur := d.query.Cursor()
-		states, bases, zs, labels := d.states.Slice(cur), d.base.Slice(cur), d.z.Slice(cur), d.label.Slice(cur)
+		states, bases, zs, labels := d.states.Slice(
+			cur,
+		), d.base.Slice(
+			cur,
+		), d.z.Slice(
+			cur,
+		), d.label.Slice(
+			cur,
+		)
 		for i, id := range cur.IDs {
 			for _, e := range d.pins {
 				p := e.pin
@@ -485,9 +497,11 @@ func (d *drawing) find(spots map[*Element][]spot) {
 	}
 	for _, e := range d.pins {
 		if e.pin.where != nil {
-			e.pin.where.each(func(id uid.UID64, base *entity.Base, z *entity.Z, label *ceremony.Label) {
-				note(spots, e, id, base, z, label)
-			})
+			e.pin.where.each(
+				func(id uid.UID64, base *entity.Base, z *entity.Z, label *ceremony.Label) {
+					note(spots, e, id, base, z, label)
+				},
+			)
 		}
 	}
 }

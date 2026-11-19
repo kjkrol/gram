@@ -23,6 +23,7 @@ import (
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/uid"
 )
 
 type installCtx struct {
@@ -302,8 +303,11 @@ func TestPlugin_CommandsSwitchTheShadowsCoarseAndTheLampsOff(t *testing.T) {
 	w.Write().Carrier().Put(command.Nobody, light.LampShadows{Count: 0})
 	tick()
 	if !p.Read(0).ShadowsCoarse() || p.Read(0).LampShadows() != 0 {
-		t.Errorf("switched: coarse %v, lamps casting %d; want coarse, none", p.Read(0).ShadowsCoarse(),
-			p.Read(0).LampShadows())
+		t.Errorf(
+			"switched: coarse %v, lamps casting %d; want coarse, none",
+			p.Read(0).ShadowsCoarse(),
+			p.Read(0).LampShadows(),
+		)
 	}
 	lamps := p.Settings()[2].(control.Switch)
 	if lamps.Get() {
@@ -324,7 +328,9 @@ func TestPlugin_CommandsSwitchTheShadowsCoarseAndTheLampsOff(t *testing.T) {
 			q.Read(0).LampShadows())
 	}
 	var lines []string
-	p.Read(0).Reporter().Report(func(label, value string) { lines = append(lines, label+": "+value) })
+	p.Read(0).
+		Reporter().
+		Report(func(label, value string) { lines = append(lines, label+": "+value) })
 	if len(lines) != 1 || lines[0] != "Light: sun 0.00\nlamps 0\nshadows of 0" {
 		t.Errorf("the panel says %v", lines)
 	}
@@ -366,5 +372,78 @@ func TestPlugin_AsALeverOfTheFrameBudgetDropsTheLampsShadowsThenBakesCoarseAndBa
 	if !wr.Finer() || rd.LampShadows() != 3 || wr.Finer() {
 		t.Errorf("finer twice: lamps %d; want the Config's 3 back, then no further",
 			rd.LampShadows())
+	}
+}
+
+func TestPlugin_LaysEachShelterInTheFrameAndMarksWhoStandsUnderIt(t *testing.T) {
+	var base goke.Comp[world.Base]
+	var q *goke.Query
+	var p *light.Plugin
+	joined := goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		qb := si.NewQueryBuilder(&base)
+		light.Lighting(p).Join(qb)
+		q = qb.Build()
+	}}
+	window := light.Opening{A: geom.NewVec(520, 490), B: geom.NewVec(520, 510), Bottom: 1, Top: 3}
+	var roofID uid.UID64
+	w, _, tick := litWorld(t, light.Config{}, func(w *world.Plugin, pl *light.Plugin) {
+		p = pl
+		shelter := light.Shelter{Sky: 0.4, Lamp: [3]float32{0.5, 0.4, 0.3}}
+		shelter.Opens(window)
+		kind.Define[spot](w.Kinds(), "roof", kind.Spec{
+			comp.Load(func(s spot) world.Position {
+				return world.Position{AABB: plane.NewAABB(geom.NewVec(s.x-20, s.y-20), 4, 4)}
+			}),
+			comp.Const(world.Velocity{}),
+			comp.Const(world.Z{Altitude: 7, Height: 4}),
+			comp.Const(shelter),
+		})
+		kind.Define[spot](w.Kinds(), "under", kind.Spec{
+			comp.Load(func(s spot) world.Position {
+				return world.Position{AABB: plane.NewAABB(geom.NewVec(s.x, s.y), 4, 4)}
+			}),
+			comp.Const(world.Velocity{}),
+			comp.Load(func(spot) light.Sheltered { return light.Sheltered{In: roofID} }),
+		})
+		w.Write().Seed(kind.Named[spot](w.Kinds(), "roof").Entry(spot{500, 500}))
+	}, joined)
+	tick()
+	for q.All(); q.Next(); {
+		roofID = q.Cursor().IDs[0]
+	}
+	w.Write().Spawn(kind.Named[spot](w.Kinds(), "under").Entry(spot{510, 500}))
+	tick()
+	lit := lightsOf(w, p)
+	if len(lit.Shelters) != 1 || lit.SheltersVersion == 0 {
+		t.Fatalf("%d shelters laid at version %d, want the roof, laid", len(lit.Shelters),
+			lit.SheltersVersion)
+	}
+	got, want := lit.Shelters[0], render.Shelter{Floor: 7, Sky: 0.4,
+		Lamp: render.Light{0.5, 0.4, 0.3}, Openings: []render.Opening{{A: [2]float32{520, 490},
+			B: [2]float32{520, 510}, Bottom: 1, Top: 3}}}
+	if got.Floor != want.Floor || got.Sky != want.Sky || got.Lamp != want.Lamp ||
+		len(got.Openings) != 1 || got.Openings[0] != want.Openings[0] {
+		t.Errorf("the roof laid %+v, want %+v", got, want)
+	}
+	marked := false
+	for q.All(); q.Next(); {
+		cur := q.Cursor()
+		for i := range cur.IDs {
+			if base.Slice(cur)[i].Pos.TopLeft.X != 510 {
+				continue
+			}
+			marked = true
+			if m := light.Lighting(p).Mark(cur, i); m.Shelter != 1 || m.Cast != light.NoShadow {
+				t.Errorf("the entity under the roof marked %+v, want under the first shelter, "+
+					"casting none", m)
+			}
+		}
+	}
+	if !marked {
+		t.Error("the entity under the roof was not spawned")
+	}
+	version := lit.SheltersVersion
+	if lightsOf(w, p).SheltersVersion != version {
+		t.Error("the shelters, unchanged, laid at a new version")
 	}
 }

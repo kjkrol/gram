@@ -45,7 +45,10 @@ func none(factors []float32) bool { return only(factors, 1, -1) }
 func TestAdapter_AWindowUnderTheBudgetStepsCoarser(t *testing.T) {
 	k := newTicking()
 	if got := k.steps(50, 3); !only(got, ResolutionStep, 1) {
-		t.Errorf("at 50 of 60 frames the steps are %v, want the coarser one as the window ends", got)
+		t.Errorf(
+			"at 50 of 60 frames the steps are %v, want the coarser one as the window ends",
+			got,
+		)
 	}
 	k = newTicking()
 	if got := k.steps(50, 1); got[0] != 1 {

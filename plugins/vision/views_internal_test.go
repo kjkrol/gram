@@ -30,7 +30,9 @@ func (ridge) Version() uint64 { return 7 }
 var level = render.NewMeshShaderWith("test level", []byte(`
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
-    var corners = array<vec2<f32>, 6>(vec2<f32>(0.0, 0.0), vec2<f32>(256.0, 0.0), vec2<f32>(0.0, 256.0), vec2<f32>(256.0, 0.0), vec2<f32>(256.0, 256.0), vec2<f32>(0.0, 256.0));
+    var corners = array<vec2<f32>, 6>(vec2<f32>(0.0, 0.0), vec2<f32>(256.0, 0.0),
+        vec2<f32>(0.0, 256.0), vec2<f32>(256.0, 0.0), vec2<f32>(256.0, 256.0),
+        vec2<f32>(0.0, 256.0));
     return U.ViewProj * vec4<f32>(corners[vid], 0.0, 1.0);
 }
 @fragment
@@ -60,12 +62,26 @@ func TestViews_VeilTheGroundOutOfSightOnTheGPU(t *testing.T) {
 	cam := cameratest.NewFromSpace(256, 256, 0)
 	v := newViews()
 	screen, depth, ground := levelled(cam)
-	v.look(cam, observer{X: 40, Y: 128, Eye: 2, Reach: 200, Half: math.Pi / 6, Color: unitColor(DefaultCone.Color)})
+	v.look(
+		cam,
+		observer{
+			X:     40,
+			Y:     128,
+			Eye:   2,
+			Reach: 200,
+			Half:  math.Pi / 6,
+			Color: unitColor(DefaultCone.Color),
+		},
+	)
 	target := render.Target{Screen: screen, Depth: depth, Ground: ground}
 	v.draw(target, cam, ridge{}, nil, 256, 256, 4, [2]bool{}, 0, DefaultShadow)
 	pix := make([]byte, 4*256*256)
 	screen.ReadPixels(pix)
-	at := func(x, y int) int { i := 4 * (y*256 + x); return int(pix[i]) + int(pix[i+1]) + int(pix[i+2]) }
+	at := func(x, y int) int {
+		i := 4 * (y*256 + x)
+		return int(pix[i]) + int(pix[i+1]) +
+			int(pix[i+2])
+	}
 	if c := at(80, 128); c < 3*250 {
 		t.Errorf("the ground in sight before the ridge is %d bright, want it clear", c)
 	}
@@ -138,15 +154,39 @@ func TestViews_OverAFlatWorldOnTheGPU(t *testing.T) {
 	screen, depth := render.NewImage(256, 256), render.NewDepth()
 	screen.Fill(color.White)
 	screen.ClearDepth(depth)
-	v.look(cam, observer{X: 40, Y: 128, Eye: 2, Reach: 200, Half: math.Pi / 6, Color: unitColor(DefaultCone.Color)})
-	v.look(cam, observer{X: 240, Y: 40, Eye: 2, Reach: 60, Half: math.Pi / 6, Color: unitColor(DefaultCone.Color)})
+	v.look(
+		cam,
+		observer{
+			X:     40,
+			Y:     128,
+			Eye:   2,
+			Reach: 200,
+			Half:  math.Pi / 6,
+			Color: unitColor(DefaultCone.Color),
+		},
+	)
+	v.look(
+		cam,
+		observer{
+			X:     240,
+			Y:     40,
+			Eye:   2,
+			Reach: 60,
+			Half:  math.Pi / 6,
+			Color: unitColor(DefaultCone.Color),
+		},
+	)
 	var walled coverCopy
 	walled.update(nil, wall{}, 256, 256, 4, [2]bool{true, true})
 	v.draw(render.Target{Screen: screen, Depth: depth}, cam, nil, &walled, 256, 256, 4,
 		[2]bool{true, true}, 0, DefaultShadow)
 	pix := make([]byte, 4*256*256)
 	screen.ReadPixels(pix)
-	at := func(x, y int) int { i := 4 * (y*256 + x); return int(pix[i]) + int(pix[i+1]) + int(pix[i+2]) }
+	at := func(x, y int) int {
+		i := 4 * (y*256 + x)
+		return int(pix[i]) + int(pix[i+1]) +
+			int(pix[i+2])
+	}
 	if c := at(80, 128); c < 3*250 {
 		t.Errorf("the ground in sight before the wall is %d bright, want it clear", c)
 	}

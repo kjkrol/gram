@@ -18,11 +18,20 @@ func TestBreadthFirst_VisitsRingByRing(t *testing.T) {
 		t.Fatal("match never accepts, expected no result")
 	}
 	if len(order) != 25 || order[0] != start {
-		t.Fatalf("visited %d cells starting at %v, want all 25 starting at %v", len(order), order[0], start)
+		t.Fatalf(
+			"visited %d cells starting at %v, want all 25 starting at %v",
+			len(order),
+			order[0],
+			start,
+		)
 	}
 	for i := 1; i < len(order); i++ {
 		if chebyshev(grid, start, order[i]) < chebyshev(grid, start, order[i-1]) {
-			t.Fatalf("cell %v (ring %v) visited after a farther ring", order[i], chebyshev(grid, start, order[i]))
+			t.Fatalf(
+				"cell %v (ring %v) visited after a farther ring",
+				order[i],
+				chebyshev(grid, start, order[i]),
+			)
 		}
 	}
 }

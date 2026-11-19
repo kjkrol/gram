@@ -298,5 +298,11 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 	keys := DefaultKeys()
 	keys.CornersTurn = p.cfg.Turn
 	keys.Grab = p.cfg.Grab
+	return p.Bindings(keys)
+}
+
+// Bindings are keys and the views' keys as DefaultBindings has them: a game walking its unit on
+// keys of its own binds the views without the keys scrolling the camera.
+func (p *Plugin) Bindings(keys Keys) []control.Binding {
 	return append(keys.bindings(p), viewBindings(p.cfg)...)
 }

@@ -67,7 +67,10 @@ func (f *flyer) Update(*goke.CmdBuf, time.Duration) {
 			}
 			pos := &bases[i].Pos
 			sweeps[i].From = pos.Center()
-			to := geom.NewVec(pos.TopLeft.X+flights[i].Dir.X*flights[i].Step, pos.TopLeft.Y+flights[i].Dir.Y*flights[i].Step)
+			to := geom.NewVec(
+				pos.TopLeft.X+flights[i].Dir.X*flights[i].Step,
+				pos.TopLeft.Y+flights[i].Dir.Y*flights[i].Step,
+			)
 			pos.AABB = plane.NewAABB(to, pos.Size.X, pos.Size.Y)
 		}
 	}
@@ -79,7 +82,13 @@ type outcome struct {
 	contacts []collision.Contact
 }
 
-func sweptRun(t *testing.T, edges aabbworld.Edges, field collision.Field, ticks int, bodies ...piece) ([]outcome, *collision.ContactStats) {
+func sweptRun(
+	t *testing.T,
+	edges aabbworld.Edges,
+	field collision.Field,
+	ticks int,
+	bodies ...piece,
+) ([]outcome, *collision.ContactStats) {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000, Edges: edges},
@@ -99,12 +108,23 @@ func sweptRun(t *testing.T, edges aabbworld.Edges, field collision.Field, ticks 
 			comp.Const(collision.Collider{}),
 		}
 		if b.fly != nil {
-			spec = append(spec,
-				comp.Load(func(b piece) collision.Sweep { return collision.Sweep{From: geom.NewVec(b.x+b.size/2, b.y+b.size/2)} }),
-				comp.Load(func(b piece) flight { return *b.fly }))
+			spec = append(
+				spec,
+				comp.Load(
+					func(b piece) collision.Sweep {
+						return collision.Sweep{From: geom.NewVec(b.x+b.size/2, b.y+b.size/2)}
+					},
+				),
+				comp.Load(func(b piece) flight { return *b.fly }),
+			)
 		}
 		if b.mass != 0 {
-			spec = append(spec, comp.Load(func(b piece) collision.Physics { return collision.Physics{Mass: b.mass} }))
+			spec = append(
+				spec,
+				comp.Load(
+					func(b piece) collision.Physics { return collision.Physics{Mass: b.mass} },
+				),
+			)
 		}
 		if b.shooter {
 			spec = append(spec, comp.Const(shooter{}))
@@ -131,7 +151,13 @@ func sweptRun(t *testing.T, edges aabbworld.Edges, field collision.Field, ticks 
 	var coll goke.Comp[collision.Collider]
 	var q *goke.Query
 	ecs := ctx.ECS()
-	ecs.Setup(append(ctx.Systems(), goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base, &coll).Build() }})...)
+	ecs.Setup(
+		append(
+			ctx.Systems(),
+			goke.SystemFn{
+				OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base, &coll).Build() },
+			},
+		)...)
 	fly := ecs.RegSys(&flyer{})
 	ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		rc.Run(fly, d)
@@ -153,7 +179,13 @@ func sweptRun(t *testing.T, edges aabbworld.Edges, field collision.Field, ticks 
 			b := base.Slice(cur)[i]
 			for k := range kinds {
 				if kinds[k].ID() == b.TypeID {
-					out[k] = outcome{id: id, base: b, contacts: append([]collision.Contact(nil), coll.Slice(cur)[i].Contacts()...)}
+					out[k] = outcome{
+						id:   id,
+						base: b,
+						contacts: append(
+							[]collision.Contact(nil),
+							coll.Slice(cur)[i].Contacts()...),
+					}
 				}
 			}
 		}
@@ -170,21 +202,35 @@ func TestSweep_AFastShotStrikesWhatLiesOnItsPath(t *testing.T) {
 	)
 	shot, target := out[0], out[1]
 	if len(shot.contacts) != 1 || len(target.contacts) != 1 {
-		t.Fatalf("the shot has %d contacts and the target %d, want one each", len(shot.contacts), len(target.contacts))
+		t.Fatalf(
+			"the shot has %d contacts and the target %d, want one each",
+			len(shot.contacts),
+			len(target.contacts),
+		)
 	}
 	hit := shot.contacts[0]
-	if hit.Other != target.id || !hit.Sensed || f32.Abs(hit.Along-26.0/60) > f32.Eps(1) || hit.Normal != geom.NewVec(-1, 0) {
-		t.Errorf("the shot's contact is %+v, want the target, sensed, 26/60 along, the way back west", hit)
+	if hit.Other != target.id || !hit.Sensed || f32.Abs(hit.Along-26.0/60) > f32.Eps(1) ||
+		hit.Normal != geom.NewVec(-1, 0) {
+		t.Errorf(
+			"the shot's contact is %+v, want the target, sensed, 26/60 along, the way back west",
+			hit,
+		)
 	}
 	if got := target.contacts[0]; got.Other != shot.id || !got.Sensed ||
 		f32.Abs(got.Along-26.0/60) > f32.Eps(1) || got.Normal != geom.NewVec(1, 0) {
-		t.Errorf("the target's contact is %+v, want the shot, sensed, 26/60 along, the way east", got)
+		t.Errorf(
+			"the target's contact is %+v, want the shot, sensed, 26/60 along, the way east",
+			got,
+		)
 	}
 	if target.base.Pos.TopLeft.X != 130 {
 		t.Errorf("the target was pushed to %v, want left where it stood", target.base.Pos.TopLeft.X)
 	}
 	if shot.base.Pos.TopLeft.X != 160 {
-		t.Errorf("the shot's box starts at %v, want 160 where its step ended", shot.base.Pos.TopLeft.X)
+		t.Errorf(
+			"the shot's box starts at %v, want 160 where its step ended",
+			shot.base.Pos.TopLeft.X,
+		)
 	}
 	if stats.Counter != 1 {
 		t.Errorf("%d contacts counted, want 1", stats.Counter)
@@ -202,7 +248,12 @@ func TestSweep_TheSpaceHoldsOnlyTheRealBoxAfterTheTick(t *testing.T) {
 		comp.Load(func(b piece) world.Position { return posAt(b.x, b.y, b.size, b.size) }),
 		comp.Const(world.Velocity{}),
 		comp.Const(collision.Collider{}),
-		comp.Load(func(b piece) collision.Sweep { return collision.Sweep{From: geom.NewVec(b.x+2, b.y+2)} }),
+		comp.Load(
+			func(b piece) collision.Sweep {
+				return collision.Sweep{From: geom.NewVec(b.x+2,
+					b.y+2)}
+			},
+		),
 		comp.Const(flight{Dir: east, Step: 60}),
 	})
 	shots := kind.Named[piece](w.Kinds(), "shot")
@@ -255,7 +306,11 @@ func TestSweep_OnlyTheNearestContactStays(t *testing.T) {
 		t.Errorf("the shot's contacts are %+v, want the nearer box alone", shot.contacts)
 	}
 	if len(near.contacts) != 1 || len(far.contacts) != 0 {
-		t.Errorf("the near box has %d contacts and the far one %d, want one and none", len(near.contacts), len(far.contacts))
+		t.Errorf(
+			"the near box has %d contacts and the far one %d, want one and none",
+			len(near.contacts),
+			len(far.contacts),
+		)
 	}
 	if stats.Counter != 1 {
 		t.Errorf("%d contacts counted, want 1", stats.Counter)
@@ -268,7 +323,11 @@ func TestSweep_ASlantingPathMissesWhatLiesBesideIt(t *testing.T) {
 		piece{x: 150, y: 505, size: 10, mass: 1},
 	)
 	if len(out[0].contacts) != 0 || len(out[1].contacts) != 0 {
-		t.Errorf("the shot has %d contacts and the box %d, want none: the box is beside the path", len(out[0].contacts), len(out[1].contacts))
+		t.Errorf(
+			"the shot has %d contacts and the box %d, want none: the box is beside the path",
+			len(out[0].contacts),
+			len(out[1].contacts),
+		)
 	}
 }
 
@@ -278,7 +337,11 @@ func TestSweep_TwoSweptPassThroughEachOther(t *testing.T) {
 		piece{x: 90, y: 500, size: 4, fly: &flight{Dir: east, Step: 80}},
 	)
 	if len(out[0].contacts) != 0 || len(out[1].contacts) != 0 {
-		t.Errorf("the shots have %d and %d contacts, want none", len(out[0].contacts), len(out[1].contacts))
+		t.Errorf(
+			"the shots have %d and %d contacts, want none",
+			len(out[0].contacts),
+			len(out[1].contacts),
+		)
 	}
 }
 
@@ -302,7 +365,12 @@ type boxesField struct {
 	walls []collide.FieldWall
 }
 
-func (f *boxesField) Solid(_ world.Layers, _ collision.Band, box geom.AABB, visit func(collision.FieldBox) bool) {
+func (f *boxesField) Solid(
+	_ world.Layers,
+	_ collision.Band,
+	box geom.AABB,
+	visit func(collision.FieldBox) bool,
+) {
 	for _, fb := range f.boxes {
 		if box.Intersects(fb.Box) && !visit(fb) {
 			return
@@ -325,7 +393,11 @@ func (f *boxesField) Walls(_ world.Layers, _ collision.Band, box geom.AABB,
 const allSides = collide.Left | collide.Right | collide.Top | collide.Bottom
 
 func TestSweep_TheGroundNearerThanTheBoxWins(t *testing.T) {
-	wall := &boxesField{boxes: []collision.FieldBox{{Box: geom.NewAABBAt(geom.NewVec(120, 0), 32, 1000), Cell: 7, Open: allSides}}}
+	wall := &boxesField{
+		boxes: []collision.FieldBox{
+			{Box: geom.NewAABBAt(geom.NewVec(120, 0), 32, 1000), Cell: 7, Open: allSides},
+		},
+	}
 	out, stats := sweptRun(t, 0, wall, 1,
 		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}},
 		piece{x: 160, y: 498, size: 10, mass: 1},
@@ -336,14 +408,21 @@ func TestSweep_TheGroundNearerThanTheBoxWins(t *testing.T) {
 		t.Fatalf("the shot has %d contacts, want the wall's alone", len(shot.contacts))
 	}
 	hit := shot.contacts[0]
-	if !hit.Terrain || hit.Cell != 7 || !hit.Sensed || f32.Abs(hit.Along-16.0/60) > f32.Eps(1) || hit.Normal != geom.NewVec(-1, 0) {
-		t.Errorf("the shot's contact is %+v, want the wall, sensed, 16/60 along, the way back west", hit)
+	if !hit.Terrain || hit.Cell != 7 || !hit.Sensed || f32.Abs(hit.Along-16.0/60) > f32.Eps(1) ||
+		hit.Normal != geom.NewVec(-1, 0) {
+		t.Errorf(
+			"the shot's contact is %+v, want the wall, sensed, 16/60 along, the way back west",
+			hit,
+		)
 	}
 	if len(box.contacts) != 0 {
 		t.Errorf("the box beyond the wall has %d contacts, want none", len(box.contacts))
 	}
 	if len(walker.contacts) != 1 || walker.contacts[0].Along != 1 || walker.contacts[0].Sensed {
-		t.Errorf("the walker's contacts are %+v, want the wall's at the end of its step, not sensed", walker.contacts)
+		t.Errorf(
+			"the walker's contacts are %+v, want the wall's at the end of its step, not sensed",
+			walker.contacts,
+		)
 	}
 	if stats.Counter != 0 {
 		t.Errorf("%d pairs counted, want none: the ground is no pair", stats.Counter)
@@ -365,7 +444,11 @@ func TestSweep_ACellOfSeveralBoxesIsStruckWhereTheSegmentCrossesIt(t *testing.T)
 		t.Fatalf("the shot's contacts are %+v, want the cell struck once", got)
 	}
 	if want := float32(16 * math.Sqrt2 / 60); f32.Abs(got[0].Along-want) > f32.Eps(1) {
-		t.Errorf("struck %v along the step, want %v: where the segment reaches the box on it", got[0].Along, want)
+		t.Errorf(
+			"struck %v along the step, want %v: where the segment reaches the box on it",
+			got[0].Along,
+			want,
+		)
 	}
 }
 
@@ -383,12 +466,20 @@ func TestSweep_ACellOfSeveralBoxesIsStruckAtItsNearest(t *testing.T) {
 	if len(shot.contacts) != 1 || !shot.contacts[0].Terrain || shot.contacts[0].Cell != 7 {
 		t.Fatalf("the shot's contacts are %+v, want the cell alone", shot.contacts)
 	}
-	if hit := shot.contacts[0]; f32.Abs(hit.Along-16.0/60) > f32.Eps(1) || hit.Normal != geom.NewVec(-1, 0) {
-		t.Errorf("struck %v along the step, the way out %v; want 16/60 at the cap, the way back west", hit.Along, hit.Normal)
+	if hit := shot.contacts[0]; f32.Abs(hit.Along-16.0/60) > f32.Eps(1) ||
+		hit.Normal != geom.NewVec(-1, 0) {
+		t.Errorf(
+			"struck %v along the step, the way out %v; want 16/60 at the cap, the way back west",
+			hit.Along,
+			hit.Normal,
+		)
 	}
 	for _, c := range box.contacts {
 		if !c.Terrain && c.Other == shot.id {
-			t.Errorf("the box behind the cap was struck by the shot: %+v, want the wall to take it", c)
+			t.Errorf(
+				"the box behind the cap was struck by the shot: %+v, want the wall to take it",
+				c,
+			)
 		}
 	}
 	if stats.Counter != 0 {
@@ -397,17 +488,28 @@ func TestSweep_ACellOfSeveralBoxesIsStruckAtItsNearest(t *testing.T) {
 }
 
 func TestSweep_AnImmovableSweptEntityIsASensor(t *testing.T) {
-	wall := &boxesField{boxes: []collision.FieldBox{{Box: geom.NewAABBAt(geom.NewVec(150, 0), 32, 1000), Cell: 7, Open: allSides}}}
+	wall := &boxesField{
+		boxes: []collision.FieldBox{
+			{Box: geom.NewAABBAt(geom.NewVec(150, 0), 32, 1000), Cell: 7, Open: allSides},
+		},
+	}
 	out, _ := sweptRun(t, 0, wall, 1,
 		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}, mass: f32.Inf(1)},
 		piece{x: 120, y: 498, size: 10, mass: 1},
 	)
 	shot, box := out[0], out[1]
 	if box.base.Pos.TopLeft.X != 120 || box.base.Vel.Value != 0 {
-		t.Errorf("the box ended at %v moving %v, want where it stood, still", box.base.Pos.TopLeft.X, box.base.Vel.Value)
+		t.Errorf(
+			"the box ended at %v moving %v, want where it stood, still",
+			box.base.Pos.TopLeft.X,
+			box.base.Vel.Value,
+		)
 	}
 	if len(shot.contacts) != 1 || !shot.contacts[0].Sensed || shot.contacts[0].Impact != 0 {
-		t.Errorf("the shot's contacts are %+v, want the box alone, sensed, no impact", shot.contacts)
+		t.Errorf(
+			"the shot's contacts are %+v, want the box alone, sensed, no impact",
+			shot.contacts,
+		)
 	}
 	out, _ = sweptRun(t, 0, wall, 1,
 		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}, mass: f32.Inf(1)},
@@ -423,7 +525,13 @@ func TestSweep_AWrappingWorldRefusesIt(t *testing.T) {
 			t.Error("a swept entity in a wrapping world went unrefused")
 		}
 	}()
-	sweptRun(t, aabbworld.Torus, nil, 1, piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}})
+	sweptRun(
+		t,
+		aabbworld.Torus,
+		nil,
+		1,
+		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}},
+	)
 }
 
 func TestSweep_AShotStrikesASlantedWall(t *testing.T) {

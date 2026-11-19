@@ -44,7 +44,11 @@ func TestFrequency_ObserversTakeTurnsAndTheRulesGoOnEveryStep(t *testing.T) {
 	if err := v.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
-	look := act.Branch[vision.Sighting]{Name: "look", When: cond.Self.If(cond.Always), Then: act.Self.Do(looked{})}
+	look := act.Branch[vision.Sighting]{
+		Name: "look",
+		When: cond.Self.If(cond.Always),
+		Then: act.Self.Do(looked{}),
+	}
 	if err := ctx.Deliver(look); err != nil {
 		t.Fatal(err)
 	}

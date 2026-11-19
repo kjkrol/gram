@@ -10,7 +10,10 @@ import (
 func TestVelocity_SideRunsAcrossTheHeadingToTheRight(t *testing.T) {
 	v := entity.Velocity{Dir: geom.NewVec(1, 0), Value: 2, Side: 3}
 	if d := v.Delta(); d != geom.NewVec(2, 3) {
-		t.Errorf("east at 2, strafing right at 3: the rate is %v, want (2, 3), south being right", d)
+		t.Errorf(
+			"east at 2, strafing right at 3: the rate is %v, want (2, 3), south being right",
+			d,
+		)
 	}
 	v.SetDelta(geom.NewVec(0, 5))
 	if v.Side != 0 || v.Dir != geom.NewVec(0, 1) {
@@ -32,7 +35,11 @@ func TestVelocity_SetDeltaKeepsABackingEntityBacking(t *testing.T) {
 	back := entity.Velocity{Dir: geom.NewVec(1, 0), Value: -2}
 	back.SetDelta(geom.NewVec(-3, 0))
 	if back.Dir != geom.NewVec(1, 0) || back.Value != -3 {
-		t.Errorf("backing west, set to (-3, 0): faces %v at %v; want still east, backing at 3", back.Dir, back.Value)
+		t.Errorf(
+			"backing west, set to (-3, 0): faces %v at %v; want still east, backing at 3",
+			back.Dir,
+			back.Value,
+		)
 	}
 	if d := back.Delta(); d != geom.NewVec(-3, 0) {
 		t.Errorf("backing velocity's rate is %v, want (-3, 0)", d)

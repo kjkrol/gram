@@ -135,7 +135,8 @@ func (b ball) Define(w *world.Plugin) {
 
 func (b ball) Look(a *world.Atlas, w *world.Plugin) {
 	draw := shapes[b.shape]
-	a.Add(kind.Named[body](w.Kinds(), bodyKind(b.color, b.shape)), RectSize, draw(palette[b.color])).
+	a.Add(kind.Named[body](w.Kinds(), bodyKind(b.color, b.shape)), RectSize,
+		draw(palette[b.color])).
 		Under(w.Write().Effects().Named(HitEf), draw(palette[entityColors]))
 }
 

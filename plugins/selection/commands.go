@@ -116,7 +116,14 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // Queues are where the selection's commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
-	return []command.CommandQueue{&p.selects, &p.marqueeQueue, &p.effectCmds, &p.allows, &p.forbids, &p.hovers}
+	return []command.CommandQueue{
+		&p.selects,
+		&p.marqueeQueue,
+		&p.effectCmds,
+		&p.allows,
+		&p.forbids,
+		&p.hovers,
+	}
 }
 
 // DefaultBindings is a left drag (a click is a drag of no length) into a Select of the box it
@@ -126,19 +133,39 @@ func (p *Plugin) Queues() []command.CommandQueue {
 func (p *Plugin) DefaultBindings() []control.Binding {
 	box := func(additive bool) func(c control.Context) (Select, bool) {
 		return func(c control.Context) (Select, bool) {
-			return Select{Box: c.WorldBox(c.Start, c.Cursor), Screen: control.ScreenRect(c.Start, c.Cursor), Camera: c.Camera, Additive: additive}, true
+			return Select{
+				Box:      c.WorldBox(c.Start, c.Cursor),
+				Screen:   control.ScreenRect(c.Start, c.Cursor),
+				Camera:   c.Camera,
+				Additive: additive,
+			}, true
 		}
 	}
 	return []control.Binding{
 		control.Build(control.Drag{Button: control.MouseButtonLeft}, "Select", box(false)),
-		control.Build(control.Drag{Button: control.MouseButtonLeft, Mods: control.Mods{Shift: true}}, "Add to selection", box(true)),
-		control.Build(control.ButtonHeld{Button: control.MouseButtonLeft}, "Selection box", func(c control.Context) (Marquee, bool) {
-			return Marquee{Screen: control.ScreenRect(c.Start, c.Cursor), Camera: c.Camera}, true
-		}),
+		control.Build(
+			control.Drag{Button: control.MouseButtonLeft, Mods: control.Mods{Shift: true}},
+			"Add to selection",
+			box(true),
+		),
+		control.Build(
+			control.ButtonHeld{Button: control.MouseButtonLeft},
+			"Selection box",
+			func(c control.Context) (Marquee, bool) {
+				return Marquee{
+					Screen: control.ScreenRect(c.Start, c.Cursor),
+					Camera: c.Camera,
+				}, true
+			},
+		),
 		p.FollowKey(control.KeyC),
 		p.RideKey(control.KeyV),
 		control.Build(control.CursorOver{}, "Point at", func(c control.Context) (Hover, bool) {
-			return Hover{At: c.World(c.Cursor), Screen: control.ScreenRect(c.Cursor, c.Cursor), Camera: c.Camera}, true
+			return Hover{
+				At:     c.World(c.Cursor),
+				Screen: control.ScreenRect(c.Cursor, c.Cursor),
+				Camera: c.Camera,
+			}, true
 		}),
 	}
 }
@@ -146,10 +173,14 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 // FollowKey is key fastening the camera the player looks through over the one unit it has chosen
 // (Chosen), or letting it go: a cameras.Follow.
 func (p *Plugin) FollowKey(key control.Key) control.Binding {
-	return control.Build(control.KeyPress{Key: key}, "Follow the selected unit, or stop", func(c control.Context) (cameras.Follow, bool) {
-		id, ok := p.read.Chosen(c.Player)
-		return cameras.Follow{Camera: c.Camera, Entity: id, On: ok}, true
-	})
+	return control.Build(
+		control.KeyPress{Key: key},
+		"Follow the selected unit, or stop",
+		func(c control.Context) (cameras.Follow, bool) {
+			id, ok := p.read.Chosen(c.Player)
+			return cameras.Follow{Camera: c.Camera, Entity: id, On: ok}, true
+		},
+	)
 }
 
 // RideKey is key fastening the camera the player looks through behind the one unit it has chosen

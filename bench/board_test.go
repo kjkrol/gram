@@ -166,10 +166,15 @@ func islandWith(b *testing.B, view string, far bool, shine, lit bool, level lod.
 		in := inside(x, y)
 		return 8 + 160*in*in*(0.7+0.3*f32.Sin(x/3)*f32.Cos(y/4)) + 10*f32.Sin(x/2+y/3)
 	}
-	rivers, err := water.Drain(grid, heights, func(c cell.ID) bool { return !land[c] }, water.Config{
-		BrookAt: 30, StreamAt: 60, RiverAt: 170, BrookDepth: 1, StreamDepth: 2, RiverDepth: 5,
-		WidthPerRoot: 1.4, Meander: 6, Plume: 0.25,
-	})
+	rivers, err := water.Drain(
+		grid,
+		heights,
+		func(c cell.ID) bool { return !land[c] },
+		water.Config{
+			BrookAt: 30, StreamAt: 60, RiverAt: 170, BrookDepth: 1, StreamDepth: 2, RiverDepth: 5,
+			WidthPerRoot: 1.4, Meander: 6, Plume: 0.25,
+		},
+	)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -188,8 +193,10 @@ func islandWith(b *testing.B, view string, far bool, shine, lit bool, level lod.
 			layout.Cells = append(layout.Cells, cell.Entry{Kind: kind, Cell: c})
 		}
 	})
-	layout.Ways = rivers.Net(map[water.Course]string{water.Brook: "stream", water.Stream: "stream", water.River: "stream",
-		water.Ford: "stream", water.Mouth: "estuary"}).Ways()
+	layout.Ways = rivers.Net(map[water.Course]string{water.Brook: "stream", water.Stream: "stream",
+		water.River: "stream",
+		water.Ford:  "stream", water.Mouth: "estuary"}).
+		Ways()
 	p.Write().Seed(layout)
 	atlas := render.NewAtlas()
 	for _, k := range kinds.All() {

@@ -14,7 +14,12 @@ func TestEntitySet_AddHasClear(t *testing.T) {
 	s.Add(uid.UID64(5))
 	s.Add(uid.UID64(70)) // a second word
 	if !s.Has(uid.UID64(5)) || !s.Has(uid.UID64(70)) || s.Has(uid.UID64(6)) {
-		t.Errorf("Has after Add: 5=%v 70=%v 6=%v, want true true false", s.Has(5), s.Has(70), s.Has(6))
+		t.Errorf(
+			"Has after Add: 5=%v 70=%v 6=%v, want true true false",
+			s.Has(5),
+			s.Has(70),
+			s.Has(6),
+		)
 	}
 	if s.Len() != 2 {
 		t.Errorf("Len = %d, want 2", s.Len())

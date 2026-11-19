@@ -63,8 +63,20 @@ type flightSystem struct {
 	restsAt   func(i int) bool
 }
 
-func newFlightSystem(w *world.Plugin, landings *host.Rules[Landing], restings *host.Rules[Resting], groundOf func() ground.Heights) *flightSystem {
-	s := &flightSystem{w: w, space: w.Write().Space(), landings: landings, restings: restings, groundOf: groundOf, tickOf: w.Read(0).Tick}
+func newFlightSystem(
+	w *world.Plugin,
+	landings *host.Rules[Landing],
+	restings *host.Rules[Resting],
+	groundOf func() ground.Heights,
+) *flightSystem {
+	s := &flightSystem{
+		w:        w,
+		space:    w.Write().Space(),
+		landings: landings,
+		restings: restings,
+		groundOf: groundOf,
+		tickOf:   w.Read(0).Tick,
+	}
 	s.landingAt, s.landsAt, s.restingAt, s.restsAt = s.landing, s.lands, s.rest, s.rests
 	return s
 }
@@ -72,7 +84,10 @@ func newFlightSystem(w *world.Plugin, landings *host.Rules[Landing], restings *h
 func (s *flightSystem) Init(si *goke.SysInit) {
 	s.sweepID, s.collID = si.RegComp[collision.Sweep](), si.RegComp[collision.Collider]()
 	s.keenID = si.RegComp[sector.Keen]()
-	qb := si.NewQueryBuilder(&s.base, &s.flight, &s.body).Optional(&s.coll).Optional(&s.sweep).Optional(&s.z)
+	qb := si.NewQueryBuilder(&s.base, &s.flight, &s.body).
+		Optional(&s.coll).
+		Optional(&s.sweep).
+		Optional(&s.z)
 	s.landCols = cgoke.NewColumns(qb)
 	s.landings.Bind(s.landCols)
 	// never slowed: a longer step would carry a shot through what it strikes
@@ -89,7 +104,11 @@ func (s *flightSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 	if !s.restings.Empty() {
 		for s.resting.Paced(dt); s.resting.Next(); {
 			cur := s.resting.Cursor()
-			s.walking.ids, s.walking.flights, s.walking.bodies = cur.IDs, s.rflight.Slice(cur), s.rbody.Slice(cur)
+			s.walking.ids, s.walking.flights, s.walking.bodies = cur.IDs, s.rflight.Slice(
+				cur,
+			), s.rbody.Slice(
+				cur,
+			)
 			s.restings.RunWhere(t, s.restCols.Row(cur), len(cur.IDs), s.restsAt, s.restingAt)
 		}
 	}
@@ -140,7 +159,12 @@ func (s *flightSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 	}
 }
 
-func (s *flightSystem) struck(f *Flight, base *world.Base, sw *collision.Sweep, contacts []collision.Contact) bool {
+func (s *flightSystem) struck(
+	f *Flight,
+	base *world.Base,
+	sw *collision.Sweep,
+	contacts []collision.Contact,
+) bool {
 	k := -1
 	for i := range contacts {
 		if k < 0 || contacts[i].Along < contacts[k].Along {
@@ -155,7 +179,10 @@ func (s *flightSystem) struck(f *Flight, base *world.Base, sw *collision.Sweep, 
 	if sw != nil {
 		from = sw.From
 	}
-	hit := geom.NewVec(from.X+(f.At.X-from.X)*c.Along-f.Dir.X*landBack, from.Y+(f.At.Y-from.Y)*c.Along-f.Dir.Y*landBack)
+	hit := geom.NewVec(
+		from.X+(f.At.X-from.X)*c.Along-f.Dir.X*landBack,
+		from.Y+(f.At.Y-from.Y)*c.Along-f.Dir.Y*landBack,
+	)
 	s.place(f, base, hit)
 	if c.Terrain {
 		f.Ending, f.Cell = Wall, c.Cell
@@ -165,7 +192,13 @@ func (s *flightSystem) struck(f *Flight, base *world.Base, sw *collision.Sweep, 
 	return true
 }
 
-func (s *flightSystem) fly(f *Flight, body Body, base *world.Base, sw *collision.Sweep, z *world.Z, dt float32,
+func (s *flightSystem) fly(
+	f *Flight,
+	body Body,
+	base *world.Base,
+	sw *collision.Sweep,
+	z *world.Z,
+	dt float32,
 ) {
 	run := min(body.Speed*dt, f.Range-f.Flown)
 	base.Vel.Dir = f.Dir // for a Turning look; Value stays 0, the flight moves it
@@ -208,8 +241,16 @@ func (s *flightSystem) place(f *Flight, base *world.Base, p geom.Vec) bool {
 
 func (s *flightSystem) landing(i int) Landing {
 	f := &s.walking.flights[i]
-	return Landing{ID: s.walking.ids[i], At: f.At, Struck: f.Ending == Struck, Other: f.Other, Wall: f.Ending == Wall,
-		Cell: f.Cell, Grounded: f.Ending == Grounded || f.Ending == Spent, Left: f.Ending == Left}
+	return Landing{
+		ID:       s.walking.ids[i],
+		At:       f.At,
+		Struck:   f.Ending == Struck,
+		Other:    f.Other,
+		Wall:     f.Ending == Wall,
+		Cell:     f.Cell,
+		Grounded: f.Ending == Grounded || f.Ending == Spent,
+		Left:     f.Ending == Left,
+	}
 }
 
 func (s *flightSystem) lands(i int) bool { return s.walking.ends[i] }

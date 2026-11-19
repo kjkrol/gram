@@ -29,7 +29,15 @@ func (i *Image) StrokeLine(x0, y0, x1, y1, width float32, c color.Color) {
 		return
 	}
 	nx, ny := -dy/n*width/2, dx/n*width/2
-	i.fillQuad([4][2]float32{{x0 + nx, y0 + ny}, {x1 + nx, y1 + ny}, {x0 - nx, y0 - ny}, {x1 - nx, y1 - ny}}, c)
+	i.fillQuad(
+		[4][2]float32{
+			{x0 + nx, y0 + ny},
+			{x1 + nx, y1 + ny},
+			{x0 - nx, y0 - ny},
+			{x1 - nx, y1 - ny},
+		},
+		c,
+	)
 }
 
 // FillCircle lays c over the disc round (cx, cy), radius r.
@@ -55,7 +63,14 @@ func (i *Image) fillQuad(q [4][2]float32, c color.Color) {
 	cr, cg, cb, ca := Premultiply(c)
 	var verts [4]gpu.Vertex
 	for k, p := range q {
-		verts[k] = gpu.Vertex{DstX: p[0], DstY: p[1], ColorR: cr, ColorG: cg, ColorB: cb, ColorA: ca}
+		verts[k] = gpu.Vertex{
+			DstX:   p[0],
+			DstY:   p[1],
+			ColorR: cr,
+			ColorG: cg,
+			ColorB: cb,
+			ColorA: ca,
+		}
 	}
 	gpu.Colored(i.gpu(), verts[:], []uint16{0, 1, 2, 1, 2, 3}, gpu.SourceOver)
 }
@@ -66,7 +81,14 @@ func (i *Image) FillQuad(corners Corners, c [4]color.RGBA) {
 	verts := make([]gpu.Vertex, 4)
 	for k, p := range corners {
 		cr, cg, cb, ca := Premultiply(c[k])
-		verts[k] = gpu.Vertex{DstX: p[0], DstY: p[1], ColorR: cr, ColorG: cg, ColorB: cb, ColorA: ca}
+		verts[k] = gpu.Vertex{
+			DstX:   p[0],
+			DstY:   p[1],
+			ColorR: cr,
+			ColorG: cg,
+			ColorB: cb,
+			ColorA: ca,
+		}
 	}
 	gpu.Colored(i.gpu(), verts, []uint16{0, 1, 2, 1, 2, 3}, gpu.SourceOver)
 }
@@ -79,7 +101,14 @@ func (i *Image) FillPolygon(pts [][2]float32, c color.Color) {
 	cr, cg, cb, ca := Premultiply(c)
 	verts := make([]gpu.Vertex, len(pts))
 	for k, p := range pts {
-		verts[k] = gpu.Vertex{DstX: p[0], DstY: p[1], ColorR: cr, ColorG: cg, ColorB: cb, ColorA: ca}
+		verts[k] = gpu.Vertex{
+			DstX:   p[0],
+			DstY:   p[1],
+			ColorR: cr,
+			ColorG: cg,
+			ColorB: cb,
+			ColorA: ca,
+		}
 	}
 	indices := make([]uint16, 0, 3*(len(pts)-2))
 	for k := 1; k+1 < len(pts); k++ {

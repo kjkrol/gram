@@ -125,14 +125,26 @@ func (g *Hex) CellBoxes(c cell.ID, dst []geom.AABB) []geom.AABB {
 	center := g.CellCenter(c)
 	s := g.Size
 	halfW := f32.Sqrt(3) / 2 * s
-	dst = append(dst, geom.NewAABB(geom.NewVec(center.X-halfW, center.Y-s/2), geom.NewVec(center.X+halfW, center.Y+s/2)))
+	dst = append(
+		dst,
+		geom.NewAABB(
+			geom.NewVec(center.X-halfW, center.Y-s/2),
+			geom.NewVec(center.X+halfW, center.Y+s/2),
+		),
+	)
 	h := s / 2 / capStrips
 	for j := range capStrips {
 		w := halfW * float32(j+1) / capStrips
 		top := center.Y - s + float32(j)*h
-		dst = append(dst, geom.NewAABB(geom.NewVec(center.X-w, top), geom.NewVec(center.X+w, top+h)))
+		dst = append(
+			dst,
+			geom.NewAABB(geom.NewVec(center.X-w, top), geom.NewVec(center.X+w, top+h)),
+		)
 		bottom := center.Y + s - float32(j+1)*h
-		dst = append(dst, geom.NewAABB(geom.NewVec(center.X-w, bottom), geom.NewVec(center.X+w, bottom+h)))
+		dst = append(
+			dst,
+			geom.NewAABB(geom.NewVec(center.X-w, bottom), geom.NewVec(center.X+w, bottom+h)),
+		)
 	}
 	return dst
 }

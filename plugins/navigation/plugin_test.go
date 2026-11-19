@@ -110,7 +110,11 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 	got = got[:0]
 	navPlugin.moves.Drain(func(i command.Issued[MoveTo]) { got = append(got, i.Command) })
 	if len(looks) != 0 || len(got) != 1 {
-		t.Errorf("a right click with Q held: %d LookAt and %d MoveTo, want none and one", len(looks), len(got))
+		t.Errorf(
+			"a right click with Q held: %d LookAt and %d MoveTo, want none and one",
+			len(looks),
+			len(got),
+		)
 	}
 }
 
@@ -299,7 +303,11 @@ func (c *stubInstallCtx) Looks(func())             {}
 func (c *stubInstallCtx) Pool() *parallel.Pool     { return c.pool }
 
 // as the engine does with the roles played once a Stage's Init returns
-func (c *stubInstallCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }
+func (c *stubInstallCtx) Deliver(
+	rules ...act.Rule,
+) error {
+	return ceremony.Deliver(c.hosts, rules...)
+}
 
 func TestPlugin_DrawsItsRoutes(t *testing.T) {
 	w := world.NewPlugin(world.Config{

@@ -66,6 +66,7 @@ type Sprites struct {
 	fog     float32
 	takes   Taking
 	sun     float32
+	shelter uint16
 	// whether the pieces added next are uncovered, and give way; the uncovered, a piece's four
 	// vec4s each, and whether any piece gives way
 	uncover   bool
@@ -141,17 +142,23 @@ func (s *Sprites) GivesWay() bool { return s.anyGives }
 // source's.
 func (s *Sprites) GiveWay(on bool) { s.gives = on }
 
-// what a piece takes of the shade, with whether it gives way: past a Taking's bits
+// what a piece takes of the shade, with whether it gives way and the shelter it is under: past
+// a Taking's bits
 func (s *Sprites) taking() float32 {
+	t := float32(s.takes) + float32(s.shelter)*shelterBit
 	if s.gives {
 		s.anyGives = true
-		return float32(s.takes) + givesWay
+		return t + givesWay
 	}
-	return float32(s.takes)
+	return t
 }
 
-// givesWay marks a piece giving way in the float its Taking rides in (sprites.wgsl's givesWay)
-const givesWay = 256
+// givesWay marks a piece giving way in the float its Taking rides in, and shelterBit counts the
+// shelter it is under past it (the library's givesWay, shelterOf)
+const (
+	givesWay   = 256
+	shelterBit = 512
+)
 
 // bare keeps the last piece added among the uncovered
 func (s *Sprites) bare() {
@@ -188,6 +195,10 @@ func (s *Sprites) Take(takes Taking) { s.takes = takes }
 // Direct has the pieces added next lit share of their light by the distant light, 0 to 1: what a
 // shadow over them takes away.
 func (s *Sprites) Direct(share float32) { s.sun = share }
+
+// Shelter has the pieces added next drawn under the frame's shelter at (Shadowing.Shelter), 0
+// in the open: their light the lamps' alone, what of the sky's gets in worked out pixel by pixel.
+func (s *Sprites) Shelter(at uint16) { s.shelter = at }
 
 // Turned adds the whole of sprite id of atlas over the world rectangle (x0, y0)-(x1, y1), turned
 // by angle radians about its middle, anticlockwise as the world is seen from above, in light.
@@ -228,6 +239,7 @@ func (s *Sprites) Reset() {
 	s.layers, s.atlases, s.cutouts, s.anyCut = s.layers[:0], s.atlases[:0], s.cutouts[:0], false
 	s.points, s.pointRuns = s.points[:0], s.pointRuns[:0]
 	s.layer, s.layered, s.cutout, s.fog, s.takes, s.sun = layer{}, false, false, 0, TakesAll, 0
+	s.shelter = 0
 	s.uncover, s.gives, s.uncovered, s.anyGives = false, false, s.uncovered[:0], false
 }
 
