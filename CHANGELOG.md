@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+**Fixed**
+- `plugins/navigation`: a hierarchy kept in the cache (`navigation.Cache`) and cut while it was
+  being built anew no longer loads as one that never stood, panicking the next run in the
+  labelling; a file so cut by an older run is built anew (hpastar v1.6.1).
+
 ## v0.22.0 — 2026-11-19
 
 **Added**
