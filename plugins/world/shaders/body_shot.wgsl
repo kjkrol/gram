@@ -5,13 +5,16 @@
 // side the picture is the body thrown along the lines of sight on the upright plane through its
 // foot, across the look: as wide as the body, and from under its foot to over its top by what
 // the lines climb over half its width (world's shotMargin). From above it is the body's square.
-// It takes the body in its tones under the photograph's own light, its paint alone, or the ways
-// out of it: across and up the picture, in the red and the green, the third toward the eye, and
-// how far up a cone in the blue.
+// It takes the body in its tones under the photograph's own light, its paint alone, the ways
+// out of it — across and up the picture, in the red and the green, the third toward the eye, and
+// in the blue how far up a cone or that its paint shines (shapeWaysBlue) — its depth alone, or
+// its shining paints alone where the depth taken before says nothing of it hides them.
 
 const shotLit: f32 = 0.0;
 const shotPaint: f32 = 1.0;
 const shotWays: f32 = 2.0;
+const shotDepth: f32 = 3.0;
+const shotGlow: f32 = 4.0;
 
 // the light a body is photographed in for a picture lit once: from the left, over and before
 // the picture
@@ -98,13 +101,24 @@ fn fs_main(c: ShapeCard) -> Shot {
         discard;
     }
     let v = shotView();
-    var rgb = shapeColour(c, m);
-    if U.ShotFrom.z < shotLit + 0.5 {
+    let takes = round(U.ShotFrom.z);
+    let lies = clamp(c.deep.x + m.far * c.lit.w, 0.0, 1.0);
+    let shines = shapeShines(c);
+    let paint = shapeColour(c, m);
+    var rgb = paint;
+    if takes == shotLit {
         let sun = normalize(v.right * shotLight.x + v.up * shotLight.y - v.way * shotLight.z);
         rgb *= shapeTone(shapeFacing(m, sun));
-    } else if U.ShotFrom.z > shotWays - 0.5 {
-        rgb = vec3<f32>(dot(m.out, v.right) * 0.5 + 0.5, dot(m.out, v.up) * 0.5 + 0.5, m.up);
+        if shines {
+            rgb = max(rgb, paint);
+        }
+    } else if takes == shotWays {
+        rgb = vec3<f32>(dot(m.out, v.right) * 0.5 + 0.5, dot(m.out, v.up) * 0.5 + 0.5,
+            shapeWaysBlue(m.up, shines));
+    } else if takes == shotDepth {
+        return Shot(vec4<f32>(0.0), lies);
+    } else if takes == shotGlow && !shines {
+        discard;
     }
-    let lies = c.deep.x + m.far * c.lit.w;
-    return Shot(vec4<f32>(min(rgb, vec3<f32>(1.0)), 1.0), clamp(lies, 0.0, 1.0));
+    return Shot(vec4<f32>(min(rgb, vec3<f32>(1.0)), 1.0), lies);
 }

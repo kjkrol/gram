@@ -322,6 +322,14 @@ func TestBody_OneThatDoesNotHoldTogetherPanics(t *testing.T) {
 		"past its width":          func(b *Body) { b.Parts[0].From[0] = 50 },
 		"over its height":         func(b *Body) { b.Parts[0].To[2] = 45 },
 		"of no size":              func(b *Body) { b.Wide = 0 },
+		"with a part of no shape": func(b *Body) { b.Parts[0].Shape = Box + 1 },
+		"with a box of no thickness": func(b *Body) {
+			b.Parts[0] = Part{Shape: Box, To: [3]float32{0, 0, 30}, Wide: 10}
+		},
+		"with a box's corner past its width": func(b *Body) {
+			b.Parts[0] = Part{Shape: Box, From: [3]float32{-15, 0, 5}, To: [3]float32{15, 0, 5},
+				Wide: 50, Tip: 4}
+		},
 	} {
 		body := whole
 		body.Parts = append([]Part(nil), whole.Parts...)
@@ -334,6 +342,115 @@ func TestBody_OneThatDoesNotHoldTogetherPanics(t *testing.T) {
 			}()
 			body.Check("a test's")
 		}()
+	}
+}
+
+func TestBody_APartHoldsTogetherAsFarAsItReaches(t *testing.T) {
+	// each up to half the body's width off its middle across or deep, no further
+	for name, part := range map[string]Part{
+		"a box lying along x": {Shape: Box, From: [3]float32{-15, 0, 5},
+			To: [3]float32{15, 0, 5}, Wide: 12, Tip: 4},
+		"a box standing as wide and tall as the body": {Shape: Box, To: [3]float32{0, 0, 40},
+			Wide: 40, Tip: 40},
+		"a cylinder lying along x to its ends": {Shape: Cone, From: [3]float32{-20, 0, 10},
+			To: [3]float32{20, 0, 10}, Wide: 8, Tip: 8},
+		"a spheroid drawn out along y": {Shape: Spheroid, From: [3]float32{0, -20, 10},
+			To: [3]float32{0, 20, 10}, Wide: 10},
+	} {
+		body := ball(10, [2]float32{})
+		body.Parts = []Part{part}
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%s panics: %v; want it taken", name, r)
+				}
+			}()
+			body.Check("a test's")
+		}()
+	}
+}
+
+// crate is a body 40 wide and tall holding a box in the paint given, 24 across x, 12 along y
+// and 30 tall
+func crate(paint Paint) Body {
+	return Body{
+		Wide: 40,
+		Tall: 40,
+		Parts: []Part{{Shape: Box, From: [3]float32{0, 0, 5}, To: [3]float32{0, 0, 35}, Wide: 24,
+			Tip: 12}},
+		Paints: []Paint{paint},
+	}
+}
+
+func TestBody_ABoxShowsItsFacesFlatAndFromAboveAsWideAsItIs(t *testing.T) {
+	at, _, _, b := shotOf(t, crate(Paint{Colour: ballGreen}))
+	// from above 0.8 of a pixel a unit: 9.6 either way across x, 4.8 along y
+	for _, p := range [][2]int{{16, 16}, {24, 16}, {8, 16}, {16, 19}, {16, 13}} {
+		if c := at(b.Top, p[0], p[1]); c != ballGreen {
+			t.Errorf("from above the box holds %v at %v, want its paint", c, p)
+		}
+		if c := at(b.TopWays, p[0], p[1]); c.R < 126 || c.R > 130 || c.G < 126 || c.G > 130 ||
+			c.B != 0 {
+			t.Errorf("from above the ways out of the box are %v at %v, want its top's, straight "+
+				"at the eye", c, p)
+		}
+	}
+	for _, p := range [][2]int{{28, 16}, {4, 16}, {16, 23}, {16, 9}} {
+		if c := at(b.Top, p[0], p[1]); c.A != 0 {
+			t.Errorf("from above the box holds %v at %v, want nothing past it", c, p)
+		}
+	}
+	// looking along x from the cards' elevation: its face to the eye level, its top over it
+	front, lower, top := at(b.Ways[0], 16, 16), at(b.Ways[0], 16, 21), at(b.Ways[0], 16, 9)
+	if d := int(front.G) - int(lower.G); front.A != 255 || d < -2 || d > 2 || front.G > 90 ||
+		front.R < 124 || front.R > 132 {
+		t.Errorf("the ways out of the box's face to the eye are %v and %v down it, want one "+
+			"and the same, level, a quarter up the picture", front, lower)
+	}
+	if top.G < 220 {
+		t.Errorf("the ways out of the box's top are %v, want it facing up", top)
+	}
+}
+
+func TestBody_APaintThatShinesIsTakenAloneFromAboveWhereNothingHidesIt(t *testing.T) {
+	glass := color.RGBA{R: 250, G: 220, B: 120, A: 255}
+	lantern := Body{
+		Wide: 40,
+		Tall: 40,
+		Parts: []Part{
+			// a ball of glass under a cap 10 a side
+			{Shape: Spheroid, From: [3]float32{0, 0, 10}, To: [3]float32{0, 0, 30}, Wide: 20,
+				Paint: 1},
+			{Shape: Box, From: [3]float32{0, 0, 32}, To: [3]float32{0, 0, 34}, Wide: 10,
+				Tip: 10},
+		},
+		Paints: []Paint{{Colour: ballGreen}, {Colour: glass, Shines: true}},
+	}
+	at, _, _, b := shotOf(t, lantern)
+	if !b.Shines {
+		t.Fatal("a body with a paint that shines does not say it shines")
+	}
+	// 0.8 of a pixel a unit from above: the cap 4 either way of the middle, the ball 8
+	if c := at(b.Glow, 16, 16); c.A != 0 {
+		t.Errorf("under the cap its glow holds %v, want nothing: the cap hides the glass", c)
+	}
+	if c := at(b.Glow, 22, 16); c != glass {
+		t.Errorf("beside the cap its glow holds %v, want the glass as it is, %v", c, glass)
+	}
+	if c := at(b.Glow, 26, 16); c.A != 0 {
+		t.Errorf("past the ball its glow holds %v, want nothing", c)
+	}
+	if glows, plain := at(b.TopWays, 22, 16), at(b.TopWays, 16, 16); glows.B != 255 ||
+		plain.B != 0 {
+		t.Errorf("the ways from above are %v on the glass and %v on the cap, want the glass's "+
+			"blue whole and the cap's none", glows, plain)
+	}
+	if lit := at(b.Above, 22, 16); lit.R < glass.R-1 || lit.G < glass.G-1 || lit.B < glass.B-1 {
+		t.Errorf("seen from above in the photograph's light the glass is %v, want no darker "+
+			"than %v", lit, glass)
+	}
+	if _, _, _, plain := shotOf(t, ball(10, [2]float32{})); plain.Shines {
+		t.Error("a body of plain paints says it shines")
 	}
 }
 
@@ -420,6 +537,23 @@ func TestRenderer_Compose_AKindWithABodyStandsAsItInReliefWholeAsFarAsTheBodiesR
 	}, nil, nil, geom.Vec{}, quarters[0])
 	if len(plain.sprites) != 1 {
 		t.Errorf("a look standing no bodies drew %v, want its sprite", plain.sprites)
+	}
+}
+
+func TestRenderer_Compose_FromAboveTheGlowOfABodyThatShinesLiesOverItTurnedAlike(t *testing.T) {
+	b := &Bodied{Row: 3, Above: 7, Shines: true, Glow: 9}
+	above := cameratest.NewFromSpace(1000, 1000, 0)
+	look := stoodBy(t, above, b, lod.L3, geom.NewVec(0, 1))
+	if len(look.sprites) != 2 || look.sprites[0] != b.Above || look.sprites[1] != b.Glow ||
+		look.angles[0] != look.angles[1] || look.boxes[0] != look.boxes[1] {
+		t.Errorf("from above a body that shines was drawn as %v turned %v over %v, want it "+
+			"seen from above and its glow after it, turned and placed alike", look.sprites,
+			look.angles, look.boxes)
+	}
+	b.Shines = false
+	if look := stoodBy(t, above, b, lod.L3, geom.NewVec(0, 1)); len(look.sprites) != 1 {
+		t.Errorf("from above a body of plain paints was drawn as %v, want it seen from above "+
+			"alone", look.sprites)
 	}
 }
 

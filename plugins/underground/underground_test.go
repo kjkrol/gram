@@ -11,12 +11,14 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/parallel"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/topography"
@@ -24,11 +26,13 @@ import (
 	"github.com/kjkrol/gram/plugins/underground/site"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 type installer struct {
 	ecs     *goke.ECS
 	pending []func() []goke.System
+	drawn   []render.Source
 }
 
 func (c *installer) UseModule(m goke.Module) {
@@ -43,7 +47,7 @@ func (c *installer) Setup(providers ...goke.SetupProvider) {
 func (c *installer) RegSys(f func() goke.System) goke.Runnable { return c.ecs.RegSys(f()) }
 func (c *installer) ECS() *goke.ECS                            { return c.ecs }
 func (c *installer) Hosts(...host.Host)                        {}
-func (c *installer) Draws(...render.Source)                    {}
+func (c *installer) Draws(s ...render.Source)                  { c.drawn = append(c.drawn, s...) }
 func (c *installer) Looks(func())                              {}
 func (*installer) Pool() *parallel.Pool                        { return nil }
 
@@ -59,6 +63,7 @@ type massif struct {
 	topo  *topography.Plugin
 	under *underground.Plugin
 	ecs   *goke.ECS
+	drawn []render.Source
 	all   *goke.Query
 	base  goke.Comp[world.Base]
 	z     goke.OptComp[world.Z]
@@ -148,9 +153,15 @@ func (d *massif) lay(file fstest.MapFS) error {
 			return err
 		}
 	}
+	d.drawn = ctx.drawn
 	var systems []goke.System
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
+	}
+	for _, s := range d.drawn {
+		if b, ok := s.(plugin.Bound); ok {
+			systems = append(systems, goke.SystemFn{OnInit: b.Init})
+		}
 	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		d.all = si.NewQueryBuilder(&d.base).
@@ -476,5 +487,85 @@ func TestWalls_StandRoundAChamberButForTheDoorOfATunnelComingIn(t *testing.T) {
 	}
 	if over := d.walls(collision.Band{Bottom: 20, Top: 22}, room); len(over) != 0 {
 		t.Errorf("a body on the ridge over the chamber meets %d walls, want none", len(over))
+	}
+}
+
+// eyed is a camera in perspective, its eye at eye looking west, the pixels of a screen 64 wide an
+// eighth of a unit apart a unit off
+type eyed struct {
+	camera.Camera
+	eye [3]float32
+}
+
+func (c eyed) Rays() (camera.RayField, bool) {
+	const k = 1.0 / 64
+	return camera.RayField{
+		Origin: c.eye,
+		Dir:    [3]float32{-1, -32 * k, 32 * k},
+		DDX:    [3]float32{0, k, 0},
+		DDY:    [3]float32{0, 0, -k},
+	}, true
+}
+
+func TestTubes_DrawAChambersSideClosedRoundTheTunnelComingIn(t *testing.T) {
+	gputest.Need(t)
+	d := newMassif(t)
+	err := d.lay(level("{kind: tunnel, from: [2, 3], to: [4, 3]}",
+		"{kind: cave, from: [4, 2], to: [5, 4], depth: 20}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// the underground's tube, made before its marks, the last installed
+	tube := d.drawn[len(d.drawn)-2]
+	tube.(plugin.Publisher).Publish()
+	tube.(plugin.Publisher).Swap()
+	screen := render.NewImage(64, 64)
+	depth := render.NewDepth()
+	screen.ClearDepth(depth)
+	u := render.UniformsOf(map[string]any{"Ambience": []float32{0.5, 0.5, 0.5}})
+	// in the chamber, 8 east of its west side at x 40 and 2 over its floor at 0, its roof at 4;
+	// the tunnel 6 wide and 3 high comes in by that side from the west, its floor at 0 too
+	tube.(render.Direct).Draw(render.Target{Screen: screen, Depth: depth},
+		eyed{cameratest.NewFromSpace(64, 64, 0), [3]float32{48, 35, 2}}, u)
+	pix := make([]byte, 4*64*64)
+	screen.ReadPixels(pix)
+	drawn := func(x, y int) bool { return pix[4*(y*64+x)+3] != 0 }
+	for name, p := range map[string][2]int{
+		"the side south of the doorway": {4, 32},
+		"the side north of it":          {60, 32},
+		"the side over it":              {32, 20},
+	} {
+		if !drawn(p[0], p[1]) {
+			t.Errorf("%s, pixel %v: not drawn, the world beyond showing through", name, p)
+		}
+	}
+	if drawn(32, 32) {
+		t.Error("the doorway, pixel [32 32]: drawn, want it open into the tunnel")
+	}
+}
+
+func TestTubes_HangAChambersRowOfLampsOverItsMiddle(t *testing.T) {
+	d := newMassif(t)
+	if err := d.lay(level("{kind: cave, from: [3, 2], to: [5, 4], depth: 20}")); err != nil {
+		t.Fatal(err)
+	}
+	// the shader hangs a lamp where a stretch's count along its row is half a period on from a
+	// whole one; the chamber's middle at x 45, its room 4 high
+	const mid = 45
+	period := float32(underground.LampEvery * 4)
+	cells := 0
+	for _, s := range d.under.Stretches() {
+		if s[4]-s[0] != 10 || s[3] != 5 {
+			continue // no whole cell's
+		}
+		cells++
+		at := s[9] + mid - s[0]
+		if f := at/period - float32(int(at/period)); f32.Abs(f-0.5) > 1e-4 {
+			t.Errorf("the cell from x %v counts %v at the chamber's middle, want a lamp there",
+				s[0], at)
+		}
+	}
+	if cells != 9 {
+		t.Errorf("%d whole cells laid, want the chamber's nine", cells)
 	}
 }

@@ -15,11 +15,14 @@ import (
 const bodyElevation = math.Pi / 6
 
 // what a photograph of a body takes (body_shot.wgsl): the body in its tones under the
-// photograph's own light, its paint alone, or the ways out of it
+// photograph's own light, its paint alone, the ways out of it, its depth alone, or its shining
+// paints alone where nothing nearer of it hides them
 const (
 	shotLit = iota
 	shotPaint
 	shotWays
+	shotDepth
+	shotGlow
 )
 
 // the WGSL of the bodies' parts, paints and tones (body.wgsl), registered for every shader: the
@@ -53,6 +56,12 @@ type Bodied struct {
 	Elevation float32
 	Margin    float32
 	TopAt     float32
+	// Stretched stands it as tall as its entity (Body.Stretched).
+	Stretched bool
+	// Shines says a paint of it shines, and Glow is then those paints alone photographed from
+	// straight above, where nothing else of it hides them, to lay unlit over Above.
+	Shines bool
+	Glow   render.SpriteID
 	// how steeply an eye looks down for the card from above (Body.steep); 0 never
 	steep float32
 }
@@ -111,6 +120,7 @@ func (a *Atlas) AddBody(of render.Sprited, size int, body Body) Slot {
 		Elevation: bodyElevation,
 		Margin:    body.Wide / 2 * float32(math.Tan(bodyElevation)),
 		TopAt:     body.topAt(),
+		Stretched: body.Stretched,
 		steep:     body.steep(bodyElevation),
 	}
 	a.bodies = append(a.bodies, body)
@@ -123,6 +133,17 @@ func (a *Atlas) AddBody(of render.Sprited, size int, body Body) Slot {
 	a.atlas.AddShot(b.Above, size, a.shot(b, 0, 0, shotLit, true))
 	a.atlas.AddShot(b.Top, size, a.shot(b, 0, 0, shotPaint, true))
 	a.atlas.AddShot(b.TopWays, size, a.shot(b, 0, 0, shotWays, true))
+	for _, p := range body.Paints {
+		b.Shines = b.Shines || p.Shines
+	}
+	if b.Shines {
+		b.Glow = a.p.Kinds().NewSprite()
+		depth, glow := a.shot(b, 0, 0, shotDepth, true), a.shot(b, 0, 0, shotGlow, true)
+		a.atlas.AddShot(b.Glow, size, func(dst *render.Image) {
+			depth(dst)
+			glow(dst)
+		})
+	}
 	for k := range BodyViews {
 		heading := float32(k) * 2 * math.Pi / BodyViews
 		view, ways := a.p.Kinds().NewSprite(), a.p.Kinds().NewSprite()

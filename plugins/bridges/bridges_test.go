@@ -379,6 +379,10 @@ func (d *dale) wholeOver(from, to geom.Vec, deck float32, decks, piers int) {
 			if p.cast != light.Baked {
 				d.t.Errorf("a pier casts %v, want its own Baked shadow", p.cast)
 			}
+			if p.base.Vel.Dir != h.base.Vel.Dir {
+				d.t.Errorf("a pier faces %v, want along its bridge, %v", p.base.Vel.Dir,
+					h.base.Vel.Dir)
+			}
 		}
 	}
 	if nDecks != decks || nPiers != piers {

@@ -146,7 +146,7 @@ func (p *Plugin) parts(t Type, b site.Bridge, g *boardGround) (kind.Entry, []kin
 		out = append(out, piece(s, 1<<b.Way|1<<back, dir))
 	}
 	for _, at := range b.Piers {
-		row := pierRow{At: at, Bottom: g.at(at), Top: b.Deck - t.spec.Thickness}
+		row := pierRow{At: at, Bottom: g.at(at), Top: b.Deck - t.spec.Thickness, Dir: dir}
 		out = append(out, t.pier.Entry(row))
 	}
 	whole := wholeRow{From: gr.CellCenter(b.From), To: gr.CellCenter(b.To), Dir: dir, Deck: b.Deck}

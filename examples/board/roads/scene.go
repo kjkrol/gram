@@ -18,20 +18,21 @@ type mainScene struct {
 }
 
 var (
-	grassColor  = color.RGBA{R: 95, G: 140, B: 70, A: 255}
-	hillColor   = color.RGBA{R: 140, G: 125, B: 95, A: 255}
-	forestColor = color.RGBA{R: 30, G: 85, B: 45, A: 255}
-	waterColor  = color.RGBA{R: 40, G: 90, B: 170, A: 255}
-	fordColor   = color.RGBA{R: 85, G: 135, B: 175, A: 255}
-	roadColor   = color.RGBA{R: 165, G: 135, B: 95, A: 255}
-	deckColor   = color.RGBA{R: 115, G: 85, B: 55, A: 255}
-	railColor   = color.RGBA{R: 70, G: 50, B: 35, A: 255}
-	pierColor   = color.RGBA{R: 160, G: 150, B: 135, A: 255}
-	greenColor  = color.RGBA{R: 120, G: 170, B: 85, A: 255}
-	wellColor   = color.RGBA{R: 60, G: 60, B: 70, A: 255}
-	roofColor   = color.RGBA{R: 180, G: 80, B: 55, A: 255}
-	roofShade   = color.RGBA{R: 135, G: 55, B: 40, A: 255}
-	panelColor  = color.RGBA{R: 20, G: 20, B: 20, A: 180}
+	grassColor     = color.RGBA{R: 95, G: 140, B: 70, A: 255}
+	hillColor      = color.RGBA{R: 140, G: 125, B: 95, A: 255}
+	forestColor    = color.RGBA{R: 30, G: 85, B: 45, A: 255}
+	waterColor     = color.RGBA{R: 40, G: 90, B: 170, A: 255}
+	fordColor      = color.RGBA{R: 85, G: 135, B: 175, A: 255}
+	roadColor      = color.RGBA{R: 165, G: 135, B: 95, A: 255}
+	deckColor      = color.RGBA{R: 115, G: 85, B: 55, A: 255}
+	railColor      = color.RGBA{R: 70, G: 50, B: 35, A: 255}
+	pierColor      = color.RGBA{R: 160, G: 150, B: 135, A: 255}
+	pierStoneColor = color.RGBA{R: 135, G: 126, B: 112, A: 255}
+	greenColor     = color.RGBA{R: 120, G: 170, B: 85, A: 255}
+	wellColor      = color.RGBA{R: 60, G: 60, B: 70, A: 255}
+	roofColor      = color.RGBA{R: 180, G: 80, B: 55, A: 255}
+	roofShade      = color.RGBA{R: 135, G: 55, B: 40, A: 255}
+	panelColor     = color.RGBA{R: 20, G: 20, B: 20, A: 180}
 )
 
 func (m *mainScene) screen() *ui.Element {

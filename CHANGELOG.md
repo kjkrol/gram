@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+**Added**
+- `world.Box`, a part of a body: a block along its line, `Wide` across it level and `Tip` the
+  other way; a pier, a crate, a wagon's bed.
+- `world.Paint.Shines`: a paint drawn no darker than its colours whatever the light, a body whole,
+  its cards and its picture from above alike (its glow photographed apart and laid over it,
+  `Bodied.Glow`): a lantern's glass.
+- `world.Body.Stretched`: a body standing as tall as its entity, its heights shares of it: a pier
+  from its footing to its deck.
+- The light demo's lantern (its glass shining) and tower, the roads demo's piers and the
+  navigation demos' wagons are bodies.
+
+**Fixed**
+- `plugins/underground`: a chamber is drawn walled as it stops a body: its side stands round the
+  doorway of a tunnel coming in, where it stood open whole and the world outside showed round
+  the tunnel's end, and a tunnel running past it opens none.
+- `plugins/underground`: the courses of the tunnels seen from above and the units in them lie as
+  deep as they do, where they lay on the ground over them and a tunnel going down under a hill
+  looked as though it climbed it.
+- `plugins/underground`: a chamber's row of lamps hangs over its middle whatever its height, where
+  a tall one could have none.
+
+**Changed**
+- `world.Body.Check` measures a part across and deep by how far it reaches, so a cylinder lying
+  along the level may run to the body's edge.
+- A cone darkens towards its end only as far as it rises: one lying along the level darkens no
+  end.
+- `bridges`: a pier is headed along its bridge (`world.Velocity`), so its body stands square to the
+  deck.
+- The mine demo's cave is 7 m high.
+
 ## v0.22.1 — 2026-11-19
 
 **Fixed**
