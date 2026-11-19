@@ -1,9 +1,11 @@
 package atlas
 
 import (
+	"image/color"
 	"strings"
 	"testing"
 
+	"github.com/kjkrol/gram/render/gputest"
 	"github.com/kjkrol/gram/render/internal/gfx"
 )
 
@@ -153,5 +155,48 @@ func TestAtlas_KeepsAWhitePatchClearOfTheSprites(t *testing.T) {
 	}
 	if w, h := atlas.Atlas().Bounds().Dx(), atlas.Atlas().Bounds().Dy(); u+1.5 > float32(w) || v+1.5 > float32(h) {
 		t.Errorf("the white patch round (%v, %v) runs off the %dx%d sheet", u, v, w, h)
+	}
+}
+
+func TestAtlas_ASpriteShotIsDrawnOnTheGPUIntoItsPlaceBesideThePainted(t *testing.T) {
+	gputest.Need(t)
+	painted, shot := SpriteID(0), SpriteID(1)
+	atlas := NewAtlas()
+	atlas.Add(painted, 4, func(dst *Canvas, size int) {
+		dst.FillRect(0, 0, float32(size), float32(size), color.RGBA{R: 255, A: 255})
+	})
+	shots := 0
+	atlas.AddShot(shot, 6, func(dst *gfx.Image) {
+		shots++
+		dst.Fill(color.RGBA{B: 255, A: 255})
+	})
+	atlas.Close()
+	if shots != 0 {
+		t.Fatalf("the sprite was shot %d times at Close, want it left to the GPU", shots)
+	}
+	if err := gfx.Prepare(); err != nil {
+		t.Fatal(err)
+	}
+	sheet := atlas.Atlas()
+	w, h := sheet.Bounds().Dx(), sheet.Bounds().Dy()
+	pix := make([]byte, 4*w*h)
+	sheet.ReadPixels(pix)
+	at := func(x, y float32) [4]byte { return [4]byte(pix[4*(int(y)*w+int(x)):]) }
+	px0, py0, _, _ := atlas.UV(painted)
+	if got := at(px0+1, py0+1); got != [4]byte{255, 0, 0, 255} {
+		t.Errorf("the painted sprite holds %v, want its red", got)
+	}
+	sx0, sy0, sx1, sy1 := atlas.UV(shot)
+	if sx1-sx0 != 6 || sy1-sy0 != 6 {
+		t.Fatalf("the shot sprite lies over %v by %v texels, want 6 by 6", sx1-sx0, sy1-sy0)
+	}
+	if got := at(sx0+1, sy0+1); got != [4]byte{0, 0, 255, 255} {
+		t.Errorf("the shot sprite holds %v inside, want the blue it was shot in", got)
+	}
+	if got := at(sx1-1, sy1-1); got != [4]byte{0, 0, 255, 255} {
+		t.Errorf("the shot sprite holds %v at its far corner, want the blue", got)
+	}
+	if shots != 1 {
+		t.Errorf("the sprite was shot %d times, want once", shots)
 	}
 }

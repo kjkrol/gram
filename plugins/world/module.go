@@ -82,7 +82,10 @@ type module struct {
 	bandSwitches command.Queue[SwitchBands]
 	farLooks     command.Queue[ShowFar]
 	counts       command.Queue[ShowCounts]
-	canopies     command.Queue[ShowCanopies]
+	bodies       command.Queue[Bodies]
+	bodyAdapts   command.Queue[AdaptBodies]
+	ways         command.Queue[GiveWay]
+	waysRiding   command.Queue[GiveWayRiding]
 	// what is drawn of the sectors, switched by sectorSwitches
 	sectorsShown   SectorsShown
 	sectorSwitches command.Queue[SwitchSectors]
@@ -159,7 +162,12 @@ func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	w.bandSwitches.Drain(func(i command.Issued[SwitchBands]) { w.p.write.SetBanded(i.Command.On) })
 	w.farLooks.Drain(func(i command.Issued[ShowFar]) { w.p.write.ShowFar(i.Command.Look) })
 	w.counts.Drain(func(i command.Issued[ShowCounts]) { w.p.write.ShowCounts(i.Command.On) })
-	w.canopies.Drain(func(i command.Issued[ShowCanopies]) { w.p.write.ShowCanopies(i.Command.On) })
+	w.bodies.Drain(func(i command.Issued[Bodies]) { w.p.write.SetBodies(i.Command.Reach) })
+	w.bodyAdapts.Drain(func(i command.Issued[AdaptBodies]) { w.p.write.AdaptBodies(i.Command.On) })
+	w.ways.Drain(func(i command.Issued[GiveWay]) { w.p.write.GiveWay(i.Command.On) })
+	w.waysRiding.Drain(func(i command.Issued[GiveWayRiding]) {
+		w.p.write.GiveWayRiding(i.Command.On)
+	})
 	w.switchSectors()
 	ctx.Run(w.clockRunnable, d)
 	ctx.Run(w.sectorsRunnable, d)

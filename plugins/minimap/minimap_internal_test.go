@@ -420,7 +420,7 @@ func TestMarks_NoDotForAnAggregateUnfoldedItsPartsDotted(t *testing.T) {
 
 func TestMarks_APartOfAMarkedKindIsDottedAPartStandingUnmarkedIsNot(t *testing.T) {
 	w := flatWorld(nil)
-	for _, name := range []string{"soldier", "tree"} {
+	for _, name := range []string{"soldier", "post"} {
 		kind.Define[spot](w.Kinds(), name, kind.Spec{
 			comp.Load(func(s spot) world.Position {
 				return world.Position{AABB: plane.NewAABB(geom.NewVec(s.x-2, s.y-2), 4, 4)}
@@ -431,12 +431,12 @@ func TestMarks_APartOfAMarkedKindIsDottedAPartStandingUnmarkedIsNot(t *testing.T
 		})
 	}
 	soldier := kind.Named[spot](w.Kinds(), "soldier")
-	tree := kind.Named[spot](w.Kinds(), "tree")
-	w.Write().Seed(tree.Entry(spot{450, 500}), soldier.Entry(spot{550, 500}),
-		tree.Entry(spot{500, 520}))
+	post := kind.Named[spot](w.Kinds(), "post")
+	w.Write().Seed(post.Entry(spot{450, 500}), soldier.Entry(spot{550, 500}),
+		post.Entry(spot{500, 520}))
 	a := w.NewAtlas()
 	a.Add(soldier, 4, render.Solid(markRed)).Styled(Mark{Color: markRed, Size: 6})
-	a.Add(tree, 4, render.Solid(plainSky))
+	a.Add(post, 4, render.Solid(plainSky))
 	a.Close()
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)

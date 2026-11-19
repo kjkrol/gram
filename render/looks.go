@@ -313,8 +313,8 @@ func Dot(radius float32, c color.RGBA) SpriteDrawer {
 	}
 }
 
-// Appearance is the sprite an entity is drawn from and how much it bends in the wind, 0 not at
-// all, 1 as far as the wind blows it.
+// Appearance is the sprite a thing is drawn from and how far it sways where what lays it leans
+// what sways, 0 not at all to 1 in full.
 type Appearance struct {
 	SpriteID SpriteID
 	Sway     float32

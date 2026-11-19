@@ -13,20 +13,25 @@ import (
 	"github.com/gogpu/naga"
 	"github.com/gogpu/naga/backend"
 	"github.com/gogpu/naga/spirv"
+	"github.com/gogpu/naga/valid"
 )
 
 // compiled is how naga writes a program's SPIR-V: indices held in range, loops bounded, buffers
 // and image loads left to the device, which wgpu's Vulkan backend has check them wherever it
 // can, asking naga the same of its own compile there. naga's check of every image load took
-// 3 % of a frame of the island.
-var compiled = naga.CompileOptions{SPIRV: spirv.Options{
-	BoundsCheckPolicies: backend.BoundsCheckPolicies{
-		Index:        backend.BoundsCheckRestrict,
-		Buffer:       backend.BoundsCheckUnchecked,
-		ImageLoad:    backend.BoundsCheckUnchecked,
-		BindingArray: backend.BoundsCheckUnchecked,
+// 3 % of a frame of the island. A fragment may say how the depth it writes stands to its
+// triangle's (earlyDepth).
+var compiled = naga.CompileOptions{
+	Capabilities: valid.CapEarlyDepthTest,
+	SPIRV: spirv.Options{
+		BoundsCheckPolicies: backend.BoundsCheckPolicies{
+			Index:        backend.BoundsCheckRestrict,
+			Buffer:       backend.BoundsCheckUnchecked,
+			ImageLoad:    backend.BoundsCheckUnchecked,
+			BindingArray: backend.BoundsCheckUnchecked,
+		},
 	},
-}}
+}
 
 // spirvOf is source compiled to SPIR-V by naga, kept in the shader cache and read back from it
 // the next time: GRAM_SHADER_CACHE "off" keeps none, a folder keeps it there, the user's cache

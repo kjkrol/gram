@@ -202,7 +202,9 @@ Decisions the user has made; they are not up for revisiting in passing.
   tilt and zoom allowed, its pitch, distance and aim), the grid, the cells held, the routes, the
   cones, the weather, the clouds' look and the high clouds' shadows, the frozen light and its
   hour, the picture's resolution and the detail and its following the frame budget, the ground's
-  haze, the shadows' detail and the lamps' shadows, the sectors and their levels, the minimap
+  haze, the shadows' detail and the lamps' shadows, the sectors and their levels, how far the
+  bodies stand whole and its following the frame budget, before which cameras what gives way
+  does, the minimap
   shown and turning are set on F10 alone; the command stays, for a game to bind a key of its own.
   The tempo and the telemetry panel keep theirs.
   A key held, down or let go leaves the chords with Shift, Ctrl or Alt to these shortcuts unless
@@ -364,6 +366,16 @@ Decisions the user has made; they are not up for revisiting in passing.
   parts from `lod.Seed` and the aggregate's state), an ascent sums the fine into the coarse, both
   deterministic from the same state and seed; what the coarse level does not model, the descent
   does not invent.
+- **One description in 3D a kind, drawn as its level says** (the user's word, 2026-11-18): a
+  kind with a body (`world.Body`, `Atlas.AddBody`) stands whole in relief as far as the bodies
+  reach, the close scale, L2 or L3, a setting and a lever of the cameras' frame budget (a matter
+  of the GPU's power); beyond, down to L3, as a card of the body seen from the side the camera
+  looks at it from, one of eight, or from above where the camera looks down steeply, lit by the
+  frame's light; far off in the sheets as ever. The
+  mechanism is the world's, a game arranges the parts: trees first, what stands (lanterns,
+  piers, a wagon) and people after them. **What is drawn is worked out on the GPU** (2026-11-08,
+  again 2026-11-18): a body's cards and sprites are photographs taken by the shader that draws
+  it, never a second copy of its shapes in Go.
 - **Never make a unit see the others ahead**: it senses nothing of them and learns of them by
   striking (navigation); its order may be told by the group's plan (a field, a column's place
   and pace). Lanes were tried and dropped.
@@ -383,6 +395,20 @@ Decisions the user has made; they are not up for revisiting in passing.
   a cloud, anything to come — and under whatever light, the sun or a lamp: a light on the horizon
   would cast a shadow for ever. One constant, read by every shadow; no shader or plugin keeps a
   cap of its own, and a cost that grows as the light sinks is this rule missing somewhere.
+- **Only `render` draws, in no plugin's language** (the user's word, 2026-11-18): the device,
+  the passes and the pipelines are `render`'s alone, and `render`, which is to leave gram as a
+  module of its own, holds no plugin's WGSL and names no plugin's notion (an entity, a kind, a
+  level, a body). A plugin's WGSL is its own, kept by the plugin that knows what it draws:
+  handed to `render` as a shader of its own (`NewMeshShaderWith`) or registered there where
+  other plugins' shaders call it (`RegisterMaterials`: the air's wind, the world's bodies),
+  never passed from plugin to plugin. A general plugin speaks no specific one's language
+  either: the world's bodies name no tree.
+- **What covers a unit gives way to it in the tactical view alone** (the user's word,
+  2026-11-18): what a look declares to give way (`world.Slot.GivesWay`: a tree) is left out
+  round what a game uncovers (`Slot.Uncovered`: its units), worked out on the GPU by `render`;
+  before a camera loose over the world or centred on a unit from the start, before one riding
+  a unit (FPP, TPP) not, each a checkbox on a boolean of the world's settings
+  (`world.GiveWay`, `world.GiveWayRiding`).
 - **What is drawn over what is Z's alone**, never a layer, the order of adding or the order a
   plugin registers in: every piece of the world lies at a height (`render.At`; what lies on a
   surface at a small lift over it — a cell held, a bridge in hand, a field's piece at

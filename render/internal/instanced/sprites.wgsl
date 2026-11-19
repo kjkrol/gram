@@ -9,7 +9,10 @@
 // depth test, and what is all but clear of it is left out. A sprite the screen turns other than
 // by quarters is read smooth and its border fades over a pixel; any other texel for texel. It
 // takes the shadows the ground holds (render.GroundShade) as its bits say (lift.z, render.Taking),
-// the sun's share of its light (lift.w) taken away in them.
+// the sun's share of its light (lift.w) taken away in them. One giving way (lift.z's givesWay,
+// Sprites.GiveWay) is left out at the pixels where something uncovered lies farther than it
+// (U.Uncovering, the library's givesWayAt), read only within the screen's rectangle the
+// uncovered lie in (U.UncoveredIn).
 
 struct Piece {
     @builtin(position) clip: vec4<f32>,
@@ -22,6 +25,8 @@ struct Piece {
     @location(5) world: vec2<f32>,
     // the shade it takes, the sun's share of its light, its height and how far up it fades in
     @location(6) @interpolate(flat) shade: vec4<f32>,
+    // 1 where it gives way and may lie over something uncovered: its pixels read their depth
+    @location(7) @interpolate(flat) open: f32,
 }
 
 fn onScreen(x: f32, y: f32) -> vec2<f32> {
@@ -90,6 +95,15 @@ fn vs_main(
         let at = U.ViewProj * vec4<f32>((r.xy + r.zw) * 0.5, lift.x, 1.0);
         depth = at.z / at.w;
     }
+    // giving way, and within the screen's rectangle the uncovered lie in (U.UncoveredIn)
+    var open = 0.0;
+    if U.Uncovering > 0.5 && takes(lift.z, givesWay) {
+        let half = abs(sx) * (0.5 * size.x) + abs(sy) * (0.5 * size.y) + vec2<f32>(1.0);
+        if mid.x + half.x >= U.UncoveredIn.x && mid.y + half.y >= U.UncoveredIn.y
+            && mid.x - half.x <= U.UncoveredIn.z && mid.y - half.y <= U.UncoveredIn.w {
+            open = 1.0;
+        }
+    }
     var p: Piece;
     let ndc = vec2<f32>(px.x / U.ViewSize.x * 2.0 - 1.0, 1.0 - px.y / U.ViewSize.y * 2.0);
     p.clip = vec4<f32>(ndc, depth, 1.0);
@@ -100,6 +114,7 @@ fn vs_main(
     p.fog = lift.y;
     p.world = corner;
     p.shade = vec4<f32>(lift.z, lift.w, lift.x, 0.5 * min(size.x, size.y));
+    p.open = open;
     return p;
 }
 
@@ -137,6 +152,10 @@ fn fs_main(p: Piece) -> @location(0) vec4<f32> {
         }
     } else if U.Deep > 0.5 && c.a < 0.5 / 255.0 {
         discard; // writing no depth where nothing shows
+    }
+    // read only for what is left of the piece: the depth of what is uncovered under it
+    if p.open > 0.5 && givesWayAt(p.clip.xy, p.clip.z) {
+        discard;
     }
     return c;
 }

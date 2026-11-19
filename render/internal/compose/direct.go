@@ -5,24 +5,24 @@ import (
 )
 
 // Direct is a Source that draws a part of the picture itself, with a shader of its own, in the
-// passes its Compose asked for (Frame.DrawOpaque, Frame.DrawCutout, Frame.DrawAt): Draw is handed
-// which, and runs
-// once a layer of a picture in layers, so what Compose gathered serves every Draw till the next
-// Compose. A Direct asking for none is not drawn.
+// passes its Compose asked for (Frame.DrawOpaque, Frame.DrawUncovered, Frame.DrawCutout,
+// Frame.DrawAt): Draw is handed which, and runs once a layer of a picture in layers, so what
+// Compose gathered serves every Draw till the next Compose. A Direct asking for none is not drawn.
 type Direct interface {
 	Source
 	Draw(t Target, cam camera.Camera, u Uniforms)
 }
 
-// Pass is which part of the picture a Direct draws in: the opaque ground first, then the cutouts,
-// what stands whole cut at half its alpha and writing the depth, in no order, then what is seen
-// through, back to front.
+// Pass is which part of the picture a Direct draws in: the opaque ground first, then what is
+// uncovered, into a depth of its own, then the cutouts, what stands whole cut at half its alpha
+// and writing the depth, in no order, then what is seen through, back to front.
 type Pass uint8
 
 const (
 	Opaque Pass = iota
 	SeeThrough
 	Cutout
+	Uncovered
 )
 
 // Target is where a Direct source draws: the screen, nil in a test; the depth buffer every mesh of
@@ -32,7 +32,16 @@ type Target struct {
 	Screen *Image
 	Depth  *Depth
 	Ground *Depth
-	Pass   Pass
+	// Uncovered is where what is uncovered lies, for what gives way to read in the passes after
+	// (depthAt): one less its depth, the farthest's, 0 where nothing is; nil where no source
+	// asked (Frame.DrawUncovered). In the pass Uncovered it is Depth, written so, the screen left
+	// as it is.
+	Uncovered *Depth
+	// UncoveredIn is the rectangle of the camera's viewport what is uncovered lies within, x0,
+	// y0, x1, y1 in pixels: a source grows it by what it draws in the pass Uncovered, and what
+	// gives way reads no depth outside it. Nil with Uncovered.
+	UncoveredIn *[4]float32
+	Pass        Pass
 	// Coarse is how many of the screen's pixels each way a pixel of the ground under the pass
 	// spans, its coarsest layer's, over grounds laid apart (Laid.DrawOver); 0, as 1, elsewhere.
 	Coarse float32

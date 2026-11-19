@@ -49,9 +49,9 @@ func TestSprites_TheCutoutsGoFrontToBackApartFromTheRest(t *testing.T) {
 		s.piece(nil)
 		s.instances = append(s.instances, mark, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, z, 0, 0, 0)
 	}
-	add(1, 40, true)  // a tree's top
+	add(1, 40, true)  // a cutout's top
 	add(2, 32, false) // a walker
-	add(3, 50, true)  // a taller tree
+	add(3, 50, true)  // a taller one
 	add(4, 0, false)  // a trapdoor
 	marks := func(drawn []float32) []float32 {
 		var got []float32
@@ -61,7 +61,7 @@ func TestSprites_TheCutoutsGoFrontToBackApartFromTheRest(t *testing.T) {
 		return got
 	}
 	if cut, _ := s.byLayer(true); !slices.Equal(marks(cut), []float32{3, 1}) {
-		t.Errorf("the cutouts drawn %v, want the taller tree first, then the other", marks(cut))
+		t.Errorf("the cutouts drawn %v, want the taller first, then the other", marks(cut))
 	}
 	if seen, _ := s.byLayer(false); !slices.Equal(marks(seen), []float32{4, 2}) {
 		t.Errorf("the rest drawn %v, want the trapdoor, then the walker", marks(seen))

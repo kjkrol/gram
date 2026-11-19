@@ -33,10 +33,10 @@ func Benchmark_Views_Copy(b *testing.B) {
 			heights = topography.NewPlugin(w, brd, nil, topography.Config{}).Heights()
 		}
 		plain := cell.Kind{Pace: 1, Allows: cell.Land}
-		forest := cell.Kind{Pace: 1, Allows: cell.Land, Veil: 0.5, Veils: cell.Land}
+		veiled := cell.Kind{Pace: 1, Allows: cell.Land, Veil: 0.5, Veils: cell.Land}
 		brd.Write().Board().SetAll(plain)
 		for x := range uint32(cols) {
-			brd.Write().Board().Set(g.At(x, 40), forest)
+			brd.Write().Board().Set(g.At(x, 40), veiled)
 		}
 		cover := brd.Read(0).Cover()
 		far := g.At(10, 10)
@@ -53,7 +53,7 @@ func Benchmark_Views_Copy(b *testing.B) {
 				for i := 0; b.Loop(); i++ {
 					if changed {
 						if i%2 == 0 {
-							brd.Write().Board().Set(far, forest)
+							brd.Write().Board().Set(far, veiled)
 						} else {
 							brd.Write().Board().Set(far, plain)
 						}

@@ -134,8 +134,8 @@ func (r *Renderer) drawPhotos(t render.Target, cam camera.Camera) {
 	}
 }
 
-// eyed reports whether cam has an eye: a camera in the perspective, riding or free, which sees
-// the sheet, a photograph from above, from the side, where its trees would hang as discs in the
+// eyed reports whether cam has an eye: a camera in the perspective, riding or free, which sees the
+// sheet, a photograph from above, from the side, where what stands in it would hang as discs in the
 // air; the world draws what stands as points for it instead
 func eyed(cam camera.Camera) bool {
 	e, ok := cam.(camera.Eyed)

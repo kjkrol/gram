@@ -82,7 +82,7 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.BoardWrite, [
 	terrainW := brd.Write().Board()
 	terrainW.SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land})
 	rough := [2]cell.Kind{
-		{Name: cell.Named("forest"), Pace: 1, Allows: cell.Land, Veil: 0.6},
+		{Name: cell.Named("veiled"), Pace: 1, Allows: cell.Land, Veil: 0.6},
 		{Name: cell.Named("rock"), Pace: 1, Solid: true, Veil: 1},
 	}
 	cells := roughCells(grid, scattered)
@@ -125,10 +125,10 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.BoardWrite, [
 }
 
 // Benchmark_Board_Terrain is one tick of world, collision, board and vision over rough ground in
-// one block or scattered, felling a forest cell a tick where it says so.
+// one block or scattered, cutting a veiled cell a tick where it says so.
 func Benchmark_Board_Terrain(b *testing.B) {
 	grass := cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land}
-	forest := cell.Kind{Name: cell.Named("forest"), Pace: 1, Allows: cell.Land, Veil: 0.6}
+	veiled := cell.Kind{Name: cell.Named("veiled"), Pace: 1, Allows: cell.Land, Veil: 0.6}
 	for _, sc := range []struct {
 		name            string
 		scattered, fell bool
@@ -140,7 +140,7 @@ func Benchmark_Board_Terrain(b *testing.B) {
 			for b.Loop() {
 				if sc.fell {
 					terrain.Set(cells[i%len(cells)&^1], grass)
-					terrain.Set(cells[(i+2)%len(cells)&^1], forest)
+					terrain.Set(cells[(i+2)%len(cells)&^1], veiled)
 					i += 2
 				}
 				ecs.Tick(step)

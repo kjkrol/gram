@@ -70,9 +70,9 @@ type routeRig struct {
 }
 
 var (
-	grass  = cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land}
-	forest = cell.Kind{Name: cell.Named("forest"), Pace: 0.4, Allows: cell.Land}
-	sand   = cell.Kind{Name: cell.Named("sand"), Pace: 2.0 / 3, Allows: cell.Land | cell.Air}.
+	grass = cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land}
+	mire  = cell.Kind{Name: cell.Named("mire"), Pace: 0.4, Allows: cell.Land}
+	sand  = cell.Kind{Name: cell.Named("sand"), Pace: 2.0 / 3, Allows: cell.Land | cell.Air}.
 		Paced(cell.Land, 0.8)
 	rock = cell.Kind{Name: cell.Named("rock"), Pace: 1, Solid: true}
 	ford = cell.Kind{Name: cell.Named("ford"), Pace: 1.0 / 3, Allows: cell.Land | cell.Water}
@@ -86,7 +86,7 @@ func scatter(b testBoard, rng *rand.Rand) {
 		case r < 14:
 			b.Set(c, rock)
 		case r < 26:
-			b.Set(c, forest)
+			b.Set(c, mire)
 		case r < 32:
 			b.Set(c, sand)
 		}

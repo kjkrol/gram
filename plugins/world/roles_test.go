@@ -11,8 +11,8 @@ import (
 )
 
 func TestRoles_AreTheStagesOwn(t *testing.T) {
-	forest, arena := world.NewPlugin(testWorldConfig()), world.NewPlugin(testWorldConfig())
-	forest.Roles().Define("mortal",
+	camp, arena := world.NewPlugin(testWorldConfig()), world.NewPlugin(testWorldConfig())
+	camp.Roles().Define("mortal",
 		act.Branch[motion.Moving]{
 			Name: "drown",
 			When: cond.Self.If(cond.Always),
@@ -30,11 +30,12 @@ func TestRoles_AreTheStagesOwn(t *testing.T) {
 			Then: act.Self.Do(world.Despawn{}),
 		})
 
-	a, b := forest.Roles().Named("mortal"), arena.Roles().Named("mortal")
+	a, b := camp.Roles().Named("mortal"), arena.Roles().Named("mortal")
 	if len(a.Rules()) != 1 || len(b.Rules()) != 2 {
-		t.Errorf("the forest's mortal obeys %d rules and the arena's %d; want 1 and 2, each its own", len(a.Rules()), len(b.Rules()))
+		t.Errorf("the camp's mortal obeys %d rules and the arena's %d; want 1 and 2, each its own",
+			len(a.Rules()), len(b.Rules()))
 	}
-	if forest.Roles().Named("mortal") != a {
+	if camp.Roles().Named("mortal") != a {
 		t.Error("Named twice hands back two roles, want the one defined")
 	}
 	if got := a.String(); got != "the role mortal" {

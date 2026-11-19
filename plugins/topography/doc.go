@@ -75,8 +75,13 @@
 // the horizon as at L5, turning into the fog before its sight's end; from L4 the sheet of what
 // stands there (world.Read.Sheet) rises over the ground as relief in the frame's light, at L5
 // in half, the skirt bare; a camera with an eye, riding or free in the perspective, sees no
-// sheet, a photograph from above whose trees hang as discs in the air from the side: the world
-// draws what stands there as points for it.
+// sheet, a photograph from above where what stands hangs as discs in the air from the side: the
+// world draws what stands there as points for it. The world's entities stand on the relief as
+// billboards, upright or lying; a kind with a body (world.Body) stands whole, each part met in
+// the pixel, as far as the world's bodies reach and as a card of it beyond, both in the frame's
+// light and leant with the wind's gusts. What a look has uncovered (world.Slot.Uncovered) shows
+// through what gives way before it (world.Slot.GivesWay), a billboard, a card, a body or what
+// lies, left out in part round it, unless the ground hides it.
 // [Read.Reporter] is the panel's line on how many sectors a frame drew at each level.
 // [Write.Miniature] is the board painted flat as one picture, a minimap's ground. It is a
 // plugin.CommandHandler for the shaping's and the haze's commands ([Plugin.Queues],

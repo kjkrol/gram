@@ -77,6 +77,10 @@ type device struct {
 
 	// let go while a submission may still read it: gogpu frees a resource at once
 	retired []func()
+
+	// what a program writing a depth is drawn against without a buffer of its own, one of each
+	// size lately drawn into, the latest first
+	standIns []*Depth
 }
 
 var cur *device
@@ -477,6 +481,28 @@ func (d *device) forget(t *Texture) {
 		}
 	}
 }
+
+// standIn is a depth buffer of t's size for a program writing a depth drawn without one, which
+// WebGPU and Metal make no pipeline of: tested always and never written, as though it were none.
+func (d *device) standIn(t *target) *Depth {
+	for i, dp := range d.standIns {
+		if dp.w == t.w && dp.h == t.h {
+			copy(d.standIns[1:i+1], d.standIns[:i])
+			d.standIns[0] = dp
+			return dp
+		}
+	}
+	dp := &Depth{w: t.w, h: t.h}
+	d.standIns = append([]*Depth{dp}, d.standIns...)
+	if len(d.standIns) > standIns {
+		d.standIns[standIns].free()
+		d.standIns = d.standIns[:standIns]
+	}
+	return dp
+}
+
+// standIns is how many sizes of a stand-in the device keeps
+const standIns = 4
 
 func (d *device) retire(free func()) { d.retired = append(d.retired, free) }
 

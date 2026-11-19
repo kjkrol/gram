@@ -18,16 +18,14 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Aggregate marks the kind of an entity standing for parts, a forest's trees or an army's soldiers:
-// they are the truth finer than Strategic, spawned by its rules at its Unfold, and it alone from
-// Strategic on, as they are summed into it at its Fold. Strength is how many units it stands for
-// folded, counted so in its banner (zero, one); the world sets a Strength declared to the parts
-// folded in at each Fold.
+// Aggregate marks the kind of an entity standing for parts, an army's soldiers: they are the truth
+// finer than Strategic, spawned by its rules at its Unfold, and it alone from Strategic on, as they
+// are summed into it at its Fold. Strength is how many units it stands for folded, counted so in
+// its banner (zero, one); the world sets a Strength declared to the parts folded in at each Fold.
 type Aggregate struct{ Strength int }
 
-// Field marks an aggregate standing over a field, a forest: the box of Size round its centre,
-// each sector of it unfolding and folding apart. Its own box, within the world's sizes, is where
-// it stands.
+// Field marks an aggregate standing over a field: the box of Size round its centre, each sector of
+// it unfolding and folding apart. Its own box, within the world's sizes, is where it stands.
 type Field struct{ Size geom.Vec }
 
 // PartOf is a part's aggregate, the Whole it is summed into as that folds; SpawnPart puts it on

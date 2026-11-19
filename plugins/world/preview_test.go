@@ -8,11 +8,11 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 )
 
-// the forest's sectors, all drawn at L4 by a camera 1200 wide looking at (256, 256)
+// the field's sectors, all drawn at L4 by a camera 1200 wide looking at (256, 256)
 var seenAtL4 = []int{0, 1, 8, 9}
 
-// has the forest start, or load, seen at L4 by its camera 1200 wide, its sheets photographed
-func (f *forest) sheeted(t *testing.T, load bool) {
+// has the field start, or load, seen at L4 by its camera 1200 wide, its sheets photographed
+func (f *fieldStage) sheeted(t *testing.T, load bool) {
 	t.Helper()
 	f.cam.SetViewport(300, 300)
 	f.zoom(0.25)
@@ -21,15 +21,15 @@ func (f *forest) sheeted(t *testing.T, load bool) {
 	f.w.Write().NewView(f.cam)
 }
 
-// has the forest tick once and publish, and gives how many things it photographs by sector
-func (f *forest) cycle() map[int]int {
+// has the field tick once and publish, and gives how many things it photographs by sector
+func (f *fieldStage) cycle() map[int]int {
 	f.run(1)
 	f.w.Published()
 	return f.w.Photographed()
 }
 
-// the parts the forest's rules plant at density in each of sectors, by sector
-func (f *forest) planting(density uint64, sectors ...int) map[int]int {
+// the parts the field's rules plant at density in each of sectors, by sector
+func (f *fieldStage) planting(density uint64, sectors ...int) map[int]int {
 	want := map[int]int{}
 	for _, s := range sectors {
 		want[s] = plantedIn(f.id(), s, density)
@@ -37,25 +37,25 @@ func (f *forest) planting(density uint64, sectors ...int) map[int]int {
 	return want
 }
 
-// whether the forest carries Unfolded
-func (f *forest) isUnfolded() bool {
-	for f.forests.All(); f.forests.Next(); {
-		return f.marked.Present(f.forests.Cursor())
+// whether the field carries Unfolded
+func (f *fieldStage) isUnfolded() bool {
+	for f.fields.All(); f.fields.Next(); {
+		return f.marked.Present(f.fields.Cursor())
 	}
 	return false
 }
 
-// has the forest show no part spawned, no stretch and no Unfolded
-func (f *forest) noneUnfolded(t *testing.T) {
+// has the field show no part spawned, no stretch and no Unfolded
+func (f *fieldStage) noneUnfolded(t *testing.T) {
 	t.Helper()
-	if trees, n := f.bySector(), f.w.Stretches(); len(trees) != 0 || n != 0 || f.isUnfolded() {
-		t.Errorf("%d sectors of trees, %d stretches, Unfolded %v; want none spawned, none made, "+
-			"no Unfolded", len(trees), n, f.isUnfolded())
+	if parts, n := f.bySector(), f.w.Stretches(); len(parts) != 0 || n != 0 || f.isUnfolded() {
+		t.Errorf("%d sectors of parts, %d stretches, Unfolded %v; want none spawned, none made, "+
+			"no Unfolded", len(parts), n, f.isUnfolded())
 	}
 }
 
 func TestPreview_PhotographsAFieldNeverUnfoldedWithThePartsItsRulesGiveSpawningNone(t *testing.T) {
-	f := newForest(t, geom.NewVec(256, 256), forestLooks{})
+	f := newField(t, geom.NewVec(256, 256), fieldLooks{})
 	f.sheeted(t, false)
 	for k := range 2 {
 		if got := f.cycle(); len(got) != 0 {
@@ -86,19 +86,19 @@ func TestPreview_PhotographsAFieldNeverUnfoldedWithThePartsItsRulesGiveSpawningN
 }
 
 func TestPreview_NoneOfAFieldWithALookOfItsOwnAtL4(t *testing.T) {
-	f := newForest(t, geom.NewVec(256, 256), forestLooks{declared: true})
+	f := newField(t, geom.NewVec(256, 256), fieldLooks{declared: true})
 	f.sheeted(t, false)
 	for range 5 {
 		f.cycle()
 	}
 	if got := f.w.SheetShots(); len(got) != 0 || len(f.unfolded) != 0 {
-		t.Errorf("the sheets keep %v parts by sector, told %d Unfolds; want none of a forest "+
+		t.Errorf("the sheets keep %v parts by sector, told %d Unfolds; want none of a field "+
 			"declaring its look at L4", got, len(f.unfolded))
 	}
 }
 
 func TestPreview_GoesAsTheFieldUnfoldsAndComesBackFromItsPartsAsItFolds(t *testing.T) {
-	f := newForest(t, geom.NewVec(256, 256), forestLooks{})
+	f := newField(t, geom.NewVec(256, 256), fieldLooks{})
 	f.sheeted(t, false)
 	for range 3 {
 		f.cycle()
@@ -135,7 +135,7 @@ func TestPreview_GoesAsTheFieldUnfoldsAndComesBackFromItsPartsAsItFolds(t *testi
 
 func TestPreview_ASaveKeepsNoneAndALoadPreviewsAnew(t *testing.T) {
 	t.Chdir(t.TempDir())
-	was := newForest(t, geom.NewVec(256, 256), forestLooks{})
+	was := newField(t, geom.NewVec(256, 256), fieldLooks{})
 	was.sheeted(t, false)
 	was.cycle()
 	// the previews told their Unfold, their parts not yet photographed
@@ -143,7 +143,7 @@ func TestPreview_ASaveKeepsNoneAndALoadPreviewsAnew(t *testing.T) {
 	if err := was.eng.Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
-	now := newForest(t, geom.NewVec(256, 256), forestLooks{})
+	now := newField(t, geom.NewVec(256, 256), fieldLooks{})
 	now.sheeted(t, true)
 	now.noneUnfolded(t)
 	if got := now.w.SheetShots(); len(got) != 0 {
@@ -161,7 +161,7 @@ func TestPreview_ASaveKeepsNoneAndALoadPreviewsAnew(t *testing.T) {
 
 func TestPreview_LaysThePartsOnTheGround(t *testing.T) {
 	const ground = 7
-	f := newGroundedForest(t, geom.NewVec(256, 256), ground, forestLooks{})
+	f := newGroundedField(t, geom.NewVec(256, 256), ground, fieldLooks{})
 	f.sheeted(t, false)
 	for range 3 {
 		f.cycle()

@@ -1,7 +1,9 @@
 package forest_test
 
 import (
+	"image/color"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -88,6 +90,8 @@ type woods struct {
 	trees []tree
 	plays []string
 	rules func(p *forest.Plugin)
+	// a kind uncovered declared beside the trees, for them to give way to
+	walked bool
 }
 
 var (
@@ -129,7 +133,12 @@ func (f woods) Define(p *forest.Plugin) {
 	})
 }
 
-func (woods) Look(*world.Atlas, *forest.Plugin) {}
+func (f woods) Look(a *world.Atlas, p *forest.Plugin) {
+	if f.walked {
+		a.Add(p.World().Kinds().NewSprite(), 4, render.Solid(color.RGBA{R: 255, A: 255})).
+			Uncovered()
+	}
+}
 
 // grove is a world of 4 by 2 sectors over a board rising eastwards, a forest over all of it, and
 // a camera seeing every sector at L3
@@ -552,6 +561,117 @@ func TestTypes_ATreeIsABodyAtL2OnlyWhereItsSpecSaysBody(t *testing.T) {
 	}
 }
 
+// inRelief is a camera seeing as cam does, in relief
+type inRelief struct{ camera.Camera }
+
+func (inRelief) Projection() camera.Projection { return standingUp{} }
+
+type standingUp struct{ camera.TopDown }
+
+func (standingUp) Sorts() bool { return true }
+
+// bodyStood is a look noting the kinds it stands as their bodies, whole and as cards, and those
+// it draws as sprites
+type bodyStood struct {
+	world.Look
+	whole, cards map[render.SpriteID]*world.Bodied
+	sprites      map[render.SpriteID]bool
+}
+
+var _ world.BodyLook = bodyStood{}
+
+func (s bodyStood) Sprite(_ *render.Frame, _ camera.Camera, _ plane.AABB, _ world.Z,
+	_ render.AtlasSource, a render.Appearance, _ render.Illumination) {
+	s.sprites[a.SpriteID] = true
+}
+
+func (s bodyStood) Body(_ *render.Frame, _ camera.Camera, _ plane.AABB, _ world.Z,
+	_ render.AtlasSource, b *world.Bodied, _ float32, whole bool, a render.Appearance,
+	_ render.Illumination) {
+	if whole {
+		s.whole[a.SpriteID] = b
+		return
+	}
+	s.cards[a.SpriteID] = b
+}
+
+// a trunk under a ball of leaves, within an oak's crown and its height
+var oakParts = []world.Part{
+	{Shape: world.Cone, To: [3]float32{0, 0, 24}, Wide: 3, Tip: 2, Paint: forest.Wood},
+	{Shape: world.Spheroid, From: [3]float32{0, 0, 20}, To: [3]float32{0, 0, 40}, Wide: 20},
+}
+
+func TestTypes_ATreeWithPartsStandsAsItsBodyInReliefAndAsItsSpriteFromAbove(t *testing.T) {
+	bodied := oak
+	bodied.Parts = oakParts
+	g := newGrove(t, planting(forest.Stand{Mix: []forest.Share{{Tree: "oak"}, {Tree: "pine"}}},
+		tree{"oak", bodied}, tree{"pine", pine}), func(b *board.Plugin) {
+		b.WithMap(bare{ramp{b.Read(0).Board().Grid}})
+	})
+	_, oaks, _, _ := g.w.Kinds().Lookup("oak")
+	_, pines, _, _ := g.w.Kinds().Lookup("pine")
+	relief := inRelief{g.cam}
+	g.w.Write().NewView(g.cam)
+	g.w.Write().NewView(relief)
+	g.zoom(1)
+	// seen is the trees as a look with the body's seam is handed them through cam
+	seen := func(cam camera.Camera) bodyStood {
+		look := bodyStood{
+			Look:    g.w.Read(0).Look(),
+			whole:   map[render.SpriteID]*world.Bodied{},
+			cards:   map[render.SpriteID]*world.Bodied{},
+			sprites: map[render.SpriteID]bool{},
+		}
+		was := g.w.Read(0).Look()
+		g.w.Write().SetLook(look)
+		g.run(3)
+		if err := g.eng.Frame(); err != nil {
+			t.Fatal(err)
+		}
+		g.w.Read(0).Picture().DrawWorld(nil, cam)
+		g.w.Write().SetLook(was)
+		return look
+	}
+	look := seen(relief)
+	b := look.whole[oaks]
+	if b == nil || b.Parts != 2 || b.Wide != 20 || b.Tall != 40 {
+		t.Fatalf("in relief an oak with Parts stood whole as %+v, want its body of 2 parts, "+
+			"20 wide and 40 tall", b)
+	}
+	if look.sprites[oaks] || !look.sprites[pines] || look.whole[pines] != nil {
+		t.Errorf("in relief the oak was drawn as a sprite %v, the pine as one %v and whole "+
+			"%v; want the body alone of the oak and the sprite of the pine", look.sprites[oaks],
+			look.sprites[pines], look.whole[pines] != nil)
+	}
+	// the bodies drawn in to the close scale, an oak at the standard one is a card of its body
+	g.w.Write().SetBodies(lod.L1)
+	if look := seen(relief); look.cards[oaks] != b || look.whole[oaks] != nil {
+		t.Errorf("with the bodies whole close up alone the oak stood as a card %v and whole "+
+			"%v, want the card of its body", look.cards[oaks] != nil, look.whole[oaks] != nil)
+	}
+	if look := seen(g.cam); !look.sprites[b.Above] || look.sprites[oaks] ||
+		len(look.whole)+len(look.cards) != 0 {
+		t.Errorf("from above the oak was drawn seen from above %v, from the side %v and as a "+
+			"body %d times, want it seen from above alone", look.sprites[b.Above],
+			look.sprites[oaks], len(look.whole)+len(look.cards))
+	}
+}
+
+func TestTypes_ATreeWhosePartsStandPastItsCrownPanicsNamingIt(t *testing.T) {
+	defer func() {
+		msg, _ := recover().(string)
+		if !strings.Contains(msg, `"oak"`) {
+			t.Errorf("a tree with a part past its crown was taken with %q, want a panic "+
+				"naming it", msg)
+		}
+	}()
+	wide := oak
+	wide.Parts = []world.Part{{Shape: world.Spheroid, From: [3]float32{30, 0, 10},
+		To: [3]float32{30, 0, 20}, Wide: 10}}
+	newGrove(t, planting(forest.Stand{Mix: []forest.Share{{Tree: "oak"}}}, tree{"oak", wide}),
+		func(*board.Plugin) {})
+}
+
 func TestTypes_ATreeSwaysAsMuchAsItsSpecSays(t *testing.T) {
 	supple := pine
 	supple.Sway = 0.7
@@ -634,5 +754,45 @@ func TestTypes_EntryIsATreeOfAKindDefinedByTheTimeTheLooksAre(t *testing.T) {
 	}
 	if !asked("elm") {
 		t.Error("an entry of a tree never defined is given")
+	}
+}
+
+// giving is a look noting whether each sprite it laid was told to give way
+type giving struct {
+	world.Look
+	on   *bool
+	gave map[render.SpriteID]bool
+}
+
+var _ world.UncoveringLook = giving{}
+
+func (giving) Uncover(bool) {}
+
+func (g giving) GiveWay(on bool) { *g.on = on }
+
+func (giving) Uncovers() bool { return false }
+
+func (g giving) Sprite(_ *render.Frame, _ camera.Camera, _ plane.AABB, _ world.Z,
+	_ render.AtlasSource, a render.Appearance, _ render.Illumination) {
+	g.gave[a.SpriteID] = *g.on
+}
+
+func TestTypes_ATreeGivesWayToWhatIsUncovered(t *testing.T) {
+	f := planting(forest.Stand{Mix: []forest.Share{{Tree: "oak"}}}, tree{"oak", oak})
+	f.walked = true
+	g := newGrove(t, f, func(b *board.Plugin) { b.WithMap(bare{ramp{b.Read(0).Board().Grid}}) })
+	look := giving{Look: g.w.Read(0).Look(), on: new(bool), gave: map[render.SpriteID]bool{}}
+	g.w.Write().SetLook(look)
+	g.w.Write().NewView(g.cam)
+	g.zoom(1)
+	g.run(3)
+	if err := g.eng.Frame(); err != nil {
+		t.Fatal(err)
+	}
+	g.w.Read(0).Picture().DrawWorld(nil, g.cam)
+	_, oaks, _, _ := g.w.Kinds().Lookup("oak")
+	if gave, laid := look.gave[oaks]; !laid || !gave {
+		t.Errorf("an oak was laid %v, told to give way %v; want it giving way to what the "+
+			"game's looks uncover", laid, gave)
 	}
 }

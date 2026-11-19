@@ -12,25 +12,25 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// forestLooks are the forest's trees and the forest red, the forest's own look declared at L4
+// fieldLooks are the field's parts and the field red, the field's own look declared at L4
 // where declared
-type forestLooks struct{ declared bool }
+type fieldLooks struct{ declared bool }
 
-var _ world.Figure = forestLooks{}
+var _ world.Figure = fieldLooks{}
 
-func (forestLooks) Define(*world.Plugin) {}
+func (fieldLooks) Define(*world.Plugin) {}
 
-func (l forestLooks) Look(a *world.Atlas, w *world.Plugin) {
+func (l fieldLooks) Look(a *world.Atlas, w *world.Plugin) {
 	red := render.Solid(color.RGBA{R: 255, A: 255})
-	a.Add(kind.Named[treeRow](w.Kinds(), treeKind), 8, red)
-	s := a.Add(kind.Named[forestRow](w.Kinds(), forestKind), 8, red)
+	a.Add(kind.Named[partRow](w.Kinds(), partKind), 8, red)
+	s := a.Add(kind.Named[fieldRow](w.Kinds(), fieldKind), 8, red)
 	if l.declared {
 		s.At(lod.L4, render.Solid(color.RGBA{G: 255, A: 255}))
 	}
 }
 
 func TestSheets_KeepAFieldsPartsFoldedWithNoLookAtL4TillItUnfoldsThere(t *testing.T) {
-	f := newForest(t, geom.NewVec(256, 256), forestLooks{})
+	f := newField(t, geom.NewVec(256, 256), fieldLooks{})
 	f.start(t, false)
 	f.w.Sheets()
 	f.run(2)
@@ -54,13 +54,13 @@ func TestSheets_KeepAFieldsPartsFoldedWithNoLookAtL4TillItUnfoldsThere(t *testin
 }
 
 func TestSheets_KeepNoPartsOfAFieldWithALookOfItsOwnAtL4(t *testing.T) {
-	f := newForest(t, geom.NewVec(256, 256), forestLooks{declared: true})
+	f := newField(t, geom.NewVec(256, 256), fieldLooks{declared: true})
 	f.start(t, false)
 	f.w.Sheets()
 	f.run(2)
 	f.look(geom.NewVec(1300, 256))
 	f.until(t, "fold", 2*int(foldAfter/frame))
 	if got := f.w.SheetShots(); len(got) != 0 {
-		t.Errorf("kept %v parts by sector of a forest declaring its look at L4, want none", got)
+		t.Errorf("kept %v parts by sector of a field declaring its look at L4, want none", got)
 	}
 }

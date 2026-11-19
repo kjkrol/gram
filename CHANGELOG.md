@@ -45,6 +45,43 @@
   the wind where no effect has turned its `render.Appearance.Sway`. A tree's top leans with
   the gusts, a little in the steady wind and its whole lean as a band goes over it, rocking,
   each tree to its own beat.
+- **A kind may be a body** in place of a drawn sprite (`world.Body`: its `Part`s, the shapes
+  `Spheroid` and `Cone`, in its `Paint`s; `world.Atlas.AddBody`, `Slot.Above`). A view in relief
+  stands it whole out to the level the bodies reach, each part met in the pixel, lying as deep
+  as it is met, and as a card of itself beyond, down to L3: the body photographed on the GPU
+  from eight sides and from above with the ways out of it, so a card shows the side the camera
+  sees, leaning back with a camera that looks down steeper than it was photographed from, as
+  tall on the screen as the body, or the top held to a camera looking down more steeply still
+  (`world.Bodied.Card`), and is lit by the frame's light as the body whole is. A view from
+  above draws it photographed from above, turned as it stands, and its sprite from the side is
+  a photograph of it too. A look stands the bodies through `world.BodyLook`, calling the WGSL
+  of their shapes the world registers with `render`, as the topography's does.
+- The bodies' reach is a setting, the close scale, L2 or L3 (`world.Bodies`,
+  `world.Read.BodiesReach`, under Graphics on the settings screen), and a lever of the cameras'
+  frame budget (`world.Plugin.Bodies` in `cameras.Config.Levers`, `world.AdaptBodies`): drawn in
+  a level as the rate falls under the budget, let out again as it stays over, a try that cost
+  the budget waited out a minute and twice as long after each (`world.BodiesLever`).
+- `forest.Spec.Parts`, in the paints `forest.Leaves` and `forest.Wood`, gives a kind of tree its
+  body, and `forest.Colours.Bears` what dots its leaves, blossom or fruit.
+- **What gives way shows what it covers**, worked out on the GPU: what is uncovered is drawn
+  before the cutouts, a disc round each thing, into a depth of its own (`render.Uncovered`,
+  `Frame.DrawUncovered`, `Target.Uncovered` and `UncoveredIn`), and what gives way is left out
+  in part where it lies nearer, a soft patch of pixels round the thing, so that shows through
+  whatever number of pieces cover it (the WGSL library's `uncoveredOpen`, `uncoveredAt` and
+  `givesWayAt`, for any `Direct`). `render.Sprites` does both from above (`Uncover`,
+  `GiveWay`); the topography's billboards, the bodies' cards, the bodies whole and what lies
+  do in relief, through an eye too, and open nothing for what the ground hides. A kind's look
+  says either on the world's atlas (`world.Slot.Uncovered`, `Slot.GivesWay`), laid by a look
+  that draws them so (`world.UncoveringLook`). Before which cameras is the world's to set, two
+  switches under Game saved with the game: in the tactical view, a camera loose over the
+  world or centred on a unit, unless `world.GiveWay{On: false}` says not; riding a unit,
+  behind it or inside it, only where `world.GiveWayRiding{On: true}` says (`Settings.Covers`,
+  `Settings.GivesWayRiding`, `Read.GivesWay`).
+- `render.Atlas.AddShot`: a sprite drawn on the GPU into its place on the sheet, before the
+  sheet is first read.
+- A fragment writing a depth no nearer than its triangle's may say so
+  (`@early_depth_test(less_equal)`): on Vulkan the depth is tested before the fragment runs,
+  and the other backends are handed the shader without the word.
 - `cmd/gramap` takes a map's roads, tunnels, bridges and buildings from OpenStreetMap (`roads:
   {source: osm, classes: [...]}`, asked of the Overpass API once and kept beside the tiles; ©
   OpenStreetMap contributors, ODbL): the roads thinned to lines and cut into legs at their
@@ -152,8 +189,21 @@
 - On Linux the backend is gogpu's to pick again (gram #48): since v0.34.8 wgpu frees the EGL
   context it builds on a game's Wayland connection in time (gogpu/wgpu#379), so a game quits
   clean without the engine asking for Vulkan alone.
+- On Metal a program whose fragment writes a depth is drawn where it has no depth buffer:
+  Metal made no pipeline of it, and a minimap over a board (`board/forest-army`) panicked as
+  the game started. The device draws it against a depth buffer of its own, tested always and
+  never written; so are vision's cones in a world without a ground, and the sectors' view and
+  the routes where a frame has no depth, which asked Metal for the same.
 
 **Changed**
+- Breaking: the world has no canopies. `world.Slot.Canopy`, `world.CanopyLook`,
+  `world.ShowCanopies`, `world.Config.Canopies`, `Settings.Canopies`, `Read.Canopies` and
+  `Write.ShowCanopies` are gone: a tree gives way (the forest declares it,
+  `world.Slot.GivesWay`) to the kinds a game's looks declare `Uncovered`, its units, and is
+  left out round one it stands before or over, in relief as from above, where the whole crown
+  over any moving figure's middle was drawn at three quarters from above alone. It does so in
+  the tactical view from the start, where a game set `Config.Canopies`; a game saved with
+  the old setting loads with the new ones as they start.
 - The wind over the ground goes in the gusts' bands: what sways on a cell leans its grain and
   lightens as a band goes over it. It was a wave with a front without end across the wind, 377
   world units from crest to crest, running 92 to 152 units a second whatever the wind blew.
@@ -220,6 +270,12 @@
   (`Benchmark_Frame_Topography`) within 1 % at every level, 43 to 67 allocations more a frame
   inside wgpu; Madeira's start view 113.5 FPS for 116.1, its drawing on the CPU 2.6 ms for 2.2.
   naga's own check of every image load would take 2.4–3.3 % of the frame.
+- Madeira's trees as bodies against `main` with its drawn trees, over the island's densest
+  forest on an integrated GPU (Intel UHD 620, `GRAM_VSYNC=off`, the adapter still): as cards
+  131 FPS for 136 in a window of 1024 by 768 and 51 for 52–53 at 1920 by 1080; whole, where they
+  fill the picture, 94–95 and 37 there, 53 for 77 zoomed in to the close scale, 43 for 60 from an
+  eye among the trees. Following a frame budget between the two, the reach is drawn in within
+  six seconds and stays (`BENCHMARKS.md`, "The bodies in view").
 
 ## v0.21.0 — 2026-11-10
 

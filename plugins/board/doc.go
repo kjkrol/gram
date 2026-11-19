@@ -123,7 +123,7 @@
 // changes, so whoever keeps something worked out of a cell knows when it is stale;
 // [BoardWrite.Touch] counts one made beyond the board. [BoardRead.Passage] and
 // [BoardRead.CellPassage] count only the changes to what a step over a cell reads, so a route
-// worked out stands while a forest sways or a cell is painted anew.
+// worked out stands while what stands on a cell sways or a cell is painted anew.
 //
 // # Heights, ground and occupancy
 //

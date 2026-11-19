@@ -18,7 +18,12 @@
 // images (group 3, [Draw].Frame, up to [FrameImages]), which whoever names them declares. Its
 // uniforms are a struct Uniforms, read as U, laid out by a [Layout] and handed to each draw
 // packed, at most 4096 bytes in all. A mesh program ([NewMesh]) brings its own vertex stage and
-// draws against a [Depth] buffer ([Mesh]).
+// draws against a [Depth] buffer ([Mesh]); a fragment of its that writes a depth no nearer than
+// its triangle's says so (@early_depth_test(less_equal)), and what lies behind what is drawn is
+// then not worked out where the device can tell (Vulkan). One whose fragment writes a depth
+// (@builtin(frag_depth)) drawn without a buffer is drawn against one of the device's own, the
+// target's size, tested always and never written: WebGPU and Metal make no pipeline of it
+// without a depth.
 //
 // # Frames
 //

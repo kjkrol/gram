@@ -80,7 +80,7 @@ func draw(t *testing.T, rules []world.Rule, entities ...one) ([][]render.Appeara
 	return layers, shown
 }
 
-const eastward, other, spook, crown render.SpriteID = 7, 3, 9, 11
+const eastward, other, spook, halo render.SpriteID = 7, 3, 9, 11
 
 func facing() world.Rule {
 	return world.With(func(a render.Appearance, p place) render.Appearance {
@@ -111,9 +111,10 @@ func TestAs_DrawsACarrierAsAnotherSpriteAfterTheRulesBefore(t *testing.T) {
 }
 
 func TestOver_LaysASpriteOnACarrierAlone(t *testing.T) {
-	got, _ := draw(t, []world.Rule{world.Over[ghost](render.Appearance{SpriteID: crown})}, one{ghost: true}, one{})
-	if len(got[0]) != 2 || got[0][0].SpriteID != 100 || got[0][1].SpriteID != crown {
-		t.Errorf("the carrier drawn as %v, want its own sprite under %v", got[0], crown)
+	over := world.Over[ghost](render.Appearance{SpriteID: halo})
+	got, _ := draw(t, []world.Rule{over}, one{ghost: true}, one{})
+	if len(got[0]) != 2 || got[0][0].SpriteID != 100 || got[0][1].SpriteID != halo {
+		t.Errorf("the carrier drawn as %v, want its own sprite under %v", got[0], halo)
 	}
 	if len(got[1]) != 1 {
 		t.Errorf("the other drawn as %v, want its own sprite alone", got[1])
@@ -121,9 +122,10 @@ func TestOver_LaysASpriteOnACarrierAlone(t *testing.T) {
 }
 
 func TestOver_OnlyWhereItsConditionHolds(t *testing.T) {
-	got, _ := draw(t, []world.Rule{world.Over(render.Appearance{SpriteID: crown}, hit.In)}, one{hit: true}, one{})
+	over := world.Over(render.Appearance{SpriteID: halo}, hit.In)
+	got, _ := draw(t, []world.Rule{over}, one{hit: true}, one{})
 	if len(got[0]) != 2 || len(got[1]) != 1 {
-		t.Errorf("drawn as %v and %v, want the crown on the one hit alone", got[0], got[1])
+		t.Errorf("drawn as %v and %v, want the halo on the one hit alone", got[0], got[1])
 	}
 }
 

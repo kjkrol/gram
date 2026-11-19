@@ -57,15 +57,9 @@ func TestFar_SettingsOnlyInAWorldCutIntoSectorsAndNoKeys(t *testing.T) {
 			labels[s.Label] = s
 		}
 	}
-	if len(labels) != 6 {
-		t.Errorf("settings %v, want the tempo, the canopies, the sectors drawn, their levels, "+
-			"the far units and the counts", labels)
-	}
-	canopies, ok := labels["Canopies show the units under them"].(control.Switch)
-	if !ok || canopies.Section != control.Game || canopies.Get() ||
-		canopies.Set(true) != (ShowCanopies{On: true}) {
-		t.Errorf("the canopies' setting %+v, want a switch under Game, off, setting ShowCanopies "+
-			"on", canopies)
+	if len(labels) != 5 {
+		t.Errorf("settings %v, want the tempo, the sectors drawn, their levels, the far units "+
+			"and the counts", labels)
 	}
 	far, ok := labels["Far units"].(control.Choice)
 	if !ok || far.Section != control.Graphics || len(far.Options) != 2 || far.Get() != 0 ||
@@ -80,8 +74,7 @@ func TestFar_SettingsOnlyInAWorldCutIntoSectorsAndNoKeys(t *testing.T) {
 			counts)
 	}
 	for _, k := range p.DefaultBindings() {
-		if k.Type() == reflect.TypeFor[ShowFar]() || k.Type() == reflect.TypeFor[ShowCounts]() ||
-			k.Type() == reflect.TypeFor[ShowCanopies]() {
+		if k.Type() == reflect.TypeFor[ShowFar]() || k.Type() == reflect.TypeFor[ShowCounts]() {
 			t.Errorf("%v is bound to %v, want the settings screen alone", k.Type(), k.Trigger)
 		}
 	}
@@ -89,30 +82,5 @@ func TestFar_SettingsOnlyInAWorldCutIntoSectorsAndNoKeys(t *testing.T) {
 		if c, ok := s.(control.Choice); ok && c.Label == "Far units" {
 			t.Error("a world of no sectors has the far units' setting")
 		}
-	}
-}
-
-func TestCanopies_CommandSetsWhetherTheyShowTheUnitsUnderThemOverTheConfig(t *testing.T) {
-	r := sectorWorld(t, twoLevels)
-	if r.p.read.Canopies() {
-		t.Error("canopies show the units under them with neither the Settings nor the Config saying")
-	}
-	r.p.Res.Config.Canopies = true
-	if !r.p.read.Canopies() {
-		t.Error("canopies stand whole against the Config")
-	}
-	for _, c := range []struct {
-		on, want bool
-	}{{false, false}, {true, true}} {
-		r.p.module.commands.Put(command.Nobody, ShowCanopies{On: c.on})
-		r.run()
-		if got := r.p.read.Canopies(); got != c.want {
-			t.Errorf("after ShowCanopies %v: %v, want %v", c.on, got, c.want)
-		}
-	}
-	r.p.Res.Settings.Canopies = AsConfig
-	r.p.Res.Config.Canopies = false
-	if r.p.read.Canopies() {
-		t.Error("canopies show the units under them with the setting left to a Config saying not")
 	}
 }

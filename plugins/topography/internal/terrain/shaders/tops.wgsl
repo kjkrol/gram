@@ -39,9 +39,9 @@ fn fs_main(g: Corner) -> @location(0) vec4<f32> {
 
 // topNear is the top of what stands nearest p within U.SheetReach texels, the highest of those
 // equally near, below -1e38 where nothing stands so near: a quad over a thing narrower than it
-// stands at its top at every corner, and over a forest on a slope a corner stands at the trees
-// beside it, not at the highest within its reach, which left the sheet a terrace over the lower
-// trees with the sky under its lip from the side.
+// stands at its top at every corner, and over things standing close on a slope a corner stands at
+// those beside it, not at the highest within its reach, which left the sheet a terrace over the
+// lower ones with the sky under its lip from the side.
 fn topNear(p: vec2<f32>) -> f32 {
     let at = floor(p * U.SheetPx);
     let reach = i32(U.SheetReach);

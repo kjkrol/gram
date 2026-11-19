@@ -990,6 +990,95 @@ grounds' slots lie before the storeys' (`slotOf`); with a cell's levels side by 
 measurable changed either way. What is left on the field's fill is its steps asking the slot of
 a level. The hierarchy rows are from the first round of three, before those fixes.
 
+## The bodies in view (2026-11-18, `feat/solid-trees`, base `c674cbb8`)
+
+gram-madeira-square's relief demo over Madeira's densest forest (a probe centring the camera on
+cell 240, 146 at 0.9 px a world unit, some 4 500 trees in a window of 1024×768), the light frozen
+at noon, the clouds' shade off, the adapter still (the picture, the level shift and the bodies'
+reach as the probe sets them), `GRAM_VSYNC=off`, on the Intel UHD 620; the medians of 14 s after
+10 of warm-up, each run begun with the package under 60 °C, `main` with its drawn trees and the
+tree with every tree a body alternately, two or three runs a side:
+
+| View | Window | `main` | Cards (the reach close) | Whole (the reach L2 or L3) |
+|:---|:---|---:|---:|---:|
+| the tactical view | 1024×768 | 136–145 FPS | 131–140 | 94–95 |
+| | 1920×1080 | 50–53 | 49–51 | 37 |
+| | full screen, 2560×1440 | 29 | 28 | 21 |
+| zoomed in to 3 px a unit, the close scale | 1024×768 | 179 | | 130 |
+| | 1920×1080 | 77 | | 53 |
+| an eye among the trees, 40 over the ground | 1024×768 | 138 | | 94 |
+| | 1920×1080 | 60 | | 43 |
+| behind a walker at the forest's edge (V) | 1024×768 | 115 | | 107 |
+| | 1920×1080 | 50–51 | | 46–47 |
+
+The last three rows draw whole what the close scale holds and cards beyond, as a game does with
+the reach drawn in.
+
+What it says: a card costs 3 % of the frames, each pair of runs the same way (136 → 131 twice
+at 1024×768, 53 → 51 and 52 → 51 at 1920×1080; the first run after the machine has stood idle is
+some 6 % faster, whichever tree it is), and it is the composing of its instance:
+the tree's own renderer drawing the same trees as plain sprites runs with `main` (51, 51 and 51
+against 53, 51 and 51 at 1920×1080, the cards 50, 49 and 50), the card's light in the pixel and
+its picture's margin within a frame a second of each other. The side of a card picked by an arc
+tangent took 0.21 ms of a frame at 1024×768 more (46 ns a tree by the profile, 13 ns by the
+angle in eighths it is picked by now). A body whole costs the GPU's pixels, 27 to 34 % of the
+frames wherever bodies fill the picture, at any zoom (presenting 2.6 → 6.4 ms in the tactical
+view at 1024×768, 13.0 → 20.6 ms at 1920×1080, 9.9 → 15.5 ms zoomed in, 10.4 → 16.0 ms from the
+eye among the trees): a forest covers the screen whatever the scale, a tree larger as there are
+fewer.
+
+**The frame budget.** The same view at 1920×1080 with the adapter following a budget of 45 FPS,
+between the cards' rate and the whole bodies', the reach starting at L3: drawn in to the close
+scale in 4 to 6 s. Let out again by every finer step the budget tried, it was whole for 2 to 3 s
+every 32 s, 48 → 37 FPS each time, and the picture's resolution, which returns after the levers,
+never had its turn; a try that costs the budget now waits a minute, twice as long after each
+(`world.BodiesLever`): one try at 8 s, none in the 220 s after, the room going to the middle
+layer's resolution (43–44 FPS, inside the budget's band). Under vsync a window behind the active
+one is paced at 20 FPS by this desktop and the adapter steps everything to its floor, on `main`
+alike: an adapter is watched unpaced, its budget set between the rates.
+
+**The bodies' WGSL in every shader.** The world registers the WGSL of the bodies' shapes with
+`render`, so every shader built carries it, 350 lines: the demo's 56 shaders compile cold in
+243–246 ms for 226–229 (the stage readied in 1.14 s for 1.11–1.12 s, the cache 5.7 MB for 5.0),
+start warm as before and draw a frame as fast (cards at 1024×768, the two interleaved: past
+the first run of a series, which a cool machine speeds whichever it is, 126 and 124 FPS against
+125, 124 and 123).
+
+## What gives way (2026-11-18, `feat/solid-trees`)
+
+`examples/board/forest-army` zoomed in to L2 on its red army standing in the forest, seen from
+above in a window of 1280×800, `GRAM_VSYNC=off`, on the Intel UHD 620; the medians of 19 s
+after 8 of warm-up, the tree with its crowns giving way to the soldiers uncovered
+(`render.Sprites.GiveWay`, `Uncover`) against the commit before with the world's canopies (the
+crown over a soldier's middle found by a query of the space and drawn whole at three quarters),
+alternately:
+
+| Scene | Before | Giving way | Canopies closed |
+|:---|---:|---:|---:|
+| the demo's forest, sparse | 291–293 FPS | 282–284 | |
+| 1 334 crowns over the whole picture, 12 soldiers under them | 237–251 | 225–236 | 236–239 |
+
+The pass of the uncovered is two render passes more a frame, some 0.1 ms here, and a piece
+giving way reads one depth a pixel within the rectangle the uncovered lie in, 0.15–0.25 ms
+where crowns fill the picture and the soldiers stand all over it (the same scene with nothing
+read: 245–248 FPS for 253). It is asked for only in a frame holding both something uncovered
+and something giving way: with the canopies closed or with no unit in sight, a frame costs
+what it did.
+
+In relief, gram-madeira-square's demo with a band of thirty standing in the island's densest
+forest (a probe keeping the camera over them at cell 240, 146, a window of 1024×768, the light
+frozen at noon, the adapter still, `GRAM_VSYNC=off`; the medians of 23 s after 10 of warm-up),
+the forest's canopies open against closed, alternately:
+
+| View | Canopies closed | Open |
+|:---|---:|---:|
+| 0.9 px a world unit, the trees as cards | 121–127 FPS | 121–134 |
+| 0.9 px, the trees whole | 86 | 85 |
+| 2.5 px, over the band | 114 | 113–114 |
+
+The trees before the soldiers open round them for nothing a measurement tells: thirty discs
+and a rectangle the size of the band.
+
 ## What they say
 
 - **A tick is the plugins' RunPlan and nothing else.** The engine adds no work of its own per

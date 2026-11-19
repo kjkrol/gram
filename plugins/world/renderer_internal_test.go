@@ -160,19 +160,19 @@ func TestRenderer_Compose_DrawsOnlyWhatTheViewContains(t *testing.T) {
 }
 
 func TestRenderer_Compose_DrawsAsTheRulesSay(t *testing.T) {
-	const east, crown render.SpriteID = 5, 9
+	const east, halo render.SpriteID = 5, 9
 	rules := []Rule{
 		With(func(a render.Appearance, b Base) render.Appearance { a.SpriteID = east; return a }),
-		Over[render.Appearance](render.Appearance{SpriteID: crown}),
+		Over[render.Appearance](render.Appearance{SpriteID: halo}),
 		Show(func(b Base) bool { return b.Pos.AABB.TopLeft.X < 500 }),
 	}
 	drawn := drawThrough(t, nil, rules, geom.NewVec(1, 0), quarters...).sprites
 	if len(drawn) != 4 {
-		t.Fatalf("drew %v, want the two on the left, each turned east under a crown", drawn)
+		t.Fatalf("drew %v, want the two on the left, each turned east under a halo", drawn)
 	}
 	for i := 0; i < len(drawn); i += 2 {
-		if drawn[i] != east || drawn[i+1] != crown {
-			t.Errorf("drew %v, want %v under %v for each", drawn, east, crown)
+		if drawn[i] != east || drawn[i+1] != halo {
+			t.Errorf("drew %v, want %v under %v for each", drawn, east, halo)
 		}
 	}
 }
@@ -448,15 +448,23 @@ func TestRenderer_Compose_DrawsNothingAsleepEvenUnculled(t *testing.T) {
 	}
 }
 
-// a look noting how much of each figure laid next is seen through
-type veiling struct {
+// a look noting what each sprite laid was told: uncovered, giving way
+type waying struct {
 	*counting
-	veils []float32
+	bare, gives bool
+	bared, gave map[render.SpriteID]bool
 }
 
-func (v *veiling) Veil(opacity float32) {
-	v.veils = append(v.veils, opacity)
-	v.counting.Look.(CanopyLook).Veil(opacity)
+func (w *waying) Uncover(on bool) { w.bare = on }
+
+func (w *waying) GiveWay(on bool) { w.gives = on }
+
+func (w *waying) Uncovers() bool { return false }
+
+func (w *waying) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z,
+	atlas render.AtlasSource, a render.Appearance, lit render.Illumination) {
+	w.bared[a.SpriteID], w.gave[a.SpriteID] = w.bare, w.gives
+	w.counting.Sprite(f, cam, box, z, atlas, a, lit)
 }
 
 type reliefCamera struct{ camera.Camera }
@@ -467,71 +475,109 @@ type reliefProjection struct{ camera.TopDown }
 
 func (reliefProjection) Sorts() bool { return true }
 
-// canopied draws a fixed tree of the sprite crown standing over a moving unit through cam, the
-// canopies on as on says, the crown a canopy where flagged
-func canopied(t *testing.T, cam camera.Camera, on, flagged bool) *veiling {
+// fastened is a camera from above fastened as how says, to an entity that is none of a test's
+type fastened struct {
+	camera.Camera
+	how camera.How
+}
+
+func (fastened) Fasten(camera.Fastening) {}
+
+func (c fastened) Fastening() camera.Fastening {
+	return camera.Fastening{How: c.how, Entity: 1 << 40}
+}
+
+// covered draws a cover of the sprite 2, giving way, standing over a walker of the sprite 1,
+// uncovered, through look and a camera fastened as how says, the renderer readied by ready
+func covered(t *testing.T, look Look, how camera.How, ready func(*renderer)) *render.Frame {
 	t.Helper()
-	const crown render.SpriteID = 2
-	look := &veiling{counting: &counting{Look: ilook.NewFlat(1000, 1000, false, false)}}
+	cam := camera.Camera(fastened{cameratest.NewFromSpace(1000, 1000, 0), how})
 	r := newRenderer(flatAtlas{}, seenBy(cam, &view.View{}), &Rules{}, func() Look { return look })
 	r.shade(nil, nil)
-	if flagged {
-		r.mark(map[render.SpriteID]bool{crown: true}, nil)
-	}
-	r.canopies = func() bool { return on }
-	type standing struct {
-		id  uid.UID64
-		box geom.AABB
-	}
-	var stood []standing
-	r.query = func(box geom.AABB, fn func(uid.UID64)) {
-		for _, s := range stood {
-			if s.box.Intersects(box) {
-				fn(s.id)
-			}
-		}
+	r.ways(map[render.SpriteID]bool{1: true}, map[render.SpriteID]bool{2: true})
+	if ready != nil {
+		ready(r)
 	}
 	var base goke.Comp[Base]
 	var appearance goke.Comp[render.Appearance]
 	var fixed goke.Comp[Fixed]
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		tree := si.NewFactory(&base, &appearance, &fixed)
-		tree.Create(1)
-		tree.Next()
+		cover := si.NewFactory(&base, &appearance, &fixed)
+		cover.Create(1)
+		cover.Next()
 		box := plane.NewAABB(geom.NewVec(100, 100), 20, 20)
-		base.Slice(&tree.Cursor)[0] = Base{Pos: Position{AABB: box}}
-		appearance.Slice(&tree.Cursor)[0] = render.Appearance{SpriteID: crown}
-		stood = append(stood, standing{tree.Cursor.IDs[0], box.AABB})
-		unit := si.NewFactory(&base, &appearance)
-		unit.Create(1)
-		unit.Next()
-		base.Slice(&unit.Cursor)[0] = Base{Pos: Position{AABB: plane.NewAABB(geom.NewVec(108, 108), 4, 4)}}
-		appearance.Slice(&unit.Cursor)[0] = render.Appearance{SpriteID: 1}
+		base.Slice(&cover.Cursor)[0] = Base{Pos: Position{AABB: box}}
+		appearance.Slice(&cover.Cursor)[0] = render.Appearance{SpriteID: 2}
+		walker := si.NewFactory(&base, &appearance)
+		walker.Create(1)
+		walker.Next()
+		under := plane.NewAABB(geom.NewVec(108, 108), 4, 4)
+		base.Slice(&walker.Cursor)[0] = Base{Pos: Position{AABB: under}}
+		appearance.Slice(&walker.Cursor)[0] = render.Appearance{SpriteID: 1}
 		r.Init(si)
 	}})
-	composed(r, cam)
-	return look
+	return composed(r, cam)
 }
 
-func TestRenderer_Compose_ACanopyShowsTheUnitUnderItFromAboveAlone(t *testing.T) {
-	above := cameratest.NewFromSpace(1000, 1000, 0)
-	if look := canopied(t, above, true, true); !slices.Equal(look.veils, []float32{canopyOpacity, 1}) ||
-		len(look.sprites) != 2 {
-		t.Errorf("from above the crown over a unit is veiled %v among %d sprites, want %v and 2",
-			look.veils, len(look.sprites), []float32{canopyOpacity, 1})
+func TestRenderer_Compose_WhatGivesWayDoesBeforeTheCamerasTheSettingsSay(t *testing.T) {
+	ways := func(loose, riding bool) func(*renderer) {
+		return func(r *renderer) { r.givesWay = func() (bool, bool) { return loose, riding } }
 	}
 	for name, c := range map[string]struct {
-		cam         camera.Camera
-		on, flagged bool
+		how   camera.How
+		ready func(*renderer)
+		gives bool
 	}{
-		"in relief":            {reliefCamera{above}, true, true},
-		"with the setting off": {above, false, true},
-		"a crown no canopy":    {above, true, false},
+		"loose, as the settings start":           {camera.Loose, nil, true},
+		"centred on a unit":                      {camera.Centred, nil, true},
+		"behind a unit, as the settings start":   {camera.Behind, nil, false},
+		"inside a unit, as the settings start":   {camera.Inside, nil, false},
+		"loose, the covers kept":                 {camera.Loose, ways(false, true), false},
+		"behind a unit, giving way riding":       {camera.Behind, ways(true, true), true},
+		"inside a unit, giving way riding alone": {camera.Inside, ways(false, true), true},
 	} {
-		if look := canopied(t, c.cam, c.on, c.flagged); len(look.veils) != 0 || len(look.sprites) != 2 {
-			t.Errorf("%s: veiled %v among %d sprites, want none and 2", name, look.veils,
-				len(look.sprites))
+		look := &waying{counting: &counting{Look: ilook.NewFlat(1000, 1000, false, false)},
+			bared: map[render.SpriteID]bool{}, gave: map[render.SpriteID]bool{}}
+		covered(t, look, c.how, c.ready)
+		if len(look.sprites) != 2 || look.bared[1] != c.gives || look.gave[1] ||
+			look.bared[2] || look.gave[2] != c.gives || look.bare || look.gives {
+			t.Errorf("%s: of %d sprites the walker laid uncovered %v, giving way %v, the cover "+
+				"uncovered %v, giving way %v, the look left uncovering %v, giving way %v; want "+
+				"the walker uncovered and the cover giving way %v alone, neither left on", name,
+				len(look.sprites), look.bared[1], look.gave[1], look.bared[2], look.gave[2],
+				look.bare, look.gives, c.gives)
+		}
+	}
+}
+
+func TestRenderer_Compose_AsksForThePassOfTheUncoveredOnlyWhereItLaysBoth(t *testing.T) {
+	passes := func(how camera.How, ready func(*renderer)) []render.Pass {
+		var got []render.Pass
+		covered(t, ilook.NewFlat(1000, 1000, false, false), how, ready).Places(
+			func(p render.Pass, _ render.At) { got = append(got, p) })
+		return got
+	}
+	if got := passes(camera.Loose, nil); !slices.Contains(got, render.Uncovered) {
+		t.Errorf("a walker uncovered under a cover giving way take the places %v, want the "+
+			"pass of the uncovered among them", got)
+	}
+	walker := map[render.SpriteID]bool{1: true}
+	cover := map[render.SpriteID]bool{2: true}
+	for name, c := range map[string]struct {
+		how   camera.How
+		ready func(*renderer)
+	}{
+		"a cover giving way with nothing uncovered": {camera.Loose, func(r *renderer) {
+			r.ways(nil, cover)
+		}},
+		"a walker uncovered with nothing giving way": {camera.Loose, func(r *renderer) {
+			r.ways(walker, nil)
+		}},
+		"both before a camera riding a unit": {camera.Behind, nil},
+	} {
+		if got := passes(c.how, c.ready); slices.Contains(got, render.Uncovered) {
+			t.Errorf("%s take the places %v, want no pass of the uncovered", name, got)
 		}
 	}
 }
@@ -544,8 +590,8 @@ func TestRenderer_Compose_ACutoutTakesNoPlaceAmongWhatIsSeenThrough(t *testing.T
 		f.Places(func(p render.Pass, _ render.At) { got = append(got, p) })
 		return got
 	}
-	if got := places(func(r *renderer) { r.mark(nil, map[render.SpriteID]bool{1: true}) }); !slices.Equal(got,
-		[]render.Pass{render.Cutout}) {
+	cut := func(r *renderer) { r.mark(map[render.SpriteID]bool{1: true}) }
+	if got := places(cut); !slices.Equal(got, []render.Pass{render.Cutout}) {
 		t.Errorf("figures all cutouts take the places %v, want the cutout pass alone", got)
 	}
 	if got := places(func(*renderer) {}); !slices.Equal(got, []render.Pass{render.SeeThrough}) {

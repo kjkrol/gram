@@ -79,22 +79,28 @@ type renderer struct {
 	shaded   map[render.SpriteID]render.MaterialID
 	lying    map[render.SpriteID]bool
 	standing map[render.SpriteID]bool
-	canopy   map[render.SpriteID]bool
 	cutout   map[render.SpriteID]bool
+	bodied   map[render.SpriteID]*Bodied
 	sway     map[render.SpriteID]float32
 	edges    map[render.SpriteID]render.SpriteID
-	// the seven by sprite, for the frame's loop: a map a layer an entity was a fifth of Compose
+	// the sprites uncovered and those giving way to them
+	bared  map[render.SpriteID]bool
+	giving map[render.SpriteID]bool
+	// these by sprite, for the frame's loop: a map a layer an entity was a fifth of Compose
 	flags    []spriteFlag
 	shadedOf []render.MaterialID
 	edgeOf   []render.SpriteID
 	swayOf   []float32
+	bodyOf   []*Bodied
+	// how far the bodies stand whole, nil in a world without the setting
+	bodiesReach func() lod.Level
+	// whether what gives way does before a camera loose and before one riding a unit; nil, as
+	// the settings start: before the loose one alone
+	givesWay func() (loose, riding bool)
 	quads    []camera.Quad
 	// by sprite, whether it is a material: shaded's keys
 	materials []bool
-	// whether a canopy shows the unit under it, and what the space holds over a point, both nil
-	// where the world has no canopies; whether a camera with an eye saw the last publish
-	canopies func() bool
-	query    func(box geom.AABB, fn func(uid.UID64))
+	// whether a camera with an eye saw the last publish
 	eyedSeen bool
 	// what stands at L4, a point a figure, and the light they are drawn in; the counts by them
 	points render.Sprites
@@ -142,36 +148,52 @@ func (s *renderer) lie(lying map[render.SpriteID]bool, edges map[render.SpriteID
 	s.table()
 }
 
-// mark names the sprites showing a unit under them through and those drawn as cutouts
-func (s *renderer) mark(canopy, cutout map[render.SpriteID]bool) {
-	s.canopy, s.cutout = canopy, cutout
+// mark names the sprites drawn as cutouts
+func (s *renderer) mark(cutout map[render.SpriteID]bool) {
+	s.cutout = cutout
 	s.table()
 }
 
-// sways names the sprites whose entities bend in the wind, and by how much
+// ways names the sprites uncovered and those giving way to them
+func (s *renderer) ways(bared, giving map[render.SpriteID]bool) {
+	s.bared, s.giving = bared, giving
+	s.table()
+}
+
+// sways names the sprites whose entities sway, and by how much
 func (s *renderer) sways(sway map[render.SpriteID]float32) {
 	s.sway = sway
 	s.table()
 }
 
-type spriteFlag uint8
+// bodies names the sprites of the kinds with a body, each with it
+func (s *renderer) bodies(bodied map[render.SpriteID]*Bodied) {
+	s.bodied = bodied
+	s.table()
+}
+
+type spriteFlag uint16
 
 const (
 	flagShaded spriteFlag = 1 << iota
 	flagLying
 	flagStanding
 	flagEdged
-	flagCanopy
 	flagCutout
 	flagSways
+	flagBodied
+	flagUncovered
+	flagGivesWay
 )
 
-// table lays shaded, lying, standing, canopy, cutout, sway and edges out by sprite
+// table lays shaded, lying, standing, cutout, sway, bodies, edges and the ways given out by
+// sprite
 func (s *renderer) table() {
 	clear(s.flags)
 	clear(s.shadedOf)
 	clear(s.edgeOf)
 	clear(s.swayOf)
+	clear(s.bodyOf)
 	for id, m := range s.shaded {
 		s.flag(id, flagShaded)
 		s.shadedOf[id] = m
@@ -186,9 +208,14 @@ func (s *renderer) table() {
 			s.flag(id, flagStanding)
 		}
 	}
-	for id, on := range s.canopy {
+	for id, on := range s.bared {
 		if on {
-			s.flag(id, flagCanopy)
+			s.flag(id, flagUncovered)
+		}
+	}
+	for id, on := range s.giving {
+		if on {
+			s.flag(id, flagGivesWay)
 		}
 	}
 	for id, on := range s.cutout {
@@ -204,6 +231,10 @@ func (s *renderer) table() {
 		s.flag(id, flagSways)
 		s.swayOf[id] = amount
 	}
+	for id, b := range s.bodied {
+		s.flag(id, flagBodied)
+		s.bodyOf[id] = b
+	}
 }
 
 func (s *renderer) flag(id render.SpriteID, f spriteFlag) {
@@ -212,6 +243,7 @@ func (s *renderer) flag(id render.SpriteID, f spriteFlag) {
 		s.shadedOf = append(s.shadedOf, 0)
 		s.edgeOf = append(s.edgeOf, 0)
 		s.swayOf = append(s.swayOf, 0)
+		s.bodyOf = append(s.bodyOf, nil)
 	}
 	s.flags[id] |= f
 }
@@ -224,6 +256,17 @@ func (s *renderer) of(id render.SpriteID) spriteFlag {
 	return 0
 }
 
+// turnOf is how a body is turned about its foot, radians: the way its entity is headed, or,
+// standing with no heading, each its own way by where it stands, the same every time
+func turnOf(dir, mid geom.Vec) float32 {
+	if dir.X != 0 || dir.Y != 0 {
+		return f32.Atan2(dir.Y, dir.X)
+	}
+	h := math.Float32bits(mid.X)*2654435761 ^ math.Float32bits(mid.Y)*2246822519
+	h ^= h >> 15
+	return float32(h%6283) / 1000
+}
+
 // Clock is the game time the frame's animations go by, the tactical clock's as shown.
 func (s *renderer) Clock() (time.Duration, bool) {
 	f := s.figures.Front()
@@ -234,13 +277,13 @@ func (*renderer) Overlies() {}
 
 // Compose hands f every entity published in sight of cam in its kind's look at the level cam sees
 // it at, as the world's Look lays it, lit as the Lighting says, in white light without one: the
-// Look knows the wind, the world its entities. What it sees at L4, and at L5 in no look declared
-// there, it draws itself, a point each; a field over each sector of it, at that sector's level,
-// casting nothing; what cam rides in, fastened Inside, it leaves out but for its shadow; what a
-// sheet holding a photograph of it stands in the place of from L4 on, it leaves out there; what
-// stands by a seam it draws at the finer side's level, what lives in a cell of the tiers at the
-// cell's; the units cam drew in banners, it draws as their banners' badges, their counts in them;
-// the counts of points by them.
+// Look knows what leans them, the world its entities. What it sees at L4, and at L5 in no look
+// declared there, it draws itself, a point each; a field over each sector of it, at that sector's
+// level, casting nothing; what cam rides in, fastened Inside, it leaves out but for its shadow;
+// what a sheet holding a photograph of it stands in the place of from L4 on, it leaves out there;
+// what stands by a seam it draws at the finer side's level, what lives in a cell of the tiers at
+// the cell's; the units cam drew in banners, it draws as their banners' badges, their counts in
+// them; the counts of points by them.
 func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	s.points.Reset()
 	s.labels.Reset()
@@ -263,9 +306,16 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	lies, _ := look.(LyingLook)
 	uprights, _ := look.(UprightLook)
 	foggy, _ := look.(FoggyLook)
-	canopy, _ := look.(CanopyLook)
+	uncovering, _ := look.(UncoveringLook)
 	cutouts, _ := look.(CutoutLook)
+	bodies, _ := look.(BodyLook)
 	cutAny := false
+	// only where a kind's look declares either, and what gives way does before this camera, is
+	// a figure's way told to the look, and only as it changes from the figure before
+	if len(s.bared) == 0 || len(s.giving) == 0 || !figs.givesWay(cam) {
+		uncovering = nil
+	}
+	bare, gives := false, false
 	held := figs.sheet.held
 	v := figs.views[camera.OriginOf(cam)]
 	tiered := figs.sheet.tiersOf(v)
@@ -278,8 +328,6 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	sorts := cam.Projection().Sorts()
 	// a camera with an eye sees no sheet: what a sheet stands in for is a point of its blob to it
 	eyed := hasEye(cam)
-	// a canopy shows a unit under it through from above alone, where the frame's publish found one
-	veiling := canopy != nil && figs.canopies && !sorts
 	rider, inside := ridden(cam)
 	lowest, low, any, drew := render.Nearest, float32(0), false, false
 	for k := range figs.all {
@@ -339,10 +387,11 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 		}
 		// coarsely: no edges, flat where it would stand
 		coarse := level > lod.Standard
-		veiled := veiling && e.fixed && figs.veiled.Has(e.id)
-		// a figure whole in every layer, a canopy seen through apart, is a cutout: it takes no
-		// place among what is seen through
-		cut := cutouts != nil && !pointing && !wide && !coarse && !veiled &&
+		// in relief a kind with a body stands as it, whole as far as the bodies reach
+		bodied := bodies != nil && sorts && !pointing && !wide
+		whole := bodied && level <= figs.reach && s.of(layers[0].SpriteID)&flagBodied != 0
+		// a figure whole in every layer is a cutout: it takes no place among what is seen through
+		cut := cutouts != nil && !pointing && !wide && (!coarse || whole) &&
 			s.allCut(layers, levels, level)
 		if cut {
 			cutAny = true
@@ -373,6 +422,27 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			if fl&flagSways != 0 && a.Sway == 0 {
 				a.Sway = s.swayOf[id]
 			}
+			if uncovering != nil {
+				if on := fl&flagUncovered != 0; on != bare {
+					bare = on
+					uncovering.Uncover(on)
+				}
+				if on := fl&flagGivesWay != 0; on != gives {
+					gives = on
+					uncovering.GiveWay(on)
+				}
+			}
+			if bodied && fl&flagBodied != 0 {
+				bodies.Body(f, cam, box, z, s.atlas, s.bodyOf[id], turnOf(e.dir, mid),
+					level <= figs.reach, a, lit)
+				continue
+			}
+			// from above a body is seen from above, turned as it stands: an Angle runs
+			// against the clock, a turn from x towards y
+			if !sorts && fl&flagBodied != 0 && !wide {
+				a.SpriteID = s.bodyOf[id].Above
+				a.Angle = -turnOf(e.dir, mid) * 180 / math.Pi
+			}
 			if fl&flagShaded != 0 {
 				s.material(f, cam, e, box, s.shadedOf[id], l.progress)
 				continue
@@ -392,17 +462,18 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 				uprights.Upright(f, cam, box, z, s.atlas, a, lit)
 				continue
 			}
-			if veiled && fl&flagCanopy != 0 {
-				canopy.Veil(canopyOpacity)
-				look.Sprite(f, cam, box, z, s.atlas, a, lit)
-				canopy.Veil(1)
-				continue
-			}
 			look.Sprite(f, cam, box, z, s.atlas, a, lit)
 		}
 		if cut {
 			cutouts.Cutout(false)
 		}
+	}
+	// the pass of the uncovered only where the look took both one uncovered and one giving way
+	bared := false
+	if uncovering != nil {
+		uncovering.Uncover(false)
+		uncovering.GiveWay(false)
+		bared = uncovering.Uncovers()
 	}
 	if v != nil && len(figs.far.groups) > 0 {
 		drew = s.drawBanners(f, figs, v, sorts, &lowest, &low, &any) || drew
@@ -410,6 +481,9 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	}
 	if foggy != nil {
 		foggy.Fog(0)
+	}
+	if bared && direct {
+		f.DrawUncovered()
 	}
 	if cutAny && direct {
 		f.DrawCutout()
@@ -428,9 +502,6 @@ func (s *renderer) allCut(layers []layer, levels byLevel, level lod.Level) bool 
 	}
 	return true
 }
-
-// canopyOpacity is how much of a canopy is seen over the unit under it
-const canopyOpacity = 0.75
 
 // drawnAsPoint reports whether a figure of the sprite id seen at level is drawn as a point: at
 // L4, and at L5 in no look its kind declared there (wa's)
@@ -666,7 +737,7 @@ func (s *renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if d, ok := s.look().(DirectLook); ok {
 		d.DrawSprites(t, cam, u)
 	}
-	if t.Pass == render.Cutout {
+	if t.Pass == render.Cutout || t.Pass == render.Uncovered {
 		return
 	}
 	s.points.Draw(t, cam, u)

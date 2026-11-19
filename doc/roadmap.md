@@ -75,6 +75,17 @@ What is left to do. Take an item out when it lands.
   its cast would have to follow the ground as the sun's bake does.
 - **Clouds shading themselves** — the cover's own shade is the one look of a cloud's thickness;
   a cloud lit by the sun from above and dark below is not drawn.
+- **Bodies for what stands** — a lantern, a bridge's pier, a wagon as a `world.Body`: a box among
+  its shapes, a paint that shines by itself; after the trees, by the same ladder.
+- **Bodies that move** — people as bodies, their parts moved by a pose a frame of their animation,
+  their cards a view a frame; the stage after what stands.
+- **Bodies' cards, further** — a second row of views for a camera looking level and a third
+  from steeper (the cards are photographed from the 2:1 view's height and from above: a card
+  leaning back with the eye keeps a crown's size, not a fir's skirt opening or the top of a
+  crown lit from above), a card as deep as the body's front where it reaches the ground (the
+  ground cuts a low body's card under its foot's row), two neighbouring views blended as the
+  camera turns, and parts of triangles in place of cards met in the pixel: the whole bodies
+  cost some 30 % of the frames where they fill the picture (`BENCHMARKS.md`).
 - **Gamepads** — a trigger vocabulary for pads, so split screen is not only a keyboard's.
 - **Networking** — `plugins/netview` over players; the server is one engine, a remote client a
   player whose translator decodes frames:

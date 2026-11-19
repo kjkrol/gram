@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -73,6 +74,10 @@ type Program struct {
 	module    *wgpu.ShaderModule
 	pipelines map[pipelineKey]*wgpu.RenderPipeline
 	err       error
+
+	// a mesh program's fragment writes a depth of its own: drawn without a buffer, against a
+	// stand-in (the quads' fragment is the package's, a colour alone)
+	writesDepth bool
 }
 
 type pipelineKey struct {
@@ -155,7 +160,9 @@ func NewMesh(label, uniformFields, source string) *Program {
 	b.WriteString(shader("bindings"))
 	b.WriteString("\n")
 	b.WriteString(source)
-	return &Program{label: label, source: b.String(), mesh: true, pipelines: map[pipelineKey]*wgpu.RenderPipeline{}}
+	return &Program{label: label, source: b.String(), mesh: true,
+		writesDepth: fragDepth.MatchString(source),
+		pipelines:   map[pipelineKey]*wgpu.RenderPipeline{}}
 }
 
 // Instanced has the mesh program p take vec4s vectors an instance, at the vertex stage's
@@ -189,6 +196,15 @@ func CompileAll(progs []*Program) error {
 	return errors.Join(errs...)
 }
 
+// fragDepth is a fragment's depth of its own, which WebGPU and Metal take only into a pipeline
+// with a depth buffer (device.standIn).
+var fragDepth = regexp.MustCompile(`@builtin\(\s*frag_depth\s*\)`)
+
+// earlyDepth is a fragment's word on how the depth it writes stands to its triangle's
+// (naga's @early_depth_test), by which the device tests the depth before it runs the fragment:
+// wgpu takes it on Vulkan, and the other backends are handed the program without it.
+var earlyDepth = regexp.MustCompile(`@early_depth_test\(\w+\)[ \t]*\n?`)
+
 // the compiler is wgpu's own, which takes no lock of the device: a program compiles outside d.mu
 func (p *Program) compile(d *device) error {
 	p.once.Do(func() {
@@ -201,7 +217,7 @@ func (p *Program) compile(d *device) error {
 			}
 			desc.SPIRV = words
 		} else {
-			desc.WGSL = p.source
+			desc.WGSL = earlyDepth.ReplaceAllString(p.source, "")
 		}
 		module, err := d.dev.CreateShaderModule(&desc)
 		if err != nil {
@@ -216,6 +232,9 @@ func (p *Program) compile(d *device) error {
 func (p *Program) pipeline(
 	d *device, blend Blend, format gputypes.TextureFormat, depth depthMode,
 ) *wgpu.RenderPipeline {
+	if depth == noDepth && p.writesDepth {
+		panic(fmt.Sprintf("gpu: the %s program writes a depth and has no depth buffer", p.label))
+	}
 	key := pipelineKey{blend, format, depth}
 	if pl, ok := p.pipelines[key]; ok {
 		return pl

@@ -1,7 +1,7 @@
-// The wind over the ground: what stands on a cell leans with it and lightens as the air's gusts
-// go over it (the air's gust.wgsl: the same gusts lean the trees). How much stands and how hard
-// the gust blows are worked out at the lattice's corners (mesh.wgsl's vs_main) and blended
-// between them.
+// The wind over the ground: what stands on a cell leans with it and lightens as the air's gusts go
+// over it (the air's gust.wgsl: the same gusts lean the billboards). How much stands and how hard
+// the gust blows are worked out at the lattice's corners (mesh.wgsl's vs_main) and blended between
+// them.
 
 // swayAmountAt is how much what stands round the lattice corner i sways: the mean of its four
 // cells' (the flags' blue).

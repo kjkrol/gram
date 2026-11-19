@@ -21,7 +21,11 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
 - A feed draws, crops and pins through the camera's copy (`camera.Snapped`, taken as the feed is
   laid out on the barrier); the camera the ticks move is never cropped; what is keyed by a camera
   is looked up by `camera.OriginOf(cam)`.
-- Passes: the **opaque** ground (depth written, any order); the **cutouts** (`render.Cutout`,
+- Passes: the **opaque** ground (depth written, any order); the **uncovered**
+  (`render.Uncovered`, `Frame.DrawUncovered`, 2026-11-18: Directs drawing what must show under
+  what covers it into a depth of the composer's own, `Target.Uncovered` in the passes after;
+  only in a frame with a depth, the buffer made as a source first asks, one a size and layer
+  as the other depths); the **cutouts** (`render.Cutout`,
   `Frame.DrawCutout`, 2026-11-09: Directs drawing what stands whole, depth written, cut at half
   the alpha, any order; after the ground's depth is copied for what lies over the figures, so a
   tree never hides an `OverFigures` piece, and in `DrawOver` too); the world **seen through**,
@@ -31,6 +35,29 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   cutout pass; `Draw` partitions by `Target.Pass`, the cutouts front to back for early Z, the
   points in the pass seen through alone; `Cut` in `sprites.wgsl` is the half-alpha test, only
   with a depth. The billboards partition their batches the same (`batchOf(atlas, cutout)`).
+- **What gives way** (2026-11-18, in place of the world's canopies): a source draws a disc
+  round each thing it has uncovered, in the pass of the uncovered, as `1 - depth` (the
+  library's `uncoveredAt`: `GreaterEqual` then keeps the farthest over a pixel, and a cleared
+  0 is nothing), in an ordered pattern of pixels thinning outwards (`uncoveredOpen`), the
+  colour left (a zero premultiplied colour). Whatever gives way carries the library's
+  `givesWay` (256) past the `Taking` bits in the float they ride in (no instance had a float
+  to spare; a whole body's card has no varying either, so its haze carries it as two more),
+  reads `depthAt` (the draw's `ReadDepth`, `givesWayAt`) and is discarded where it lies
+  nearer, in the cutout pass and the one seen through alike, so every piece over a pixel opens
+  at the same pixels and whatever number of them shows what is under: no sorting, no
+  blending, nothing asked of the space on the CPU. It reads only within the rectangle the
+  uncovered lie in (`Target.UncoveredIn`, grown by each source in its pass; `render.Sprites`
+  tells it an instance, in the vertex stage). `render.Sprites` does both from above
+  (`uncovered.wgsl`), the topography's `sprites` in relief (its own `uncovered.wgsl`: the
+  billboards, the cards, the bodies whole, what lies). **A depth is told apart along one line
+  of sight alone**: through these cameras it is the height, so a disc given its middle's depth
+  at every pixel opened what stood behind it and higher; a disc lies in its own plane facing
+  the eye, half its reach before the thing, and carries that plane's depth pixel by pixel.
+  The topography's disc is left out where the ground hides the thing's middle from the eye
+  (`hidden`: the ground's heights met along the way towards the eye, half a cell a step in the
+  vertex stage), or what stands before a hill would open on the hill. What is drawn with the
+  ground, in its layers and before the figures are composed (a plugin's solids), cannot read
+  it.
 - Lifts over a surface, low to high: a ground dressing 0.02, board materials 0.05, grid 0.1,
   holds 0.15, sight 0.25, a field's piece 0.5, a bridge in hand 0.9 (routes and goals are
   marks `OnTop` 0.5/0.75 since 2026-11-04), figures
@@ -47,9 +74,9 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
 - A `Direct` asks in Compose where it draws: `DrawOpaque`, `DrawCutout`, `DrawAt(at)`,
   `ReadGround` (it gets `Target.Ground` and writes `frag_depth` = the ground's own); one asking
   nothing is not drawn. The world renderer asks `DrawCutout` once any figure is a cutout (every
-  drawn layer `Slot.Cutout`, not coarse, not a canopy veiled this frame) and `DrawAt(lowest)` for
-  the rest; cutouts never move `lowest`; `Draw` in the cutout pass draws the sprites alone, no
-  points or labels.
+  drawn layer `Slot.Cutout`, not coarse), `DrawUncovered` once it lays a figure uncovered, and
+  `DrawAt(lowest)` for the rest; cutouts never move `lowest`; `Draw` in the cutout pass and in
+  that of the uncovered draws the sprites alone, no points or labels.
 - The ground's shade (`compose/bake.go`) is one image over the whole relief, baked by two lanes
   into the same pixels: the sun's turn by 16 bands with a fade (`GroundShadeMix`), a band once
   the sun has turned 1/16° since the last (`shadeStep`), at most one a frame, a leap over 1° (the
@@ -79,16 +106,13 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   backend), the low byte in R, the high in G, read back with `textureLoad` (the sheet's relief).
 - Navigation's route line and goal are marks `OnTop` (route < goal < the selection's outline),
   never lifts in the world (2026-11-04); the GPU route lines `Untested` with `ReadGround` kept,
-  so the ground still hides a route behind a hill while figures and a canopy do not.
-- The Look seams beside `Sprite`: `FoggyLook.Fog`, `CanopyLook.Veil(opacity)` (a tree's crown
-  over a unit from above: Flat takes the frame path, `SpriteRectUV`/`SpritePart` then
-  `Frame.Glazed`, since `render.Sprites` has no free float for an opacity; `Frame.fog` skips a
-  glazed sprite, so a veiled crown takes no sight fog) and `CutoutLook.Cutout(on)`, each set
-  before a figure and reset after it, the zero value whole (a look never begun must draw whole:
-  the flat look's `hidden` is 0, not an opacity of 1). The veiled set is the publish's
-  (`figures.veiled`: a point query of the space over every moving figure's middle when a camera
-  sees from above and the setting is on), never worked out in Compose, which reads the front
-  alone.
+  so the ground still hides a route behind a hill while what stands over it does not.
+- The Look seams beside `Sprite`: `FoggyLook.Fog`, `UncoveringLook.Uncover(on)` and
+  `GiveWay(on)` (told a layer, from the atlas's `Slot.Uncovered` and `Slot.GivesWay`, only
+  before a camera the world's settings let it: read once a frame at the publish,
+  `figures.covers` and `givesRiding`, never in Compose, which reads the front alone) and
+  `CutoutLook.Cutout(on)`, each set before a figure and reset after it, the zero value whole
+  (a look never begun must draw whole).
 - A field aggregate's piece (a canopy sheet at L4) lies on the ground at `look.PieceLift` (0.5),
   under every figure (`FigureLift` 2): the point and material paths place it so; through a Look it
   goes `Lie`, never `Upright`/`Lay`, still at the Look's own lift (an interface change to pass a
@@ -126,6 +150,55 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   middle read under 2 px, the distant light without lamps, no cast; overlay layers dropped; the
   haze and the clouds' shade on figures do not reach it). The ground's variants are the
   topography's (`gram-plugins`).
+- **A kind with a body** (`world.Body`, `Atlas.AddBody`, 2026-11-18; the rule is CLAUDE.md's): the
+  world's renderer hands it to `BodyLook.Body` in a view in relief, whole or as a card by the
+  reach its publish took (`figures.reach`; a whole body is a cutout whatever its level), its turn
+  the entity's heading or, standing, a hash of its place. The shapes, the paints, the dots and
+  the tones are one WGSL, the world's `body.wgsl` (prefix `shape`: the air's clouds own
+  `body*`), registered with `render` for every shader (`RegisterMaterials` with no entry, as
+  the air's wind is): the photograph's shader (`body_shot.wgsl`) and the look's (`billboards`'
+  `body.wgsl`, and `billboard.wgsl` for the cards' tones) call it. Handed over by a Go function
+  of the world's, it was the one WGSL in gram passed from plugin to plugin (2026-11-18; the
+  rule is CLAUDE.md's). A part is a card on its front, met in the pixel in the body's own
+  frame, so its dots turn with it and a card's dots are its body's.
+  The photographs are `render.Atlas.AddShot` slots, filled by the sheet's one `Defer`: one depth
+  buffer for all of them, cleared before the first, since they lie apart. A card is a billboard
+  whose instance's last two floats say where the ways out of the body lie on the atlas (one past
+  each, 0 a plain sprite); `cardFacing` rebuilds the way out in the frame the picture was taken
+  in, the light told in that frame once a vertex (`cardSun`). A card's instance holds its body's
+  own feet and height, the shader adding the picture's margin (`shapeMargin`): told the
+  picture's lowered foot, the shade was read under the ground and a low body's card stood dark
+  (2026-11-18). `Bodied.Card` picks the card: the side nearest the eye's way (its angle in
+  eighths of a turn by a cheap arc tangent, `eighths`: the real one a card, thousands in view,
+  was a fifth of the frame's composing), or `Top`/`TopWays`, the photograph from above, from
+  the steepness `Body.steep` works out a kind. A standing card follows the eye past the cards'
+  elevation (`shapeRow`): it leans back about `TopAt` over its foot (the instance's `light.w`)
+  by as much as the eye looks steeper, its rows spread as a ball's outline grows on an upright
+  plane (`Body.grown`: a spheroid `Wide` across reaching `Tall - TopAt` over that height, exact
+  for a ball), its depth still `upright`'s at its feet: what it holds there, a body's head,
+  stays as tall on the screen as the body's, and what stands under it, its post, goes under
+  the ground as the body's goes under the head.
+  Left standing as photographed, the head showed half as tall from 66°; grown on the upright
+  plane itself, the same picture in the parallel camera, it was stretched by the perspective
+  under a near eye (2026-11-18). It lies from 70° at the most (`steepest`), sooner where the
+  card from above is truer (`untrue`: each part's reach up the picture against the body's own,
+  by the part's width, nothing of a card showing under the ground: some 60° for a crown on a
+  trunk, 50° to 55° for a low wide body, which loses its front standing). Held standing till
+  the one from above was twice as true, to keep its trunk, Madeira's forest seen from 65°
+  covered less and stood darker than its whole bodies, the lying cards nearer them: a card
+  leaning back still shows a crown's side, lit as a side. What a single view cannot give: a
+  low body's front under its foot's row is cut by the ground at any elevation, a fir's skirt
+  as the eye rises (a second row of views is the roadmap's). The card from above is the same
+  billboard told to lie (`shape.z`, the body's turn a whole turn on): held `TopAt` over the
+  foot, the middle of what shows from above, turned as the body stands and tipped to face the
+  eye, at its own depths, shaded as a part of the body as high. Level, cards as high tied and
+  the later instance won: in the parallel camera depth is height alone (`TransformOf` counts
+  along the rays from a level plane); at the depths of `upright`, its lower half went under
+  the ground (2026-11-18). A body's own sprite, the photograph from the side, has no
+  pixels on the CPU: far off it is a blob of its paints' mean. Straight from above, where the
+  parallel camera sorts nothing and the flat look draws, the renderer swaps in `Bodied.Above`,
+  turned by the body's turn (an `Appearance.Angle` runs against the clock, a turn from x towards
+  y: the negative); drawn as its own sprite there, a tree lay on its side (2026-11-18).
 - How things lie is a plugin's swappable `Look` (`world.Look`, the board's `look.Look`), flat
   from above by default, the topography setting both for relief; renderers keep their data and
   ask it for geometry alone. What a renderer draws is a look of an entity under a state (a
@@ -186,6 +259,18 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
 
 ## Traps
 
+- **The world's y runs south**: its frame is left-handed seen with z up, so the way across a
+  picture looking along `ahead` is `(-ahead.y, ahead.x)`, and a cross product written for a
+  right-handed frame mirrors it (the bodies' first photographs were mirrors of what the camera
+  saw; the test of a fruit on one side of a tree found it).
+- A whole body takes its shade as a billboard does, blended between its foot's and its top's:
+  taken at a part's own height it falls in the shadow of its own baked block and stands half as
+  bright as its card.
+- A fragment's word on its depth (`@early_depth_test(less_equal)`) is wgpu's on Vulkan alone:
+  `gpu.Program` hands the other backends the WGSL without it. It needs the card on the part's
+  front and the depth written clamped under the card's (`min(depth, position.z)`).
+- A name in a WGSL given to several shaders must be free in the registered materials too
+  (`bodyShade` was the clouds').
 - gogpu's `Queue.WriteTexture` needs a submission (~1 ms mid-frame: a dozen a frame took the
   topography from 160 to 11 FPS); a buffer copy into a texture drawn in the same commands is
   refused. `Texture.WritePixels` draws pixels in place instead; only a bigger write goes gogpu's
@@ -199,7 +284,12 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   pipeline cache on disk itself.
 - A fragment shader takes `@builtin(position)` once, in its input struct, never also as a
   parameter: naga and Vulkan let it by, Metal refuses (`wgsl_test.go`). On Metal gogpu ignores
-  `@invariant`; a shader writing `frag_depth` should draw with a depth buffer.
+  `@invariant`.
+- WebGPU and Metal make no pipeline of a fragment writing `frag_depth` without a depth (Vulkan
+  lets it by: forest-army's minimap, the board's miniature, fell on an M1 alone, 2026-11-19).
+  The device draws such a mesh program given no buffer against a stand-in of the target's size,
+  untested and unwritten (`device.standIn`, four sizes kept), and a pipeline asked without a
+  depth for one panics on every backend, so a test on Linux finds a new way to it.
 - One module, one namespace: naga refuses a name declared twice at module scope (since v0.21). A
   program is its fragment on the library, the bindings and every material registered, so a
   function, a struct, a constant, a sampler (`nearest`, `linear`, `wrapped`) and a frame image by

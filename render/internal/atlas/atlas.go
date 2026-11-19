@@ -15,7 +15,7 @@ type SpriteDrawer func(dst *Canvas, size int)
 const maxAtlasWidth = 4096
 
 // Atlas is an AtlasSource built by adding sprites, each at a size of its own, and then Close,
-// which lays the sheet out and bakes it.
+// which lays the sheet out and bakes it; a sprite shot is drawn on the GPU into its place.
 type Atlas struct {
 	slots  []slot // indexed by SpriteID
 	image  *gfx.Image
@@ -25,8 +25,10 @@ type Atlas struct {
 }
 
 type slot struct {
-	size           int
-	draw           SpriteDrawer
+	size int
+	draw SpriteDrawer
+	// shot draws the sprite on the GPU into its place on the sheet
+	shot           func(dst *gfx.Image)
 	x0, y0, x1, y1 float32
 }
 
@@ -42,6 +44,16 @@ type Sprited interface{ SpriteID() gfx.SpriteID }
 // Add takes draw on as a size x size sprite in of's slot. It panics after Close or if the slot
 // is taken.
 func (a *Atlas) Add(of Sprited, size int, draw SpriteDrawer) {
+	a.take(of, size).draw = draw
+}
+
+// AddShot takes on a size x size sprite in of's slot that shot draws on the GPU into its place
+// on the sheet, before the sheet is first read. It panics as Add does.
+func (a *Atlas) AddShot(of Sprited, size int, shot func(dst *gfx.Image)) {
+	a.take(of, size).shot = shot
+}
+
+func (a *Atlas) take(of Sprited, size int) *slot {
 	id := of.SpriteID()
 	if a.closed {
 		panic("gram: Atlas.Add after Close")
@@ -52,10 +64,11 @@ func (a *Atlas) Add(of Sprited, size int, draw SpriteDrawer) {
 	for int(id) >= len(a.slots) {
 		a.slots = append(a.slots, slot{})
 	}
-	if a.slots[id].draw != nil {
+	if a.slots[id].size != 0 {
 		panic(fmt.Sprintf("gram: Atlas sprite %d added twice", id))
 	}
-	a.slots[id] = slot{size: size, draw: draw}
+	a.slots[id] = slot{size: size}
+	return &a.slots[id]
 }
 
 // Close lays the sprites added out on one sheet and bakes them.
@@ -69,8 +82,12 @@ func (a *Atlas) Close() {
 	sheet := newCanvas(max(width, 1), max(height, 1))
 	wx, wy := int(a.whiteX), int(a.whiteY)
 	draw.Draw(sheet.RGBA, image.Rect(wx, wy, wx+3, wy+3), image.White, image.Point{}, draw.Src)
+	var shots []*slot
 	for i := range a.slots {
 		s := &a.slots[i]
+		if s.shot != nil {
+			shots = append(shots, s)
+		}
 		if s.draw == nil {
 			continue
 		}
@@ -81,13 +98,22 @@ func (a *Atlas) Close() {
 	}
 	a.image = gfx.NewImage(sheet.Bounds().Dx(), sheet.Bounds().Dy())
 	a.image.WritePixels(sheet.Pix)
+	if len(shots) == 0 {
+		return
+	}
+	a.image.Defer(func(sheet *gfx.Image) {
+		for _, s := range shots {
+			s.shot(sheet.SubImage(image.Rect(int(s.x0), int(s.y0), int(s.x1), int(s.y1))))
+			s.shot = nil
+		}
+	})
 }
 
 func (a *Atlas) layout() (width, height int) {
 	x, y, rowHeight := 0, 0, 0
 	for i := range a.slots {
 		s := &a.slots[i]
-		if s.draw == nil {
+		if s.size == 0 {
 			continue
 		}
 		if x > 0 && x+s.size > maxAtlasWidth {

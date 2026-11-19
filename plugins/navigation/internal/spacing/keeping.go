@@ -58,7 +58,7 @@ type Keeping interface {
 }
 
 // YieldShare is the least of the pace the ground gives a unit on the level that a step aside
-// may leave it by its slope: a flat forest is stepped into, a cliff is not.
+// may leave it by its slope: slow ground on the level is stepped into, a cliff is not.
 const YieldShare = 1.0 / 3
 
 type holders interface {

@@ -50,11 +50,11 @@ fn vs_main(
 }
 
 // fs_main is the sprite's texel in its light, turned to the Fog as hazed as it is; what is less
-// than half there is left out.
+// than half there is left out, and what gives way over something uncovered.
 @fragment
 fn fs_main(l: Lain) -> @location(0) vec4<f32> {
     let c = imageSrc0At(l.uv);
-    if c.a < 0.5 {
+    if c.a < 0.5 || givenWay(l.shade.z, l.clip.xy, l.clip.z) {
         discard;
     }
     // the relief's shadow and the clouds': the blocks' would shade what casts them
