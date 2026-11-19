@@ -106,20 +106,23 @@
 // order. Each is marked by the [Lighting], the light plugin's ([Write.SetLighting]), and lit as the
 // frame says (render.Frame.Lit) by the lights the picture is given ([Write.SetLights],
 // [Read.Lights]), in white light without them. A kind may be a [Body] in place of a drawn sprite
-// ([Atlas.AddBody]): parts, spheroids and cones, in paints. A view in relief with a [BodyLook]
-// stands it whole out to the level the bodies reach and as a card of it beyond, down to L3, the
-// side of it the camera sees or, looking down steeply, its top ([Bodied.Card]), lit by the frame's
-// light as the body whole is; a view from above draws it photographed from above, turned as it
-// stands, and its sprite, from the side, is a photograph too, taken on the GPU as its cards are
-// ([Slot.Above] has the sheets take it from above). How far the bodies stand whole is a setting,
-// the close scale, L2 or L3 ([Bodies], [Read.BodiesReach]), which follows the cameras' frame budget
-// where they are given the world's [Plugin.Bodies] for a lever ([AdaptBodies], [BodiesLever]). An
-// entity is drawn in its kind's look at the level its camera sees it at: its own at L2
-// (lod.Standard) and the close levels, plainly at L3 (no edges, flat where it would stand), a blob
-// of its own look at L4 (render.Blob), its blob's colour in the ground at L5, or as [Slot.At] and
-// [Slot.Nothing] declare from a level on, a close one to Standard at most. At L4 the renderer draws
-// it itself as a point, its box as large as it shows and a pixel at least, as opaque as it covers,
-// with no Look, lamp or shadow, and a camera publishes the ladder's Keep share of a level's
+// ([Atlas.AddBody]): parts, spheroids, cones and boxes, in paints, one that shines no darker than
+// itself whatever the light, the body as tall as its kind says or, Stretched, as its entity. A view
+// in relief with a [BodyLook] stands it whole out to the level the bodies reach and as a card of it
+// beyond, down to L3, the side of it the camera sees or, looking down steeply, its top
+// ([Bodied.Card]), lit by the frame's light as the body whole is; a view from above draws it
+// photographed from above, turned as it stands, its shining paints laid over it as they are, and
+// its sprite, from the side, is a photograph too, taken on the GPU as its cards are ([Slot.Above]
+// has the sheets take it from above). A body is turned the way its entity is headed
+// (world.Velocity), else a way of its own by where it stands. How far the bodies stand whole is a
+// setting, the close scale, L2 or L3 ([Bodies], [Read.BodiesReach]), which follows the cameras'
+// frame budget where they are given the world's [Plugin.Bodies] for a lever ([AdaptBodies],
+// [BodiesLever]). An entity is drawn in its kind's look at the level its camera sees it at: its own
+// at L2 (lod.Standard) and the close levels, plainly at L3 (no edges, flat where it would stand), a
+// blob of its own look at L4 (render.Blob), its blob's colour in the ground at L5, or as [Slot.At]
+// and [Slot.Nothing] declare from a level on, a close one to Standard at most. At L4 the renderer
+// draws it itself as a point, its box as large as it shows and a pixel at least, as opaque as it
+// covers, with no Look, lamp or shadow, and a camera publishes the ladder's Keep share of a level's
 // entities by their identity, the same each frame, sparing the sector.Keen, a kind [Slot.Always]
 // and one drawn in a look declared there. As Config.Far and the settings say ([ShowFar],
 // [Read.FarLook]), a kind's loose units in a sector drawn from L4 on are a point each or, where the

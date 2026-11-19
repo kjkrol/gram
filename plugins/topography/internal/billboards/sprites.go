@@ -178,9 +178,13 @@ func (s *sprites) card(box plane.AABB, z world.Z, atlas render.AtlasSource, b *w
 	turn float32, lit render.Illumination, sway float32) {
 	x0, y0 := box.TopLeft.X, box.TopLeft.Y
 	cx, cy := (x0+box.BottomRight.X)/2, (y0+box.BottomRight.Y)/2
+	tall, top := b.Tall, b.TopAt
+	if b.Stretched {
+		tall, top = z.Height, b.TopAt*z.Height/b.Tall
+	}
 	way := s.way
 	if s.persp {
-		way = [3]float32{cx - s.eye[0], cy - s.eye[1], z.Altitude + b.TopAt - s.eye[2]}
+		way = [3]float32{cx - s.eye[0], cy - s.eye[1], z.Altitude + top - s.eye[2]}
 	}
 	view, ways, lies := b.Card(way, turn)
 	u0, v0, u1, v1 := atlas.UV(view)
@@ -193,10 +197,10 @@ func (s *sprites) card(box plane.AABB, z world.Z, atlas render.AtlasSource, b *w
 	}
 	l := lit.Light
 	bt := batchOf(&s.batches, atlas, s.cutout)
-	bt.inst = append(bt.inst, cx, cy, z.Altitude, b.Tall, b.Wide, sway, lying,
-		s.hazeAt(cx, cy, z.Altitude), u0, v0, u1, v1, l[0], l[1], l[2], b.TopAt,
+	bt.inst = append(bt.inst, cx, cy, z.Altitude, tall, b.Wide, sway, lying,
+		s.hazeAt(cx, cy, z.Altitude), u0, v0, u1, v1, l[0], l[1], l[2], top,
 		s.groundAt(cx, cy), s.taking(lit), wu+1, wv+1)
-	s.bare(box, z.Altitude, b.Tall)
+	s.bare(box, z.Altitude, tall)
 }
 
 // body adds a kind's body standing whole, turned about its foot by turn
@@ -204,12 +208,16 @@ func (s *sprites) body(box plane.AABB, z world.Z, b *world.Bodied, turn float32,
 	lit render.Illumination, sway float32) {
 	cx := (box.TopLeft.X + box.BottomRight.X) / 2
 	cy := (box.TopLeft.Y + box.BottomRight.Y) / 2
+	tall := b.Tall
+	if b.Stretched {
+		tall = z.Height
+	}
 	l := lit.Light
 	s.table = b.Table
-	s.bodies = append(s.bodies, cx, cy, z.Altitude, b.Tall, b.Wide, float32(b.Row), turn,
+	s.bodies = append(s.bodies, cx, cy, z.Altitude, tall, b.Wide, float32(b.Row), turn,
 		float32(b.Parts), l[0], l[1], l[2], s.hazeAt(cx, cy, z.Altitude), s.up,
 		s.groundAt(cx, cy), s.taking(lit), sway)
-	s.bare(box, z.Altitude, b.Tall)
+	s.bare(box, z.Altitude, tall)
 }
 
 // nearestFirst lays the bodies from the nearest along the way the camera looks, counted into

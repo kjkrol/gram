@@ -92,7 +92,11 @@ fn fs_main(c: ShapeCard) -> Met {
         discard;
     }
     let sun = shapeTurned(lightWay(), vec2<f32>(c.more.y, -c.more.z));
-    let rgb = shapeColour(c, m) * shapeTone(shapeFacing(m, sun)) * c.light.rgb;
+    let paint = shapeColour(c, m);
+    var rgb = paint * shapeTone(shapeFacing(m, sun)) * c.light.rgb;
+    if shapeShines(c) {
+        rgb = max(rgb, paint);
+    }
     var deep = c.deep;
     var along = vec2<f32>(c.lit.w, c.dots.w);
     if !ortho {

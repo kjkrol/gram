@@ -2,6 +2,7 @@ package underground
 
 import (
 	"image/color"
+	"slices"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -228,5 +229,109 @@ func TestBent_LaysATurnInPiecesMeetingWallToWallAndSquareAtItsEdges(t *testing.T
 					name, s)
 			}
 		}
+	}
+}
+
+// level from the west, a screen pixel 8 world units: across the screen the world's y, down it
+// its z from 256
+type eastward struct{ camera.Camera }
+
+func (eastward) Rays() (camera.RayField, bool) {
+	return camera.RayField{
+		Origin: [3]float32{-200, 0, 256},
+		DX:     [3]float32{0, 8, 0},
+		DY:     [3]float32{0, 0, -8},
+		Dir:    [3]float32{1, 0, 0},
+	}, true
+}
+
+func TestTubes_DrawAChambersWallAcrossAWayInRoundTheDoorwayOfTheTunnel(t *testing.T) {
+	gputest.Need(t)
+	// a chamber 160 high, its side 256 wide across x 100 round y 256, a tunnel 80 wide coming in
+	// from the west by it
+	chamber := cell.Floor{Clear: 160}
+	for name, tc := range map[string]struct {
+		tunnel cell.Floor
+		floor  float32 // the tunnel's at its cell's middle
+		drawn  [][2]int
+		open   [][2]int
+	}{
+		// its floor 32 over the chamber's at the side, its roof at 112
+		"within the chamber": {
+			tunnel: cell.Floor{Width: 80, Clear: 80},
+			floor:  64,
+			drawn:  [][2]int{{20, 23}, {44, 23}, {32, 14}, {32, 30}},
+			open:   [][2]int{{32, 23}, {10, 23}, {32, 8}},
+		},
+		// its floor 24 under the chamber's, its roof 16 over the chamber's
+		"reaching past it": {
+			tunnel: cell.Floor{Width: 80, Clear: 200},
+			floor:  -48,
+			drawn:  [][2]int{{32, 10}, {32, 33}, {20, 23}},
+			open:   [][2]int{{32, 23}, {32, 13}, {32, 31}, {20, 10}, {20, 33}},
+		},
+	} {
+		r := &tubes{}
+		r.bufs[0] = doorwayOf(nil, geom.NewVec(100, 256), geom.NewVec(-1, 0), 128, 0, chamber,
+			tc.tunnel, tc.floor, 0)
+		screen := render.NewImage(64, 64)
+		depth := render.NewDepth()
+		screen.ClearDepth(depth)
+		u := render.UniformsOf(map[string]any{"Ambience": []float32{0.5, 0.5, 0.5}})
+		r.Draw(render.Target{Screen: screen, Depth: depth},
+			eastward{cameratest.NewFromSpace(64, 64, 0)}, u)
+		pix := make([]byte, 4*64*64)
+		screen.ReadPixels(pix)
+		drawn := func(p [2]int) bool { return pix[4*(p[1]*64+p[0])+3] != 0 }
+		for _, p := range tc.drawn {
+			if !drawn(p) {
+				t.Errorf("%s: pixel %v of the wall is not drawn", name, p)
+			}
+		}
+		for _, p := range tc.open {
+			if drawn(p) {
+				t.Errorf("%s: pixel %v in the doorway or past the wall is drawn", name, p)
+			}
+		}
+	}
+}
+
+func TestAcross_WallsAChambersSideAsCollisionDoes(t *testing.T) {
+	const way, back = 0, 2
+	cave := cell.Floor{Height: -20, Clear: 4, Links: 1 << way}
+	for name, tc := range map[string]struct {
+		f, nf cell.Floor
+		want  int
+	}{
+		"its next cell": {cave, cell.Floor{Height: -20, Clear: 4, Links: 1 << back},
+			sideOpen},
+		"another chamber's cell": {cell.Floor{Height: -20, Clear: 4},
+			cell.Floor{Height: -20, Clear: 4}, sideWalled},
+		"a tunnel coming in": {cave, cell.Floor{Height: -18, Clear: 3, Width: 6,
+			Links: 1<<back | 1<<1}, sideDoorway},
+		"a tunnel running past": {cave, cell.Floor{Height: -18, Clear: 3, Width: 6,
+			Links: 1<<1 | 1<<3}, sideWalled},
+		"the rock": {cave, cell.Floor{}, sideWalled},
+	} {
+		if got := across(tc.f, tc.nf, way, back); got != tc.want {
+			t.Errorf("%s: %d stands across the side, want %d", name, got, tc.want)
+		}
+	}
+}
+
+func TestCoursesOf_RunAlongTheTunnelsFloorsAlone(t *testing.T) {
+	var tubes []float32
+	// a stretch going down from 0 at the mouth to -12, a chamber's cell, a mouth's frame, a wall
+	// across a way in
+	tubes = append(tubes, 50, 20, 0, 3, 60, 20, -12, 4, wallLeft|wallRight+1<<lookShift, 0, 0, 0)
+	tubes = append(tubes, 60, 20, -20, 5, 70, 20, -20, 8, wallLeft|wallBegin, 60, 0, 0)
+	tubes = frame(tubes, geom.NewVec(50, 20), geom.NewVec(-1, 0), 0, -1, 6, cell.Floor{Width: 6,
+		Clear: 4}, 0)
+	tubes = doorwayOf(tubes, geom.NewVec(60, 20), geom.NewVec(-1, 0), 5, -20,
+		cell.Floor{Clear: 8}, cell.Floor{Width: 6, Clear: 4}, -12, 0)
+	got := coursesOf(nil, tubes)
+	if want := []course{{a: [3]float32{50, 20, 0}, b: [3]float32{60, 20, -12}}}; !slices.Equal(
+		got, want) {
+		t.Errorf("the courses %v, want the tunnel's stretch alone, along its floor %v", got, want)
 	}
 }

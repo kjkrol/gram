@@ -42,8 +42,9 @@
 //
 // # Seen from above
 //
-// From over the ground the courses of the tunnels and the units in them are marks over the world
-// where the setting says ([Courses], under the settings' section Game; Settings.HideCourses).
+// From over the ground the courses of the tunnels and the units in them are marks over the world,
+// as deep as they lie, where the setting says ([Courses], under the settings' section Game;
+// Settings.HideCourses).
 //
 // # Figures
 //

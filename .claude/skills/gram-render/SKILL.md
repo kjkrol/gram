@@ -177,7 +177,12 @@ CLAUDE.md's; what a frame costs is `gram-perf-picture`.
   rule is CLAUDE.md's). A part is a card on its front, met in the pixel in the body's own
   frame, so its dots turn with it and a card's dots are its body's.
   The photographs are `render.Atlas.AddShot` slots, filled by the sheet's one `Defer`: one depth
-  buffer for all of them, cleared before the first, since they lie apart. A card is a billboard
+  buffer for all of them, cleared before the first, since they lie apart. A shot lays its
+  pixels over (premultiplied), so a clear pixel of a nearer part hides nothing: the glow of a
+  body's shining paints (`Bodied.Glow`, laid over `Above` with `render.Shines` in a view from
+  above) takes its depth whole first, then those paints at an equal depth (2026-11-19). The
+  ways' blue holds a cone's height up it in its lower half and a shining paint as a whole one
+  (`shapeWaysBlue`): read through the sampler, an edge between the two may shine a pixel. A card is a billboard
   whose instance's last two floats say where the ways out of the body lie on the atlas (one past
   each, 0 a plain sprite); `cardFacing` rebuilds the way out in the frame the picture was taken
   in, the light told in that frame once a vertex (`cardSun`). A card's instance holds its body's

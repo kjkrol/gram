@@ -17,7 +17,7 @@ var digging = site.Rules{
 	Reshape: scale.Units(0.5),
 }
 
-// mine is a shaft 2.5 m wide and 2.6 m high, timbered, and a cave 3.5 m high, as in life
+// mine is a shaft 2.5 m wide and 2.6 m high, timbered, as in life, and a cave 7 m high
 type mine struct{}
 
 var _ underground.Figure = mine{}
@@ -46,7 +46,7 @@ func (mine) Define(p *underground.Plugin) {
 	})
 	p.Types().Chamber(CaveKind, underground.Spec{
 		Allows: cell.Land,
-		Clear:  scale.Units(3.5),
+		Clear:  scale.Units(7),
 		Pace:   1,
 		Look: underground.Look{
 			Walls: rockColor,

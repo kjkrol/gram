@@ -445,9 +445,14 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			}
 			// from above a body is seen from above, turned as it stands: an Angle runs
 			// against the clock, a turn from x towards y
+			var glows *Bodied
 			if !sorts && fl&flagBodied != 0 && !wide {
-				a.SpriteID = s.bodyOf[id].Above
+				b := s.bodyOf[id]
+				a.SpriteID = b.Above
 				a.Angle = -turnOf(e.dir, mid) * 180 / math.Pi
+				if b.Shines {
+					glows = b
+				}
 			}
 			if fl&flagShaded != 0 {
 				s.material(f, cam, e, box, s.shadedOf[id], l.progress)
@@ -469,6 +474,12 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 				continue
 			}
 			look.Sprite(f, cam, box, z, s.atlas, a, lit)
+			if glows != nil {
+				// its shining paints over it, as they are whatever the light
+				a.SpriteID = glows.Glow
+				look.Sprite(f, cam, box, z, s.atlas, a, f.Lit(mid.X, mid.Y, z.Altitude,
+					render.Shines))
+			}
 		}
 		if cut {
 			cutouts.Cutout(false)

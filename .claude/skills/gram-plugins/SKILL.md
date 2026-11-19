@@ -992,6 +992,16 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
   structure's handle carries `interiors.Room{Sky}` and a `Lamp` by day, so whoever walks in is
   lit as the tube draws it; the chambers' cells link to each other, a room walled but where its
   links lead.
+- **The tube walls a chamber as collision does** (`across`, the board's `field.rooms`;
+  2026-11-19: opened wherever anything was dug beyond, the world showed round a shaft's end):
+  open where its links lead on, a wall round the doorway where a tunnel's links lead in (a
+  `doorway` stretch: one wall across at `a`, its four faces the pieces beside, over and under the
+  doorway, closing the tunnel's end past the chamber's roof or floor), else whole. A chamber's
+  row of lamps hangs over its middle (`span`, `lampsFrom`): counted from the world's x, a 7 m
+  cave had none.
+- **The courses lie as deep as the tunnels** (`coursesOf`: along the floors, the units' marks at
+  their feet; the user's word, 2026-11-19): on the ground over them a tunnel going down under a
+  hill looked as though it climbed it.
 - The ground is cut over a mouth by the terrain's shader from marks in the lattice's free
   channels (the heights' blue and alpha, the normals' alpha at the cell's corner), found by the
   topography in its Publish as the board's passage moves; `U.Mouths` keeps a board without

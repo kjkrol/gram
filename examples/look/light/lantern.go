@@ -7,7 +7,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 )
 
 const (
@@ -27,14 +26,27 @@ func (lantern) Define(b *board.Plugin) {
 		func(r standingRow) cell.ID { return r.At })
 	lanterns.Define(LanternKind,
 		comp.Const(light.Source{Color: lanternColor, Strength: 1.5, Reach: lanternReach}),
-		comp.Const(light.Shadow{Cast: light.NoShadow, Take: render.Shines}))
+		comp.Const(light.Shadow{Cast: light.NoShadow}))
 }
 
+// a post on a foot under a globe of glass, which shines, and a cap over it
 func (lantern) Look(a *world.Atlas, w *world.Plugin) {
-	a.Add(kind.Named[standingRow](w.Kinds(), LanternKind), lanternPx,
-		func(dst *render.Canvas, size int) {
-			s := float32(size)
-			dst.FillRect(s*0.4, s*0.5, s*0.2, s*0.5, towerColor)
-			dst.FillCircle(s/2, s*0.35, s*0.32, lanternGlow)
-		})
+	a.AddBody(kind.Named[standingRow](w.Kinds(), LanternKind), lanternPx, world.Body{
+		Wide: lanternPx,
+		Tall: lanternHeight,
+		Parts: []world.Part{
+			{Shape: world.Box, To: [3]float32{0, 0, 2}, Wide: 5, Tip: 5},
+			{Shape: world.Box, To: [3]float32{0, 0, 14}, Wide: 2, Tip: 2},
+			{Shape: world.Spheroid, From: [3]float32{0, 0, 13}, To: [3]float32{0, 0, 21},
+				Wide: 13, Paint: 1},
+			{Shape: world.Cone, From: [3]float32{0, 0, 20}, To: [3]float32{0, 0, 23}, Wide: 8,
+				Tip: 1},
+			{Shape: world.Spheroid, From: [3]float32{0, 0, 22.5}, To: [3]float32{0, 0, 24},
+				Wide: 2},
+		},
+		Paints: []world.Paint{
+			{Colour: towerColor},
+			{Colour: lanternGlow, Shines: true},
+		},
+	})
 }

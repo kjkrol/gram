@@ -67,13 +67,16 @@ func lowBody() world.Body {
 }
 
 // placed is a body of the lawn's kind of that number standing at a place, turned about its
-// foot, whole or as its card, swaying
+// foot, whole or as its card, swaying, its entity as tall as its body unless tall says, in
+// white light or the frame's light where it stands
 type placed struct {
-	at    geom.Vec
-	kind  int
-	turn  float32
-	whole bool
-	sway  float32
+	at      geom.Vec
+	kind    int
+	turn    float32
+	whole   bool
+	sway    float32
+	tall    float32
+	inLight bool
 }
 
 // lawn is a level board in relief under a sun and a weather, seen by an isometric camera or an
@@ -164,8 +167,16 @@ func (s *bodiesStanding) Compose(f *render.Frame, cam camera.Camera) {
 	for _, tr := range s.stood {
 		b := s.g.bodies[tr.kind]
 		box := plane.NewAABB(geom.NewVec(tr.at.X-b.Wide/2, tr.at.Y-b.Wide/2), b.Wide, b.Wide)
-		look.(world.BodyLook).Body(f, cam, box, world.Z{Height: b.Tall}, s.g.atlas, b, tr.turn,
-			tr.whole, render.Appearance{Sway: tr.sway}, render.WhiteLight)
+		tall := b.Tall
+		if tr.tall > 0 {
+			tall = tr.tall
+		}
+		lit := render.WhiteLight
+		if tr.inLight {
+			lit = f.Lit(tr.at.X, tr.at.Y, 0, 0)
+		}
+		look.(world.BodyLook).Body(f, cam, box, world.Z{Height: tall}, s.g.atlas, b, tr.turn,
+			tr.whole, render.Appearance{Sway: tr.sway}, lit)
 	}
 	cut.Cutout(false)
 	f.DrawCutout()
@@ -267,6 +278,21 @@ var (
 	leftSun  = light.Distant{Dir: [3]float32{-0.354, 0.354, 0.866}, Strength: 1, Ambient: 0.3}
 	rightSun = light.Distant{Dir: [3]float32{0.354, -0.354, 0.866}, Strength: 1, Ambient: 0.3}
 )
+
+// the sun gone: a glimmer of light and less of the sky
+var night = light.Distant{Dir: [3]float32{-0.354, 0.354, 0.866}, Strength: 0.02, Ambient: 0.05}
+
+// pillar is a green box 16 a side as tall as a body 40 wide and 30 tall, stretched or not
+func pillar(stretched bool) world.Body {
+	return world.Body{
+		Wide:      40,
+		Tall:      30,
+		Stretched: stretched,
+		Parts: []world.Part{{Shape: world.Box, To: [3]float32{0, 0, 30}, Wide: 16,
+			Tip: 16}},
+		Paints: []world.Paint{{Colour: headGreen}},
+	}
+}
 
 // the eye looks north-west: turned so, the mark hangs across its look, to its right
 const markRight = -math.Pi / 4
@@ -534,5 +560,89 @@ func TestBodies_ThroughAnEyeLookingSteeplyDownACardLiesWhereItsBodyStands(t *tes
 		dx > 5 || dy < -5 || dy > 5 {
 		t.Errorf("through an eye the card's greens stand (%.1f, %.1f) off the whole body's, "+
 			"want them in one place", dx, dy)
+	}
+}
+
+func TestBodies_ABoxStandsWholeAsItsCardDoesInTheSameLight(t *testing.T) {
+	crate := world.Body{
+		Wide: 40,
+		Tall: 60,
+		Parts: []world.Part{
+			{Shape: world.Box, To: [3]float32{0, 0, 50}, Wide: 24, Tip: 16},
+			// lying along x on its top: a box across the other
+			{Shape: world.Box, From: [3]float32{-14, 0, 54}, To: [3]float32{14, 0, 54},
+				Wide: 10, Tip: 8},
+		},
+		Paints: []world.Paint{{Colour: headGreen}},
+	}
+	g := newLawn(t, leftSun, air.Weather{}, false, crate)
+	// unturned, its south side shows on the screen's left, under the sun, its east side on the
+	// right, in the shade
+	whole := g.seen(placed{at: middle, whole: true})
+	card := g.seen(placed{at: middle})
+	if whole.greens == 0 || card.greens == 0 {
+		t.Fatalf("the box's greens show in %d pixels whole and %d as a card, want both",
+			whole.greens, card.greens)
+	}
+	if lo, hi := whole.greens*8/10, whole.greens*12/10; card.greens < lo || card.greens > hi {
+		t.Errorf("the box's card's greens cover %d pixels, the whole box's %d; want them alike",
+			card.greens, whole.greens)
+	}
+	if d := card.greensAt - whole.greensAt; d < -2 || d > 2 {
+		t.Errorf("the box's card's greens stand about column %.1f, the whole box's about %.1f; "+
+			"want them in one place", card.greensAt, whole.greensAt)
+	}
+	if d := card.green / whole.green; d < 0.9 || d > 1.12 {
+		t.Errorf("the box's card's greens are %.0f green, the whole box's %.0f; want them lit "+
+			"alike", card.green, whole.green)
+	}
+	if whole.leftLit < whole.rightLit+10 {
+		t.Errorf("the box's sides are %.0f green on the left under the sun and %.0f on the "+
+			"right, want the sunny one lighter", whole.leftLit, whole.rightLit)
+	}
+}
+
+func TestBodies_APaintThatShinesKeepsItsColourByNightWholeAndAsCards(t *testing.T) {
+	g := newLawn(t, night, air.Weather{}, false, headedOf(world.Paint{Colour: headGreen}),
+		headedOf(world.Paint{Colour: headGreen, Shines: true}))
+	for _, whole := range []bool{true, false} {
+		plain := g.seen(placed{at: middle, whole: whole, inLight: true})
+		shining := g.seen(placed{at: middle, kind: 1, whole: whole, inLight: true})
+		if shining.greens == 0 || shining.green < float32(headGreen.G)-10 {
+			t.Errorf("by night (whole %v) a head that shines shows in %d pixels %.0f green, "+
+				"want it as green as its paint, %d", whole, shining.greens, shining.green,
+				headGreen.G)
+		}
+		if plain.greens > shining.greens/4 {
+			t.Errorf("by night (whole %v) a plain head shows green in %d pixels, one that "+
+				"shines in %d; want the plain one dark", whole, plain.greens, shining.greens)
+		}
+	}
+}
+
+func TestBodies_AStretchedBodyStandsAsTallAsItsEntityWholeAndAsACard(t *testing.T) {
+	g := newLawn(t, leftSun, air.Weather{}, false, pillar(true), pillar(false))
+	for _, whole := range []bool{true, false} {
+		own := g.seen(placed{at: middle, whole: whole, tall: 30})
+		twice := g.seen(placed{at: middle, whole: whole, tall: 60})
+		kept := g.seen(placed{at: middle, kind: 1, whole: whole, tall: 60})
+		if own.greens == 0 {
+			t.Fatalf("the pillar (whole %v) shows no green", whole)
+		}
+		if r := float32(twice.greens) / float32(own.greens); r < 1.5 || r > 2.3 {
+			t.Errorf("a stretched pillar (whole %v) twice as tall shows in %d pixels, as tall "+
+				"as its body in %d; want about twice as many", whole, twice.greens, own.greens)
+		}
+		if r := float32(kept.greens) / float32(own.greens); r < 0.9 || r > 1.1 {
+			t.Errorf("a pillar not stretched (whole %v) on an entity twice as tall shows in %d "+
+				"pixels, as tall as its body in %d; want it as tall as its body", whole,
+				kept.greens, own.greens)
+		}
+	}
+	whole := g.seen(placed{at: middle, whole: true, tall: 60})
+	card := g.seen(placed{at: middle, tall: 60})
+	if lo, hi := whole.greens*8/10, whole.greens*12/10; card.greens < lo || card.greens > hi {
+		t.Errorf("a stretched pillar's card shows in %d pixels, the whole pillar in %d; want "+
+			"them alike", card.greens, whole.greens)
 	}
 }

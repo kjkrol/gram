@@ -144,7 +144,8 @@ fn upright(p: vec3<f32>, base: vec3<f32>) -> vec3<f32> {
 // fs_main is the sprite's texel in its light, turned to the Fog as hazed as it is; what is less
 // than half there is left out, the depth kept for what shows, and so is what gives way over
 // something uncovered. A body's card is its paint in the
-// tone of the way out of the body there (world's body.wgsl), as the body whole is lit.
+// tone of the way out of the body there (world's body.wgsl), as the body whole is lit, and no
+// darker than its paint where that shines.
 @fragment
 fn fs_main(b: Board) -> @location(0) vec4<f32> {
     let c = imageSrc0At(b.uv);
@@ -152,8 +153,13 @@ fn fs_main(b: Board) -> @location(0) vec4<f32> {
         discard;
     }
     var rgb = c.rgb;
+    var glow = vec3<f32>(0.0);
     if b.ways.z > 0.5 {
-        rgb *= shapeTone(cardFacing(imageSrc0At(b.uv + b.ways.xy), b.sun));
+        let ways = imageSrc0At(b.uv + b.ways.xy);
+        rgb *= shapeTone(cardFacing(ways, b.sun));
+        if shapeWaysShine(ways.b) {
+            glow = c.rgb;
+        }
     }
     var light = b.light.rgb * b.shade;
     let shelter = shelterOf(b.taking);
@@ -161,7 +167,7 @@ fn fs_main(b: Board) -> @location(0) vec4<f32> {
         // under a roof, the light that gets in at the pixel and none of the open air's shade
         light = shelteredLight(b.world, shelter - 1u, b.light.rgb);
     }
-    return vec4<f32>(mix(rgb * light, U.Fog * c.a, b.light.a), c.a);
+    return vec4<f32>(mix(max(rgb * light, glow), U.Fog * c.a, b.light.a), c.a);
 }
 
 // cardFacing is how squarely a body faces the light where its card's texel of ways says: the
@@ -171,5 +177,5 @@ fn fs_main(b: Board) -> @location(0) vec4<f32> {
 fn cardFacing(ways: vec4<f32>, sun: vec3<f32>) -> f32 {
     let across = ways.rg * 2.0 - 1.0;
     let toward = sqrt(max(1.0 - dot(across, across), 0.0));
-    return dot(vec3<f32>(across, toward), sun) - shapeUnder * ways.b;
+    return dot(vec3<f32>(across, toward), sun) - shapeUnder * shapeWaysUp(ways.b);
 }

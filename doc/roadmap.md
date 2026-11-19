@@ -75,8 +75,6 @@ What is left to do. Take an item out when it lands.
   its cast would have to follow the ground as the sun's bake does.
 - **Clouds shading themselves** — the cover's own shade is the one look of a cloud's thickness;
   a cloud lit by the sun from above and dark below is not drawn.
-- **Bodies for what stands** — a lantern, a bridge's pier, a wagon as a `world.Body`: a box among
-  its shapes, a paint that shines by itself; after the trees, by the same ladder.
 - **Bodies that move** — people as bodies, their parts moved by a pose a frame of their animation,
   their cards a view a frame; the stage after what stands.
 - **Bodies' cards, further** — a second row of views for a camera looking level and a third

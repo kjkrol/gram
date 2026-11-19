@@ -59,13 +59,15 @@ const (
 )
 
 // the walls of a stretch standing, by bit: on its left and its right going along it, at its
-// beginning and at its end; and whether it is a piece of the frame round a mouth
+// beginning and at its end; whether it is a piece of the frame round a mouth; and whether it is
+// a chamber's wall across a way in, standing round the doorway of the tunnel coming in by it
 const (
 	wallLeft = 1 << iota
 	wallRight
 	wallBegin
 	wallEnd
 	framed
+	doorway
 	// the look of its kind of structure, an index into the shader's table, from here on
 	lookShift = iota
 	faceBits  = 1<<lookShift - 1
@@ -90,6 +92,10 @@ var (
 
 // how many straight pieces a stretch turning in its cell is laid in
 const bends = 4
+
+// how far apart a structure's lamps hang under its roof, in its room's heights, as the shader
+// hangs them
+const lampEvery = 6
 
 // tubes draws what lies under the ground from inside, a stretch an instance, as published once
 // a frame: every sunk floor of the board, whoever built it
@@ -390,30 +396,106 @@ func frame(dst []float32, end, u geom.Vec, floor, climb, in float32, f cell.Floo
 		b.X, b.Y, floor+f.Clear+gap, top-floor-f.Clear-gap, faces+look, 0, 0, 0)
 }
 
-// room appends to dst a whole cell's stretch, from its west edge to its east, a wall on every
-// side no floor of its storey lies beyond; look is its kind's
+// room appends to dst a whole cell's stretch, from its west edge to its east, its lamps counted
+// so a row of them hangs over its chamber's middle, and what stands across each of its sides as
+// collision walls a room: nothing where its links lead on into its chamber, a wall round the
+// doorway of a tunnel of its storey coming in by it, else a wall; look is its kind's
 func (r *tubes) room(dst []float32, c cell.ID, f cell.Floor, m geom.Vec, z,
 	look float32) []float32 {
 	brd := r.p.board.Read(0).Board()
 	g := brd.Grid
 	half := g.CellSpan() / 2
+	west, east := r.span(c, f)
+	from := lampsFrom(m.X-half, (west+east)/2, f.Clear)
 	walls := float32(0)
-	for way, wall := range map[[2]int]float32{
-		{0, -1}: wallRight, {0, 1}: wallLeft, {-1, 0}: wallBegin, {1, 0}: wallEnd,
-	} {
-		open := false
-		if d, ok := grid.Direction(g, way[0], way[1]); ok {
-			if n, ok := g.Toward(c, d); ok {
-				nb := brd.Built(n)
-				open = nb.Storey(f.Storey).Dug()
-			}
+	for _, s := range [4]struct {
+		dx, dy int
+		wall   float32
+	}{{0, -1, wallRight}, {0, 1, wallLeft}, {-1, 0, wallBegin}, {1, 0, wallEnd}} {
+		way, ok := grid.Direction(g, s.dx, s.dy)
+		var n cell.ID
+		if ok {
+			n, ok = g.Toward(c, way)
 		}
-		if !open {
-			walls += wall
+		if !ok {
+			walls += s.wall
+			continue
+		}
+		nb := brd.Built(n)
+		nf := *nb.Storey(f.Storey)
+		switch across(f, nf, way, g.Opposite(way)) {
+		case sideWalled:
+			walls += s.wall
+		case sideDoorway:
+			_, nl := brd.Map().Top(n)
+			step := g.Step(way)
+			l := f32.Hypot(step.X, step.Y)
+			dst = doorwayOf(dst, geom.NewVec(m.X+step.X/2, m.Y+step.Y/2),
+				geom.NewVec(step.X/l, step.Y/l), half, z, f, nf, nl+nf.Height, look)
 		}
 	}
-	return append(dst, m.X-half, m.Y, z, half, m.X+half, m.Y, z, f.Clear, walls+look, m.X-half,
-		0, 0)
+	return append(dst, m.X-half, m.Y, z, half, m.X+half, m.Y, z, f.Clear, walls+look, from, 0, 0)
+}
+
+// span is where the chamber of the cell c, its floor f, begins and ends along c's row, the
+// middles of its cells furthest west and east
+func (r *tubes) span(c cell.ID, f cell.Floor) (west, east float32) {
+	brd := r.p.board.Read(0).Board()
+	g := brd.Grid
+	ends := [2]float32{}
+	for i, dx := range [2]int{-1, 1} {
+		way, ok := grid.Direction(g, dx, 0)
+		at := c
+		for floor := f; ok && floor.Links.Has(way); {
+			var n cell.ID
+			if n, ok = g.Toward(at, way); ok {
+				nb := brd.Built(n)
+				at, floor = n, *nb.Storey(f.Storey)
+			}
+		}
+		ends[i] = g.CellCenter(at).X
+	}
+	return ends[0], ends[1]
+}
+
+// lampsFrom is how far along its row of lamps a chamber's cell begins at x, for a row to hang
+// over the chamber's middle at mid, its room clear high: the shader hangs one halfway between
+// the beginnings of two
+func lampsFrom(x, mid, clear float32) float32 {
+	return lampEvery*clear/2 + x - mid
+}
+
+// what stands across a side of a chamber's cell
+const (
+	sideOpen = iota
+	sideWalled
+	sideDoorway
+)
+
+// across is what stands across the side of a chamber's cell, its floor f, toward the neighbour
+// along way, its floor of f's storey nf and the way back from it back: as collision walls a
+// room, nothing where f's links lead on into a room, a wall round a doorway where a tunnel's
+// links lead in, else a wall
+func across(f, nf cell.Floor, way, back int) int {
+	switch {
+	case nf.Room() && nf.Width == 0 && f.Links.Has(way):
+		return sideOpen
+	case nf.Room() && nf.Width > 0 && nf.Links.Has(back):
+		return sideDoorway
+	}
+	return sideWalled
+}
+
+// doorwayOf appends to dst the wall across the side of a chamber's cell at edge, half wide either
+// side of it, the way out u, the chamber's floor f at z: round the doorway of the tunnel nf coming
+// in by it, its floor at its cell's middle at zb and meeting the chamber's halfway, and closing
+// the tunnel's end where it reaches over the chamber's roof or under its floor; look is the
+// chamber's kind's
+func doorwayOf(dst []float32, edge, u geom.Vec, half, z float32, f, nf cell.Floor, zb,
+	look float32) []float32 {
+	low := (zb - z) / 2
+	return append(dst, edge.X, edge.Y, z, half, edge.X-u.X, edge.Y-u.Y, z, f.Clear, doorway+look,
+		nf.Width/2, low, low+nf.Clear)
 }
 
 func (r *tubes) Compose(f *render.Frame, _ camera.Camera) {

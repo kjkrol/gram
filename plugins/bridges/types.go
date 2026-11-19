@@ -43,9 +43,11 @@ type deckRow struct {
 	Dir    geom.Vec
 }
 
+// a pier: where it stands, from its foot to under the deck, facing along its bridge
 type pierRow struct {
 	At          geom.Vec
 	Bottom, Top float32
+	Dir         geom.Vec
 }
 
 // a bridge whole: its heads' middles, the way from the first to the second, its deck's level
@@ -126,7 +128,7 @@ func (t *Types) Define(name string, spec Spec) {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(r.At.X-half, r.At.Y-half),
 				spec.Pier, spec.Pier)}
 		}),
-		comp.Const(world.Velocity{}),
+		comp.Load(func(r pierRow) world.Velocity { return world.Velocity{Dir: r.Dir} }),
 		comp.Load(func(r pierRow) world.Z {
 			return world.Z{Altitude: r.Bottom, Height: max(r.Top-r.Bottom, 0)}
 		}),

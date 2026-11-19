@@ -4,8 +4,9 @@
 // U.TubeEye). The faces of a stretch, six vertices each: its floor, its roof, the wall on its
 // left and on its right going from a to b, and the walls closing it at a and at b; faces says
 // which of the four walls stand, a bit each, and past them whether it is the frame round a
-// mouth, in the light of the day, and past that the look of its kind, an index into
-// U.TubeLooks. Where a stretch turns into another at b its left wall ends
+// mouth, in the light of the day, whether it is a chamber's wall across a way in at a, drawn in
+// four pieces round the doorway of the tunnel coming in, and past that the look of its kind, an
+// index into U.TubeLooks. Where a stretch turns into another at b its left wall ends
 // c.z short of b and its right wall as far past it, and where one turns into it at a its left
 // wall begins c.w past a and its right wall as far before it, so the two meet on the plane
 // between them.
@@ -23,13 +24,19 @@ struct Tube {
 
 const faceFloor = 0u;
 const faceRoof = 1u;
+const faceAcross = 4u;
+
+const framedBit = 16u;
+const doorwayBit = 32u;
+const lookShift = 6u;
 
 @vertex
 fn vs_main(
     @builtin(vertex_index) vid: u32,
     @location(0) a: vec4<f32>, // where it begins on its floor, and half its width
     @location(1) b: vec4<f32>, // where it ends on its floor, and its room up to its roof
-    // its faces, how far along its line it begins, its mitres at b and at a
+    // its faces, how far along its line it begins, its mitres at b and at a; a wall across a
+    // way in: its faces, half its doorway's width, the doorway's floor and roof over a's
     @location(2) c: vec4<f32>,
 ) -> Tube {
     var across = array<f32, 6>(0.0, 1.0, 0.0, 1.0, 1.0, 0.0);
@@ -43,9 +50,11 @@ fn vs_main(
     let n = vec2<f32>(-d.y, d.x);
     let half = a.w;
     let clear = b.w;
+    let faces = u32(c.x);
     var p = a.xyz;
     var at = vec2<f32>(0.0);
     var stands = true;
+    var shade = face;
     switch face {
         case 0u, 1u: { // the floor, the roof
             let side = v * 2.0 - 1.0;
@@ -61,13 +70,40 @@ fn vs_main(
             let cut = side * (c.w * (1.0 - u) - c.z * u);
             p = a.xyz + run * u + vec3<f32>(n * side * half + d * cut, v * clear);
             at = vec2<f32>(c.y + u * length + cut, v * clear);
-            stands = (u32(c.x) & (1u << (face - 2u))) != 0u;
+            stands = (faces & (1u << (face - 2u))) != 0u;
         }
         default: { // the walls closing it
             p = a.xyz + run * f32(face - 4u) + vec3<f32>(n * (u * 2.0 - 1.0) * half, v * clear);
             at = vec2<f32>((u * 2.0 - 1.0) * half, v * clear);
-            stands = (u32(c.x) & (1u << (face - 2u))) != 0u;
+            stands = (faces & (1u << (face - 2u))) != 0u;
         }
+    }
+    if (faces & doorwayBit) != 0u {
+        // beside the doorway either side, over it and under it, across at a: the chamber's side,
+        // and the tunnel's end where it reaches over the chamber's roof or under its floor, each
+        // piece from one height to the other whichever is higher
+        var lo = vec2<f32>(-half, 0.0);
+        var hi = vec2<f32>(half, clear);
+        switch face {
+            case 0u: {
+                hi.x = -c.y;
+            }
+            case 1u: {
+                lo.x = c.y;
+            }
+            case 2u: {
+                lo = vec2<f32>(-c.y, c.w);
+                hi = vec2<f32>(c.y, clear);
+            }
+            default: {
+                lo = vec2<f32>(-c.y, c.z);
+                hi = vec2<f32>(c.y, 0.0);
+            }
+        }
+        at = mix(lo, hi, vec2<f32>(u, v));
+        p = a.xyz + vec3<f32>(n * at.x, at.y);
+        stands = face < 4u;
+        shade = faceAcross;
     }
     var t: Tube;
     let off = p.xy - U.TubeEye.xy;
@@ -76,11 +112,11 @@ fn vs_main(
         t.clip = vec4<f32>(2.0, 2.0, 2.0, 1.0); // off the picture
     }
     t.world = p;
-    t.face = face;
+    t.face = shade;
     t.at = at;
     t.room = vec2<f32>(2.0 * half, clear);
-    t.frame = f32((u32(c.x) >> 4u) & 1u);
-    t.look = u32(c.x) >> 5u;
+    t.frame = f32((faces & framedBit) / framedBit);
+    t.look = faces >> lookShift;
     return t;
 }
 

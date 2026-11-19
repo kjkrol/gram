@@ -2,9 +2,10 @@
 // (body_shot.wgsl) and for a Look standing them in relief. A part of a body, read off its kind's
 // row of the bodies' table (image0, world's Body.row), is a card of six vertices across the line
 // of sight on the part's front; in the pixel the line of sight is met with the part itself, a
-// spheroid (a ball squashed or drawn out along its line) or a cone (cut short), all in the
+// spheroid (a ball squashed or drawn out along its line), a cone (cut short) or a box, all in the
 // body's own frame, x across, y deep and z up off the middle of its foot. A part is painted in
-// its paint, dotted with the paint's lit specks and its dots, and lit in tones (shapeTone).
+// its paint, dotted with the paint's lit specks and its dots, and lit in tones (shapeTone), no
+// darker than its paint where that shines.
 
 struct ShapeCard {
     @builtin(position) clip: vec4<f32>,
@@ -13,10 +14,10 @@ struct ShapeCard {
     @location(0) at: vec3<f32>,
     @location(1) deep: vec2<f32>, // the card's clip z and w
     // the line of sight in that space, its way where the lines all run one way, else the eye;
-    // the part's shape
+    // the part's shape, 4 more where its paint shines (shapeKind, shapeShines)
     @location(2) @interpolate(flat) ray: vec4<f32>,
     // a spheroid's line and one over half its length; a cone's line from its From to its To and
-    // half its width at its To
+    // half its width at its To; a box's line and half its thickness
     @location(3) @interpolate(flat) axis: vec4<f32>,
     // its paint, and how many of the dots' cells a unit of the part's space holds, 0 undotted
     @location(4) @interpolate(flat) paint: vec4<f32>,
@@ -27,13 +28,14 @@ struct ShapeCard {
     // the light on it, and how far it is turned to the Fog
     @location(7) @interpolate(flat) light: vec4<f32>,
     // where the part's cells begin; how its body is turned about its foot, the cosine and the
-    // sine; one over half a spheroid's width, or half a cone's width at its From
+    // sine; one over half a spheroid's width, or half a cone's width at its From, or a box's
     @location(8) @interpolate(flat) more: vec4<f32>,
 }
 
 // ShapeMet is where a line of sight meets a part: the way out of the part there, in the body's
 // frame, how far along the line, in its way's lengths and under 0 where it meets none, where in
-// the part's space, and how far up a cone, 0 at its From to 1 at its To.
+// the part's space, and how far up a cone, 0 at its From to 1 at its To where it stands straight
+// up, the less the less it rises.
 struct ShapeMet {
     out: vec3<f32>,
     far: f32,
@@ -168,13 +170,19 @@ fn shapeCardOf(
     }
     run = normalize(run);
     let side = normalize(cross(way, run));
-    let r = max(ra, rb) * shapeCardRoom;
+    let shape = round(kind.x * 255.0);
+    let told = shape + select(0.0, 4.0, kind.z > 0.5);
+    // how far the part reaches off its line: a box's corners the furthest
+    var off = max(ra, rb);
+    if shape > 2.5 {
+        off = length(vec2<f32>(ra, rb));
+    }
+    let r = off * shapeCardRoom;
     let k = vid % 6u;
     var p = mix(a - run * r, b + run * r, along[k]) + side * ((across[k] * 2.0 - 1.0) * r);
     // on the part's front: nothing of it lies nearer the eye than its card, so a depth written
     // no nearer than the card's is tested before the pixel is worked out
-    p += way * (min(dot(a, way), dot(b, way)) - max(ra, rb) - dot(p, way));
-    let shape = round(kind.x * 255.0);
+    p += way * (min(dot(a, way), dot(b, way)) - off - dot(p, way));
     var girth = ra;
     if shape < 1.5 {
         let mid = 0.5 * (a + b);
@@ -186,7 +194,7 @@ fn shapeCardOf(
         if !ortho {
             ray = shapeSqueezed(eye - mid, w, r1, half);
         }
-        (*c).ray = vec4<f32>(ray, shape);
+        (*c).ray = vec4<f32>(ray, told);
         (*c).axis = vec4<f32>(w, 1.0 / half);
         girth = 1.0 / r1;
     } else {
@@ -195,7 +203,7 @@ fn shapeCardOf(
         if !ortho {
             ray = eye - a;
         }
-        (*c).ray = vec4<f32>(ray, shape);
+        (*c).ray = vec4<f32>(ray, told);
         (*c).axis = vec4<f32>(line, rb);
     }
     let col = 1.0 + shapePaintTexels * round(kind.y * 255.0);
@@ -230,10 +238,40 @@ fn shapeMet(c: ShapeCard, ortho: bool) -> ShapeMet {
         from = c.ray.xyz;
         way = c.at - c.ray.xyz;
     }
-    if c.ray.w < 1.5 {
+    let shape = shapeKind(c);
+    if shape < 1.5 {
         return shapeSpheroidMet(from, way, c.axis, c.more.w);
     }
-    return shapeConeMet(from, way, c.axis.xyz, c.more.w, c.axis.w);
+    if shape < 2.5 {
+        return shapeConeMet(from, way, c.axis.xyz, c.more.w, c.axis.w);
+    }
+    return shapeBoxMet(from, way, c.axis.xyz, c.more.w, c.axis.w);
+}
+
+// shapeKind is the card's part's shape: 1 a spheroid, 2 a cone, 3 a box.
+fn shapeKind(c: ShapeCard) -> f32 {
+    return c.ray.w - select(0.0, 4.0, c.ray.w > 3.5);
+}
+
+// shapeShines is whether the card's part's paint shines.
+fn shapeShines(c: ShapeCard) -> bool {
+    return c.ray.w > 3.5;
+}
+
+// shapeWaysBlue is the blue of a photograph of the ways out of a body: how far up a cone in
+// its lower half, a paint that shines whole (shapeWaysUp, shapeWaysShine).
+fn shapeWaysBlue(up: f32, shines: bool) -> f32 {
+    return select(0.5 * up, 1.0, shines);
+}
+
+// shapeWaysUp is how far up a cone the blue of a photograph of the ways says.
+fn shapeWaysUp(blue: f32) -> f32 {
+    return min(2.0 * blue, 1.0);
+}
+
+// shapeWaysShine is whether the blue of a photograph of the ways says its paint shines.
+fn shapeWaysShine(blue: f32) -> bool {
+    return blue > 0.75;
 }
 
 // shapeColour is what the part is painted in where met: its paint, or the dot of the cell there.
@@ -309,6 +347,8 @@ fn shapeConeMet(from: vec3<f32>, way: vec3<f32>, line: vec3<f32>, ra: f32, rb: f
     if m0 < 1e-8 {
         return m;
     }
+    // how much it rises along its line: a cone lying darkens no end
+    let rises = max(line.z, 0.0) * inverseSqrt(m0);
     // its ends
     if m1 < 0.0 {
         let q = from * m2 - way * m1;
@@ -326,7 +366,7 @@ fn shapeConeMet(from: vec3<f32>, way: vec3<f32>, line: vec3<f32>, ra: f32, rb: f
             m.out = line * inverseSqrt(m0);
             m.far = s;
             m.at = from + way * s;
-            m.up = 1.0;
+            m.up = rises;
             return m;
         }
     }
@@ -348,6 +388,56 @@ fn shapeConeMet(from: vec3<f32>, way: vec3<f32>, line: vec3<f32>, ra: f32, rb: f
     m.at = from + way * s;
     m.out = normalize(m0 * (m0 * m.at + rr * line * ra) - line * hy * y);
     m.far = s;
-    m.up = y / m0;
+    m.up = y / m0 * rises;
+    return m;
+}
+
+// shapeBoxFrame is a box's ways in the body's frame, its columns: across its line level (x
+// where it stands straight up), the third way and along it (world's Part.frame, the same).
+fn shapeBoxFrame(line: vec3<f32>) -> mat3x3<f32> {
+    var along = vec3<f32>(0.0, 0.0, 1.0);
+    let long = length(line);
+    if long > 1e-6 {
+        along = line / long;
+    }
+    var across = vec3<f32>(1.0, 0.0, 0.0);
+    let level = vec3<f32>(-along.y, along.x, 0.0);
+    if dot(level, level) > 1e-6 {
+        across = normalize(level);
+    }
+    return mat3x3<f32>(across, cross(along, across), along);
+}
+
+// shapeBoxMet is where the line from..from+way, counted off the box's From, first meets the
+// box along line, ra across it level either way and rb the third.
+fn shapeBoxMet(from: vec3<f32>, way: vec3<f32>, line: vec3<f32>, ra: f32, rb: f32) -> ShapeMet {
+    var m: ShapeMet;
+    m.far = -1.0;
+    let f = shapeBoxFrame(line);
+    let o = (from - 0.5 * line) * f;
+    // a way along a face meets its plane nowhere: nudged, far off
+    var d = way * f;
+    d = select(d, vec3<f32>(1e-8), abs(d) < vec3<f32>(1e-8));
+    let h = vec3<f32>(ra, rb, 0.5 * length(line));
+    let t1 = (-h - o) / d;
+    let t2 = (h - o) / d;
+    let near = min(t1, t2);
+    let far = max(t1, t2);
+    let enter = max(max(near.x, near.y), near.z);
+    let leave = min(min(far.x, far.y), far.z);
+    if leave < enter || enter < 0.0 {
+        return m;
+    }
+    // the way out of the face it enters by
+    var n = vec3<f32>(0.0, 0.0, -sign(d.z));
+    if enter == near.x {
+        n = vec3<f32>(-sign(d.x), 0.0, 0.0);
+    } else if enter == near.y {
+        n = vec3<f32>(0.0, -sign(d.y), 0.0);
+    }
+    m.out = f * n;
+    m.far = enter;
+    m.at = from + way * enter;
+    m.up = 0.0;
     return m;
 }

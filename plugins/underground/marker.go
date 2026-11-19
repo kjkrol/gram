@@ -46,19 +46,20 @@ type marker struct {
 	outline []geom.Vec
 }
 
-// marked is what the marker draws: the courses' stretches on the ground over them, the units
-// under the ground, and every tunnel in hand
+// marked is what the marker draws: the courses' stretches along their floors, the units under
+// the ground where they stand, and every tunnel in hand
 type marked struct {
 	at      uint64 // one more than the board's changes the courses hold
 	shown   bool
 	courses []course
 	units   []geom.Vec
+	feet    []float32 // how high each of units stands
 	heights []float32 // the ground over each of units
 	hands   []inHand
 	points  []geom.Vec
 }
 
-// a stretch of a course: its ends on the ground over it
+// a stretch of a course: its ends on its floor
 type course struct{ a, b [3]float32 }
 
 // inHand is a tunnel in hand at its first head's level: the cell it is marked from, the one
@@ -98,20 +99,9 @@ func (r *marker) Publish() {
 		b.at = v
 		b.courses = b.courses[:0]
 		r.p.tubes.Publish()
-		tubes := r.p.tubes.bufs[1-r.p.tubes.front]
-		for k := 0; k+tubeFloats <= len(tubes); k += tubeFloats {
-			t := tubes[k : k+tubeFloats]
-			if int(t[8])&faceBits != wallLeft|wallRight {
-				continue // a chamber's cell, a mouth's frame
-			}
-			a, c := geom.NewVec(t[0], t[1]), geom.NewVec(t[4], t[5])
-			b.courses = append(b.courses, course{
-				a: [3]float32{a.X, a.Y, heights.At(a)},
-				b: [3]float32{c.X, c.Y, heights.At(c)},
-			})
-		}
+		b.courses = coursesOf(b.courses[:0], r.p.tubes.bufs[1-r.p.tubes.front])
 	}
-	b.units, b.heights = b.units[:0], b.heights[:0]
+	b.units, b.feet, b.heights = b.units[:0], b.feet[:0], b.heights[:0]
 	if b.shown && brd.Dug() && r.units != nil {
 		for r.units.All(); r.units.Next(); {
 			cur := r.units.Cursor()
@@ -124,6 +114,7 @@ func (r *marker) Publish() {
 				}
 				if top := heights.At(at); zs[i].Altitude+zs[i].Height < top {
 					b.units, b.heights = append(b.units, at), append(b.heights, top)
+					b.feet = append(b.feet, zs[i].Altitude)
 				}
 			}
 		}
@@ -154,6 +145,19 @@ func (r *marker) Publish() {
 		}
 		b.hands = append(b.hands, e)
 	}
+}
+
+// coursesOf appends to dst the courses of the tunnels' stretches among the tubes' stretches, each
+// along its floor, so a tunnel going down under a hill is drawn going down
+func coursesOf(dst []course, tubes []float32) []course {
+	for k := 0; k+tubeFloats <= len(tubes); k += tubeFloats {
+		t := tubes[k : k+tubeFloats]
+		if int(t[8])&faceBits != wallLeft|wallRight {
+			continue // a chamber's cell, a mouth's frame, a wall across a way in
+		}
+		dst = append(dst, course{a: [3]float32{t[0], t[1], t[2]}, b: [3]float32{t[4], t[5], t[6]}})
+	}
+	return dst
 }
 
 // Swap has what was published last drawn.
@@ -202,7 +206,7 @@ func (r *marker) Compose(f *render.Frame, cam camera.Camera) {
 			x0+(x1-x0)*0.75, y0+(y1-y0)*0.75, 2, courseLine)
 	}
 	for i, u := range d.units {
-		x, y := cam.Project(u.X, u.Y, d.heights[i])
+		x, y := cam.Project(u.X, u.Y, d.feet[i])
 		q := render.Corners{{x - 3, y - 3}, {x + 3, y - 3}, {x - 3, y + 3}, {x + 3, y + 3}}
 		f.Quad(render.OnTop(unitLevel), q, [4]color.RGBA{unitMark, unitMark, unitMark, unitMark})
 	}
