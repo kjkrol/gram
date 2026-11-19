@@ -58,11 +58,11 @@ func TestGround_LaysEveryCellToItsCornersWhateverItsKindsHeight(t *testing.T) {
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Hex(4, 4, 20), &cell.MultipleOccupancy{}, w)
 	brd := b.Read(0).Board()
-	forest := brd.At(1, 1)
-	b.Write().Board().Set(forest, cell.Kind{Name: cell.Named("forest"), Pace: 1, Height: 8})
+	tall := brd.At(1, 1)
+	b.Write().Board().Set(tall, cell.Kind{Name: cell.Named("tall"), Pace: 1, Height: 8})
 	r := relief.New(brd, nil)
 	r.SetHeights(func(p geom.Vec) float32 { return p.X/10 + p.Y/20 })
-	r.SetCorners(forest, relief.Corners{3})
+	r.SetCorners(tall, relief.Corners{3})
 	gridded := func() (bool, look.RenderState) { return false, *b.Res.Render }
 	h := New(w, b, b.Read(0).Drawn(), nil, func() *relief.Relief { return r }, gridded, nil, nil)
 	h.lay()
@@ -94,9 +94,10 @@ func TestGround_LaysEveryCellToItsCornersWhateverItsKindsHeight(t *testing.T) {
 				int(laid[10]), laid[11], rim, o)
 		}
 	})
-	o, _ := brd.Ordinal(forest)
+	o, _ := brd.Ordinal(tall)
 	if top := h.cells[cellFloats*o+2]; top != 3 {
-		t.Errorf("the forest stands to %v, want its ground's 3: a kind's Height is not drawn", top)
+		t.Errorf("the tall kind's cell stands to %v, want its ground's 3: a kind's Height is not "+
+			"drawn", top)
 	}
 }
 

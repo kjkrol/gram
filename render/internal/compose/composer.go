@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"math"
 	"slices"
 	"time"
 
@@ -47,6 +48,9 @@ type Composer struct {
 	start    time.Time
 	draw     func(screen *Image, verts []Vertex, indices []uint16, sheet *Image, place [4]float32)
 	lit      lighting
+
+	// the rectangle of the viewport what is uncovered lies within this frame (Target.UncoveredIn)
+	uncoveredIn [4]float32
 }
 
 // a layer drawn apart since Lay: the depth its ground was drawn into and its window in the frame
@@ -281,6 +285,8 @@ func (c *Composer) setUniforms() {
 type depths struct {
 	w, h, layer  int
 	main, ground *Depth
+	// where what is uncovered lies, made as a source first asks (Frame.DrawUncovered)
+	uncovered *Depth
 }
 
 // the sizes and layers a composer keeps buffers for: a view in layers, split screens and a
@@ -297,6 +303,9 @@ func (c *Composer) depthsFor(screen *Image, layer int) *depths {
 	if len(c.depths) == keptDepths {
 		c.depths[0].main.Release()
 		c.depths[0].ground.Release()
+		if u := c.depths[0].uncovered; u != nil {
+			u.Release()
+		}
 		c.depths = append(c.depths[:0], c.depths[1:]...)
 	}
 	c.depths = append(c.depths, depths{w: w, h: h, layer: layer, main: gfx.NewDepth(),
@@ -314,8 +323,8 @@ func (c *Composer) render(screen *Image, apart bool, layer int) (ground *Depth) 
 	f := &c.frame
 	t := Target{Screen: screen, Pass: Opaque}
 	c.depth, c.ground, c.seen = nil, nil, false
+	var d *depths
 	if len(f.opaque) > 0 {
-		var d *depths
 		if screen != nil {
 			d = c.depthsFor(screen, layer)
 			t.Depth = d.main
@@ -345,10 +354,36 @@ func (c *Composer) render(screen *Image, apart bool, layer int) (ground *Depth) 
 			}
 		}
 	}
+	c.uncover(&t, screen, d)
 	c.cutouts(&t)
 	t.Pass = SeeThrough
 	c.paint(screen, t)
 	return ground
+}
+
+// uncover has the Directs asking draw what they have uncovered into the depth d keeps for it,
+// which the passes after read (Target.Uncovered); none in a frame without a depth
+func (c *Composer) uncover(t *Target, screen *Image, d *depths) {
+	f := &c.frame
+	t.Uncovered, t.UncoveredIn = nil, nil
+	if len(f.uncovered) == 0 || d == nil || t.Depth == nil {
+		return
+	}
+	if d.uncovered == nil {
+		d.uncovered = gfx.NewDepth().Readable()
+	}
+	screen.ClearDepth(d.uncovered)
+	// nothing yet: a rectangle no pixel lies within
+	c.uncoveredIn = [4]float32{math.MaxFloat32, math.MaxFloat32, -math.MaxFloat32,
+		-math.MaxFloat32}
+	into := Target{Screen: screen, Depth: d.uncovered, Pass: Uncovered, Coarse: t.Coarse,
+		UncoveredIn: &c.uncoveredIn}
+	for _, i := range f.uncovered {
+		if i > 0 && c.directs[i-1] != nil {
+			c.directs[i-1].Draw(into, f.cam, Uniforms{c.boxed})
+		}
+	}
+	t.Uncovered, t.UncoveredIn = d.uncovered, &c.uncoveredIn
 }
 
 // cutouts draws the Directs asking for the cutout pass into t's depth, after the ground's depth
@@ -375,8 +410,9 @@ func (c *Composer) renderOver(screen *Image) {
 	f := &c.frame
 	t := Target{Screen: screen, Pass: SeeThrough}
 	c.depth, c.ground, c.seen = nil, nil, false
+	var d *depths
 	if len(c.laid) > 0 && screen != nil {
-		d := c.depthsFor(screen, 0)
+		d = c.depthsFor(screen, 0)
 		for _, l := range c.laid {
 			// a layer drawn straight onto screen left its ground there already
 			if l.ground != d.ground {
@@ -394,6 +430,7 @@ func (c *Composer) renderOver(screen *Image) {
 		}
 		c.seen = c.sightOf(f.cam)
 	}
+	c.uncover(&t, screen, d)
 	c.cutouts(&t)
 	t.Pass = SeeThrough
 	c.paint(screen, t)

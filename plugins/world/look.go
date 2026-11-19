@@ -53,6 +53,15 @@ type UprightLook interface {
 		a render.Appearance, lit render.Illumination)
 }
 
+// BodyLook is a Look that stands the kinds with a body (Atlas.AddBody) in relief: whole, its
+// parts turned about its foot by turn, radians, or as the card of the body for the way the
+// camera looks at it (Bodied.Card).
+type BodyLook interface {
+	Look
+	Body(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource,
+		b *Bodied, turn float32, whole bool, a render.Appearance, lit render.Illumination)
+}
+
 // Lighting is what the world asks of the light as it publishes its entities, a plugin's
 // (Write.SetLighting): it joins its columns to the renderer's query and says how the row i of
 // the chunk at cur casts its shadow and which shade it takes. The frame lights them as drawn
@@ -69,12 +78,14 @@ type FoggyLook interface {
 	Fog(amount float32)
 }
 
-// CanopyLook is a Look showing what lies under the figure it lays next through it as much as
-// opacity says, 0 to 1 whole: a tree's crown over a unit, in a view from above (Slot.Canopy,
-// Read.Canopies).
-type CanopyLook interface {
+// UncoveringLook is a Look that has the figures it lays next uncovered, and give way to those
+// uncovered, while on (Slot.Uncovered, Slot.GivesWay; render.Target.Uncovered). Uncovers
+// reports whether it has laid both since it began: its frame then draws what is uncovered first.
+type UncoveringLook interface {
 	Look
-	Veil(opacity float32)
+	Uncover(on bool)
+	GiveWay(on bool)
+	Uncovers() bool
 }
 
 // CutoutLook is a Look drawing the figures it lays next in the cutout pass while on: whole, cut at
@@ -89,9 +100,9 @@ type CutoutLook interface {
 const FigureLift = ilook.FigureLift
 
 var (
-	_ DirectLook = (*ilook.Flat)(nil)
-	_ LyingLook  = (*ilook.Flat)(nil)
-	_ FoggyLook  = (*ilook.Flat)(nil)
-	_ CanopyLook = (*ilook.Flat)(nil)
-	_ CutoutLook = (*ilook.Flat)(nil)
+	_ DirectLook     = (*ilook.Flat)(nil)
+	_ LyingLook      = (*ilook.Flat)(nil)
+	_ FoggyLook      = (*ilook.Flat)(nil)
+	_ UncoveringLook = (*ilook.Flat)(nil)
+	_ CutoutLook     = (*ilook.Flat)(nil)
 )

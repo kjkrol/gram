@@ -14,6 +14,9 @@ var spritesWGSL string
 //go:embed points.wgsl
 var pointsWGSL string
 
+//go:embed uncovered.wgsl
+var uncoveredWGSL string
+
 var spritesShader = gfx.NewMeshShaderWith("sprites", []byte(spritesWGSL+"\n"),
 	[]gfx.Uniform{
 		{Name: "ViewSize", Size: 2},
@@ -22,6 +25,16 @@ var spritesShader = gfx.NewMeshShaderWith("sprites", []byte(spritesWGSL+"\n"),
 		{Name: "Window", Size: 4},
 		{Name: "Deep", Size: 1},
 		{Name: "Cut", Size: 1},
+		{Name: "Uncovering", Size: 1},
+		{Name: "UncoveredIn", Size: 4},
+	}).Instanced(4)
+
+var uncoveredShader = gfx.NewMeshShaderWith("sprites uncovered", []byte(uncoveredWGSL+"\n"),
+	[]gfx.Uniform{
+		{Name: "ViewSize", Size: 2},
+		{Name: "ViewProj", Size: 16},
+		{Name: "Wrap", Size: 4},
+		{Name: "Window", Size: 4},
 	}).Instanced(4)
 
 var pointsShader = gfx.NewMeshShaderWith("points", []byte(pointsWGSL+"\n"),
@@ -53,6 +66,12 @@ type Sprites struct {
 	fog     float32
 	takes   Taking
 	sun     float32
+	// whether the pieces added next are uncovered, and give way; the uncovered, a piece's four
+	// vec4s each, and whether any piece gives way
+	uncover   bool
+	gives     bool
+	uncovered []float32
+	anyGives  bool
 	// by piece
 	layers  []layer
 	atlases []AtlasSource
@@ -107,6 +126,40 @@ func (s *Sprites) Layer(at At, under bool) {
 // writing the depth, front to back; off, among what is seen through.
 func (s *Sprites) Cutout(on bool) { s.cutout = on }
 
+// Uncover has the pieces added next uncovered: whatever gives way (GiveWay) is left out over
+// them, thinning outwards, where it lies nearer than they do, in a frame with a depth.
+func (s *Sprites) Uncover(on bool) { s.uncover = on }
+
+// Uncovers reports whether any piece gathered is uncovered, and GivesWay whether any gives way:
+// a source holding both asks for the pass (Frame.DrawUncovered).
+func (s *Sprites) Uncovers() bool { return len(s.uncovered) > 0 }
+
+// GivesWay reports whether any piece gathered gives way.
+func (s *Sprites) GivesWay() bool { return s.anyGives }
+
+// GiveWay has the pieces added next give way to those uncovered (Uncover), their own or another
+// source's.
+func (s *Sprites) GiveWay(on bool) { s.gives = on }
+
+// what a piece takes of the shade, with whether it gives way: past a Taking's bits
+func (s *Sprites) taking() float32 {
+	if s.gives {
+		s.anyGives = true
+		return float32(s.takes) + givesWay
+	}
+	return float32(s.takes)
+}
+
+// givesWay marks a piece giving way in the float its Taking rides in (sprites.wgsl's givesWay)
+const givesWay = 256
+
+// bare keeps the last piece added among the uncovered
+func (s *Sprites) bare() {
+	if s.uncover {
+		s.uncovered = append(s.uncovered, s.instances[len(s.instances)-spriteFloats:]...)
+	}
+}
+
 func (s *Sprites) piece(atlas AtlasSource) {
 	if n := len(s.runs); n == 0 || s.runs[n-1].atlas != atlas {
 		s.runs = append(s.runs, spriteRun{atlas: atlas, first: len(s.instances) / spriteFloats})
@@ -125,7 +178,8 @@ func (s *Sprites) Rect(
 	w, h := sx1-sx0, sy1-sy0
 	s.piece(atlas)
 	s.instances = append(s.instances, x0, y0, x1, y1, sx0+u0*w, sy0+v0*h, sx0+u1*w, sy0+v1*h,
-		light[0], light[1], light[2], 0, s.layer.at.Z(), s.fog, float32(s.takes), s.sun)
+		light[0], light[1], light[2], 0, s.layer.at.Z(), s.fog, s.taking(), s.sun)
+	s.bare()
 }
 
 // Take has the pieces added next take the shade takes says.
@@ -142,7 +196,8 @@ func (s *Sprites) Turned(
 	sx0, sy0, sx1, sy1 := atlas.UV(id)
 	s.piece(atlas)
 	s.instances = append(s.instances, x0, y0, x1, y1, sx0, sy0, sx1, sy1,
-		light[0], light[1], light[2], angle, s.layer.at.Z(), s.fog, float32(s.takes), s.sun)
+		light[0], light[1], light[2], angle, s.layer.at.Z(), s.fog, s.taking(), s.sun)
+	s.bare()
 }
 
 // Point adds sprite id of atlas as a point at the middle (x, y) of a box w by h, seen at height z
@@ -173,16 +228,19 @@ func (s *Sprites) Reset() {
 	s.layers, s.atlases, s.cutouts, s.anyCut = s.layers[:0], s.atlases[:0], s.cutouts[:0], false
 	s.points, s.pointRuns = s.points[:0], s.pointRuns[:0]
 	s.layer, s.layered, s.cutout, s.fog, s.takes, s.sun = layer{}, false, false, 0, TakesAll, 0
+	s.uncover, s.gives, s.uncovered, s.anyGives = false, false, s.uncovered[:0], false
 }
 
 // Draw draws the gathered sprites into the target's screen, a viewport cam's size, as cam lays
 // them under the frame's uniforms u, keeping them for another draw till Reset; into the target's
 // depth, where it has one, each at its height, what shows of it written. In the cutout pass the
 // pieces added under Cutout alone, cut at half their alpha, front to back; in the pass seen
-// through the rest and the points. A camera that cannot say its lines of sight draws none.
+// through the rest and the points; in the pass of what is uncovered, where those added under
+// Uncover lie. A camera that cannot say its lines of sight draws none.
 func (s *Sprites) Draw(t Target, cam camera.Camera, u Uniforms) {
-	cutting := t.Pass == Cutout
-	if t.Screen == nil || len(s.runs) == 0 && len(s.pointRuns) == 0 || cutting && !s.anyCut {
+	cutting, uncovering := t.Pass == Cutout, t.Pass == Uncovered
+	if t.Screen == nil || len(s.runs) == 0 && len(s.pointRuns) == 0 || cutting && !s.anyCut ||
+		uncovering && (len(s.uncovered) == 0 || t.Depth == nil) {
 		return
 	}
 	rays, ok := cam.(camera.Rays)
@@ -208,10 +266,31 @@ func (s *Sprites) Draw(t Target, cam camera.Camera, u Uniforms) {
 	// the camera's window on the world: where it begins and how much of it it spans
 	s.set("Window", f.Origin[0], f.Origin[1], w*f.DX[0], h*f.DY[1])
 	s.opts.Depth, s.opts.WriteDepth = t.Depth, t.Depth != nil
-	s.set("Deep", flag(t.Depth != nil))
-	s.set("Cut", flag(cutting && t.Depth != nil))
 	// six vertices a copy of the world a piece may show in: one, or one past each seam it wraps at
 	s.opts.Vertices = 6 * (1 + int(s.wrap[2])) * (1 + int(s.wrap[3]))
+	if uncovering {
+		s.opts.ReadDepth, s.opts.Images[0] = nil, nil
+		s.opts.Instances = s.uncovered
+		t.Screen.DrawMesh(nil, uncoveredShader, &s.opts)
+		if t.UncoveredIn != nil {
+			s.within(t.UncoveredIn, &tr.M, w, h)
+		}
+		return
+	}
+	s.set("Deep", flag(t.Depth != nil))
+	s.set("Cut", flag(cutting && t.Depth != nil))
+	// what gives way reads where the uncovered lie, against its own depth, within the
+	// rectangle they lie in: the whole viewport where none is told
+	s.opts.ReadDepth = nil
+	if t.Depth != nil {
+		s.opts.ReadDepth = t.Uncovered
+	}
+	s.set("Uncovering", flag(s.opts.ReadDepth != nil))
+	if in := t.UncoveredIn; in != nil {
+		s.set("UncoveredIn", in[:]...)
+	} else {
+		s.set("UncoveredIn", 0, 0, w, h)
+	}
 	instances, runs := s.instances, s.runs
 	if s.layered || s.anyCut {
 		instances, runs = s.byLayer(cutting)
@@ -230,6 +309,29 @@ func (s *Sprites) Draw(t Target, cam camera.Camera, u Uniforms) {
 		s.opts.Images[0] = r.atlas.Atlas()
 		s.opts.Instances = s.points[spriteFloats*r.first : spriteFloats*(r.first+r.count)]
 		t.Screen.DrawMesh(nil, pointsShader, &s.opts)
+	}
+}
+
+// within grows in, a rectangle of a viewport w by h, to hold the discs of the uncovered as m
+// lays them (uncovered.wgsl); the whole viewport over a world that wraps, where a piece shows
+// in copies
+func (s *Sprites) within(in *[4]float32, m *[16]float32, w, h float32) {
+	if s.wrap[2] > 0 || s.wrap[3] > 0 {
+		*in = [4]float32{0, 0, w, h}
+		return
+	}
+	for k := 0; k < len(s.uncovered); k += spriteFloats {
+		x0, y0, x1, y1 := s.uncovered[k], s.uncovered[k+1], s.uncovered[k+2], s.uncovered[k+3]
+		cx, cy := (x0+x1)/2, (y0+y1)/2
+		reach := max(x1-x0, x0-x1, y1-y0, y0-y1)
+		for _, c := range [4][2]float32{{-1, -1}, {1, -1}, {-1, 1}, {1, 1}} {
+			x, y := cx+c[0]*reach, cy+c[1]*reach
+			cw := m[3]*x + m[7]*y + m[15]
+			px := ((m[0]*x+m[4]*y+m[12])/cw + 1) / 2 * w
+			py := (1 - (m[1]*x+m[5]*y+m[13])/cw) / 2 * h
+			in[0], in[1] = min(in[0], px), min(in[1], py)
+			in[2], in[3] = max(in[2], px), max(in[3], py)
+		}
 	}
 }
 

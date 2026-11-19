@@ -5,7 +5,9 @@
 // world's own flat look draws them. Either way they are lit by the [Sky]'s sun, lean with its
 // wind what sways, haze far off and cast their shadows on the relief. What the world's atlas
 // says lies (a bridge's deck, a ford) lies flat at its altitude; a sprite standing Upright (a
-// pier) stands on the four sides of its box.
+// pier) stands on the four sides of its box. What is uncovered shows through what gives way
+// before it (world.UncoveringLook): a disc round it in the frame's depth of the uncovered
+// (render.Target.Uncovered), where the ground does not hide it, read by whatever gives way.
 //
 // A [Look] ([New]) is the world's Look (world.DirectLook, world.LyingLook): picking and the
 // selection's outline follow the billboards.

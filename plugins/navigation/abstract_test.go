@@ -150,7 +150,7 @@ func TestFar_WalksItsRouteOfCellsAtL4(t *testing.T) {
 	r := &abstractRig{g: grid.DefaultGrids{}.Square(96, 16, legCellSize)}
 	goal := r.g.At(60, 8)
 	r = newAbstractRig(t, 96, 16, []navUnit{r.walker(2, 8, 60, 8, speed)}, func(r *abstractRig) {
-		// a forest across the board, at half the pace
+		// slow ground across the board, at half the pace
 		for x := uint32(30); x < 38; x++ {
 			for y := range uint32(16) {
 				r.nw.board.Set(r.g.At(x, y), cell.Kind{Pace: 0.5, Allows: cell.Land})

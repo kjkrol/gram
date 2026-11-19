@@ -21,6 +21,9 @@
 //	L5 colour            blob, thinned; sheet in half colour             coarser, no water
 //	L6 nothing           nothing                      nothing            nothing
 //
+// A figure with a body (world.Body) stands whole in relief out to the level the world's bodies
+// reach, the close scale, L2 or L3, and as a card of its body beyond, down to L3.
+//
 // The levels are three scales of two rungs each, exact and coarse, and the omission: the close
 // scale from [Close] (L0, L1), the standard from [Standard] (L2, L3), the strategic from
 // [Strategic] (L4, L5), and [Omitted] (L6), neither ticked nor drawn. The close scale is a game's

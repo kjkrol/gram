@@ -989,16 +989,20 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
 
 ## forest
 
-- A kind's look `Slot.Canopy()` shows a unit standing under the entity through it, at
-  `canopyOpacity` 0.75, in a view from above alone (`!cam.Projection().Sorts()`), with the setting
-  `Canopies` on (`ShowCanopies`, `Read.Canopies`, `Config.Canopies`; `control.Switch` under
-  `control.Game`, a new shared section listed in `players.sharedSections`): Publish marks
-  `figure.fixed` from the chunk's `Fixed` and queries the space ±0.5 round every moving figure's
-  middle into `figures.veiled`; Compose veils a `Fixed` figure of a `flagCanopy` look in that set
-  through `CanopyLook.Veil`. `Slot.Cutout()` has a look drawn in render's cutout pass
-  (`flagCutout`, `CutoutLook`), both spread to kin like `Lying`; `renderer.mark(canopies,
-  cutouts)` from `SetAtlas`. The user's word (2026-11-09): crowns see-through only over a unit,
-  never in the perspective, a Game checkbox.
+- The world has no canopies (2026-11-18; it held them as `Slot.Canopy`, `CanopyLook` and a
+  setting till then, a specific thing in the general plugin): a tree's look is
+  `Slot.GivesWay()`, what it gives way to is what a game's looks declare `Slot.Uncovered`, its
+  units, and the mechanism is render's (`gram-render`, "What gives way"). Before which cameras
+  is the world's, general for whatever gives way (the user's word, 2026-11-18: only in the
+  tactical view, a checkbox on a boolean of the resource, on for the tactical view and off
+  for FPP and TPP from the start): `Settings.Covers` (a negation, the zero the start) and
+  `Settings.GivesWayRiding`, `GiveWay{On}` and `GiveWayRiding{On}`, two switches under
+  `control.Game` shown where a look gives way and one is uncovered, read at the publish and
+  asked a camera in Compose by how it is fastened (`camera.HowOf`: `Behind` and `Inside`
+  ride).
+  `Slot.Cutout()` has a look drawn in render's cutout pass (`flagCutout`, `CutoutLook`),
+  spread to kin like `Lying`; `renderer.mark(cutouts)` and `renderer.ways(bared, giving)` from
+  `SetAtlas`.
 
 ## forest
 
@@ -1026,6 +1030,13 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
   `Top` at L3, `.Nothing(L4)` (an L3 look counts as declaring L4, so without it `stand()` would
   refuse the photograph; a tree draws nothing at L4 till its sector's photo is ready, and a world
   without sheets shows no trees from L4); nil drawers are drawn of `Colours`.
+- `Spec.Parts` (`world.Part`s in the paints `forest.Leaves` and `forest.Wood`, 2026-11-18) gives
+  the kind a body (`world.Atlas.AddBody`; the rule is CLAUDE.md's, the seam `gram-render`'s): its
+  sprite and, with no `Top` of the game's, its L3 look are the body photographed, so a game
+  draws no picture of a bodied tree, and `Colours.Bears` dots its leaves. A part reaches no
+  further than half the crown's width off the foot, its own half width counted (`Body.Check`,
+  at `Define`, naming the tree): a card is as wide as the crown. Madeira's trees are all bodies
+  (`relief/tree.go`: a form lays clumps, limbs and fronds in crown widths).
 - `Stands.Define(name, Stand, rules...)` defines the role a game's forest kind (`Aggregate` +
   `Field`) plays: one `Unfold` rule a plot. The lattice cuts a cell into k×k squares (k the
   smallest even number with k²/2 ≥ `Density`), plots on alternate squares, jittered from a fixed
@@ -1037,10 +1048,11 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
   nothing is planted. A single share with no band spawns straight and reads no height. `Felled`
   holds for a `Fold` with fewer parts than the stand plants in that stretch; a `Stand.When` is an
   effect of the forest choosing between stands (forest-army's thinning).
-- Every tree's look is `.Canopy().Cutout()` (2026-11-09): whole sprites (the `seeThrough` of
-  3/4 opacity baked into the pixels is gone from the plugin's `crown`/`standing` and the
-  topography's drawers; it made the trees translucent in every view and in the sheets), seen
-  through only over a unit from above, drawn in the cutout pass otherwise.
+- Every tree's look is `.GivesWay().Cutout()`: whole sprites (the `seeThrough` of 3/4
+  opacity baked into the pixels is gone from the plugin's `crown`/`standing` and the
+  topography's drawers since 2026-11-09; it made the trees translucent in every view and in
+  the sheets), left out in part only before what is uncovered, drawn in the cutout pass
+  throughout.
 - A stand tests the spot the tree stands on, shaken (`shaken[k]`, where it spawns and reads the
   height), not the plot: `grows(at)` is the cell's bare kind among `Cells`, no way's band of the
   cell or of a neighbour reaching it (`onWay`: the hub of `Width/2` and a strip to `Step(i)/2` per

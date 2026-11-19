@@ -242,7 +242,7 @@ func TestOvercast_GreysTheSkyTheMoreItIsCovered(t *testing.T) {
 
 func TestSway_LeansWithTheWindTheHarderTheFurtherAndNotAtAllInTheCalm(t *testing.T) {
 	if x, y := (air.Weather{}).Sway(1, 5, 5, 1); x != 0 || y != 0 {
-		t.Errorf("in the calm a tree leans %v, %v, want not at all", x, y)
+		t.Errorf("in the calm what sways leans %v, %v, want not at all", x, y)
 	}
 	gale := air.Weather{Wind: [2]float32{50, 0}}
 	if x, y := gale.Sway(1, 5, 5, 0); x != 0 || y != 0 {
@@ -251,13 +251,14 @@ func TestSway_LeansWithTheWindTheHarderTheFurtherAndNotAtAllInTheCalm(t *testing
 	breeze, _ := (air.Weather{Wind: [2]float32{10, 0}}).Sway(1, 5, 5, 1)
 	blown, across := gale.Sway(1, 5, 5, 1)
 	if breeze <= 0 || blown <= breeze || across != 0 {
-		t.Errorf("an east wind leans a tree %v in a breeze, %v across and %v in a gale; want east, further in the gale", breeze, across, blown)
+		t.Errorf("an east wind leans what sways %v in a breeze, %v across and %v in a gale; "+
+			"want east, further in the gale", breeze, across, blown)
 	}
 	wind := air.Weather{Wind: [2]float32{30, 0}}
 	a, _ := wind.Sway(0, 0, 0, 1)
 	b, _ := wind.Sway(0.7, 0, 0, 1)
 	if a == b {
-		t.Error("a tree in the wind stands still: want it rocking")
+		t.Error("what sways in the wind stands still: want it rocking")
 	}
 }
 

@@ -8,8 +8,8 @@ import (
 	"github.com/kjkrol/gram/plugins/vision"
 )
 
-// a forest 60 deep at τ = 0.5 costs 60 of reach besides its depth: the target 235 ahead costs 295
-func forestAhead(observer *look) []spawn {
+// a veil 60 deep at τ = 0.5 costs 60 of reach besides its depth: the target 235 ahead costs 295
+func veilAhead(observer *look) []spawn {
 	return []spawn{
 		{x: 0, y: 0, sight: observer, outline: true},
 		{x: 100, y: 0, size: 60, tau: 0.5, layers: 1},
@@ -18,27 +18,28 @@ func forestAhead(observer *look) []spawn {
 }
 
 func TestScan_AVeilShortensTheReachAndIsSeen(t *testing.T) {
-	_, seen, outlines := scene(t, forestAhead(eastward(math.Pi/8, 290))...)
-	if seen[0].Count != 1 || seen[0].Dists[0] > 100 { // the forest's near edge, not the target
-		t.Errorf("saw %v at %v through the forest at 290, want the forest alone", seen[0].IDs[:seen[0].Count], seen[0].Dists[:seen[0].Count])
+	_, seen, outlines := scene(t, veilAhead(eastward(math.Pi/8, 290))...)
+	if seen[0].Count != 1 || seen[0].Dists[0] > 100 { // the veil's near edge, not the target
+		t.Errorf("saw %v at %v through the veil at 290, want the veil alone",
+			seen[0].IDs[:seen[0].Count], seen[0].Dists[:seen[0].Count])
 	}
 	mid := outlines[0].Depths[outlines[0].Count/2]
-	if f32.Abs(float32(mid)-230) > 2 { // 290 less the 60 the forest took
+	if f32.Abs(float32(mid)-230) > 2 { // 290 less the 60 the veil took
 		t.Errorf("outline straight ahead reaches %.1f, want about 230", mid)
 	}
 
-	_, seen, _ = scene(t, forestAhead(eastward(math.Pi/8, 300))...)
+	_, seen, _ = scene(t, veilAhead(eastward(math.Pi/8, 300))...)
 	if seen[0].Count != 2 {
-		t.Errorf("saw %d through the forest at 300, want the forest and the target", seen[0].Count)
+		t.Errorf("saw %d through the veil at 300, want the veil and the target", seen[0].Count)
 	}
 }
 
 func TestScan_BlockersLookOverWhatIsOnOtherLayers(t *testing.T) {
 	observer := eastward(math.Pi/8, 300)
-	observer.Blockers = 2 // the forest is on layer 1
-	_, seen, outlines := scene(t, forestAhead(observer)...)
+	observer.Blockers = 2 // the veil is on layer 1
+	_, seen, outlines := scene(t, veilAhead(observer)...)
 	if seen[0].Count != 2 {
-		t.Errorf("saw %d over the forest, want the forest and the target", seen[0].Count)
+		t.Errorf("saw %d over the veil, want the veil and the target", seen[0].Count)
 	}
 	if mid := outlines[0].Depths[outlines[0].Count/2]; f32.Abs(float32(mid)-235) > 1 {
 		t.Errorf("outline straight ahead reaches %.1f, want the target at 235", mid)

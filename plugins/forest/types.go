@@ -42,16 +42,22 @@ type Spec struct {
 	Body bool
 	// Sway is how much it bends in the wind, 0 not at all to 1 as far as the wind blows it.
 	Sway float32
+	// Parts are its body, each in the paint Leaves or Wood, world.MaxParts at most: whole in
+	// relief near the camera, a card of it beyond, its Side photographed of it and its Top where
+	// that is nil (world.Atlas.AddBody); none, the billboards of its Side and its Top.
+	Parts []world.Part
 	// Roles are the game's roles it plays besides TreeRole.
 	Roles []string
 }
 
-// Colours are what a tree's looks are drawn in where its Spec gives no drawer of its own: a dark
-// green crown on a brown trunk where they are zero.
+// Colours are what a tree's looks are drawn in where its Spec gives no drawer of its own, and
+// its body is painted in: a dark green crown on a brown trunk where they are zero.
 type Colours struct {
 	Crown  color.RGBA
 	Leaves color.RGBA
 	Trunk  color.RGBA
+	// Bears is its blossom or its fruit, dotted over its body's leaves; nothing where zero.
+	Bears color.RGBA
 }
 
 var defaultColours = Colours{
@@ -94,6 +100,9 @@ func (t *Types) Define(name string, spec Spec) {
 	}
 	if spec.Colours == (Colours{}) {
 		spec.Colours = defaultColours
+	}
+	if len(spec.Parts) > 0 {
+		spec.body().Check(fmt.Sprintf("the tree %q", name))
 	}
 	w := t.p.worldPlugin
 	roles := w.Roles()
@@ -177,14 +186,26 @@ func (t Type) look(a *world.Atlas) {
 		side = standing(t.spec.Colours, t.spec.Trunk)
 	}
 	px := spritePx * min(max(int(t.spec.Height/t.spec.Crown), 1), tallSpritePx/spritePx)
-	s := a.Add(t.kind, px, side).Canopy().Cutout()
+	bodied := len(t.spec.Parts) > 0
+	var s world.Slot
+	if bodied {
+		s = a.AddBody(t.kind, px, t.spec.body())
+	} else {
+		s = a.Add(t.kind, px, side)
+	}
+	s = s.GivesWay().Cutout()
 	if t.spec.Body {
 		s = s.Upright()
 	}
 	if t.spec.Sway > 0 {
 		s = s.Swaying(t.spec.Sway)
 	}
+	if bodied && t.spec.Top == nil {
+		s = s.Above(lod.L3)
+	} else {
+		s = s.At(lod.L3, top)
+	}
 	// nothing of its own from L4 out: the sheets photograph it in its L3 look only where its
 	// kind declares none there
-	s.At(lod.L3, top).Nothing(lod.Strategic)
+	s.Nothing(lod.Strategic)
 }

@@ -113,6 +113,7 @@ func charge(w *world.Plugin, name, foeArmy string) plan.Planned {
 
 func (s soldier) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[soldierRow](w.Kinds(), s.kind), soldierPx, render.Solid(s.color)).
+		Uncovered().
 		Under(w.Write().Effects().Named(WoundedEf), render.Solid(s.wounded)).
 		Styled(selection.Highlight{Line: s.color, Width: 2}).
 		Styled(navigation.RouteStyle{Line: s.color, Goal: s.color, Width: 1}).

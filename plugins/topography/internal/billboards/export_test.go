@@ -1,9 +1,6 @@
 package billboards
 
-import (
-	"github.com/kjkrol/gram/internal/f32"
-	"github.com/kjkrol/gram/plugins/world"
-)
+import "github.com/kjkrol/gram/plugins/world"
 
 // Stood is every billboard the look l took since it was readied: its centre, its altitude, how
 // tall and how wide it stands, and how far its top leans.
@@ -12,7 +9,7 @@ func Stood(l world.Look) [][6]float32 {
 	for _, b := range l.(Look).gpu.batches {
 		for i := 0; i+boardFloats <= len(b.inst); i += boardFloats {
 			in := b.inst[i : i+boardFloats]
-			out = append(out, [6]float32{in[0], in[1], in[2], in[3], in[4], float32(f32.Hypot(float32(in[5]), float32(in[6])))})
+			out = append(out, [6]float32{in[0], in[1], in[2], in[3], in[4], in[5]})
 		}
 	}
 	return out

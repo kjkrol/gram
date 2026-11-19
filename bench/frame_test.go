@@ -243,17 +243,17 @@ func Benchmark_Light_Publish(b *testing.B) {
 	if err := ctx.Use(l); err != nil {
 		b.Fatal(err)
 	}
-	kind.Define[world.Position](w.Kinds(), "tree", kind.Spec{
+	kind.Define[world.Position](w.Kinds(), "post", kind.Spec{
 		comp.Load(func(p world.Position) world.Position { return p }),
 		comp.Const(world.Velocity{}),
 		comp.Const(world.Z{Height: 12}),
 		comp.Const(light.Shadow{Cast: light.Baked}),
 	})
-	trees := kind.Named[world.Position](w.Kinds(), "tree")
+	posts := kind.Named[world.Position](w.Kinds(), "post")
 	placement := world.NewGridPlacement(2560, 1280, 4)
 	entries := make([]kind.Entry, n)
 	for i := range entries {
-		entries[i] = trees.Entry(placement.Place(i, n))
+		entries[i] = posts.Entry(placement.Place(i, n))
 	}
 	w.Write().Seed(entries...)
 	ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {

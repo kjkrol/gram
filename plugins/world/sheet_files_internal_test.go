@@ -130,7 +130,7 @@ func TestSheetFiles_KeepTheBytesOfATileAsTheyAre(t *testing.T) {
 
 func TestSheetFiles_KeepTheManifestAsWritten(t *testing.T) {
 	s := sheetsOver(oddHalves{}, 0.12, 123, 120)
-	s.files = SheetsCfg{Dir: t.TempDir(), Version: "forests 2"}
+	s.files = SheetsCfg{Dir: t.TempDir(), Version: "fields 2"}
 	st := newSheetStore(&s, 64)
 	sectors := []sheetSector{{I: 1, N: 7, Mix: 0xfedcba9876543210, Inked: true}, {I: 0}}
 	if err := st.writeManifest(sectors); err != nil {
@@ -461,9 +461,9 @@ func (oneTile) Box(int) geom.AABB {
 func (oneTile) Of(float32, float32) int   { return 0 }
 func (oneTile) Neighbours(int, func(int)) {}
 
-// canopy is a tile side texels a side of crowns 6 texels wide on a lattice of 8, jittered, half of
+// dotted is a tile side texels a side of discs 6 texels wide on a lattice of 8, jittered, half of
 // it covered: its albedo and its relief
-func canopy(side int) (albedo, relief []byte) {
+func dotted(side int) (albedo, relief []byte) {
 	r := rand.New(rand.NewPCG(5, 1))
 	albedo, relief = make([]byte, 4*side*side), make([]byte, 4*side*side)
 	for cy := 0; cy < side; cy += 8 {
@@ -488,7 +488,7 @@ func canopy(side int) (albedo, relief []byte) {
 	return albedo, relief
 }
 
-// Benchmark_World_SheetFiles is a tile of the sheets' files of crowns, the GPU's work waited for:
+// Benchmark_World_SheetFiles is a tile of the sheets' files of discs, the GPU's work waited for:
 // load put into the sheets at L4 and halved at L5, save read back from them and both its PNGs
 // encoded.
 func Benchmark_World_SheetFiles(b *testing.B) {
@@ -498,7 +498,7 @@ func Benchmark_World_SheetFiles(b *testing.B) {
 	s.open()
 	s.files = SheetsCfg{Dir: b.TempDir(), Keep: true}
 	s.store = newSheetStore(s, sheetTile)
-	albedo, relief := canopy(sheetTile)
+	albedo, relief := dotted(sheetTile)
 	tile := tilePixels{rect: image.Rect(0, 0, sheetTile, sheetTile), albedo: albedo,
 		relief: relief}
 	dst := render.NewImage(1, 1)
@@ -520,7 +520,7 @@ func Benchmark_World_SheetFiles(b *testing.B) {
 			}
 		}
 	}
-	// the sheets hold the crowns whichever runs alone
+	// the sheets hold the discs whichever runs alone
 	load()
 	for _, sc := range []struct {
 		name string

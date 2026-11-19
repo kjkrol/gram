@@ -145,7 +145,30 @@ Protokół i pułapki pomiaru: `gram-perf`; jak się rysuje: `gram-render`. Licz
   (1,2 ms przy 26 tys. drzew; warstwa nieruchoma nie zmienia się, ale `Z` ustawiany po spawnie i bez
   wersji nie daje bramki).
 
+- **Żywa bryła (`world.Body`) kosztuje w pikselach kart swoich części, nie w wierzchołkach**
+  (`BENCHMARKS.md`, „The bodies in view"): ok. 30% klatek wszędzie, gdzie bryły wypełniają obraz,
+  niezależnie od zbliżenia (las pokrywa ekran w każdej skali: drzewo większe, ale ich mniej).
+  Stąd reguła: bryła żywa sięga tylko do poziomu z ustawienia, które jest dźwignią budżetu
+  klatki, a dalej stoi karta z wypieku, czyli zwykły billboard z jednym odczytem więcej. Karta
+  kosztuje ok. 3% i jest to składanie jej instancji na CPU, nie światło w pikselu ani margines
+  obrazka: bok karty wybiera tani kąt w ósmych obrotu (`eighths`), bo `atan2` na każde drzewo
+  był piątą częścią składania klatki. Żywej bryle pomogły: karta na froncie części z
+  `@early_depth_test(less_equal)` i rysowanie od najbliższych (zliczanie w plasterki głębi,
+  jeden przebieg, bez sortowania); nie pomogła tańsza arytmetyka fragmentu (przecięcie w
+  przestrzeni części, światło raz na część). Dźwignia zasięgu czeka po próbie, która kosztowała
+  budżet (`BodiesLever`): dźwignie wracają przed rozdzielczością, więc bez czekania adapter co
+  pół minuty wypuszczał bryły na 2–3 s, gubił budżet i nigdy nie oddawał rozdzielczości.
+  Kolejne dźwignie, niemierzone: mniej kęp w koronie, części z trójkątów zamiast kart.
+
 ## Odrzucone
 
+- Drzewa jako żywe bryły wszędzie w skali standardowej (prototyp 2026-11-17): ok. −30% klatek
+  w lesie; zostały karty z wypieku i zasięg brył jako ustawienie z dźwignią.
+- Własny renderer lasu z pamięcią instancji na sektor: oszczędzał 0,7 ms CPU na klatkę, ale
+  mechanizm brył jest świata i idzie szwem wyglądu (`BodyLook`), także dla tego, co się rusza;
+  pamięć instancji tego, co stoi, to etap `v`.
+- Daleka postać bryły z dwóch części (cała korona jako jedna bryła): zastąpiła ją karta.
+- Wypiek kart rzutnikiem promieni w Go: grafika powstaje na GPU, karta jest fotografią bryły tym
+  samym shaderem.
 - Płaska plansza przez topografię z zerowym reliefem: droższa niż własny renderer.
 - Lustro chunków na GPU: `gram-perf-tick`.

@@ -135,8 +135,8 @@ func (p *Finder) price(from, to cell.ID, kind cell.Kind, d cell.Domain) (float64
 }
 
 // asides reports whether m may be given way onto c: a step it takes whose slope leaves it at
-// least YieldShare of the pace the ground gives it on the level, so a flat forest is stepped
-// into and a cliff is not
+// least YieldShare of the pace the ground gives it on the level, so slow ground on the level is
+// stepped into and a cliff is not
 func (p *Finder) asides(m bodies.Member, c cell.ID) bool {
 	_, ok := p.stepsAside(m, c)
 	return ok

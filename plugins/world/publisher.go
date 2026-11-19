@@ -29,10 +29,20 @@ type figures struct {
 	lies    []Lie
 	sheet   sheetFrame
 	far     farFrame
-	// whether the canopies show the units under them this frame, and what stands over a moving
-	// figure's middle: the canopies veiled, among the rest
-	canopies bool
-	veiled   view.EntitySet
+	// whether what gives way stands whole this frame before a camera loose over the world, and
+	// whether it gives way before one riding a unit
+	covers, givesRiding bool
+	// the furthest level the bodies stand whole at this frame
+	reach lod.Level
+}
+
+// givesWay reports whether what gives way does so before cam this frame: riding a unit, behind
+// it or inside it, or loose
+func (f *figures) givesWay(cam camera.Camera) bool {
+	if camera.HowOf(cam)&(camera.Behind|camera.Inside) != 0 {
+		return f.givesRiding
+	}
+	return !f.covers
 }
 
 // figure is an entity drawn, a Field one a sector it covers: its box, the Field's part in that
@@ -42,8 +52,7 @@ type figures struct {
 // none; fine, whether a view draws it short of L4 all the same; banner, whether a view draws it
 // in its kind's banner where its kind declares a look; ringed, whether a view draws it at another
 // level than its middle's sector's: fixed by a seam, or, where tier, a thing fixed drawn at the
-// level of the cell of the tiers at slot tier-1 (tier is read only where ringed); fixed, whether
-// the entity stands for good (Fixed)
+// level of the cell of the tiers at slot tier-1 (tier is read only where ringed)
 type figure struct {
 	id        uid.UID64
 	box       plane.AABB
@@ -57,7 +66,6 @@ type figure struct {
 	fine      bool
 	banner    bool
 	ringed    bool
-	fixed     bool
 	shadow    render.Shadowing
 	tier      int32
 }
@@ -98,8 +106,15 @@ func (s *renderer) Init(si *goke.SysInit) {
 func (s *renderer) Publish() {
 	b := s.figures.Back()
 	b.all, b.layers, b.lies = b.all[:0], b.layers[:0], b.lies[:0]
-	b.veiled.Clear()
-	b.canopies = s.canopies != nil && s.query != nil && s.canopies() && s.seenFromAbove()
+	b.covers, b.givesRiding = false, false
+	if s.givesWay != nil {
+		loose, riding := s.givesWay()
+		b.covers, b.givesRiding = !loose, riding
+	}
+	b.reach = lod.L1
+	if s.bodiesReach != nil {
+		b.reach = s.bodiesReach()
+	}
 	s.eyedSeen = s.seenWithAnEye()
 	s.farBegin(b)
 	b.shown, b.clocked = 0, s.clock != nil
@@ -213,17 +228,6 @@ func (s *renderer) Swap() {
 	}
 }
 
-// seenFromAbove reports whether a camera sees the world from above, where a canopy may be seen
-// through
-func (s *renderer) seenFromAbove() bool {
-	for cam := range s.views() {
-		if !cam.Projection().Sorts() {
-			return true
-		}
-	}
-	return false
-}
-
 // seenWithAnEye reports whether a camera with an eye sees the world: one that sees no sheet, for
 // which what a sheet stands in for is kept, to be drawn as points
 func (s *renderer) seenWithAnEye() bool {
@@ -245,23 +249,12 @@ func hasEye(cam camera.Camera) bool {
 	return ok
 }
 
-// over has what stands over a moving figure's middle veiled: the canopies among them show it
-func (s *renderer) over(b *figures, e *figure) {
-	if !b.canopies || e.fixed {
-		return
-	}
-	m := Position{AABB: e.box}.Center()
-	s.query(geom.NewAABB(geom.NewVec(m.X-0.5, m.Y-0.5), geom.NewVec(m.X+0.5, m.Y+0.5)),
-		b.veiled.Add)
-}
-
 // publish settles the chunk under cur, some camera seeing it or, of things fixed, a sheet drawn
 // where it stands, fields its Fields in a chunk of fields; c is what the standers keep of a chunk
 // of things fixed, anew whether they are to be walked and kept anew
 func (s *renderer) publish(b *figures, cur *goke.Cursor, fields []Field, fixed bool,
 	c *standerChunk, anew bool) {
 	ids := cur.IDs
-	still := s.fixed.Present(cur)
 	for len(s.layers) < len(ids) {
 		s.layers = append(s.layers, nil)
 		s.shown = append(s.shown, false)
@@ -315,9 +308,8 @@ func (s *renderer) publish(b *figures, cur *goke.Cursor, fields []Field, fixed b
 		}
 		// in the order they lie, so the zeros are stored together
 		e.z, e.lie, e.sheet = z, 0, 0
-		e.piece, e.fine, e.banner, e.ringed, e.fixed = false, false, false, false, still
+		e.piece, e.fine, e.banner, e.ringed = false, false, false, false
 		e.shadow = render.Shadowing{}
-		s.over(b, e)
 		if lies != nil && lies[i].Length > 0 {
 			b.lies = append(b.lies, lies[i])
 			e.lie = int32(len(b.lies))
@@ -361,7 +353,6 @@ func (s *renderer) publishStandIns(b *figures, cur *goke.Cursor, fixed, keen boo
 	ruled := s.rules.ruled()
 	ws, _ := s.atlas.(*Atlas)
 	plain := !s.thinned
-	still := s.fixed.Present(cur)
 	var pieces []PieceOf
 	if fixed {
 		pieces = s.pieceOf.Slice(cur)
@@ -448,9 +439,8 @@ func (s *renderer) publishStandIns(b *figures, cur *goke.Cursor, fixed, keen boo
 		e.id, e.box = id, bases[i].Pos.AABB
 		e.dir, e.speed = bases[i].Vel.Dir, bases[i].Vel.Value
 		e.z, e.lie, e.sheet = z, 0, sheet
-		e.piece, e.fine, e.banner, e.ringed, e.fixed = false, false, bannered, ringed, still
+		e.piece, e.fine, e.banner, e.ringed = false, false, bannered, ringed
 		e.shadow, e.tier = render.Shadowing{}, tier
-		s.over(b, e)
 		// what lives in a cell of the tiers is drawn short of L4 by no view seeing it once a sheet
 		// holds it; a camera with an eye sees no sheet and has it kept, a point to it
 		if sheet > 0 {

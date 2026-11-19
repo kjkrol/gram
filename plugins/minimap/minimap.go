@@ -213,7 +213,7 @@ func (g *groundView) Draw(t render.Target, _ camera.Camera, _ render.Uniforms) {
 type marksView struct {
 	m *minimap
 	// what the world's space holds but the aggregates unfolded, walked whole and told apart by
-	// sprite before anything else is read: most of it stands unmarked, the trees and the houses
+	// sprite before anything else is read: most of what stands has no mark
 	q     *goke.Query
 	base  goke.Comp[world.Base]
 	app   goke.Comp[render.Appearance]

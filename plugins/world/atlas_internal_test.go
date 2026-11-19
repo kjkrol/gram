@@ -554,7 +554,7 @@ func TestAtlas_DrawsEachLevelsVersionOverTheEntitysBoxAtItsZ(t *testing.T) {
 	}
 }
 
-func TestAtlas_CanopyReachesEverySpriteDrawnInTheKindsPlace(t *testing.T) {
+func TestAtlas_GivingWayAndUncoveredReachEverySpriteDrawnInTheKindsPlace(t *testing.T) {
 	p := NewPlugin(Config{
 		Space:    SpaceCfg{Width: 100, Height: 100},
 		Entities: EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
@@ -562,20 +562,33 @@ func TestAtlas_CanopyReachesEverySpriteDrawnInTheKindsPlace(t *testing.T) {
 	p.write.Effects().Define("wet", effect.Spec{})
 	wet := p.write.Effects().Named("wet")
 	red := render.Solid(color.RGBA{R: 255, A: 255})
-	tree, deck := p.Kinds().NewSprite(), p.Kinds().NewSprite()
+	cover, walker, deck := p.Kinds().NewSprite(), p.Kinds().NewSprite(), p.Kinds().NewSprite()
 	a := p.NewAtlas()
-	a.Add(tree, 8, red).Canopy().Under(wet, red).At(lod.L3, red)
+	a.Add(cover, 8, red).GivesWay().Under(wet, red).At(lod.L3, red)
+	a.Add(walker, 8, red).Uncovered().Under(wet, red)
 	a.Add(deck, 8, red).Under(wet, red)
 	a.Close()
-	canopies := a.canopies()
-	for _, id := range []render.SpriteID{tree, a.twins[wet.Mark()][tree], a.versions[tree][lod.L3].id} {
-		if !canopies[id] {
-			t.Errorf("sprite %d in the tree's place is no canopy, want one", id)
+	giving, bared := a.giving(), a.bared()
+	for _, id := range []render.SpriteID{cover, a.twins[wet.Mark()][cover],
+		a.versions[cover][lod.L3].id} {
+		if !giving[id] || bared[id] {
+			t.Errorf("sprite %d in the cover's place gives way %v and is uncovered %v, want it "+
+				"giving way alone", id, giving[id], bared[id])
+		}
+	}
+	for _, id := range []render.SpriteID{walker, a.twins[wet.Mark()][walker]} {
+		if giving[id] || !bared[id] {
+			t.Errorf("sprite %d in the walker's place is uncovered %v and gives way %v, want it "+
+				"uncovered alone", id, bared[id], giving[id])
 		}
 	}
 	for _, id := range []render.SpriteID{deck, a.twins[wet.Mark()][deck]} {
-		if canopies[id] {
-			t.Errorf("sprite %d in the deck's place is a canopy, want none", id)
+		if giving[id] || bared[id] {
+			t.Errorf("sprite %d in the deck's place gives way %v and is uncovered %v, want "+
+				"neither", id, giving[id], bared[id])
 		}
+	}
+	if !p.read.GivingWay() {
+		t.Error("the world's looks have one kind give way and one uncovered, and it says not")
 	}
 }

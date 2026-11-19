@@ -186,19 +186,19 @@ func TestAltitude_ABodyBiggerThanAHexStandsOnTheHighestGroundUnderItsBox(t *test
 // bridge's pier, standing for good off a cell too, keeps the altitude its bridge gave it
 func TestAltitude_APartStandingOnNoCellStandsOnTheGroundUnderItsMiddle(t *testing.T) {
 	middle := geom.NewVec(56, 48) // in (1,1), up the slope to the hill at (2,1)
-	var tree, pier, walker kind.Of[topotest.Recruit]
+	var post, pier, walker kind.Of[topotest.Recruit]
 	define := func(qw *topotest.QuasiWorld, units *board.Units[topotest.Recruit]) []kind.Entry {
 		laid := comp.Const(world.Position{
 			AABB: plane.NewAABB(geom.NewVec(middle.X-10, middle.Y-10), 20, 20),
 		})
-		kind.Define[topotest.Recruit](qw.World.Kinds(), "tree", kind.Spec{
+		kind.Define[topotest.Recruit](qw.World.Kinds(), "post", kind.Spec{
 			laid,
 			comp.Const(world.Velocity{}),
 			comp.Const(world.Z{Height: 6}),
 			comp.Const(world.Fixed{}),
 			comp.Const(world.PartOf{}),
 		})
-		tree = kind.Named[topotest.Recruit](qw.World.Kinds(), "tree")
+		post = kind.Named[topotest.Recruit](qw.World.Kinds(), "post")
 		kind.Define[topotest.Recruit](qw.World.Kinds(), "pier", kind.Spec{
 			laid,
 			comp.Const(world.Velocity{}),
@@ -209,7 +209,7 @@ func TestAltitude_APartStandingOnNoCellStandsOnTheGroundUnderItsMiddle(t *testin
 		units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
 		walker = units.Named("walker")
 		row := topotest.Recruit{Start: qw.Grid.At(2, 1)}
-		return []kind.Entry{tree.Entry(row), pier.Entry(row), walker.Entry(row)}
+		return []kind.Entry{post.Entry(row), pier.Entry(row), walker.Entry(row)}
 	}
 	qw := topotest.NewQuasiWorldWith(t, false, define)
 	qw.ECS.Tick(time.Second / 60)
@@ -217,15 +217,15 @@ func TestAltitude_APartStandingOnNoCellStandsOnTheGroundUnderItsMiddle(t *testin
 	relief := qw.Topo.Write().Relief()
 	ground := relief.At(middle)
 	if level := relief.Altitude(qw.Grid.At(1, 1)); ground <= level {
-		t.Fatalf("the ground under the tree lies at %v, its cell's level at %v: no slope", ground,
+		t.Fatalf("the ground under the post lies at %v, its cell's level at %v: no slope", ground,
 			level)
 	}
 	if got := qw.World.Read(0).GroundAt(middle); got != ground {
-		t.Errorf("the world has the ground under the tree at %v, want the relief's %v", got, ground)
+		t.Errorf("the world has the ground under the post at %v, want the relief's %v", got, ground)
 	}
 	zs := qw.Zs()
-	if got := zs[tree.ID()]; len(got) != 1 || got[0].Altitude != ground || got[0].Height != 6 {
-		t.Errorf("the tree: %v, want it 6 tall on the ground under its middle, %v", got, ground)
+	if got := zs[post.ID()]; len(got) != 1 || got[0].Altitude != ground || got[0].Height != 6 {
+		t.Errorf("the post: %v, want it 6 tall on the ground under its middle, %v", got, ground)
 	}
 	if got := zs[pier.ID()]; len(got) != 1 || got[0].Altitude != 1 || got[0].Height != 5 {
 		t.Errorf("the pier: %v, want it where its bridge put it, at 1 and 5 tall", got)
@@ -240,9 +240,9 @@ func TestAltitude_APartStandingOnNoCellStandsOnTheGroundUnderItsMiddle(t *testin
 // again a step: a height written over its own stays while the relief holds still
 func TestAltitude_APartStandingForGoodIsGroundedAsItComesAndAsTheReliefChanges(t *testing.T) {
 	middle := geom.NewVec(56, 48) // in (1,1), up the slope to the hill at (2,1)
-	var tree kind.Of[topotest.Recruit]
+	var post kind.Of[topotest.Recruit]
 	define := func(qw *topotest.QuasiWorld, _ *board.Units[topotest.Recruit]) []kind.Entry {
-		kind.Define[topotest.Recruit](qw.World.Kinds(), "tree", kind.Spec{
+		kind.Define[topotest.Recruit](qw.World.Kinds(), "post", kind.Spec{
 			comp.Const(world.Position{
 				AABB: plane.NewAABB(geom.NewVec(middle.X-10, middle.Y-10), 20, 20),
 			}),
@@ -251,19 +251,19 @@ func TestAltitude_APartStandingForGoodIsGroundedAsItComesAndAsTheReliefChanges(t
 			comp.Const(world.Fixed{}),
 			comp.Const(world.PartOf{}),
 		})
-		tree = kind.Named[topotest.Recruit](qw.World.Kinds(), "tree")
-		return []kind.Entry{tree.Entry(topotest.Recruit{})}
+		post = kind.Named[topotest.Recruit](qw.World.Kinds(), "post")
+		return []kind.Entry{post.Entry(topotest.Recruit{})}
 	}
 	qw := topotest.NewQuasiWorldWith(t, false, define)
 	var z goke.Comp[world.Z]
-	var trees *goke.Query
+	var posts *goke.Query
 	qw.ECS.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		trees = si.NewQueryBuilder(&z).Include(goke.Include[world.PartOf]()).Build()
+		posts = si.NewQueryBuilder(&z).Include(goke.Include[world.PartOf]()).Build()
 	}})
 	alts := func() []float32 {
 		var got []float32
-		for trees.All(); trees.Next(); {
-			for _, z := range z.Slice(trees.Cursor()) {
+		for posts.All(); posts.Next(); {
+			for _, z := range z.Slice(posts.Cursor()) {
 				got = append(got, z.Altitude)
 			}
 		}
@@ -276,27 +276,27 @@ func TestAltitude_APartStandingForGoodIsGroundedAsItComesAndAsTheReliefChanges(t
 	tick()
 	ground := relief.At(middle)
 	if got := alts(); !slices.Equal(got, []float32{ground}) {
-		t.Fatalf("the tree stands at %v, want on the ground under its middle, %v", got, ground)
+		t.Fatalf("the post stands at %v, want on the ground under its middle, %v", got, ground)
 	}
 	const off = -100
-	for trees.All(); trees.Next(); {
-		z.Slice(trees.Cursor())[0].Altitude = off
+	for posts.All(); posts.Next(); {
+		z.Slice(posts.Cursor())[0].Altitude = off
 	}
 	tick()
-	qw.World.Write().Spawn(tree.Entry(topotest.Recruit{}))
+	qw.World.Write().Spawn(post.Entry(topotest.Recruit{}))
 	tick()
 	if got := alts(); !slices.Equal(got, []float32{off, ground}) {
-		t.Fatalf("the trees stand at %v, want the first left at %v, the one come on the ground, %v",
+		t.Fatalf("the posts stand at %v, want the first left at %v, the one come on the ground, %v",
 			got, float32(off), ground)
 	}
 	topotest.RaiseHills(relief, qw.Grid, qw.Grid.At(2, 1), qw.Grid.At(1, 1))
 	tick()
 	raised := relief.At(middle)
 	if raised == ground {
-		t.Fatalf("the ground under the trees stays at %v: not raised", ground)
+		t.Fatalf("the ground under the posts stays at %v: not raised", ground)
 	}
 	if got := alts(); !slices.Equal(got, []float32{raised, raised}) {
-		t.Errorf("the trees stand at %v once the relief rose, want both on its ground, %v", got,
+		t.Errorf("the posts stand at %v once the relief rose, want both on its ground, %v", got,
 			raised)
 	}
 }

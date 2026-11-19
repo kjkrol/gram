@@ -341,9 +341,9 @@ type opaque struct{}
 func (opaque) Compose(f *render.Frame, _ camera.Camera)           { f.DrawOpaque() }
 func (opaque) Draw(render.Target, camera.Camera, render.Uniforms) {}
 
-// beneath draws a field of canopy standing over own, of size, and a figure of banner over box,
-// both at L4 over an opaque ground of a world 64 by 32, and reads the screen
-func beneath(t *testing.T, a *Atlas, canopy, banner render.SpriteID, own plane.AABB,
+// beneath draws a field of the sprite piece standing over own, of size, and a figure of banner
+// over box, both at L4 over an opaque ground of a world 64 by 32, and reads the screen
+func beneath(t *testing.T, a *Atlas, piece, banner render.SpriteID, own plane.AABB,
 	size geom.Vec, box plane.AABB) func(x, y int) [4]byte {
 	t.Helper()
 	gputest.Need(t)
@@ -378,7 +378,7 @@ func beneath(t *testing.T, a *Atlas, canopy, banner render.SpriteID, own plane.A
 			items = append(items, aabbworld.Item{ID: f.Cursor.IDs[0], Box: box})
 		}
 		made(box, banner, false)
-		made(own, canopy, true)
+		made(own, piece, true)
 		space.Rebuild(items)
 		r.Init(si)
 	}})
@@ -398,9 +398,9 @@ func TestRenderer_Compose_AFigureAtL4StandsOverAFieldsPiece(t *testing.T) {
 		Space:    SpaceCfg{Width: 64, Height: 32},
 		Entities: EntitiesCfg{MaxCount: 2, MinSize: 1, MaxSize: 10},
 	})
-	canopy, banner := p.Kinds().NewSprite(), p.Kinds().NewSprite()
+	piece, banner := p.Kinds().NewSprite(), p.Kinds().NewSprite()
 	a := p.NewAtlas()
-	a.Add(canopy, 8, render.Solid(color.RGBA{G: 255, A: 255})).
+	a.Add(piece, 8, render.Solid(color.RGBA{G: 255, A: 255})).
 		At(lod.L4, render.Solid(color.RGBA{G: 255, A: 255}))
 	a.Add(banner, 8, render.Solid(color.RGBA{R: 255, A: 255})).
 		At(lod.L4, render.Solid(color.RGBA{R: 255, A: 255}))
@@ -408,7 +408,7 @@ func TestRenderer_Compose_AFigureAtL4StandsOverAFieldsPiece(t *testing.T) {
 	// the field from (12, 6) to (52, 26), the banner 4 a side round (40, 16) within it
 	own := plane.NewAABB(geom.NewVec(30, 14), 4, 4)
 	box := plane.NewAABB(geom.NewVec(38, 14), 4, 4)
-	pix := beneath(t, a, canopy, banner, own, geom.NewVec(40, 20), box)
+	pix := beneath(t, a, piece, banner, own, geom.NewVec(40, 20), box)
 	if got := pix(40, 16); got != [4]byte{255, 0, 0, 255} {
 		t.Errorf("the banner's pixel is %v, want its red over the field", got)
 	}

@@ -28,21 +28,21 @@ import (
 )
 
 const (
-	forestKind = "forest"
-	treeKind   = "tree"
-	forestRole = "forest"
-	treeRole   = "tree"
-	thinnedEf  = "thinned"
-	// the forest's side: two sectors
-	forestSide = 1024
+	fieldKind = "field"
+	partKind  = "part"
+	fieldRole = "field"
+	partRole  = "part"
+	thinnedEf = "thinned"
+	// the field's side: two sectors
+	fieldSide  = 1024
 	sectorSide = 512
 	cols       = 8
 	// how far from where the camera looks the world is ticked
 	sight = 300
-	// the places a stretch of the forest may hold a tree at
+	// the places a stretch of the field may hold a part at
 	plots = 8
-	// a tree's height in a world with heights
-	treeHeight = 4
+	// a part's height in a world with heights
+	partHeight = 4
 )
 
 // off the middle of a stretch
@@ -57,15 +57,15 @@ var plotAt = [plots]geom.Vec{
 	{X: 192, Y: 128},
 }
 
-type forestRow struct{ x, y float32 }
+type fieldRow struct{ x, y float32 }
 
-type treeRow struct{}
+type partRow struct{}
 
-// a forest over sectors 0, 1, 8 and 9 of a world 8x2 sectors 512 a side, its centre in 9, seen by
+// a field over sectors 0, 1, 8 and 9 of a world 8x2 sectors 512 a side, its centre in 9, seen by
 // one camera from above at L3 (half a pixel a world unit) and L4 (a quarter) within the sight of
 // where it looks, L6 past it; in a world with heights where tall, its ground at ground; unfolding
 // the ladder's Unfolds stretches a step
-type forest struct {
+type fieldStage struct {
 	eng      *engine.Engine
 	w        *world.Plugin
 	ecs      *goke.ECS
@@ -79,50 +79,50 @@ type forest struct {
 	unfolded []world.Unfold
 	folded   []world.Fold
 
-	trees    *goke.Query
-	treeBase goke.Comp[world.Base]
-	treeOf   goke.Comp[world.PartOf]
-	forests  *goke.Query
+	parts    *goke.Query
+	partBase goke.Comp[world.Base]
+	partOf   goke.Comp[world.PartOf]
+	fields   *goke.Query
 	base     goke.Comp[world.Base]
-	// whether the forest carries Unfolded
+	// whether the field carries Unfolded
 	marked goke.OptComp[world.Unfolded]
 }
 
-var _ sector.Observers = (*forest)(nil)
+var _ sector.Observers = (*fieldStage)(nil)
 
-func (f *forest) Observers(each func(cam camera.Camera)) { each(f.cam) }
+func (f *fieldStage) Observers(each func(cam camera.Camera)) { each(f.cam) }
 
-func (f *forest) SetupSystems() []goke.System {
+func (f *fieldStage) SetupSystems() []goke.System {
 	return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f.trees = si.NewQueryBuilder(&f.treeBase, &f.treeOf).Build()
-		f.forests = si.NewQueryBuilder(&f.base).Include(goke.Include[world.Field]()).
+		f.parts = si.NewQueryBuilder(&f.partBase, &f.partOf).Build()
+		f.fields = si.NewQueryBuilder(&f.base).Include(goke.Include[world.Field]()).
 			Optional(&f.marked).Build()
 	}}}
 }
 
-// the forest's stage, its camera at L3 looking at at, with the forest unless a save is loaded, the
+// the field's stage, its camera at L3 looking at at, with the field unless a save is loaded, the
 // figures given noted
-func newForest(t *testing.T, at geom.Vec, figures ...world.Figure) *forest {
+func newField(t *testing.T, at geom.Vec, figures ...world.Figure) *fieldStage {
 	t.Helper()
-	return newForestOf(t, &forest{at: at}, figures...)
+	return newFieldOf(t, &fieldStage{at: at}, figures...)
 }
 
-// newGroundedForest is newForest in a world with heights, its ground at ground, its trees
-// treeHeight tall
-func newGroundedForest(t *testing.T, at geom.Vec, ground float32,
-	figures ...world.Figure) *forest {
+// newGroundedField is newField in a world with heights, its ground at ground, its parts
+// partHeight tall
+func newGroundedField(t *testing.T, at geom.Vec, ground float32,
+	figures ...world.Figure) *fieldStage {
 	t.Helper()
-	return newForestOf(t, &forest{at: at, tall: true, ground: ground}, figures...)
+	return newFieldOf(t, &fieldStage{at: at, tall: true, ground: ground}, figures...)
 }
 
-func newForestOf(t *testing.T, f *forest, figures ...world.Figure) *forest {
+func newFieldOf(t *testing.T, f *fieldStage, figures ...world.Figure) *fieldStage {
 	t.Helper()
 	at := f.at
 	f.cam = cameratest.NewFromSpace(4096, 1024, 0)
 	f.cam.SetViewport(100, 100)
 	f.cam.ZoomOut(2, 0, 0)
 	f.look(at)
-	st := stage.New("forest").
+	st := stage.New("field").
 		World(world.Config{
 			Space:    world.SpaceCfg{Width: 4096, Height: 1024},
 			Entities: world.EntitiesCfg{MaxCount: 64, MinSize: 5, MaxSize: 20},
@@ -154,15 +154,15 @@ func newForestOf(t *testing.T, f *forest, figures ...world.Figure) *forest {
 		Rules(func() { f.rules() }).
 		Kinds(func() { f.kinds() }).
 		Spawn(func() {
-			f.w.Write().Seed(kind.Named[forestRow](f.w.Kinds(), forestKind).
-				Entry(forestRow{forestSide / 2, forestSide / 2}))
+			f.w.Write().Seed(kind.Named[fieldRow](f.w.Kinds(), fieldKind).
+				Entry(fieldRow{fieldSide / 2, fieldSide / 2}))
 		}).
 		Update(func(ctx goke.RunCtx, dt time.Duration) { f.w.RunPlan(ctx, dt) })
 	f.eng = engine.NewEngine(oneStageGame{stage: st})
 	return f
 }
 
-// the k-th plot of a stretch, where it lies in it, holds a tree by its seed in density of every
+// the k-th plot of a stretch, where it lies in it, holds a part by its seed in density of every
 // four plots
 func planted(whole uid.UID64, sector int, box geom.AABB, k int, density uint64) bool {
 	at := middleOf(box).Add(plotAt[k])
@@ -187,10 +187,10 @@ func plot(k int, density uint64) cond.Word[world.Unfold] {
 	})
 }
 
-// a stretch unfolding plants a tree at each plot its seed lets, half of them, a quarter once the
-// forest is thinned; one folding short of what it planted thins the forest; a tree folds in by
+// a stretch unfolding plants a part at each plot its seed lets, half of them, a quarter once the
+// field is thinned; one folding short of what it planted thins the field; a part folds in by
 // going
-func (f *forest) rules() {
+func (f *fieldStage) rules() {
 	thinned := f.w.Write().Effects().Named(thinnedEf)
 	unfolded := cond.NewWord("noted", func(u world.Unfold) bool {
 		f.unfolded = append(f.unfolded, u)
@@ -217,53 +217,53 @@ func (f *forest) rules() {
 		},
 	}
 	for k := range plots {
-		tree := act.Self.Do(world.SpawnPart{Entry: kind.EntryOf(treeKind, treeRow{}),
+		part := act.Self.Do(world.SpawnPart{Entry: kind.EntryOf(partKind, partRow{}),
 			At: plotAt[k]})
 		rules = append(rules,
 			act.Branch[world.Unfold]{
 				Name: fmt.Sprintf("plant %d", k),
 				When: cond.Self.If(plot(k, 2)).And(cond.Self.If(cond.Not(thinned))),
-				Then: tree,
+				Then: part,
 			},
 			act.Branch[world.Unfold]{
 				Name: fmt.Sprintf("plant %d thinned", k),
 				When: cond.Self.If(plot(k, 1)).And(cond.Self.If(thinned)),
-				Then: tree,
+				Then: part,
 			})
 	}
-	f.w.Roles().Define(forestRole, rules...)
-	f.w.Roles().Define(treeRole, act.Branch[world.Folding]{
+	f.w.Roles().Define(fieldRole, rules...)
+	f.w.Roles().Define(partRole, act.Branch[world.Folding]{
 		Name: "fold in",
 		When: cond.Self.If(cond.Always),
 		Then: act.Steps(said1("folded"), act.Self.Do(world.Despawn{})),
 	})
 }
 
-func (f *forest) kinds() {
+func (f *fieldStage) kinds() {
 	roles := f.w.Roles()
-	kind.Define[forestRow](f.w.Kinds(), forestKind, kind.Spec{
-		comp.Load(func(r forestRow) world.Position {
+	kind.Define[fieldRow](f.w.Kinds(), fieldKind, kind.Spec{
+		comp.Load(func(r fieldRow) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(r.x-10, r.y-10), 20, 20)}
 		}),
 		comp.Const(world.Velocity{}),
 		comp.Const(world.Aggregate{}),
-		comp.Const(world.Field{Size: geom.NewVec(forestSide, forestSide)}),
-		ceremony.Plays(roles.Named(forestRole)),
+		comp.Const(world.Field{Size: geom.NewVec(fieldSide, fieldSide)}),
+		ceremony.Plays(roles.Named(fieldRole)),
 	})
-	tree := kind.Spec{
-		comp.Load(func(treeRow) world.Position {
+	part := kind.Spec{
+		comp.Load(func(partRow) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(-5, -5), 10, 10)}
 		}),
 		comp.Const(world.Velocity{}),
-		ceremony.Plays(roles.Named(treeRole)),
+		ceremony.Plays(roles.Named(partRole)),
 	}
 	if f.tall {
-		tree = append(tree, comp.Const(world.Z{Height: treeHeight}))
+		part = append(part, comp.Const(world.Z{Height: partHeight}))
 	}
-	kind.Define[treeRow](f.w.Kinds(), treeKind, tree)
+	kind.Define[partRow](f.w.Kinds(), partKind, part)
 }
 
-func (f *forest) start(t *testing.T, load bool) {
+func (f *fieldStage) start(t *testing.T, load bool) {
 	t.Helper()
 	if load {
 		if err := f.eng.Load("", ""); err != nil {
@@ -275,7 +275,7 @@ func (f *forest) start(t *testing.T, load bool) {
 	}
 }
 
-func (f *forest) run(ticks int) {
+func (f *fieldStage) run(ticks int) {
 	for range ticks {
 		f.ecs.Tick(frame)
 		now := f.w.Read(0).Clock().Time()
@@ -285,7 +285,7 @@ func (f *forest) run(ticks int) {
 	}
 }
 
-func (f *forest) times(rule string, k int) []time.Duration {
+func (f *fieldStage) times(rule string, k int) []time.Duration {
 	var at []time.Duration
 	for _, s := range f.heard[k:] {
 		if s.rule == rule {
@@ -295,7 +295,7 @@ func (f *forest) times(rule string, k int) []time.Duration {
 	return at
 }
 
-func (f *forest) until(t *testing.T, rule string, ticks int) time.Duration {
+func (f *fieldStage) until(t *testing.T, rule string, ticks int) time.Duration {
 	t.Helper()
 	k := len(f.heard)
 	for range ticks {
@@ -309,38 +309,38 @@ func (f *forest) until(t *testing.T, rule string, ticks int) time.Duration {
 }
 
 // has the camera look at at
-func (f *forest) look(at geom.Vec) {
+func (f *fieldStage) look(at geom.Vec) {
 	f.at = at
 	f.cam.CenterOn(at.X, at.Y, 0)
 }
 
-func (f *forest) zoom(zoom float32) {
+func (f *fieldStage) zoom(zoom float32) {
 	f.cam.ZoomIn(zoom/f.cam.Zoom(), 0, 0)
 	f.look(f.at)
 }
 
-func (f *forest) id() uid.UID64 {
-	for f.forests.All(); f.forests.Next(); {
-		for _, id := range f.forests.Cursor().IDs {
+func (f *fieldStage) id() uid.UID64 {
+	for f.fields.All(); f.fields.Next(); {
+		for _, id := range f.fields.Cursor().IDs {
 			return id
 		}
 	}
 	return 0
 }
 
-// the forest's trees by the sector their centre lies in
-func (f *forest) bySector() map[int][]tree {
-	got := map[int][]tree{}
-	for f.trees.All(); f.trees.Next(); {
-		cur := f.trees.Cursor()
-		for i, b := range f.treeBase.Slice(cur) {
+// the field's parts by the sector their centre lies in
+func (f *fieldStage) bySector() map[int][]part {
+	got := map[int][]part{}
+	for f.parts.All(); f.parts.Next(); {
+		cur := f.parts.Cursor()
+		for i, b := range f.partBase.Slice(cur) {
 			c := b.Pos.Center()
 			s := int(c.Y/sectorSide)*cols + int(c.X/sectorSide)
-			got[s] = append(got[s], tree{id: cur.IDs[i], at: c, of: f.treeOf.Slice(cur)[i].Whole})
+			got[s] = append(got[s], part{id: cur.IDs[i], at: c, of: f.partOf.Slice(cur)[i].Whole})
 		}
 	}
 	for _, ts := range got {
-		slices.SortFunc(ts, func(a, b tree) int {
+		slices.SortFunc(ts, func(a, b part) int {
 			if a.at.Y != b.at.Y {
 				return int(a.at.Y - b.at.Y)
 			}
@@ -350,13 +350,13 @@ func (f *forest) bySector() map[int][]tree {
 	return got
 }
 
-type tree struct {
+type part struct {
 	id uid.UID64
 	at geom.Vec
 	of uid.UID64
 }
 
-func places(ts []tree) []geom.Vec {
+func places(ts []part) []geom.Vec {
 	at := make([]geom.Vec, len(ts))
 	for i, t := range ts {
 		at[i] = t.at
@@ -387,19 +387,19 @@ func sectorsOf[M interface{ world.Unfold | world.Fold }](ms []M) []int {
 	return got
 }
 
-// has the forest's trees stand in the sectors given alone
-func (f *forest) standIn(t *testing.T, sectors ...int) {
+// has the field's parts stand in the sectors given alone
+func (f *fieldStage) standIn(t *testing.T, sectors ...int) {
 	t.Helper()
 	for s, ts := range f.bySector() {
 		if !slices.Contains(sectors, s) {
-			t.Errorf("%d trees in sector %d, want none", len(ts), s)
+			t.Errorf("%d parts in sector %d, want none", len(ts), s)
 		}
 	}
 }
 
-// has each of the forest's sectors given hold the trees its seed plants at density, round the
+// has each of the field's sectors given hold the parts its seed plants at density, round the
 // stretch's plots within the sector's box
-func (f *forest) plantedIn(t *testing.T, density uint64, sectors ...int) {
+func (f *fieldStage) plantedIn(t *testing.T, density uint64, sectors ...int) {
 	t.Helper()
 	whole, got := f.id(), f.bySector()
 	for _, s := range sectors {
@@ -416,29 +416,29 @@ func (f *forest) plantedIn(t *testing.T, density uint64, sectors ...int) {
 			return int(a.X - b.X)
 		})
 		if have := places(got[s]); !slices.Equal(have, want) {
-			t.Errorf("sector %d holds trees at %v, want %v", s, have, want)
+			t.Errorf("sector %d holds parts at %v, want %v", s, have, want)
 		}
 		for _, tr := range got[s] {
 			if tr.of != whole {
-				t.Errorf("a tree of sector %d is a part of %v, want the forest %v", s, tr.of, whole)
+				t.Errorf("a part of sector %d is a part of %v, want the field %v", s, tr.of, whole)
 			}
 		}
 	}
 }
 
 func TestWholes_AFieldUnfoldsEachSectorComeToL3OnceAsleepInItsOwn(t *testing.T) {
-	f := newForest(t, geom.NewVec(256, 256))
+	f := newField(t, geom.NewVec(256, 256))
 	f.start(t, false)
 	f.run(2)
-	if got := f.w.Read(0).LevelAt(forestSide/2, forestSide/2); got != lod.L6 {
-		t.Fatalf("the forest's own sector at %v, want asleep at L6", got)
+	if got := f.w.Read(0).LevelAt(fieldSide/2, fieldSide/2); got != lod.L6 {
+		t.Fatalf("the field's own sector at %v, want asleep at L6", got)
 	}
 	if got := sectorsOf(f.unfolded); !slices.Equal(got, []int{0, 1, 8}) {
 		t.Fatalf("unfolded sectors %v, want the three within sight at L3", got)
 	}
 	for _, u := range f.unfolded {
 		if u.ID != f.id() || u.Box != boxOf(u.Sector) {
-			t.Errorf("the Unfold of sector %d of %v boxed %v, want of the forest %v boxed %v",
+			t.Errorf("the Unfold of sector %d of %v boxed %v, want of the field %v boxed %v",
 				u.Sector, u.ID, u.Box, f.id(), boxOf(u.Sector))
 		}
 	}
@@ -451,7 +451,7 @@ func TestWholes_AFieldUnfoldsEachSectorComeToL3OnceAsleepInItsOwn(t *testing.T) 
 }
 
 func TestWholes_AFieldFoldsEachSectorAfterItsWaitItsPartsThereAlone(t *testing.T) {
-	f := newForest(t, geom.NewVec(256, 256))
+	f := newField(t, geom.NewVec(256, 256))
 	f.start(t, false)
 	f.run(2)
 	before := f.bySector()
@@ -484,11 +484,11 @@ func TestWholes_AFieldFoldsEachSectorAfterItsWaitItsPartsThereAlone(t *testing.T
 	slices.Sort(told)
 	slices.Sort(want)
 	if !slices.Equal(told, want) {
-		t.Errorf("told %v they folded in, want the trees of sectors 0 and 8, %v", told, want)
+		t.Errorf("told %v they folded in, want the parts of sectors 0 and 8, %v", told, want)
 	}
 	after := f.bySector()
 	if len(after[0])+len(after[8]) != 0 || !slices.Equal(places(after[1]), places(before[1])) {
-		t.Errorf("after the fold %d trees in sectors 0 and 8 and %v in 1, want none and %v",
+		t.Errorf("after the fold %d parts in sectors 0 and 8 and %v in 1, want none and %v",
 			len(after[0])+len(after[8]), places(after[1]), places(before[1]))
 	}
 	f.run(60)
@@ -497,52 +497,52 @@ func TestWholes_AFieldFoldsEachSectorAfterItsWaitItsPartsThereAlone(t *testing.T
 	}
 }
 
-func TestWholes_AFieldsSectorFoldingDrawsItsTreesOrItsPartNeverBoth(t *testing.T) {
-	f := newForest(t, geom.NewVec(256, 256))
+func TestWholes_AFieldsSectorFoldingDrawsItsPartsOrItsPieceNeverBoth(t *testing.T) {
+	f := newField(t, geom.NewVec(256, 256))
 	f.start(t, false)
 	f.w.Write().NewView(f.cam)
 	f.run(2)
 	if len(f.bySector()[0]) == 0 {
-		t.Fatal("no tree stands in sector 0")
+		t.Fatal("no part stands in sector 0")
 	}
-	forest, sector0 := f.id(), boxOf(0)
+	field, sector0 := f.id(), boxOf(0)
 	in0 := func(b geom.AABB) bool {
 		m := middleOf(b)
 		return m.X < sectorSide && m.Y < sectorSide
 	}
-	// drawn at L4 the sector waits to fold, its trees drawn as points till they go
+	// drawn at L4 the sector waits to fold, its parts drawn as points till they go
 	f.zoom(0.25)
-	trees, pieces, folded := 0, 0, false
+	parts, pieces, folded := 0, 0, false
 	for range 2*int(foldAfter/frame) + 4 {
 		f.run(1)
 		tr, piece := 0, false
 		for _, d := range f.w.Published() {
 			switch {
-			case d.ID == forest && d.Piece && d.Box == sector0:
+			case d.ID == field && d.Piece && d.Box == sector0:
 				piece = true
-			case d.ID != forest && in0(d.Box):
+			case d.ID != field && in0(d.Box):
 				tr++
 			}
 		}
 		if piece && tr > 0 {
-			t.Fatalf("at %v the forest's part in sector 0 is drawn beside %d of its trees",
+			t.Fatalf("at %v the field's piece in sector 0 is drawn beside %d of its parts",
 				f.w.Read(0).Clock().Time(), tr)
 		}
-		trees, folded = max(trees, tr), folded || len(f.folded) > 0
+		parts, folded = max(parts, tr), folded || len(f.folded) > 0
 		if piece {
 			pieces++
 		}
 	}
-	if !folded || trees == 0 || pieces == 0 {
-		t.Errorf("folded %v, its trees drawn %d at most, its part drawn %d frames; want the trees "+
-			"drawn, then the part", folded, trees, pieces)
+	if !folded || parts == 0 || pieces == 0 {
+		t.Errorf("folded %v, its parts drawn %d at most, its piece drawn %d frames; want the "+
+			"parts drawn, then the piece", folded, parts, pieces)
 	}
 }
 
-// the forest's centre
-func (f *forest) centre() geom.Vec {
-	for f.forests.All(); f.forests.Next(); {
-		for _, b := range f.base.Slice(f.forests.Cursor()) {
+// the field's centre
+func (f *fieldStage) centre() geom.Vec {
+	for f.fields.All(); f.fields.Next(); {
+		for _, b := range f.base.Slice(f.fields.Cursor()) {
 			return b.Pos.Center()
 		}
 	}
@@ -550,20 +550,20 @@ func (f *forest) centre() geom.Vec {
 }
 
 func TestWholes_AFieldFoldsWhereItStands(t *testing.T) {
-	f := newForest(t, geom.NewVec(256, 256))
+	f := newField(t, geom.NewVec(256, 256))
 	f.start(t, false)
 	f.run(2)
 	at := f.centre()
 	f.look(geom.NewVec(1300, 256))
 	f.until(t, "fold", 2*int(foldAfter/frame))
 	if got := f.centre(); got != at {
-		t.Errorf("the forest folded sectors 0 and 8 and stands at %v, want where it stood, %v",
+		t.Errorf("the field folded sectors 0 and 8 and stands at %v, want where it stood, %v",
 			got, at)
 	}
 }
 
 func TestWholes_AFieldFoldedAndUnfoldedAgainKeepsItsStateAndItsPlaces(t *testing.T) {
-	f := newForest(t, geom.NewVec(1300, 512))
+	f := newField(t, geom.NewVec(1300, 512))
 	f.start(t, false)
 	f.run(2)
 	f.plantedIn(t, 2, 1, 9)
@@ -573,7 +573,7 @@ func TestWholes_AFieldFoldedAndUnfoldedAgainKeepsItsStateAndItsPlaces(t *testing
 	f.zoom(0.25)
 	f.run(int(foldAfter/frame) + 2)
 	if got := sectorsOf(f.folded); !slices.Equal(got, []int{1, 9}) || len(f.bySector()) != 0 {
-		t.Fatalf("at L4 folded sectors %v with %d trees left, want 1 and 9, none left", got,
+		t.Fatalf("at L4 folded sectors %v with %d parts left, want 1 and 9, none left", got,
 			len(f.bySector()))
 	}
 	f.zoom(0.5)
@@ -587,7 +587,7 @@ func TestWholes_AFieldFoldedAndUnfoldedAgainKeepsItsStateAndItsPlaces(t *testing
 	}
 	fx := f.w.Write().Effects()
 	if fx.Has(f.id(), fx.Named(thinnedEf)) {
-		t.Fatal("the forest folded whole is thinned")
+		t.Fatal("the field folded whole is thinned")
 	}
 
 	f.w.Write().Carrier().PutFrom(again[1][0].id, world.Despawn{})
@@ -595,7 +595,7 @@ func TestWholes_AFieldFoldedAndUnfoldedAgainKeepsItsStateAndItsPlaces(t *testing
 	f.zoom(0.25)
 	f.run(int(foldAfter/frame) + 10)
 	if !fx.Has(f.id(), fx.Named(thinnedEf)) {
-		t.Fatal("the forest folded short of a tree is not thinned")
+		t.Fatal("the field folded short of a part is not thinned")
 	}
 	f.zoom(0.5)
 	f.run(2)
@@ -603,7 +603,7 @@ func TestWholes_AFieldFoldedAndUnfoldedAgainKeepsItsStateAndItsPlaces(t *testing
 }
 
 func TestWholes_AFieldAsleepInItsOwnSectorTakesWhatItsOthersFoldInto(t *testing.T) {
-	f := newForest(t, geom.NewVec(256, 256))
+	f := newField(t, geom.NewVec(256, 256))
 	f.start(t, false)
 	f.run(2)
 	f.w.Write().Carrier().PutFrom(f.bySector()[8][0].id, world.Despawn{})
@@ -612,12 +612,12 @@ func TestWholes_AFieldAsleepInItsOwnSectorTakesWhatItsOthersFoldInto(t *testing.
 	f.run(int(foldAfter/frame) + 2)
 	fx := f.w.Write().Effects()
 	if !fx.Has(f.id(), fx.Named(thinnedEf)) {
-		t.Fatal("the forest asleep, sector 8 folded short of a tree, is not thinned")
+		t.Fatal("the field asleep, sector 8 folded short of a part, is not thinned")
 	}
 	f.look(geom.NewVec(256, 256))
 	f.run(2)
-	if got := f.w.Read(0).LevelAt(forestSide/2, forestSide/2); got != lod.L6 {
-		t.Fatalf("the forest's own sector at %v, want asleep at L6", got)
+	if got := f.w.Read(0).LevelAt(fieldSide/2, fieldSide/2); got != lod.L6 {
+		t.Fatalf("the field's own sector at %v, want asleep at L6", got)
 	}
 	f.plantedIn(t, 1, 0, 8)
 	f.plantedIn(t, 2, 1)
@@ -625,7 +625,7 @@ func TestWholes_AFieldAsleepInItsOwnSectorTakesWhatItsOthersFoldInto(t *testing.
 
 func TestWholes_ASaveWhileAFieldWaitsToFoldKeepsEachSectorsWait(t *testing.T) {
 	t.Chdir(t.TempDir())
-	was := newForest(t, geom.NewVec(256, 256))
+	was := newField(t, geom.NewVec(256, 256))
 	was.start(t, false)
 	was.run(2)
 	was.look(geom.NewVec(1300, 256))
@@ -634,7 +634,7 @@ func TestWholes_ASaveWhileAFieldWaitsToFoldKeepsEachSectorsWait(t *testing.T) {
 	if err := was.eng.Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
-	now := newForest(t, geom.NewVec(1300, 256))
+	now := newField(t, geom.NewVec(1300, 256))
 	now.start(t, true)
 	at := now.until(t, "fold", 2*int(foldAfter/frame))
 	if at < from+foldAfter || at > from+foldAfter+frame {
@@ -652,7 +652,7 @@ func TestWholes_ASaveWhileAFieldWaitsToFoldKeepsEachSectorsWait(t *testing.T) {
 
 func TestWholes_ALoadedFieldHasTheSectorsUnfoldedItHad(t *testing.T) {
 	t.Chdir(t.TempDir())
-	was := newForest(t, geom.NewVec(1300, 512))
+	was := newField(t, geom.NewVec(1300, 512))
 	was.start(t, false)
 	was.run(2)
 	if got := sectorsOf(was.unfolded); !slices.Equal(got, []int{1, 9}) {
@@ -661,7 +661,7 @@ func TestWholes_ALoadedFieldHasTheSectorsUnfoldedItHad(t *testing.T) {
 	if err := was.eng.Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
-	now := newForest(t, geom.NewVec(1300, 512))
+	now := newField(t, geom.NewVec(1300, 512))
 	now.start(t, true)
 	now.run(30)
 	if n, m := len(now.unfolded), len(now.folded); n != 0 || m != 0 {

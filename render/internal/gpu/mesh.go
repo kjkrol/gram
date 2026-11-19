@@ -271,8 +271,12 @@ func Mesh(dw *MeshDraw) {
 	if dw.Untested {
 		mode = depthIgnore
 	}
-	if dw.Depth == nil {
+	depth := dw.Depth
+	if depth == nil {
 		mode = noDepth
+		if dw.Program.writesDepth {
+			depth, mode = d.standIn(t), depthIgnore
+		}
 	}
 	var imgs [4]*Texture
 	for i, im := range dw.Images {
@@ -312,7 +316,7 @@ func Mesh(dw *MeshDraw) {
 	}
 	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms, [4]float32{}, [4]float32{}, nil)
 	offs := d.offsets(dOff, uOff)
-	pass := d.begin(t, dw.Depth, dw.ClearDepth && dw.Depth != nil)
+	pass := d.begin(t, depth, dw.ClearDepth && dw.Depth != nil)
 	if dw.Primed && dw.Depth != nil {
 		r := dw.Target.rect()
 		pass.SetViewport(gputypes.Viewport{X: float32(r.X), Y: float32(r.Y), Width: float32(r.W), Height: float32(r.H), MaxDepth: 1})

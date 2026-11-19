@@ -15,14 +15,18 @@
 // depth, in no order, so what stands behind or under it is hidden), and among what is seen through
 // ([Frame.DrawAt]); [Sprites] as instances, [Sprites.Cutout] naming those of the cutout pass;
 // [Sprites] lay what is seen from afar as points too, a pixel at least, as opaque as they cover of
-// it. What is worked out per pixel is a material ([RegisterMaterials]), what every shader of a
-// frame reads beside the uniforms an image ([RegisterImage], [Frame.Image]).
+// it. What must show under what covers it is uncovered ([Frame.DrawUncovered], before the
+// cutouts, into a depth of its own, [Target].Uncovered): what gives way is left out in part
+// where it lies nearer ([Sprites.Uncover], [Sprites.GiveWay]). What is worked out per pixel is a
+// material ([RegisterMaterials]), what every shader of a frame reads beside the uniforms an image
+// ([RegisterImage], [Frame.Image]).
 //
 // Pictures are [Image]s on the GPU, drawn into and filled ([Image.FillRect] and kin); sprites
 // are painted on the CPU into an [Atlas] ([SpriteDrawer], [Solid] and kin, [Blob] one seen from
-// afar), text in a [Font], and by points of the world, as deep as they stand, in [Labels] (text
+// afar) or shot on the GPU into their places on it ([Atlas.AddShot]), text in a [Font], and by
+// points of the world, as deep as they stand, in [Labels] (text
 // and badges). A [Look] is a drawer, a material or frames ([Phases], [Loops]); an
-// [Appearance] is the sprite an entity is drawn from. A color.RGBA given to render is straight
+// [Appearance] is the sprite a thing is drawn from. A color.RGBA given to render is straight
 // alpha; render premultiplies it for the GPU.
 //
 // The machinery is render/internal's: gpu (the device), wgsl (the shaders' library, the materials

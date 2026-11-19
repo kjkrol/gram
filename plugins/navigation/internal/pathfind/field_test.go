@@ -14,7 +14,7 @@ import (
 
 var grass = cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land}
 
-// grass with rocks, forest and sand scattered over it, a road along a row and one slantwise,
+// grass with rocks, mire and sand scattered over it, a road along a row and one slantwise,
 // linked cell to cell
 func scattered(g grid.Grid, along, slantwise int) (*board.BoardRead, *board.BoardWrite) {
 	brd, brdW := board.NewBoard(g)
@@ -25,7 +25,7 @@ func scattered(g grid.Grid, along, slantwise int) (*board.BoardRead, *board.Boar
 		case r < 14:
 			brdW.Set(c, cell.Kind{Name: cell.Named("rock"), Pace: 1, Solid: true})
 		case r < 26:
-			brdW.Set(c, cell.Kind{Name: cell.Named("forest"), Pace: 0.4, Allows: cell.Land})
+			brdW.Set(c, cell.Kind{Name: cell.Named("mire"), Pace: 0.4, Allows: cell.Land})
 		case r < 32:
 			brdW.Set(c, cell.Kind{Name: cell.Named("sand"), Pace: 2.0 / 3,
 				Allows: cell.Land | cell.Air}.Paced(cell.Land, 0.8))

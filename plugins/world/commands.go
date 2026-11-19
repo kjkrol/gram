@@ -85,24 +85,43 @@ type ShowFar struct{ Look FarLook }
 // or not (Settings.Counts). The settings screen alone, in a world cut into sectors.
 type ShowCounts struct{ On bool }
 
-// ShowCanopies has a canopy (Slot.Canopy) show the unit standing under it through in a view from
-// above, or stand whole (Settings.Canopies). The settings screen alone, under Game.
-type ShowCanopies struct{ On bool }
+// Bodies has the kinds with a body (Atlas.AddBody) stand whole in relief out to the level
+// Reach, the close scale's L1 to L3, cards of them beyond (Settings.BodiesShort). The settings
+// screen alone, under Graphics.
+type Bodies struct{ Reach lod.Level }
 
-func (Despawn) Command()      {}
-func (Spawn) Command()        {}
-func (SpawnPart) Command()    {}
-func (SpawnWhole) Command()   {}
-func (Keen) Command()         {}
-func (Calm) Command()         {}
-func (Pause) Command()        {}
-func (Faster) Command()       {}
-func (Slower) Command()       {}
-func (Tempo) Command()        {}
-func (SwitchBands) Command()  {}
-func (ShowFar) Command()      {}
-func (ShowCounts) Command()   {}
-func (ShowCanopies) Command() {}
+// GiveWay has what gives way (Slot.GivesWay) do so before a camera loose over the world or
+// centred on a unit, the tactical view, or stand whole there (Settings.Covers). The settings
+// screen alone, under Game.
+type GiveWay struct{ On bool }
+
+// GiveWayRiding has what gives way do so before a camera riding a unit too, behind it or inside
+// it, or stand whole there (Settings.GivesWayRiding). The settings screen alone, under Game.
+type GiveWayRiding struct{ On bool }
+
+// AdaptBodies has the bodies' reach follow the cameras' frame budget, or not
+// (Settings.StillBodies): the world's Bodies is a cameras.Lever (cameras.Config.Levers), the
+// reach drawn in a level as the rate falls under the budget, out again as it stays over. The
+// settings screen alone, under Graphics.
+type AdaptBodies struct{ On bool }
+
+func (Despawn) Command()       {}
+func (Spawn) Command()         {}
+func (SpawnPart) Command()     {}
+func (SpawnWhole) Command()    {}
+func (Keen) Command()          {}
+func (Calm) Command()          {}
+func (Pause) Command()         {}
+func (Faster) Command()        {}
+func (Slower) Command()        {}
+func (Tempo) Command()         {}
+func (SwitchBands) Command()   {}
+func (ShowFar) Command()       {}
+func (ShowCounts) Command()    {}
+func (Bodies) Command()        {}
+func (GiveWay) Command()       {}
+func (GiveWayRiding) Command() {}
+func (AdaptBodies) Command()   {}
 
 var (
 	_ command.Command = Despawn{}
@@ -119,18 +138,32 @@ var (
 	_ command.Command = SwitchBands{}
 	_ command.Command = ShowFar{}
 	_ command.Command = ShowCounts{}
-	_ command.Command = ShowCanopies{}
+	_ command.Command = Bodies{}
+	_ command.Command = AdaptBodies{}
+	_ command.Command = GiveWay{}
+	_ command.Command = GiveWayRiding{}
 )
 
 // Settings is what the world lets the players adjust, saved with the game: the looks of the
-// sectors, whether their levels are ticked, how the loose units are drawn far off and whether a
-// canopy shows the unit under it. The tempo and the pause are the clock's (clock.State).
+// sectors, whether their levels are ticked, how the loose units are drawn far off, how far the
+// bodies stand whole and before which cameras what gives way does. The tempo and the pause are
+// the clock's (clock.State).
 type Settings struct {
 	Sectors  SectorsShown
 	Unbanded bool
 	Far      FarLook
 	Counts   Shown
-	Canopies Shown
+	// BodiesShort is how many levels short of L3 the bodies stand whole to at most, 2 the close
+	// scale alone, and BodiesPulled how many more the frame budget has drawn them in by.
+	BodiesShort  uint8
+	BodiesPulled uint8
+	// StillBodies has the bodies' reach stay as set, not follow the frame budget.
+	StillBodies bool
+	// Covers has what gives way (Slot.GivesWay) stand whole before a camera loose over the world
+	// or centred on a unit, where it gives way unless this says; GivesWayRiding has it give way
+	// before a camera riding a unit too, behind it or inside it.
+	Covers         bool
+	GivesWayRiding bool
 }
 
 // Shown is whether a setting has something drawn, or AsConfig.
@@ -147,22 +180,52 @@ func (p *Plugin) Queues() []command.CommandQueue {
 	m := p.module
 	return []command.CommandQueue{
 		&m.pauses, &m.fasters, &m.slowers, &m.tempos, &m.bandSwitches, &m.sectorSwitches,
-		&m.canopies,
+		&m.bodies, &m.bodyAdapts, &m.ways, &m.waysRiding,
 		&m.farLooks, &m.counts, &m.spawns, &m.spawnParts, &m.spawnWholes, &m.despawns, &m.keens,
 		&m.calms, &m.effectCmds.queue, &m.effectCmds.triggers,
 	}
 }
 
-// Settings are the tempo, with more than one to choose from, whether a canopy shows the unit
-// under it (under Game) and, in a world cut into sectors, what is drawn of them, whether their
-// levels are ticked and how the loose units are drawn far off (plugin.Tunable).
+// Settings are the tempo, with more than one to choose from, where a look gives way to one
+// uncovered whether it does in the tactical view and riding a unit (under Game), with kinds
+// that have bodies how far those stand whole and whether that follows the frame budget and, in
+// a world cut into sectors, what is drawn of them, whether their levels are ticked and how the
+// loose units are drawn far off (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {
-	out := []control.Setting{control.Switch{
-		Label:   "Canopies show the units under them",
-		Section: control.Game,
-		Get:     p.read.Canopies,
-		Set:     func(on bool) command.Command { return ShowCanopies{On: on} },
-	}}
+	var out []control.Setting
+	if p.read.GivingWay() {
+		out = append(out,
+			control.Switch{
+				Label:   "What covers a unit gives way",
+				Section: control.Game,
+				Get:     func() bool { return !p.Res.Settings.Covers },
+				Set:     func(on bool) command.Command { return GiveWay{On: on} },
+			},
+			control.Switch{
+				Label:   "And riding a unit, behind it or inside",
+				Section: control.Game,
+				Get:     func() bool { return p.Res.Settings.GivesWayRiding },
+				Set:     func(on bool) command.Command { return GiveWayRiding{On: on} },
+			})
+	}
+	if p.read.Bodied() {
+		out = append(out,
+			control.Choice{
+				Label:   "Bodies stand whole",
+				Section: control.Graphics,
+				Options: []string{"close up", "to the standard scale", "as far as cards reach"},
+				Get:     func() int { return 2 - int(min(p.Res.Settings.BodiesShort, 2)) },
+				Set: func(i int) command.Command {
+					return Bodies{Reach: lod.L1 + lod.Level(i)}
+				},
+			},
+			control.Switch{
+				Label:   "Bodies follow the frame budget",
+				Section: control.Graphics,
+				Get:     func() bool { return !p.Res.Settings.StillBodies },
+				Set:     func(on bool) command.Command { return AdaptBodies{On: on} },
+			})
+	}
 	if tempos := p.module.clock.Read().Tempos(); len(tempos) > 1 {
 		options := make([]string, len(tempos))
 		for i, t := range tempos {

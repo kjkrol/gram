@@ -46,9 +46,9 @@ type strip struct {
 	// by tick, the sectors told their Unfold
 	steps [][]int
 
-	trees    *goke.Query
-	treeBase goke.Comp[world.Base]
-	treeOf   goke.Comp[world.PartOf]
+	parts    *goke.Query
+	partBase goke.Comp[world.Base]
+	partOf   goke.Comp[world.PartOf]
 }
 
 var _ sector.Observers = (*strip)(nil)
@@ -57,7 +57,7 @@ func (s *strip) Observers(each func(cam camera.Camera)) { each(s.cam) }
 
 func (s *strip) SetupSystems() []goke.System {
 	return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		s.trees = si.NewQueryBuilder(&s.treeBase, &s.treeOf).Build()
+		s.parts = si.NewQueryBuilder(&s.partBase, &s.partOf).Build()
 	}}}
 }
 
@@ -97,8 +97,8 @@ func newStrip(t *testing.T, unfolds int, seen bool) *strip {
 		Rules(func() { s.rules() }).
 		Kinds(func() { s.kinds() }).
 		Spawn(func() {
-			s.w.Write().Seed(kind.Named[forestRow](s.w.Kinds(), stripKind).
-				Entry(forestRow{stripWidth / 2, sectorSide / 2}))
+			s.w.Write().Seed(kind.Named[fieldRow](s.w.Kinds(), stripKind).
+				Entry(fieldRow{stripWidth / 2, sectorSide / 2}))
 		}).
 		Update(func(ctx goke.RunCtx, dt time.Duration) { s.w.RunPlan(ctx, dt) })
 	s.eng = engine.NewEngine(oneStageGame{stage: st})
@@ -120,7 +120,7 @@ func (s *strip) rules() {
 		rules = append(rules, act.Branch[world.Unfold]{
 			Name: fmt.Sprintf("plant %d", k),
 			When: cond.Self.If(plot(k, 2)),
-			Then: act.Self.Do(world.SpawnPart{Entry: kind.EntryOf(treeKind, treeRow{}),
+			Then: act.Self.Do(world.SpawnPart{Entry: kind.EntryOf(partKind, partRow{}),
 				At: plotAt[k]}),
 		})
 	}
@@ -128,8 +128,8 @@ func (s *strip) rules() {
 }
 
 func (s *strip) kinds() {
-	kind.Define[forestRow](s.w.Kinds(), stripKind, kind.Spec{
-		comp.Load(func(r forestRow) world.Position {
+	kind.Define[fieldRow](s.w.Kinds(), stripKind, kind.Spec{
+		comp.Load(func(r fieldRow) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(r.x-10, r.y-10), 20, 20)}
 		}),
 		comp.Const(world.Velocity{}),
@@ -137,8 +137,8 @@ func (s *strip) kinds() {
 		comp.Const(world.Field{Size: geom.NewVec(stripWidth, sectorSide)}),
 		ceremony.Plays(s.w.Roles().Named(stripRole)),
 	})
-	kind.Define[treeRow](s.w.Kinds(), treeKind, kind.Spec{
-		comp.Load(func(treeRow) world.Position {
+	kind.Define[partRow](s.w.Kinds(), partKind, kind.Spec{
+		comp.Load(func(partRow) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(-5, -5), 10, 10)}
 		}),
 		comp.Const(world.Velocity{}),
@@ -176,11 +176,11 @@ func (s *strip) batches() [][]int {
 	return s.steps[from:to]
 }
 
-// the places of the trees, sorted
+// the places of the parts, sorted
 func (s *strip) places() []geom.Vec {
 	var at []geom.Vec
-	for s.trees.All(); s.trees.Next(); {
-		for _, b := range s.treeBase.Slice(s.trees.Cursor()) {
+	for s.parts.All(); s.parts.Next(); {
+		for _, b := range s.partBase.Slice(s.parts.Cursor()) {
 			at = append(at, b.Pos.Center())
 		}
 	}
@@ -193,7 +193,7 @@ func (s *strip) places() []geom.Vec {
 	return at
 }
 
-// the sectors the trees stand in, each once, sorted
+// the sectors the parts stand in, each once, sorted
 func (s *strip) planted() []int {
 	var in []int
 	for _, at := range s.places() {
@@ -228,7 +228,7 @@ func TestWholes_UnfoldTheBudgetOfStretchesAStepNearestTheCameraFirst(t *testing.
 	whole.run(10)
 	all := whole.places()
 	if len(all) == 0 {
-		t.Fatal("no trees planted unfolding the whole strip at once")
+		t.Fatal("no parts planted unfolding the whole strip at once")
 	}
 	for _, c := range []struct {
 		unfolds, budget int
@@ -252,7 +252,7 @@ func TestWholes_UnfoldTheBudgetOfStretchesAStepNearestTheCameraFirst(t *testing.
 				}
 			}
 			if have := s.places(); !slices.Equal(have, all) {
-				t.Errorf("planted %d trees, want the %d of the strip unfolded at once, in place",
+				t.Errorf("planted %d parts, want the %d of the strip unfolded at once, in place",
 					len(have), len(all))
 			}
 		})
@@ -271,7 +271,7 @@ func TestWholes_AStretchBackAtL4BeforeItsTurnUnfoldsNot(t *testing.T) {
 		t.Errorf("unfolded %v, want the nearest %v alone", s.batches(), sorted(near))
 	}
 	if got := s.planted(); !slices.Equal(got, sorted(near)) {
-		t.Errorf("trees stand in sectors %v, want %v alone", got, sorted(near))
+		t.Errorf("parts stand in sectors %v, want %v alone", got, sorted(near))
 	}
 }
 
@@ -290,12 +290,12 @@ func TestWholes_UnfoldTheBudgetAStepInTheSameOrderWithNoObserver(t *testing.T) {
 		}
 	}
 	if have := once.planted(); len(have) != stripSectors {
-		t.Errorf("trees stand in %d sectors, want all %d", len(have), stripSectors)
+		t.Errorf("parts stand in %d sectors, want all %d", len(have), stripSectors)
 	}
 }
 
-// whether the forest's part over box is drawn
-func (f *forest) drawsPart(box geom.AABB) bool {
+// whether the field's piece over box is drawn
+func (f *fieldStage) drawsPart(box geom.AABB) bool {
 	for _, d := range f.w.Published() {
 		if d.ID == f.id() && d.Piece && d.Box == box {
 			return true
@@ -305,7 +305,7 @@ func (f *forest) drawsPart(box geom.AABB) bool {
 }
 
 func TestWholes_AStretchWaitingItsTurnStaysFoldedItsPartsKeptAndItsPartDrawn(t *testing.T) {
-	f := newForestOf(t, &forest{at: geom.NewVec(256, 256), unfolds: 1}, forestLooks{})
+	f := newFieldOf(t, &fieldStage{at: geom.NewVec(256, 256), unfolds: 1}, fieldLooks{})
 	// 200 by 600 world units, so sector 8 is seen and 9 lies past the sight
 	f.cam.SetViewport(100, 300)
 	f.look(f.at)
@@ -336,7 +336,7 @@ func TestWholes_AStretchWaitingItsTurnStaysFoldedItsPartsKeptAndItsPartDrawn(t *
 	}
 	f.standIn(t, 0, 1)
 	if !f.drawsPart(boxOf(8)) || f.drawsPart(boxOf(0)) {
-		t.Errorf("the forest's part drawn over sector 8 %v, over sector 0 %v; want 8's alone",
+		t.Errorf("the field's piece drawn over sector 8 %v, over sector 0 %v; want 8's alone",
 			f.drawsPart(boxOf(8)), f.drawsPart(boxOf(0)))
 	}
 	f.run(1)
@@ -349,6 +349,6 @@ func TestWholes_AStretchWaitingItsTurnStaysFoldedItsPartsKeptAndItsPartDrawn(t *
 	f.run(1)
 	f.plantedIn(t, 2, 0, 1, 8)
 	if f.drawsPart(boxOf(8)) {
-		t.Error("the forest's part drawn over sector 8 unfolded")
+		t.Error("the field's piece drawn over sector 8 unfolded")
 	}
 }

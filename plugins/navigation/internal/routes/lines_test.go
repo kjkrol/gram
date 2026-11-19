@@ -22,8 +22,8 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
 fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(0.0, 0.0, 0.0, 1.0); }
 `), []render.Uniform{{Name: "ViewProj", Size: 16}})
 
-// a canopy 20 over the middle of the level ground, its depth written, nothing drawn
-var canopy = render.NewMeshShaderWith("test canopy", []byte(`
+// a cover 20 over the middle of the level ground, its depth written, nothing drawn
+var cover = render.NewMeshShaderWith("test cover", []byte(`
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
     var corners = array<vec2<f32>, 6>(
@@ -55,7 +55,7 @@ func TestRoutes_LayAStretchOverTheGround(t *testing.T) {
 		Uniforms:   map[string]any{"ViewProj": tr.M[:]},
 	})
 	screen.CopyDepth(ground, depth)
-	screen.DrawMesh(nil, canopy, &render.DrawMeshOptions{
+	screen.DrawMesh(nil, cover, &render.DrawMeshOptions{
 		Depth:      depth,
 		WriteDepth: true,
 		Vertices:   6,
@@ -73,7 +73,7 @@ func TestRoutes_LayAStretchOverTheGround(t *testing.T) {
 	red := func(x, y int) byte { return pix[4*(y*256+x)] }
 	for _, x := range []int{60, 120, 190} {
 		if v := red(x, 100); v < 200 {
-			t.Errorf("on the stretch at (%d, 100) red is %d, want the line, over the canopy at "+
+			t.Errorf("on the stretch at (%d, 100) red is %d, want the line, over the cover at "+
 				"120 too", x, v)
 		}
 	}

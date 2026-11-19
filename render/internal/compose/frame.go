@@ -63,7 +63,9 @@ type Frame struct {
 	source   int32   // the source composing, one more than its index; 0 none
 	opaque   []int32 // the sources drawing in the opaque pass, one more than their index
 	cutout   []int32 // the sources drawing in the cutout pass, one more than their index
-	lighting *lighting
+	// the sources drawing what they have uncovered, one more than their index
+	uncovered []int32
+	lighting  *lighting
 }
 
 type uniform struct {
@@ -85,6 +87,7 @@ func (f *Frame) Reset(cam camera.Camera) {
 	f.cam, f.items, f.verts, f.order, f.count = cam, f.items[:0], f.verts[:0], f.order[:0], 0
 	f.uniforms, f.ground, f.opaque, f.overs = f.uniforms[:0], false, f.opaque[:0], 0
 	f.images, f.lighting, f.cutout = f.images[:0], nil, f.cutout[:0]
+	f.uncovered = f.uncovered[:0]
 }
 
 // Lit is the light on what stands at (x, y, z) taking take (zero: every shade, Shines: none), as
@@ -117,6 +120,11 @@ func (f *Frame) DrawOpaque() { f.opaque = append(f.opaque, f.source) }
 // the depth and writing it, what it draws cut at half its alpha, before anything seen through.
 func (f *Frame) DrawCutout() { f.cutout = append(f.cutout, f.source) }
 
+// DrawUncovered has the composing Direct draw what it has uncovered, before the cutouts, into a
+// depth of its own (Target.Uncovered): what gives way is left out over it in the passes after. A
+// frame without a ground has no depth to tell what covers it by, and no such pass.
+func (f *Frame) DrawUncovered() { f.uncovered = append(f.uncovered, f.source) }
+
 // DrawAt has the composing Direct draw among what is seen through, back to front, at at.
 func (f *Frame) DrawAt(at At) {
 	f.items = append(f.items, item{at: at, first: int32(len(f.verts)), direct: f.source})
@@ -126,6 +134,9 @@ func (f *Frame) DrawAt(at At) {
 func (f *Frame) Places(fn func(p Pass, at At)) {
 	for range f.opaque {
 		fn(Opaque, At{})
+	}
+	for range f.uncovered {
+		fn(Uncovered, At{})
 	}
 	for range f.cutout {
 		fn(Cutout, At{})

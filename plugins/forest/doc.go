@@ -7,17 +7,20 @@
 // # Kinds of trees
 //
 // A game defines its kinds of trees in the Kinds section ([Plugin.Types], [Types.Define] a
-// [Spec]): how tall a tree stands and how wide its crown, how it looks, how it casts its shade,
-// how much it bends in the wind, whether it stops what collides, and the game's roles it plays
-// beside [TreeRole]. A tree is a part of its forest standing for good (world.Fixed), going as
-// its sector folds. At L2 it stands in relief as a billboard of its Side, its top leaning with
-// the wind's gusts as far as its Sway says, or as a body of it on the four sides and over the top
-// of its box where its Spec says Body, at L3 as a billboard of its Top; from L4 out the world's
-// sheets hold it as planted. A look left out is drawn of its [Colours]. Its looks are whole,
-// drawn in render's cutout pass (world.Slot.Cutout), and canopies (world.Slot.Canopy): from
-// above a unit standing under a tree shows through its crown where the world's Canopies setting
-// says, in relief the crown hides it. [Types.Entry] is a tree for a game's own rule to stand
-// where no forest plants it.
+// [Spec]): how tall a tree stands and how wide its crown, how it looks, how it casts its shade, how
+// much it bends in the wind, whether it stops what collides, and the game's roles it plays beside
+// [TreeRole]. A tree is a part of its forest standing for good (world.Fixed), going as its sector
+// folds. At L2 it stands in relief as a billboard of its Side, its top leaning with the wind's
+// gusts as far as its Sway says, or as a body of it on the four sides and over the top of its box
+// where its Spec says Body, at L3 as a billboard of its Top; from L4 out the world's sheets hold it
+// as planted. A look left out is drawn of its [Colours]. A Spec with Parts is a tree with a body
+// (world.Body), its parts in the paints [Leaves] and [Wood]: it stands whole in relief as far as
+// the world's bodies reach and as a card of itself beyond, its Side and its Top photographed of it.
+// Its looks are whole, drawn in render's cutout pass (world.Slot.Cutout), and give way
+// (world.Slot.GivesWay): what a game's look has uncovered (world.Slot.Uncovered) shows through
+// the tree before it or over it, which is left out in part round it, before the cameras the
+// world's settings say (world.GiveWay, world.GiveWayRiding). [Types.Entry] is a tree for a
+// game's own rule to stand where no forest plants it.
 //
 // # Stands
 //

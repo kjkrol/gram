@@ -93,8 +93,8 @@ func main() {
 			"marching from region to region; zoomed in the forest's sectors plant their trees " +
 			"and each army stands its soldiers round it, who take its march over, folding them " +
 			"back in where they stand two seconds after the camera draws away. Soldiers fell " +
-			"the trees they strike, and the forest grows back sparser; its crowns are " +
-			"see-through, the soldiers under them showing. Select an army or its " +
+			"the trees they strike, and the forest grows back sparser; its crowns " +
+			"give way round the soldiers under them. Select an army or its " +
 			"soldiers and send them by a right click: two armies meeting far off stop and " +
 			"fight blow by blow; H has the army selected charge the other, which unfolds " +
 			"however far, and their soldiers fight it out, as they do when the camera comes " +
@@ -121,10 +121,9 @@ func main() {
 				Sight:  Sight,
 				Fold:   FoldAfter,
 			},
-			Far:      world.Banners,
-			Counts:   true,
-			Canopies: true,
-			Heights:  true,
+			Far:     world.Banners,
+			Counts:  true,
+			Heights: true,
 		}).
 		Plugins(a.makePlugins).
 		Figures(a.defineFigures).

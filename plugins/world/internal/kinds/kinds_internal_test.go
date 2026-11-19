@@ -188,20 +188,20 @@ func TestKinds_NewSprite_RefusesOnePastTheLast(t *testing.T) {
 func TestKinds_Define_PicksOutTheZAndKeepsItAColumn(t *testing.T) {
 	kinds := New(true)
 	tall := entity.Z{Height: 12}
-	kind.Define[int](kinds, "tree", append(statSpec(), comp.Const(tall)))
+	kind.Define[int](kinds, "post", append(statSpec(), comp.Const(tall)))
 	kind.Define[int](kinds, "dot", statSpec())
 
-	tree, _ := kinds.Kind("tree")
-	if !tree.HasZ {
-		t.Fatal("the tree gives a Z, but its kind has none")
+	post, _ := kinds.Kind("post")
+	if !post.HasZ {
+		t.Fatal("the post gives a Z, but its kind has none")
 	}
-	if got := tree.Z.Resolve(0); got != tall {
-		t.Errorf("the tree's Z = %v, want %v", got, tall)
+	if got := post.Z.Resolve(0); got != tall {
+		t.Errorf("the post's Z = %v, want %v", got, tall)
 	}
-	if !slices.ContainsFunc(tree.Comps, func(c comp.Comp) bool {
+	if !slices.ContainsFunc(post.Comps, func(c comp.Comp) bool {
 		return c.Type() == reflect.TypeFor[entity.Z]()
 	}) {
-		t.Error("the tree's Z is no longer among its components: it would spawn without one")
+		t.Error("the post's Z is no longer among its components: it would spawn without one")
 	}
 	if dot, _ := kinds.Kind("dot"); dot.HasZ {
 		t.Error("a kind giving no Z has one")

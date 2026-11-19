@@ -547,19 +547,24 @@ func TestComposer_HandsTheShaderTheFramesUniformsAndZeroesTheStale(t *testing.T)
 }
 
 type direct struct {
-	opaque bool
-	cutout bool
-	at     *At
-	ground bool
-	after  *int
-	drawn  []int
-	passes []Pass
-	sun    []float32
+	opaque    bool
+	uncovered bool
+	cutout    bool
+	at        *At
+	ground    bool
+	after     *int
+	drawn     []int
+	passes    []Pass
+	targets   []Target
+	sun       []float32
 }
 
 func (d *direct) Compose(f *Frame, _ camera.Camera) {
 	if d.opaque {
 		f.DrawOpaque()
+	}
+	if d.uncovered {
+		f.DrawUncovered()
 	}
 	if d.cutout {
 		f.DrawCutout()
@@ -574,7 +579,44 @@ func (d *direct) Compose(f *Frame, _ camera.Camera) {
 func (d *direct) Draw(t Target, _ camera.Camera, u Uniforms) {
 	d.drawn = append(d.drawn, *d.after)
 	d.passes = append(d.passes, t.Pass)
+	d.targets = append(d.targets, t)
 	d.sun = u.Get("Seen")
+}
+
+func TestComposer_TheUncoveredAreDrawnBeforeTheCutoutsIntoADepthThePassesAfterRead(t *testing.T) {
+	gputest.Need(t)
+	calls := 0
+	drawn := func(grounded bool) *direct {
+		figures := &direct{uncovered: true, cutout: true, at: &[]At{h(2)}[0], after: &calls}
+		c := NewComposer(figures, &direct{opaque: grounded, after: &calls})
+		c.compose(topDown(), wholePart)
+		c.render(gfx.NewImage(32, 32), false, 0)
+		return figures
+	}
+	figures := drawn(true)
+	if !slices.Equal(figures.passes, []Pass{Uncovered, Cutout, SeeThrough}) {
+		t.Fatalf("the figures drew in %v, want what they have uncovered, then their cutouts, "+
+			"then among what is seen through", figures.passes)
+	}
+	into := figures.targets[0]
+	if into.Depth == nil || into.Uncovered != nil {
+		t.Errorf("the uncovered are drawn into the depth %v reading %v, want one of their own "+
+			"and none read", into.Depth, into.Uncovered)
+	}
+	for _, after := range figures.targets[1:] {
+		if after.Uncovered != into.Depth || after.Depth == into.Depth || after.Depth == nil {
+			t.Errorf("in the pass %v the figures read the uncovered in %v and draw against %v, "+
+				"want the depth %v they were drawn into and the frame's own", after.Pass,
+				after.Uncovered, after.Depth, into.Depth)
+		}
+	}
+	// without a ground a frame has no depth to tell what covers what by
+	figures = drawn(false)
+	if !slices.Equal(figures.passes, []Pass{Cutout, SeeThrough}) ||
+		figures.targets[0].Uncovered != nil {
+		t.Errorf("without a ground the figures drew in %v reading %v, want no pass of the "+
+			"uncovered and nothing read", figures.passes, figures.targets[0].Uncovered)
+	}
 }
 
 func TestComposer_ADirectDrawsWhereItAskedAndOnlyThere(t *testing.T) {

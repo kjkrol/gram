@@ -16,10 +16,10 @@ func TestField_TheCoverFollowsEveryChangeOfACell(t *testing.T) {
 	cells := terrain.New(grid)
 	f := newField(grid, cells, func(cell.ID) float32 { return 0 })
 	cells.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
-	forest := cell.Kind{Pace: 1, Allows: cell.Land, Veil: 0.5, Veils: cell.Land}
+	veiled := cell.Kind{Pace: 1, Allows: cell.Land, Veil: 0.5, Veils: cell.Land}
 	c3 := grid.At(3, 0)
 	c6 := grid.At(6, 0)
-	cells.Set(c3, forest)
+	cells.Set(c3, veiled)
 	walk := func() (stretches [][2]float32) {
 		f.Walk(geom.NewVec(0, 5), geom.NewVec(1, 0), 80, world.Layers(cell.Land), func(near, far, _, _, tau float32) bool {
 			stretches = append(stretches, [2]float32{near, far})
@@ -28,11 +28,11 @@ func TestField_TheCoverFollowsEveryChangeOfACell(t *testing.T) {
 		return stretches
 	}
 	if got := walk(); len(got) != 1 || got[0] != [2]float32{30, 40} {
-		t.Fatalf("walked through %v, want the forest cell from 30 to 40", got)
+		t.Fatalf("walked through %v, want the veiled cell from 30 to 40", got)
 	}
-	cells.Set(c6, forest)
+	cells.Set(c6, veiled)
 	if got := walk(); len(got) != 2 || got[1] != [2]float32{60, 70} {
-		t.Errorf("walked through %v after a second forest, want it from 60 to 70 too", got)
+		t.Errorf("walked through %v after a second one, want it from 60 to 70 too", got)
 	}
 }
 

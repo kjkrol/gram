@@ -21,10 +21,11 @@ type Sky interface {
 func inRelief(cam camera.Camera) bool { return cam.Projection().Sorts() }
 
 var (
-	_ world.DirectLook = Look{}
-	_ world.LyingLook  = Look{}
-	_ world.CanopyLook = Look{}
-	_ world.CutoutLook = Look{}
+	_ world.DirectLook     = Look{}
+	_ world.LyingLook      = Look{}
+	_ world.UncoveringLook = Look{}
+	_ world.CutoutLook     = Look{}
+	_ world.BodyLook       = Look{}
 )
 
 // Look lays the world's entities on the GPU: billboards standing upright in the views in relief,
@@ -49,12 +50,29 @@ func (l Look) Fog(amount float32) {
 	}
 }
 
-// Veil has the flat sprites laid next show what lies under them through, as much as opacity says;
-// a billboard stands whole.
-func (l Look) Veil(opacity float32) {
-	if c, ok := l.flat.(world.CanopyLook); ok {
-		c.Veil(opacity)
+// Uncover has what is laid next uncovered, in relief and from above.
+func (l Look) Uncover(on bool) {
+	l.gpu.uncover = on
+	if u, ok := l.flat.(world.UncoveringLook); ok {
+		u.Uncover(on)
 	}
+}
+
+// GiveWay has what is laid next give way to what is uncovered, in relief and from above.
+func (l Look) GiveWay(on bool) {
+	l.gpu.gives = on
+	if u, ok := l.flat.(world.UncoveringLook); ok {
+		u.GiveWay(on)
+	}
+}
+
+// Uncovers reports whether what was laid holds something uncovered and something giving way.
+func (l Look) Uncovers() bool {
+	if l.gpu.on {
+		return len(l.gpu.discs) > 0 && l.gpu.anyGives
+	}
+	u, ok := l.flat.(world.UncoveringLook)
+	return ok && u.Uncovers()
 }
 
 // Cutout has the billboards and the flat sprites laid next drawn in the cutout pass, or not.
@@ -98,6 +116,21 @@ func (l Look) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world
 	l.flat.Sprite(f, cam, box, z, atlas, a, lit)
 }
 
+// Body stands the kind's body in relief: whole, or as its card for the way the camera looks at
+// it, standing or, from steeply above, lying; from above, its sprite.
+func (l Look) Body(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z,
+	atlas render.AtlasSource, b *world.Bodied, turn float32, whole bool, a render.Appearance,
+	lit render.Illumination) {
+	switch {
+	case !l.gpu.on:
+		l.Sprite(f, cam, box, z, atlas, a, lit)
+	case whole:
+		l.gpu.body(box, z, b, turn, lit, a.Sway)
+	default:
+		l.gpu.card(box, z, atlas, b, turn, lit, a.Sway)
+	}
+}
+
 // Lie lays the sprite flat at the entity's Altitude. It does not sway.
 func (l Look) Lie(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z,
 	atlas render.AtlasSource, a render.Appearance, lit render.Illumination) {
@@ -122,6 +155,7 @@ func (l Look) Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geom.V
 		m := geom.NewVec(box.TopLeft.X+box.Size.X/2, box.TopLeft.Y+box.Size.Y/2)
 		c := lie.Corners(m, dir)
 		alt, deep := z.Altitude, z.Height
+		l.gpu.bare(box, alt, 0)
 		l.gpu.level(cam, c, alt, atlas, a.SpriteID, lit)
 		l.gpu.upright(cam, c[1], c[0], alt-deep, deep, atlas, a.SpriteID, lit)
 		l.gpu.upright(cam, c[2], c[3], alt-deep, deep, atlas, a.SpriteID, lit)
@@ -154,6 +188,7 @@ func (l Look) Upright(f *render.Frame, cam camera.Camera, box plane.AABB, z worl
 		l.flat.Sprite(f, cam, box, z, atlas, a, lit)
 		return
 	}
+	l.gpu.bare(box, alt, high)
 	for _, side := range [4][2]geom.Vec{{tr, tl}, {br, tr}, {bl, br}, {tl, bl}} {
 		l.gpu.upright(cam, side[0], side[1], alt, high, atlas, a.SpriteID, lit)
 	}

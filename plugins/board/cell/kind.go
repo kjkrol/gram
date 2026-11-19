@@ -6,7 +6,7 @@ import (
 )
 
 // Kind is a named terrain kind: whom it admits and what it does to movement and sight. A wall is
-// Solid; water Allows Water; a hole Allows nobody and is not Solid; a forest Allows Land and has
+// Solid; water Allows Water; a hole Allows nobody and is not Solid; tall grass Allows Land and has
 // a Veil.
 type Kind struct {
 	Name Name

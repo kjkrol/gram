@@ -161,7 +161,7 @@ func TestGround_ASolidCellWithNoVeilLetsSightThrough(t *testing.T) {
 	}
 }
 
-func forestColumn(grid grid.Grid, veil float32, solid bool) func(*board.BoardWrite) {
+func veiledColumn(grid grid.Grid, veil float32, solid bool) func(*board.BoardWrite) {
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	return func(brd *board.BoardWrite) {
 		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land})
@@ -169,7 +169,7 @@ func forestColumn(grid grid.Grid, veil float32, solid bool) func(*board.BoardWri
 			brd.Set(
 				cellAt(3, y),
 				cell.Kind{
-					Name:   cell.Named("forest"),
+					Name:   cell.Named("veiled"),
 					Pace:   1,
 					Allows: cell.Land,
 					Solid:  solid,
@@ -184,23 +184,25 @@ func forestColumn(grid grid.Grid, veil float32, solid bool) func(*board.BoardWri
 func TestGround_AFullyVeiledCellOnlyBlocksSight(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	forest := forestColumn(grid, 1, false)
+	column := veiledColumn(grid, 1, false)
 	observer := boardtest.Mover{Here: cellAt(1, 7), Sight: &vision.Sight{Facing: east, Radius: 300}, Eye: world.Eye{Angle: 2 * math.Pi / 8}}
-	bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize, forest, []boardtest.Mover{observer, {Here: cellAt(5, 7)}})
+	bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize, column,
+		[]boardtest.Mover{observer, {Here: cellAt(5, 7)}})
 	bw.Tick()
 	if seen, ok := bw.Seen(); !ok || seen.Count != 0 {
-		t.Errorf("saw %v through the forest, want nobody", seen.IDs[:seen.Count])
+		t.Errorf("saw %v through the veiled column, want nobody", seen.IDs[:seen.Count])
 	}
 	if got := len(bw.Solid(world.Layers(cell.Land))); got != 0 {
-		t.Errorf("%d solid forest cells, want none", got)
+		t.Errorf("%d solid veiled cells, want none", got)
 	}
 
-	walker := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize, forest, []boardtest.Mover{{Here: cellAt(1, 7), Heading: east}})
+	walker := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize, column,
+		[]boardtest.Mover{{Here: cellAt(1, 7), Heading: east}})
 	for range 90 {
 		walker.Tick()
 	}
 	if units := walker.Snapshot(); units[0].TopLeft.X < float32(4*boardtest.CellSize) {
-		t.Errorf("unit ends at %v, want it past the forest column", units[0])
+		t.Errorf("unit ends at %v, want it past the veiled column", units[0])
 	}
 }
 
@@ -209,11 +211,12 @@ func TestGround_AFullyVeiledCellOnlyBlocksSight(t *testing.T) {
 func TestGround_AVeilDimsSightByItsDepth(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	forest := forestColumn(grid, 0.6, false)
+	column := veiledColumn(grid, 0.6, false)
 	target := boardtest.Mover{Here: cellAt(5, 7)}
 	look := func(radius float32, blockers world.Layers) uint8 {
 		observer := boardtest.Mover{Here: cellAt(1, 7), Sight: &vision.Sight{Facing: east, Radius: radius, Blockers: blockers}, Eye: world.Eye{Angle: 2 * math.Pi / 8}}
-		bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize, forest, []boardtest.Mover{observer, target})
+		bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize, column,
+			[]boardtest.Mover{observer, target})
 		bw.Tick()
 		seen, ok := bw.Seen()
 		if !ok {
@@ -223,21 +226,22 @@ func TestGround_AVeilDimsSightByItsDepth(t *testing.T) {
 	}
 
 	if n := look(160, 0); n != 0 {
-		t.Errorf("at 160 through the forest saw %d, want nobody", n)
+		t.Errorf("at 160 through the veiled column saw %d, want nobody", n)
 	}
 	if n := look(170, 0); n != 1 {
-		t.Errorf("at 170 through the forest saw %d, want the target", n)
+		t.Errorf("at 170 through the veiled column saw %d, want the target", n)
 	}
 	if n := look(160, world.Layers(cell.Air)); n != 1 {
-		t.Errorf("at 160 looking over the forest from Air saw %d, want the target", n)
+		t.Errorf("at 160 looking over the veiled column from Air saw %d, want the target", n)
 	}
 }
 
-func TestGround_AForestThatIsSolidAndVeiledStopsAndDimsUntilItIsCut(t *testing.T) {
+func TestGround_ACellThatIsSolidAndVeiledStopsAndDimsUntilItIsCut(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	observer := boardtest.Mover{Here: cellAt(1, 3), Sight: &vision.Sight{Facing: east, Radius: 160}, Eye: world.Eye{Angle: 2 * math.Pi / 16}}
-	bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize, forestColumn(grid, 0.6, true),
+	bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize,
+		veiledColumn(grid, 0.6, true),
 		[]boardtest.Mover{observer, {Here: cellAt(5, 3)}, {Here: cellAt(1, 9), Heading: east}})
 	walls := bw.Solid(world.Layers(cell.Land))
 	for tick := range 60 {
@@ -245,7 +249,7 @@ func TestGround_AForestThatIsSolidAndVeiledStopsAndDimsUntilItIsCut(t *testing.T
 		bw.AssertClear(tick, bw.Snapshot(), walls)
 	}
 	if seen, _ := bw.Seen(); seen.Count != 0 {
-		t.Errorf("saw %d through the forest at 160, want nobody", seen.Count)
+		t.Errorf("saw %d through the veiled column at 160, want nobody", seen.Count)
 	}
 
 	for y := uint32(1); y <= 14; y++ {
@@ -256,10 +260,10 @@ func TestGround_AForestThatIsSolidAndVeiledStopsAndDimsUntilItIsCut(t *testing.T
 		bw.Tick()
 	}
 	if seen, _ := bw.Seen(); seen.Count != 1 {
-		t.Errorf("saw %d across the cut forest, want the target", seen.Count)
+		t.Errorf("saw %d across the column cut, want the target", seen.Count)
 	}
 	if units := bw.Snapshot(); units[2].TopLeft.X < float32(4*boardtest.CellSize) {
-		t.Errorf("the walker ends at %v, want it through where the forest stood", units[2])
+		t.Errorf("the walker ends at %v, want it through where the column stood", units[2])
 	}
 }
 
@@ -336,7 +340,7 @@ func TestGround_AVeiledHexCutsSightAcrossIt(t *testing.T) {
 			brd.SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land})
 			brd.Set(
 				hex,
-				cell.Kind{Name: cell.Named("forest"), Pace: 1, Allows: cell.Land, Veil: veil},
+				cell.Kind{Name: cell.Named("veiled"), Pace: 1, Allows: cell.Land, Veil: veil},
 			)
 		}, []boardtest.Mover{observer, {Here: to}})
 		bw.Tick()

@@ -132,8 +132,8 @@
 // where it will stand, always, and its routes as thin lines over the ground while [Routes] shows
 // them ([Write.ShowRoutes], [Read.RoutesShown]); [RouteStyle]
 // ([Plugin.WithRouteStyle], [DefaultRouteStyle]) is the lines' colour and width and the goals'
-// colour. Both are marks over the world (render.OnTop), under the selection's outline: no figure
-// or canopy hides them, a route drawn on the GPU hidden by the ground before it alone. A route is
+// colour. Both are marks over the world (render.OnTop), under the selection's outline: nothing
+// that stands hides them, a route drawn on the GPU hidden by the ground before it alone. A route is
 // drawn whole, along the cells the entity will walk to its goal, for up to 16 entities at a time;
 // past them, straight beyond the stretch its order holds.
 //
@@ -144,7 +144,7 @@
 // nodes the searches expanded, the units come into the far mode and those come down off a taken
 // cell; [Read.Reporter] is their line on the telemetry panel. A route
 // asked again is answered as before, unsearched, while the board's passage stands
-// (board.BoardRead.Passage), as it does while a forest sways.
+// (board.BoardRead.Passage), as it does while what stands on a cell sways.
 //
 // # Vocabulary
 //

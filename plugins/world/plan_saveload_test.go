@@ -16,31 +16,31 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-type treeStage struct {
+type planStage struct {
 	load  bool
 	plan  *written
 	world *world.Plugin
 	unit  kind.Of[struct{}]
-	probe *treeProbe
+	probe *planProbe
 	stack game.Scenes
 }
 
-type treeProbe struct {
+type planProbe struct {
 	mind  goke.Comp[store.Mind]
 	query *goke.Query
 }
 
-func (p *treeProbe) SetupSystems() []goke.System {
+func (p *planProbe) SetupSystems() []goke.System {
 	return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		p.query = si.NewQueryBuilder(&p.mind).Build()
 	}}}
 }
 
-func (g *treeStage) Name() string { return "stage" }
+func (g *planStage) Name() string { return "stage" }
 
-func (g *treeStage) Init(ctx game.Initializer) error {
+func (g *planStage) Init(ctx game.Initializer) error {
 	g.world = ctx.UseWorld(testWorldConfig())
-	g.probe = &treeProbe{}
+	g.probe = &planProbe{}
 	ctx.Setup(g.probe)
 	sentry := g.plan
 	if sentry == nil {
@@ -59,23 +59,23 @@ func (g *treeStage) Init(ctx game.Initializer) error {
 	return nil
 }
 
-func (g *treeStage) Loaded() error { return nil }
+func (g *planStage) Loaded() error { return nil }
 
-func (g *treeStage) Spawn() error {
+func (g *planStage) Spawn() error {
 	g.world.Write().Seed(g.unit.Entry(struct{}{}))
 	return nil
 }
 
-func (g *treeStage) Update(ctx goke.RunCtx, d time.Duration) { g.world.RunPlan(ctx, d) }
+func (g *planStage) Update(ctx goke.RunCtx, d time.Duration) { g.world.RunPlan(ctx, d) }
 
-func (g *treeStage) Stack() game.Scenes {
+func (g *planStage) Stack() game.Scenes {
 	if g.stack == nil {
 		g.stack, _ = game.NewStack()
 	}
 	return g.stack
 }
 
-func (g *treeStage) minds() (n int, since time.Duration, running bool) {
+func (g *planStage) minds() (n int, since time.Duration, running bool) {
 	for g.probe.query.All(); g.probe.query.Next(); {
 		for _, m := range g.probe.mind.Slice(g.probe.query.Cursor()) {
 			n++
@@ -86,7 +86,7 @@ func (g *treeStage) minds() (n int, since time.Duration, running bool) {
 	return n, since, running
 }
 
-func (g *treeStage) guarding(t *testing.T) (since time.Duration, running bool) {
+func (g *planStage) guarding(t *testing.T) (since time.Duration, running bool) {
 	t.Helper()
 	n, since, running := g.minds()
 	if n != 1 {
@@ -97,7 +97,7 @@ func (g *treeStage) guarding(t *testing.T) (since time.Duration, running bool) {
 
 func TestPlan_RunsInTheWorldAndIsSaved(t *testing.T) {
 	t.Chdir(t.TempDir())
-	saver := &treeStage{}
+	saver := &planStage{}
 	eng := engine.NewEngine(oneStageGame{stage: saver, props: game.Props{}})
 	if err := eng.Init(); err != nil {
 		t.Fatal(err)
@@ -110,12 +110,13 @@ func TestPlan_RunsInTheWorldAndIsSaved(t *testing.T) {
 	}
 	since, running := saver.guarding(t)
 	if since == 0 || !running {
-		t.Fatalf("the sentry's wait at its post began at %v, its tree running %v; want begun, running", since, running)
+		t.Fatalf("the sentry's wait at its post began at %v, its plan running %v; want begun, "+
+			"running", since, running)
 	}
 	if err := eng.Save(""); err != nil {
 		t.Fatal(err)
 	}
-	loader := &treeStage{load: true}
+	loader := &planStage{load: true}
 	eng2 := engine.NewEngine(oneStageGame{stage: loader, props: game.Props{}})
 	if err := eng2.Load("", ""); err != nil {
 		t.Fatalf("Load: %v", err)
@@ -124,12 +125,13 @@ func TestPlan_RunsInTheWorldAndIsSaved(t *testing.T) {
 		t.Fatal(err)
 	}
 	if at, running := loader.guarding(t); at != since || !running {
-		t.Errorf("after a load the sentry's wait began at %v, its tree running %v; want %v, running", at, running, since)
+		t.Errorf("after a load the sentry's wait began at %v, its plan running %v; want %v, "+
+			"running", at, running, since)
 	}
 }
 
 func TestPlan_OrdersTheWorldsCommands(t *testing.T) {
-	stage := &treeStage{plan: write("leaver", plan.Steps(
+	stage := &planStage{plan: write("leaver", plan.Steps(
 		plan.Self.Wait(50*time.Millisecond),
 		plan.Self.Do(world.Despawn{}),
 	))}

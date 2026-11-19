@@ -103,6 +103,49 @@ fn takes(t: f32, bit: u32) -> bool {
     return (u32(t + 0.5) & bit) != 0u;
 }
 
+// What gives way to what is uncovered (render.Sprites.GiveWay, Uncover): a source draws what it
+// has uncovered in the pass Uncovered, a disc round each thing, into the depth the passes after
+// read (render.Target.Uncovered, depthAt), and what gives way is left out at the pixels written
+// where it lies nearer. givesWay is the bit past a Taking's that says a thing gives way, in
+// the float its Taking rides in.
+const givesWay: u32 = 256u;
+
+// How many of its pixels a disc round something uncovered leaves open at the most, how far out
+// of its middle, of its reach, it leaves that many, and how much nearer a thing lies than what
+// is uncovered before it gives way, of the depth.
+const uncoveredMost: f32 = 0.75;
+const uncoveredWhole: f32 = 0.5;
+const uncoveredGap: f32 = 1e-6;
+
+// uncoveredOpen reports whether the target's pixel px of the disc round something uncovered,
+// off its middle by off (1 at its rim), is written: in a pattern the same in every square of
+// four pixels, thinning outwards, so whatever gives way opens at the same pixels.
+fn uncoveredOpen(off: vec2<f32>, px: vec2<f32>) -> bool {
+    let open = uncoveredMost * (1.0 - smoothstep(uncoveredWhole, 1.0, length(off)));
+    let x = u32(px.x);
+    let y = u32(px.y);
+    let turn = 4u * uncoveredTurn(x & 1u, y & 1u) + uncoveredTurn((x >> 1u) & 1u, (y >> 1u) & 1u);
+    return (f32(turn) + 0.5) / 16.0 < open;
+}
+
+// where a pixel of a square of two comes in the order its pixels open in
+fn uncoveredTurn(x: u32, y: u32) -> u32 {
+    return ((x ^ y) << 1u) | y;
+}
+
+// uncoveredAt is the depth the pass Uncovered writes for what lies at depth: one less, so of
+// those over a pixel the farthest stays and a cleared 0 is nothing.
+fn uncoveredAt(depth: f32) -> f32 {
+    return 1.0 - depth;
+}
+
+// givesWayAt reports whether what lies at depth at the target's pixel px gives way: something
+// uncovered lies farther there.
+fn givesWayAt(px: vec2<f32>, depth: f32) -> bool {
+    let bared = depthAt(px);
+    return bared > 0.0 && depth > 1.0 - bared + uncoveredGap;
+}
+
 // groundShadeOf is the frame's GroundShade at the world point p (render.GroundShade), each band
 // faded from the shade before as far as it has come: the sun everywhere, (1, 0, 1, 1), in a frame
 // without it.

@@ -91,6 +91,70 @@ fn Fragment(dst: vec4<f32>, src: vec2<f32>, color: vec4<f32>, custom: vec4<f32>)
 	}
 }
 
+// the fragment lies further than its triangle and says so: what comes after between the two
+// covers it, on Vulkan, which takes the word, and on a backend handed the program without it
+func TestMesh_AFragmentLyingNoNearerThanItsTriangleSaysSoOnEveryBackend(t *testing.T) {
+	needGPU(t)
+	for name, backend := range map[string]gputypes.Backend{
+		"vulkan": gputypes.BackendVulkan,
+		"metal":  gputypes.BackendMetal,
+	} {
+		was := cur.backend
+		cur.backend = backend
+		layout := NewLayout([]Uniform{{"Depth", 1}, {"Lies", 1}, {"Color", 4}})
+		p := NewMesh("early depth "+name, layout.Fields, `
+struct Out { @builtin(position) clip: vec4<f32> }
+struct Lain {
+    @location(0) color: vec4<f32>,
+    @builtin(frag_depth) depth: f32,
+}
+@vertex
+fn vs_main(@builtin(vertex_index) vid: u32) -> Out {
+    var corners = array<vec2<f32>, 4>(
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>(1.0, -1.0),
+        vec2<f32>(-1.0, 1.0),
+        vec2<f32>(1.0, 1.0),
+    );
+    var o: Out;
+    o.clip = vec4<f32>(corners[vid], U.Depth, 1.0);
+    return o;
+}
+@fragment
+@early_depth_test(less_equal)
+fn fs_main(o: Out) -> Lain { return Lain(U.Color, min(U.Lies, o.clip.z)); }`)
+		dst := NewTexture(4, 4)
+		depth := NewDepth()
+		quad := NewIndices([]uint32{0, 1, 2, 1, 2, 3})
+		draw := func(d, lies float32, c [4]float32, clear bool) {
+			u := make([]byte, layout.Size)
+			layout.Put(u, "Depth", []float32{d})
+			layout.Put(u, "Lies", []float32{lies})
+			layout.Put(u, "Color", c[:])
+			Mesh(&MeshDraw{Target: Image{Texture: dst}, Depth: depth, ClearDepth: clear,
+				Write: true, Program: p, Uniforms: u, Indices: quad, Blend: Copy})
+		}
+		draw(0.8, 0.3, [4]float32{1, 0, 0, 1}, true)  // a red triangle near, lying far
+		draw(0.5, 0.5, [4]float32{0, 0, 1, 1}, false) // blue between the two
+		draw(0.9, 0.4, [4]float32{0, 1, 0, 1}, false) // a green triangle nearest, lying behind
+		pix := make([]byte, 64)
+		dst.ReadPixels(pix)
+		if p := pixel(pix, 4, 1, 1); p != [4]byte{0, 0, 255, 255} {
+			t.Errorf("%s: after red lying at 0.3, blue at 0.5 and green lying at 0.4 the "+
+				"pixel is %v, want blue", name, p)
+		}
+		cur.backend = was
+	}
+}
+
+func TestProgram_ABackendOtherThanVulkanTakesItWithoutTheWordOnItsDepth(t *testing.T) {
+	const source = "@fragment\n@early_depth_test(less_equal)\nfn fs_main() {}\n"
+	const want = "@fragment\nfn fs_main() {}\n"
+	if got := earlyDepth.ReplaceAllString(source, ""); got != want {
+		t.Errorf("the program is handed over as %q, want %q", got, want)
+	}
+}
+
 func TestCompileAll_CompilesEveryProgramAtOnceAndNamesTheOnesThatFail(t *testing.T) {
 	needGPU(t)
 	const n = 12

@@ -167,16 +167,36 @@ func (r *Read) Counts() bool {
 	return r.p.Res.Config.Counts
 }
 
-// Canopies reports whether a canopy (Slot.Canopy) shows the unit standing under it through, in a
-// view from above: as the Settings say, else as the Config does.
-func (r *Read) Canopies() bool {
-	switch r.p.Res.Settings.Canopies {
-	case On:
-		return true
-	case Off:
-		return false
-	}
-	return r.p.Res.Config.Canopies
+// GivingWay reports whether the world's looks have one kind give way and one uncovered
+// (Slot.GivesWay, Slot.Uncovered).
+func (r *Read) GivingWay() bool {
+	wa, _ := r.p.renderer.atlas.(*Atlas)
+	return wa != nil && len(wa.givesWay) > 0 && len(wa.uncovered) > 0
+}
+
+// GivesWay reports whether what gives way does so before cam: loose over the world or centred
+// on a unit unless the Settings say it covers, riding a unit only where they say.
+func (r *Read) GivesWay(cam camera.Camera) bool {
+	loose, riding := r.givesWay()
+	f := figures{covers: !loose, givesRiding: riding}
+	return f.givesWay(cam)
+}
+
+func (r *Read) givesWay() (loose, riding bool) {
+	return !r.p.Res.Settings.Covers, r.p.Res.Settings.GivesWayRiding
+}
+
+// Bodied reports whether any kind of the world's looks has a body (Atlas.AddBody).
+func (r *Read) Bodied() bool {
+	wa, _ := r.p.renderer.atlas.(*Atlas)
+	return wa != nil && len(wa.bodies) > 0
+}
+
+// BodiesReach is the furthest level the kinds with a body stand whole at in relief, L1 to L3:
+// as the Settings say, drawn in by the frame budget.
+func (r *Read) BodiesReach() lod.Level {
+	s := r.p.Res.Settings
+	return lod.L3 - lod.Level(min(int(s.BodiesShort)+int(s.BodiesPulled), 2))
 }
 
 // Banner is a kind's loose units in a sector drawn as one at the strategic scale: the entities
@@ -408,13 +428,17 @@ func (w *Write) SetAtlas(atlas render.AtlasSource) {
 	p.renderer.atlas = atlas
 	p.renderer.shade(nil, nil)
 	p.renderer.lie(nil, nil, nil)
-	p.renderer.mark(nil, nil)
+	p.renderer.mark(nil)
+	p.renderer.ways(nil, nil)
 	p.renderer.sways(nil)
+	p.renderer.bodies(nil)
 	if wa, ok := atlas.(*Atlas); ok {
 		p.renderer.shade(wa.shaded, wa.phased)
 		p.renderer.lie(wa.lain(), wa.edged(), wa.stood())
-		p.renderer.mark(wa.canopies(), wa.cutouts())
+		p.renderer.mark(wa.cutouts())
+		p.renderer.ways(wa.bared(), wa.giving())
 		p.renderer.sways(wa.swaying())
+		p.renderer.bodies(wa.bodiedKin())
 		p.styles = &wa.styles
 	}
 }
@@ -452,11 +476,22 @@ func (w *Write) ShowCounts(on bool) {
 	}
 }
 
-// ShowCanopies has the canopies show the units under them through in a view from above, or not
-// (ShowCanopies, Settings.Canopies).
-func (w *Write) ShowCanopies(on bool) {
-	w.p.Res.Settings.Canopies = Off
-	if on {
-		w.p.Res.Settings.Canopies = On
-	}
+// SetBodies has the bodies stand whole out to the level reach, L1 to L3, whatever the frame
+// budget had drawn them in by (Bodies, Settings.BodiesShort).
+func (w *Write) SetBodies(reach lod.Level) {
+	s := &w.p.Res.Settings
+	s.BodiesShort, s.BodiesPulled = uint8(lod.L3-min(max(reach, lod.L1), lod.L3)), 0
+	w.p.bodiesTries = bodiesTries{}
 }
+
+// AdaptBodies has the bodies' reach follow the cameras' frame budget, or stay as set
+// (AdaptBodies, Settings.StillBodies).
+func (w *Write) AdaptBodies(on bool) { w.p.Res.Settings.StillBodies = !on }
+
+// GiveWay has what gives way do so before a camera loose over the world or centred on a unit,
+// or stand whole there (GiveWay, Settings.Covers).
+func (w *Write) GiveWay(on bool) { w.p.Res.Settings.Covers = !on }
+
+// GiveWayRiding has what gives way do so before a camera riding a unit too, or stand whole
+// there (GiveWayRiding, Settings.GivesWayRiding).
+func (w *Write) GiveWayRiding(on bool) { w.p.Res.Settings.GivesWayRiding = on }

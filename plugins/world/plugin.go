@@ -7,8 +7,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/kjkrol/aabbworld"
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/plan"
@@ -25,7 +23,6 @@ import (
 	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/uid"
 )
 
 // Resources is what the world publishes: its Config, its Telemetry and its Settings.
@@ -61,6 +58,9 @@ type Plugin struct {
 	read     Read
 	reads    parallel.Reads[*Read]
 	write    Write
+	// the frame budget's tries at letting the bodies' reach out (BodiesLever), by the clock now
+	bodiesTries bodiesTries
+	now         func() time.Time
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -82,6 +82,7 @@ func NewPlugin(cfg Config) *Plugin {
 		module: m,
 		kinds:  newKinds(cfg.Heights),
 		look:   flatLook(cfg.Space),
+		now:    time.Now,
 	}
 	p.roster = kind.NewRoster(p.fillRoster)
 	p.kept = plugin.Keep(&p.Res.Settings)
@@ -98,10 +99,8 @@ func NewPlugin(cfg Config) *Plugin {
 	p.sectors = newSectorsView(p)
 	p.renderer.clock = m.clock.Read().Shown
 	p.renderer.space = cfg.Space
-	p.renderer.canopies = p.read.Canopies
-	p.renderer.query = func(box geom.AABB, fn func(uid.UID64)) {
-		m.space.Read().Query(box, aabbworld.AnyCapability, fn)
-	}
+	p.renderer.bodiesReach = p.read.BodiesReach
+	p.renderer.givesWay = p.read.givesWay
 	if m.sectors.grid != nil {
 		p.renderer.covers = m.sectors.cover
 		p.renderer.far.look, p.renderer.far.counted = p.read.FarLook, p.read.Counts

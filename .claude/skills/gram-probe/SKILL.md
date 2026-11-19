@@ -89,6 +89,21 @@ Each script's header says its arguments and variables.
    level shift (`cameras.Detail{Follows: false}`), else the picture moves under the budget as it
    runs. The "Sectors" and "Sectors seen" lines of the world's reporters say the levels a camera
    state gives; a zoom across a threshold re-marks every awake entity at once (a spike to look at).
+   Read a run's raw lines before believing its median (2026-11-18): a window is paced by the
+   compositor unless it is the active one on a display that takes its rate, the first seconds
+   standing at the display's 60.0 and creeping up (so it went with the outer monitor off); full
+   screen (`GRAM_FULLSCREEN=1`) is bound by the GPU. Runs back to back heat this machine till
+   its package throttles, the ticks doubling and the rates scattering: each run waits for
+   `x86_pkg_temp` to fall under some 60 °C, with the throttle count
+   (`thermal_throttle/package_throttle_count`) beside its medians. Nothing compiles or tests
+   while a run measures. "presenting" trades with "drawing", so the frame rate is the measure,
+   neither alone. A source the probe adds that asks the frame for a pass changes the frame it
+   measures: a diagnostic one is registered only when its variable is set. An adapter is
+   watched unpaced too (2026-11-18): under vsync a window behind the active one stands at
+   20 FPS and everything following the budget goes to its floor, on any tree; the probe leaves
+   the following on, sets the budget between the rates of the two states in question
+   (`cameras.Budget`) and logs what was turned twice a second for a few minutes, a try burnt
+   by the adapter coming back every half minute.
 6. **Where the time goes**: `pprof.StartCPUProfile`/`StopCPUProfile` at two ticks of a probe;
    a plugin's own pass in `bench/`, on the copy and the tree alike. Hours of game time (a
    weather crossing the sky): a scratch program ticking the plugin's goke ECS in a loop.

@@ -26,11 +26,20 @@ type Atlas struct {
 	phased   map[render.SpriteID]phase     // by the twin under the effect
 	lying    map[render.SpriteID]bool
 	upright  map[render.SpriteID]bool
-	canopy   map[render.SpriteID]bool
 	cutout   map[render.SpriteID]bool
 	sway     map[render.SpriteID]float32
-	edges    map[render.SpriteID]render.SpriteID
-	twins    map[tag.Tag[effect.States]]map[render.SpriteID]render.SpriteID // under an effect
+	// the sprites uncovered, and those giving way to them
+	uncovered map[render.SpriteID]bool
+	givesWay  map[render.SpriteID]bool
+	// the kinds with a body, by their own sprite, their bodies by row, the table of them, and
+	// the photographs of them yet to be taken with the depth they are taken against
+	bodied    map[render.SpriteID]*Bodied
+	bodies    []Body
+	table     *render.Image
+	shots     int
+	shotDepth *render.Depth
+	edges     map[render.SpriteID]render.SpriteID
+	twins     map[tag.Tag[effect.States]]map[render.SpriteID]render.SpriteID // under an effect
 	// the effects in the order first looked under: the last wins
 	marks  []tag.Tag[effect.States]
 	styles render.Styles
@@ -130,26 +139,28 @@ var _ render.AtlasSource = (*Atlas)(nil)
 // NewAtlas starts the world's atlas, for looks declared by hand; Dress is the figures' way.
 func (p *Plugin) NewAtlas() *Atlas {
 	return &Atlas{
-		p:        p,
-		atlas:    render.NewAtlas(),
-		turned:   map[render.SpriteID]bool{},
-		faced:    map[render.SpriteID][]render.SpriteID{},
-		unders:   map[render.SpriteID][]render.SpriteID{},
-		shaded:   map[render.SpriteID]render.MaterialID{},
-		animated: map[render.SpriteID]animation{},
-		moving:   map[render.SpriteID]bool{},
-		phased:   map[render.SpriteID]phase{},
-		lying:    map[render.SpriteID]bool{},
-		upright:  map[render.SpriteID]bool{},
-		canopy:   map[render.SpriteID]bool{},
-		cutout:   map[render.SpriteID]bool{},
-		sway:     map[render.SpriteID]float32{},
-		edges:    map[render.SpriteID]render.SpriteID{},
-		twins:    map[tag.Tag[effect.States]]map[render.SpriteID]render.SpriteID{},
-		declared: map[render.SpriteID][]leveled{},
-		always:   map[render.SpriteID]bool{},
-		blobs:    map[render.SpriteID]render.SpriteID{},
-		versions: map[render.SpriteID][lod.Levels]version{},
+		p:         p,
+		atlas:     render.NewAtlas(),
+		turned:    map[render.SpriteID]bool{},
+		faced:     map[render.SpriteID][]render.SpriteID{},
+		unders:    map[render.SpriteID][]render.SpriteID{},
+		shaded:    map[render.SpriteID]render.MaterialID{},
+		animated:  map[render.SpriteID]animation{},
+		moving:    map[render.SpriteID]bool{},
+		phased:    map[render.SpriteID]phase{},
+		lying:     map[render.SpriteID]bool{},
+		upright:   map[render.SpriteID]bool{},
+		cutout:    map[render.SpriteID]bool{},
+		sway:      map[render.SpriteID]float32{},
+		uncovered: map[render.SpriteID]bool{},
+		givesWay:  map[render.SpriteID]bool{},
+		bodied:    map[render.SpriteID]*Bodied{},
+		edges:     map[render.SpriteID]render.SpriteID{},
+		twins:     map[tag.Tag[effect.States]]map[render.SpriteID]render.SpriteID{},
+		declared:  map[render.SpriteID][]leveled{},
+		always:    map[render.SpriteID]bool{},
+		blobs:     map[render.SpriteID]render.SpriteID{},
+		versions:  map[render.SpriteID][lod.Levels]version{},
 	}
 }
 
@@ -425,25 +436,33 @@ func (s Slot) Upright() Slot {
 	return s
 }
 
-// Canopy has the sprite show a unit standing under its entity through it in a view from above,
-// where the world's Canopies setting says (Read.Canopies): a tree's crown. Its looks under
-// effects, its frames and its twins do too; in a view in relief it stands whole.
-func (s Slot) Canopy() Slot {
-	s.a.canopy[s.id] = true
+// Uncovered has the sprite's entity uncovered: a sprite giving way (GivesWay) is left out in
+// part where it lies over it, so it shows through (render.Sprites.Uncover). Its looks under
+// effects, its frames and its twins too.
+func (s Slot) Uncovered() Slot {
+	s.a.uncovered[s.id] = true
+	return s
+}
+
+// GivesWay has the sprite give way to the entities uncovered (Uncovered), before the cameras
+// the world's settings say (Read.GivesWay), laid by a look that draws it so (UncoveringLook).
+// Its looks under effects, its frames and its twins too.
+func (s Slot) GivesWay() Slot {
+	s.a.givesWay[s.id] = true
 	return s
 }
 
 // Cutout has the sprite drawn in the cutout pass where its look is whole: cut at half its alpha,
 // writing the depth, in no order, so what stands behind it or under it is hidden by the depth
-// (render.Cutout). Its looks under effects, its frames and its twins too; a canopy seen through
-// is not.
+// (render.Cutout). Its looks under effects, its frames and its twins too.
 func (s Slot) Cutout() Slot {
 	s.a.cutout[s.id] = true
 	return s
 }
 
-// Swaying has the sprite's entity bend in the wind by amount, 0 to 1, where no effect has turned
-// its render.Appearance's Sway. Its looks under effects, its frames and its twins too.
+// Swaying has the sprite's entity sway by amount, 0 to 1, where no effect has turned its
+// render.Appearance's Sway: as far as the look laying it leans what sways. Its looks under
+// effects, its frames and its twins too.
 func (s Slot) Swaying(amount float32) Slot {
 	s.a.sway[s.id] = amount
 	return s
@@ -554,9 +573,21 @@ func (a *Atlas) lain() map[render.SpriteID]bool { return a.withKin(a.lying) }
 
 func (a *Atlas) stood() map[render.SpriteID]bool { return a.withKin(a.upright) }
 
-func (a *Atlas) canopies() map[render.SpriteID]bool { return a.withKin(a.canopy) }
+func (a *Atlas) bared() map[render.SpriteID]bool { return a.withKin(a.uncovered) }
+
+func (a *Atlas) giving() map[render.SpriteID]bool { return a.withKin(a.givesWay) }
 
 func (a *Atlas) cutouts() map[render.SpriteID]bool { return a.withKin(a.cutout) }
+
+// bodiedKin is the body of every sprite drawn in the place of a kind that has one
+func (a *Atlas) bodiedKin() map[render.SpriteID]*Bodied {
+	a.bodyTable()
+	out := make(map[render.SpriteID]*Bodied, len(a.bodied))
+	for id, b := range a.bodied {
+		a.kin(id, func(k render.SpriteID) { out[k] = b })
+	}
+	return out
+}
 
 // kin visits id and every sprite drawn in its place: its twins under effects, its directional
 // twins, its frames, its looks at the levels once closed, and theirs.

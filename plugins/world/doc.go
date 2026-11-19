@@ -83,26 +83,37 @@
 // # Drawing and Look
 //
 // How entities are drawn is declared on the world's [Atlas] by the figures' Looks, gathered once
-// the Stage is set up, before its scenes: a kind's look, its look Under an effect, Turning,
-// Facing, Animated, Lying, Upright, Canopy, Cutout, Swaying, Edges, and Styled: how another
-// plugin draws about the kind (an outline, a cone, a route), a render.Style of that plugin's,
-// read off [Read.Styles].
+// the Stage is set up, before its scenes: a kind's look, its look Under an effect, Turning, Facing,
+// Animated, Lying, Upright, Uncovered, GivesWay, Cutout, Swaying, Edges, and Styled: how another
+// plugin draws about the kind (an outline, a cone, a route), a render.Style of that plugin's, read
+// off [Read.Styles].
 // Closing the atlas hands it to the world ([Write.SetAtlas]), which gives it the entity renderer
 // and applies what was declared; a game declaring looks by hand closes its own
 // ([Plugin.NewAtlas]) before. Each
 // entity is laid on the screen by the world's [Look] ([Read.Look], [Write.SetLook]), flat
 // from above unless a view plugin sets its own; a [DirectLook] draws the sprites itself on the
 // GPU, a [LyingLook] lays some flat, an [UprightLook] stands some true, a [FoggyLook] fades one
-// into the fog before a camera's sight, a [CanopyLook] shows a unit through the canopy over it
-// and a [CutoutLook] draws what is whole in the cutout pass. A kind's look declared [Slot.Canopy]
-// (a tree's crown) shows a unit standing under its entity through it at three quarters, in a view
-// from above alone, where the Canopies setting says ([ShowCanopies], [Read.Canopies], under the
-// settings' section Game; Config.Canopies its start); one declared [Slot.Cutout] is drawn whole
-// in render's cutout pass, cut at half its alpha and writing the depth, so a unit under a crown
-// is hidden in a view in relief and the crowns need no order; a canopy seen through is laid among
-// what is seen through instead. Each is marked by the [Lighting], the light plugin's
+// into the fog before a camera's sight, an [UncoveringLook] has some uncovered and some give way
+// to them, and a [CutoutLook] draws what is whole in the cutout pass. A kind's look declared
+// [Slot.Uncovered] shows through whatever is declared [Slot.GivesWay] and stands before it or
+// over it, which is left out in part round it (render.Target.Uncovered): before a camera loose
+// over the world or centred on a unit, the tactical view, unless the settings say not
+// ([GiveWay]), and before one riding a unit, behind it or inside it, only where they say
+// ([GiveWayRiding]; [Read.GivesWay], both under the settings' section Game). One declared
+// [Slot.Cutout] is drawn whole in render's cutout pass, cut at half its alpha and writing the
+// depth, so what stands under it is hidden and the cutouts need no order. Each is
+// marked by the [Lighting], the light plugin's
 // ([Write.SetLighting]), and lit as the frame says (render.Frame.Lit) by the lights the picture
-// is given ([Write.SetLights], [Read.Lights]), in white light without them. An entity is drawn in
+// is given ([Write.SetLights], [Read.Lights]), in white light without them. A kind may be a
+// [Body] in place of a drawn sprite ([Atlas.AddBody]): parts, spheroids and cones, in paints. A
+// view in relief with a [BodyLook] stands it whole out to the level the bodies reach and as a card
+// of it beyond, down to L3, the side of it the camera sees or, looking down steeply, its top
+// ([Bodied.Card]), lit by the frame's light as the body whole is; a view from above draws it
+// photographed from above, turned as it stands, and its sprite, from the side, is a photograph
+// too, taken on the GPU as its cards are ([Slot.Above] has the sheets take it from above). How
+// far the bodies stand whole is a setting, the close scale, L2 or L3 ([Bodies],
+// [Read.BodiesReach]), which follows the cameras' frame budget where they are given the world's
+// [Plugin.Bodies] for a lever ([AdaptBodies], [BodiesLever]). An entity is drawn in
 // its kind's look at the level its camera sees it at: its own at L2 (lod.Standard) and the close
 // levels, plainly at L3 (no edges, flat where it would stand), a blob of its own look at L4
 // (render.Blob), its blob's colour in the ground at L5, or as [Slot.At] and [Slot.Nothing] declare
@@ -168,8 +179,8 @@
 //
 // # Aggregates
 //
-// An [Aggregate] is a kind of entity standing for parts, a forest's trees or an army's soldiers:
-// they are the truth while its sector is ticked finer than L4 (lod.Strategic), it alone from L4 on.
+// An [Aggregate] is a kind of entity standing for parts, an army's soldiers: they are the truth
+// while its sector is ticked finer than L4 (lod.Strategic), it alone from L4 on.
 // It is told [Unfold] once as its sector comes down finer than L4 (the world unfolding at most
 // lod.Ladder.Unfolds stretches a step, those nearest an observer first, the others waiting folded
 // as they are), when its rules spawn the parts
@@ -191,8 +202,8 @@
 // graph. A unit's route is a plain value of its order, one an aggregate and the part leading it
 // may hand each other as they fold and unfold (navigation.Inherit).
 //
-// A [Field] aggregate, a forest, stands over a box round its centre wider than an entity may be
-// and goes by sector: each sector of it unfolds and folds apart, told with the Sector and the
+// A [Field] aggregate stands over a box round its centre wider than an entity may be and goes by
+// sector: each sector of it unfolds and folds apart, told with the Sector and the
 // Box of the field within it, its parts there those whose centre lies in it, and it is found
 // asleep too, its own sector at L6 stopping none of the others. A point aggregate's moments tell
 // the sector of its centre and its own box. A SpawnPart given under an Unfold is laid At off the
@@ -246,12 +257,13 @@
 // one no longer than [SectorsCfg] Small by its centre, a longer one in the lowest holding it whole.
 // Knobs, for an effect's Alter:
 // render.Appearance, the look's.
-// Commands: [Spawn] (a player's or an entity's own); [SpawnPart] (an aggregate's own, aimed at
-// the stretch of an Unfold); [SpawnWhole] (a handle and its pieces in one step, as [Spawn]);
-// [Despawn], [Keen], [Calm] (an entity's own); [Pause],
-// [Faster], [Slower], [Tempo], [SwitchSectors], [SwitchBands], [ShowFar], [ShowCounts] (a
-// player's). Settings ([Settings], saved with the game, in [Resources]): the sectors drawn, their
-// levels on, how the loose units are drawn far off and whether they are counted. The
-// clock's moment and the commands about effects (ceremony.Put, Take, Toggle, Trigger) are
-// carried here too.
+// Commands: [Spawn] (a player's or an entity's own); [SpawnPart] (an aggregate's own, aimed at the
+// stretch of an Unfold); [SpawnWhole] (a handle and its pieces in one step, as [Spawn]); [Despawn],
+// [Keen], [Calm] (an entity's own); [Pause], [Faster], [Slower], [Tempo], [SwitchSectors],
+// [SwitchBands], [ShowFar], [ShowCounts], [Bodies], [AdaptBodies], [GiveWay], [GiveWayRiding]
+// (a player's). Settings ([Settings], saved with the game, in [Resources]): the sectors drawn,
+// their levels on, how the loose units are drawn far off and whether they are counted, how far
+// the bodies stand whole and whether that follows the frame budget, before which cameras what
+// gives way does. The clock's moment and the commands about effects (ceremony.Put, Take,
+// Toggle, Trigger) are carried here too.
 package world
