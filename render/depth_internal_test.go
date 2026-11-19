@@ -29,9 +29,16 @@ func (overlyingDirect) Overlies() {}
 // an Overlying Direct noting the depths the pass over the figures hands it
 type overPeek struct{ depth, ground *Depth }
 
-func (*overPeek) Overlies()                                    {}
-func (*overPeek) Compose(f *Frame, _ camera.Camera)            { f.DrawAt(Nearest) }
-func (p *overPeek) Draw(t Target, _ camera.Camera, _ Uniforms) { p.depth, p.ground = t.Depth, t.Ground }
+func (*overPeek) Overlies()                         {}
+func (*overPeek) Compose(f *Frame, _ camera.Camera) { f.DrawAt(Nearest) }
+
+func (p *overPeek) Draw(
+	t Target,
+	_ camera.Camera,
+	_ Uniforms,
+) {
+	p.depth, p.ground = t.Depth, t.Ground
+}
 
 var (
 	white       = color.RGBA{255, 255, 255, 255}

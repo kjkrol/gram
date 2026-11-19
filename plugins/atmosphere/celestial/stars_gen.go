@@ -27,7 +27,8 @@ func main() {
 	in := bufio.NewScanner(os.Stdin)
 	for in.Scan() {
 		l := in.Text()
-		if len(l) < 107 || strings.TrimSpace(l[75:77]) == "" || strings.TrimSpace(l[102:107]) == "" {
+		if len(l) < 107 || strings.TrimSpace(l[75:77]) == "" ||
+			strings.TrimSpace(l[102:107]) == "" {
 			continue // a star gone, or none measured
 		}
 		f := func(a, b int) float64 {
@@ -37,7 +38,12 @@ func main() {
 			}
 			return v
 		}
-		s := star{ra: f(75, 77) + f(77, 79)/60 + f(79, 83)/3600, dec: f(84, 86) + f(86, 88)/60 + f(88, 90)/3600, v: f(102, 107), bv: 0.6}
+		s := star{
+			ra:  f(75, 77) + f(77, 79)/60 + f(79, 83)/3600,
+			dec: f(84, 86) + f(86, 88)/60 + f(88, 90)/3600,
+			v:   f(102, 107),
+			bv:  0.6,
+		}
 		if l[83] == '-' {
 			s.dec = -s.dec
 		}

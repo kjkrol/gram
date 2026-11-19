@@ -59,7 +59,9 @@ func TestBodySpacing_AStallIsJudgedByTheLawfulPace(t *testing.T) {
 		bumped := false
 		for tick := range int(c.lasts / (time.Second / 60)) {
 			x := start.X + c.speed*float32(tick)/60
-			m.Pos = world.Position{AABB: plane.NewAABB(geom.NewVec(x-1.44, start.Y-1.44), 2.88, 2.88)}
+			m.Pos = world.Position{
+				AABB: plane.NewAABB(geom.NewVec(x-1.44, start.Y-1.44), 2.88, 2.88),
+			}
 			keep.Watch(m, &o, toward, want, time.Second/60)
 			bumped = bumped || o.Bumped
 		}
@@ -84,12 +86,20 @@ func TestBodySpacing_ACrawlOverSlowGroundIsNoStall(t *testing.T) {
 	}
 	at, o := fw.centre(0)
 	if onStrip := at.X >= 3*fieldCell && at.X < 5*fieldCell; o == nil || o.Stalls > 0 || !onStrip {
-		t.Fatalf("after 12 s at %v: order %v, want it still crawling over the strip without a stall",
-			at, o)
+		t.Fatalf(
+			"after 12 s at %v: order %v, want it still crawling over the strip without a stall",
+			at,
+			o,
+		)
 	}
 	settled, _ := fw.run(120 * time.Second)
 	if at, _ := fw.centre(0); !settled || f32.Hypot(at.X-goal.X, at.Y-goal.Y) > 1e-3 {
-		t.Errorf("the unit stands at %v, settled %v, want it across the strip at %v", at, settled, goal)
+		t.Errorf(
+			"the unit stands at %v, settled %v, want it across the strip at %v",
+			at,
+			settled,
+			goal,
+		)
 	}
 }
 

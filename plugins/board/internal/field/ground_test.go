@@ -40,14 +40,19 @@ func TestGround_AWallColumnIsSolidAndAUnitCannotEnterIt(t *testing.T) {
 func TestGround_AUnitPushedByAnotherStaysOutOfTheWall(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	bw, _ := boardtest.SquareWorld(t, boardtest.Mover{Here: cellAt(2, 7)}, boardtest.Mover{Here: cellAt(1, 7), Heading: east})
+	bw, _ := boardtest.SquareWorld(
+		t,
+		boardtest.Mover{Here: cellAt(2, 7)},
+		boardtest.Mover{Here: cellAt(1, 7), Heading: east},
+	)
 	walls := bw.Solid(world.Layers(cell.Land))
 	for tick := range 120 {
 		bw.Tick()
 		bw.AssertClear(tick, bw.Snapshot(), walls)
 	}
 	units := bw.Snapshot()
-	if start := float32(boardtest.CellSize) + (boardtest.CellSize-boardtest.UnitSize)/2; units[1].TopLeft.X < start+5 {
+	if start := float32(boardtest.CellSize) +
+		(boardtest.CellSize-boardtest.UnitSize)/2; units[1].TopLeft.X < start+5 {
 		t.Errorf("the pusher never moved: %v behind %v", units[1], units[0])
 	}
 }
@@ -93,7 +98,11 @@ func TestGround_AGapKnockedInTheWallLetsAUnitThroughOnTheNextTick(t *testing.T) 
 		t.Errorf("unit ends at %v, want it through the gap", units[0])
 	}
 	if got := bw.World.Res.Telemetry.Count; got != before || got != 1 {
-		t.Errorf("telemetry counts %d entities, %d before the change; want the one unit", got, before)
+		t.Errorf(
+			"telemetry counts %d entities, %d before the change; want the one unit",
+			got,
+			before,
+		)
 	}
 }
 
@@ -116,7 +125,11 @@ func TestGround_AStrikeOnTheWallIsAContactWithTheTerrain(t *testing.T) {
 func TestGround_AWallThatVeilsCutsSight(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	observer := boardtest.Mover{Here: cellAt(1, 7), Sight: &vision.Sight{Facing: east, Radius: 300}, Eye: world.Eye{Angle: 2 * math.Pi / 8}}
+	observer := boardtest.Mover{
+		Here:  cellAt(1, 7),
+		Sight: &vision.Sight{Facing: east, Radius: 300},
+		Eye:   world.Eye{Angle: 2 * math.Pi / 8},
+	}
 	target := boardtest.Mover{Here: cellAt(5, 7)}
 
 	bw, _ := boardtest.SquareWorld(t, observer, target)
@@ -150,8 +163,19 @@ func TestGround_ASolidCellWithNoVeilLetsSightThrough(t *testing.T) {
 			brd.Set(cellAt(3, y), cell.Kind{Name: cell.Named("fence"), Pace: 1, Solid: true})
 		}
 	}
-	observer := boardtest.Mover{Here: cellAt(1, 7), Sight: &vision.Sight{Facing: east, Radius: 300}, Eye: world.Eye{Angle: 2 * math.Pi / 8}}
-	bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize, fence, []boardtest.Mover{observer, {Here: cellAt(5, 7)}})
+	observer := boardtest.Mover{
+		Here:  cellAt(1, 7),
+		Sight: &vision.Sight{Facing: east, Radius: 300},
+		Eye:   world.Eye{Angle: 2 * math.Pi / 8},
+	}
+	bw := boardtest.NewWorld(
+		t,
+		grid,
+		6*boardtest.CellSize,
+		16*boardtest.CellSize,
+		fence,
+		[]boardtest.Mover{observer, {Here: cellAt(5, 7)}},
+	)
 	bw.Tick()
 	if seen, ok := bw.Seen(); !ok || seen.Count != 1 {
 		t.Errorf("saw %d across the fence, want the target", seen.Count)
@@ -185,7 +209,11 @@ func TestGround_AFullyVeiledCellOnlyBlocksSight(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	column := veiledColumn(grid, 1, false)
-	observer := boardtest.Mover{Here: cellAt(1, 7), Sight: &vision.Sight{Facing: east, Radius: 300}, Eye: world.Eye{Angle: 2 * math.Pi / 8}}
+	observer := boardtest.Mover{
+		Here:  cellAt(1, 7),
+		Sight: &vision.Sight{Facing: east, Radius: 300},
+		Eye:   world.Eye{Angle: 2 * math.Pi / 8},
+	}
 	bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize, column,
 		[]boardtest.Mover{observer, {Here: cellAt(5, 7)}})
 	bw.Tick()
@@ -214,7 +242,11 @@ func TestGround_AVeilDimsSightByItsDepth(t *testing.T) {
 	column := veiledColumn(grid, 0.6, false)
 	target := boardtest.Mover{Here: cellAt(5, 7)}
 	look := func(radius float32, blockers world.Layers) uint8 {
-		observer := boardtest.Mover{Here: cellAt(1, 7), Sight: &vision.Sight{Facing: east, Radius: radius, Blockers: blockers}, Eye: world.Eye{Angle: 2 * math.Pi / 8}}
+		observer := boardtest.Mover{
+			Here:  cellAt(1, 7),
+			Sight: &vision.Sight{Facing: east, Radius: radius, Blockers: blockers},
+			Eye:   world.Eye{Angle: 2 * math.Pi / 8},
+		}
 		bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize, column,
 			[]boardtest.Mover{observer, target})
 		bw.Tick()
@@ -239,7 +271,11 @@ func TestGround_AVeilDimsSightByItsDepth(t *testing.T) {
 func TestGround_ACellThatIsSolidAndVeiledStopsAndDimsUntilItIsCut(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	observer := boardtest.Mover{Here: cellAt(1, 3), Sight: &vision.Sight{Facing: east, Radius: 160}, Eye: world.Eye{Angle: 2 * math.Pi / 16}}
+	observer := boardtest.Mover{
+		Here:  cellAt(1, 3),
+		Sight: &vision.Sight{Facing: east, Radius: 160},
+		Eye:   world.Eye{Angle: 2 * math.Pi / 16},
+	}
 	bw := boardtest.NewWorld(t, grid, 6*boardtest.CellSize, 16*boardtest.CellSize,
 		veiledColumn(grid, 0.6, true),
 		[]boardtest.Mover{observer, {Here: cellAt(5, 3)}, {Here: cellAt(1, 9), Heading: east}})
@@ -271,11 +307,19 @@ func TestGround_AWallVeilingEveryLayerCutsSightFromEveryLayer(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	for _, blockers := range []world.Layers{0, world.Layers(cell.Land), world.Layers(cell.Air)} {
-		observer := boardtest.Mover{Here: cellAt(1, 7), Sight: &vision.Sight{Facing: east, Radius: 300, Blockers: blockers}, Eye: world.Eye{Angle: 2 * math.Pi / 8}}
+		observer := boardtest.Mover{
+			Here:  cellAt(1, 7),
+			Sight: &vision.Sight{Facing: east, Radius: 300, Blockers: blockers},
+			Eye:   world.Eye{Angle: 2 * math.Pi / 8},
+		}
 		bw, _ := boardtest.SquareWorld(t, observer, boardtest.Mover{Here: cellAt(5, 7)})
 		bw.Tick()
 		if seen, ok := bw.Seen(); !ok || seen.Count != 0 {
-			t.Errorf("blockers %08b: saw %v through the wall, want nobody", blockers, seen.IDs[:seen.Count])
+			t.Errorf(
+				"blockers %08b: saw %v through the wall, want nobody",
+				blockers,
+				seen.IDs[:seen.Count],
+			)
 		}
 	}
 }
@@ -318,14 +362,23 @@ func TestGround_OpensOnlyTheSidesFacingGroundTheEntityMayStandOn(t *testing.T) {
 	bw, gap := boardtest.SquareWorld(t, boardtest.Mover{})
 	w := bw.World.Res.Config.Space.Width
 	var mid collision.FieldBox
-	bw.Board.Read(0).Cover().(collision.Field).Solid(world.Layers(cell.Land), collision.Everywhere, geom.NewAABBAt(geom.NewVec(0, 7*boardtest.CellSize), float32(w), boardtest.CellSize), func(fb collision.FieldBox) bool {
-		if fb.Cell == uint64(gap) {
-			mid = fb
-		}
-		return true
-	})
+	bw.Board.Read(0).Cover().(collision.Field).Solid(
+		world.Layers(cell.Land),
+		collision.Everywhere,
+		geom.NewAABBAt(geom.NewVec(0, 7*boardtest.CellSize), float32(w), boardtest.CellSize),
+		func(fb collision.FieldBox) bool {
+			if fb.Cell == uint64(gap) {
+				mid = fb
+			}
+			return true
+		},
+	)
 	if want := collide.Left | collide.Right; mid.Open != want {
-		t.Errorf("the middle of the wall opens %04b, want only its left and right faces %04b", mid.Open, want)
+		t.Errorf(
+			"the middle of the wall opens %04b, want only its left and right faces %04b",
+			mid.Open,
+			want,
+		)
 	}
 }
 
@@ -334,7 +387,11 @@ func TestGround_AVeiledHexCutsSightAcrossIt(t *testing.T) {
 	hex := grid.At(2, 1)
 	from := grid.At(0, 1)
 	to := grid.At(4, 1)
-	observer := boardtest.Mover{Here: from, Sight: &vision.Sight{Facing: east, Radius: 300}, Eye: world.Eye{Angle: 2 * math.Pi / 32}}
+	observer := boardtest.Mover{
+		Here:  from,
+		Sight: &vision.Sight{Facing: east, Radius: 300},
+		Eye:   world.Eye{Angle: 2 * math.Pi / 32},
+	}
 	look := func(veil float32) uint8 {
 		bw := boardtest.NewWorld(t, grid, 400, 200, func(brd *board.BoardWrite) {
 			brd.SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land})
@@ -384,7 +441,12 @@ func TestGround_AUnitPushedByAnotherHoldsAtTheWater(t *testing.T) {
 	for tick := range 120 {
 		bw.Tick()
 		if units := bw.Snapshot(); units[0].BottomRight.X > shore+1e-6 {
-			t.Fatalf("tick %d: the one pushed reaches %v, over the water from %v", tick, units[0].BottomRight.X, shore)
+			t.Fatalf(
+				"tick %d: the one pushed reaches %v, over the water from %v",
+				tick,
+				units[0].BottomRight.X,
+				shore,
+			)
 		}
 	}
 	units := bw.Snapshot()
@@ -392,7 +454,11 @@ func TestGround_AUnitPushedByAnotherHoldsAtTheWater(t *testing.T) {
 		t.Errorf("the one pushed stands at %v, want pushed up to the shore at %v", units[0], shore)
 	}
 	if units[1].BottomRight.X > units[0].TopLeft.X+1 {
-		t.Errorf("the pusher at %v is into the one it pushes at %v, want it stopped by it", units[1], units[0])
+		t.Errorf(
+			"the pusher at %v is into the one it pushes at %v, want it stopped by it",
+			units[1],
+			units[0],
+		)
 	}
 
 	still := units[2]
@@ -401,6 +467,11 @@ func TestGround_AUnitPushedByAnotherHoldsAtTheWater(t *testing.T) {
 		bw.Tick()
 	}
 	if got := bw.Snapshot()[2]; got != still {
-		t.Errorf("the ground turned to water under a unit standing still, and it moved from %v to %v; want it left there", still, got)
+		t.Errorf(
+			"the ground turned to water under a unit standing still, and it moved from %v to %v; "+
+				"want it left there",
+			still,
+			got,
+		)
 	}
 }

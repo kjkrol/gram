@@ -52,7 +52,12 @@ type driveRig struct {
 
 func newDriveRig(t *testing.T, mover ...unit.Mover) *driveRig {
 	t.Helper()
-	r := &driveRig{t: t, ecs: goke.New(), grid: grid.DefaultGrids{}.Square(10, 1, 10), occupancy: &cell.SingleOccupancy{}}
+	r := &driveRig{
+		t:         t,
+		ecs:       goke.New(),
+		grid:      grid.DefaultGrids{}.Square(10, 1, 10),
+		occupancy: &cell.SingleOccupancy{},
+	}
 	brd, brdW := board.NewBoard(r.grid)
 	brdW.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	brdW.Set(r.grid.At(6, 0), cell.Kind{Pace: 1, Allows: cell.Water})
@@ -67,7 +72,10 @@ func newDriveRig(t *testing.T, mover ...unit.Mover) *driveRig {
 	var driven goke.Comp[steering.Driven]
 	var mov goke.Comp[unit.Mover]
 	r.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		r.q = si.NewQueryBuilder(&r.cell, &r.base, &r.steer, &r.course, &r.driven).Optional(&r.places).Optional(&r.mover).Build()
+		r.q = si.NewQueryBuilder(&r.cell, &r.base, &r.steer, &r.course, &r.driven).
+			Optional(&r.places).
+			Optional(&r.mover).
+			Build()
 		comps := []goke.Addable{&at, &base, &steer, &course, &driven}
 		if len(mover) > 0 {
 			comps = append(comps, &mov)
@@ -93,11 +101,19 @@ func newDriveRig(t *testing.T, mover ...unit.Mover) *driveRig {
 	return r
 }
 
-func (r *driveRig) with(fn func(c *unit.At, b *world.Base, st steering.Helm, d *steering.Driven, entered bool)) {
+func (r *driveRig) with(
+	fn func(c *unit.At, b *world.Base, st steering.Helm, d *steering.Driven, entered bool),
+) {
 	r.q.All()
 	for r.q.Next() {
 		cur := r.q.Cursor()
-		fn(&r.cell.Slice(cur)[0], &r.base.Slice(cur)[0], steering.Helm{Steering: &r.steer.Slice(cur)[0], Course: &r.course.Slice(cur)[0]}, &r.driven.Slice(cur)[0], entered(r.places.Slice(cur)))
+		fn(
+			&r.cell.Slice(cur)[0],
+			&r.base.Slice(cur)[0],
+			steering.Helm{Steering: &r.steer.Slice(cur)[0], Course: &r.course.Slice(cur)[0]},
+			&r.driven.Slice(cur)[0],
+			entered(r.places.Slice(cur)),
+		)
 	}
 }
 
@@ -142,8 +158,11 @@ func TestDrive_AStepTheMobilityRefusesIsNotDrivenAndLeadsNowhere(t *testing.T) {
 	r.place(28) // its box's edge and the margin reach into (3,0)
 	r.drive(steering.Driven{Ahead: 1})
 	if st, at := r.steering(), r.at(); st.WantSpeed != 20 || at.Next != r.grid.At(3, 0) {
-		t.Errorf("driven east over open ground: asks %v, led into %v, want its top speed into (3,0)",
-			st.WantSpeed, at.Next)
+		t.Errorf(
+			"driven east over open ground: asks %v, led into %v, want its top speed into (3,0)",
+			st.WantSpeed,
+			at.Next,
+		)
 	}
 	r.place(48) // in (4,0), the refused (5,0) ahead
 	r.drive(steering.Driven{Ahead: 1})
@@ -165,9 +184,19 @@ func TestDrive_WalksOnTheWayItFacesAndTurnsByHand(t *testing.T) {
 	}
 	r.drive(steering.Driven{Turn: 1})
 	st := r.steering()
-	if want := geom.NewVec(f32.Cos(driveTurn), f32.Sin(driveTurn)); f32.Abs(st.Want.X-want.X) > f32.Eps(1) ||
-		f32.Abs(st.Want.Y-want.Y) > f32.Eps(1) || st.WantSpeed != 0 {
-		t.Errorf("Right held alone: asks %v at %v, want turning clockwise by %v and standing", st.WantSpeed, st.Want, driveTurn)
+	if want := geom.NewVec(f32.Cos(driveTurn), f32.Sin(driveTurn)); f32.Abs(
+		st.Want.X-want.X,
+	) > f32.Eps(
+		1,
+	) ||
+		f32.Abs(st.Want.Y-want.Y) > f32.Eps(1) ||
+		st.WantSpeed != 0 {
+		t.Errorf(
+			"Right held alone: asks %v at %v, want turning clockwise by %v and standing",
+			st.WantSpeed,
+			st.Want,
+			driveTurn,
+		)
 	}
 }
 
@@ -176,11 +205,26 @@ func TestDrive_StrafesAcrossTheWayItFacesAndStopsAtTheWaterBeside(t *testing.T) 
 	r.place(45)
 	r.drive(steering.Driven{Side: 1})
 	var dir geom.Vec
-	r.with(func(_ *unit.At, b *world.Base, _ steering.Helm, _ *steering.Driven, _ bool) { dir = b.Vel.Dir })
+	r.with(
+		func(_ *unit.At, b *world.Base, _ steering.Helm, _ *steering.Driven,
+			_ bool) {
+			dir = b.Vel.Dir
+		},
+	)
 	if st := r.steering(); st.Side != 20 || st.WantSpeed != 0 || dir != geom.NewVec(1, 0) {
-		t.Errorf("Right held: strafes at %v, asks %v ahead, faces %v; want 20 across, standing, east", st.Side, st.WantSpeed, dir)
+		t.Errorf(
+			"Right held: strafes at %v, asks %v ahead, faces %v; want 20 across, standing, east",
+			st.Side,
+			st.WantSpeed,
+			dir,
+		)
 	}
-	r.with(func(_ *unit.At, _ *world.Base, s steering.Helm, _ *steering.Driven, _ bool) { s.Sprint = 2 })
+	r.with(
+		func(_ *unit.At, _ *world.Base, s steering.Helm, _ *steering.Driven,
+			_ bool) {
+			s.Sprint = 2
+		},
+	)
 	r.drive(steering.Driven{Side: -1, Sprint: true})
 	if st := r.steering(); st.Side != -40 {
 		t.Errorf("Left with Shift: strafes at %v, want -40, the sprint", st.Side)
@@ -253,7 +297,11 @@ func TestDrive_KeepsTheCellAndTheOccupancyWithTheWalker(t *testing.T) {
 	cell2 := r.grid.At(2, 0)
 	r.with(func(c *unit.At, _ *world.Base, _ steering.Helm, _ *steering.Driven, entered bool) {
 		if c.Cell != cell3 || !entered {
-			t.Errorf("walked into cell 3 the walker stands on %v, entered %v; want cell 3, entered", c.Cell, entered)
+			t.Errorf(
+				"walked into cell 3 the walker stands on %v, entered %v; want cell 3, entered",
+				c.Cell,
+				entered,
+			)
 		}
 	})
 	if !r.occupancy.CanEnter(cell2, cell.OnGround, uid.UID64(99), cell.Land) ||
@@ -284,7 +332,11 @@ func TestDrive_FaceAndLookTurnItToFaceAWay(t *testing.T) {
 	r.drive(steering.Driven{Face: geom.NewVec(1, 1), Ahead: 1})
 	if st := r.steering(); f32.Abs(st.Want.X-math.Sqrt2/2) > f32.Eps(1) ||
 		f32.Abs(st.Want.Y-math.Sqrt2/2) > f32.Eps(1) || st.WantSpeed != 20 {
-		t.Errorf("driven on to face south-east: asks %v at %v, want its top speed south-east", st.WantSpeed, st.Want)
+		t.Errorf(
+			"driven on to face south-east: asks %v at %v, want its top speed south-east",
+			st.WantSpeed,
+			st.Want,
+		)
 	}
 	r.drive(steering.Driven{Face: geom.NewVec(1, 0), Look: geom.NewVec(0, 2)})
 	if st := r.steering(); st.Want != geom.NewVec(0, 1) {
@@ -300,19 +352,31 @@ func TestDrive_BrakesThenBacksAwayFacingOn(t *testing.T) {
 	r.place(45)
 	r.drive(steering.Driven{Ahead: -1})
 	if st := r.steering(); st.WantSpeed != 0 || st.Speed != 20 {
-		t.Fatalf("S held walking at 20: asks %v, speed %v; want braking, not stopped at once", st.WantSpeed, st.Speed)
+		t.Fatalf(
+			"S held walking at 20: asks %v, speed %v; want braking, not stopped at once",
+			st.WantSpeed,
+			st.Speed,
+		)
 	}
 	r.with(func(_ *unit.At, _ *world.Base, st steering.Helm, _ *steering.Driven, _ bool) {
 		st.Speed = 0
 	})
 	r.drive(steering.Driven{Ahead: -1})
 	if st := r.steering(); st.WantSpeed != -5 || st.Want != geom.NewVec(1, 0) {
-		t.Errorf("S held standing: asks %v facing %v, want backing at V0 5, still facing east", st.WantSpeed, st.Want)
+		t.Errorf(
+			"S held standing: asks %v facing %v, want backing at V0 5, still facing east",
+			st.WantSpeed,
+			st.Want,
+		)
 	}
 	r.place(3) // at the board's west edge: nothing behind
 	r.drive(steering.Driven{Ahead: -1})
 	if st := r.steering(); st.WantSpeed != 0 || st.Speed != 0 {
-		t.Errorf("S held with the edge behind: asks %v, speed %v; want stopped", st.WantSpeed, st.Speed)
+		t.Errorf(
+			"S held with the edge behind: asks %v, speed %v; want stopped",
+			st.WantSpeed,
+			st.Speed,
+		)
 	}
 }
 
@@ -351,11 +415,17 @@ func TestDrive_AFlyerFlownUpGoesTheLessAlongTheGround(t *testing.T) {
 	r.place(35)
 	r.drive(steering.Driven{Ahead: 1, Flown: true, Climb: 0.6})
 	if st := r.steering(); f32.Abs(st.WantSpeed-16) > f32.Eps(16) {
-		t.Errorf("flown up at a rise of 0.6: asks %v along the ground, want 20 times 0.8", st.WantSpeed)
+		t.Errorf(
+			"flown up at a rise of 0.6: asks %v along the ground, want 20 times 0.8",
+			st.WantSpeed,
+		)
 	}
 	r.drive(steering.Driven{Ahead: 1, Sprint: true, Flown: true, Climb: -0.6})
 	if st := r.steering(); f32.Abs(st.WantSpeed-64) > f32.Eps(64) {
-		t.Errorf("flown down at a rise of -0.6, sprinting: asks %v along the ground, want 80 times 0.8", st.WantSpeed)
+		t.Errorf(
+			"flown down at a rise of -0.6, sprinting: asks %v along the ground, want 80 times 0.8",
+			st.WantSpeed,
+		)
 	}
 	if lift := r.lift(); lift != 10 {
 		t.Errorf("the drive changed the lift to %v, want it left at 10", lift)

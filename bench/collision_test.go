@@ -150,10 +150,12 @@ func (f *flyer) Update(*goke.CmdBuf, time.Duration) {
 		for i := range bases {
 			b := &bases[i]
 			v, pos := b.Vel.Delta(), b.Pos
-			if (pos.TopLeft.X <= 0 && v.X < 0) || (pos.TopLeft.X+pos.Size.X >= sceneWidth && v.X > 0) {
+			if (pos.TopLeft.X <= 0 && v.X < 0) ||
+				(pos.TopLeft.X+pos.Size.X >= sceneWidth && v.X > 0) {
 				v.X = -v.X
 			}
-			if (pos.TopLeft.Y <= 0 && v.Y < 0) || (pos.TopLeft.Y+pos.Size.Y >= sceneHeight && v.Y > 0) {
+			if (pos.TopLeft.Y <= 0 && v.Y < 0) ||
+				(pos.TopLeft.Y+pos.Size.Y >= sceneHeight && v.Y > 0) {
 				v.Y = -v.Y
 			}
 			b.Vel.SetDelta(v)
@@ -218,7 +220,10 @@ func benchSwept(b *testing.B, shots int) (*goke.ECS, *collision.ContactStats) {
 	placement := world.NewGridPlacement(sceneWidth, sceneHeight, rect)
 	entries := make([]kind.Entry, 0, count+shots)
 	for i := range count {
-		entries = append(entries, boxes.Entry(body{pos: placement.Place(i, count), vel: randomVelocity(rng)}))
+		entries = append(
+			entries,
+			boxes.Entry(body{pos: placement.Place(i, count), vel: randomVelocity(rng)}),
+		)
 	}
 	for i := range shots {
 		y := float32(i+1) * sceneHeight / float32(shots+1)

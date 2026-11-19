@@ -13,7 +13,10 @@ func TestSteering_WithoutV0SetsOffAndAccelerates(t *testing.T) {
 	s.RequestSpeed(100)
 	s.advance(0.5)
 	if s.Speed != 30 {
-		t.Errorf("speed after half a second from standing without V0 = %v, want 30 at Accel 60", s.Speed)
+		t.Errorf(
+			"speed after half a second from standing without V0 = %v, want 30 at Accel 60",
+			s.Speed,
+		)
 	}
 }
 
@@ -93,7 +96,11 @@ func TestSteering_SprintsToItsSprintOnlyWhenUrged(t *testing.T) {
 	plain.RequestSprint()
 	plain.advance(1)
 	if plain.WantSpeed != 10 || plain.Speed != 10 {
-		t.Errorf("urged on without a Sprint: asks %v, goes %v; want the top speed", plain.WantSpeed, plain.Speed)
+		t.Errorf(
+			"urged on without a Sprint: asks %v, goes %v; want the top speed",
+			plain.WantSpeed,
+			plain.Speed,
+		)
 	}
 }
 

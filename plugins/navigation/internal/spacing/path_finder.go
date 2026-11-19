@@ -255,7 +255,7 @@ func (l BoardLevels) Storeys(c cell.ID, dst *[cell.Storeys]pathfind.Storey) (mad
 	_, level := brd.Map().Top(c)
 	for s := range uint8(cell.Storeys) {
 		f := b.Storey(s)
-		if f.Height == 0 || f.Allows == 0 {
+		if f.Level() == cell.OnGround || f.Allows == 0 {
 			continue
 		}
 		top := level + f.Height
@@ -266,7 +266,7 @@ func (l BoardLevels) Storeys(c cell.ID, dst *[cell.Storeys]pathfind.Storey) (mad
 			Bound:   top - f.Thickness,
 			Carries: f.Allows,
 		}
-		if f.Sunk() {
+		if f.Room() {
 			sunk |= 1 << s
 			dst[s].Bound = top + f.Clear
 		}
@@ -284,7 +284,7 @@ func (l BoardLevels) Ground(p geom.Vec) float32 {
 func (l BoardLevels) Over(p geom.Vec) (under float32, ok bool) {
 	brd := l.Read.Board()
 	brd.DecksOver(p, func(c cell.ID, f cell.Floor) {
-		if f.Height <= 0 {
+		if f.Height <= 0 || f.Room() {
 			return
 		}
 		_, level := brd.Map().Top(c)

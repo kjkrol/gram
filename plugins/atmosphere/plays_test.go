@@ -30,8 +30,12 @@ func TestPlays_ARuleOfTheWeatherFiresForTheAtmospheresOwnEntity(t *testing.T) {
 		var noted effect.Effect
 		var ecs *goke.ECS
 		st := stage.New("sky").
-			World(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}, Heights: true}).
-			Plugins(func(made *world.Plugin) { w, a = made, atmosphere.NewPlugin(made, nil, atmosphere.Config{}) }).
+			World(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128},
+				Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}, Heights: true}).
+			Plugins(func(made *world.Plugin) {
+				w, a = made, atmosphere.NewPlugin(made, nil,
+					atmosphere.Config{})
+			}).
 			Effects(func(ctx game.Initializer) {
 				ecs = ctx.ECS()
 				w.Write().Effects().Define("noted", effect.Spec{})

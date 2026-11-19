@@ -14,7 +14,12 @@ import (
 
 func TestBackdrop_DrawsTheSkyOnTheGPU(t *testing.T) {
 	gputest.Need(t)
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
+	w := world.NewPlugin(
+		world.Config{
+			Space:    world.SpaceCfg{Width: 200, Height: 200},
+			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8},
+		},
+	)
 	cam := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
 	sun := light.Distant{Dir: eyedF, Strength: 0.7, AmbientColor: render.Light{0.5, 0.7, 1}}
 	b := New(w.Res.Config.Space, func() light.Distant { return sun },
@@ -24,8 +29,14 @@ func TestBackdrop_DrawsTheSkyOnTheGPU(t *testing.T) {
 	at := func(x, y int) [4]byte { i := 4 * (y*100 + x); return [4]byte(pix[i : i+4]) }
 	b.Draw(render.Target{Screen: screen}, raying{height: 30}, framed(b, cam))
 	screen.ReadPixels(pix)
-	if top, bottom := at(5, 2), at(5, 97); top[0] >= bottom[0] || top[1] >= bottom[1] || top[3] != 255 || bottom[3] != 255 {
-		t.Errorf("the sky is %v at the top and %v at the bottom, want it opaque and deeper overhead", top, bottom)
+	if top, bottom := at(5, 2), at(5, 97); top[0] >= bottom[0] || top[1] >= bottom[1] ||
+		top[3] != 255 ||
+		bottom[3] != 255 {
+		t.Errorf(
+			"the sky is %v at the top and %v at the bottom, want it opaque and deeper overhead",
+			top,
+			bottom,
+		)
 	}
 	if c := at(50, 50); c[0] < 250 || c[1] < 250 || c[2] < 250 {
 		t.Errorf("the sun's disc in the middle is %v, want white", c)

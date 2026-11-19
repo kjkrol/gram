@@ -15,6 +15,10 @@ type Lights struct {
 	Casts       []BlockSet
 	Ground      Lattice
 	GroundAt    func(x, y float32) float32
+	// Shelters are the roofs over the world, a Shadowing's Shelter naming one; their Version is
+	// raised whenever they change.
+	Shelters        []Shelter
+	SheltersVersion uint64
 }
 
 // BlockSet is the blocks standing in one part of the world, their joint rectangle Box (origin and

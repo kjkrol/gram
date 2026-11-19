@@ -87,10 +87,25 @@ func DebugPrintAt(dst *gfx.Image, s string, x, y int) {
 			y0 := float32(y + line*lineHeight + shade.dy)
 			u0 := float32(i * glyphCell)
 			v := func(dx, dy, su, sv float32) gpu.Vertex {
-				return gpu.Vertex{DstX: x0 + dx, DstY: y0 + dy, SrcX: u0 + su, SrcY: sv, ColorR: shade.c, ColorG: shade.c, ColorB: shade.c, ColorA: 1}
+				return gpu.Vertex{
+					DstX:   x0 + dx,
+					DstY:   y0 + dy,
+					SrcX:   u0 + su,
+					SrcY:   sv,
+					ColorR: shade.c,
+					ColorG: shade.c,
+					ColorB: shade.c,
+					ColorA: 1,
+				}
 			}
 			base := uint16(len(verts))
-			verts = append(verts, v(0, 0, 0, 0), v(glyphCell, 0, glyphCell, 0), v(0, lineHeight, 0, lineHeight), v(glyphCell, lineHeight, glyphCell, lineHeight))
+			verts = append(
+				verts,
+				v(0, 0, 0, 0),
+				v(glyphCell, 0, glyphCell, 0),
+				v(0, lineHeight, 0, lineHeight),
+				v(glyphCell, lineHeight, glyphCell, lineHeight),
+			)
 			indices = append(indices, base, base+1, base+2, base+1, base+2, base+3)
 			col++
 			if len(verts) > 65000 {

@@ -6,7 +6,11 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-var tileShader = render.NewShaderWith("cloud tile", render.Files(shaders, "shaders/cloud_tile.wgsl"), nil)
+var tileShader = render.NewShaderWith(
+	"cloud tile",
+	render.Files(shaders, "shaders/cloud_tile.wgsl"),
+	nil,
+)
 
 // the tile's size in pixels: its finest level and the coarser beside it, each with a pixel round
 // it of what lies past its far edge, so a shader reads across the wrap with the GPU's filter
@@ -59,7 +63,8 @@ func bakeTile(dst *render.Image) {
 				Custom3: samples,
 			}
 		}
-		dst.SubImage(at).DrawTrianglesShader(verts, tileQuad, tileShader, &render.DrawTrianglesShaderOptions{})
+		dst.SubImage(at).
+			DrawTrianglesShader(verts, tileQuad, tileShader, &render.DrawTrianglesShaderOptions{})
 	}
 }
 

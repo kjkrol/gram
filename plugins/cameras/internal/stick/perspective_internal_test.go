@@ -22,7 +22,11 @@ func TestPerspective_TheTargetLandsInTheMiddleAndXRunsDownRight(t *testing.T) {
 		t.Errorf("the target projects to (%v, %v), want the middle", sx, sy)
 	}
 	if sx, sy := p.Project(352, 320, 0); sx <= 0 || sy <= 0 {
-		t.Errorf("a cell along x projects to (%v, %v), want down-right as the isometric view has it", sx, sy)
+		t.Errorf(
+			"a cell along x projects to (%v, %v), want down-right as the isometric view has it",
+			sx,
+			sy,
+		)
 	}
 	if sx, sy := p.Project(320, 352, 0); sx >= 0 || sy <= 0 {
 		t.Errorf("a cell along y projects to (%v, %v), want down-left", sx, sy)
@@ -31,7 +35,12 @@ func TestPerspective_TheTargetLandsInTheMiddleAndXRunsDownRight(t *testing.T) {
 		t.Errorf("a point 10 up projects to y %v, want above the middle", sy)
 	}
 	if at, off := width(p, 320, 320), width(p, 192, 192); at <= off {
-		t.Errorf("a cell at the target is %v wide, one four cells further off %v: want the further one smaller", at, off)
+		t.Errorf(
+			"a cell at the target is %v wide, one four cells further off %v: want the further "+
+				"one smaller",
+			at,
+			off,
+		)
 	}
 }
 
@@ -44,11 +53,21 @@ func width(p perspective, x, y float32) float32 {
 func TestPerspective_UnprojectInvertsProjectOnEveryPlane(t *testing.T) {
 	for _, heading := range []float32{0, 0.7, math.Pi / 2, 4.5} {
 		p := testPerspective(heading)
-		for _, q := range [][3]float32{{320, 320, 0}, {400, 300, 0}, {250, 350, 7}, {330, 310, 30}} {
+		for _, q := range [][3]float32{{320, 320, 0}, {400, 300, 0}, {250, 350, 7}, {330, 310,
+			30}} {
 			sx, sy := p.Project(q[0], q[1], q[2])
 			x, y, hit := p.cast(sx, sy, q[2])
 			if !hit || !near(x, q[0]) || !near(y, q[1]) {
-				t.Errorf("heading %v: point %v went to (%v, %v) and came back as (%v, %v), hit %v", heading, q, sx, sy, x, y, hit)
+				t.Errorf(
+					"heading %v: point %v went to (%v, %v) and came back as (%v, %v), hit %v",
+					heading,
+					q,
+					sx,
+					sy,
+					x,
+					y,
+					hit,
+				)
 			}
 		}
 	}
@@ -80,7 +99,8 @@ func TestPerspective_WhatLiesBehindTheEyeOrOverTheHorizonStaysFinite(t *testing.
 	if hit {
 		t.Errorf("a screen point over the horizon hit the ground at (%v, %v)", x, y)
 	}
-	if d := f32.Hypot(float32(x-320), float32(y-320)); d < 1000 || f32.IsInf(d, 0) || math.IsNaN(float64(d)) {
+	if d := f32.Hypot(float32(x-320), float32(y-320)); d < 1000 || f32.IsInf(d, 0) ||
+		math.IsNaN(float64(d)) {
 		t.Errorf("over the horizon the ground point is %v off, want far and finite", d)
 	}
 }
@@ -93,7 +113,12 @@ func TestPerspective_TowardLeadsFromTheTargetToTheEye(t *testing.T) {
 			t.Fatalf("heading %v: Toward %v, want a unit vector rising towards the eye", heading, d)
 		}
 		if sx, sy := p.Project(320+40*d[0], 320+40*d[1], 40*d[2]); !near(sx, 0) || !near(sy, 0) {
-			t.Errorf("heading %v: 40 along Toward from the target lands at (%v, %v), not in the middle", heading, sx, sy)
+			t.Errorf(
+				"heading %v: 40 along Toward from the target lands at (%v, %v), not in the middle",
+				heading,
+				sx,
+				sy,
+			)
 		}
 		if p.Depth(320+64*d[0], 320+64*d[1], 0) <= p.Depth(320, 320, 0) {
 			t.Errorf("heading %v: the way towards the eye is not nearer the eye", heading)
@@ -103,21 +128,40 @@ func TestPerspective_TowardLeadsFromTheTargetToTheEye(t *testing.T) {
 
 func TestPerspective_VanishIsWhereEverythingFarAlongADirectionIsDrawn(t *testing.T) {
 	p := testPerspective(0.4)
-	if sx, sy, ok := p.Vanish(p.forward[0], p.forward[1], p.forward[2]); !ok || !near(sx, 0) || !near(sy, 0) {
+	if sx, sy, ok := p.Vanish(p.forward[0], p.forward[1], p.forward[2]); !ok || !near(sx, 0) ||
+		!near(sy, 0) {
 		t.Errorf("the way the eye looks vanishes at (%v, %v) %v, want the middle", sx, sy, ok)
 	}
 	if _, _, ok := p.Vanish(-p.forward[0], -p.forward[1], -p.forward[2]); ok {
 		t.Error("the way behind the eye vanishes on the screen")
 	}
-	dir := norm32([3]float32{p.forward[0] + 0.2*p.right[0] + 0.1*p.up[0], p.forward[1] + 0.2*p.right[1] + 0.1*p.up[1], p.forward[2] + 0.2*p.right[2] + 0.1*p.up[2]})
+	dir := norm32(
+		[3]float32{
+			p.forward[0] + 0.2*p.right[0] + 0.1*p.up[0],
+			p.forward[1] + 0.2*p.right[1] + 0.1*p.up[1],
+			p.forward[2] + 0.2*p.right[2] + 0.1*p.up[2],
+		},
+	)
 	vx, vy, ok := p.Vanish(dir[0], dir[1], dir[2])
 	if !ok || vx <= 0 || vy >= 0 {
-		t.Fatalf("a way right of and above the middle vanishes at (%v, %v) %v, want right of and above it", vx, vy, ok)
+		t.Fatalf(
+			"a way right of and above the middle vanishes at (%v, %v) %v, want right of and "+
+				"above it",
+			vx,
+			vy,
+			ok,
+		)
 	}
 	far := vec.Add(p.eye, vec.Scale(dir, 1e5))
 	if sx, sy := p.Project(far[0], far[1], far[2]); f32.Abs(float32(sx-vx)) > 0.5 ||
 		f32.Abs(float32(sy-vy)) > 0.5 {
-		t.Errorf("a point far along the way is drawn at (%v, %v), want where it vanishes (%v, %v)", sx, sy, vx, vy)
+		t.Errorf(
+			"a point far along the way is drawn at (%v, %v), want where it vanishes (%v, %v)",
+			sx,
+			sy,
+			vx,
+			vy,
+		)
 	}
 }
 
@@ -133,13 +177,28 @@ func TestPerspective_TheGroundCurvesAwayUnderTheHorizon(t *testing.T) {
 		sx, sy := curved.Project(q[0], q[1], q[2])
 		wx, wy := flat.Project(q[0], q[1], q[2]-curved.bend*(dx*dx+dy*dy))
 		if !near(sx, wx) || !near(sy, wy) {
-			t.Errorf("point %v is drawn at (%v, %v), want (%v, %v): sunk by the curve", q, sx, sy, wx, wy)
+			t.Errorf(
+				"point %v is drawn at (%v, %v), want (%v, %v): sunk by the curve",
+				q,
+				sx,
+				sy,
+				wx,
+				wy,
+			)
 		}
 		// float32 through the projection and back: a hundred-thousandth of the way off
 		tol := 1e-5 * f32.Hypot(float32(dx), float32(dy))
 		if x, y, hit := curved.cast(sx, sy, q[2]); !hit || f32.Abs(float32(x-q[0])) > tol ||
 			f32.Abs(float32(y-q[1])) > tol {
-			t.Errorf("point %v drawn at (%v, %v) is found back at (%v, %v) %v", q, sx, sy, x, y, hit)
+			t.Errorf(
+				"point %v drawn at (%v, %v) is found back at (%v, %v) %v",
+				q,
+				sx,
+				sy,
+				x,
+				y,
+				hit,
+			)
 		}
 	}
 	h := curved.eye[2]
@@ -147,6 +206,13 @@ func TestPerspective_TheGroundCurvesAwayUnderTheHorizon(t *testing.T) {
 	// how far under level, per d
 	under := func(d float32) float32 { return (h + curved.bend*d*d) / d }
 	if under(horizon) >= under(horizon*0.8) || under(horizon) >= under(horizon*1.25) {
-		t.Errorf("level ground lies %v under the eye's level at the horizon %v off, %v nearer and %v further: want least at the horizon", under(horizon), horizon, under(horizon*0.8), under(horizon*1.25))
+		t.Errorf(
+			"level ground lies %v under the eye's level at the horizon %v off, %v nearer and %v "+
+				"further: want least at the horizon",
+			under(horizon),
+			horizon,
+			under(horizon*0.8),
+			under(horizon*1.25),
+		)
 	}
 }

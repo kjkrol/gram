@@ -67,13 +67,28 @@ func TestStage_RunsItsSectionsInOrder(t *testing.T) {
 		Effects(func() error { s.note("effects"); return nil }).
 		Rules(func(game.Initializer) error { s.note("rules"); return nil }).
 		Kinds(func() { s.note("cells") }, s.defineUnit).
-		Spawn(func() { s.note("ground") }, func() { s.note("units"); s.world.Write().Seed(s.unit.Entry(struct{}{})) }).
-		Scenes(func() []game.Scene { s.note("scenes"); return []game.Scene{&scene{name: "main"}, &scene{name: "help"}} }).
+		Spawn(func() { s.note("ground") },
+			func() { s.note("units"); s.world.Write().Seed(s.unit.Entry(struct{}{})) }).
+		Scenes(func() []game.Scene {
+			s.note("scenes")
+			return []game.Scene{&scene{name: "main"},
+				&scene{name: "help"}}
+		}).
 		Update(s.update)
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	want := []string{"plugins", "players", "effects", "rules", "cells", "kinds", "ground", "units", "scenes"}
+	want := []string{
+		"plugins",
+		"players",
+		"effects",
+		"rules",
+		"cells",
+		"kinds",
+		"ground",
+		"units",
+		"scenes",
+	}
 	if !slices.Equal(s.ran, want) {
 		t.Errorf("sections ran %v, want %v", s.ran, want)
 	}
@@ -185,7 +200,10 @@ func TestStage_ScenesOfALoadedGameAreAsSaved(t *testing.T) {
 	define := func(s *sectioned, k *kept) game.Stage {
 		return stage.New("meadow").
 			World(testWorldConfig()).Plugins(s.makeWorld).
-			Scenes(func() []game.Scene { return []game.Scene{&scene{name: "main"}, k, &scene{name: "hud"}} }).
+			Scenes(func() []game.Scene {
+				return []game.Scene{&scene{name: "main"}, k,
+					&scene{name: "hud"}}
+			}).
 			Update(s.update)
 	}
 	fresh := &kept{scene: scene{name: "help"}}
@@ -212,23 +230,35 @@ func TestStage_ScenesOfALoadedGameAreAsSaved(t *testing.T) {
 		t.Errorf("a loaded game shows %v, want main and hud as saved", got)
 	}
 	if loaded.note != "seen" || !loaded.restored {
-		t.Errorf("a loaded game's scene has %q, restored %v; want its saved state, restored", loaded.note, loaded.restored)
+		t.Errorf(
+			"a loaded game's scene has %q, restored %v; want its saved state, restored",
+			loaded.note,
+			loaded.restored,
+		)
 	}
 }
 
 func TestStage_ASectionsErrorNamesIt(t *testing.T) {
 	s := &sectioned{}
 	boom := errors.New("boom")
-	st := stage.New("meadow").World(testWorldConfig()).Plugins(s.makeWorld).Effects(func() error { return boom }).Update(s.update)
+	st := stage.New("meadow").
+		World(testWorldConfig()).
+		Plugins(s.makeWorld).
+		Effects(func() error { return boom }).
+		Update(s.update)
 	err := NewEngine(oneStageGame{stage: st}).Init()
-	if !errors.Is(err, boom) || !strings.Contains(err.Error(), "meadow") || !strings.Contains(err.Error(), "Effects") {
+	if !errors.Is(err, boom) || !strings.Contains(err.Error(), "meadow") ||
+		!strings.Contains(err.Error(), "Effects") {
 		t.Errorf("Init = %v, want boom of the stage meadow, in Effects", err)
 	}
 }
 
 func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 	type part func(s *sectioned, ctx game.Initializer) error
-	useAPlugin := func(s *sectioned, ctx game.Initializer) error { return ctx.Use(&stubPlugin{name: "late"}) }
+	useAPlugin := func(s *sectioned,
+		ctx game.Initializer) error {
+		return ctx.Use(&stubPlugin{name: "late"})
+	}
 	plays := func(s *sectioned, _ game.Initializer) error {
 		s.world.Roles().Define("sectioned", act.Branch[clock.Moment]{
 			Name: "leave",
@@ -281,7 +311,11 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 			}
 			err := NewEngine(oneStageGame{stage: st}).Init()
 			if err == nil || !strings.Contains(err.Error(), "it belongs in "+tc.wants) {
-				t.Fatalf("out of its section: Init = %v, want it refused as belonging in %s", err, tc.wants)
+				t.Fatalf(
+					"out of its section: Init = %v, want it refused as belonging in %s",
+					err,
+					tc.wants,
+				)
 			}
 			if tc.panics != strings.Contains(err.Error(), "panic:") {
 				t.Errorf("refused by %v, want a panic %v", err, tc.panics)
@@ -319,8 +353,12 @@ func TestStage_SeedsInTheirSections(t *testing.T) {
 			s.world.Write().Seed(s.unit.Entry(struct{}{}))
 			return nil
 		}).Update(s.update)
-	if err := NewEngine(oneStageGame{stage: st}).Init(); err == nil || !strings.Contains(err.Error(), "it belongs in Spawn") {
-		t.Errorf("units seeded in Controls: Init = %v, want them refused as belonging in Spawn", err)
+	if err := NewEngine(oneStageGame{stage: st}).Init(); err == nil ||
+		!strings.Contains(err.Error(), "it belongs in Spawn") {
+		t.Errorf(
+			"units seeded in Controls: Init = %v, want them refused as belonging in Spawn",
+			err,
+		)
 	}
 	s = &sectioned{}
 	spy := &stubPlugin{name: "spy", installFn: func(ctx plugin.Installer) error {
@@ -328,7 +366,8 @@ func TestStage_SeedsInTheirSections(t *testing.T) {
 		return nil
 	}}
 	st = stage.New("meadow").
-		World(testWorldConfig()).Plugins(func(w *world.Plugin) { s.makeWorld(w); w.Made().Add(spy) }).
+		World(testWorldConfig()).
+		Plugins(func(w *world.Plugin) { s.makeWorld(w); w.Made().Add(spy) }).
 		Kinds(s.defineUnit).
 		Spawn(func() { s.world.Write().Seed(s.unit.Entry(struct{}{})) }).Update(s.update)
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
@@ -351,7 +390,11 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 	plugins := func(b *built) func(w *world.Plugin) {
 		return func(w *world.Plugin) {
 			b.makeWorld(w)
-			b.board = board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, b.world)
+			b.board = board.NewPlugin(
+				grid.DefaultGrids{}.Square(4, 4, 32),
+				&cell.MultipleOccupancy{},
+				b.world,
+			)
 			b.players = players.NewPlugin(b.world)
 		}
 	}
@@ -360,10 +403,18 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 		in    func(b *built) error // done in Effects, a wrong place
 		wants string
 	}{
-		"a kind of cell defined": {func(b *built) error { b.board.Read(0).CellKinds().Define("grass", grass); return nil }, "Kinds"},
-		"the board seeded":       {func(b *built) error { b.board.Write().Seed(board.Layout{}); return nil }, "Spawn"},
-		"a player added":         {func(b *built) error { b.players.Add("late"); return nil }, "Players"},
-		"keys bound":             {func(b *built) error { return b.player.Bind() }, "Players"},
+		"a kind of cell " +
+			"defined": {func(b *built) error {
+			b.board.Read(0).CellKinds().Define("grass",
+				grass)
+			return nil
+		}, "Kinds"},
+		"the board " +
+			"seeded": {func(b *built) error { b.board.Write().Seed(board.Layout{}); return nil },
+			"Spawn"},
+		"a player added": {func(b *built) error { b.players.Add("late"); return nil },
+			"Players"},
+		"keys bound": {func(b *built) error { return b.player.Bind() }, "Players"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			b := &built{}
@@ -415,7 +466,8 @@ func TestStage_RunsAPluginsSectionWhereItIsWritten(t *testing.T) {
 	var got *partPlugin
 	var during section.Part
 	st := stage.New("meadow").
-		World(testWorldConfig()).Plugins(func(w *world.Plugin) { s.makeWorld(w); w.Made().Add(pp) }).
+		World(testWorldConfig()).
+		Plugins(func(w *world.Plugin) { s.makeWorld(w); w.Made().Add(pp) }).
 		Rules(func() { s.note("rules") }).
 		With(section.Of(testPart, func(p *partPlugin) error {
 			s.note("test")
@@ -457,7 +509,8 @@ func TestStage_APluginsSectionNeedsItsPlugin(t *testing.T) {
 	st := stage.New("meadow").World(testWorldConfig()).Plugins(s.makeWorld).
 		With(section.Of(testPart, func(*partPlugin) error { return nil })).
 		Update(s.update)
-	if err := NewEngine(oneStageGame{stage: st}).Init(); err == nil || !strings.Contains(err.Error(), "partPlugin") {
+	if err := NewEngine(oneStageGame{stage: st}).Init(); err == nil ||
+		!strings.Contains(err.Error(), "partPlugin") {
 		t.Errorf("Init = %v, want it refused for want of the plugin", err)
 	}
 }
@@ -471,7 +524,8 @@ func TestStage_TheDialogsDefineInTheirOwnSection(t *testing.T) {
 	}
 	err := run(func(d **dialog.Plugin) game.Stage {
 		return stage.New("meadow").
-			World(testWorldConfig()).Plugins(func(w *world.Plugin) { *d = dialog.NewPlugin(w, dialog.Config{}) }).
+			World(testWorldConfig()).
+			Plugins(func(w *world.Plugin) { *d = dialog.NewPlugin(w, dialog.Config{}) }).
 			Effects(func() (err error) {
 				defer func() {
 					if r := recover(); r != nil {
@@ -485,13 +539,21 @@ func TestStage_TheDialogsDefineInTheirOwnSection(t *testing.T) {
 			Update(func(goke.RunCtx, time.Duration) {})
 	})
 	if err == nil || !strings.Contains(err.Error(), "it belongs in Conversations") {
-		t.Errorf("a change defined in Effects: Init = %v, want it refused as belonging in Conversations", err)
+		t.Errorf(
+			"a change defined in Effects: Init = %v, want it refused as belonging in Conversations",
+			err,
+		)
 	}
 	err = run(func(d **dialog.Plugin) game.Stage {
 		return stage.New("meadow").
-			World(testWorldConfig()).Plugins(func(w *world.Plugin) { *d = dialog.NewPlugin(w, dialog.Config{}) }).
+			World(testWorldConfig()).
+			Plugins(func(w *world.Plugin) { *d = dialog.NewPlugin(w, dialog.Config{}) }).
 			Effects(func() { (*d).DefineEffects() }).
-			With(dialog.Conversations(func(d *dialog.Plugin) error { d.Changes().Define("warm", warm); return nil })).
+			With(dialog.Conversations(func(d *dialog.Plugin) error {
+				d.Changes().Define("warm",
+					warm)
+				return nil
+			})).
 			Update(func(goke.RunCtx, time.Duration) {})
 	})
 	if err != nil {
@@ -502,7 +564,14 @@ func TestStage_TheDialogsDefineInTheirOwnSection(t *testing.T) {
 func TestStage_UsesThePluginsInTheOrderMade(t *testing.T) {
 	var installed []string
 	stub := func(name string) *stubPlugin {
-		return &stubPlugin{name: name, installFn: func(plugin.Installer) error { installed = append(installed, name); return nil }}
+		return &stubPlugin{
+			name: name,
+			installFn: func(plugin.Installer) error {
+				installed = append(installed,
+					name)
+				return nil
+			},
+		}
 	}
 	var made []string
 	st := stage.New("meadow").World(testWorldConfig()).Plugins(func(w *world.Plugin) {
@@ -516,7 +585,8 @@ func TestStage_UsesThePluginsInTheOrderMade(t *testing.T) {
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	if !slices.Equal(made, []string{"first", "gram.players", "second"}) || !slices.Equal(installed, []string{"first", "second"}) {
+	if !slices.Equal(made, []string{"first", "gram.players", "second"}) ||
+		!slices.Equal(installed, []string{"first", "second"}) {
 		t.Errorf("made %v, installed %v; want them in the order made", made, installed)
 	}
 

@@ -1,6 +1,7 @@
 package underground
 
 import (
+	"image/color"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -9,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gputest"
@@ -59,6 +61,53 @@ func TestTubes_DrawAStretchWhereItLiesAndNothingBesideIt(t *testing.T) {
 	}
 }
 
+func TestStyle_GivesALookOnePlaceInTheTableWhateverKindsShareIt(t *testing.T) {
+	r := &tubes{}
+	mine := Look{Walls: color.RGBA{R: 90, A: 255}, Rough: true}
+	r.style(1, "road", Look{})
+	r.style(2, "shaft", mine)
+	r.style(3, "drift", mine)
+	if r.lookOf[1] != 0 || r.lookOf[2] != 1<<lookShift || r.lookOf[3] != r.lookOf[2] {
+		t.Errorf("the road, the shaft and the drift at %v, %v and %v, want the road's first and "+
+			"one place the next for both", r.lookOf[1], r.lookOf[2], r.lookOf[3])
+	}
+	walls, floor := r.table[lookFloats:lookFloats+4], r.table[lookFloats+4:lookFloats+8]
+	if walls[0] != 90.0/255 || walls[3] != 1 {
+		t.Errorf("the shaft's walls %v, want its own colour, rough", walls)
+	}
+	if floor[0] != float32(asphalt.R)/255 || floor[3] != 0 {
+		t.Errorf("the shaft's floor %v, want the road's asphalt without its lines", floor)
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("a look past the table's places found one")
+		}
+	}()
+	for k := range maxLooks {
+		r.style(kind.ID(10+k), "more", Look{Walls: color.RGBA{G: uint8(k + 1), A: 255}})
+	}
+}
+
+func TestTubes_DrawAStretchInTheLookOfItsKind(t *testing.T) {
+	gputest.Need(t)
+	r := &tubes{}
+	red := color.RGBA{R: 200, G: 30, B: 20, A: 255}
+	r.style(1, "red", Look{Walls: red, Floor: red, Roof: red})
+	look := r.lookOf[1]
+	r.bufs[0] = []float32{100, 250, 0, 40, 400, 250, 0, 30, wallLeft | wallRight + look, 100, 0, 0}
+	screen := render.NewImage(64, 64)
+	depth := render.NewDepth()
+	screen.ClearDepth(depth)
+	u := render.UniformsOf(map[string]any{"Ambience": []float32{0.5, 0.5, 0.5}})
+	r.Draw(render.Target{Screen: screen, Depth: depth},
+		downward{cameratest.NewFromSpace(64, 64, 0)}, u)
+	pix := make([]byte, 4*64*64)
+	screen.ReadPixels(pix)
+	if p := pix[4*(31*64+30):][:3]; p[0] <= 2*p[1] || p[0] <= 2*p[2] {
+		t.Errorf("the stretch drawn %v, want the red of its kind", p)
+	}
+}
+
 func TestMitre_CutsAStretchOnThePlaneBetweenItAndTheOneItTurnsInto(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(4, 4, 10)
 	way := func(dx, dy int) int { d, _ := grid.Direction(g, dx, dy); return d }
@@ -84,7 +133,7 @@ func TestMitre_CutsAStretchOnThePlaneBetweenItAndTheOneItTurnsInto(t *testing.T)
 func TestFrame_StandsRoundTheMouthLevelOverTheRoofAsItRunsIn(t *testing.T) {
 	f := cell.Floor{Width: 6, Clear: 4}
 	// the floor at 10 at the mouth, climbing a half a unit, the frame running 16 in
-	got := frame(nil, geom.NewVec(50, 20), geom.NewVec(1, 0), 10, 0.5, 16, f)
+	got := frame(nil, geom.NewVec(50, 20), geom.NewVec(1, 0), 10, 0.5, 16, f, 0)
 	if len(got) != 3*tubeFloats {
 		t.Fatalf("a frame of %d floats, want two jambs and a lintel", len(got))
 	}
@@ -96,12 +145,16 @@ func TestFrame_StandsRoundTheMouthLevelOverTheRoofAsItRunsIn(t *testing.T) {
 	if l, r := got[1], got[tubeFloats+1]; f32.Abs(l-20) <= 3 || f32.Abs(r-20) <= 3 || l == r {
 		t.Errorf("the jambs at y %v and %v, want one either side of a tube 3 off its middle", l, r)
 	}
-	if lintel := got[2*tubeFloats:]; lintel[2] < 14 || lintel[2] > 14.1 || lintel[6] != lintel[2] || lintel[3] <= 3 ||
+	if lintel := got[2*tubeFloats:]; lintel[2] < 14 || lintel[2] > 14.1 || lintel[6] != lintel[2] ||
+		lintel[3] <= 3 ||
 		lintel[2]+lintel[7] <= 22 {
-		t.Errorf("the lintel %v, want it level from just over the roof at 14 to over the roof 16 in, "+
-			"at 22, wider than the tube", lintel)
+		t.Errorf(
+			"the lintel %v, want it level from just over the roof at 14 to over the roof 16 in, "+
+				"at 22, wider than the tube",
+			lintel,
+		)
 	}
-	sunk := frame(nil, geom.NewVec(50, 20), geom.NewVec(1, 0), 10, -0.5, 16, f)
+	sunk := frame(nil, geom.NewVec(50, 20), geom.NewVec(1, 0), 10, -0.5, 16, f, 0)
 	if jamb := sunk[:tubeFloats]; jamb[2] != 2 || jamb[2]+jamb[7] <= 14 {
 		t.Errorf("the jamb %v of a floor falling to 2, want it from 2 to over the roof at 14",
 			jamb)
@@ -121,7 +174,7 @@ func TestBent_LaysATurnInPiecesMeetingWallToWallAndSquareAtItsEdges(t *testing.T
 		"half a turn":   {out(-1, 0), out(1, 1)},
 	} {
 		a, b := legs[0], legs[1]
-		got := bent(nil, a, b, m, 3, f)
+		got := bent(nil, a, b, m, 3, f, 0)
 		if len(got) != bends*tubeFloats {
 			t.Fatalf("%s: %d floats, want %d pieces", name, len(got), bends)
 		}

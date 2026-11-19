@@ -21,9 +21,18 @@ func (s shifted) Viewport() (float32, float32)                   { return 100, 1
 func (s shifted) Unproject(sx, sy, _ float32) (float32, float32) { return sx + s.dx, sy }
 
 func TestBackdrop_FillsTheScreenWithTheSkyOnlyWhereTheGroundDoesNotCoverIt(t *testing.T) {
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
+	w := world.NewPlugin(
+		world.Config{
+			Space:    world.SpaceCfg{Width: 200, Height: 200},
+			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8},
+		},
+	)
 	cam := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
-	sun := light.Distant{Dir: [3]float32{0, 0, 1}, Strength: 0.5, AmbientColor: render.Light{0.5, 0.7, 1}}
+	sun := light.Distant{
+		Dir:          [3]float32{0, 0, 1},
+		Strength:     0.5,
+		AmbientColor: render.Light{0.5, 0.7, 1},
+	}
 	b := New(w.Res.Config.Space, func() light.Distant { return sun },
 		func() air.Weather { return air.Weather{} })
 	var f render.Frame
@@ -35,7 +44,11 @@ func TestBackdrop_FillsTheScreenWithTheSkyOnlyWhereTheGroundDoesNotCoverIt(t *te
 		}
 	})
 	if p := b.plan(shifted{Camera: cam, dx: 50}); !p.None {
-		t.Errorf("over the middle of the world the backdrop draws %+v, want nothing: the ground covers the screen", p)
+		t.Errorf(
+			"over the middle of the world the backdrop draws %+v, want nothing: the ground "+
+				"covers the screen",
+			p,
+		)
 	}
 	if p := b.plan(shifted{Camera: cam, dx: 150}); p.None || !p.Flat {
 		t.Errorf("over the world's edge the backdrop draws %+v, want the whole screen flat", p)

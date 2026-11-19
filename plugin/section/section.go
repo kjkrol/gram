@@ -23,7 +23,19 @@ const (
 	Done
 )
 
-var names = []string{"no section", "Plugins", "Players", "Effects", "Rules", "Commands", "Kinds", "Controls", "Spawn", "Scenes", "the defined Stage"}
+var names = []string{
+	"no section",
+	"Plugins",
+	"Players",
+	"Effects",
+	"Rules",
+	"Commands",
+	"Kinds",
+	"Controls",
+	"Spawn",
+	"Scenes",
+	"the defined Stage",
+}
 
 var bounds = map[Part][2]Part{}
 
@@ -41,7 +53,15 @@ func Define(name string, after, before Part) Part {
 		panic(fmt.Sprintf("section: %q is one part too many", name))
 	}
 	if after >= before || before > Controls {
-		panic(fmt.Sprintf("section: %q lies after %v and before %v: a plugin's part lies between two of a Stage's up to Controls", name, after, before))
+		panic(
+			fmt.Sprintf(
+				"section: %q lies after %v and before %v: a plugin's part lies between two of a "+
+					"Stage's up to Controls",
+				name,
+				after,
+				before,
+			),
+		)
 	}
 	p := Part(len(names))
 	names = append(names, name)

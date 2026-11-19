@@ -69,7 +69,10 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float32]) []kind.E
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
 	}
-	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) { c.q = si.NewQueryBuilder(&c.base).Build() }})
+	systems = append(
+		systems,
+		goke.SystemFn{OnInit: func(si *goke.SysInit) { c.q = si.NewQueryBuilder(&c.base).Build() }},
+	)
 	c.ecs = ctx.ecs
 	c.ecs.Setup(systems...)
 	c.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
@@ -181,8 +184,13 @@ func TestAllow_SelectedSelectsAtOnce(t *testing.T) {
 	c.w.Write().Carrier().Put(c.one.ID, ceremony.Put(c.haste).On(c.sel.Selected()))
 	c.tick()
 	ids := c.ids()
-	if !c.w.Read(0).Effects().Has(ids[100], c.haste) || c.w.Read(0).Effects().Has(ids[200], c.haste) {
-		t.Errorf("hasted: the unit at 100 %v, at 200 %v; want the one selected from the start alone", c.w.Read(0).Effects().Has(ids[100], c.haste), c.w.Read(0).Effects().Has(ids[200], c.haste))
+	if !c.w.Read(0).Effects().Has(ids[100], c.haste) ||
+		c.w.Read(0).Effects().Has(ids[200], c.haste) {
+		t.Errorf(
+			"hasted: the unit at 100 %v, at 200 %v; want the one selected from the start alone",
+			c.w.Read(0).Effects().Has(ids[100], c.haste),
+			c.w.Read(0).Effects().Has(ids[200], c.haste),
+		)
 	}
 }
 

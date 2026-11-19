@@ -296,8 +296,13 @@ func newRouteRig(t *testing.T, rb routeBoard) *routeRig {
 	for range 3 {
 		ctx.ecs.Tick(time.Second / 60)
 	}
-	return &routeRig{board: rb, finder: nav.finder, brd: brd.Read(0).Board(), levels: spacing.BoardLevels{Read: brd.Read(0)},
-		topo: topo}
+	return &routeRig{
+		board:  rb,
+		finder: nav.finder,
+		brd:    brd.Read(0).Board(),
+		levels: spacing.BoardLevels{Read: brd.Read(0)},
+		topo:   topo,
+	}
 }
 
 func (r *routeRig) cells() []cell.ID {

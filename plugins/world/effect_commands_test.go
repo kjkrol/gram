@@ -47,13 +47,19 @@ func (g *guardStage) Init(ctx game.Initializer) error {
 		comp.Const(world.Velocity{}),
 	})
 	g.unit = kind.Named[float32](g.world.Kinds(), "unit")
-	g.world.Commands().Define("alert the captain", ceremony.Put(g.alert).On(ceremony.Named("captain")))
-	g.world.Commands().Define("alert the guards", ceremony.Put(g.alert).On(ceremony.Group("guards")))
+	g.world.Commands().
+		Define("alert the captain", ceremony.Put(g.alert).On(ceremony.Named("captain")))
+	g.world.Commands().
+		Define("alert the guards", ceremony.Put(g.alert).On(ceremony.Group("guards")))
 	return nil
 }
 
 func (g *guardStage) SetupSystems() []goke.System {
-	return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) { g.query = si.NewQueryBuilder(&g.base).Build() }}}
+	return []goke.System{
+		goke.SystemFn{
+			OnInit: func(si *goke.SysInit) { g.query = si.NewQueryBuilder(&g.base).Build() },
+		},
+	}
 }
 
 func (g *guardStage) Loaded() error { return nil }
@@ -135,7 +141,10 @@ func TestCommand_ReachesTheEntityOfAnID(t *testing.T) {
 	}
 	g.give(t, ceremony.Put(g.alert).On(ceremony.ID(passerBy)))
 	if on := g.alerted(); len(on) != 1 || !on[300] {
-		t.Fatalf("alert the passer-by by its ID: units at %v alerted, want the one at 300 alone", on)
+		t.Fatalf(
+			"alert the passer-by by its ID: units at %v alerted, want the one at 300 alone",
+			on,
+		)
 	}
 }
 
@@ -148,7 +157,10 @@ func TestCommand_NamesSurviveASaveAndALoad(t *testing.T) {
 	runGuards(t, g)
 	g.give(t, ceremony.Put(g.alert).On(ceremony.Group("guards")))
 	if on := g.alerted(); len(on) != 2 || !on[100] || !on[200] {
-		t.Errorf("after a load, alert the guards: units at %v alerted, want those at 100 and 200", on)
+		t.Errorf(
+			"after a load, alert the guards: units at %v alerted, want those at 100 and 200",
+			on,
+		)
 	}
 }
 
@@ -157,7 +169,8 @@ func TestCommands_AreDefinedOnceAndFoundByName(t *testing.T) {
 	w.Write().Effects().Define("alert", effect.Spec{})
 	alert := w.Write().Effects().Named("alert")
 	w.Commands().Define("alarm", ceremony.Put(alert).On(ceremony.World).For(time.Minute))
-	if got := w.Commands().Named("alarm"); got.Effect != alert || got.Lasts != time.Minute || !got.Whom.(ceremony.Whom).IsWorld() {
+	if got := w.Commands().Named("alarm"); got.Effect != alert || got.Lasts != time.Minute ||
+		!got.Whom.(ceremony.Whom).IsWorld() {
 		t.Errorf("the command found is %+v, want the one defined", got)
 	}
 	for name, c := range map[string]struct {

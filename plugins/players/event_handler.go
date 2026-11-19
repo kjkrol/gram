@@ -38,7 +38,11 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 		for _, k := range ev.KeyEvents {
 			switch k.Action {
 			case control.ActionPress:
-				chord := t.fire(pl, control.KeyPress{Key: k.Key, Mods: pl.in.withHeld(mods)}, ctx) &&
+				chord := t.fire(
+					pl,
+					control.KeyPress{Key: k.Key, Mods: pl.in.withHeld(mods)},
+					ctx,
+				) &&
 					(mods.Shift || mods.Ctrl || mods.Alt)
 				t.fire(pl, control.KeyDown{Key: k.Key}, ctx)
 				pl.in.keyDown(pl.bindings, k.Key)
@@ -88,7 +92,8 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 			t.fire(pl, control.Wheel{}, ctx)
 		}
 
-		inside := ctx.Cursor.X >= 0 && ctx.Cursor.X < ctx.Screen.X && ctx.Cursor.Y >= 0 && ctx.Cursor.Y < ctx.Screen.Y
+		inside := ctx.Cursor.X >= 0 && ctx.Cursor.X < ctx.Screen.X && ctx.Cursor.Y >= 0 &&
+			ctx.Cursor.Y < ctx.Screen.Y
 		pl.in.over = inside
 		if !inside {
 			continue
@@ -275,7 +280,9 @@ func covers(pl *Player, at geom.Vec) bool {
 		return false
 	}
 	a := pl.pic.area
-	return a == (geom.AABB{}) || at.X >= a.TopLeft.X && at.X < a.BottomRight.X && at.Y >= a.TopLeft.Y && at.Y < a.BottomRight.Y
+	return a == (geom.AABB{}) ||
+		at.X >= a.TopLeft.X && at.X < a.BottomRight.X && at.Y >= a.TopLeft.Y &&
+			at.Y < a.BottomRight.Y
 }
 
 func localPoint(pl *Player, at geom.Vec) geom.Vec {

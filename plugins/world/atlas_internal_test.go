@@ -44,7 +44,13 @@ func TestAtlas_FramesFollowTheWayTheSpriteFaces(t *testing.T) {
 		geom.NewVec(-1, 0): 51,
 		geom.NewVec(0, 1):  61,
 	} {
-		look := drawThrough(t, nil, a.rules(func() time.Duration { return time.Second }), dir, quarters[0])
+		look := drawThrough(
+			t,
+			nil,
+			a.rules(func() time.Duration { return time.Second }),
+			dir,
+			quarters[0],
+		)
 		if len(look.sprites) != 1 || look.sprites[0] != want {
 			t.Errorf("facing %v drew %v, want %v", dir, look.sprites, want)
 		}
@@ -54,12 +60,14 @@ func TestAtlas_FramesFollowTheWayTheSpriteFaces(t *testing.T) {
 func TestAtlas_WhileMovingStandsAsItFacesAndStepsOnTheMove(t *testing.T) {
 	a := facedAtlas(true)
 	rules := a.rules(func() time.Duration { return time.Second })
-	if look := drawThrough(t, nil, rules, geom.NewVec(0, 1), quarters[0]); len(look.sprites) != 1 || look.sprites[0] != 23 {
+	if look := drawThrough(t, nil, rules, geom.NewVec(0, 1), quarters[0]); len(look.sprites) != 1 ||
+		look.sprites[0] != 23 {
 		t.Errorf("standing, facing south: drew %v, want the facing sprite 23", look.sprites)
 	}
 	drawSpeed = 5
 	defer func() { drawSpeed = 0 }()
-	if look := drawThrough(t, nil, rules, geom.NewVec(0, 1), quarters[0]); len(look.sprites) != 1 || look.sprites[0] != 61 {
+	if look := drawThrough(t, nil, rules, geom.NewVec(0, 1), quarters[0]); len(look.sprites) != 1 ||
+		look.sprites[0] != 61 {
 		t.Errorf("walking south: drew %v, want the frame 61", look.sprites)
 	}
 }
@@ -102,13 +110,17 @@ func TestAtlas_ALookUnderAnEffectFacesEveryWayAndRunsItsFrames(t *testing.T) {
 				}
 				continue
 			}
-			if ph := a.phased[way]; len(ph.frames) != 3 || ph.frames[0] != way || ph.lasts != time.Second {
+			if ph := a.phased[way]; len(ph.frames) != 3 || ph.frames[0] != way ||
+				ph.lasts != time.Second {
 				t.Errorf("pulling, way %d: %+v, want 3 frames along a second", way, ph)
 			}
 		}
 	}
 	if len(a.marks) != 2 || a.marks[0] != bored.Mark() || a.marks[1] != pulling.Mark() {
-		t.Errorf("the effects looked under come %v, want bored then pulling: the later wins", a.marks)
+		t.Errorf(
+			"the effects looked under come %v, want bored then pulling: the later wins",
+			a.marks,
+		)
 	}
 	kin := 0
 	a.kin(hero, func(render.SpriteID) { kin++ })

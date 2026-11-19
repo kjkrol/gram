@@ -1,11 +1,12 @@
 package kinds
 
 import (
-	"github.com/kjkrol/gram/render"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/kjkrol/gram/render"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
@@ -54,7 +55,12 @@ func TestKinds_Define_AssignsSpriteIDsByOrder(t *testing.T) {
 	blue := kind.Named[int](kinds, "blue")
 
 	if red.SpriteID() != 0 || overlay != 1 || blue.SpriteID() != 2 {
-		t.Errorf("sprites = red %v, overlay %v, blue %v, want 0, 1, 2 — issued in call order", red.SpriteID(), overlay, blue.SpriteID())
+		t.Errorf(
+			"sprites = red %v, overlay %v, blue %v, want 0, 1, 2 — issued in call order",
+			red.SpriteID(),
+			overlay,
+			blue.SpriteID(),
+		)
 	}
 	if got := kinds.entries["blue"].TypeID; got != 1 {
 		t.Errorf("blue's TypeID = %d, want 1 — a sprite with no kind takes no TypeID", got)
@@ -63,9 +69,11 @@ func TestKinds_Define_AssignsSpriteIDsByOrder(t *testing.T) {
 
 func TestKinds_Define_NeedsOnePositionAndOneVelocity(t *testing.T) {
 	for name, spec := range map[string]kind.Spec{
-		"no Position":   {comp.Const(entity.Velocity{})},
-		"no Velocity":   {comp.Const(spawnerTestPos())},
-		"two Positions": {comp.Const(spawnerTestPos()), comp.Const(spawnerTestPos()), comp.Const(entity.Velocity{})},
+		"no Position": {comp.Const(entity.Velocity{})},
+		"no Velocity": {comp.Const(spawnerTestPos())},
+		"two " +
+			"Positions": {comp.Const(spawnerTestPos()), comp.Const(spawnerTestPos()),
+			comp.Const(entity.Velocity{})},
 	} {
 		t.Run(name, func(t *testing.T) {
 			msg := panicsWith(t, func() { kind.Define[int](New(false), "unit", spec) })
@@ -99,7 +107,12 @@ func TestKinds_LoadComps_ListsWhatItsKindsCarryEachOnce(t *testing.T) {
 	}
 	want := []string{goke.LoadComp[spawnerStat]().Name, goke.LoadComp[spawnerTag]().Name}
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
-		t.Errorf("LoadComps() = %v, want %v — each type once, however many kinds carry it, and neither Position nor Velocity: those are Base's", got, want)
+		t.Errorf(
+			"LoadComps() = %v, want %v — each type once, however many kinds carry it, and "+
+				"neither Position nor Velocity: those are Base's",
+			got,
+			want,
+		)
 	}
 }
 
@@ -114,7 +127,8 @@ func TestKinds_Define_RefusesAComponentTypeTwice(t *testing.T) {
 		typ   reflect.Type
 	}{
 		"two Tagged of one family": {
-			[]comp.Comp{comp.Tagged(tag.Tag[spawnerFamily](0)), comp.Tagged(tag.Tag[spawnerFamily](1))},
+			[]comp.Comp{comp.Tagged(tag.Tag[spawnerFamily](0)),
+				comp.Tagged(tag.Tag[spawnerFamily](1))},
 			reflect.TypeFor[tag.Tags[spawnerFamily]](),
 		},
 		"a Tagged and the Marks of one family": {
@@ -132,7 +146,10 @@ func TestKinds_Define_RefusesAComponentTypeTwice(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			kinds := New(false)
-			msg := panicsWith(t, func() { kind.Define[int](kinds, "unit", append(statSpec(), c.twice...)) })
+			msg := panicsWith(
+				t,
+				func() { kind.Define[int](kinds, "unit", append(statSpec(), c.twice...)) },
+			)
 			if !strings.Contains(msg, `"unit"`) || !strings.Contains(msg, c.typ.String()+" twice") {
 				t.Errorf("panic %q does not name the kind and %v twice", msg, c.typ)
 			}

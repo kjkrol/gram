@@ -50,18 +50,37 @@ func (t *Texture) realize(d *device) {
 		t.cpu = make([]byte, 4*t.w*t.h)
 	}
 	tex, err := d.dev.CreateTexture(&wgpu.TextureDescriptor{
-		Size: wgpu.Extent3D{Width: uint32(t.w), Height: uint32(t.h), DepthOrArrayLayers: 1}, MipLevelCount: 1, SampleCount: 1,
+		Size: wgpu.Extent3D{
+			Width:              uint32(t.w),
+			Height:             uint32(t.h),
+			DepthOrArrayLayers: 1,
+		}, MipLevelCount: 1, SampleCount: 1,
 		Dimension: gputypes.TextureDimension2D, Format: Format,
-		Usage: gputypes.TextureUsageTextureBinding | gputypes.TextureUsageCopyDst | gputypes.TextureUsageCopySrc | gputypes.TextureUsageRenderAttachment,
+		Usage: gputypes.TextureUsageTextureBinding | gputypes.TextureUsageCopyDst |
+			gputypes.TextureUsageCopySrc | gputypes.TextureUsageRenderAttachment,
 	})
 	if err != nil {
 		panic(fmt.Errorf("gpu: a %dx%d texture: %w", t.w, t.h, err))
 	}
-	view, err := d.dev.CreateTextureView(tex, &wgpu.TextureViewDescriptor{Format: Format, Dimension: gputypes.TextureViewDimension2D, MipLevelCount: 1, ArrayLayerCount: 1})
+	view, err := d.dev.CreateTextureView(
+		tex,
+		&wgpu.TextureViewDescriptor{
+			Format:          Format,
+			Dimension:       gputypes.TextureViewDimension2D,
+			MipLevelCount:   1,
+			ArrayLayerCount: 1,
+		},
+	)
 	if err != nil {
 		panic(fmt.Errorf("gpu: a texture view: %w", err))
 	}
-	t.tex, t.tgt = tex, target{view: view, w: t.w, h: t.h, format: Format, load: gputypes.LoadOpLoad}
+	t.tex, t.tgt = tex, target{
+		view:   view,
+		w:      t.w,
+		h:      t.h,
+		format: Format,
+		load:   gputypes.LoadOpLoad,
+	}
 	if t.cpu != nil {
 		d.write(t, 0, 0, t.w, t.h, t.cpu)
 		t.cpu = nil
@@ -85,7 +104,17 @@ func (t *Texture) WritePixels(x, y, w, h int, pix []byte) {
 		panic(fmt.Sprintf("gpu: %d bytes written as %dx%d pixels", len(pix), w, h))
 	}
 	if x < 0 || y < 0 || x+w > t.w || y+h > t.h {
-		panic(fmt.Sprintf("gpu: %dx%d pixels at (%d, %d) outside a %dx%d texture", w, h, x, y, t.w, t.h))
+		panic(
+			fmt.Sprintf(
+				"gpu: %dx%d pixels at (%d, %d) outside a %dx%d texture",
+				w,
+				h,
+				x,
+				y,
+				t.w,
+				t.h,
+			),
+		)
 	}
 	if cur == nil && (windowed || !ready()) {
 		if t.cpu == nil {
@@ -173,9 +202,12 @@ func (d *device) write(t *Texture, x, y, w, h int, pix []byte) {
 	for r := range h {
 		copy(padded[r*row:], pix[4*r*w:4*(r+1)*w])
 	}
-	err := d.queue.WriteTexture(&wgpu.ImageCopyTexture{Texture: t.tex, Origin: wgpu.Origin3D{X: uint32(x), Y: uint32(y)}},
-		padded, &wgpu.ImageDataLayout{BytesPerRow: uint32(row), RowsPerImage: uint32(h)},
-		&wgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1})
+	err := d.queue.WriteTexture(
+		&wgpu.ImageCopyTexture{Texture: t.tex, Origin: wgpu.Origin3D{X: uint32(x), Y: uint32(y)}},
+		padded,
+		&wgpu.ImageDataLayout{BytesPerRow: uint32(row), RowsPerImage: uint32(h)},
+		&wgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1},
+	)
 	if err != nil {
 		panic(fmt.Errorf("gpu: writing %dx%d pixels: %w", w, h, err))
 	}
@@ -193,7 +225,13 @@ func (t *Texture) ReadPixels(dst []byte) {
 	d.submit()
 	row := alignUp(uint64(4*t.w), 256)
 	size := row * uint64(t.h)
-	buf, err := d.dev.CreateBuffer(&wgpu.BufferDescriptor{Label: "read", Size: size, Usage: wgpu.BufferUsageCopyDst | wgpu.BufferUsageMapRead})
+	buf, err := d.dev.CreateBuffer(
+		&wgpu.BufferDescriptor{
+			Label: "read",
+			Size:  size,
+			Usage: wgpu.BufferUsageCopyDst | wgpu.BufferUsageMapRead,
+		},
+	)
 	if err != nil {
 		panic(fmt.Errorf("gpu: a read buffer: %w", err))
 	}

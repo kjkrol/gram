@@ -89,6 +89,12 @@ func TestTheme_ASubheadingMeasuresAsALabelInTheRegularFont(t *testing.T) {
 	sw, sh := sub.needs()
 	lw, lh := label.needs()
 	if sw != lw || sh != lh {
-		t.Fatalf("the subheading needs %vx%v against the label's %vx%v, want the same", sw, sh, lw, lh)
+		t.Fatalf(
+			"the subheading needs %vx%v against the label's %vx%v, want the same",
+			sw,
+			sh,
+			lw,
+			lh,
+		)
 	}
 }

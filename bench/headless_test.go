@@ -52,9 +52,13 @@ func (c *headless) Setup(providers ...goke.SetupProvider) {
 	}
 }
 
-func (c *headless) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
-func (c *headless) ECS() *goke.ECS                                  { return c.ecs }
-func (c *headless) TPS() *game.TPS                                  { return &c.tps }
+func (c *headless) RegSys(
+	factory func() goke.System,
+) goke.Runnable {
+	return c.ecs.RegSys(factory())
+}
+func (c *headless) ECS() *goke.ECS { return c.ecs }
+func (c *headless) TPS() *game.TPS { return &c.tps }
 
 func (c *headless) Use(p plugin.Plugin) error {
 	c.tracked = append(c.tracked, p)

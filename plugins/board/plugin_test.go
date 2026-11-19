@@ -41,7 +41,14 @@ func TestNewPlugin_SetsEachGridAxisFromTheWorldsEdges(t *testing.T) {
 		NewPlugin(g, &cell.SingleOccupancy{}, worldPlugin)
 
 		if sq, _ := grid.ShapeOf(g); sq.WrapX != tc.wrapX || sq.WrapY != tc.wrapY {
-			t.Errorf("edges %04b: grid wraps x=%v y=%v, want x=%v y=%v", tc.edges, sq.WrapX, sq.WrapY, tc.wrapX, tc.wrapY)
+			t.Errorf(
+				"edges %04b: grid wraps x=%v y=%v, want x=%v y=%v",
+				tc.edges,
+				sq.WrapX,
+				sq.WrapY,
+				tc.wrapX,
+				tc.wrapY,
+			)
 		}
 	}
 }
@@ -76,11 +83,18 @@ func newSeedTestPlugin(t *testing.T) (*Plugin, cell.ID) {
 }
 
 func TestNewPlugin_RequiresACellAndAMoverOfEveryUnit(t *testing.T) {
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 10, MaxSize: 10}, Heights: true})
+	w := world.NewPlugin(
+		world.Config{
+			Space:    world.SpaceCfg{Width: 100, Height: 100},
+			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 10, MaxSize: 10},
+			Heights:  true,
+		},
+	)
 	NewPlugin(grid.DefaultGrids{}.Square(2, 2, 32), &cell.MultipleOccupancy{}, w)
 	defer func() {
 		msg, _ := recover().(string)
-		for _, want := range []string{"board requires unit.At (the cell it starts in)", "board requires unit.Mover (the domains it moves in)"} {
+		for _, want := range []string{"board requires unit.At (the cell it starts in)", "board " +
+			"requires unit.Mover (the domains it moves in)"} {
 			if !strings.Contains(msg, want) {
 				t.Errorf("panic %q does not mention %q", msg, want)
 			}

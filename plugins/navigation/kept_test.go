@@ -40,10 +40,12 @@ func TestKept_ADetourAskedAgainIsAnsweredAsBeforeUnsearched(t *testing.T) {
 		{"asked again", nil, false},
 		{"another cell learnt", func(_ *bodies.Member, o *MoveOrder) { o.Toward = at(1, 0) }, true},
 		{"asked again", nil, false},
-		{"from another cell", func(m *bodies.Member, _ *MoveOrder) { *m = stand(at(0, 0), 8) }, true},
+		{"from another cell", func(m *bodies.Member, _ *MoveOrder) { *m = stand(at(0, 0), 8) },
+			true},
 		{"to another target", func(_ *bodies.Member, o *MoveOrder) { o.Target = at(5, 2) }, true},
 		{"to another level", func(_ *bodies.Member, o *MoveOrder) { o.Level = OnGround }, true},
-		{"a body of another size", func(m *bodies.Member, _ *MoveOrder) { *m = stand(m.Cell, 9) }, true},
+		{"a body of another size", func(m *bodies.Member, _ *MoveOrder) { *m = stand(m.Cell, 9) },
+			true},
 		{"the board changed", func(*bodies.Member, *MoveOrder) {
 			for _, y := range []uint32{0, 2} {
 				board.Set(at(3, y), wall)

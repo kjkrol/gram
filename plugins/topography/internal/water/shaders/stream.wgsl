@@ -45,7 +45,8 @@ fn stream(p: vec2<f32>, v: vec2<f32>, pixel: f32, toward: vec3<f32>) -> vec3<f32
     let nrm = normalize(vec3<f32>(-slope.x, -slope.y, 1.0));
     let h = normalize(lightWay() + toward);
     let fresnel = streamMirror + (1.0 - streamMirror) * pow(1.0 - max(dot(nrm, toward), 0.0), 3.0);
-    return vec3<f32>(U.LightStrength * pow(max(dot(nrm, h), 0.0), glintSharpness), clamp(foam, 0.0, 1.0), fresnel);
+    return vec3<f32>(U.LightStrength * pow(max(dot(nrm, h), 0.0), glintSharpness), clamp(foam, 0.0,
+        1.0), fresnel);
 }
 
 // Ripple is running water's ripples at a point: their height, 0 to 1, and their slope.

@@ -60,7 +60,10 @@ func (g *skyStage) Init(ctx game.Initializer) error {
 	g.sky = world.NewSelf(g.world, skyPlugin{}, comp.Const(dial{Level: 1}))
 	ctx.Setup(g)
 	fx := g.world.Write().Effects()
-	fx.Define("storm", effect.Spec{effect.Lasts(time.Hour), effect.Alter(func(d *dial) { d.Level = 5 })})
+	fx.Define(
+		"storm",
+		effect.Spec{effect.Lasts(time.Hour), effect.Alter(func(d *dial) { d.Level = 5 })},
+	)
 	g.storm = fx.Named("storm")
 	fx.Define("lit", effect.Spec{})
 	g.lit = fx.Named("lit")
@@ -176,8 +179,15 @@ func TestSelf_AnEffectOnThePluginTurnsItsKnob(t *testing.T) {
 	if g.sky.Changed() {
 		t.Error("the plugin's entity is still Changed a step on")
 	}
-	if got := g.dialsOf()[sky]; got != 5 || !g.world.Read(0).Effects().Has(sky, g.storm) || g.world.Read(0).Effects().Has(g.world.Entity(), g.storm) {
-		t.Errorf("under the storm the dial is %d, the plugin under it %v, the world %v; want 5, true, false", got, g.world.Read(0).Effects().Has(sky, g.storm), g.world.Read(0).Effects().Has(g.world.Entity(), g.storm))
+	if got := g.dialsOf()[sky]; got != 5 || !g.world.Read(0).Effects().Has(sky, g.storm) ||
+		g.world.Read(0).Effects().Has(g.world.Entity(), g.storm) {
+		t.Errorf(
+			"under the storm the dial is %d, the plugin under it %v, the world %v; want 5, true, "+
+				"false",
+			got,
+			g.world.Read(0).Effects().Has(sky, g.storm),
+			g.world.Read(0).Effects().Has(g.world.Entity(), g.storm),
+		)
 	}
 	if !g.world.Read(0).Effects().Has(scout, g.lit) {
 		t.Error("the scout is not lit While the sky is under the storm")
@@ -193,7 +203,11 @@ func TestSelf_TheWorldsOwnEntityIsTheClocks(t *testing.T) {
 	g := &skyStage{}
 	runSky(t, g)
 	if g.world.Entity() != g.world.Read(0).Clock().Entity() {
-		t.Fatalf("the world's entity is %d, the clock's %d; want one", g.world.Entity(), g.world.Read(0).Clock().Entity())
+		t.Fatalf(
+			"the world's entity is %d, the clock's %d; want one",
+			g.world.Entity(),
+			g.world.Read(0).Clock().Entity(),
+		)
 	}
 	g.give(t, ceremony.Put(g.storm).On(g.world))
 	if !g.world.Read(0).Effects().Has(g.world.Read(0).Clock().Entity(), g.storm) {
@@ -224,7 +238,12 @@ func TestSelf_HoldsMoreEffectsAtOnceThanAUnit(t *testing.T) {
 		}
 	}
 	if onSky != len(g.states) || onScout != 8 {
-		t.Errorf("of %d states the plugin is under %d and the scout under %d; want all and 8", len(g.states), onSky, onScout)
+		t.Errorf(
+			"of %d states the plugin is under %d and the scout under %d; want all and 8",
+			len(g.states),
+			onSky,
+			onScout,
+		)
 	}
 }
 
@@ -241,14 +260,26 @@ func TestSelf_IsFoundAgainAfterALoad(t *testing.T) {
 	runSky(t, g)
 	sky := g.sky.Entity()
 	if got := g.dialsOf(); len(got) != 1 || got[sky] != 5 {
-		t.Fatalf("after the load the dials are %v, want the one of the plugin's entity %d, at 5 under the storm", got, sky)
+		t.Fatalf(
+			"after the load the dials are %v, want the one of the plugin's entity %d, at 5 under "+
+				"the storm",
+			got,
+			sky,
+		)
 	}
 	if g.world.Entity() != g.world.Read(0).Clock().Entity() {
-		t.Errorf("after the load the world's entity is %d, the clock's %d; want one", g.world.Entity(), g.world.Read(0).Clock().Entity())
+		t.Errorf(
+			"after the load the world's entity is %d, the clock's %d; want one",
+			g.world.Entity(),
+			g.world.Read(0).Clock().Entity(),
+		)
 	}
 	g.give(t, ceremony.Take(g.storm).On(g.sky))
 	if got := g.dialsOf()[sky]; got != 1 {
-		t.Errorf("the storm lifted after the load, the dial is %d, want the 1 it was before the storm", got)
+		t.Errorf(
+			"the storm lifted after the load, the dial is %d, want the 1 it was before the storm",
+			got,
+		)
 	}
 }
 

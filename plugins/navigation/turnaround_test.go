@@ -89,7 +89,12 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 
 	spec := func(ordered bool) kind.Spec {
 		s := kind.Spec{
-			comp.Load(func(u unitRow) world.Position { return world.Position{AABB: cellBox(tw.grid, u.start, 22)} }),
+			comp.Load(
+				func(u unitRow) world.Position {
+					return world.Position{AABB: cellBox(tw.grid,
+						u.start, 22)}
+				},
+			),
 			comp.Const(world.Velocity{}),
 			comp.Const(steering.Steering{MaxSpeed: 64, Accel: 128, V0: 32, TurnRate: 0.15}),
 			comp.Load(func(u unitRow) unit.At { return unit.At{Cell: u.start} }),
@@ -106,7 +111,9 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	red := kind.Named[unitRow](w.Kinds(), "red")
 	kind.Define[unitRow](w.Kinds(), "blue", spec(true))
 	blue := kind.Named[unitRow](w.Kinds(), "blue")
-	w.Write().Seed(red.Entry(unitRow{start: tw.at(1, 2)}), blue.Entry(unitRow{start: tw.at(1, 1), target: tw.at(1, 3), ordered: true}))
+	w.Write().
+		Seed(red.Entry(unitRow{start: tw.at(1, 2)}), blue.Entry(unitRow{start: tw.at(1, 1),
+			target: tw.at(1, 3), ordered: true}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}

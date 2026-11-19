@@ -130,14 +130,22 @@ func TestPlan_HoldGivesWayWhenSomeoneElseTakes(t *testing.T) {
 		r.fxTick()
 	}
 	if !r.fx.Has(r.id, glow) || r.fx.Has(r.id, gaveWay) {
-		t.Fatalf("kept: glow %v, gave way %v; want true, false", r.fx.Has(r.id, glow), r.fx.Has(r.id, gaveWay))
+		t.Fatalf(
+			"kept: glow %v, gave way %v; want true, false",
+			r.fx.Has(r.id, glow),
+			r.fx.Has(r.id, gaveWay),
+		)
 	}
 	r.fx.Dispel(r.id, glow)
 	for range 3 {
 		r.fxTick()
 	}
 	if r.fx.Has(r.id, glow) || !r.fx.Has(r.id, gaveWay) {
-		t.Errorf("doused: glow %v, gave way %v; want false, true", r.fx.Has(r.id, glow), r.fx.Has(r.id, gaveWay))
+		t.Errorf(
+			"doused: glow %v, gave way %v; want false, true",
+			r.fx.Has(r.id, glow),
+			r.fx.Has(r.id, gaveWay),
+		)
 	}
 }
 
@@ -156,7 +164,11 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 						When: cond.On(r.w).If(lever),
 						Then: plan.Self.Hold(open),
 					},
-					plan.Loop[any]{Name: "idle", When: cond.Self.If(cond.Always), Then: plan.Self.Idle()},
+					plan.Loop[any]{
+						Name: "idle",
+						When: cond.Self.If(cond.Always),
+						Then: plan.Self.Idle(),
+					},
 				)))
 				return
 			}
@@ -178,7 +190,12 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 		r.fxTick()
 		r.fxTick()
 		if !r.fx.Has(r.id, open) || !r.fx.Has(r.w.Read(0).Clock().Entity(), lever) {
-			t.Fatalf("planned %v: lever on the world %v, open %v; want both", planned, r.fx.Has(r.w.Read(0).Clock().Entity(), lever), r.fx.Has(r.id, open))
+			t.Fatalf(
+				"planned %v: lever on the world %v, open %v; want both",
+				planned,
+				r.fx.Has(r.w.Read(0).Clock().Entity(), lever),
+				r.fx.Has(r.id, open),
+			)
 		}
 		for range 6 {
 			r.fxTick()

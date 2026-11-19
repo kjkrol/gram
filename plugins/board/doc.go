@@ -48,7 +48,11 @@
 // unit's is a live patch. Every cell carries what its [CellTemplate] asks besides the board's own.
 // A Floor with a Height is a storey, raised over the cell (a deck) or sunk under it with the
 // room Clear over it (a tunnel's floor), and gives the cell a level beside its ground, up to
-// cell.Levels of them, a Floor naming its Storey ([BoardRead.KindAt], [BoardRead.KindFor],
+// cell.Levels of them, a Floor naming its Storey; a Floor Standing, with its room Clear, is a
+// storey at any height, a house's room built on the ground, the cell's ground shut and its
+// foundation solid under it. A room of whole cells is walled round them but where its Links lead,
+// on into its storey or out by its Door ([BoardRead.Rooms], [BoardRead.Dug],
+// [BoardRead.Housed]) ([BoardRead.KindAt], [BoardRead.KindFor],
 // [BoardRead.CellFor], [BoardRead.LevelFor]); one with a Width and Links is a
 // band ([BoardRead.DecksOver], [BoardRead.Reaches]), its railings never stepped across
 // ([BoardRead.Fenced]); a step along it takes a body no wider than its [BoardRead.Lane].

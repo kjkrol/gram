@@ -67,18 +67,19 @@
 // # Spawn and Despawn
 //
 // The command [Spawn] adds an entity of a kind to the running world at the next step of the
-// simulation ([Write.Spawn] gives it as the game's own); one refused is logged, never a panic.
-// An entity gives itself [Despawn] to go. The world carries out the commands about effects
-// (ceremony.Put, Take, Toggle) for the entities named or grouped by their ceremony.Label and for the
-// world itself, netting a step's commands of one effect on one entity.
+// simulation ([Write.Spawn] gives it as the game's own); one refused is logged, never a panic. An
+// entity gives itself [Despawn] to go. The world carries out the commands about effects
+// (ceremony.Put, Take, Toggle) for the entities named or grouped by their ceremony.Label and for
+// the world itself, netting a step's commands of one effect on one entity.
 //
 // # Clock and the tick
 //
 // The world keeps the tactical clock ([Write.Clock]) and the commands [Pause] (P, Shift+P),
-// [Faster] and [Slower] on it. [Plugin.RunPlan] runs the tick: the clock's commands, the sectors and the views
-// at once; in every step of the simulation the plans, the spawns and the despawns, the commands
-// about effects, the clock's moments, the aggregates' and the effects, the space told of every
-// entity after a spawn or a despawn. [Write.Carrier] is the Stage's one carrier of commands.
+// [Faster] and [Slower] on it. [Plugin.RunPlan] runs the tick: the clock's commands, the sectors
+// and the views at once; in every step of the simulation the plans, the spawns and the despawns,
+// the commands about effects, the clock's moments, the aggregates' and the effects, the space told
+// of every entity after a spawn or a despawn. [Write.Carrier] is the Stage's one carrier of
+// commands.
 //
 // # Drawing and Look
 //
@@ -86,63 +87,63 @@
 // the Stage is set up, before its scenes: a kind's look, its look Under an effect, Turning, Facing,
 // Animated, Lying, Upright, Uncovered, GivesWay, Cutout, Swaying, Edges, and Styled: how another
 // plugin draws about the kind (an outline, a cone, a route), a render.Style of that plugin's, read
-// off [Read.Styles].
-// Closing the atlas hands it to the world ([Write.SetAtlas]), which gives it the entity renderer
-// and applies what was declared; a game declaring looks by hand closes its own
-// ([Plugin.NewAtlas]) before. Each
-// entity is laid on the screen by the world's [Look] ([Read.Look], [Write.SetLook]), flat
-// from above unless a view plugin sets its own; a [DirectLook] draws the sprites itself on the
-// GPU, a [LyingLook] lays some flat, an [UprightLook] stands some true, a [FoggyLook] fades one
-// into the fog before a camera's sight, an [UncoveringLook] has some uncovered and some give way
-// to them, and a [CutoutLook] draws what is whole in the cutout pass. A kind's look declared
-// [Slot.Uncovered] shows through whatever is declared [Slot.GivesWay] and stands before it or
-// over it, which is left out in part round it (render.Target.Uncovered): before a camera loose
-// over the world or centred on a unit, the tactical view, unless the settings say not
-// ([GiveWay]), and before one riding a unit, behind it or inside it, only where they say
-// ([GiveWayRiding]; [Read.GivesWay], both under the settings' section Game). One declared
-// [Slot.Cutout] is drawn whole in render's cutout pass, cut at half its alpha and writing the
-// depth, so what stands under it is hidden and the cutouts need no order. Each is
-// marked by the [Lighting], the light plugin's
-// ([Write.SetLighting]), and lit as the frame says (render.Frame.Lit) by the lights the picture
-// is given ([Write.SetLights], [Read.Lights]), in white light without them. A kind may be a
-// [Body] in place of a drawn sprite ([Atlas.AddBody]): parts, spheroids and cones, in paints. A
-// view in relief with a [BodyLook] stands it whole out to the level the bodies reach and as a card
-// of it beyond, down to L3, the side of it the camera sees or, looking down steeply, its top
-// ([Bodied.Card]), lit by the frame's light as the body whole is; a view from above draws it
-// photographed from above, turned as it stands, and its sprite, from the side, is a photograph
-// too, taken on the GPU as its cards are ([Slot.Above] has the sheets take it from above). How
-// far the bodies stand whole is a setting, the close scale, L2 or L3 ([Bodies],
-// [Read.BodiesReach]), which follows the cameras' frame budget where they are given the world's
-// [Plugin.Bodies] for a lever ([AdaptBodies], [BodiesLever]). An entity is drawn in
-// its kind's look at the level its camera sees it at: its own at L2 (lod.Standard) and the close
-// levels, plainly at L3 (no edges, flat where it would stand), a blob of its own look at L4
-// (render.Blob), its blob's colour in the ground at L5, or as [Slot.At] and [Slot.Nothing] declare
-// from a level on, a close one to Standard at most. At L4 the renderer draws it itself as a point,
-// its box as large as it shows and a pixel at least, as opaque as it covers, with no Look, lamp or
-// shadow, and a camera publishes the ladder's Keep share of a level's entities by their identity,
-// the same each frame, sparing the sector.Keen, a kind [Slot.Always] and one drawn in a look
-// declared there. As Config.Far and the settings say ([ShowFar], [Read.FarLook]), a kind's loose
-// units in a sector drawn from L4 on are a point each or, where the kind declares a look there,
-// one [Banner] at their centroid ([Read.Banners]), never thinned, drawn as a badge over their
-// top ([BannerStyle]: a disc or a diamond in the kind's far colour, a kind's own by
-// [Slot.Styled], and a style alone has a kind bannered there); with the counts drawn
-// ([ShowCounts], [Read.Counts]) the number of a banner's units from two on stands inside its
-// badge, and of a kind's points two or more in a sector over their centroid, in the picture as
-// deep as they stand. What stands for good where a sheet is drawn from L4 is left to the sheet
-// from above, and drawn as a point of its look there or its blob through a camera with an eye,
-// which sees no sheet (a photograph from above). A camera riding inside
-// an entity (camera.Inside) draws none of its figure, its shadow still. [Plugin.WithFog] is the
-// fog's colour in a world without an atmosphere. The entities are published once a frame, after its
-// ticks: the looks' rules settle every one some camera sees, the Lighting marks it, each camera's
-// view is copied, and the frame is drawn of that alone. In a world cut into sectors whose ground a
-// renderer draws ([Plugin.Sheets]) what stands ([Fixed]) in a sector some camera sees at L4 or L5
-// is photographed on the GPU from its L3 looks, with the parts of the fields folded there, into
-// [Read.Sheet], an albedo and a relief over the whole world ([SheetImage], [SheetReliefImage], at
-// L5 in half), a few sectors a frame as their content changes; once a sector's sheet is painted its
-// standing entities are no record, the renderer drawing the sheet as the ground's relief, and a
-// unit there is its blob. What stands is signed into its sector as its chunk comes, goes or has
-// its table moved, or as [Write.Restill] says of a change in place, never walked frame by frame. A standing entity cut by a sector's edge, or beside a sector seen finer
-// than L4, is drawn alive at the finer level, never thinned, and photographed nowhere.
+// off [Read.Styles]. Closing the atlas hands it to the world ([Write.SetAtlas]), which gives it the
+// entity renderer and applies what was declared; a game declaring looks by hand closes its own
+// ([Plugin.NewAtlas]) before. Each entity is laid on the screen by the world's [Look] ([Read.Look],
+// [Write.SetLook]), flat from above unless a view plugin sets its own; a [DirectLook] draws the
+// sprites itself on the GPU, a [LyingLook] lays some flat, an [UprightLook] stands some true, a
+// [FoggyLook] fades one into the fog before a camera's sight, an [UncoveringLook] has some
+// uncovered and some give way to them, and a [CutoutLook] draws what is whole in the cutout pass. A
+// kind's look declared [Slot.Uncovered] shows through whatever is declared [Slot.GivesWay] and
+// stands before it or over it, which is left out in part round it (render.Target.Uncovered): before
+// a camera loose over the world or centred on a unit, the tactical view, unless the settings say
+// not ([GiveWay]), and before one riding a unit, behind it or inside it, only where they say
+// ([GiveWayRiding]; [Read.GivesWay], both under the settings' section Game). A plugin's source
+// giving way to the uncovered too, as the buildings' do, says so ([Write.GivesWay]) and asks the
+// frame drawn before which cameras ([Read.GivesWayDrawn]); [Read.Uncovered] says whether a sprite
+// is drawn uncovered. One declared [Slot.Cutout] is drawn whole in render's cutout pass, cut at
+// half its alpha and writing the depth, so what stands under it is hidden and the cutouts need no
+// order. Each is marked by the [Lighting], the light plugin's ([Write.SetLighting]), and lit as the
+// frame says (render.Frame.Lit) by the lights the picture is given ([Write.SetLights],
+// [Read.Lights]), in white light without them. A kind may be a [Body] in place of a drawn sprite
+// ([Atlas.AddBody]): parts, spheroids and cones, in paints. A view in relief with a [BodyLook]
+// stands it whole out to the level the bodies reach and as a card of it beyond, down to L3, the
+// side of it the camera sees or, looking down steeply, its top ([Bodied.Card]), lit by the frame's
+// light as the body whole is; a view from above draws it photographed from above, turned as it
+// stands, and its sprite, from the side, is a photograph too, taken on the GPU as its cards are
+// ([Slot.Above] has the sheets take it from above). How far the bodies stand whole is a setting,
+// the close scale, L2 or L3 ([Bodies], [Read.BodiesReach]), which follows the cameras' frame budget
+// where they are given the world's [Plugin.Bodies] for a lever ([AdaptBodies], [BodiesLever]). An
+// entity is drawn in its kind's look at the level its camera sees it at: its own at L2
+// (lod.Standard) and the close levels, plainly at L3 (no edges, flat where it would stand), a blob
+// of its own look at L4 (render.Blob), its blob's colour in the ground at L5, or as [Slot.At] and
+// [Slot.Nothing] declare from a level on, a close one to Standard at most. At L4 the renderer draws
+// it itself as a point, its box as large as it shows and a pixel at least, as opaque as it covers,
+// with no Look, lamp or shadow, and a camera publishes the ladder's Keep share of a level's
+// entities by their identity, the same each frame, sparing the sector.Keen, a kind [Slot.Always]
+// and one drawn in a look declared there. As Config.Far and the settings say ([ShowFar],
+// [Read.FarLook]), a kind's loose units in a sector drawn from L4 on are a point each or, where the
+// kind declares a look there, one [Banner] at their centroid ([Read.Banners]), never thinned, drawn
+// as a badge over their top ([BannerStyle]: a disc or a diamond in the kind's far colour, a kind's
+// own by [Slot.Styled], and a style alone has a kind bannered there); with the counts drawn
+// ([ShowCounts], [Read.Counts]) the number of a banner's units from two on stands inside its badge,
+// and of a kind's points two or more in a sector over their centroid, in the picture as deep as
+// they stand. What stands for good where a sheet is drawn from L4 is left to the sheet from above,
+// and drawn as a point of its look there or its blob through a camera with an eye, which sees no
+// sheet (a photograph from above). A camera riding inside an entity (camera.Inside) draws none of
+// its figure, its shadow still. [Plugin.WithFog] is the fog's colour in a world without an
+// atmosphere. The entities are published once a frame, after its ticks: the looks' rules settle
+// every one some camera sees, the Lighting marks it, each camera's view is copied, and the frame is
+// drawn of that alone. In a world cut into sectors whose ground a renderer draws ([Plugin.Sheets])
+// what stands ([Fixed]) in a sector some camera sees at L4 or L5 is photographed on the GPU from
+// its L3 looks, with the parts of the fields folded there, into [Read.Sheet], an albedo and a
+// relief over the whole world ([SheetImage], [SheetReliefImage], at L5 in half), a few sectors a
+// frame as their content changes; once a sector's sheet is painted its standing entities are no
+// record, the renderer drawing the sheet as the ground's relief, and a unit there is its blob. What
+// stands is signed into its sector as its chunk comes, goes or has its table moved, or as
+// [Write.Restill] says of a change in place, never walked frame by frame. A standing entity cut by
+// a sector's edge, or beside a sector seen finer than L4, is drawn alive at the finer level, never
+// thinned, and photographed nowhere.
 //
 // Config.Sheets ([SheetsCfg]) keeps the sheets between runs: they are read from the tiles in its
 // Dir as they are made, so a sector photographed in an earlier run is photographed again only once

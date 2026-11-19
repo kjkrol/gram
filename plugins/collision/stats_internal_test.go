@@ -40,7 +40,11 @@ func TestPerSecond_AFewEventsASecond_ReadAsARateNotAsFlicker(t *testing.T) {
 
 	for i, r := range rates[2:] {
 		if r < 1 || r > 2.7 {
-			t.Errorf("window %d: rate = %.2f, want it to stay near 1.8 rather than jump about", i+2, r)
+			t.Errorf(
+				"window %d: rate = %.2f, want it to stay near 1.8 rather than jump about",
+				i+2,
+				r,
+			)
 		}
 	}
 }
@@ -55,7 +59,11 @@ func TestPerSecond_FollowsAChangeWithinAFewSeconds(t *testing.T) {
 		total += 1000
 		got := p.observe(total, c.after(1000))
 		if got < last {
-			t.Fatalf("rate fell from %v to %v while the total kept growing at the same pace", last, got)
+			t.Fatalf(
+				"rate fell from %v to %v while the total kept growing at the same pace",
+				last,
+				got,
+			)
 		}
 		last = got
 	}
@@ -67,7 +75,11 @@ func TestPerSecond_FollowsAChangeWithinAFewSeconds(t *testing.T) {
 		last = p.observe(total, c.after(1000))
 	}
 	if last != 0 {
-		t.Errorf("rate %d seconds after the contacts stopped = %v, want 0 — not the last value it saw", smoothedWindows, last)
+		t.Errorf(
+			"rate %d seconds after the contacts stopped = %v, want 0 — not the last value it saw",
+			smoothedWindows,
+			last,
+		)
 	}
 }
 

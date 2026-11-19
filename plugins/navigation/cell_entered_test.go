@@ -36,7 +36,11 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target cell.ID, marks boo
 	var cellComp goke.Comp[unit.At]
 	var enteredQ, orderQ *goke.Query
 	nw := newNavWorld(t, w, h, legCellSize, []navUnit{{
-		box: cellBox(g, start, legEntitySize), at: start, profile: &profile, order: &MoveOrder{Target: target}, marks: marks,
+		box: cellBox(
+			g,
+			start,
+			legEntitySize,
+		), at: start, profile: &profile, order: &MoveOrder{Target: target}, marks: marks,
 	}}, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		enteredQ = si.NewQueryBuilder(&cellComp).Optional(&statesComp).Build()
 		orderQ = si.NewQueryBuilder(&cellComp).Optional(&orderComp).Build()
@@ -108,7 +112,12 @@ func enteredOnTheWay(t *testing.T, marks bool) {
 				want = append(want, c)
 			}
 			if len(reported) != len(want) {
-				t.Fatalf("tick %d: reported cells %v, want one report per cell entered %v", tick, reported, want)
+				t.Fatalf(
+					"tick %d: reported cells %v, want one report per cell entered %v",
+					tick,
+					reported,
+					want,
+				)
 			}
 			for i := range want {
 				if reported[i] != want[i] {

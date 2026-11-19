@@ -199,9 +199,20 @@ func (p *Plugin) chamber(ty Type, ch site.Chamber, g *boardGround) (kind.Entry, 
 	gr := g.Grid()
 	var out []kind.Entry
 	lo, hi := gr.CellCenter(ch.Cells[0]), gr.CellCenter(ch.Cells[0])
+	in := make(map[cell.ID]bool, len(ch.Cells))
 	for _, c := range ch.Cells {
-		out = append(out, ty.bore.Entry(boreRow{At: c, Height: ch.Floor - g.level(c),
-			Storey: ch.Storey, Wide: true}))
+		in[c] = true
+	}
+	for _, c := range ch.Cells {
+		// one room: each cell runs on into the chamber's cells beside it
+		var links cell.Links
+		for way := range gr.Directions() {
+			if n, ok := gr.Toward(c, way); ok && in[n] && !gr.Corner(way) {
+				links |= 1 << way
+			}
+		}
+		out = append(out, ty.bore.Entry(boreRow{At: c, Links: links,
+			Height: ch.Floor - g.level(c), Storey: ch.Storey, Wide: true}))
 		m := gr.CellCenter(c)
 		lo = geom.NewVec(min(lo.X, m.X), min(lo.Y, m.Y))
 		hi = geom.NewVec(max(hi.X, m.X), max(hi.Y, m.Y))

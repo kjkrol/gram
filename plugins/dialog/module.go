@@ -52,5 +52,9 @@ func (m *module) SetupSystems() []goke.System {
 }
 
 func (m *module) LoadComps() []goke.CompToken {
-	return []goke.CompToken{goke.LoadComp[Script](), goke.LoadComp[Talk](), goke.LoadComp[tag.Tags[owner.Family]]()}
+	return []goke.CompToken{
+		goke.LoadComp[Script](),
+		goke.LoadComp[Talk](),
+		goke.LoadComp[tag.Tags[owner.Family]](),
+	}
 }

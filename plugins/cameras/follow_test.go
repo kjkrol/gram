@@ -291,7 +291,8 @@ func TestNew_ACameraStartsFastenedToTheEntityItsConfigNames(t *testing.T) {
 	cam := c.cams.Write().New(cameras.FromAbove, camera.Config{Follow: "scout"})
 	cam.SetViewport(200, 200)
 	c.tick()
-	if f := cam.(camera.Fastenable).Fastening(); f != (camera.Fastening{Entity: scout, How: camera.Centred}) {
+	if f := cam.(camera.Fastenable).Fastening(); f != (camera.Fastening{Entity: scout,
+		How: camera.Centred}) {
 		t.Fatalf("the camera is fastened %+v, want Centred over the scout", f)
 	}
 	c.moveTo(scout, 600, 500)

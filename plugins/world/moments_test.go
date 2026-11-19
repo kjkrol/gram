@@ -83,11 +83,16 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 			w.Write().Clock().Simulate(rc, func(_ goke.RunCtx, step time.Duration) {
 				inNight = append(inNight, w.Read(0).Clock().In(night))
 				now := w.Read(0).Clock().Time() + step // the step's end, the Moment's Now
-				orders.Drain(func(i command.Issued[heard]) { fired[i.Command.Rule] = append(fired[i.Command.Rule], now) })
+				orders.Drain(
+					func(i command.Issued[heard]) {
+						fired[i.Command.Rule] = append(fired[i.Command.Rule], now)
+					},
+				)
 			})
 			w.Write().Clock().Replay(rc, d)
 		})
-		for _, cmd := range map[float32][]command.Command{4: {world.Faster{}, world.Faster{}}, 0.5: {world.Slower{}}}[tempo] {
+		for _, cmd := range map[float32][]command.Command{4: {world.Faster{}, world.Faster{}},
+			0.5: {world.Slower{}}}[tempo] {
 			if !w.Write().Carrier().Put(1, cmd) {
 				t.Fatalf("the world carries no %T", cmd)
 			}
@@ -97,7 +102,11 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 			ctx.ecs.Tick(tick)
 		}
 		if never := fired["never"]; len(never) != 0 {
-			t.Errorf("tempo %g: the rule of a role the world does not play fired at %v, want never", tempo, never)
+			t.Errorf(
+				"tempo %g: the rule of a role the world does not play fired at %v, want never",
+				tempo,
+				never,
+			)
 		}
 		once, daily := fired["once"], fired["daily"]
 		if len(once) != 1 || once[0] != 5*tick {
@@ -114,7 +123,12 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 			}
 		}
 		if nights < 1 || nights > 3 {
-			t.Errorf("tempo %g: the night phase held for %d steps of %v, want about 2", tempo, nights, inNight)
+			t.Errorf(
+				"tempo %g: the night phase held for %d steps of %v, want about 2",
+				tempo,
+				nights,
+				inNight,
+			)
 		}
 	}
 }

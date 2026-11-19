@@ -95,7 +95,8 @@ func TestRelief_GroundSlopesBetweenCellsOnASquareGrid(t *testing.T) {
 	corner := grid.At(2, 2)
 	if got := r.GroundAt(grid.CellCenter(corner)); got != 6 {
 		t.Errorf(
-			"the plateau's corner cell stands at %v in its middle, want 6: its corners 3, 6, 6 and 12 are drawn split along the diagonal of the two 6s",
+			"the plateau's corner cell stands at %v in its middle, want 6: its corners 3, 6, 6 "+
+				"and 12 are drawn split along the diagonal of the two 6s",
 			got,
 		)
 	}
@@ -124,7 +125,8 @@ func TestRelief_FoldsWhereTheBoardWraps(t *testing.T) {
 	r.SetCorners(west, Corners{5, 0, 5, 0})
 	if got := r.Corners(east); got != (Corners{0, 5, 0, 5}) {
 		t.Errorf(
-			"across the seam the east cell's corners are %v, want its right ones the west cell's left, 5",
+			"across the seam the east cell's corners are %v, want its right ones the west cell's "+
+				"left, 5",
 			got,
 		)
 	}

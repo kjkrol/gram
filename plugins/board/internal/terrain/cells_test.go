@@ -183,7 +183,8 @@ func TestCells_SetWritesTheEntityAtOnceAndCountsAChange(t *testing.T) {
 }
 
 func TestCells_AnEffectOnTheEntityChangesTheTerrainAndIsCounted(t *testing.T) {
-	for name, boardFirst := range map[string]bool{"effects then board": false, "board then effects": true} {
+	for name, boardFirst := range map[string]bool{"effects then board": false,
+		"board then effects": true} {
 		t.Run(name, func(t *testing.T) {
 			cw := newCellWorld(t, boardFirst)
 			first := cw.castFrost()
@@ -336,7 +337,8 @@ func TestCells_APassageIsWhatAStepReads(t *testing.T) {
 			func(k *cell.Kind, _ *cell.Way) { k.Name = cell.Named("meadow") }, false},
 		{"its sprite", cell.Way{}, func(k *cell.Kind, _ *cell.Way) { k.SpriteID++ }, false},
 		{"its veil", cell.Way{}, func(k *cell.Kind, _ *cell.Way) { k.Veil = 0.5 }, false},
-		{"whom it veils", cell.Way{}, func(k *cell.Kind, _ *cell.Way) { k.Veils = cell.Air }, false},
+		{"whom it veils", cell.Way{}, func(k *cell.Kind, _ *cell.Way) { k.Veils = cell.Air },
+			false},
 		{"its height", cell.Way{}, func(k *cell.Kind, _ *cell.Way) { k.Height = 3 }, false},
 		{"its sway", cell.Way{}, func(k *cell.Kind, _ *cell.Way) { k.Sway = swaying }, false},
 		{"the shade it takes", cell.Way{},

@@ -40,8 +40,13 @@ func (c *installCtx) Setup(providers ...goke.SetupProvider) {
 		c.pending = append(c.pending, p.SetupSystems)
 	}
 }
-func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
-func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
+
+func (c *installCtx) RegSys(
+	factory func() goke.System,
+) goke.Runnable {
+	return c.ecs.RegSys(factory())
+}
+func (c *installCtx) ECS() *goke.ECS { return c.ecs }
 
 type unit struct {
 	x        float32
@@ -59,7 +64,12 @@ func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 	haste := w.Write().Effects().Named("haste")
 	tags := sel.Tags()
 	kind.Define[unit](w.Kinds(), "unit", kind.Spec{
-		comp.Load(func(u unit) world.Position { return world.Position{AABB: plane.NewAABB(geom.NewVec(u.x, 100), 10, 10)} }),
+		comp.Load(
+			func(u unit) world.Position {
+				return world.Position{AABB: plane.NewAABB(geom.NewVec(u.x,
+					100), 10, 10)}
+			},
+		),
 		comp.Const(world.Velocity{}),
 		comp.Load(func(u unit) tag.Tags[selection.Family] {
 			t := tag.Tags[selection.Family](0).With(tags.Selectable)
@@ -68,10 +78,18 @@ func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 			}
 			return t
 		}),
-		comp.Load(func(u unit) tag.Tags[owner.Family] { return tag.Tags[owner.Family](0).With(owner.Of(u.by)) }),
+		comp.Load(
+			func(u unit) tag.Tags[owner.Family] {
+				return tag.Tags[owner.Family](0).With(owner.Of(u.by))
+			},
+		),
 	})
 	k := kind.Named[unit](w.Kinds(), "unit")
-	units := []unit{{x: 100, by: 1, selected: true}, {x: 300, by: 1}, {x: 500, by: 2, selected: true}}
+	units := []unit{
+		{x: 100, by: 1, selected: true},
+		{x: 300, by: 1},
+		{x: 500, by: 2, selected: true},
+	}
 	for _, u := range units {
 		w.Write().Seed(k.Entry(u))
 	}
@@ -94,7 +112,10 @@ func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 	}
 	var base goke.Comp[world.Base]
 	var q *goke.Query
-	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base).Build() }})
+	systems = append(
+		systems,
+		goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base).Build() }},
+	)
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		sel.RunPlan(rc, d)
@@ -116,7 +137,13 @@ func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 	for _, u := range units {
 		want := u.by == 1 && u.selected
 		if got := w.Read(0).Effects().Has(byX[u.x], haste); got != want {
-			t.Errorf("player %d's unit, selected %v: under haste %v, want %v", u.by, u.selected, got, want)
+			t.Errorf(
+				"player %d's unit, selected %v: under haste %v, want %v",
+				u.by,
+				u.selected,
+				got,
+				want,
+			)
 		}
 	}
 }

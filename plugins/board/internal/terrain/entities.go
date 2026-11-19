@@ -105,7 +105,13 @@ func (s *entitySystem) spawn(si *goke.SysInit, ids []uid.UID64) {
 	}
 }
 
-func (s *entitySystem) make(factory *goke.Factory, ordinals []int, cells []cell.ID, ids []uid.UID64, labelled bool) {
+func (s *entitySystem) make(
+	factory *goke.Factory,
+	ordinals []int,
+	cells []cell.ID,
+	ids []uid.UID64,
+	labelled bool,
+) {
 	if len(ordinals) == 0 {
 		return
 	}
@@ -114,7 +120,13 @@ func (s *entitySystem) make(factory *goke.Factory, ordinals []int, cells []cell.
 	k := 0
 	for factory.Next() {
 		cur := &factory.Cursor
-		plots, grounds, ways := s.spawnPlot.Slice(cur), s.spawnGround.Slice(cur), s.spawnWay.Slice(cur)
+		plots, grounds, ways := s.spawnPlot.Slice(
+			cur,
+		), s.spawnGround.Slice(
+			cur,
+		), s.spawnWay.Slice(
+			cur,
+		)
 		roles := s.spawnRoles.Slice(cur)
 		var labels []ceremony.Label
 		if labelled {
@@ -154,10 +166,21 @@ func (s *entitySystem) templated() kind.Spec {
 	spec := s.roster.Spec(s.template)
 	for _, c := range spec {
 		if own[c.Type()] {
-			panic(fmt.Sprintf("board: the cells' template gives %v, which the board gives every cell itself", c.Type()))
+			panic(
+				fmt.Sprintf(
+					"board: the cells' template gives %v, which the board gives every cell itself",
+					c.Type(),
+				),
+			)
 		}
 		if row := c.Row(); row != nil && row != reflect.TypeFor[cell.ID]() {
-			panic(fmt.Sprintf("board: the cells' template loads %v from a %v; a cell's row is its cell.ID", c.Type(), row))
+			panic(
+				fmt.Sprintf(
+					"board: the cells' template loads %v from a %v; a cell's row is its cell.ID",
+					c.Type(),
+					row,
+				),
+			)
 		}
 	}
 	return spec

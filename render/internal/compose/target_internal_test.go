@@ -27,7 +27,12 @@ func TestComposer_TheOverPassSaysHowCoarseTheGroundUnderItIs(t *testing.T) {
 	cam.SetViewport(64, 64)
 	c.Lay(cam, true)
 	c.DrawLayer(gfx.NewImage(16, 16), cam, camera.Window{W: 64, H: 64}, camera.Window{})
-	c.DrawLayer(gfx.NewImage(32, 32), cam, camera.Window{X: 16, Y: 16, W: 32, H: 32}, camera.Window{})
+	c.DrawLayer(
+		gfx.NewImage(32, 32),
+		cam,
+		camera.Window{X: 16, Y: 16, W: 32, H: 32},
+		camera.Window{},
+	)
 	c.DrawOver(gfx.NewImage(64, 64), cam)
 	c.Lay(cam, true)
 	c.DrawLayer(gfx.NewImage(32, 32), cam, camera.Window{W: 64, H: 64}, camera.Window{})

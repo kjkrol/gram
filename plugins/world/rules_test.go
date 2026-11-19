@@ -95,7 +95,13 @@ func facing() world.Rule {
 func TestWith_ReadsAComponentTheRendererReadsItself(t *testing.T) {
 	got, _ := draw(t, []world.Rule{facing()}, one{heading: 1}, one{})
 	if got[0][0].SpriteID != eastward || got[1][0].SpriteID != other {
-		t.Errorf("sprites %v and %v, want %v heading east and %v the other way", got[0][0].SpriteID, got[1][0].SpriteID, eastward, other)
+		t.Errorf(
+			"sprites %v and %v, want %v heading east and %v the other way",
+			got[0][0].SpriteID,
+			got[1][0].SpriteID,
+			eastward,
+			other,
+		)
 	}
 }
 
@@ -138,17 +144,28 @@ func TestWith_ReworksTheSpriteByTheComponentsValue(t *testing.T) {
 	})
 	got, _ := draw(t, []world.Rule{angry}, one{mood: &mood{Angry: true}}, one{mood: &mood{}}, one{})
 	if got[0][0].SpriteID != 150 || got[1][0].SpriteID != 101 || got[2][0].SpriteID != 102 {
-		t.Errorf("sprites %v, %v, %v; want the angry one reworked (150), the calm one and the one with no mood left alone (101, 102)",
-			got[0][0].SpriteID, got[1][0].SpriteID, got[2][0].SpriteID)
+		t.Errorf(
+			"sprites %v, %v, %v; want the angry one reworked (150), the calm one and the one "+
+				"with no mood left alone (101, 102)",
+			got[0][0].SpriteID,
+			got[1][0].SpriteID,
+			got[2][0].SpriteID,
+		)
 	}
 }
 
 func TestWith_ReworksOnlyWhereItsConditionHolds(t *testing.T) {
-	bump := world.With(func(a render.Appearance, _ mood) render.Appearance { a.SpriteID += 50; return a },
-		func(m mood) bool { return m.Angry })
+	bump := world.With(
+		func(a render.Appearance, _ mood) render.Appearance { a.SpriteID += 50; return a },
+		func(m mood) bool { return m.Angry },
+	)
 	got, _ := draw(t, []world.Rule{bump}, one{mood: &mood{Angry: true}}, one{mood: &mood{}})
 	if got[0][0].SpriteID != 150 || got[1][0].SpriteID != 101 {
-		t.Errorf("sprites %v, %v; want the angry one reworked (150), the calm one left alone (101)", got[0][0].SpriteID, got[1][0].SpriteID)
+		t.Errorf(
+			"sprites %v, %v; want the angry one reworked (150), the calm one left alone (101)",
+			got[0][0].SpriteID,
+			got[1][0].SpriteID,
+		)
 	}
 }
 
@@ -159,25 +176,51 @@ func TestSwap_DrawsTheTwinOfTheSpriteWhereItsConditionHolds(t *testing.T) {
 	got, _ := draw(t, []world.Rule{facing(), world.Swap(twins, hit.In)},
 		one{heading: 1, hit: true}, one{hit: true}, one{heading: 1})
 	if got[0][0].SpriteID != frozenEast || got[1][0].SpriteID != frozenOther {
-		t.Errorf("the ones hit drawn as %v and %v, want their twins %v (east) and %v", got[0][0].SpriteID, got[1][0].SpriteID, frozenEast, frozenOther)
+		t.Errorf(
+			"the ones hit drawn as %v and %v, want their twins %v (east) and %v",
+			got[0][0].SpriteID,
+			got[1][0].SpriteID,
+			frozenEast,
+			frozenOther,
+		)
 	}
 	if got[2][0].SpriteID != eastward {
 		t.Errorf("the one not hit drawn as %v, want %v, its own", got[2][0].SpriteID, eastward)
 	}
-	if got, _ = draw(t, []world.Rule{world.Swap(twins, hit.In)}, one{hit: true}); got[0][0].SpriteID != 100 {
-		t.Errorf("one hit with no twin for its sprite drawn as %v, want 100, as it is", got[0][0].SpriteID)
+	if got, _ = draw(t, []world.Rule{world.Swap(twins, hit.In)},
+		one{hit: true}); got[0][0].SpriteID != 100 {
+		t.Errorf(
+			"one hit with no twin for its sprite drawn as %v, want 100, as it is",
+			got[0][0].SpriteID,
+		)
 	}
 }
 
 func TestSwap_TwoStatesComposeInTheOrderGiven(t *testing.T) {
 	frozen := map[render.SpriteID]render.SpriteID{100: 30, 101: 31}
-	wounded := map[render.SpriteID]render.SpriteID{30: 50, 102: 42} // the frozen first's wounded twin; the third's
+	wounded := map[render.SpriteID]render.SpriteID{
+		30:  50,
+		102: 42,
+	} // the frozen first's wounded twin; the third's
 	angry := func(m mood) bool { return m.Angry }
-	got, _ := draw(t, []world.Rule{world.Swap(frozen, hit.In), world.Swap(wounded, angry)},
-		one{hit: true, mood: &mood{Angry: true}}, one{hit: true, mood: &mood{Angry: true}}, one{mood: &mood{Angry: true}})
+	got, _ := draw(
+		t,
+		[]world.Rule{world.Swap(frozen, hit.In), world.Swap(wounded, angry)},
+		one{
+			hit:  true,
+			mood: &mood{Angry: true},
+		},
+		one{hit: true, mood: &mood{Angry: true}},
+		one{mood: &mood{Angry: true}},
+	)
 	if got[0][0].SpriteID != 50 || got[1][0].SpriteID != 31 || got[2][0].SpriteID != 42 {
-		t.Errorf("drawn as %v, %v, %v; want 50 (frozen, then its wounded twin), 31 (frozen, no wounded twin of it) and 42 (wounded alone)",
-			got[0][0].SpriteID, got[1][0].SpriteID, got[2][0].SpriteID)
+		t.Errorf(
+			"drawn as %v, %v, %v; want 50 (frozen, then its wounded twin), 31 (frozen, no "+
+				"wounded twin of it) and 42 (wounded alone)",
+			got[0][0].SpriteID,
+			got[1][0].SpriteID,
+			got[2][0].SpriteID,
+		)
 	}
 }
 
@@ -185,10 +228,12 @@ func TestShow_DrawsOnlyThoseItHoldsFor(t *testing.T) {
 	if _, shown := draw(t, nil, one{ghost: true}, one{}); !shown[0] || !shown[1] {
 		t.Errorf("shown %v with no Show rule, want both", shown)
 	}
-	if _, shown := draw(t, []world.Rule{world.Show[ghost]()}, one{ghost: true}, one{}); !shown[0] || shown[1] {
+	if _, shown := draw(t, []world.Rule{world.Show[ghost]()}, one{ghost: true}, one{}); !shown[0] ||
+		shown[1] {
 		t.Errorf("shown %v, want the ghost alone", shown)
 	}
-	if _, shown := draw(t, []world.Rule{world.Show(hit.In)}, one{hit: true}, one{}); !shown[0] || shown[1] {
+	if _, shown := draw(t, []world.Rule{world.Show(hit.In)}, one{hit: true}, one{}); !shown[0] ||
+		shown[1] {
 		t.Errorf("shown %v, want the one hit alone", shown)
 	}
 }

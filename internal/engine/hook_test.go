@@ -163,7 +163,12 @@ func TestEngine_ARolesRuleIsForItsPlayersAlone(t *testing.T) {
 		"playing none":    nil,
 	} {
 		if before, after := runHookStage(t, &hookStage{plays: plays}); before != 1 || after != 1 {
-			t.Errorf("%s: walkers = %d after Init, %d after two ticks; want 1 and 1", name, before, after)
+			t.Errorf(
+				"%s: walkers = %d after Init, %d after two ticks; want 1 and 1",
+				name,
+				before,
+				after,
+			)
 		}
 	}
 }
@@ -174,7 +179,14 @@ func TestEngine_RefusesAPlayedRoleNobodyHosts(t *testing.T) {
 		When: cond.Self.If(cond.Always),
 		Then: act.Self.Do(world.Despawn{}),
 	}}}
-	eng := NewEngine(oneStageGame{stage: &hookStage{before: []plugin.Plugin{&stubPlugin{name: "test.plain"}}, plays: []role{lost}}})
+	eng := NewEngine(
+		oneStageGame{
+			stage: &hookStage{
+				before: []plugin.Plugin{&stubPlugin{name: "test.plain"}},
+				plays:  []role{lost},
+			},
+		},
+	)
 	err := eng.Init()
 	if !errors.Is(err, host.ErrUnhosted) {
 		t.Fatalf("Init = %v, want host.ErrUnhosted", err)
@@ -192,8 +204,14 @@ func TestEngine_RefusesAPlayedRoleNobodyHosts(t *testing.T) {
 // The next host is tried while one refuses the moment; any other error fails Init.
 func TestEngine_TriesTheHostsInUseOrder(t *testing.T) {
 	t.Run("a host refusing the moment is skipped", func(t *testing.T) {
-		refusing := &hostPlugin{stubPlugin: stubPlugin{name: "test.refusing"}, err: fmt.Errorf("%w: not mine", host.ErrUnhosted)}
-		s := &hookStage{before: []plugin.Plugin{&stubPlugin{name: "test.plain"}, refusing}, plays: []role{leaver()}}
+		refusing := &hostPlugin{
+			stubPlugin: stubPlugin{name: "test.refusing"},
+			err:        fmt.Errorf("%w: not mine", host.ErrUnhosted),
+		}
+		s := &hookStage{
+			before: []plugin.Plugin{&stubPlugin{name: "test.plain"}, refusing},
+			plays:  []role{leaver()},
+		}
 		before, after := runHookStage(t, s)
 		if len(refusing.asked) != 1 {
 			t.Errorf("the host used before motion was asked %d times, want once",
@@ -206,7 +224,10 @@ func TestEngine_TriesTheHostsInUseOrder(t *testing.T) {
 	})
 	t.Run("a host used before motion takes the rule from it", func(t *testing.T) {
 		taking := &hostPlugin{stubPlugin: stubPlugin{name: "test.taking"}}
-		before, after := runHookStage(t, &hookStage{before: []plugin.Plugin{taking}, plays: []role{leaver()}})
+		before, after := runHookStage(
+			t,
+			&hookStage{before: []plugin.Plugin{taking}, plays: []role{leaver()}},
+		)
 		if len(taking.asked) != 1 {
 			t.Errorf("the host used before motion was asked %d times, want once", len(taking.asked))
 		}
@@ -217,7 +238,10 @@ func TestEngine_TriesTheHostsInUseOrder(t *testing.T) {
 	})
 	t.Run("a host used after motion is not asked once motion takes it", func(t *testing.T) {
 		taking := &hostPlugin{stubPlugin: stubPlugin{name: "test.taking"}}
-		before, after := runHookStage(t, &hookStage{after: []plugin.Plugin{taking}, plays: []role{leaver()}})
+		before, after := runHookStage(
+			t,
+			&hookStage{after: []plugin.Plugin{taking}, plays: []role{leaver()}},
+		)
 		if len(taking.asked) != 0 {
 			t.Errorf("the host used after motion was asked %d times, want never", len(taking.asked))
 		}
@@ -235,7 +259,11 @@ func TestEngine_TriesTheHostsInUseOrder(t *testing.T) {
 			t.Fatalf("Init = %v, want the failing host's error", err)
 		}
 		if len(failing.asked) != 1 || len(taking.asked) != 0 {
-			t.Errorf("asked: failing %d, taking %d; want 1 and 0", len(failing.asked), len(taking.asked))
+			t.Errorf(
+				"asked: failing %d, taking %d; want 1 and 0",
+				len(failing.asked),
+				len(taking.asked),
+			)
 		}
 	})
 }

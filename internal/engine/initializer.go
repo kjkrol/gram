@@ -48,11 +48,15 @@ func (c *initializer) RegSys(factory func() goke.System) goke.Runnable {
 func (c *initializer) ECS() *goke.ECS { return c.host.ecs }
 
 func (c *initializer) Use(p plugin.Plugin) error {
-	if err := section.Check(c, fmt.Sprintf("plugin %q used", p.Name()), section.Plugins); err != nil {
+	if err := section.Check(c, fmt.Sprintf("plugin %q used", p.Name()),
+		section.Plugins); err != nil {
 		return err
 	}
 	if _, ok := p.(plugin.Builtin); ok {
-		return fmt.Errorf("gram: %q is installed by the engine itself — do not Use it yourself", p.Name())
+		return fmt.Errorf(
+			"gram: %q is installed by the engine itself — do not Use it yourself",
+			p.Name(),
+		)
 	}
 	return c.use(p)
 }

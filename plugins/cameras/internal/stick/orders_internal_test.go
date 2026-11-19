@@ -80,11 +80,23 @@ func (q queued) Tilts(fn func(camera.Camera, float32)) {
 }
 
 func (q queued) LookFroms(fn func(camera.Camera, float32, float32, float32)) {
-	drain(q.lookFroms, func(i command.Issued[LookFrom]) { fn(i.Command.Camera, i.Command.X, i.Command.Y, i.Command.Z) })
+	drain(
+		q.lookFroms,
+		func(i command.Issued[LookFrom]) {
+			fn(i.Command.Camera, i.Command.X, i.Command.Y,
+				i.Command.Z)
+		},
+	)
 }
 
 func (q queued) LookAts(fn func(camera.Camera, float32, float32, float32)) {
-	drain(q.lookAts, func(i command.Issued[LookAt]) { fn(i.Command.Camera, i.Command.X, i.Command.Y, i.Command.Z) })
+	drain(
+		q.lookAts,
+		func(i command.Issued[LookAt]) {
+			fn(i.Command.Camera, i.Command.X, i.Command.Y,
+				i.Command.Z)
+		},
+	)
 }
 
 func (q queued) Rides(fn func(camera.Camera, uid.UID64)) {
@@ -92,5 +104,8 @@ func (q queued) Rides(fn func(camera.Camera, uid.UID64)) {
 }
 
 func (q queued) Looks(fn func(camera.Camera, float32, float32)) {
-	drain(q.looks, func(i command.Issued[Look]) { fn(i.Command.Camera, i.Command.Dx, i.Command.Dy) })
+	drain(
+		q.looks,
+		func(i command.Issued[Look]) { fn(i.Command.Camera, i.Command.Dx, i.Command.Dy) },
+	)
 }

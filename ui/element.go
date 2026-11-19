@@ -318,7 +318,8 @@ func (e *Element) walk(fn func(*Element)) {
 }
 
 func inside(box geom.AABB, p geom.Vec) bool {
-	return p.X >= box.TopLeft.X && p.X < box.BottomRight.X && p.Y >= box.TopLeft.Y && p.Y < box.BottomRight.Y
+	return p.X >= box.TopLeft.X && p.X < box.BottomRight.X && p.Y >= box.TopLeft.Y &&
+		p.Y < box.BottomRight.Y
 }
 
 func size(box geom.AABB) (w, h float32) {

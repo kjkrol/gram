@@ -49,9 +49,28 @@ type Body struct {
 
 // Member is b as a member of the tick, standing where it is.
 func (b Body) Member() Member {
-	return Member{ID: b.ID, Cell: b.Cell, From: b.Cell, Domain: b.Domain, Pos: world.Position{AABB: plane.NewAABB(geom.NewVec(b.At.X-b.Half.X, b.At.Y-b.Half.Y), 2*b.Half.X, 2*b.Half.Y)},
-		Vel: b.Vel, Facing: b.Facing, Z: b.Z, Lift: b.Lift, Weight: b.Weight, Owners: b.Owners,
-		Share: b.Share, MaxSpeed: b.MaxSpeed, Level: b.Level}
+	return Member{
+		ID:     b.ID,
+		Cell:   b.Cell,
+		From:   b.Cell,
+		Domain: b.Domain,
+		Pos: world.Position{
+			AABB: plane.NewAABB(
+				geom.NewVec(b.At.X-b.Half.X, b.At.Y-b.Half.Y),
+				2*b.Half.X,
+				2*b.Half.Y,
+			),
+		},
+		Vel:      b.Vel,
+		Facing:   b.Facing,
+		Z:        b.Z,
+		Lift:     b.Lift,
+		Weight:   b.Weight,
+		Owners:   b.Owners,
+		Share:    b.Share,
+		MaxSpeed: b.MaxSpeed,
+		Level:    b.Level,
+	}
 }
 
 // Alive says b is under way: it moves, or trails someone itself.

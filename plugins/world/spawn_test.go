@@ -18,14 +18,23 @@ type thing struct {
 	x, y, size float32
 }
 
-func spawnWorld(t *testing.T, edges aabbworld.Edges, n int) (*Plugin, kind.Of[thing], *goke.ECS, *goke.Query, *goke.Comp[Base]) {
+func spawnWorld(
+	t *testing.T,
+	edges aabbworld.Edges,
+	n int,
+) (*Plugin, kind.Of[thing], *goke.ECS, *goke.Query, *goke.Comp[Base]) {
 	t.Helper()
 	p := NewPlugin(Config{
 		Space:    SpaceCfg{Width: 1000, Height: 1000, Edges: edges},
 		Entities: EntitiesCfg{MaxCount: n, MinSize: 5, MaxSize: 20},
 	})
 	kind.Define[thing](p.Kinds(), "thing", kind.Spec{
-		comp.Load(func(r thing) Position { return Position{AABB: plane.NewAABB(geom.NewVec(r.x, r.y), r.size, r.size)} }),
+		comp.Load(
+			func(r thing) Position {
+				return Position{AABB: plane.NewAABB(geom.NewVec(r.x, r.y),
+					r.size, r.size)}
+			},
+		),
 		comp.Const(Velocity{}),
 	})
 	things := kind.Named[thing](p.Kinds(), "thing")
@@ -42,7 +51,10 @@ func spawnWorld(t *testing.T, edges aabbworld.Edges, n int) (*Plugin, kind.Of[th
 func TestSpawn_MakesAnEntityOfTheKindAtTheNextStep(t *testing.T) {
 	p, things, ecs, q, _ := spawnWorld(t, 0, 4)
 	wm := p.module
-	if !wm.commands.Put(command.Nobody, Spawn{Entry: things.Entry(thing{x: 100, y: 100, size: 10})}) {
+	if !wm.commands.Put(
+		command.Nobody,
+		Spawn{Entry: things.Entry(thing{x: 100, y: 100, size: 10})},
+	) {
 		t.Fatal("the world carries no Spawn")
 	}
 	p.write.Spawn(things.Entry(thing{x: 300, y: 300, size: 10}))
@@ -54,7 +66,11 @@ func TestSpawn_MakesAnEntityOfTheKindAtTheNextStep(t *testing.T) {
 		t.Errorf("spawned %d, telemetry %d, want 2 and 2", wm.spawnedCount, wm.telemetry.Count)
 	}
 	found := 0
-	wm.space.Query(geom.NewAABB(geom.NewVec(90, 90), geom.NewVec(120, 120)), aabbworld.AnyCapability, func(uid.UID64) { found++ })
+	wm.space.Query(
+		geom.NewAABB(geom.NewVec(90, 90), geom.NewVec(120, 120)),
+		aabbworld.AnyCapability,
+		func(uid.UID64) { found++ },
+	)
 	if found != 1 {
 		t.Errorf("the space finds %d pieces where the first was spawned, want it", found)
 	}
@@ -68,14 +84,38 @@ func TestSpawn_RefusesWhatTheWorldDoesNotTake(t *testing.T) {
 		comp.Const(Velocity{}),
 	})
 	others := kind.Named[int](p.Kinds(), "other")
-	wm.commands.Put(command.Nobody, Spawn{Entry: others.Entry(7)})                                // defined after the set-up: no factory
-	wm.commands.Put(command.Nobody, Spawn{Entry: things.Entry(thing{x: 100, y: 100, size: 50})})  // too big
-	wm.commands.Put(command.Nobody, Spawn{Entry: things.Entry(thing{x: 1200, y: 100, size: 10})}) // past the open edge
-	wm.commands.Put(command.Nobody, Spawn{Entry: things.Entry(thing{x: 100, y: 100, size: 10})})  // the first taken
-	wm.commands.Put(command.Nobody, Spawn{Entry: things.Entry(thing{x: 200, y: 100, size: 10})})  // the second
-	wm.commands.Put(command.Nobody, Spawn{Entry: things.Entry(thing{x: 300, y: 100, size: 10})})  // the third
-	wm.commands.Put(command.Nobody, Spawn{Entry: things.Entry(thing{x: 400, y: 100, size: 10})})  // one too many
-	wm.commands.Put(command.Nobody, Spawn{Entry: things.Entry(thing{x: 990, y: 100, size: 10})})  // full too
+	wm.commands.Put(
+		command.Nobody,
+		Spawn{Entry: others.Entry(7)},
+	) // defined after the set-up: no factory
+	wm.commands.Put(
+		command.Nobody,
+		Spawn{Entry: things.Entry(thing{x: 100, y: 100, size: 50})},
+	) // too big
+	wm.commands.Put(
+		command.Nobody,
+		Spawn{Entry: things.Entry(thing{x: 1200, y: 100, size: 10})},
+	) // past the open edge
+	wm.commands.Put(
+		command.Nobody,
+		Spawn{Entry: things.Entry(thing{x: 100, y: 100, size: 10})},
+	) // the first taken
+	wm.commands.Put(
+		command.Nobody,
+		Spawn{Entry: things.Entry(thing{x: 200, y: 100, size: 10})},
+	) // the second
+	wm.commands.Put(
+		command.Nobody,
+		Spawn{Entry: things.Entry(thing{x: 300, y: 100, size: 10})},
+	) // the third
+	wm.commands.Put(
+		command.Nobody,
+		Spawn{Entry: things.Entry(thing{x: 400, y: 100, size: 10})},
+	) // one too many
+	wm.commands.Put(
+		command.Nobody,
+		Spawn{Entry: things.Entry(thing{x: 990, y: 100, size: 10})},
+	) // full too
 	run(ecs, wm, func(*goke.CmdBuf) {})
 	if n := len(living(q)); n != 3 {
 		t.Errorf("%d entities after the step, want the three the world has room for", n)
@@ -98,7 +138,11 @@ func TestSpawn_FillsTheRoomADespawnLeaves(t *testing.T) {
 	run(ecs, wm, func(cb *goke.CmdBuf) { wm.despawn(cb, first) })
 	alive := living(q)
 	if len(alive) != 1 || alive[first] {
-		t.Fatalf("%v alive after the despawn, want the one spawned in the room left, not %v", alive, first)
+		t.Fatalf(
+			"%v alive after the despawn, want the one spawned in the room left, not %v",
+			alive,
+			first,
+		)
 	}
 	p.write.Spawn(things.Entry(thing{x: 300, y: 100, size: 10}))
 	run(ecs, wm, func(*goke.CmdBuf) {})
@@ -141,7 +185,10 @@ func TestSpawn_AnEntitySpawnedThisStepTakesAComponentAtOnce(t *testing.T) {
 func TestSpawn_TheRoomIsCountedAfterALoad(t *testing.T) {
 	p, things, ecs, _, _ := spawnWorld(t, 0, 2)
 	wm := p.module
-	p.write.Spawn(things.Entry(thing{x: 100, y: 100, size: 10}), things.Entry(thing{x: 200, y: 100, size: 10}))
+	p.write.Spawn(
+		things.Entry(thing{x: 100, y: 100, size: 10}),
+		things.Entry(thing{x: 200, y: 100, size: 10}),
+	)
 	run(ecs, wm, func(*goke.CmdBuf) {})
 	path := t.TempDir() + "/save.bin"
 	ecs.Pause()
@@ -154,7 +201,12 @@ func TestSpawn_TheRoomIsCountedAfterALoad(t *testing.T) {
 		Entities: EntitiesCfg{MaxCount: 2, MinSize: 5, MaxSize: 20},
 	})
 	kind.Define[thing](loaded.Kinds(), "thing", kind.Spec{
-		comp.Load(func(r thing) Position { return Position{AABB: plane.NewAABB(geom.NewVec(r.x, r.y), r.size, r.size)} }),
+		comp.Load(
+			func(r thing) Position {
+				return Position{AABB: plane.NewAABB(geom.NewVec(r.x, r.y),
+					r.size, r.size)}
+			},
+		),
 		comp.Const(Velocity{}),
 	})
 	kinds := kind.Named[thing](loaded.Kinds(), "thing")
@@ -164,12 +216,20 @@ func TestSpawn_TheRoomIsCountedAfterALoad(t *testing.T) {
 	}
 	base := new(goke.Comp[Base])
 	var q *goke.Query
-	ecs2.Setup(append(loaded.module.SetupSystems(), loaded.module.PostLoad(), goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		q = si.NewQueryBuilder(base).Build()
-	}})...)
+	ecs2.Setup(
+		append(
+			loaded.module.SetupSystems(),
+			loaded.module.PostLoad(),
+			goke.SystemFn{OnInit: func(si *goke.SysInit) {
+				q = si.NewQueryBuilder(base).Build()
+			}},
+		)...)
 	loaded.module.RegSystems(ecs2)
 	if loaded.module.spawnedCount != 2 {
-		t.Fatalf("after the load %d are counted as spawned, want the 2 loaded", loaded.module.spawnedCount)
+		t.Fatalf(
+			"after the load %d are counted as spawned, want the 2 loaded",
+			loaded.module.spawnedCount,
+		)
 	}
 	loaded.write.Spawn(kinds.Entry(thing{x: 300, y: 100, size: 10}))
 	run(ecs2, loaded.module, func(*goke.CmdBuf) {})
@@ -189,7 +249,12 @@ func TestSpawn_PopulateStillRefusesASizeOutOfBounds(t *testing.T) {
 		Entities: EntitiesCfg{MaxCount: 2, MinSize: 5, MaxSize: 20},
 	})
 	kind.Define[thing](p.Kinds(), "thing", kind.Spec{
-		comp.Load(func(r thing) Position { return Position{AABB: plane.NewAABB(geom.NewVec(r.x, r.y), r.size, r.size)} }),
+		comp.Load(
+			func(r thing) Position {
+				return Position{AABB: plane.NewAABB(geom.NewVec(r.x, r.y),
+					r.size, r.size)}
+			},
+		),
 		comp.Const(Velocity{}),
 	})
 	things := kind.Named[thing](p.Kinds(), "thing")

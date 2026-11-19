@@ -33,7 +33,12 @@ type placeWorld struct {
 	casting  func(cb *goke.CmdBuf)
 }
 
-func newPlaceWorld(t *testing.T, grid grid.Grid, withUnit bool, hook func(pw *placeWorld) []act.Rule) *placeWorld {
+func newPlaceWorld(
+	t *testing.T,
+	grid grid.Grid,
+	withUnit bool,
+	hook func(pw *placeWorld) []act.Rule,
+) *placeWorld {
 	t.Helper()
 	pw := &placeWorld{}
 	pw.middle = grid.At(3, 3)
@@ -162,8 +167,14 @@ func TestAround_ReachesTheRingsRoundTheCellsUnderTheUnit(t *testing.T) {
 			})
 			pw.tick(3)
 			var seed []cell.ID
-			grid.CellsUnder(boardtest.CellBox(grid, pw.middle, 8).AABB, func(c cell.ID) { seed = append(seed, c) })
-			if got, want := pw.under(pw.scorched), within(grid, seed, rings); !sameCells(got, want) {
+			grid.CellsUnder(
+				boardtest.CellBox(grid, pw.middle, 8).AABB,
+				func(c cell.ID) { seed = append(seed, c) },
+			)
+			if got, want := pw.under(pw.scorched), within(grid, seed, rings); !sameCells(
+				got,
+				want,
+			) {
 				t.Errorf("%s, %d rings: scorched %v, want %v", name, rings, got, want)
 			}
 		}
@@ -270,11 +281,23 @@ func TestCell_FireSpreadsFromCellToCell(t *testing.T) {
 			burning := pw.under(pw.scorched)
 			for c := range burning {
 				if !within(grid, []cell.ID{pw.middle}, tick)[c] {
-					t.Fatalf("%s, tick %d: cell %d burns, further than %d rings from the start", name, tick, c, tick)
+					t.Fatalf(
+						"%s, tick %d: cell %d burns, further than %d rings from the start",
+						name,
+						tick,
+						c,
+						tick,
+					)
 				}
 			}
 			if len(burning) < grown {
-				t.Fatalf("%s, tick %d: %d cells burn, fewer than %d before", name, tick, len(burning), grown)
+				t.Fatalf(
+					"%s, tick %d: %d cells burn, fewer than %d before",
+					name,
+					tick,
+					len(burning),
+					grown,
+				)
 			}
 			grown = len(burning)
 		}
@@ -296,7 +319,9 @@ func TestPlaces_ARuleOfARoleFiresForTheCellsPlayingIt(t *testing.T) {
 		})
 		marked := pw.w.Roles().Named("marked")
 		pw.brd.Read(0).CellKinds().Define("marked", cell.Kind{Pace: 1, Allows: cell.Land}, marked)
-		pw.brd.Write().Seed(board.Layout{Cells: []cell.Entry{{Kind: "marked", Cell: a}, {Kind: "marked", Cell: b}}})
+		pw.brd.Write().
+			Seed(board.Layout{Cells: []cell.Entry{{Kind: "marked", Cell: a}, {Kind: "marked",
+				Cell: b}}})
 		return marked.Rules()
 	})
 	pw.tick(3)
@@ -318,7 +343,8 @@ func TestPlaces_ARuleOfARoleFiresForTheOneCellTheEntryHasPlayIt(t *testing.T) {
 		lake := pw.w.Roles().Named("lake")
 		pw.brd.Read(0).CellKinds().Define("water", cell.Kind{Pace: 1, Allows: cell.Water})
 		water := pw.brd.Read(0).CellKinds().Named("water")
-		pw.brd.Write().Seed(board.Layout{Cells: []cell.Entry{water.Entry(a).Plays(lake), water.Entry(b)}})
+		pw.brd.Write().
+			Seed(board.Layout{Cells: []cell.Entry{water.Entry(a).Plays(lake), water.Entry(b)}})
 		return lake.Rules()
 	})
 	pw.tick(3)

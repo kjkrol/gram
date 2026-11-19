@@ -6,7 +6,8 @@
 // and down.
 fn edge(p: vec2<f32>, px: vec3<f32>, py: vec3<f32>) -> f32 {
     let g = p / U.Cell;
-    let f = min(fract(g), 1.0 - fract(g)) * U.Cell; // how far from the edges along x and y, in world units
+    // how far from the edges along x and y, in world units
+    let f = min(fract(g), 1.0 - fract(g)) * U.Cell;
     let rate = vec2<f32>(length(vec2<f32>(px.x, py.x)), length(vec2<f32>(px.y, py.y)));
     let pixels = f / max(rate, vec2<f32>(1e-6)); // in screen pixels
     let half = U.GridWidth * 0.5;

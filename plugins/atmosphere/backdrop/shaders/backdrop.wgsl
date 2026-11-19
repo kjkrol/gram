@@ -33,7 +33,8 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> Sky {
     let pieces = u32(U.SkyPieces);
     let corner = vec2<f32>(f32(n % pieces) + across[vid % 6u], f32(n / pieces) + down[vid % 6u]);
     s.px = min(corner * skyPiece, U.SkyView);
-    s.clip = vec4<f32>(s.px.x / U.SkyView.x * 2.0 - 1.0, 1.0 - s.px.y / U.SkyView.y * 2.0, 0.0, 1.0);
+    s.clip = vec4<f32>(s.px.x / U.SkyView.x * 2.0 - 1.0, 1.0 - s.px.y / U.SkyView.y * 2.0, 0.0,
+        1.0);
     let bases = cloudLowBases();
     s.look = cloudsLook(s.px, 0.5 * (bases.x + bases.y));
     s.high = cloudsLook(s.px, 0.5 * (cloudHighFloor() + U.CloudBases.y));

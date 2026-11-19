@@ -8,8 +8,17 @@ import (
 )
 
 func blockedOf(t order.Touch, cell cell.ID) order.Blocked {
-	return order.Blocked{By: t.Other, Cell: cell, Stranger: !t.Ally, Groupmate: t.Groupmate, Moving: t.OtherMoving,
-		OnMyGoal: t.OnMyGoal, WaitedOut: t.WaitedOut, Cornered: t.Cornered, Lasts: blockedLasts}
+	return order.Blocked{
+		By:        t.Other,
+		Cell:      cell,
+		Stranger:  !t.Ally,
+		Groupmate: t.Groupmate,
+		Moving:    t.OtherMoving,
+		OnMyGoal:  t.OnMyGoal,
+		WaitedOut: t.WaitedOut,
+		Cornered:  t.Cornered,
+		Lasts:     blockedLasts,
+	}
 }
 
 // contacts come and go

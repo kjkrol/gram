@@ -298,7 +298,13 @@ func (w *module) spawnRows(by *spawner, rows []any, entries []kind.Entry, places
 func (w *module) sizeOf(pos Position) error {
 	min, max := float32(w.config.Entities.MinSize), float32(w.config.Entities.MaxSize)
 	if pos.Size.X < min || pos.Size.X > max || pos.Size.Y < min || pos.Size.Y > max {
-		return fmt.Errorf("size %vx%v outside declared bounds [%d, %d]", pos.Size.X, pos.Size.Y, w.config.Entities.MinSize, w.config.Entities.MaxSize)
+		return fmt.Errorf(
+			"size %vx%v outside declared bounds [%d, %d]",
+			pos.Size.X,
+			pos.Size.Y,
+			w.config.Entities.MinSize,
+			w.config.Entities.MaxSize,
+		)
 	}
 	return nil
 }
@@ -315,7 +321,10 @@ func (w *module) handleSizeOf(pos Position) error {
 func (w *module) handled(e kind.Entry) error {
 	for _, cmd := range e.Commands() {
 		if t := reflect.TypeOf(command.Unwrap(cmd)); !w.commands.Takes(t) {
-			return fmt.Errorf("the entry tells its entity a %v, which no plugin in use carries out", t)
+			return fmt.Errorf(
+				"the entry tells its entity a %v, which no plugin in use carries out",
+				t,
+			)
 		}
 	}
 	return nil

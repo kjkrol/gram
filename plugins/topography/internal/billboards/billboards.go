@@ -22,7 +22,12 @@ func drawn(cam camera.Camera, box geom.AABB, z world.Z) render.Corners {
 	return billboard(cam, (x0+x1)/2, (y0+y1)/2, z.Altitude, x1-x0, tall(z, y0, y1))
 }
 
-func footprint(cam camera.Camera, box geom.AABB, alt float32, dst []render.Corners) []render.Corners {
+func footprint(
+	cam camera.Camera,
+	box geom.AABB,
+	alt float32,
+	dst []render.Corners,
+) []render.Corners {
 	return append(dst, render.ProjectCorners(cam,
 		box.TopLeft.X,
 		box.TopLeft.Y,

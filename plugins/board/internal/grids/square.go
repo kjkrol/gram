@@ -139,7 +139,13 @@ func (g *Square) CellOutline(c cell.ID, dst []geom.Vec) []geom.Vec {
 	x, y := g.cellXY(c)
 	size := float32(g.CellSize)
 	x0, y0 := float32(x)*size, float32(y)*size
-	return append(dst, geom.NewVec(x0, y0), geom.NewVec(x0+size, y0), geom.NewVec(x0+size, y0+size), geom.NewVec(x0, y0+size))
+	return append(
+		dst,
+		geom.NewVec(x0, y0),
+		geom.NewVec(x0+size, y0),
+		geom.NewVec(x0+size, y0+size),
+		geom.NewVec(x0, y0+size),
+	)
 }
 
 // CellsUnder walks the columns and rows the box touches, edges included, each cell once however

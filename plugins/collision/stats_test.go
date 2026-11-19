@@ -22,7 +22,12 @@ import (
 
 type slider struct{ x, speed float32 }
 
-func colliding(t *testing.T, elastic bool, ticks int, with func(*collision.Plugin)) (left, right uid.UID64) {
+func colliding(
+	t *testing.T,
+	elastic bool,
+	ticks int,
+	with func(*collision.Plugin),
+) (left, right uid.UID64) {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
@@ -87,7 +92,10 @@ func TestStats_AccumulateAcrossTicks(t *testing.T) {
 	s := collision.ContactStats{Counter: 5}
 	colliding(t, false, 3, func(c *collision.Plugin) { c.WithStats(&s) })
 	if s.Counter != 8 {
-		t.Errorf("Counter = %d, want 8 — three more ticks in contact on top of the 5 it started with", s.Counter)
+		t.Errorf(
+			"Counter = %d, want 8 — three more ticks in contact on top of the 5 it started with",
+			s.Counter,
+		)
 	}
 }
 

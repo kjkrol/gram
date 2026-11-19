@@ -26,9 +26,17 @@ func TestTerrainMap_CastAndLabelKeepRolesAndWhatACellIsCalled(t *testing.T) {
 		t.Errorf("cell 3 is called %v, want %v, what it was called last", got, want)
 	}
 	if m.Roles[4] != 0 || m.Labels[4] != (ceremony.Label{}) {
-		t.Errorf("cell 4 plays %b and is called %v, want nothing of either", m.Roles[4], m.Labels[4])
+		t.Errorf(
+			"cell 4 plays %b and is called %v, want nothing of either",
+			m.Roles[4],
+			m.Labels[4],
+		)
 	}
 	if m.Version() != v {
-		t.Errorf("Version moved from %d to %d: roles and names are no change of terrain", v, m.Version())
+		t.Errorf(
+			"Version moved from %d to %d: roles and names are no change of terrain",
+			v,
+			m.Version(),
+		)
 	}
 }

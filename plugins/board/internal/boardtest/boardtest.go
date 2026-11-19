@@ -44,8 +44,13 @@ func (c *InstallCtx) Setup(providers ...goke.SetupProvider) {
 		c.pending = append(c.pending, p.SetupSystems)
 	}
 }
-func (c *InstallCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
-func (c *InstallCtx) ECS() *goke.ECS                                  { return c.ecs }
+
+func (c *InstallCtx) RegSys(
+	factory func() goke.System,
+) goke.Runnable {
+	return c.ecs.RegSys(factory())
+}
+func (c *InstallCtx) ECS() *goke.ECS { return c.ecs }
 
 // Mover is a unit's row: where it starts, where it keeps driving when heading is set, what it
 // sees, and how it moves (zero: Land).
@@ -86,7 +91,14 @@ type World struct {
 
 // NewWorld is a World over g, width x height, its terrain laid by terrain, units spawned as their
 // rows say and rules handed to the hosts of their moments.
-func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*board.BoardWrite), units []Mover, rules ...act.Rule) *World {
+func NewWorld(
+	t *testing.T,
+	g grid.Grid,
+	width, height uint32,
+	terrain func(*board.BoardWrite),
+	units []Mover,
+	rules ...act.Rule,
+) *World {
 	t.Helper()
 	return NewWorldWith(t, g, width, height, func(_ *world.Plugin, brd *board.Plugin) []act.Rule {
 		terrain(brd.Write().Board())
@@ -96,7 +108,13 @@ func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*boa
 
 // NewWorldWith is NewWorld with the world and the board handed to prepare before they are
 // installed, the rules it gives handed to the hosts of their moments.
-func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(*world.Plugin, *board.Plugin) []act.Rule, units []Mover) *World {
+func NewWorldWith(
+	t *testing.T,
+	g grid.Grid,
+	width, height uint32,
+	prepare func(*world.Plugin, *board.Plugin) []act.Rule,
+	units []Mover,
+) *World {
 	t.Helper()
 	return NewWorldIn(t, g, width, height, nil, prepare, units)
 }
@@ -176,9 +194,13 @@ func NewWorldIn(t *testing.T, g grid.Grid, width, height uint32, config func(*wo
 		}
 		switch {
 		case u.Heading != (geom.Vec{}):
-			spec = append(spec, comp.Const(steering.Steering{MaxSpeed: 64}), comp.Load(func(m Mover) steering.Course {
-				return steering.Course{Want: m.Heading, WantSpeed: 64}
-			}))
+			spec = append(
+				spec,
+				comp.Const(steering.Steering{MaxSpeed: 64}),
+				comp.Load(func(m Mover) steering.Course {
+					return steering.Course{Want: m.Heading, WantSpeed: 64}
+				}),
+			)
 		case u.Brakes:
 			spec = append(spec, comp.Const(steering.Steering{MaxSpeed: 64, Accel: 128, Brake: 256}))
 		}
@@ -236,10 +258,15 @@ func (bw *World) Snapshot() []geom.AABB {
 func (bw *World) Solid(layers world.Layers) []geom.AABB {
 	var out []geom.AABB
 	w, h := bw.World.Res.Config.Space.Width, bw.World.Res.Config.Space.Height
-	bw.Board.Read(0).Cover().(collision.Field).Solid(layers, collision.Everywhere, geom.NewAABBAt(geom.NewVec(0, 0), float32(w), float32(h)), func(fb collision.FieldBox) bool {
-		out = append(out, fb.Box)
-		return true
-	})
+	bw.Board.Read(0).Cover().(collision.Field).Solid(
+		layers,
+		collision.Everywhere,
+		geom.NewAABBAt(geom.NewVec(0, 0), float32(w), float32(h)),
+		func(fb collision.FieldBox) bool {
+			out = append(out, fb.Box)
+			return true
+		},
+	)
 	return out
 }
 

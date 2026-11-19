@@ -18,7 +18,8 @@ const (
 
 // radians from +x, east, with y running south
 func (w Way) angle() float64 {
-	return [...]float64{-3 * math.Pi / 4, -math.Pi / 2, -math.Pi / 4, 0, math.Pi / 4, math.Pi / 2, 3 * math.Pi / 4, math.Pi}[w%8]
+	return [...]float64{-3 * math.Pi / 4, -math.Pi / 2, -math.Pi / 4, 0, math.Pi / 4, math.Pi / 2,
+		3 * math.Pi / 4, math.Pi}[w%8]
 }
 
 // Place is where on a world its sky is watched from: the Latitude in degrees from the equator,

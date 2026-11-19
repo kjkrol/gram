@@ -190,8 +190,13 @@ func TestFeed_DrawsAtItsCamerasResolutionAndSpeaksShownPixels(t *testing.T) {
 	feed.Resize(400, 300)
 	x, y, ok := feed.ToWorld(120, 80)
 	if cx, cy := cam.FromScreen(60, 40); !ok || cx != x || cy != y {
-		t.Fatalf("under the shown pixel (120, 80) lies (%v, %v), want (%v, %v): the camera's (60, 40)",
-			x, y, cx, cy)
+		t.Fatalf(
+			"under the shown pixel (120, 80) lies (%v, %v), want (%v, %v): the camera's (60, 40)",
+			x,
+			y,
+			cx,
+			cy,
+		)
 	}
 	px, py, _, visible := feed.ToPixels(x, y, 0)
 	if !visible || math.Abs(float64(px-120)) > 1e-3 || math.Abs(float64(py-80)) > 1e-3 {

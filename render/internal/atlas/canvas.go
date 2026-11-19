@@ -22,7 +22,12 @@ func (c *Canvas) Fill(col color.Color) {
 
 // FillRect lays c over the rectangle x, y, w by h, its edges on whole pixels.
 func (c *Canvas) FillRect(x, y, w, h float32, col color.Color) {
-	r := image.Rect(int(math.Round(float64(x))), int(math.Round(float64(y))), int(math.Round(float64(x+w))), int(math.Round(float64(y+h))))
+	r := image.Rect(
+		int(math.Round(float64(x))),
+		int(math.Round(float64(y))),
+		int(math.Round(float64(x+w))),
+		int(math.Round(float64(y+h))),
+	)
 	fill := image.NewUniform(straight(col))
 	draw.Draw(c.RGBA, r.Intersect(c.Bounds()), fill, image.Point{}, draw.Over)
 }

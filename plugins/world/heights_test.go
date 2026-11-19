@@ -11,7 +11,10 @@ import (
 )
 
 func TestHeights_AreTheConfigsChoice(t *testing.T) {
-	cfg := world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 10, MaxSize: 10}}
+	cfg := world.Config{
+		Space:    world.SpaceCfg{Width: 100, Height: 100},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 10, MaxSize: 10},
+	}
 	if flat := world.NewPlugin(cfg); flat.Read(0).HasHeights() {
 		t.Error("a world by default has heights, want it flat")
 	}
@@ -22,7 +25,12 @@ func TestHeights_AreTheConfigsChoice(t *testing.T) {
 }
 
 func TestKinds_RefuseAZInAFlatWorld(t *testing.T) {
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 10, MaxSize: 10}})
+	w := world.NewPlugin(
+		world.Config{
+			Space:    world.SpaceCfg{Width: 100, Height: 100},
+			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 10, MaxSize: 10},
+		},
+	)
 	defer func() {
 		if msg, _ := recover().(string); !strings.Contains(msg, "Heights") {
 			t.Errorf("panic %q, want one pointing at world.Config.Heights", msg)

@@ -268,7 +268,7 @@ func head(g Ground, r Rules, h cell.ID) (float32, error) {
 	level := mean(hs)
 	b := g.Built(h)
 	for s := range uint8(cell.Storeys) {
-		if f := b.Storey(s); f.Sunk() && f.Width == 0 {
+		if f := b.Storey(s); f.Dug() && f.Width == 0 {
 			return level + f.Height, nil
 		}
 	}
@@ -291,7 +291,7 @@ func head(g Ground, r Rules, h cell.ID) (float32, error) {
 func sunk(g Ground, c cell.ID) bool {
 	b := g.Built(c)
 	for s := range uint8(cell.Storeys) {
-		if f := b.Storey(s); f.Sunk() && f.Width == 0 {
+		if f := b.Storey(s); f.Dug() && f.Width == 0 {
 			return true
 		}
 	}

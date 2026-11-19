@@ -105,7 +105,8 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.kinds.Guard = func(name string) {
-		if err := worldPlugin.InSection(fmt.Sprintf("cell kind %q defined", name), section.Kinds); err != nil {
+		if err := worldPlugin.InSection(fmt.Sprintf("cell kind %q defined", name),
+			section.Kinds); err != nil {
 			panic("board: " + err.Error())
 		}
 	}

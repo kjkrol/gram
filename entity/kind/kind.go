@@ -52,7 +52,14 @@ func Named[P any](reg Registry, name string) Of[P] {
 		panic(fmt.Sprintf("kind: no kind is defined as %q", name))
 	}
 	if want := reflect.TypeFor[P](); row != want {
-		panic(fmt.Sprintf("kind: %q is asked for with rows of %v, but its rows are %v", name, want, row))
+		panic(
+			fmt.Sprintf(
+				"kind: %q is asked for with rows of %v, but its rows are %v",
+				name,
+				want,
+				row,
+			),
+		)
 	}
 	return Of[P]{name: name, id: id, sprite: sprite}
 }

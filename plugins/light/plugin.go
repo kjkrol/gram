@@ -65,6 +65,7 @@ type Plugin struct {
 	lit       bool // a distant light shines, distantOf's
 	lamps     []Lamp
 	shadow    goke.OptComp[Shadow]
+	sheltered goke.OptComp[Sheltered]
 
 	policy ShadowPolicy
 	kept   *plugin.Kept[Settings]
@@ -99,6 +100,11 @@ type Plugin struct {
 	stamps   [2]lightsStamp
 	stands   bool
 	gathers  int
+	// the shelters and their places
+	shelters   *goke.Query
+	shelterOf  goke.Comp[Shelter]
+	shelterZ   goke.Comp[world.Z]
+	sheltering shelters
 
 	coarses      command.Queue[CoarseShadows]
 	adapts       command.Queue[AdaptShadows]
@@ -186,7 +192,9 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // sun; call it after the world's.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
-	p.coarses.Drain(func(i command.Issued[CoarseShadows]) { p.write.SetCoarseShadows(i.Command.On) })
+	p.coarses.Drain(
+		func(i command.Issued[CoarseShadows]) { p.write.SetCoarseShadows(i.Command.On) },
+	)
 	p.lampSwitches.Drain(func(i command.Issued[LampShadows]) {
 		p.write.SetLampShadows(i.Command.Count)
 	})
@@ -261,6 +269,7 @@ func (p *Plugin) Publish() {
 	if p.relief != nil {
 		b.GroundAt = p.groundAt
 	}
+	p.shelter(b)
 }
 
 // Swap has the light published last drawn.

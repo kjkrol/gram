@@ -113,7 +113,9 @@ func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 		systems = append(systems, produce()...)
 	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		r.query = si.NewQueryBuilder(&r.base, &r.steer, &r.look).Optional(&r.marks, &r.states, &r.course).Build()
+		r.query = si.NewQueryBuilder(&r.base, &r.steer, &r.look).
+			Optional(&r.marks, &r.states, &r.course).
+			Build()
 	}})
 	ctx.ecs.Setup(systems...)
 	caster := ctx.ecs.RegSys(goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, _ time.Duration) {
@@ -182,7 +184,13 @@ func TestEffects_GrantAndAlterHoldForLastsThenRevert(t *testing.T) {
 	r.fxTick() // the effects' pass runs after the cast
 	r.fxTick()
 	if speed, sprite, angry, active := r.state(); speed != 20 || sprite != 7 || !angry || !active {
-		t.Fatalf("running: speed %v sprite %d angry %v active %v, want 20, 7, true, true", speed, sprite, angry, active)
+		t.Fatalf(
+			"running: speed %v sprite %d angry %v active %v, want 20, 7, true, true",
+			speed,
+			sprite,
+			angry,
+			active,
+		)
 	}
 	if !r.marked(rage.Mark()) {
 		t.Error("rage's own marker is off while it runs")
@@ -191,7 +199,13 @@ func TestEffects_GrantAndAlterHoldForLastsThenRevert(t *testing.T) {
 		r.fxTick()
 	}
 	if speed, sprite, angry, active := r.state(); speed != 10 || sprite != 0 || angry || active {
-		t.Errorf("after its time: speed %v sprite %d angry %v active %v, want 10, 0, false, false", speed, sprite, angry, active)
+		t.Errorf(
+			"after its time: speed %v sprite %d angry %v active %v, want 10, 0, false, false",
+			speed,
+			sprite,
+			angry,
+			active,
+		)
 	}
 	if r.marked(rage.Mark()) {
 		t.Error("rage's own marker stayed after it ended")
@@ -201,7 +215,13 @@ func TestEffects_GrantAndAlterHoldForLastsThenRevert(t *testing.T) {
 func TestEffects_TwoCastAtOnceOnAFreshEntityBothLand(t *testing.T) {
 	var haste, mark effect.Effect
 	r := newRig(t, false, func(r *rig) {
-		r.fx.Define("haste", effect.Spec{effect.Lasts(3 * fxTick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
+		r.fx.Define(
+			"haste",
+			effect.Spec{
+				effect.Lasts(3 * fxTick),
+				effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 }),
+			},
+		)
 		haste = r.fx.Named("haste")
 		r.fx.Define("mark", effect.Spec{effect.Lasts(3 * fxTick), effect.Grant(r.angry)})
 		mark = r.fx.Named("mark")
@@ -212,21 +232,40 @@ func TestEffects_TwoCastAtOnceOnAFreshEntityBothLand(t *testing.T) {
 	}
 	r.fxTick()
 	if !r.marked(haste.Mark()) || !r.marked(mark.Mark()) {
-		t.Errorf("haste %v mark %v after the first fxTick, want both markers on as their family is attached", r.marked(haste.Mark()), r.marked(mark.Mark()))
+		t.Errorf(
+			"haste %v mark %v after the first fxTick, want both markers on as their family is "+
+				"attached",
+			r.marked(haste.Mark()),
+			r.marked(mark.Mark()),
+		)
 	}
 	r.fxTick()
 	if speed, _, angry, _ := r.state(); speed != 20 || !angry {
-		t.Errorf("speed %v angry %v, want 20 and true: both effects cast at once on it", speed, angry)
+		t.Errorf(
+			"speed %v angry %v, want 20 and true: both effects cast at once on it",
+			speed,
+			angry,
+		)
 	}
 	if !r.marked(haste.Mark()) || !r.marked(mark.Mark()) {
-		t.Errorf("haste %v mark %v, want both markers on", r.marked(haste.Mark()), r.marked(mark.Mark()))
+		t.Errorf(
+			"haste %v mark %v, want both markers on",
+			r.marked(haste.Mark()),
+			r.marked(mark.Mark()),
+		)
 	}
 }
 
 func TestEffects_ChangedMarksTheStepsThatRewroteAComponent(t *testing.T) {
 	var haste, mark effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		r.fx.Define("haste", effect.Spec{effect.Lasts(3 * fxTick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
+		r.fx.Define(
+			"haste",
+			effect.Spec{
+				effect.Lasts(3 * fxTick),
+				effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 }),
+			},
+		)
 		haste = r.fx.Named("haste")
 		r.fx.Define("mark", effect.Spec{effect.Lasts(4 * fxTick), effect.Grant(r.angry)})
 		mark = r.fx.Named("mark")
@@ -247,7 +286,11 @@ func TestEffects_ChangedMarksTheStepsThatRewroteAComponent(t *testing.T) {
 	}
 	r.fxTick() // haste's time is up
 	if speed, _, _, _ := r.state(); speed != 10 || !r.marked(effect.Changed) {
-		t.Errorf("haste ended: speed %v, Changed %v; want 10 and on", speed, r.marked(effect.Changed))
+		t.Errorf(
+			"haste ended: speed %v, Changed %v; want 10 and on",
+			speed,
+			r.marked(effect.Changed),
+		)
 	}
 	r.fxTick()
 	if r.marked(effect.Changed) {
@@ -314,7 +357,11 @@ func TestEffects_ThenFollowsWhenTheTimeIsUpNotOnDispel(t *testing.T) {
 	r.fxTick()
 	r.fxTick() // its time is up
 	if r.fx.Has(r.id, burn) || !r.fx.Has(r.id, ash) {
-		t.Fatalf("burn over: burn %v, ash %v; want false, true", r.fx.Has(r.id, burn), r.fx.Has(r.id, ash))
+		t.Fatalf(
+			"burn over: burn %v, ash %v; want false, true",
+			r.fx.Has(r.id, burn),
+			r.fx.Has(r.id, ash),
+		)
 	}
 	r.fxTick()
 	if !r.marked(ash.Mark()) {
@@ -333,7 +380,11 @@ func TestEffects_ThenFollowsWhenTheTimeIsUpNotOnDispel(t *testing.T) {
 	r.fxTick()
 	r.fxTick()
 	if r.fx.Has(r.id, burn) || r.fx.Has(r.id, ash) {
-		t.Errorf("burn dispelled: burn %v, ash %v; want false, false", r.fx.Has(r.id, burn), r.fx.Has(r.id, ash))
+		t.Errorf(
+			"burn dispelled: burn %v, ash %v; want false, false",
+			r.fx.Has(r.id, burn),
+			r.fx.Has(r.id, ash),
+		)
 	}
 }
 
@@ -385,9 +436,21 @@ func TestEffects_ACastAfterDispelTakesTheSlotBack(t *testing.T) {
 func TestEffects_TwoAltersOfOneComponentComposeAndEndApart(t *testing.T) {
 	var haste, slow effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		r.fx.Define("haste", effect.Spec{effect.Lasts(5 * fxTick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
+		r.fx.Define(
+			"haste",
+			effect.Spec{
+				effect.Lasts(5 * fxTick),
+				effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 }),
+			},
+		)
 		haste = r.fx.Named("haste")
-		r.fx.Define("slow", effect.Spec{effect.Lasts(2 * fxTick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 0.5 })})
+		r.fx.Define(
+			"slow",
+			effect.Spec{
+				effect.Lasts(2 * fxTick),
+				effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 0.5 }),
+			},
+		)
 		slow = r.fx.Named("slow")
 	})
 	r.casting = func(cb *goke.CmdBuf) {
@@ -418,7 +481,14 @@ func TestEffects_RecastRefreshesUnlessStacking(t *testing.T) {
 	r := newRig(t, true, func(r *rig) {
 		r.fx.Define("short", effect.Spec{effect.Lasts(2 * fxTick), effect.Grant(r.angry)})
 		short = r.fx.Named("short")
-		r.fx.Define("stacks", effect.Spec{effect.Lasts(2 * fxTick), effect.Stacking(), effect.Alter(func(s *steering.Steering) { s.MaxSpeed++ })})
+		r.fx.Define(
+			"stacks",
+			effect.Spec{
+				effect.Lasts(2 * fxTick),
+				effect.Stacking(),
+				effect.Alter(func(s *steering.Steering) { s.MaxSpeed++ }),
+			},
+		)
 		stacks = r.fx.Named("stacks")
 	})
 	r.cast(short)
@@ -514,7 +584,13 @@ func (r *rig) withCourse(fn func(c *steering.Course)) {
 func TestEffects_AnAlterOfTheKnobsLeavesTheCourseAlone(t *testing.T) {
 	var haste effect.Effect
 	r := newRig(t, true, func(r *rig) {
-		r.fx.Define("haste", effect.Spec{effect.Lasts(2 * fxTick), effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 })})
+		r.fx.Define(
+			"haste",
+			effect.Spec{
+				effect.Lasts(2 * fxTick),
+				effect.Alter(func(s *steering.Steering) { s.MaxSpeed *= 2 }),
+			},
+		)
 		haste = r.fx.Named("haste")
 	})
 	r.cast(haste)
@@ -529,7 +605,11 @@ func TestEffects_AnAlterOfTheKnobsLeavesTheCourseAlone(t *testing.T) {
 	}
 	r.withCourse(func(c *steering.Course) {
 		if c.Want != north || c.WantSpeed != 15 {
-			t.Errorf("after the effect the course asks %v at %v, want north at 15 as asked while it ran", c.Want, c.WantSpeed)
+			t.Errorf(
+				"after the effect the course asks %v at %v, want north at 15 as asked while it ran",
+				c.Want,
+				c.WantSpeed,
+			)
 		}
 	})
 }
@@ -579,4 +659,8 @@ func (c *fxInstallCtx) Draws(...render.Source) {}
 func (c *fxInstallCtx) Looks(func())           {}
 func (*fxInstallCtx) Pool() *parallel.Pool     { return nil }
 
-func (c *fxInstallCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }
+func (c *fxInstallCtx) Deliver(
+	rules ...act.Rule,
+) error {
+	return ceremony.Deliver(c.hosts, rules...)
+}

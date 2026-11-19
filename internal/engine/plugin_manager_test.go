@@ -117,6 +117,9 @@ func TestEcsHost_ProvidedComps_ListsASharedTypeOnce(t *testing.T) {
 	host.track(stubCompProvider{})
 
 	if got := host.providedComps(); len(got) != 1 {
-		t.Errorf("providedComps() returned %d tokens, want 1 for a type two providers name", len(got))
+		t.Errorf(
+			"providedComps() returned %d tokens, want 1 for a type two providers name",
+			len(got),
+		)
 	}
 }

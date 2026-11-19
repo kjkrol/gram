@@ -68,7 +68,12 @@ func TestScan_AWallCutsSightOnlyOnTheObserversBlockers(t *testing.T) {
 				spawn{x: 240, y: 0},
 			)
 			if int(seen[0].Count) != tc.want || seen[0].Dists[0] > 100 {
-				t.Errorf("saw %d at %v, want %d with the wall first", seen[0].Count, seen[0].Dists[:seen[0].Count], tc.want)
+				t.Errorf(
+					"saw %d at %v, want %d with the wall first",
+					seen[0].Count,
+					seen[0].Dists[:seen[0].Count],
+					tc.want,
+				)
 			}
 		})
 	}

@@ -51,7 +51,12 @@ func newLegWorld(t *testing.T, w, h uint32, units ...legUnit) *legWorld {
 	profile := steering.Steering{MaxSpeed: float32(legCellSize * 2)}
 	rows := make([]navUnit, len(units))
 	for i, u := range units {
-		rows[i] = navUnit{box: cellBox(g, u.start, legEntitySize), at: u.start, profile: &profile, owner: u.owner}
+		rows[i] = navUnit{
+			box:     cellBox(g, u.start, legEntitySize),
+			at:      u.start,
+			profile: &profile,
+			owner:   u.owner,
+		}
 		if u.hasOrder {
 			rows[i].order = &MoveOrder{Target: u.target}
 		}
@@ -59,7 +64,8 @@ func newLegWorld(t *testing.T, w, h uint32, units ...legUnit) *legWorld {
 	nw := newNavWorld(t, w, h, legCellSize, rows, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		lw.q = si.NewQueryBuilder(&lw.pos, &lw.cell).Optional(&lw.orderComp).Build()
 	}})
-	lw.grid, lw.terrain, lw.occupancy, lw.ecs, lw.ids = nw.grid, nw.board, nw.occupancy, nw.ecs, nw.ids
+	lw.grid, lw.terrain, lw.occupancy, lw.ecs, lw.ids = nw.grid, nw.board, nw.occupancy, nw.ecs,
+		nw.ids
 	return lw
 }
 
@@ -233,7 +239,12 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 	moves := &command.Queue[MoveTo]{}
-	cmds := routing.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := routing.NewSystem(
+		spacing.NewFinder(grid, terrain, nil, occupancy),
+		moves,
+		&command.Queue[LookAt]{},
+		selTags.Selected,
+	)
 
 	from := grid.At(0, 0)
 	to := grid.At(1, 0)
@@ -287,7 +298,14 @@ func TestModule_Setup_RestoresLegCells(t *testing.T) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
-	m := &module{navigationSystem: traffic.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)}
+	m := &module{
+		navigationSystem: traffic.NewSystem(
+			spacing.NewFinder(grid, terrain, nil, occupancy),
+			grid,
+			terrain,
+			occupancy,
+		),
+	}
 
 	from := grid.At(0, 0)
 	to := grid.At(1, 1)

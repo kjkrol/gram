@@ -15,9 +15,16 @@ func (r *Read) Free(x, y, z float32) bool {
 	r.board().DecksOver(at, func(c cell.ID, f cell.Floor) {
 		deck := r.p.relief.Altitude(c) + f.Height
 		switch {
-		case f.Sunk():
+		case f.Dug():
 			if under && z >= deck && z < deck+f.Clear {
 				free = true
+			}
+		case f.Room():
+			// a room standing on the ground is free whatever the ground does, solid under it
+			if z >= deck && z < deck+f.Clear {
+				free = true
+			} else if z < deck {
+				free = false
 			}
 		case f.Height > 0 && z < deck && z >= deck-max(f.Thickness, 1e-3):
 			free = false

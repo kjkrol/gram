@@ -122,7 +122,11 @@ func newBasicCamera(world geom.Vec, viewport contract.AABB, edges aabbworld.Edge
 }
 
 // NewFromSpace is a top-down camera over a width x height world, viewing all of it by default.
-func NewFromSpace(width, height uint32, edges aabbworld.Edges, viewport ...contract.AABB) contract.Camera {
+func NewFromSpace(
+	width, height uint32,
+	edges aabbworld.Edges,
+	viewport ...contract.AABB,
+) contract.Camera {
 	vp := contract.AABB{}
 	if len(viewport) > 0 {
 		vp = viewport[0]
@@ -135,7 +139,11 @@ func NewFromSpace(width, height uint32, edges aabbworld.Edges, viewport ...contr
 
 // NewFromSpaceWithConfig is a top-down camera over a width x height world as cfg says it starts,
 // at cfg's zoom round the world's middle.
-func NewFromSpaceWithConfig(width, height uint32, edges aabbworld.Edges, cfg contract.Config) contract.Camera {
+func NewFromSpaceWithConfig(
+	width, height uint32,
+	edges aabbworld.Edges,
+	cfg contract.Config,
+) contract.Camera {
 	c := NewFromSpace(width, height, edges).(*basicCamera)
 	c.whole = cfg.Whole
 	if cfg.Zoom > 0 && !c.whole {
@@ -288,7 +296,11 @@ func (c *basicCamera) SetViewport(w, h float32) {
 
 func (c *basicCamera) Project(x, y, _ float32) (float32, float32) { return c.ToScreen(x, y) }
 
-func (c *basicCamera) Unproject(sx, sy, _ float32) (float32, float32) { return c.FromScreen(sx, sy) }
+func (c *basicCamera) Unproject(
+	sx, sy, _ float32,
+) (float32, float32) {
+	return c.FromScreen(sx, sy)
+}
 
 func (c *basicCamera) Depth(_, y, _ float32) float32 { return y }
 
@@ -423,7 +435,12 @@ func (c *basicCamera) MoveTo(x, y float32) {
 
 // Translate shifts the visible window by a delta in world units.
 func (c *basicCamera) Translate(dx, dy float32) {
-	c.place(c.effective.TopLeft.X+dx, c.effective.TopLeft.Y+dy, c.effective.Size.X, c.effective.Size.Y)
+	c.place(
+		c.effective.TopLeft.X+dx,
+		c.effective.TopLeft.Y+dy,
+		c.effective.Size.X,
+		c.effective.Size.Y,
+	)
 }
 
 // Pan shifts the visible window by a delta in camera pixels.

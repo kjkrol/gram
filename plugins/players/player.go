@@ -61,17 +61,27 @@ func (p *Player) Area() geom.AABB { return p.pic.area }
 // are an error unless one of them yields (control.Binding.Yielding). Those bound in the Stage's
 // Controls section are the game's own, listed apart under "Game".
 func (p *Player) Bind(bindings ...control.Binding) error {
-	if err := p.world.InSection("keys bound for "+p.Name, section.Players, section.Controls); err != nil {
+	if err := p.world.InSection("keys bound for "+p.Name, section.Players,
+		section.Controls); err != nil {
 		return err
 	}
 	own := p.sections != nil && p.sections.Section() == section.Controls
 	for _, b := range bindings {
 		if b.Type() == nil {
-			return fmt.Errorf("players: %q is not a Binding made with control.Build or Give", b.Label)
+			return fmt.Errorf(
+				"players: %q is not a Binding made with control.Build or Give",
+				b.Label,
+			)
 		}
 		for _, have := range p.bindings {
 			if have.Trigger == b.Trigger && have.Overlaps(b) {
-				return fmt.Errorf("players: %q and %q are both bound to %v for %s", have.Label, b.Label, b.Trigger, p.Name)
+				return fmt.Errorf(
+					"players: %q and %q are both bound to %v for %s",
+					have.Label,
+					b.Label,
+					b.Trigger,
+					p.Name,
+				)
 			}
 		}
 		p.bindings = append(p.bindings, b)

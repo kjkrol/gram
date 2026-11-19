@@ -6,5 +6,10 @@ import (
 )
 
 func testKind(pos Position, vel Velocity, comps ...comp.Comp) ikinds.Kind {
-	return ikinds.Kind{Name: "test", Position: comp.Const(pos), Velocity: comp.Const(vel), Comps: comps}
+	return ikinds.Kind{
+		Name:     "test",
+		Position: comp.Const(pos),
+		Velocity: comp.Const(vel),
+		Comps:    comps,
+	}
 }

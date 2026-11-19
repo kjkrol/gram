@@ -144,7 +144,8 @@ func TestRoles_PlayedByAKind(t *testing.T) {
 	runRoleStage(t, g)
 
 	plays, _ := onlyRoles(t, g)
-	if !plays.Has(g.role["mortal"].Tag()) || !plays.Has(g.role["lazy"].Tag()) || plays.Has(g.role["hasty"].Tag()) {
+	if !plays.Has(g.role["mortal"].Tag()) || !plays.Has(g.role["lazy"].Tag()) ||
+		plays.Has(g.role["hasty"].Tag()) {
 		t.Errorf("plays %b, want mortal and lazy, not hasty", plays)
 	}
 }
@@ -180,15 +181,28 @@ func TestRoles_SurviveASaveTheWorldNamesThemIn(t *testing.T) {
 		t.Fatalf("Save: %v", err)
 	}
 
-	loader := &roleStage{roles: []string{"lazy", "hasty", "mortal"}, moods: []string{"angry", "calm"}, load: true}
+	loader := &roleStage{
+		roles: []string{"lazy", "hasty", "mortal"},
+		moods: []string{"angry", "calm"},
+		load:  true,
+	}
 	runRoleStage(t, loader)
 
 	plays, marks := onlyRoles(t, loader)
 	mortal, hasty := loader.role["mortal"].Tag(), loader.role["hasty"].Tag()
 	if plays != tag.Tags[cond.Roles](0).With(mortal, hasty) {
-		t.Errorf("after a load, plays %b, want mortal (bit %d) and hasty (bit %d) alone", plays, mortal, hasty)
+		t.Errorf(
+			"after a load, plays %b, want mortal (bit %d) and hasty (bit %d) alone",
+			plays,
+			mortal,
+			hasty,
+		)
 	}
 	if marks != tag.Tags[moods](0).With(loader.mood["calm"]) {
-		t.Errorf("after a load with the moods reordered too, marks %b, want calm alone (bit %d)", marks, loader.mood["calm"])
+		t.Errorf(
+			"after a load with the moods reordered too, marks %b, want calm alone (bit %d)",
+			marks,
+			loader.mood["calm"],
+		)
 	}
 }

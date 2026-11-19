@@ -78,7 +78,8 @@ func TestListSaves_QuicksaveAndNamed(t *testing.T) {
 	if err := save(ecs, basePath, "", map[string][]any{"a": {&stateA{N: 1}}}); err != nil {
 		t.Fatalf("Save(quicksave): %v", err)
 	}
-	if err := save(ecs, basePath, "checkpoint", map[string][]any{"a": {&stateA{N: 2}}}); err != nil {
+	if err := save(ecs, basePath, "checkpoint",
+		map[string][]any{"a": {&stateA{N: 2}}}); err != nil {
 		t.Fatalf("Save(checkpoint): %v", err)
 	}
 

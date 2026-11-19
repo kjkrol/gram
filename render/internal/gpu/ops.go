@@ -32,12 +32,20 @@ func Fill(dst Image, r, g, b, a float32) {
 		defer d.mu.Unlock()
 		t := dst.Texture.gpuTarget(d)
 		d.endPass()
-		t.load, t.clear = gputypes.LoadOpClear, gputypes.Color{R: float64(r), G: float64(g), B: float64(b), A: float64(a)}
+		t.load, t.clear = gputypes.LoadOpClear, gputypes.Color{
+			R: float64(r),
+			G: float64(g),
+			B: float64(b),
+			A: float64(a),
+		}
 		d.begin(t, nil, false)
 		return
 	}
 	x0, y0, x1, y1 := float32(rc.X), float32(rc.Y), float32(rc.X+rc.W), float32(rc.Y+rc.H)
-	v := func(x, y float32) Vertex { return Vertex{DstX: x, DstY: y, ColorR: r, ColorG: g, ColorB: b, ColorA: a} }
+	v := func(x, y float32) Vertex {
+		return Vertex{DstX: x, DstY: y, ColorR: r, ColorG: g,
+			ColorB: b, ColorA: a}
+	}
 	Triangles(&Draw{Target: dst, Program: fillProgram, Blend: Copy},
 		[]Vertex{v(x0, y0), v(x1, y0), v(x0, y1), v(x1, y1)}, []uint16{0, 1, 2, 1, 2, 3})
 }
@@ -73,7 +81,16 @@ func DrawImage(dst, src Image, m Affine, color [4]float32, linear bool, blend Bl
 	sx, sy := float32(r.X), float32(r.Y)
 	v := func(x, y float32) Vertex {
 		dx, dy := m.Apply(x, y)
-		return Vertex{DstX: dx, DstY: dy, SrcX: sx + x, SrcY: sy + y, ColorR: color[0], ColorG: color[1], ColorB: color[2], ColorA: color[3]}
+		return Vertex{
+			DstX:   dx,
+			DstY:   dy,
+			SrcX:   sx + x,
+			SrcY:   sy + y,
+			ColorR: color[0],
+			ColorG: color[1],
+			ColorB: color[2],
+			ColorA: color[3],
+		}
 	}
 	dw := Draw{Target: dst, Program: blitProgram, Images: [4]Image{src}, Uniforms: blitOf(linear),
 		Blend: blend}
@@ -119,8 +136,16 @@ func DrawPieces(dst, src Image, pieces []Piece, color [4]float32, blend Blend) {
 		verts, indices := d.pieceVerts[:0], d.pieceIndices[:0]
 		for k, p := range pieces[:n] {
 			v := func(dx, dy float32) Vertex {
-				return Vertex{DstX: p.DstX + dx, DstY: p.DstY + dy, SrcX: float32(r.X) + p.SrcX + dx, SrcY: float32(r.Y) + p.SrcY + dy,
-					ColorR: color[0], ColorG: color[1], ColorB: color[2], ColorA: color[3]}
+				return Vertex{
+					DstX:   p.DstX + dx,
+					DstY:   p.DstY + dy,
+					SrcX:   float32(r.X) + p.SrcX + dx,
+					SrcY:   float32(r.Y) + p.SrcY + dy,
+					ColorR: color[0],
+					ColorG: color[1],
+					ColorB: color[2],
+					ColorA: color[3],
+				}
 			}
 			verts = append(verts, v(0, 0), v(p.W, 0), v(0, p.H), v(p.W, p.H))
 			b := uint16(4 * k)
@@ -186,7 +211,8 @@ func Present(
 	sw, sh := float32(screen.w), float32(screen.h)
 	fw, fh := float32(w), float32(h)
 	verts := d.quad[0][:0]
-	for _, v := range [4][4]float32{{0, 0, 0, 0}, {fw, 0, sw, 0}, {0, fh, 0, sh}, {fw, fh, sw, sh}} {
+	for _, v := range [4][4]float32{{0, 0, 0, 0}, {fw, 0, sw, 0}, {0, fh, 0, sh}, {fw, fh, sw,
+		sh}} {
 		verts = appendVertex(
 			verts,
 			Vertex{
@@ -272,17 +298,30 @@ func (d *device) presentBuffers() error {
 	for k, b := range []struct {
 		size  uint64
 		usage gputypes.BufferUsage
-	}{{4 * vertexSize, wgpu.BufferUsageVertex}, {16, wgpu.BufferUsageIndex}, {drawSize, wgpu.BufferUsageUniform}, {uniformBlock, wgpu.BufferUsageUniform}} {
-		buf, err := d.dev.CreateBuffer(&wgpu.BufferDescriptor{Label: "present", Size: max(b.size, 256), Usage: b.usage | wgpu.BufferUsageCopyDst})
+	}{{4 * vertexSize, wgpu.BufferUsageVertex}, {16, wgpu.BufferUsageIndex}, {drawSize,
+		wgpu.BufferUsageUniform}, {uniformBlock, wgpu.BufferUsageUniform}} {
+		buf, err := d.dev.CreateBuffer(
+			&wgpu.BufferDescriptor{
+				Label: "present",
+				Size:  max(b.size, 256),
+				Usage: b.usage | wgpu.BufferUsageCopyDst,
+			},
+		)
 		if err != nil {
 			return fmt.Errorf("gpu: a buffer for the frame: %w", err)
 		}
 		d.present[k] = buf
 	}
-	g, err := d.dev.CreateBindGroup(&wgpu.BindGroupDescriptor{Label: "present", Layout: d.layout0, Entries: []wgpu.BindGroupEntry{
-		{Binding: 0, Buffer: d.present[2], Size: drawSize},
-		{Binding: 1, Buffer: d.present[3], Size: uniformBlock},
-	}})
+	g, err := d.dev.CreateBindGroup(
+		&wgpu.BindGroupDescriptor{
+			Label:  "present",
+			Layout: d.layout0,
+			Entries: []wgpu.BindGroupEntry{
+				{Binding: 0, Buffer: d.present[2], Size: drawSize},
+				{Binding: 1, Buffer: d.present[3], Size: uniformBlock},
+			},
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("gpu: the frame's group: %w", err)
 	}

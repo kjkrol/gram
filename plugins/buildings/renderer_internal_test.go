@@ -1,6 +1,8 @@
 package buildings
 
 import (
+	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 	"image/color"
 	"testing"
 
@@ -24,7 +26,7 @@ func TestLay_StandsABuildingOnItsLowestGroundItsStoreysOverItsHighest(t *testing
 		},
 	}
 	b := spec.of(Row{Mid: [2]float32{100, 50}, Size: [2]float32{40, 20}, Floors: 3})
-	whole := lay(nil, spec, b, slope, 0.5, true)
+	whole := lay(nil, spec, b, slope, 0.5, true, nil)
 	if len(whole) != 2*solidFloats {
 		t.Fatalf("%d floats of a body and a turret, want %d", len(whole), 2*solidFloats)
 	}
@@ -48,7 +50,7 @@ func TestLay_StandsABuildingOnItsLowestGroundItsStoreysOverItsHighest(t *testing
 		t.Errorf("the turret stands %v, want it a quarter of the length west, 6 over the "+
 			"walls, a pyramid 2 high and blind", turret)
 	}
-	coarse := lay(nil, spec, b, slope, 0.5, false)
+	coarse := lay(nil, spec, b, slope, 0.5, false, nil)
 	if len(coarse) != solidFloats || coarse[11] != 0 {
 		t.Errorf("far off %d floats, a bay of %v; want the body alone, without windows",
 			len(coarse), coarse[11])
@@ -88,5 +90,15 @@ func TestSolids_AreHazedOnlyWhereTheGroundIs(t *testing.T) {
 	r.Swap()
 	if r.hazed {
 		t.Error("buildings on no ground are hazed")
+	}
+}
+
+func TestShaders_Compile(t *testing.T) {
+	gputest.Need(t)
+	for name, s := range map[string]*render.Shader{"solids": solidShader, "rooms": innerShader,
+		"rooms bared": baredShader} {
+		if err := s.Compile(); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
 	}
 }

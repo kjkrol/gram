@@ -4,8 +4,8 @@
 // [NewPlugin] takes a world with heights, the board and the [Config]: where a structure may lie
 // (site.Rules) and the kind of tunnel a player digs. A game defines its kinds in the Kinds
 // section ([Plugin.Types]): a tunnel ([Types.Define] a [Spec]: whom its floor carries and how
-// much it bears, how wide it runs and how much room lies over its floor) and a chamber
-// ([Types.Chamber]).
+// much it bears, how wide it runs, how much room lies over its floor and how it is drawn, its
+// [Look]) and a chamber ([Types.Chamber]).
 //
 // # A structure is its parts
 //
@@ -16,10 +16,13 @@
 // cells. A tunnel comes out square to its head's edge and runs straight through its first
 // cell, its mouth framed, the way in open. Over them stands the handle, "<name>.whole", which
 // takes its pieces with it as it goes (world.Whole).
-// A unit walks in at a mouth and through on the floor, no taller than the room, and a body in
-// the room is kept in by its walls, as collision reads them of the board; a camera riding
-// it stays under the roof; the ground over a mouth is cut away, and inside the structure is
-// drawn with its own lamps, lit by none of the sun.
+// A unit walks in at a mouth and through on the floor, no taller than the room, and a body in the
+// room is kept in by its walls, as collision reads them of the board; a camera riding it stays
+// under the roof; the ground over a mouth is cut away, and inside the structure is drawn with its
+// own lamps, lit by none of the sun, in its kind's Look: a road's tunnel, concrete and asphalt,
+// unless the kind gives colours of its own, rough rock and timber sets for a mine. Each structure
+// is a room of the interiors plugin (interiors.Room) under a light.Shelter letting none of the sun
+// in, its lamps burning by day and night, so whoever walks in it is lit as it is drawn.
 //
 // # A level's structures
 //
@@ -44,10 +47,10 @@
 //
 // # Figures
 //
-// A [Figure] is a kind of structure in one piece: Define its Spec on the plugin's Types, Look
-// the look of its mouths on the world's atlas, and, [Stateful] or [Ruled], its own effects and
-// rules. [Plugin.Figures], called in the Stage's Figures link, hands them on to the world's
-// figures; [Plugin.World] is the world they lie under.
+// A [Figure] is a kind of structure in one piece: Define its Spec, its Look among it, on the
+// plugin's Types, and, [Stateful] or [Ruled], its own effects and rules. [Plugin.Figures],
+// called in the Stage's Figures link, hands them on to the world's figures; [Plugin.World] is
+// the world they lie under.
 //
 // # Vocabulary
 //

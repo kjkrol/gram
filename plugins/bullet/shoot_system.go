@@ -45,7 +45,12 @@ type shooter struct {
 	owners tag.Tags[owner.Family]
 }
 
-func newShootSystem(w *world.Plugin, shoots *command.Queue[Shoot], selected tag.Tag[selection.Family], groundOf func() ground.Heights) *shootSystem {
+func newShootSystem(
+	w *world.Plugin,
+	shoots *command.Queue[Shoot],
+	selected tag.Tag[selection.Family],
+	groundOf func() ground.Heights,
+) *shootSystem {
 	return &shootSystem{w: w, shoots: shoots, selected: selected, groundOf: groundOf}
 }
 

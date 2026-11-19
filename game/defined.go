@@ -17,7 +17,11 @@ func New(props Props, stages ...Stage) *Defined {
 	if len(stages) == 0 {
 		panic("game: a game needs a stage")
 	}
-	g := &Defined{props: props, stages: make(map[string]Stage, len(stages)), first: stages[0].Name()}
+	g := &Defined{
+		props:  props,
+		stages: make(map[string]Stage, len(stages)),
+		first:  stages[0].Name(),
+	}
 	for _, s := range stages {
 		if _, ok := g.stages[s.Name()]; ok {
 			panic(fmt.Sprintf("game: two stages are called %q", s.Name()))

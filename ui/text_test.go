@@ -75,7 +75,12 @@ func TestPin_AButtonGivesAnAboutCommandForTheEntityItIsShownFor(t *testing.T) {
 
 func TestScene_AnAboutCommandOutsideAPinIsNotGiven(t *testing.T) {
 	var issued []command.Command
-	s := built(NewScene("main", Center(Button("lost", answer{})).Size(100, 40)).Issue(func(cmd command.Command) error { issued = append(issued, cmd); return nil }))
+	s := built(
+		NewScene(
+			"main",
+			Center(Button("lost", answer{})).Size(100, 40),
+		).Issue(func(cmd command.Command) error { issued = append(issued, cmd); return nil }),
+	)
 	s.HandleEvents(click(geom.NewVec(600, 300)), nil, nil)
 	if len(issued) != 0 {
 		t.Fatalf("issued %v, want nothing: no entity is pinned", issued)

@@ -45,7 +45,12 @@ func (sorting) Sorts() bool { return true }
 func (sorting) Wraps() bool { return false }
 
 func TestBackdrop_TheSunStandsWhereItsWayVanishesThroughAPerspective(t *testing.T) {
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
+	w := world.NewPlugin(
+		world.Config{
+			Space:    world.SpaceCfg{Width: 200, Height: 200},
+			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8},
+		},
+	)
 	wcam := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
 	sun, weather := light.Distant{}, air.Weather{}
 	b := New(w.Res.Config.Space, func() light.Distant { return sun },
@@ -53,15 +58,36 @@ func TestBackdrop_TheSunStandsWhereItsWayVanishesThroughAPerspective(t *testing.
 	cam := raying{height: 30}
 	sun = light.Distant{Dir: eyedF, Strength: 0.7}
 	p := b.plan(cam)
-	if math.Abs(float64(p.SunRadius-100*discAngle)) > 1e-3 || math.Abs(float64(p.SunAt[0]-50)) > 0.5 || math.Abs(float64(p.SunAt[1]-50)) > 0.5 || p.SunDisc[3] != 1 {
-		t.Fatalf("the sun ahead stands at %v, %v wide in %v; want the middle of the screen, discAngle of the focal length, opaque", p.SunAt, p.SunRadius, p.SunDisc)
+	if math.Abs(float64(p.SunRadius-100*discAngle)) > 1e-3 ||
+		math.Abs(float64(p.SunAt[0]-50)) > 0.5 ||
+		math.Abs(float64(p.SunAt[1]-50)) > 0.5 ||
+		p.SunDisc[3] != 1 {
+		t.Fatalf(
+			"the sun ahead stands at %v, %v wide in %v; want the middle of the screen, discAngle "+
+				"of the focal length, opaque",
+			p.SunAt,
+			p.SunRadius,
+			p.SunDisc,
+		)
 	}
-	if z := b.plan(zoomed{cam}); math.Abs(float64(z.SunRadius-2*p.SunRadius)) > 1e-3 || math.Abs(float64(z.SunAt[0]-50)) > 0.5 {
-		t.Errorf("zoomed in twice the sun is %v wide at %v, want twice %v in the middle", z.SunRadius, z.SunAt, p.SunRadius)
+	if z := b.plan(zoomed{cam}); math.Abs(float64(z.SunRadius-2*p.SunRadius)) > 1e-3 ||
+		math.Abs(float64(z.SunAt[0]-50)) > 0.5 {
+		t.Errorf(
+			"zoomed in twice the sun is %v wide at %v, want twice %v in the middle",
+			z.SunRadius,
+			z.SunAt,
+			p.SunRadius,
+		)
 	}
-	sun = light.Distant{Dir: [3]float32{0.2, -0.8855, 0.5059}, Strength: 0.7} // a fifth up and to the right of the way looked
+	sun = light.Distant{
+		Dir:      [3]float32{0.2, -0.8855, 0.5059},
+		Strength: 0.7,
+	} // a fifth up and to the right of the way looked
 	if p := b.plan(cam); p.SunRadius == 0 || p.SunAt[0] <= 50 || p.SunAt[1] >= 50 {
-		t.Errorf("the sun up to the right stands at %v, want right of and above the middle", p.SunAt)
+		t.Errorf(
+			"the sun up to the right stands at %v, want right of and above the middle",
+			p.SunAt,
+		)
 	}
 	sun = light.Distant{Dir: [3]float32{0, 0.9487, 0.3162}, Strength: 0.7} // behind the eye
 	if p := b.plan(cam); p.SunRadius != 0 {
@@ -85,31 +111,72 @@ func TestBackdrop_TheSunStandsWhereItsWayVanishesThroughAPerspective(t *testing.
 func TestBackdrop_TheSunSetsAndTheNightComesOut(t *testing.T) {
 	b := New(world.SpaceCfg{Width: 100, Height: 100}, nil, nil)
 	cam := eyed{}
-	if _, r, disc, _ := b.sunOn(cam, 100, 100, norm3([3]float32{0, -1, -0.02}), render.Light{1, 0.6, 0.3}, 0); r == 0 || disc[1] >= 1 {
-		t.Errorf("a sun just under the horizon has a disc %v wide in %v, want one, reddened", r, disc)
+	if _, r, disc, _ := b.sunOn(cam, 100, 100, norm3([3]float32{0, -1, -0.02}), render.Light{1, 0.6,
+		0.3}, 0); r == 0 ||
+		disc[1] >= 1 {
+		t.Errorf(
+			"a sun just under the horizon has a disc %v wide in %v, want one, reddened",
+			r,
+			disc,
+		)
 	}
-	if _, r, _, _ := b.sunOn(cam, 100, 100, norm3([3]float32{0, -1, -0.2}), render.Light{1, 1, 1}, 0); r != 0 {
+	if _, r, _, _ := b.sunOn(cam, 100, 100, norm3([3]float32{0, -1, -0.2}), render.Light{1, 1, 1},
+		0); r != 0 {
 		t.Errorf("a sun well under the horizon has a disc %v wide, want none", r)
 	}
 	var p skyPlan
-	night := celestial.Heavens{Sun: norm3([3]float32{0, 1, -0.4}), Moon: eyedF, Full: 1, Pole: [3]float32{0, 0, 1}}
-	b.nightOn(&p, cam, camera.RayField{Dir: eyedF, DDX: eyedR, DDY: [3]float32{-eyedU[0], -eyedU[1], -eyedU[2]}}, 100, 100, night, 0)
+	night := celestial.Heavens{
+		Sun:  norm3([3]float32{0, 1, -0.4}),
+		Moon: eyedF,
+		Full: 1,
+		Pole: [3]float32{0, 0, 1},
+	}
+	b.nightOn(
+		&p,
+		cam,
+		camera.RayField{Dir: eyedF, DDX: eyedR, DDY: [3]float32{-eyedU[0], -eyedU[1], -eyedU[2]}},
+		100,
+		100,
+		night,
+		0,
+	)
 	if p.Stars < 0.99 || p.MoonRadius == 0 || p.MoonLight[2] < 0.9 {
-		t.Errorf("at night stars %v, the moon %v wide lit from %v; want the stars out and the full moon lit towards the eye", p.Stars, p.MoonRadius, p.MoonLight)
+		t.Errorf(
+			"at night stars %v, the moon %v wide lit from %v; want the stars out and the full "+
+				"moon lit towards the eye",
+			p.Stars,
+			p.MoonRadius,
+			p.MoonLight,
+		)
 	}
 }
 
 func TestBackdrop_ShowsTheStarsAndTheMoonOnlyAsShownSays(t *testing.T) {
 	cam := eyed{}
-	field := camera.RayField{Dir: eyedF, DDX: eyedR, DDY: [3]float32{-eyedU[0], -eyedU[1], -eyedU[2]}}
-	night := celestial.Heavens{Sun: norm3([3]float32{0, 1, -0.4}), Moon: eyedF, Full: 1, Pole: [3]float32{0, 0, 1}}
+	field := camera.RayField{
+		Dir: eyedF,
+		DDX: eyedR,
+		DDY: [3]float32{-eyedU[0], -eyedU[1], -eyedU[2]},
+	}
+	night := celestial.Heavens{
+		Sun:  norm3([3]float32{0, 1, -0.4}),
+		Moon: eyedF,
+		Full: 1,
+		Pole: [3]float32{0, 0, 1},
+	}
 	for _, c := range []struct{ stars, moon bool }{{true, false}, {false, true}, {false, false}} {
 		b := New(world.SpaceCfg{Width: 100, Height: 100}, nil, nil).
 			WithShown(func() (bool, bool) { return c.stars, c.moon })
 		var p skyPlan
 		b.nightOn(&p, cam, field, 100, 100, night, 0)
 		if (p.Stars > 0) != c.stars || (p.MoonRadius > 0) != c.moon {
-			t.Errorf("shown stars %v, moon %v: stars %v, the moon %v wide", c.stars, c.moon, p.Stars, p.MoonRadius)
+			t.Errorf(
+				"shown stars %v, moon %v: stars %v, the moon %v wide",
+				c.stars,
+				c.moon,
+				p.Stars,
+				p.MoonRadius,
+			)
 		}
 	}
 }

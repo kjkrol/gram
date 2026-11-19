@@ -66,13 +66,22 @@ func (l Look) GiveWay(on bool) {
 	}
 }
 
-// Uncovers reports whether what was laid holds something uncovered and something giving way.
+// Uncovers reports whether what was laid holds something uncovered.
 func (l Look) Uncovers() bool {
 	if l.gpu.on {
-		return len(l.gpu.discs) > 0 && l.gpu.anyGives
+		return len(l.gpu.discs) > 0
 	}
 	u, ok := l.flat.(world.UncoveringLook)
 	return ok && u.Uncovers()
+}
+
+// GivesWay reports whether what was laid holds something giving way.
+func (l Look) GivesWay() bool {
+	if l.gpu.on {
+		return l.gpu.anyGives
+	}
+	u, ok := l.flat.(world.UncoveringLook)
+	return ok && u.GivesWay()
 }
 
 // Cutout has the billboards and the flat sprites laid next drawn in the cutout pass, or not.
@@ -110,7 +119,11 @@ func (l Look) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world
 		cx, cy := box.TopLeft.X+sizeX/2, box.TopLeft.Y+sizeY/2
 		lx, ly := l.gpu.weather.Sway(f.Time(), cx, cy, a.Sway)
 		rise := max(sizeX, sizeY)
-		box = plane.NewAABB(geom.NewVec(box.TopLeft.X+(lx*rise), box.TopLeft.Y+(ly*rise)), box.Size.X, box.Size.Y)
+		box = plane.NewAABB(
+			geom.NewVec(box.TopLeft.X+(lx*rise), box.TopLeft.Y+(ly*rise)),
+			box.Size.X,
+			box.Size.Y,
+		)
 	}
 	a.Sway = 0 // leant here already
 	l.flat.Sprite(f, cam, box, z, atlas, a, lit)
@@ -205,7 +218,12 @@ func (l Look) Drawn(cam camera.Camera, box geom.AABB, z world.Z) render.Corners 
 	return l.flat.Drawn(cam, box, z)
 }
 
-func (l Look) Footprint(cam camera.Camera, box geom.AABB, alt float32, dst []render.Corners) []render.Corners {
+func (l Look) Footprint(
+	cam camera.Camera,
+	box geom.AABB,
+	alt float32,
+	dst []render.Corners,
+) []render.Corners {
 	if inRelief(cam) {
 		return footprint(cam, box, alt, dst)
 	}

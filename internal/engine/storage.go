@@ -31,7 +31,15 @@ func verifyPersisted(name string, v plugin.Serializable) {
 	enc := gob.NewEncoder(&buf)
 	for _, target := range v.Persisted() {
 		if err := enc.Encode(target); err != nil {
-			panic(fmt.Sprintf("gram: %q (%T).Persisted() returned an unencodable value %T: %v", name, v, target, err))
+			panic(
+				fmt.Sprintf(
+					"gram: %q (%T).Persisted() returned an unencodable value %T: %v",
+					name,
+					v,
+					target,
+					err,
+				),
+			)
 		}
 	}
 }

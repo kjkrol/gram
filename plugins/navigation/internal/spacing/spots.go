@@ -206,7 +206,10 @@ func (k *BodyKeeping) deepFirst(units []bodies.Member, order []int, out []placed
 			spots[i] = out[ui]
 		}
 		row := 2 * max(key.size.X, key.size.Y) / 2 * (1 + SpacingGap) / 2 // half a spacing
-		slices.SortStableFunc(spots, func(a, b placed) int { return cmp.Compare(along(b.spot, way), along(a.spot, way)) })
+		slices.SortStableFunc(
+			spots,
+			func(a, b placed) int { return cmp.Compare(along(b.spot, way), along(a.spot, way)) },
+		)
 		slices.SortStableFunc(members, func(a, b int) int {
 			return cmp.Compare(along(units[b].Centre(), way), along(units[a].Centre(), way))
 		})
@@ -216,9 +219,18 @@ func (k *BodyKeeping) deepFirst(units []bodies.Member, order []int, out []placed
 				to++
 			}
 			rowSpots, rowUnits := spots[from:to], slices.Clone(members[from:to])
-			slices.SortStableFunc(rowSpots, func(a, b placed) int { return cmp.Compare(along(a.spot, across), along(b.spot, across)) })
+			slices.SortStableFunc(
+				rowSpots,
+				func(a, b placed) int {
+					return cmp.Compare(along(a.spot, across), along(b.spot,
+						across))
+				},
+			)
 			slices.SortStableFunc(rowUnits, func(a, b int) int {
-				return cmp.Compare(along(units[a].Centre(), across), along(units[b].Centre(), across))
+				return cmp.Compare(
+					along(units[a].Centre(), across),
+					along(units[b].Centre(), across),
+				)
 			})
 			for i, ui := range rowUnits {
 				out[ui] = rowSpots[i]

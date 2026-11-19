@@ -13,7 +13,9 @@ struct Stretch {
 }
 
 @vertex
-fn vs_main(@builtin(vertex_index) vid: u32, @location(0) ends: vec4<f32>, @location(1) rect: vec4<f32>, @location(2) color: vec4<f32>, @location(3) line: vec4<f32>) -> Stretch {
+fn vs_main(@builtin(vertex_index) vid: u32, @location(0) ends: vec4<f32>,
+    @location(1) rect: vec4<f32>, @location(2) color: vec4<f32>,
+    @location(3) line: vec4<f32>) -> Stretch {
     var across = array<f32, 6>(0.0, 1.0, 0.0, 1.0, 1.0, 0.0);
     var down = array<f32, 6>(0.0, 0.0, 1.0, 0.0, 1.0, 1.0);
     let px = mix(rect.xy, rect.zw, vec2<f32>(across[vid], down[vid]));
@@ -34,7 +36,8 @@ struct Laid {
 fn fs_main(s: Stretch) -> Laid {
     let depth = depthAt(s.clip.xy);
     let px = s.clip.xy - U.ViewAt;
-    let w = U.Unproject * vec4<f32>(px.x / U.ViewSize.x * 2.0 - 1.0, 1.0 - px.y / U.ViewSize.y * 2.0, depth, 1.0);
+    let w = U.Unproject * vec4<f32>(px.x / U.ViewSize.x * 2.0 - 1.0,
+        1.0 - px.y / U.ViewSize.y * 2.0, depth, 1.0);
     let p = w.xy / w.w;
     let ab = s.ends.zw - s.ends.xy;
     let t = clamp(dot(p - s.ends.xy, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);

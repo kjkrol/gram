@@ -133,7 +133,11 @@ func TestCollisionSystem_ImmovableSpawnedFirst_StillStopsWhatRunsIntoIt(t *testi
 	detectTick(t, wall, ball)
 
 	if wall.id.Index() >= ball.id.Index() {
-		t.Fatalf("fixture broken: wall index %d, ball index %d — the wall has to come first", wall.id.Index(), ball.id.Index())
+		t.Fatalf(
+			"fixture broken: wall index %d, ball index %d — the wall has to come first",
+			wall.id.Index(),
+			ball.id.Index(),
+		)
 	}
 	if wall.left() != 105 {
 		t.Errorf("the wall moved to %v, want it left at 105", wall.left())
@@ -158,18 +162,30 @@ func TestCollisionSystem_SideWithoutPhysics_IsDetectedButNeverPushed(t *testing.
 			detectTick(t, order...)
 
 			if walker.left() != 100 || town.left() != 105 {
-				t.Errorf("walker at %v, town at %v — want neither pushed", walker.left(), town.left())
+				t.Errorf(
+					"walker at %v, town at %v — want neither pushed",
+					walker.left(),
+					town.left(),
+				)
 			}
 			if f32.Abs(walker.speedX()-4) > epsilon {
 				t.Errorf("the walker moves at %v, want its 4 untouched", walker.speedX())
 			}
 			for who, th := range map[string]*thing{"walker": walker, "town": town} {
 				if len(th.contacts) != 1 || th.contacts[0].Impact != 0 {
-					t.Errorf("%s contacts = %+v, want exactly one, at zero impact", who, th.contacts)
+					t.Errorf(
+						"%s contacts = %+v, want exactly one, at zero impact",
+						who,
+						th.contacts,
+					)
 				}
 			}
 			if len(walker.contacts) == 1 && walker.contacts[0].Other != town.id {
-				t.Errorf("the walker struck %v, want the town %v", walker.contacts[0].Other, town.id)
+				t.Errorf(
+					"the walker struck %v, want the town %v",
+					walker.contacts[0].Other,
+					town.id,
+				)
 			}
 		})
 	}
@@ -214,7 +230,14 @@ func TestCollisionSystem_SqueezedEntity_BouncesOffBothNeighboursInTurn(t *testin
 	}{{left.id, 5}, {right.id, 10}} {
 		if got := middle.contacts[i]; got.Other != want.other ||
 			f32.Abs(got.Impact-want.impact) > epsilon {
-			t.Errorf("contact %d = (%v, impact %v), want (%v, %v)", i, got.Other, got.Impact, want.other, want.impact)
+			t.Errorf(
+				"contact %d = (%v, impact %v), want (%v, %v)",
+				i,
+				got.Other,
+				got.Impact,
+				want.other,
+				want.impact,
+			)
 		}
 	}
 }
@@ -242,14 +265,23 @@ func TestCollisionSystem_HeavyAgainstLight_ConservesMomentumAndEnergy(t *testing
 	detectTick(t, heavy, light)
 
 	h, l := heavy.speedX(), light.speedX()
-	if got, want := heavyMass*h+lightMass*l, float32(heavyMass*2+lightMass*-2); f32.Abs(got-want) > epsilon {
+	if got, want := heavyMass*h+lightMass*l, float32(heavyMass*2+lightMass*-2); f32.Abs(
+		got-want,
+	) > epsilon {
 		t.Errorf("momentum = %v, want %v", got, want)
 	}
-	if got, want := heavyMass*h*h+lightMass*l*l, float32(heavyMass*4+lightMass*4); f32.Abs(got-want) > epsilon {
+	if got, want := heavyMass*h*h+lightMass*l*l, float32(heavyMass*4+lightMass*4); f32.Abs(
+		got-want,
+	) > epsilon {
 		t.Errorf("kinetic energy (x2) = %v, want %v", got, want)
 	}
 	if h <= 0 || l <= 0 {
-		t.Errorf("heavy moves at %v, light at %v — want the heavy one carrying on and the light one thrown back", h, l)
+		t.Errorf(
+			"heavy moves at %v, light at %v — want the heavy one carrying on and the light one "+
+				"thrown back",
+			h,
+			l,
+		)
 	}
 }
 
@@ -265,13 +297,27 @@ func TestCollisionSystem_Restitution_DampsTheBounce(t *testing.T) {
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			a := &thing{x: 107, delta: geom.NewVec(-3, 0), physics: &collision.Physics{Restitution: c.restitutionA}}
-			b := &thing{x: 100, delta: geom.NewVec(4, 0), physics: &collision.Physics{Restitution: c.restitutionB}}
+			a := &thing{
+				x:       107,
+				delta:   geom.NewVec(-3, 0),
+				physics: &collision.Physics{Restitution: c.restitutionA},
+			}
+			b := &thing{
+				x:       100,
+				delta:   geom.NewVec(4, 0),
+				physics: &collision.Physics{Restitution: c.restitutionB},
+			}
 
 			detectTick(t, a, b)
 
 			if f32.Abs(a.speedX()-c.wantA) > epsilon || f32.Abs(b.speedX()-c.wantB) > epsilon {
-				t.Errorf("speeds = (%v, %v), want (%v, %v)", a.speedX(), b.speedX(), c.wantA, c.wantB)
+				t.Errorf(
+					"speeds = (%v, %v), want (%v, %v)",
+					a.speedX(),
+					b.speedX(),
+					c.wantA,
+					c.wantB,
+				)
 			}
 		})
 	}
@@ -325,8 +371,16 @@ func TestCollisionSystem_SeparationIsSharedByWeight(t *testing.T) {
 }
 
 func TestCollisionSystem_Material_IsReadPerSide(t *testing.T) {
-	a := &thing{x: 100, delta: geom.NewVec(5, 0), physics: &collision.Physics{Mass: 4, Restitution: 0.5}}
-	b := &thing{x: 105, delta: geom.NewVec(-5, 0), physics: &collision.Physics{Mass: 1, Restitution: 1}}
+	a := &thing{
+		x:       100,
+		delta:   geom.NewVec(5, 0),
+		physics: &collision.Physics{Mass: 4, Restitution: 0.5},
+	}
+	b := &thing{
+		x:       105,
+		delta:   geom.NewVec(-5, 0),
+		physics: &collision.Physics{Mass: 1, Restitution: 1},
+	}
 
 	detectTick(t, a, b)
 
@@ -346,17 +400,31 @@ func TestCollisionSystem_Contacts_PublishedToBothSides(t *testing.T) {
 		leaves      float32
 	}{{a, b, -1}, {b, a, 1}} {
 		if len(side.self.contacts) != 1 {
-			t.Fatalf("entity %v recorded %d contacts, want 1", side.self.id, len(side.self.contacts))
+			t.Fatalf(
+				"entity %v recorded %d contacts, want 1",
+				side.self.id,
+				len(side.self.contacts),
+			)
 		}
 		got := side.self.contacts[0]
 		if got.Other != side.other.id {
-			t.Errorf("entity %v recorded a contact with %v, want %v", side.self.id, got.Other, side.other.id)
+			t.Errorf(
+				"entity %v recorded a contact with %v, want %v",
+				side.self.id,
+				got.Other,
+				side.other.id,
+			)
 		}
 		if f32.Abs(got.Impact-10) > epsilon {
 			t.Errorf("entity %v recorded impact %v, want 10", side.self.id, got.Impact)
 		}
 		if got.Normal.X != side.leaves || got.Normal.Y != 0 {
-			t.Errorf("entity %v was told to leave along %v, want (%v, 0) — away from the other", side.self.id, got.Normal, side.leaves)
+			t.Errorf(
+				"entity %v was told to leave along %v, want (%v, 0) — away from the other",
+				side.self.id,
+				got.Normal,
+				side.leaves,
+			)
 		}
 	}
 }
@@ -415,7 +483,13 @@ func TestCollisionSystem_Contacts_RestOnceParted_AndGoOnceApart(t *testing.T) {
 	}
 }
 
-func seedPhysical(t *testing.T, si *goke.SysInit, space *aabbworld.Space, pos world.Position, delta geom.Vec) uid.UID64 {
+func seedPhysical(
+	t *testing.T,
+	si *goke.SysInit,
+	space *aabbworld.Space,
+	pos world.Position,
+	delta geom.Vec,
+) uid.UID64 {
 	t.Helper()
 	var baseComp goke.Comp[world.Base]
 	var collComp goke.Comp[collision.Collider]

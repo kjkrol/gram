@@ -51,9 +51,12 @@ const (
 	bodySlices  = 256
 )
 
-// givesWay marks what gives way in the float its Taking rides in, past a Taking's bits (the
-// library's givesWay)
-const givesWay = 256
+// givesWay marks what gives way in the float its Taking rides in, past a Taking's bits, and
+// shelterBit counts the shelter it is under past it (the library's givesWay, shelterOf)
+const (
+	givesWay   = 256
+	shelterBit = 512
+)
 
 type sprites struct {
 	sky    Sky
@@ -131,13 +134,15 @@ func (s *sprites) begin(cam camera.Camera) {
 	}
 }
 
-// taking is the shade taken as an instance carries it, with whether it gives way
-func (s *sprites) taking(t render.Taking) float32 {
+// taking is the shade taken as an instance carries it, with whether it gives way and the shelter
+// it is under
+func (s *sprites) taking(lit render.Illumination) float32 {
+	t := float32(lit.Takes) + float32(lit.Shelter)*shelterBit
 	if s.gives {
 		s.anyGives = true
-		return float32(t) + givesWay
+		return t + givesWay
 	}
-	return float32(t)
+	return t
 }
 
 // bare has what stands over box from alt up high uncovered, where what is added next is: a
@@ -162,7 +167,7 @@ func (s *sprites) add(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 	l := lit.Light
 	b := batchOf(&s.batches, atlas, s.cutout)
 	b.inst = append(b.inst, cx, cy, alt, h, x1-x0, sway, 0, haze, u0, v0, u1, v1,
-		l[0], l[1], l[2], 0, s.groundAt(cx, cy), s.taking(lit.Takes), 0, 0)
+		l[0], l[1], l[2], 0, s.groundAt(cx, cy), s.taking(lit), 0, 0)
 	s.bare(box, alt, h)
 }
 
@@ -190,7 +195,7 @@ func (s *sprites) card(box plane.AABB, z world.Z, atlas render.AtlasSource, b *w
 	bt := batchOf(&s.batches, atlas, s.cutout)
 	bt.inst = append(bt.inst, cx, cy, z.Altitude, b.Tall, b.Wide, sway, lying,
 		s.hazeAt(cx, cy, z.Altitude), u0, v0, u1, v1, l[0], l[1], l[2], b.TopAt,
-		s.groundAt(cx, cy), s.taking(lit.Takes), wu+1, wv+1)
+		s.groundAt(cx, cy), s.taking(lit), wu+1, wv+1)
 	s.bare(box, z.Altitude, b.Tall)
 }
 
@@ -203,7 +208,7 @@ func (s *sprites) body(box plane.AABB, z world.Z, b *world.Bodied, turn float32,
 	s.table = b.Table
 	s.bodies = append(s.bodies, cx, cy, z.Altitude, b.Tall, b.Wide, float32(b.Row), turn,
 		float32(b.Parts), l[0], l[1], l[2], s.hazeAt(cx, cy, z.Altitude), s.up,
-		s.groundAt(cx, cy), s.taking(lit.Takes), sway)
+		s.groundAt(cx, cy), s.taking(lit), sway)
 	s.bare(box, z.Altitude, b.Tall)
 }
 
@@ -261,7 +266,7 @@ func (s *sprites) lay(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 	u0, v0, u1, v1 := atlas.UV(id)
 	l := lit.Light
 	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.hazeAt(cx, cy, alt),
-		s.up, lyingSoft*min(hw, hh), s.taking(lit.Takes), 0)
+		s.up, lyingSoft*min(hw, hh), s.taking(lit), 0)
 	s.bare(box, alt, 0)
 }
 
@@ -286,7 +291,7 @@ func (s *sprites) level(cam camera.Camera, c [4]geom.Vec, alt float32, atlas ren
 	short := min(f32.Hypot(c[1].X-c[0].X, c[1].Y-c[0].Y),
 		f32.Hypot(c[2].X-c[0].X, c[2].Y-c[0].Y))
 	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.hazeAt(mx, my, alt),
-		s.up, lyingSoft*short/2, s.taking(lit.Takes), 0)
+		s.up, lyingSoft*short/2, s.taking(lit), 0)
 }
 
 // seen from the right of a to b, the way out of what it edges
@@ -306,7 +311,7 @@ func (s *sprites) upright(cam camera.Camera, a, b geom.Vec, alt, high float32,
 	u0, v0, u1, v1 := atlas.UV(id)
 	haze := s.hazeAt((ax+bx)/2, (ay+by)/2, alt)
 	bt.inst = append(bt.inst, u0, v0, u1, v1, sun[0], sun[1], sun[2], haze,
-		directShare(s.beam, -dy/n, dx/n, 0), uprightSoft*high, s.taking(lit.Takes), 0)
+		directShare(s.beam, -dy/n, dx/n, 0), uprightSoft*high, s.taking(lit), 0)
 }
 
 func batchOf(batches *[]spriteBatch, atlas render.AtlasSource, cutout bool) *spriteBatch {

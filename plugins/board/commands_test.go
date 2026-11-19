@@ -38,38 +38,52 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 	for _, c := range standing {
 		units = append(units, boardtest.Mover{Here: c})
 	}
-	m.World = boardtest.NewWorldWith(t, g, 6*boardtest.CellSize, 6*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []act.Rule {
-		brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land})
-		w.Write().Effects().Define("open", effect.Spec{effect.Lasts(3 * time.Second / 60)})
-		m.open = w.Write().Effects().Named("open")
-		w.Roles().Define("plate", act.Branch[collision.Meeting]{
-			Name: "press",
-			When: cond.Self.If(cond.Always),
-			Then: act.Self.Do(ceremony.Trigger{}),
-		})
-		plate := w.Roles().Named("plate")
-		plates := board.NewEntities(brd, board.Shape{Size: boardtest.UnitSize}, itself)
-		plates.Define("plate", comp.Const(collision.Collider{}), ceremony.Plays(plate))
-		w.Write().Seed(plates.Named("plate").Entry(m.plate).Named("plate"))
-		cells := []cell.Entry{{Cell: m.lever, Name: "lever"}, {Cell: m.post, Name: "post"}}
-		for _, c := range m.west {
-			cells = append(cells, cell.Entry{Cell: c, Group: "west doors"})
-		}
-		for _, c := range m.east {
-			cells = append(cells, cell.Entry{Cell: c, Group: "east doors"})
-		}
-		brd.Write().Seed(board.Layout{Cells: cells})
-		if err := brd.Populate(); err != nil {
-			t.Fatal(err)
-		}
-		m.openWest = ceremony.Put(m.open).On(ceremony.Group("west doors")).By(ceremony.Named("lever"))
-		m.openEast = ceremony.Put(m.open).On(ceremony.Group("east doors")).By(ceremony.Named("plate"))
-		m.flip = ceremony.Toggle(m.open).On(ceremony.Named("lever", "post")).For(time.Hour)
-		for name, cmd := range map[string]ceremony.Command{"open west": m.openWest, "open east": m.openEast, "flip": m.flip} {
-			w.Commands().Define(name, cmd)
-		}
-		return plate.Rules()
-	}, units)
+	m.World = boardtest.NewWorldWith(
+		t,
+		g,
+		6*boardtest.CellSize,
+		6*boardtest.CellSize,
+		func(w *world.Plugin, brd *board.Plugin) []act.Rule {
+			brd.Write().
+				Board().
+				SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1, Allows: cell.Land})
+			w.Write().Effects().Define("open", effect.Spec{effect.Lasts(3 * time.Second / 60)})
+			m.open = w.Write().Effects().Named("open")
+			w.Roles().Define("plate", act.Branch[collision.Meeting]{
+				Name: "press",
+				When: cond.Self.If(cond.Always),
+				Then: act.Self.Do(ceremony.Trigger{}),
+			})
+			plate := w.Roles().Named("plate")
+			plates := board.NewEntities(brd, board.Shape{Size: boardtest.UnitSize}, itself)
+			plates.Define("plate", comp.Const(collision.Collider{}), ceremony.Plays(plate))
+			w.Write().Seed(plates.Named("plate").Entry(m.plate).Named("plate"))
+			cells := []cell.Entry{{Cell: m.lever, Name: "lever"}, {Cell: m.post, Name: "post"}}
+			for _, c := range m.west {
+				cells = append(cells, cell.Entry{Cell: c, Group: "west doors"})
+			}
+			for _, c := range m.east {
+				cells = append(cells, cell.Entry{Cell: c, Group: "east doors"})
+			}
+			brd.Write().Seed(board.Layout{Cells: cells})
+			if err := brd.Populate(); err != nil {
+				t.Fatal(err)
+			}
+			m.openWest = ceremony.Put(m.open).
+				On(ceremony.Group("west doors")).
+				By(ceremony.Named("lever"))
+			m.openEast = ceremony.Put(m.open).
+				On(ceremony.Group("east doors")).
+				By(ceremony.Named("plate"))
+			m.flip = ceremony.Toggle(m.open).On(ceremony.Named("lever", "post")).For(time.Hour)
+			for name, cmd := range map[string]ceremony.Command{"open west": m.openWest,
+				"open east": m.openEast, "flip": m.flip} {
+				w.Commands().Define(name, cmd)
+			}
+			return plate.Rules()
+		},
+		units,
+	)
 	return m
 }
 
@@ -187,17 +201,24 @@ func TestCommands_RefuseANameNobodyBearsAndOneTwoBear(t *testing.T) {
 			for i := range tc.cells {
 				tc.cells[i].Cell = g.At(uint32(i), 0)
 			}
-			bw := boardtest.NewWorldWith(t, g, 3*boardtest.CellSize, 3*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []act.Rule {
-				brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1,
-					Allows: cell.Land})
-				brd.Write().Seed(board.Layout{Cells: tc.cells})
-				if err := brd.Populate(); err != nil {
-					t.Fatal(err)
-				}
-				w.Write().Effects().Define("open", effect.Spec{})
-				w.Commands().Define("open", tc.cmd(w.Write().Effects().Named("open")))
-				return nil
-			}, nil)
+			bw := boardtest.NewWorldWith(
+				t,
+				g,
+				3*boardtest.CellSize,
+				3*boardtest.CellSize,
+				func(w *world.Plugin, brd *board.Plugin) []act.Rule {
+					brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Pace: 1,
+						Allows: cell.Land})
+					brd.Write().Seed(board.Layout{Cells: tc.cells})
+					if err := brd.Populate(); err != nil {
+						t.Fatal(err)
+					}
+					w.Write().Effects().Define("open", effect.Spec{})
+					w.Commands().Define("open", tc.cmd(w.Write().Effects().Named("open")))
+					return nil
+				},
+				nil,
+			)
 			defer func() {
 				msg, _ := recover().(string)
 				if !strings.Contains(msg, tc.want) {

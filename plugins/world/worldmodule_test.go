@@ -29,7 +29,11 @@ func TestWorld_Populate_EndToEnd(t *testing.T) {
 		for _, b := range base.Slice(q.Cursor()) {
 			count++
 			if b.Pos.TopLeft != spawnerTestPos().TopLeft {
-				t.Errorf("spawned entity position = %+v, want %+v", b.Pos.TopLeft, spawnerTestPos().TopLeft)
+				t.Errorf(
+					"spawned entity position = %+v, want %+v",
+					b.Pos.TopLeft,
+					spawnerTestPos().TopLeft,
+				)
 			}
 		}
 	}

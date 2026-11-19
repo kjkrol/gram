@@ -522,13 +522,21 @@ func (c *perspCamera) cast(sx, sy, z float32) (float32, float32, bool) {
 
 func (c *perspCamera) Depth(x, y, z float32) float32 { return c.proj.Depth(x, y, z) }
 
-func (c *perspCamera) ToScreen(x, y float32) (float32, float32)     { return c.Project(x, y, 0) }
-func (c *perspCamera) FromScreen(sx, sy float32) (float32, float32) { return c.Unproject(sx, sy, 0) }
+func (c *perspCamera) ToScreen(x, y float32) (float32, float32) { return c.Project(x, y, 0) }
+
+func (c *perspCamera) FromScreen(
+	sx, sy float32,
+) (float32, float32) {
+	return c.Unproject(sx, sy, 0)
+}
 
 // A bound: renderers project corners instead.
 func (c *perspCamera) ToScreenQuads(x0, y0, x1, y1 float32, dst []contract.Quad) []contract.Quad {
 	minX, minY, maxX, maxY := c.rect(x0, y0, x1, y1, 0, 0)
-	return append(dst, contract.Quad{X0: minX, Y0: minY, X1: maxX, Y1: maxY, T0X: 0, T1X: 1, T0Y: 0, T1Y: 1})
+	return append(
+		dst,
+		contract.Quad{X0: minX, Y0: minY, X1: maxX, Y1: maxY, T0X: 0, T1X: 1, T0Y: 0, T1Y: 1},
+	)
 }
 
 func (c *perspCamera) rect(x0, y0, x1, y1, z0, z1 float32) (minX, minY, maxX, maxY float32) {

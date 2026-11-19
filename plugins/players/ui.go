@@ -37,7 +37,12 @@ func (t *through) Over(area geom.AABB, shown render.Surface) {
 	}
 	pl := t.pl
 	if pl.wiredBy != nil && pl.wiredBy != t && pl.wiredIn == t.p.pass {
-		panic(fmt.Sprintf("players: %s acts through two pictures at once: a scene gives a player one view", pl.Name))
+		panic(
+			fmt.Sprintf(
+				"players: %s acts through two pictures at once: a scene gives a player one view",
+				pl.Name,
+			),
+		)
 	}
 	pl.wiredBy, pl.wiredIn = t, t.p.pass
 	pl.pic = picture{area: area, camera: t.cam}

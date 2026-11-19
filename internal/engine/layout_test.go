@@ -44,27 +44,39 @@ func (s *viewedStage) Stack() game.Scenes {
 
 func TestLayout_AResizableScreenIsTheWindowAndTheCameraFollowsIt(t *testing.T) {
 	stage := &viewedStage{}
-	eng := engine.NewEngine(oneStageGame{stage: stage, props: game.Props{ScreenWidth: 400, ScreenHeight: 300, Resizable: true}})
+	eng := engine.NewEngine(
+		oneStageGame{
+			stage: stage,
+			props: game.Props{ScreenWidth: 400, ScreenHeight: 300, Resizable: true},
+		},
+	)
 	if err := eng.Init(); err != nil {
 		t.Fatal(err)
 	}
 	if w, h := eng.Layout(1200, 900); w != 1200 || h != 900 {
 		t.Errorf("Layout(1200, 900) = %d x %d, want the window", w, h)
 	}
-	stage.scene.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(1200, 900))) // as a frame on that screen does
+	stage.scene.Lay(
+		geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(1200, 900)),
+	) // as a frame on that screen does
 	cam := stage.cam
 	if w, h := cam.Viewport(); w != 1200 || h != 900 {
 		t.Errorf("the camera draws to %v x %v, want the window's 1200 x 900", w, h)
 	}
 	// the world is 1000 wide: at 1200 pixels it is scaled up to cover the window
 	if z := cam.Zoom(); z < 1.2 {
-		t.Errorf("zoom %v, want at least 1.2 so the 1000-unit world covers the 1200-pixel window", z)
+		t.Errorf(
+			"zoom %v, want at least 1.2 so the 1000-unit world covers the 1200-pixel window",
+			z,
+		)
 	}
 }
 
 func TestLayout_AFixedScreenStaysWhateverTheWindow(t *testing.T) {
 	stage := &viewedStage{}
-	eng := engine.NewEngine(oneStageGame{stage: stage, props: game.Props{ScreenWidth: 400, ScreenHeight: 300}})
+	eng := engine.NewEngine(
+		oneStageGame{stage: stage, props: game.Props{ScreenWidth: 400, ScreenHeight: 300}},
+	)
 	if err := eng.Init(); err != nil {
 		t.Fatal(err)
 	}

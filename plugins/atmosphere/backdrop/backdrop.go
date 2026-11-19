@@ -288,7 +288,11 @@ func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		t.Screen.DrawMesh(b.tri, b.shader, &b.opts)
 		return
 	}
-	nx, ny := int(math.Ceil(float64(p.View[0]/skyPiece))), int(math.Ceil(float64(p.View[1]/skyPiece)))
+	nx, ny := int(
+		math.Ceil(float64(p.View[0]/skyPiece)),
+	), int(
+		math.Ceil(float64(p.View[1]/skyPiece)),
+	)
 	b.set("SkyPieces", float32(nx))
 	b.opts.Vertices = 6 * nx * ny
 	t.Screen.DrawMesh(nil, b.shader, &b.opts)

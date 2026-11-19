@@ -19,6 +19,7 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
+	"github.com/kjkrol/gram/plugins/interiors"
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/players"
@@ -62,6 +63,7 @@ type arena struct {
 	board      *board.Plugin
 	topography *topography.Plugin
 	buildings  *buildings.Plugin
+	interiors  *interiors.Plugin
 	selection  *selection.Plugin
 	driving    *driving.Plugin
 	cameras    *cameras.Plugin
@@ -78,10 +80,12 @@ func main() {
 			"flat one with a room on it, a chapel with its tower, each as long, as wide and as " +
 			"high as its line of the map says, turned as it says, and one stood by the game's " +
 			"own code. The hero walks on WSAD, the camera over it (= and - or the wheel " +
-			"zoom, the cursor in a corner turns). Near, the buildings stand whole, their " +
-			"windows lit as the " +
-			"sun goes down and their shadows swinging round; zoomed out to the whole village " +
-			"they are bodies alone, and no longer entities.",
+			"zoom, the cursor in a corner turns), and in by a house's door onto its level " +
+			"floor, dug into the slope uphill: the house gives way over the room it stands " +
+			"in, the sun falls in by the windows and the door, and the room's lamp burns " +
+			"from dusk. Near, the buildings stand whole, their windows lit as the sun goes " +
+			"down and their shadows swinging round; zoomed out to the whole village they are " +
+			"bodies alone, and no longer entities.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -124,7 +128,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		WithMotion(a.motion, cell.DefaultHiking).
 		WithCollision(a.collision)
 	a.topography = topography.NewPlugin(a.world, a.board, a.light, topography.Config{})
-	a.buildings = buildings.NewPlugin(a.world, a.board)
+	a.interiors = interiors.NewPlugin(a.world, a.board)
+	a.buildings = buildings.NewPlugin(a.world, a.board).WithRooms(a.interiors)
 	a.selection = selection.NewPlugin(a.world)
 	a.driving = driving.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board)
 	a.cameras = cameras.NewPlugin(a.world, cameras.Config{
@@ -208,6 +213,7 @@ func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.motion.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)
 	a.board.RunPlan(ctx, d)
+	a.interiors.RunPlan(ctx, d)
 	a.topography.RunPlan(ctx, d)
 	a.driving.RunPlan(ctx, d)
 	a.selection.RunPlan(ctx, d)

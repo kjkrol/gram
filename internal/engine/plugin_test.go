@@ -140,7 +140,10 @@ func TestEngine_Init_EvaluatesSetupSystemsLazily(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 	if duringInit != 0 {
-		t.Fatalf("SetupSystems called %d times during Stage.Init, want 0 (must stay lazy)", duringInit)
+		t.Fatalf(
+			"SetupSystems called %d times during Stage.Init, want 0 (must stay lazy)",
+			duringInit,
+		)
 	}
 	if stub.callCount != 1 {
 		t.Errorf("SetupSystems called %d times after engine.Init(), want 1", stub.callCount)
@@ -156,7 +159,11 @@ func TestInitializer_Use_RegistersSerializableByName(t *testing.T) {
 	}
 	targets, ok := eng.current.host.resources.persisted()["test.resource"]
 	if !ok || len(targets) != 1 || *(targets[0].(*int)) != 7 {
-		t.Errorf("expected stubPlugin's Serializable() registered under its Name(), got %+v, ok=%v", targets, ok)
+		t.Errorf(
+			"expected stubPlugin's Serializable() registered under its Name(), got %+v, ok=%v",
+			targets,
+			ok,
+		)
 	}
 }
 
@@ -191,7 +198,11 @@ func TestInitializer_UseWorld_ReturnsInstalledInstance(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 	if got == nil || eng.current.world != got {
-		t.Fatalf("UseWorld() = %v, want the world.Plugin the engine installed for the Stage (%v)", got, eng.current.world)
+		t.Fatalf(
+			"UseWorld() = %v, want the world.Plugin the engine installed for the Stage (%v)",
+			got,
+			eng.current.world,
+		)
 	}
 }
 
@@ -219,7 +230,10 @@ func TestEngine_Init_StageWithoutUseWorldGetsNoWorld(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 	if eng.current.world != nil {
-		t.Errorf("Stage world = %v, want nil when the Stage never calls UseWorld", eng.current.world)
+		t.Errorf(
+			"Stage world = %v, want nil when the Stage never calls UseWorld",
+			eng.current.world,
+		)
 	}
 }
 

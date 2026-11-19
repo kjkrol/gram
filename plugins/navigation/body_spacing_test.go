@@ -59,12 +59,25 @@ type fieldWorld struct {
 
 const fieldCell = 32
 
-func newFieldWorld(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b testBoard, at func(x, y uint32) cell.ID), units []fieldUnit) *fieldWorld {
+func newFieldWorld(
+	t *testing.T,
+	cols, rows uint32,
+	spacing Spacing,
+	lay func(b testBoard, at func(x, y uint32) cell.ID),
+	units []fieldUnit,
+) *fieldWorld {
 	t.Helper()
 	return newFieldWorldWith(t, cols, rows, spacing, lay, units, nil)
 }
 
-func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b testBoard, at func(x, y uint32) cell.ID), units []fieldUnit, configure func(*Plugin)) *fieldWorld {
+func newFieldWorldWith(
+	t *testing.T,
+	cols, rows uint32,
+	spacing Spacing,
+	lay func(b testBoard, at func(x, y uint32) cell.ID),
+	units []fieldUnit,
+	configure func(*Plugin),
+) *fieldWorld {
 	t.Helper()
 	fw := &fieldWorld{t: t, grid: grid.DefaultGrids{}.Square(cols, rows, fieldCell)}
 	largest := uint32(1)
@@ -116,11 +129,21 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 	for i, u := range units {
 		s := kind.Spec{
 			comp.Load(func(u fieldUnit) world.Position {
-				return world.Position{AABB: plane.NewAABB(geom.NewVec(u.at.X-u.side/2, u.at.Y-u.side/2), u.side, u.side)}
+				return world.Position{
+					AABB: plane.NewAABB(
+						geom.NewVec(u.at.X-u.side/2, u.at.Y-u.side/2),
+						u.side,
+						u.side,
+					),
+				}
 			}),
 			comp.Const(world.Velocity{}),
-			comp.Const(steering.Steering{MaxSpeed: 96, Accel: 192, Brake: 384, V0: 48, TurnRate: 0.15}),
-			comp.Load(func(u fieldUnit) unit.At { c, _ := fw.grid.CellAt(u.at); return unit.At{Cell: c} }),
+			comp.Const(
+				steering.Steering{MaxSpeed: 96, Accel: 192, Brake: 384, V0: 48, TurnRate: 0.15},
+			),
+			comp.Load(
+				func(u fieldUnit) unit.At { c, _ := fw.grid.CellAt(u.at); return unit.At{Cell: c} },
+			),
 			comp.Const(collision.Collider{}),
 			comp.Const(world.Layers(cell.Land)),
 			comp.Const(collision.Physics{}),
@@ -157,7 +180,10 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 		systems = append(systems, produce()...)
 	}
 	systems = append(systems, asKinds(fw.nav), goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		fw.q = si.NewQueryBuilder(&fw.base, &fw.cell).Optional(&fw.orderComp).Optional(&fw.coll).Build()
+		fw.q = si.NewQueryBuilder(&fw.base, &fw.cell).
+			Optional(&fw.orderComp).
+			Optional(&fw.coll).
+			Build()
 	}})
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
@@ -184,10 +210,20 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 
 func (fw *fieldWorld) at(x, y uint32) cell.ID { c := fw.grid.At(x, y); return c }
 
-func (fw *fieldWorld) each(fn func(id uid.UID64, b *world.Base, cell cell.ID, o *MoveOrder, c *collision.Collider)) {
+func (fw *fieldWorld) each(
+	fn func(id uid.UID64, b *world.Base, cell cell.ID, o *MoveOrder, c *collision.Collider),
+) {
 	for fw.q.All(); fw.q.Next(); {
 		cur := fw.q.Cursor()
-		bases, cells, orders, colls := fw.base.Slice(cur), fw.cell.Slice(cur), fw.orderComp.Slice(cur), fw.coll.Slice(cur)
+		bases, cells, orders, colls := fw.base.Slice(
+			cur,
+		), fw.cell.Slice(
+			cur,
+		), fw.orderComp.Slice(
+			cur,
+		), fw.coll.Slice(
+			cur,
+		)
 		for i, id := range cur.IDs {
 			var o *MoveOrder
 			if orders != nil {
@@ -274,7 +310,9 @@ func (fw *fieldWorld) overlaps() []string {
 			a, b := boxes[i].box, boxes[j].box
 			// boxes resting side by side meet within float32's rounding of where they lie
 			e := f32.Eps(max(a.BottomRight.X, a.BottomRight.Y, b.BottomRight.X, b.BottomRight.Y))
-			if a.TopLeft.X < b.BottomRight.X-e && b.TopLeft.X < a.BottomRight.X-e && a.TopLeft.Y < b.BottomRight.Y-e && b.TopLeft.Y < a.BottomRight.Y-e {
+			if a.TopLeft.X < b.BottomRight.X-e && b.TopLeft.X < a.BottomRight.X-e &&
+				a.TopLeft.Y < b.BottomRight.Y-e &&
+				b.TopLeft.Y < a.BottomRight.Y-e {
 				out = append(out, fmt.Sprintf("%v %v", a, b))
 			}
 		}
@@ -283,11 +321,25 @@ func (fw *fieldWorld) overlaps() []string {
 }
 
 func TestBodySpacing_AutoPicksBodiesForUnitsSmallAgainstTheCells(t *testing.T) {
-	small := newFieldWorld(t, 4, 1, AutoSpacing, nil, []fieldUnit{{at: geom.NewVec(16, 16), side: 4}})
+	small := newFieldWorld(
+		t,
+		4,
+		1,
+		AutoSpacing,
+		nil,
+		[]fieldUnit{{at: geom.NewVec(16, 16), side: 4}},
+	)
 	if got := small.nav.read.Spacing(); got != BodySpacing {
 		t.Errorf("units 4 a side on cells 32 keep apart by %v, want bodies", got)
 	}
-	large := newFieldWorld(t, 4, 1, AutoSpacing, nil, []fieldUnit{{at: geom.NewVec(16, 16), side: 22}})
+	large := newFieldWorld(
+		t,
+		4,
+		1,
+		AutoSpacing,
+		nil,
+		[]fieldUnit{{at: geom.NewVec(16, 16), side: 22}},
+	)
 	if got := large.nav.read.Spacing(); got != CellSpacing {
 		t.Errorf("units 22 a side on cells 32 keep apart by %v, want cells", got)
 	}
@@ -296,7 +348,14 @@ func TestBodySpacing_AutoPicksBodiesForUnitsSmallAgainstTheCells(t *testing.T) {
 func TestBodySpacing_AGroupStandsRoundThePointClicked(t *testing.T) {
 	var units []fieldUnit
 	for i := range 6 {
-		units = append(units, fieldUnit{at: geom.NewVec(16+float32(i%2)*10, 40+float32(i)*12), side: 4, selected: true})
+		units = append(
+			units,
+			fieldUnit{
+				at:       geom.NewVec(16+float32(i%2)*10, 40+float32(i)*12),
+				side:     4,
+				selected: true,
+			},
+		)
 	}
 	fw := newFieldWorld(t, 8, 5, BodySpacing, nil, units)
 	target := fw.at(6, 2)
@@ -316,7 +375,10 @@ func TestBodySpacing_AGroupStandsRoundThePointClicked(t *testing.T) {
 		}
 	}
 	if nearest > 4 {
-		t.Errorf("the nearest unit stands %v from the point clicked, want one on it, within its side", nearest)
+		t.Errorf(
+			"the nearest unit stands %v from the point clicked, want one on it, within its side",
+			nearest,
+		)
 	}
 	for range 30 {
 		fw.ecs.Tick(time.Second / 60)
@@ -325,7 +387,10 @@ func TestBodySpacing_AGroupStandsRoundThePointClicked(t *testing.T) {
 		t.Errorf("boxes overlap: %v", o)
 	}
 	if contacts > 80*len(units) {
-		t.Errorf("the group struck each other for %d ticks on the way, want a few strikes each", contacts)
+		t.Errorf(
+			"the group struck each other for %d ticks on the way, want a few strikes each",
+			contacts,
+		)
 	}
 }
 
@@ -348,7 +413,10 @@ func TestBodySpacing_TwoHeadOnPassEachOtherAndOneWalksPastAStandingOne(t *testin
 		}
 	}
 	if contacts > 40 {
-		t.Errorf("they struck someone for %d ticks on the way, want a strike each and past", contacts)
+		t.Errorf(
+			"they struck someone for %d ticks on the way, want a strike each and past",
+			contacts,
+		)
 	}
 }
 
@@ -387,18 +455,41 @@ func sendCrowd(t *testing.T, n int, layout string, side float32,
 
 func TestBodySpacing_CrowdsStandRoundThePointWithoutPushing(t *testing.T) {
 	for _, n := range []int{4, 9, 16, 25} {
-		for _, layout := range []string{"column from the west", "block from the south", "scattered", "from the north-east"} {
+		for _, layout := range []string{"column from the west", "block from the south", "scattered",
+			"from the north-east"} {
 			for _, side := range []float32{3, 6, 10} {
 				settled, longest, overlaps, spread := sendCrowd(t, n, layout, side)
 				apart := side * (1 + spacing.SpacingGap)
 				if !settled || overlaps > 0 {
-					t.Errorf("%d units %v a side, %s: settled %v, %d pairs overlapping", n, side, layout, settled, overlaps)
+					t.Errorf(
+						"%d units %v a side, %s: settled %v, %d pairs overlapping",
+						n,
+						side,
+						layout,
+						settled,
+						overlaps,
+					)
 				}
 				if limit := apart * (2 + f32.Sqrt(float32(n))) * 1.5; spread > limit {
-					t.Errorf("%d units %v a side, %s: one stands %.0f off the point, want within %.0f", n, side, layout, spread, limit)
+					t.Errorf(
+						"%d units %v a side, %s: one stands %.0f off the point, want within %.0f",
+						n,
+						side,
+						layout,
+						spread,
+						limit,
+					)
 				}
 				if limit := int(spacing.StallAfter / (time.Second / 60)); longest >= limit {
-					t.Errorf("%d units %v a side, %s: two touched for %d ticks on end, want under %d: in passing", n, side, layout, longest, limit)
+					t.Errorf(
+						"%d units %v a side, %s: two touched for %d ticks on end, want under %d: "+
+							"in passing",
+						n,
+						side,
+						layout,
+						longest,
+						limit,
+					)
 				}
 			}
 		}
@@ -415,18 +506,43 @@ func TestBodySpacing_OneStandingInTheWayIsGoneRoundAndWithNoWayRoundTheUnitStand
 	}
 	from, goal := probe.grid.CellCenter(probe.at(0, 1)), probe.grid.CellCenter(probe.at(8, 1))
 	blocker := probe.grid.CellCenter(probe.at(4, 1))
-	fw := newFieldWorld(t, 9, 3, BodySpacing, road, []fieldUnit{{at: from, side: 6, order: probe.standAt(goal)}, {at: blocker, side: 28}})
+	fw := newFieldWorld(
+		t,
+		9,
+		3,
+		BodySpacing,
+		road,
+		[]fieldUnit{{at: from, side: 6, order: probe.standAt(goal)}, {at: blocker, side: 28}},
+	)
 	settled, _ := fw.run(30 * time.Second)
 	if at, _ := fw.centre(0); !settled || f32.Hypot(at.X-goal.X, at.Y-goal.Y) > 1e-6 {
-		t.Errorf("the unit stands at %v, settled %v, want round the one in the way to %v", at, settled, goal)
+		t.Errorf(
+			"the unit stands at %v, settled %v, want round the one in the way to %v",
+			at,
+			settled,
+			goal,
+		)
 	}
 	if o := fw.overlaps(); len(o) > 0 {
 		t.Errorf("boxes overlap: %v", o)
 	}
 
 	lane := &fieldWorld{grid: grid.DefaultGrids{}.Square(9, 1, fieldCell)}
-	from, goal, blocker = lane.grid.CellCenter(lane.at(0, 0)), lane.grid.CellCenter(lane.at(8, 0)), lane.grid.CellCenter(lane.at(4, 0))
-	fw = newFieldWorld(t, 9, 1, BodySpacing, nil, []fieldUnit{{at: from, side: 6, order: lane.standAt(goal)}, {at: blocker, side: 28}})
+	from, goal, blocker = lane.grid.CellCenter(
+		lane.at(0, 0),
+	), lane.grid.CellCenter(
+		lane.at(8, 0),
+	), lane.grid.CellCenter(
+		lane.at(4, 0),
+	)
+	fw = newFieldWorld(
+		t,
+		9,
+		1,
+		BodySpacing,
+		nil,
+		[]fieldUnit{{at: from, side: 6, order: lane.standAt(goal)}, {at: blocker, side: 28}},
+	)
 	settled, _ = fw.run(30 * time.Second)
 	for range 30 {
 		fw.ecs.Tick(time.Second / 60)
@@ -434,11 +550,21 @@ func TestBodySpacing_OneStandingInTheWayIsGoneRoundAndWithNoWayRoundTheUnitStand
 	at, _ := fw.centre(0)
 	b, _ := fw.centre(1)
 	if !settled || at.X >= b.X || len(fw.overlaps()) > 0 {
-		t.Errorf("with no way round the unit stands at %v, settled %v, want it given up short of the one in the way at %v", at, settled, b)
+		t.Errorf(
+			"with no way round the unit stands at %v, settled %v, want it given up short of the "+
+				"one in the way at %v",
+			at,
+			settled,
+			b,
+		)
 	}
 	// its share of each strike's overlap, 784 against 36 by weight, is all it moves: 0.09
 	if f32.Hypot(b.X-blocker.X, b.Y-blocker.Y) > 0.15 {
-		t.Errorf("the one in the way was pushed to %v from %v: struck, not pushed along", b, blocker)
+		t.Errorf(
+			"the one in the way was pushed to %v from %v: struck, not pushed along",
+			b,
+			blocker,
+		)
 	}
 }
 
@@ -476,7 +602,14 @@ func TestBodySpacing_ASpotTakenMeanwhileGivesAnother(t *testing.T) {
 func TestBodySpacing_ClicksInItsOwnCellShiftAndLookAt(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 3, fieldCell)}
 	home := probe.grid.CellCenter(probe.at(1, 1))
-	fw := newFieldWorld(t, 10, 3, BodySpacing, nil, []fieldUnit{{at: home, side: 4, selected: true}})
+	fw := newFieldWorld(
+		t,
+		10,
+		3,
+		BodySpacing,
+		nil,
+		[]fieldUnit{{at: home, side: 4, selected: true}},
+	)
 	inside := geom.NewVec(home.X+9, home.Y-8)
 	fw.nav.moves.Add(command.Nobody, MoveTo{Cell: fw.at(1, 1), At: inside})
 	if settled, _ := fw.run(5 * time.Second); !settled {
@@ -486,7 +619,13 @@ func TestBodySpacing_ClicksInItsOwnCellShiftAndLookAt(t *testing.T) {
 		t.Errorf("clicked inside its own cell the unit stands at %v, want the point %v", at, inside)
 	}
 
-	first, last := geom.NewVec(5*fieldCell+7, 1*fieldCell+20), geom.NewVec(8*fieldCell+10, 2*fieldCell+9)
+	first, last := geom.NewVec(
+		5*fieldCell+7,
+		1*fieldCell+20,
+	), geom.NewVec(
+		8*fieldCell+10,
+		2*fieldCell+9,
+	)
 	fw.nav.moves.Add(command.Nobody, MoveTo{Cell: fw.at(5, 1), At: first})
 	fw.ecs.Tick(time.Second / 60)
 	fw.nav.moves.Add(command.Nobody, MoveTo{Cell: fw.at(8, 2), At: last, Append: true})
@@ -514,7 +653,11 @@ func TestBodySpacing_ClicksInItsOwnCellShiftAndLookAt(t *testing.T) {
 	stopped, _ := fw.centre(0)
 	braking := float32(96.0 * 96 / (2 * 384))
 	if d := f32.Hypot(stopped.X-told.X, stopped.Y-told.Y); d > braking+1 {
-		t.Errorf("the unit stopped %.1f from where it was told to look, want its braking %.1f at most", d, braking)
+		t.Errorf(
+			"the unit stopped %.1f from where it was told to look, want its braking %.1f at most",
+			d,
+			braking,
+		)
 	}
 	for range 60 {
 		fw.ecs.Tick(time.Second / 60)
@@ -530,7 +673,11 @@ func TestBodySpacing_ClicksInItsOwnCellShiftAndLookAt(t *testing.T) {
 
 func TestBodySpacing_ByHandAUnitStopsShortOfAnother(t *testing.T) {
 	fw := newFieldWorld(t, 10, 3, BodySpacing, nil, []fieldUnit{
-		{at: geom.NewVec(40, 48), side: 6, driven: steering.Driven{Ahead: 1, Face: geom.NewVec(1, 0)}},
+		{
+			at:     geom.NewVec(40, 48),
+			side:   6,
+			driven: steering.Driven{Ahead: 1, Face: geom.NewVec(1, 0)},
+		},
 		{at: geom.NewVec(90, 48), side: 6},
 	})
 	for range 180 {
@@ -576,7 +723,16 @@ func TestBodySpacing_StrikingSomeoneByTheShoreItStepsRoundByLand(t *testing.T) {
 
 func TestBodySpacing_OneStandingStepsAsideAndStays(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
-	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)
+	from, goal, home := geom.NewVec(
+		16,
+		80,
+	), geom.NewVec(
+		9*fieldCell+16,
+		80,
+	), geom.NewVec(
+		5*fieldCell,
+		80,
+	)
 	fw := newFieldWorld(t, 10, 5, BodySpacing, nil, []fieldUnit{
 		{at: from, side: 6, order: probe.standAt(goal)},
 		{at: home, side: 6},
@@ -595,6 +751,12 @@ func TestBodySpacing_OneStandingStepsAsideAndStays(t *testing.T) {
 		t.Errorf("the one on the move stands at %v with order %v, want at %v", at, o, goal)
 	}
 	if at, o := fw.centre(1); o != nil || f32.Abs(at.Y-home.Y) < 6 || f32.Abs(at.X-home.X) > 3 {
-		t.Errorf("the one that gave way stands at %v with order %v, want aside of %v, square off the way", at, o, home)
+		t.Errorf(
+			"the one that gave way stands at %v with order %v, want aside of %v, square off the "+
+				"way",
+			at,
+			o,
+			home,
+		)
 	}
 }

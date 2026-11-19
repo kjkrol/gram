@@ -48,7 +48,11 @@ func TestCrowd_AStrangerStandingIsGoneRoundAtOnce(t *testing.T) {
 	stood, last := 0, cell.ID(0)
 	arrived := rw.watch(8*time.Second, func(int) bool {
 		if c, o := rw.state(stranger); c != rw.at(5, 1) || o != nil {
-			t.Fatalf("the stranger moved to %v with %+v; want it standing: nobody asks a stranger", c, o)
+			t.Fatalf(
+				"the stranger moved to %v with %+v; want it standing: nobody asks a stranger",
+				c,
+				o,
+			)
 		}
 		c, o := rw.state(traveller)
 		if c == last && o != nil {
@@ -57,7 +61,12 @@ func TestCrowd_AStrangerStandingIsGoneRoundAtOnce(t *testing.T) {
 			stood = 0
 		}
 		if stood > int(spacing.StallAfter/(time.Second/60)) {
-			t.Fatalf("the traveller stood at %v for %v: it waited on the stranger, want it gone round at once", c, spacing.StallAfter)
+			t.Fatalf(
+				"the traveller stood at %v for %v: it waited on the stranger, want it gone round "+
+					"at once",
+				c,
+				spacing.StallAfter,
+			)
 		}
 		last = c
 		return o == nil && c == rw.at(9, 1)
@@ -83,11 +92,18 @@ func TestCrowd_AnAllyStandingMakesWayAndStaysAside(t *testing.T) {
 		return o == nil && c == rw.at(9, 1)
 	})
 	if !done {
-		t.Fatalf("within 10 s the traveller did not get through; the ally stepped aside to %v", aside)
+		t.Fatalf(
+			"within 10 s the traveller did not get through; the ally stepped aside to %v",
+			aside,
+		)
 	}
 	rw.watch(3*time.Second, func(int) bool { return false })
 	if c, o := rw.state(ally); c != rw.at(5, 0) && c != rw.at(5, 2) || o != nil {
-		t.Errorf("the ally stands at %v with %+v; want it aside, square off the road, for good", c, o)
+		t.Errorf(
+			"the ally stands at %v with %+v; want it aside, square off the road, for good",
+			c,
+			o,
+		)
 	}
 }
 
@@ -98,7 +114,10 @@ func TestCrowd_AGoalTakenIsFreedByAnAllyAndSettledBesideAStranger(t *testing.T) 
 		{start: rw.at(9, 1), owner: 1},
 	})
 	traveller, ally := rw.byRow[0], rw.byRow[1]
-	if !rw.watch(10*time.Second, func(int) bool { c, o := rw.state(traveller); return o == nil && c == rw.at(9, 1) }) {
+	if !rw.watch(
+		10*time.Second,
+		func(int) bool { c, o := rw.state(traveller); return o == nil && c == rw.at(9, 1) },
+	) {
 		t.Fatal("the ally never freed the goal")
 	}
 	rw.watch(3*time.Second, func(int) bool { return false })
@@ -142,13 +161,28 @@ func TestCrowd_TwoStrangersHeadOnInACorridorBothGetThrough(t *testing.T) {
 	}) {
 		ca, oa := rw.state(a)
 		cb, ob := rw.state(b)
-		t.Fatalf("within 30 s: one at %v (%v), the other at %v (%v); want both through", ca, oa != nil, cb, ob != nil)
+		t.Fatalf(
+			"within 30 s: one at %v (%v), the other at %v (%v); want both through",
+			ca,
+			oa != nil,
+			cb,
+			ob != nil,
+		)
 	}
 }
 
 func TestCrowd_BodiesGoRoundAStrangerAndAnAllyMakesWay(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
-	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)
+	from, goal, home := geom.NewVec(
+		16,
+		80,
+	), geom.NewVec(
+		9*fieldCell+16,
+		80,
+	), geom.NewVec(
+		5*fieldCell,
+		80,
+	)
 	for _, c := range []struct {
 		owner  command.Issuer
 		yields bool
@@ -165,10 +199,21 @@ func TestCrowd_BodiesGoRoundAStrangerAndAnAllyMakesWay(t *testing.T) {
 			}
 		}
 		if gaveWay != c.yields {
-			t.Errorf("owned by player %d the one standing gave way %v, want %v", c.owner, gaveWay, c.yields)
+			t.Errorf(
+				"owned by player %d the one standing gave way %v, want %v",
+				c.owner,
+				gaveWay,
+				c.yields,
+			)
 		}
 		if at, o := fw.centre(0); o != nil || f32.Hypot(at.X-goal.X, at.Y-goal.Y) > 1 {
-			t.Errorf("past player %d's unit the traveller stands at %v with order %v, want at %v", c.owner, at, o != nil, goal)
+			t.Errorf(
+				"past player %d's unit the traveller stands at %v with order %v, want at %v",
+				c.owner,
+				at,
+				o != nil,
+				goal,
+			)
 		}
 		at, o := fw.centre(1)
 		if o != nil {
@@ -176,7 +221,13 @@ func TestCrowd_BodiesGoRoundAStrangerAndAnAllyMakesWay(t *testing.T) {
 		}
 		// a stranger is only nudged by the collision; an ally stands aside, off the way
 		if off := f32.Abs(at.Y - home.Y); c.yields != (off > 6) {
-			t.Errorf("player %d's unit stands %v off the way, at %v; want aside %v", c.owner, off, at, c.yields)
+			t.Errorf(
+				"player %d's unit stands %v off the way, at %v; want aside %v",
+				c.owner,
+				off,
+				at,
+				c.yields,
+			)
 		}
 	}
 }
@@ -215,10 +266,16 @@ func TestPlan_APatrolOrdersTheUnitAloneAndGoesOnOnceArrived(t *testing.T) {
 	var reached []cell.ID
 	rw.watch(20*time.Second, func(int) bool {
 		if c, o := rw.state(bystander); c != rw.at(0, 0) || o != nil {
-			t.Fatalf("the bystander stands at %v with %+v; want it never sent: the patrol orders itself alone", c, o)
+			t.Fatalf(
+				"the bystander stands at %v with %+v; want it never sent: the patrol orders "+
+					"itself alone",
+				c,
+				o,
+			)
 		}
 		c, o := rw.state(walker)
-		if o == nil && (c == east || c == west) && (len(reached) == 0 || reached[len(reached)-1] != c) {
+		if o == nil && (c == east || c == west) &&
+			(len(reached) == 0 || reached[len(reached)-1] != c) {
 			reached = append(reached, c)
 		}
 		return len(reached) == 3
@@ -332,7 +389,12 @@ func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 		"wall":  {Pace: 1, Solid: true},
 		"cliff": land,
 	}
-	aside := []cell.ID{at(2, 1), at(2, 3), at(1, 1), at(1, 3)} // off the way of one coming from (1,2)
+	aside := []cell.ID{
+		at(2, 1),
+		at(2, 3),
+		at(1, 1),
+		at(1, 3),
+	} // off the way of one coming from (1,2)
 	for name, hazard := range hazards {
 		for _, open := range []bool{false, true} {
 			terrain := cell.NewTerrainMap()
@@ -348,13 +410,27 @@ func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 				}
 			}
 			finder := spacing.NewFinder(grid, terrain, steep, spacing.OpenOccupancy{})
-			coming := bodies.Body{ID: 3, At: grid.CellCenter(at(1, 2)), Half: geom.NewVec(3, 3), Cell: at(1, 2), Moving: true, Domain: cell.Land}
+			coming := bodies.Body{
+				ID:     3,
+				At:     grid.CellCenter(at(1, 2)),
+				Half:   geom.NewVec(3, 3),
+				Cell:   at(1, 2),
+				Moving: true,
+				Domain: cell.Land,
+			}
 
 			cells := spacing.NewCellKeeping(finder, &cell.SingleOccupancy{})
 			m := bodies.Member{ID: 7, Cell: at(2, 2), From: at(2, 2), Domain: cell.Land,
 				Pos: posAt(grid, at(2, 2))}
 			if o, ok := cells.StepAside(m, coming); ok != open || open && o.Target != at(2, 3) {
-				t.Errorf("cells, %s on every side but open %v: stepped aside %v to %v, want only to the open (2,3)", name, open, ok, o.Target)
+				t.Errorf(
+					"cells, %s on every side but open %v: stepped aside %v to %v, want only to "+
+						"the open (2,3)",
+					name,
+					open,
+					ok,
+					o.Target,
+				)
 			}
 
 			keep := spacing.NewBodyKeeping(finder, nil, nil)
@@ -364,11 +440,22 @@ func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 				Pos: world.Position{AABB: plane.NewAABB(geom.NewVec(c.X-14, c.Y-14), 28, 28)}}
 			o, ok := keep.StepAside(m, coming)
 			if ok != open {
-				t.Errorf("bodies, %s on every side but open %v: stepped aside %v, to %v", name, open, ok, o.Spot)
+				t.Errorf(
+					"bodies, %s on every side but open %v: stepped aside %v, to %v",
+					name,
+					open,
+					ok,
+					o.Spot,
+				)
 				continue
 			}
 			if cell, _ := grid.CellAt(o.Spot); open && cell != at(2, 3) {
-				t.Errorf("bodies, %s but (2,3): stepped aside to %v in %v, want into the open (2,3)", name, o.Spot, cell)
+				t.Errorf(
+					"bodies, %s but (2,3): stepped aside to %v in %v, want into the open (2,3)",
+					name,
+					o.Spot,
+					cell,
+				)
 			}
 		}
 	}
@@ -376,12 +463,24 @@ func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 
 func TestCrowd_AGameGivesItsOwnRules(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
-	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)
+	from, goal, home := geom.NewVec(
+		16,
+		80,
+	), geom.NewVec(
+		9*fieldCell+16,
+		80,
+	), geom.NewVec(
+		5*fieldCell,
+		80,
+	)
 	yielder := ceremony.NewPart("yielder", 0)
 	forAll := act.Branch[Touch]{
 		Name: "a yielder makes way for all",
 		When: cond.Self.If(yielder).
-			And(cond.Self.If(cond.NewWord("pushed", func(t Touch) bool { return !t.Moving && t.OtherMoving }))),
+			And(cond.Self.If(cond.NewWord("pushed", func(t Touch) bool {
+				return !t.Moving &&
+					t.OtherMoving
+			}))),
 		Then: act.Self.Do(StepAside{}),
 	}
 	for _, c := range []struct {
@@ -400,17 +499,37 @@ func TestCrowd_AGameGivesItsOwnRules(t *testing.T) {
 			}
 		}
 		if gaveWay != c.yields {
-			t.Errorf("player %d's unit standing gave way %v, want %v", c.standing, gaveWay, c.yields)
+			t.Errorf(
+				"player %d's unit standing gave way %v, want %v",
+				c.standing,
+				gaveWay,
+				c.yields,
+			)
 		}
 		if at, o := fw.centre(0); o != nil || f32.Hypot(at.X-goal.X, at.Y-goal.Y) > 1 {
-			t.Errorf("past player %d's unit the traveller stands at %v with order %v, want at %v", c.standing, at, o != nil, goal)
+			t.Errorf(
+				"past player %d's unit the traveller stands at %v with order %v, want at %v",
+				c.standing,
+				at,
+				o != nil,
+				goal,
+			)
 		}
 	}
 }
 
 func TestCrowd_WithNoRulesTheOrderStillEnds(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
-	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)
+	from, goal, home := geom.NewVec(
+		16,
+		80,
+	), geom.NewVec(
+		9*fieldCell+16,
+		80,
+	), geom.NewVec(
+		5*fieldCell,
+		80,
+	)
 	fw := newFieldWorldWith(t, 10, 5, BodySpacing, nil, []fieldUnit{
 		{at: from, side: 6, order: probe.standAt(goal)},
 		{at: home, side: 6},
@@ -418,7 +537,11 @@ func TestCrowd_WithNoRulesTheOrderStillEnds(t *testing.T) {
 	for tick := 0; tick < 30*60; tick++ {
 		fw.ecs.Tick(time.Second / 60)
 		if _, o := fw.centre(1); o != nil {
-			t.Fatalf("tick %d: the one standing got the order %+v, want none: no rule makes way", tick, o)
+			t.Fatalf(
+				"tick %d: the one standing got the order %+v, want none: no rule makes way",
+				tick,
+				o,
+			)
 		}
 		if _, o := fw.centre(0); o == nil {
 			return
@@ -471,11 +594,20 @@ func TestCrowd_NobodyIsPushedOverTheWater(t *testing.T) {
 		for tick := 0; tick < 20*60; tick++ {
 			fw.ecs.Tick(time.Second / 60)
 			if at, _ := fw.centre(1); at.Y+14 > shore+1e-6 {
-				t.Fatalf("rules %v, tick %d: the one standing reaches %v, over the water from %v", rules, tick, at.Y+14, shore)
+				t.Fatalf(
+					"rules %v, tick %d: the one standing reaches %v, over the water from %v",
+					rules,
+					tick,
+					at.Y+14,
+					shore,
+				)
 			}
 		}
 		if _, o := fw.centre(0); rules && o != nil {
-			t.Errorf("the one coming still has its order %+v, want it standing beside its place taken", o)
+			t.Errorf(
+				"the one coming still has its order %+v, want it standing beside its place taken",
+				o,
+			)
 		}
 	}
 }

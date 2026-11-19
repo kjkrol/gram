@@ -40,8 +40,13 @@ func (c *installCtx) Setup(providers ...goke.SetupProvider) {
 		c.pending = append(c.pending, p.SetupSystems)
 	}
 }
-func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
-func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
+
+func (c *installCtx) RegSys(
+	factory func() goke.System,
+) goke.Runnable {
+	return c.ecs.RegSys(factory())
+}
+func (c *installCtx) ECS() *goke.ECS { return c.ecs }
 
 type order struct{ Cell int }
 
@@ -134,7 +139,8 @@ func TestBind_RefusesTwoBindingsOnOneTrigger(t *testing.T) {
 	if err == nil {
 		t.Fatal("two bindings on KeyPress A were accepted")
 	}
-	if err := r.local.Bind(control.Build(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Shift: true}}, "shifted", orderOf(3))); err != nil {
+	if err := r.local.Bind(control.Build(control.KeyPress{Key: control.KeyA,
+		Mods: control.Mods{Shift: true}}, "shifted", orderOf(3))); err != nil {
 		t.Errorf("Shift+A beside A: %v, want accepted as a different rule", err)
 	}
 	if err := r.local.Bind(control.Binding{Label: "bare"}); err == nil {
@@ -192,7 +198,8 @@ func TestIssue_RefusesACommandNobodyListensFor(t *testing.T) {
 	if err := r.p.Write().Issue(nil, order{7}); err != nil {
 		t.Fatalf("Issue(order) = %v", err)
 	}
-	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != 7 || got[0].Issuer != command.Nobody {
+	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != 7 ||
+		got[0].Issuer != command.Nobody {
 		t.Errorf("drained %v, want order 7 from Nobody", got)
 	}
 	if !r.orders.Empty() {
@@ -216,8 +223,13 @@ func TestNewPlugin_RefusesTwoHandlersOfOneType(t *testing.T) {
 func TestAdd_MakesAPlayerWithoutAKeyboard(t *testing.T) {
 	r := newRig(t)
 	bot := r.p.Add("bot")
-	if bot.ID == command.Nobody || bot.ID == r.local.ID || r.p.Read(0).ByID(bot.ID) != bot || r.p.Read(0).ByID(command.Nobody) != nil {
-		t.Errorf("bot has id %d beside local %d; ByID must find it and nobody else", bot.ID, r.local.ID)
+	if bot.ID == command.Nobody || bot.ID == r.local.ID || r.p.Read(0).ByID(bot.ID) != bot ||
+		r.p.Read(0).ByID(command.Nobody) != nil {
+		t.Errorf(
+			"bot has id %d beside local %d; ByID must find it and nobody else",
+			bot.ID,
+			r.local.ID,
+		)
 	}
 	if locals := r.p.Read(0).Locals(); len(locals) != 1 || locals[0] != r.local {
 		t.Errorf("Locals = %v, want the keyboard player alone", locals)
@@ -232,8 +244,15 @@ func TestAdd_MakesAPlayerWithoutAKeyboard(t *testing.T) {
 
 func TestDefaults_CollectEveryHandlersBindings(t *testing.T) {
 	r := newRig(t)
-	if got, want := len(r.p.Defaults()), len(r.p.DefaultBindings())+len(r.w.DefaultBindings())+len(r.cams.DefaultBindings()); got != want {
-		t.Errorf("Defaults has %d bindings, want the players' own, the world's clock's and the cameras' %d (the general suggests none)", got, want)
+	want := len(r.p.DefaultBindings()) + len(r.w.DefaultBindings()) +
+		len(r.cams.DefaultBindings())
+	if got := len(r.p.Defaults()); got != want {
+		t.Errorf(
+			"Defaults has %d bindings, want the players' own, the world's clock's and the "+
+				"cameras' %d (the general suggests none)",
+			got,
+			want,
+		)
 	}
 	if err := r.local.Bind(r.p.Defaults()...); err != nil {
 		t.Error(err)
@@ -242,7 +261,13 @@ func TestDefaults_CollectEveryHandlersBindings(t *testing.T) {
 
 func TestSetup_PanicsOnABindingNobodyListensFor(t *testing.T) {
 	r := newRig(t)
-	r.bind(control.Build(control.KeyPress{Key: control.KeyN}, "unheard", func(control.Context) (note, bool) { return note{}, true }))
+	r.bind(
+		control.Build(
+			control.KeyPress{Key: control.KeyN},
+			"unheard",
+			func(control.Context) (note, bool) { return note{}, true },
+		),
+	)
 	ctx := &installCtx{ecs: goke.New()}
 	if err := r.p.Install(ctx); err != nil {
 		t.Fatal(err)
@@ -263,10 +288,18 @@ func TestKeysAndButtons_FireWithExactlyTheirModifiers(t *testing.T) {
 	r := newRig(t)
 	r.bind(
 		control.Build(control.KeyPress{Key: control.KeyA}, "a", orderOf(1)),
-		control.Build(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Shift: true}}, "shift a", orderOf(2)),
-		control.Build(control.ButtonPress{Button: control.MouseButtonRight}, "right", func(c control.Context) (order, bool) {
-			return order{int(c.Cursor.X)}, true
-		}),
+		control.Build(
+			control.KeyPress{Key: control.KeyA, Mods: control.Mods{Shift: true}},
+			"shift a",
+			orderOf(2),
+		),
+		control.Build(
+			control.ButtonPress{Button: control.MouseButtonRight},
+			"right",
+			func(c control.Context) (order, bool) {
+				return order{int(c.Cursor.X)}, true
+			},
+		),
 	)
 	ev := &control.InputEvents{}
 	ev.AddKeyEvent(control.KeyA, control.ActionPress)
@@ -274,8 +307,12 @@ func TestKeysAndButtons_FireWithExactlyTheirModifiers(t *testing.T) {
 	ev.AddClickEvent(40, 5, control.MouseButtonRight, control.ActionPress)
 	r.handle(ev)
 	got := r.drained()
-	if len(got) != 2 || got[0].Command.Cell != 1 || got[1].Command.Cell != 40 || got[0].Issuer != r.local.ID {
-		t.Errorf("plain A and a right click at 40 issued %v, want orders 1 and 40 from the local player", got)
+	if len(got) != 2 || got[0].Command.Cell != 1 || got[1].Command.Cell != 40 ||
+		got[0].Issuer != r.local.ID {
+		t.Errorf(
+			"plain A and a right click at 40 issued %v, want orders 1 and 40 from the local player",
+			got,
+		)
 	}
 
 	ev = &control.InputEvents{}
@@ -364,11 +401,22 @@ func cellsOf(orders []command.Issued[order]) []int {
 
 func TestDrag_FiresOnReleaseAndButtonHeldKnowsWhereItBegan(t *testing.T) {
 	r := newRig(t)
-	r.bind(control.Build(control.Drag{Button: control.MouseButtonLeft}, "box", func(c control.Context) (order, bool) {
-		return order{int(c.Start.X)*1000 + int(c.Cursor.X)}, true
-	}), control.Build(control.ButtonHeld{Button: control.MouseButtonLeft}, "dragging", func(c control.Context) (order, bool) {
-		return order{-(int(c.Start.X)*1000 + int(c.Cursor.X))}, true
-	}))
+	r.bind(
+		control.Build(
+			control.Drag{Button: control.MouseButtonLeft},
+			"box",
+			func(c control.Context) (order, bool) {
+				return order{int(c.Start.X)*1000 + int(c.Cursor.X)}, true
+			},
+		),
+		control.Build(
+			control.ButtonHeld{Button: control.MouseButtonLeft},
+			"dragging",
+			func(c control.Context) (order, bool) {
+				return order{-(int(c.Start.X)*1000 + int(c.Cursor.X))}, true
+			},
+		),
+	)
 
 	press := &control.InputEvents{MousePos: geom.NewVec(10, 10)}
 	press.AddClickEvent(10, 10, control.MouseButtonLeft, control.ActionPress)
@@ -468,7 +516,12 @@ func TestCamera_MiddleDragPansOneToOneWithTheCursor(t *testing.T) {
 
 		after := cam.Bounds()
 		if want := before.TopLeft.X - 10/float32(zoom); after.TopLeft.X != want {
-			t.Errorf("zoom %v: TopLeft.X after a 10-pixel drag = %v, want %v", zoom, after.TopLeft.X, want)
+			t.Errorf(
+				"zoom %v: TopLeft.X after a 10-pixel drag = %v, want %v",
+				zoom,
+				after.TopLeft.X,
+				want,
+			)
 		}
 	}
 }
@@ -487,7 +540,12 @@ func TestCamera_EdgeScrollIsTheSameOnScreenAtAnyZoom(t *testing.T) {
 
 		moved := (cam.Bounds().TopLeft.X - before.TopLeft.X) * float32(zoom)
 		if moved != float32(cameras.DefaultScrollSpeed) {
-			t.Errorf("zoom %v: an edge scroll moved %v pixels of world, want %v", zoom, moved, cameras.DefaultScrollSpeed)
+			t.Errorf(
+				"zoom %v: an edge scroll moved %v pixels of world, want %v",
+				zoom,
+				moved,
+				cameras.DefaultScrollSpeed,
+			)
 		}
 	}
 }
@@ -565,7 +623,8 @@ func TestBind_OneKeyDoesWhatTheCamerasHowSays(t *testing.T) {
 		control.Build(control.KeyPress{Key: control.KeyA}, "scroll", orderOf(1)).In(camera.Outside),
 		control.Build(control.KeyPress{Key: control.KeyA}, "turn", orderOf(2)).In(camera.Inside),
 	)
-	if err := r.local.Bind(control.Build(control.KeyPress{Key: control.KeyA}, "both", orderOf(3))); err == nil {
+	if err := r.local.Bind(control.Build(control.KeyPress{Key: control.KeyA}, "both",
+		orderOf(3))); err == nil {
 		t.Error("a binding on A in every How beside ones in each was accepted")
 	}
 	press := func() []command.Issued[order] {
@@ -594,7 +653,10 @@ func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
 		return order{int(c.Delta.X)}, true
 	}).In(camera.Inside, camera.Behind))
 	move := func(x, y int) []command.Issued[order] {
-		ev := &control.InputEvents{MousePos: geom.NewVec(float32(x), float32(y)), CursorDelta: geom.NewVec(7, 0)}
+		ev := &control.InputEvents{
+			MousePos:    geom.NewVec(float32(x), float32(y)),
+			CursorDelta: geom.NewVec(7, 0),
+		}
 		r.handle(ev)
 		return r.drained()
 	}
@@ -603,14 +665,23 @@ func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
 	}
 	cam.on = true
 	if got := move(10, 10); len(got) != 0 || len(caught) != 1 || !caught[0] {
-		t.Errorf("riding, the first pass issued %v and caught %v, want the cursor caught and no move taken", got, caught)
+		t.Errorf(
+			"riding, the first pass issued %v and caught %v, want the cursor caught and no move "+
+				"taken",
+			got,
+			caught,
+		)
 	}
 	if got := move(-5000, 9000); len(got) != 1 || got[0].Command.Cell != 7 {
 		t.Errorf("riding, a move far off the screen issued %v, want a look by 7", got)
 	}
 	cam.on = false
 	if got := move(10, 10); len(got) != 0 || len(caught) != 2 || caught[1] {
-		t.Errorf("free again, a move issued %v and caught %v, want the cursor let go and nothing issued", got, caught)
+		t.Errorf(
+			"free again, a move issued %v and caught %v, want the cursor let go and nothing issued",
+			got,
+			caught,
+		)
 	}
 	cam.on, cam.how = true, camera.Behind
 	if got := move(10, 10); len(got) != 0 || len(caught) != 3 || !caught[2] {

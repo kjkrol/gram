@@ -16,7 +16,11 @@ func TestSoft_NeverPassesForABlendedSprite(t *testing.T) {
 		for _, x := range v {
 			for _, c := range []float32{x.Custom0, x.Custom1, x.Custom2, x.Custom3} {
 				if c > blendMark/2 {
-					t.Fatalf("a soft piece's fade reads %v, over half the blend mark: it would pass for a blended sprite", c)
+					t.Fatalf(
+						"a soft piece's fade reads %v, over half the blend mark: it would pass "+
+							"for a blended sprite",
+						c,
+					)
 				}
 			}
 		}
@@ -28,7 +32,11 @@ func TestSoft_NeverPassesForABlendedSprite(t *testing.T) {
 	g.Each(func(_ At, v []Vertex) {
 		for _, x := range v {
 			if x.Custom3 <= blendMark/2 || x.Custom3 > blendMark+0.5 {
-				t.Errorf("a blended sprite's mark reads %v, want over half the mark %v", x.Custom3, blendMark/2)
+				t.Errorf(
+					"a blended sprite's mark reads %v, want over half the mark %v",
+					x.Custom3,
+					blendMark/2,
+				)
 			}
 		}
 	})
@@ -38,7 +46,12 @@ func TestSoft_NeverPassesForABlendedSprite(t *testing.T) {
 		h(0), Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}, color.RGBA{A: 200}, Fade{Bottom: 4})
 	soft.Each(func(_ At, v []Vertex) {
 		if v[0].Custom3 != 1+20.0/4 || v[2].Custom3 != 1 {
-			t.Errorf("a piece 20 tall fading over 4 at its bottom reads %v at the top and %v at the bottom, want 6 and 1", v[0].Custom3, v[2].Custom3)
+			t.Errorf(
+				"a piece 20 tall fading over 4 at its bottom reads %v at the top and %v at the "+
+					"bottom, want 6 and 1",
+				v[0].Custom3,
+				v[2].Custom3,
+			)
 		}
 	})
 }
@@ -55,8 +68,16 @@ func TestFog_TheSpriteReadsItInItsAlphaUnderTheOverlaysMark(t *testing.T) {
 	f.Sprite(h(0), blendSheet{}, 0, Corners{{0, 0}, {8, 0}, {0, 8}, {8, 8}}, even(1))
 	f.Fog([4]float32{0, 0.5, 1, 2})
 	f.Each(func(_ At, v []Vertex) {
-		if v[0].ColorA != 1 || v[1].ColorA != 1+fogSpan/2 || v[3].ColorA != 1+fogSpan || v[3].ColorA >= overlayMark-0.5 {
-			t.Errorf("the fogged sprite's alphas are %v %v %v %v, want 1, 1 + half the span, 1 + all of it, under the overlays' 1.5", v[0].ColorA, v[1].ColorA, v[2].ColorA, v[3].ColorA)
+		if v[0].ColorA != 1 || v[1].ColorA != 1+fogSpan/2 || v[3].ColorA != 1+fogSpan ||
+			v[3].ColorA >= overlayMark-0.5 {
+			t.Errorf(
+				"the fogged sprite's alphas are %v %v %v %v, want 1, 1 + half the span, 1 + all "+
+					"of it, under the overlays' 1.5",
+				v[0].ColorA,
+				v[1].ColorA,
+				v[2].ColorA,
+				v[3].ColorA,
+			)
 		}
 	})
 	var g Frame
@@ -66,7 +87,10 @@ func TestFog_TheSpriteReadsItInItsAlphaUnderTheOverlaysMark(t *testing.T) {
 	g.Fog([4]float32{1, 1, 1, 1})
 	g.Each(func(_ At, v []Vertex) {
 		if v[1].ColorA != 1 {
-			t.Errorf("a blended sprite fogged reads alpha %v, want its weight left alone", v[1].ColorA)
+			t.Errorf(
+				"a blended sprite fogged reads alpha %v, want its weight left alone",
+				v[1].ColorA,
+			)
 		}
 	})
 }

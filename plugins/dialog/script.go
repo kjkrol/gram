@@ -102,7 +102,8 @@ func (p *Plugin) Load(fsys fs.FS, path string) error {
 }
 
 func (p *Plugin) define(name string, n Node) error {
-	if err := p.w.InSection(fmt.Sprintf("dialog node %q defined", name), ConversationsPart); err != nil {
+	if err := p.w.InSection(fmt.Sprintf("dialog node %q defined", name),
+		ConversationsPart); err != nil {
 		return fmt.Errorf("dialog: %w", err)
 	}
 	if name == "" || name == End {
@@ -112,7 +113,12 @@ func (p *Plugin) define(name string, n Node) error {
 		return fmt.Errorf("dialog: the node %q is defined already", name)
 	}
 	if len(n.Choices) > MaxChoices {
-		return fmt.Errorf("dialog: the node %q offers %d answers, at most %d", name, len(n.Choices), MaxChoices)
+		return fmt.Errorf(
+			"dialog: the node %q offers %d answers, at most %d",
+			name,
+			len(n.Choices),
+			MaxChoices,
+		)
 	}
 	c := node{name: name, speaker: n.Speaker, line: strings.Join(n.Say, "\n")}
 	for _, ch := range n.Choices {
@@ -124,13 +130,19 @@ func (p *Plugin) define(name string, n Node) error {
 		if next == End {
 			next = ""
 		} else if next == "" {
-			return fmt.Errorf("dialog: the node %q, the answer %q leads nowhere: say next, or %q", name, ch.Text, End)
+			return fmt.Errorf("dialog: the node %q, the answer %q leads nowhere: say next, or %q",
+				name, ch.Text, End)
 		}
 		var then []Change
 		for _, change := range ch.Then {
 			found, ok := p.changes.byName[change]
 			if !ok {
-				return fmt.Errorf("dialog: the node %q, the answer %q: no change is defined as %q", name, ch.Text, change)
+				return fmt.Errorf(
+					"dialog: the node %q, the answer %q: no change is defined as %q",
+					name,
+					ch.Text,
+					change,
+				)
 			}
 			then = append(then, found)
 		}
@@ -138,11 +150,19 @@ func (p *Plugin) define(name string, n Node) error {
 		for _, cmd := range ch.Do {
 			found, ok := p.w.Commands().Lookup(cmd)
 			if !ok {
-				return fmt.Errorf("dialog: the node %q, the answer %q: no command is defined as %q", name, ch.Text, cmd)
+				return fmt.Errorf(
+					"dialog: the node %q, the answer %q: no command is defined as %q",
+					name,
+					ch.Text,
+					cmd,
+				)
 			}
 			do = append(do, found)
 		}
-		c.choices = append(c.choices, choice{text: ch.Text, when: when, then: then, next: next, do: do})
+		c.choices = append(
+			c.choices,
+			choice{text: ch.Text, when: when, then: then, next: next, do: do},
+		)
 	}
 	if p.nodes == nil {
 		p.nodes = map[uint64]*node{}
@@ -179,7 +199,14 @@ func (p *Plugin) check() {
 	for _, n := range p.sorted() {
 		for _, ch := range n.choices {
 			if _, ok := p.nodes[idOf(ch.next)]; ch.next != "" && !ok {
-				panic(fmt.Sprintf("dialog: the node %q, the answer %q leads to %q, which is not defined", n.name, ch.text, ch.next))
+				panic(
+					fmt.Sprintf(
+						"dialog: the node %q, the answer %q leads to %q, which is not defined",
+						n.name,
+						ch.text,
+						ch.next,
+					),
+				)
 			}
 		}
 	}

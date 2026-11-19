@@ -11,7 +11,11 @@ import (
 func Overcast(sky render.Light, clouds float32) render.Light {
 	grey := (0.3*sky[0] + 0.5*sky[1] + 0.2*sky[2]) * overcastGrey
 	k := min(max(clouds, 0), 1) * overcastSky
-	return render.Light{sky[0] + (grey-sky[0])*k, sky[1] + (grey-sky[1])*k, sky[2] + (grey-sky[2])*k}
+	return render.Light{
+		sky[0] + (grey-sky[0])*k,
+		sky[1] + (grey-sky[1])*k,
+		sky[2] + (grey-sky[2])*k,
+	}
 }
 
 const (
@@ -336,7 +340,11 @@ func (w Weather) noise(x, y float32, heaped bool) (torn, heap float32) {
 
 func shreds(x, y float64) float64 {
 	n := cloudNoise(x, y, cloudTile) + 0.5*cloudNoise(2*x+17.37, 2*y+17.61, 2*cloudTile) +
-		0.25*cloudNoise(4*x+31.29, 4*y+31.83, 4*cloudTile) + 0.125*cloudNoise(8*x+53.51, 8*y+53.17, 8*cloudTile)
+		0.25*cloudNoise(
+			4*x+31.29,
+			4*y+31.83,
+			4*cloudTile,
+		) + 0.125*cloudNoise(8*x+53.51, 8*y+53.17, 8*cloudTile)
 	return n / 1.875
 }
 
@@ -368,7 +376,15 @@ func heapCores(x, y float64) float64 {
 			inside = max(inside, in) // the deepest in any heap, as the shaders'
 		}
 	}
-	lobes := cloudNoise(4*x+0.37, 4*y+0.61, 4*heapTile) + 0.5*cloudNoise(8*x+0.53, 8*y+0.29, 8*heapTile) - 0.75
+	lobes := cloudNoise(
+		4*x+0.37,
+		4*y+0.61,
+		4*heapTile,
+	) + 0.5*cloudNoise(
+		8*x+0.53,
+		8*y+0.29,
+		8*heapTile,
+	) - 0.75
 	return top + heapLobes*lobes*min(max(1-inside, 0), 1)
 }
 

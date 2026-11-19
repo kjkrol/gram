@@ -17,7 +17,13 @@ func (rw *roadWorld) tick(n int) {
 
 func TestHand_EndsTheOrderOfTheUnitItIsOn(t *testing.T) {
 	rw := newRoadWorld(t, 10, []roadUnit{{start: 0}})
-	rw = newRoadWorld(t, 10, []roadUnit{{start: rw.at(2, 1), target: rw.at(8, 1), ordered: true, selected: true, owner: 1}})
+	rw = newRoadWorld(
+		t,
+		10,
+		[]roadUnit{
+			{start: rw.at(2, 1), target: rw.at(8, 1), ordered: true, selected: true, owner: 1},
+		},
+	)
 	id := rw.byRow[0]
 	rw.tick(2)
 	at, o := rw.state(id)

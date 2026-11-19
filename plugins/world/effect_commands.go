@@ -2,8 +2,9 @@ package world
 
 import (
 	"fmt"
-	cgoke "github.com/kjkrol/ceremony/goke"
 	"time"
+
+	cgoke "github.com/kjkrol/ceremony/goke"
 
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/command"
@@ -187,7 +188,12 @@ func (c *effectCommands) check() {
 	}
 	for _, n := range names {
 		if n > 1 {
-			panic(fmt.Sprintf("world: %d entities bear one name; a name is one entity's, a group many's", n))
+			panic(
+				fmt.Sprintf(
+					"world: %d entities bear one name; a name is one entity's, a group many's",
+					n,
+				),
+			)
 		}
 	}
 }

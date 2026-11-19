@@ -48,11 +48,15 @@ func castKind(w *world.Plugin, name string, cast light.Casting, src ...light.Sou
 }
 
 func TestPlugin_PublishesHowTheLampsAndThePolicyCastAndTheReliefUnderThem(t *testing.T) {
-	w, p, tick := litWorld(t, light.Config{LampShadows: 1}, func(w *world.Plugin, pl *light.Plugin) {
-		torch := castKind(w, "torch", light.NoShadow, light.Source{Strength: 1, Reach: 40})
-		w.Write().Seed(torch.Entry(spot{490, 500}),
-			castKind(w, "hero", light.Silhouette).Entry(spot{520, 500}))
-	})
+	w, p, tick := litWorld(
+		t,
+		light.Config{LampShadows: 1},
+		func(w *world.Plugin, pl *light.Plugin) {
+			torch := castKind(w, "torch", light.NoShadow, light.Source{Strength: 1, Reach: 40})
+			w.Write().Seed(torch.Entry(spot{490, 500}),
+				castKind(w, "hero", light.Silhouette).Entry(spot{520, 500}))
+		},
+	)
 	p.WithDistant(light.Distant{Dir: [3]float32{-1, 0, 1}, Strength: 1})
 	tick()
 	tick()
@@ -237,7 +241,8 @@ func TestPlugin_PublishesAThingStandingTurnedAsABlockOverItsStand(t *testing.T) 
 
 func TestPlugin_SaysTheSunsShareOfTheLight(t *testing.T) {
 	w, p, tick := litWorld(t, light.Config{}, func(w *world.Plugin, p *light.Plugin) {
-		w.Write().Seed(lampKind(w, "torch", light.Source{Strength: 1, Reach: 100}).Entry(spot{500, 500}))
+		w.Write().
+			Seed(lampKind(w, "torch", light.Source{Strength: 1, Reach: 100}).Entry(spot{500, 500}))
 	})
 	p.WithDistant(light.Distant{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3})
 	tick()

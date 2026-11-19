@@ -56,8 +56,13 @@ func (c *installCtx) Setup(providers ...goke.SetupProvider) {
 		c.pending = append(c.pending, p.SetupSystems)
 	}
 }
-func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
-func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
+
+func (c *installCtx) RegSys(
+	factory func() goke.System,
+) goke.Runnable {
+	return c.ecs.RegSys(factory())
+}
+func (c *installCtx) ECS() *goke.ECS { return c.ecs }
 func (c *installCtx) systems() []goke.System {
 	var systems []goke.System
 	for _, produce := range c.pending {
@@ -154,7 +159,9 @@ func newRig(t *testing.T, sc scene) *rig {
 		comp.Load(func(p piece) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(p.x, p.y), p.size, p.size)}
 		}),
-		comp.Load(func(p piece) world.Velocity { return world.Velocity{Dir: p.facing, Value: p.speed} }),
+		comp.Load(
+			func(p piece) world.Velocity { return world.Velocity{Dir: p.facing, Value: p.speed} },
+		),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Mass: 1}),
 		comp.Load(func(p piece) tag.Tags[selection.Family] {
@@ -266,7 +273,15 @@ func (r *rig) read(keep func(f found) bool) []found {
 	var out []found
 	for r.q.All(); r.q.Next(); {
 		cur := r.q.Cursor()
-		bases, colls, flights, zs := r.base.Slice(cur), r.coll.Slice(cur), r.flight.Slice(cur), r.z.Slice(cur)
+		bases, colls, flights, zs := r.base.Slice(
+			cur,
+		), r.coll.Slice(
+			cur,
+		), r.flight.Slice(
+			cur,
+		), r.z.Slice(
+			cur,
+		)
 		marks, owned, keens := r.marks.Slice(cur), r.owned.Slice(cur), r.keen.Slice(cur)
 		for i, id := range cur.IDs {
 			f := found{id: id, base: bases[i]}
@@ -334,7 +349,12 @@ type wallField struct {
 	cell uint64
 }
 
-func (f *wallField) Solid(_ world.Layers, band collision.Band, box geom.AABB, visit func(collision.FieldBox) bool) {
+func (f *wallField) Solid(
+	_ world.Layers,
+	band collision.Band,
+	box geom.AABB,
+	visit func(collision.FieldBox) bool,
+) {
 	if box.Intersects(f.box) && band.Meets(collision.Band{Bottom: f32.Inf(-1), Top: f.top}) {
 		visit(collision.FieldBox{Box: f.box, Cell: f.cell, Open: allSides})
 	}
@@ -352,7 +372,10 @@ func TestShoot_AnEntityFiresFromItsMuzzleTheWayItFaces(t *testing.T) {
 		facing geom.Vec
 	}{{"east", east}, {"slantwise", geom.NewVec(math.Sqrt2/2, math.Sqrt2/2)}} {
 		t.Run(tc.name, func(t *testing.T) {
-			r := newRig(t, scene{pieces: []piece{{x: 100, y: 100, size: 20, facing: tc.facing, speed: 600}}})
+			r := newRig(
+				t,
+				scene{pieces: []piece{{x: 100, y: 100, size: 20, facing: tc.facing, speed: 600}}},
+			)
 			ammo := round(r, true)
 			r.start()
 			if !r.w.Write().Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo}) {
@@ -360,18 +383,39 @@ func TestShoot_AnEntityFiresFromItsMuzzleTheWayItFaces(t *testing.T) {
 			}
 			r.tick(1)
 			shot, who := r.theShot(), r.unit(0)
-			if d := shot.flight.Dir; f32.Hypot(d.X-tc.facing.X, d.Y-tc.facing.Y) > f32.Eps(1) || shot.flight.Shooter != who.id {
-				t.Errorf("the shot flies %v shot by %v, want %v by %v", shot.flight.Dir, shot.flight.Shooter, tc.facing, who.id)
+			if d := shot.flight.Dir; f32.Hypot(d.X-tc.facing.X, d.Y-tc.facing.Y) > f32.Eps(1) ||
+				shot.flight.Shooter != who.id {
+				t.Errorf(
+					"the shot flies %v shot by %v, want %v by %v",
+					shot.flight.Dir,
+					shot.flight.Shooter,
+					tc.facing,
+					who.id,
+				)
 			}
-			if muzzle := geom.NewAABBAt(geom.NewVec(100, 100), 20, 20); shot.base.Pos.AABB.AABB.Intersects(muzzle) {
-				t.Errorf("the shot's box %v overlaps the shooter's as it fired, %v; want it outside", shot.base.Pos.AABB, muzzle)
+			if muzzle := geom.NewAABBAt(geom.NewVec(100, 100), 20,
+				20); shot.base.Pos.AABB.AABB.Intersects(
+				muzzle,
+			) {
+				t.Errorf(
+					"the shot's box %v overlaps the shooter's as it fired, %v; want it outside",
+					shot.base.Pos.AABB,
+					muzzle,
+				)
 			}
 			r.tick(3)
 			if who = r.unit(0); len(who.contacts) != 0 {
-				t.Errorf("the shooter walking into its shot struck it: %+v, want nothing", who.contacts)
+				t.Errorf(
+					"the shooter walking into its shot struck it: %+v, want nothing",
+					who.contacts,
+				)
 			}
 			if shot = r.theShot(); len(shot.contacts) != 0 || shot.flight.Landed {
-				t.Errorf("the shot struck its shooter: %+v, landed %v; want it flying on", shot.contacts, shot.flight.Landed)
+				t.Errorf(
+					"the shot struck its shooter: %+v, landed %v; want it flying on",
+					shot.contacts,
+					shot.flight.Landed,
+				)
 			}
 		})
 	}
@@ -399,7 +443,8 @@ func TestShoot_AFastShotStrikesWhatLiesOnItsPath(t *testing.T) {
 	if err := r.obey(act.Branch[bullet.Landing]{
 		Name: "told",
 		When: cond.Self.If(roundRole).
-			And(cond.Self.If(cond.NewWord("struck", func(l bullet.Landing) bool { return l.Struck }))),
+			And(cond.Self.If(cond.NewWord("struck",
+				func(l bullet.Landing) bool { return l.Struck }))),
 		Then: act.Other.Put(told),
 	}); err != nil {
 		t.Fatal(err)
@@ -411,12 +456,19 @@ func TestShoot_AFastShotStrikesWhatLiesOnItsPath(t *testing.T) {
 	}
 	target, shot := r.unit(1), r.theShot()
 	if !target.marks.Has(hit.Mark()) || !target.marks.Has(told.Mark()) {
-		t.Fatalf("the target carries %v, want hit (the Meeting, %v) and told (the Landing, %v)", target.marks, hit.Mark(), told.Mark())
+		t.Fatalf(
+			"the target carries %v, want hit (the Meeting, %v) and told (the Landing, %v)",
+			target.marks,
+			hit.Mark(),
+			told.Mark(),
+		)
 	}
 	if f := shot.flight; !f.Landed || f.Ending != bullet.Struck || f.Other != target.id {
 		t.Errorf("the shot's flight is %+v, want landed, Struck, on the target %v", *f, target.id)
 	}
-	if gap := target.base.Pos.TopLeft.X - (shot.base.Pos.TopLeft.X + shot.base.Pos.Size.X); gap < 0 || gap > 0.1 {
+	if gap := target.base.Pos.TopLeft.X - (shot.base.Pos.TopLeft.X +
+		shot.base.Pos.Size.X); gap < 0 ||
+		gap > 0.1 {
 		t.Errorf("the shot lies %v short of the target, want just short of touching it", gap)
 	}
 }
@@ -486,7 +538,10 @@ func TestFlight_TheRangeFlownLandsAStepLater(t *testing.T) {
 	r.tick(11) // spawned, then ten steps of ten
 	shot := r.theShot()
 	if f := shot.flight; f.Landed || f.Ending != bullet.Spent || f32.Abs(f.Flown-100) > 1e-3 {
-		t.Fatalf("after the range the flight is %+v, want its range flown, Spent, not yet landed", *f)
+		t.Fatalf(
+			"after the range the flight is %+v, want its range flown, Spent, not yet landed",
+			*f,
+		)
 	}
 	r.tick(1)
 	shot = r.theShot()
@@ -556,7 +611,11 @@ func TestPlan_AFuseWaitsOnTheShotLyingAndBursts(t *testing.T) {
 			When: cond.Self.If(bullet.Lying()),
 			Then: plan.Self.Wait(time.Second),
 		},
-		plan.Loop[any]{Name: "burst", When: cond.Self.If(cond.Always), Then: plan.Self.Do(bullet.Burst{Radius: 40})},
+		plan.Loop[any]{
+			Name: "burst",
+			When: cond.Self.If(cond.Always),
+			Then: plan.Self.Do(bullet.Burst{Radius: 40}),
+		},
 	))
 	r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 96, Lands: true},
 		ceremony.Plays(grenadeRole), fuse)
@@ -591,14 +650,31 @@ func TestFlight_AThrownShotArcsAndComesDownWhereAimed(t *testing.T) {
 		want bullet.End
 	}{{"over a low wall", 18, bullet.Grounded}, {"into a high wall", 30, bullet.Wall}} {
 		t.Run(tc.name, func(t *testing.T) {
-			wall := &wallField{box: geom.NewAABBAt(geom.NewVec(150, 0), 10, 400), top: tc.top, cell: 7}
+			wall := &wallField{
+				box:  geom.NewAABBAt(geom.NewVec(150, 0), 10, 400),
+				top:  tc.top,
+				cell: 7,
+			}
 			r := newRig(t, scene{heights: true, eyes: true, field: wall, pieces: []piece{
-				{x: 100, y: 100, size: 20, facing: east, z: world.Z{Height: 20}, eye: &world.Eye{Height: 16}},
+				{
+					x:      100,
+					y:      100,
+					size:   20,
+					facing: east,
+					z:      world.Z{Height: 20},
+					eye:    &world.Eye{Height: 16},
+				},
 			}})
-			r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 200, Gravity: 240, Lands: true})
+			r.arms.Define(
+				"grenade",
+				bullet.Body{Size: 8, Speed: 160, Range: 200, Gravity: 240, Lands: true},
+			)
 			grenade := r.arms.Named("grenade")
 			r.start()
-			r.w.Write().Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: grenade, At: geom.NewVec(220, 110), Targeted: true})
+			r.w.Write().
+				Carrier().
+				PutFrom(r.ids[0], bullet.Shoot{Ammo: grenade, At: geom.NewVec(220, 110),
+					Targeted: true})
 			peak := float32(0)
 			for i := 0; i < 90; i++ {
 				r.tick(1)
@@ -618,11 +694,19 @@ func TestFlight_AThrownShotArcsAndComesDownWhereAimed(t *testing.T) {
 			switch tc.want {
 			case bullet.Grounded:
 				if f32.Abs(shot.flight.At.X-220) > 4 || shot.z.Altitude != 0 {
-					t.Errorf("came down at %v, %v up; want within a step of 220, on the ground", shot.flight.At, shot.z.Altitude)
+					t.Errorf(
+						"came down at %v, %v up; want within a step of 220, on the ground",
+						shot.flight.At,
+						shot.z.Altitude,
+					)
 				}
 			case bullet.Wall:
 				if shot.flight.Cell != 7 || shot.flight.At.X+4 > 150 {
-					t.Errorf("struck cell %v at %v, want the wall's cell 7, just short of 150", shot.flight.Cell, shot.flight.At)
+					t.Errorf(
+						"struck cell %v at %v, want the wall's cell 7, just short of 150",
+						shot.flight.Cell,
+						shot.flight.At,
+					)
 				}
 			}
 		})
@@ -631,7 +715,13 @@ func TestFlight_AThrownShotArcsAndComesDownWhereAimed(t *testing.T) {
 
 func TestFlight_AnOpenEdgeIsLeftAClosedOneStopsTheShot(t *testing.T) {
 	t.Run("open", func(t *testing.T) {
-		r := newRig(t, scene{edges: aabbworld.OpenX, pieces: []piece{{x: 300, y: 100, size: 20, facing: east}}})
+		r := newRig(
+			t,
+			scene{
+				edges:  aabbworld.OpenX,
+				pieces: []piece{{x: 300, y: 100, size: 20, facing: east}},
+			},
+		)
 		ammo := round(r, true)
 		r.fx.Define("gone", effect.Spec{effect.Lasts(time.Minute)})
 		gone := r.fx.Named("gone")
@@ -647,7 +737,11 @@ func TestFlight_AnOpenEdgeIsLeftAClosedOneStopsTheShot(t *testing.T) {
 		r.tick(14)
 		shot := r.theShot()
 		if f := shot.flight; !f.Landed || f.Ending != bullet.Left || !shot.marks.Has(gone.Mark()) {
-			t.Errorf("the flight is %+v carrying %v, want landed, Left, and the leaving rule's mark", *f, shot.marks)
+			t.Errorf(
+				"the flight is %+v carrying %v, want landed, Left, and the leaving rule's mark",
+				*f,
+				shot.marks,
+			)
 		}
 	})
 	t.Run("closed", func(t *testing.T) {
@@ -678,7 +772,12 @@ func TestShoot_APlayerFiresFromItsSelectedUnitsAlone(t *testing.T) {
 	r.tick(1)
 	shot := r.theShot()
 	if shot.flight.Shooter != r.ids[0] || !shot.owned.Has(owner.Of(1)) {
-		t.Errorf("the shot is %v's carrying %v, want the first unit's (%v), owned by player 1", shot.flight.Shooter, shot.owned, r.ids[0])
+		t.Errorf(
+			"the shot is %v's carrying %v, want the first unit's (%v), owned by player 1",
+			shot.flight.Shooter,
+			shot.owned,
+			r.ids[0],
+		)
 	}
 }
 
@@ -753,7 +852,13 @@ func TestSaveLoad_AFlightGoesOnAfterALoad(t *testing.T) {
 		}
 	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		r2.q = si.NewQueryBuilder(&r2.base).Optional(&r2.coll).Optional(&r2.flight).Optional(&r2.z).Optional(&r2.marks).Optional(&r2.owned).Build()
+		r2.q = si.NewQueryBuilder(&r2.base).
+			Optional(&r2.coll).
+			Optional(&r2.flight).
+			Optional(&r2.z).
+			Optional(&r2.marks).
+			Optional(&r2.owned).
+			Build()
 	}})
 	r2.ecs = ctx.ecs
 	r2.ecs.Setup(systems...)
@@ -767,7 +872,11 @@ func TestSaveLoad_AFlightGoesOnAfterALoad(t *testing.T) {
 	})
 	loaded := r2.theShot()
 	if *loaded.flight != *before.flight {
-		t.Fatalf("the flight loaded is %+v, want the one saved, %+v", *loaded.flight, *before.flight)
+		t.Fatalf(
+			"the flight loaded is %+v, want the one saved, %+v",
+			*loaded.flight,
+			*before.flight,
+		)
 	}
 	r2.tick(10)
 	if f := r2.theShot().flight; !f.Landed || f.Ending != bullet.Spent {
@@ -828,7 +937,10 @@ func TestShoot_AThrowGoesAsFarAsItsPowerSays(t *testing.T) {
 	thrower := piece{x: 100, y: 100, size: 20, facing: east, z: world.Z{Height: 20}}
 	thrower.eye = &world.Eye{Height: 16}
 	r := newRig(t, scene{heights: true, eyes: true, pieces: []piece{thrower}})
-	r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 200, Gravity: 240, Lands: true})
+	r.arms.Define(
+		"grenade",
+		bullet.Body{Size: 8, Speed: 160, Range: 200, Gravity: 240, Lands: true},
+	)
 	grenade := r.arms.Named("grenade")
 	r.start()
 	r.w.Write().Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: grenade, Power: 0.5})

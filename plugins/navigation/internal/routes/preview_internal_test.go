@@ -16,7 +16,10 @@ func TestPathRenderer_PreviewsTheRouteToEachQueuedGoal(t *testing.T) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
 	at := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
-	r := &Renderer{grid: grid, Finder: spacing.NewFinder(grid, terrain, nil, &cell.SingleOccupancy{})}
+	r := &Renderer{
+		grid:   grid,
+		Finder: spacing.NewFinder(grid, terrain, nil, &cell.SingleOccupancy{}),
+	}
 
 	mt := order.MoveOrder{Target: at(2)}
 	mt.Enqueue(order.Goal{Cell: at(5)})

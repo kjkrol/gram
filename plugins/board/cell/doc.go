@@ -39,8 +39,11 @@
 // gathered on the cell's entity as [Built], whose Over is the kind as whoever crosses the cell
 // meets it. A Floor at a Height is a storey of its cell, raised over it or sunk under it with
 // the room Clear over it, and makes a [Level] of the cell beside its ground: [Levels] at most,
-// the Floor's Storey saying which, so a bridge crosses over a tunnel on one cell. An effect opens
-// a Floor by altering its Allows, a Wall by its Keeps, to 0. A Floor's
+// the Floor's Storey saying which, so a bridge crosses over a tunnel on one cell. A Floor with
+// its room Clear over it, dug under the ground or Standing on it at any height, is a room
+// (Room, Dug): walled round its whole cells but where its Links lead, on into its storey or out
+// by its Door, a [Gap] whoever walks in fits. An effect opens a Floor by altering its Allows, a
+// Wall by its Keeps, to 0, and shuts a room's door by its Door. A Floor's
 // Load bears no heavier body (unit.Mover.Weight); a Wall's [Gap] lets through whom it keeps off
 // where the body fits, the cell admitting them.
 //

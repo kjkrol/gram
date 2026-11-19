@@ -104,7 +104,11 @@ func benchNavigation(b *testing.B, n int, crowded, grouped, abstract bool,
 			}
 		}
 	}
-	units := board.NewUnits(p, board.Shape{Size: 12}, func(r navRow) geom.Vec { return s.g.CellCenter(r.At) })
+	units := board.NewUnits(
+		p,
+		board.Shape{Size: 12},
+		func(r navRow) geom.Vec { return s.g.CellCenter(r.At) },
+	)
 	var selected []comp.Comp
 	if grouped {
 		selected = append(selected, comp.Tagged(sel.Tags().Selectable, sel.Tags().Selected))
@@ -120,7 +124,8 @@ func benchNavigation(b *testing.B, n int, crowded, grouped, abstract bool,
 		}
 	}
 	units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{
-		MaxSpeed: 4 * navCell, Accel: 8 * navCell, Brake: 16 * navCell, V0: 2 * navCell, TurnRate: 0.15,
+		MaxSpeed: 4 * navCell, Accel: 8 * navCell, Brake: 16 * navCell, V0: 2 * navCell,
+		TurnRate: 0.15,
 	}, selected...)
 	var entries []kind.Entry
 	for i := range n {

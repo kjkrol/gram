@@ -39,8 +39,13 @@ func (c *InstallCtx) Setup(providers ...goke.SetupProvider) {
 		c.pending = append(c.pending, p.SetupSystems)
 	}
 }
-func (c *InstallCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
-func (c *InstallCtx) ECS() *goke.ECS                                  { return c.ecs }
+
+func (c *InstallCtx) RegSys(
+	factory func() goke.System,
+) goke.Runnable {
+	return c.ecs.RegSys(factory())
+}
+func (c *InstallCtx) ECS() *goke.ECS { return c.ecs }
 
 // Systems is what the installed plugins set up, in the order they were installed.
 func (c *InstallCtx) Systems() []goke.System {

@@ -214,6 +214,12 @@ func (s *builtSystem) refuse(id uid.UID64, b cell.Built) {
 	case f.Sunk() && f.Clear <= 0:
 		panic(fmt.Sprintf("board: entity %d's floor is sunk %v with no room over it: give it "+
 			"Clear", id, -f.Height))
+	case f.Standing && f.Clear <= 0:
+		panic(fmt.Sprintf("board: entity %d's floor stands a room of no height: give it Clear",
+			id))
+	case f.Door.Width < 0 || f.Door.Height < 0:
+		panic(fmt.Sprintf("board: entity %d's floor has a door %v wide and %v tall", id,
+			f.Door.Width, f.Door.Height))
 	case f.Load < 0:
 		panic(fmt.Sprintf("board: entity %d's floor bears %v kg", id, f.Load))
 	case gap.Width < 0 || gap.Height < 0:
@@ -317,6 +323,10 @@ func join(a, b *cell.Floor) {
 	a.Thickness, a.Clear = max(a.Thickness, b.Thickness), max(a.Clear, b.Clear)
 	a.Pace = max(a.Pace, b.Pace)
 	a.Links |= b.Links
+	a.Standing = a.Standing || b.Standing
+	if b.Door.Width > a.Door.Width {
+		a.Door = b.Door
+	}
 }
 
 func widest(a, b cell.Floor) float32 {

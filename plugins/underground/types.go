@@ -2,6 +2,7 @@ package underground
 
 import (
 	"fmt"
+	"image/color"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
@@ -9,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/interiors"
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
@@ -23,6 +25,19 @@ type Spec struct {
 	Width  float32
 	Clear  float32
 	Pace   float64
+	Look   Look
+}
+
+// Look is how a kind of structure is drawn from inside, its colours straight: the zero Look a
+// road's tunnel, concrete walls, roof and frame round its mouths, an asphalt floor and a road's
+// lines; any other its own colours, each zero as the road's, lines only of a colour it gives.
+type Look struct {
+	Walls, Floor, Roof, Frame color.RGBA
+	// a road's lines down the floor: a broken one in its middle, one by each wall
+	Lines color.RGBA
+	// Rough hews the walls, the roof and the floor out of rock; Sets stands a set of the frame's
+	// colour round the stretch every height of its room, as a mine's timbers
+	Rough, Sets bool
 }
 
 // Row is a tunnel as a level's file writes it: from the head From to the head To, turning at the
@@ -127,10 +142,11 @@ func (t *Types) define(name string, spec Spec) {
 				Load:   spec.Load,
 				Pace:   spec.Pace,
 				Graded: true,
+				Links:  r.Links,
 				Storey: r.Storey,
 			}
 			if !r.Wide {
-				f.Links, f.Width = r.Links, spec.Width
+				f.Width = spec.Width
 			}
 			return f
 		}),
@@ -140,6 +156,7 @@ func (t *Types) define(name string, spec Spec) {
 		// the plugin draws it from inside
 		comp.Const(world.Unseen{}),
 	)
+	t.p.tubes.style(kind.Named[boreRow](w.Kinds(), boreName(name)).ID(), name, spec.Look)
 	kind.Define[wholeRow](w.Kinds(), wholeName(name), kind.Spec{
 		comp.Load(func(r wholeRow) world.Position {
 			return world.Position{AABB: plane.NewAABB(r.At, r.Size.X, r.Size.Y)}
@@ -148,6 +165,10 @@ func (t *Types) define(name string, spec Spec) {
 		comp.Load(func(r wholeRow) world.Z {
 			return world.Z{Altitude: r.Floor, Height: spec.Clear}
 		}),
+		// a room no sun gets into, lit by its lamps as the tube is
+		comp.Const(interiors.Room{}),
+		comp.Const(light.Shelter{Sky: tubeSky, Lamp: [3]float32{tubeLamp[0] * tubeLit,
+			tubeLamp[1] * tubeLit, tubeLamp[2] * tubeLit}, ByDay: true}),
 		comp.Const(light.Shadow{Cast: light.NoShadow}),
 		comp.Const(vision.Transparency{Value: 1}),
 		comp.Const(world.Fixed{}),

@@ -94,7 +94,13 @@ func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	}
 	for s.query.Paced(d); s.query.Next(); {
 		cursor := s.query.Cursor()
-		s.ids, s.bases, s.ats, s.movers = cursor.IDs, s.base.Slice(cursor), s.at.Slice(cursor), s.mover.Slice(cursor)
+		s.ids, s.bases, s.ats, s.movers = cursor.IDs, s.base.Slice(
+			cursor,
+		), s.at.Slice(
+			cursor,
+		), s.mover.Slice(
+			cursor,
+		)
 		s.zs = s.z.Slice(cursor)
 		s.states = s.marks.Slice(cursor)
 		for i := range s.states {

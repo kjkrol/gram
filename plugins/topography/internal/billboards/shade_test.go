@@ -91,8 +91,13 @@ func TestSprites_StandDarkerInTheReliefsShadow(t *testing.T) {
 	cam.ZoomOut(2.5, 160, 120)
 	cam.CenterOn(160, 140, 0)
 	shine := func(at geom.Vec, takes render.Taking) (lit, n int) {
-		fig := &standing{look: w.Read(0).Look().(world.DirectLook), relief: p.Write().Relief(), at: at,
-			atlas: &magenta{}, lit: render.Illumination{Light: render.Light{1, 1, 1}, Takes: takes}}
+		fig := &standing{
+			look:   w.Read(0).Look().(world.DirectLook),
+			relief: p.Write().Relief(),
+			at:     at,
+			atlas:  &magenta{},
+			lit:    render.Illumination{Light: render.Light{1, 1, 1}, Takes: takes},
+		}
 		c := render.NewComposer(append([]render.Source{sunning{}}, append(drawn, fig)...)...)
 		l.Publish()
 		l.Swap()
@@ -128,5 +133,70 @@ func TestSprites_StandDarkerInTheReliefsShadow(t *testing.T) {
 	if lamplit, _ := shine(geom.NewVec(120, 140), render.TakesBlocks); lamplit < sunny-2 {
 		t.Errorf("a figure taking the blocks' shade alone is lit %d in the relief's shadow, one "+
 			"in the sun %d; want it as bright", lamplit, sunny)
+	}
+}
+
+func TestSprites_UnderAShelterLitByTheSunThroughItsOpeningsAlone(t *testing.T) {
+	gputest.Need(t)
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 256, Height: 256},
+		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
+		Heights:  true,
+	})
+	g := grid.DefaultGrids{}.Square(8, 8, 32)
+	b := board.NewPlugin(g, &cell.MultipleOccupancy{}, w)
+	b.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
+	l := light.NewPlugin(w, light.Config{}).WithDistant(westSun)
+	p := topography.NewPlugin(w, b, l, topography.Config{}).WithAtmosphere(westSky{})
+	drawn := append(topotest.Drawn(t, l), topotest.Drawn(t, p)...)
+	cam := cameras.NewPlugin(w, cameras.Config{Turn: true, Tilt: true, Cell: 32, HeightUnit: 1,
+		Cage: p.Read(0)}).Write().New(cameras.Isometrically, camera.Config{})
+	cam.SetViewport(320, 240)
+	cam.MoveTo(0, 0)
+	cam.ZoomOut(2.5, 160, 120)
+	cam.CenterOn(160, 140, 0)
+	// a roof over the figure at (200, 140), its floor on the level ground, the sky's light getting
+	// in; the way west toward the sun from any height of the figure crosses the wall 10 west of
+	// it 17 to 23 up, where a window lets it in if the shelter has one
+	shine := func(window bool) int {
+		in := render.Shelter{Sky: 1}
+		if window {
+			in.Openings = []render.Opening{{A: [2]float32{190, 100}, B: [2]float32{190, 180},
+				Bottom: 10, Top: 30}}
+		}
+		fig := &standing{look: w.Read(0).Look().(world.DirectLook), relief: p.Write().Relief(),
+			at: geom.NewVec(200, 140), atlas: &magenta{},
+			lit: render.Illumination{Takes: render.TakesLamps, Shelter: 1}}
+		c := render.NewComposer(append([]render.Source{sunning{}}, append(drawn, fig)...)...)
+		l.Publish()
+		l.Swap()
+		c.Light(func() *render.Lights {
+			lights := *w.Read(0).Lights()
+			lights.Shelters, lights.SheltersVersion = []render.Shelter{in}, 1
+			return &lights
+		})
+		screen := render.NewImage(320, 240)
+		for range 3 {
+			c.DrawWorld(screen, cam)
+		}
+		pix := make([]byte, 4*320*240)
+		screen.ReadPixels(pix)
+		lit, n := 0, 0
+		for i := 0; i < len(pix); i += 4 {
+			if purple(pix[i:]) {
+				lit += int(pix[i])
+				n++
+			}
+		}
+		if n == 0 {
+			t.Fatalf("the figure under the roof, a window %v, does not show", window)
+		}
+		return lit / n
+	}
+	// the sky's 0.3 alone, or with the sun's 0.87 besides
+	through, walled := shine(true), shine(false)
+	if through < 2*walled {
+		t.Errorf("a figure under a roof is lit %d with the sun through a window, %d without; "+
+			"want it lit by the sun alone through the window", through, walled)
 	}
 }

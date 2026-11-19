@@ -26,18 +26,36 @@ func TestIsoCamera_BoundsHoldTheGroundTheScreenShowsAtAnyHeight(t *testing.T) {
 		for sx := float32(0); sx <= 400; sx += 40 {
 			for _, z := range []float32{low, 100, high} {
 				if x, y := c.Unproject(sx, sy, z); onWorld(x, y) && !inBounds(b, x, y) {
-					t.Errorf("the ground %v up drawn at (%v, %v) lies at (%v, %v), outside Bounds %v", z, sx, sy, x, y, b)
+					t.Errorf(
+						"the ground %v up drawn at (%v, %v) lies at (%v, %v), outside Bounds %v",
+						z,
+						sx,
+						sy,
+						x,
+						y,
+						b,
+					)
 				}
 			}
 		}
 	}
 	x, y := c.Unproject(200, 290, 150) // a hilltop drawn at the bottom of the screen
 	if sx, sy := c.Project(x, y, 0); sy <= 300 || !onWorld(x, y) {
-		t.Fatalf("the hill at (%v, %v) has its foot drawn at (%v, %v), want on the world and below the screen for the case to hold", x, y, sx, sy)
+		t.Fatalf(
+			"the hill at (%v, %v) has its foot drawn at (%v, %v), want on the world and below "+
+				"the screen for the case to hold",
+			x,
+			y,
+			sx,
+			sy,
+		)
 	}
 	box := geom.NewAABBAt(geom.NewVec(float32(x)-2, float32(y)-2), 4, 4)
 	if !c.Visible(box) || !inBounds(b, x, y) {
-		t.Error("a unit on a hill 150 up drawn at the bottom of the screen is not Visible, or its ground not in Bounds")
+		t.Error(
+			"a unit on a hill 150 up drawn at the bottom of the screen is not Visible, or its " +
+				"ground not in Bounds",
+		)
 	}
 	c.extent = nil
 	if inBounds(c.Bounds(), x, y) || c.Visible(box) {
@@ -67,7 +85,17 @@ func TestPerspCamera_BoundsHoldTheGroundTheScreenShowsAtAnyHeight(t *testing.T) 
 					}
 					x, y := e[0]+d[0]*tt, e[1]+d[1]*tt
 					if onWorld(x, y) && !inBounds(b, x, y) {
-						t.Errorf("%s: the ground %v up drawn at (%v, %v) lies at (%v, %v), outside Bounds %v", name, z, sx, sy, x, y, b)
+						t.Errorf(
+							"%s: the ground %v up drawn at (%v, %v) lies at (%v, %v), outside "+
+								"Bounds %v",
+							name,
+							z,
+							sx,
+							sy,
+							x,
+							y,
+							b,
+						)
 						return
 					}
 				}
@@ -85,7 +113,11 @@ func TestPerspCamera_BoundsHoldTheGroundTheScreenShowsAtAnyHeight(t *testing.T) 
 		c.Tilt(pitch)
 		check("inside a unit", c)
 		if b := c.Bounds(); !inBounds(b, 320, 320) {
-			t.Errorf("inside a unit at pitch %v the eye's own ground is outside Bounds %v", pitch, b)
+			t.Errorf(
+				"inside a unit at pitch %v the eye's own ground is outside Bounds %v",
+				pitch,
+				b,
+			)
 		}
 	}
 	level := testPersp(nil, nil) // low over level ground, the screen's sides crossing the horizon
@@ -96,16 +128,25 @@ func TestPerspCamera_BoundsHoldTheGroundTheScreenShowsAtAnyHeight(t *testing.T) 
 	c.enterInside([3]float32{320, 320, 154}, 0, 0)
 	ahead := facing(0)
 	if x, y := 320+float32(ahead.X)*150, 320+float32(ahead.Y)*150; !inBounds(c.Bounds(), x, y) {
-		t.Errorf("inside a unit looking level, the ground 150 ahead (%v, %v) is outside Bounds %v", x, y, c.Bounds())
+		t.Errorf(
+			"inside a unit looking level, the ground 150 ahead (%v, %v) is outside Bounds %v",
+			x,
+			y,
+			c.Bounds(),
+		)
 	}
 	x, y, _ := c.cast(200, 280, 100) // the hillside near the bottom of the screen
 	if !c.Visible(geom.NewAABBAt(geom.NewVec(float32(x)-2, float32(y)-2), 4, 4)) {
-		t.Error("inside a unit, a walker on the hill 100 up near the bottom of the screen is not Visible")
+		t.Error(
+			"inside a unit, a walker on the hill 100 up near the bottom of the screen is not " +
+				"Visible",
+		)
 	}
 	up := testPersp(nil, nil)
 	up.enterInside([3]float32{320, 320, 500}, 0, 0) // over everything, looking up
 	up.Tilt(-1.4)
-	if b := up.Bounds(); !inBounds(b, 320, 320) || b.BottomRight.X-b.TopLeft.X > 1e-3 || b.BottomRight.Y-b.TopLeft.Y > 1e-3 {
+	if b := up.Bounds(); !inBounds(b, 320, 320) || b.BottomRight.X-b.TopLeft.X > 1e-3 ||
+		b.BottomRight.Y-b.TopLeft.Y > 1e-3 {
 		t.Errorf("looking up from over everything, Bounds %v, want the eye's point alone", b)
 	}
 }

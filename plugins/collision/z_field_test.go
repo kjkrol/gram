@@ -21,11 +21,22 @@ type wallField struct {
 	band collision.Band
 }
 
-func (f *wallField) Solid(_ world.Layers, band collision.Band, box geom.AABB, visit func(collision.FieldBox) bool) {
+func (f *wallField) Solid(
+	_ world.Layers,
+	band collision.Band,
+	box geom.AABB,
+	visit func(collision.FieldBox) bool,
+) {
 	if !f.band.Meets(band) || !box.Intersects(f.box) {
 		return
 	}
-	visit(collision.FieldBox{Box: f.box, Cell: 1, Open: collide.Left | collide.Right | collide.Top | collide.Bottom})
+	visit(
+		collision.FieldBox{
+			Box:  f.box,
+			Cell: 1,
+			Open: collide.Left | collide.Right | collide.Top | collide.Bottom,
+		},
+	)
 }
 
 func (f *wallField) Overhang(world.Layers, geom.AABB) float32 { return 0 }
@@ -36,7 +47,10 @@ func (f *wallField) Walls(world.Layers, collision.Band, geom.AABB,
 
 func TestZ_TheGroundStopsOnlyWhatStandsInItsBand(t *testing.T) {
 	wall := func(top float32) *wallField {
-		return &wallField{box: geom.NewAABBAt(geom.NewVec(200, 0), 32, 1000), band: collision.Band{Bottom: f32.Inf(-1), Top: top}}
+		return &wallField{
+			box:  geom.NewAABBAt(geom.NewVec(200, 0), 32, 1000),
+			band: collision.Band{Bottom: f32.Inf(-1), Top: top},
+		}
 	}
 	cases := map[string]struct {
 		field *wallField
@@ -45,8 +59,14 @@ func TestZ_TheGroundStopsOnlyWhatStandsInItsBand(t *testing.T) {
 	}{
 		"a walker at the foot of the wall": {wall(30), world.Z{Altitude: 0, Height: 20}, true},
 		"a flyer over the wall":            {wall(30), world.Z{Altitude: 40, Height: 10}, false},
-		"a flyer under a wall of no height": {&wallField{box: geom.NewAABBAt(geom.NewVec(200, 0), 32, 1000), band: collision.Everywhere},
-			world.Z{Altitude: 40, Height: 10}, true},
+		"a flyer under a wall of no height": {
+			&wallField{
+				box:  geom.NewAABBAt(geom.NewVec(200, 0), 32, 1000),
+				band: collision.Everywhere,
+			},
+			world.Z{Altitude: 40, Height: 10},
+			true,
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -84,7 +104,12 @@ func TestZ_TheGroundStopsOnlyWhatStandsInItsBand(t *testing.T) {
 				}
 			}
 			if held := right <= 200+f32.Eps(200); held != tc.held {
-				t.Errorf("the runner's right edge ended at %v: held at the wall = %v, want %v", right, held, tc.held)
+				t.Errorf(
+					"the runner's right edge ended at %v: held at the wall = %v, want %v",
+					right,
+					held,
+					tc.held,
+				)
 			}
 		})
 	}

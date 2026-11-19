@@ -88,7 +88,9 @@ func TestHits_AMaskedElementIsHitOnlyInsideItsShape(t *testing.T) {
 	if !e.Hits(geom.NewVec(50, 50)) {
 		t.Error("a round element is not hit in its middle")
 	}
-	hex := Label("hex").Masked(Polygon(geom.NewVec(0.25, 0), geom.NewVec(0.75, 0), geom.NewVec(1, 0.5),
+	hex := Label(
+		"hex",
+	).Masked(Polygon(geom.NewVec(0.25, 0), geom.NewVec(0.75, 0), geom.NewVec(1, 0.5),
 		geom.NewVec(0.75, 1), geom.NewVec(0.25, 1), geom.NewVec(0, 0.5)))
 	hex.lay(box(0, 0, 100, 100))
 	if hex.Hits(geom.NewVec(2, 2)) || !hex.Hits(geom.NewVec(50, 50)) {
@@ -119,18 +121,33 @@ func TestFraction_KeepsTheShareAndThePictureItsProportions(t *testing.T) {
 		BottomMiddle(Image(minimap)).Fraction(0.25, 0).lay(box)
 		w, _ := size(box)
 		if minimap.w != int(w/4) || minimap.h != int(w/4*3/4) {
-			t.Errorf("in %v the minimap is %d x %d, want a quarter of the width, 4:3", box, minimap.w, minimap.h)
+			t.Errorf(
+				"in %v the minimap is %d x %d, want a quarter of the width, 4:3",
+				box,
+				minimap.w,
+				minimap.h,
+			)
 		}
 		both := &proportioned{}
 		Center(Image(both)).Fraction(0.5, 0.5).lay(box)
 		bw, bh := size(box)
 		if both.w*3 != both.h*4 || (both.w != int(bw/2) && both.h != int(bh/2)) {
-			t.Errorf("in %v the picture asked for half each way is %d x %d, want 4:3 filling one side", box, both.w, both.h)
+			t.Errorf(
+				"in %v the picture asked for half each way is %d x %d, want 4:3 filling one side",
+				box,
+				both.w,
+				both.h,
+			)
 		}
 		plain := &sized{}
 		TopLeft(Image(plain)).Fraction(0.5, 0.25).lay(box)
 		if plain.w != int(bw/2) || plain.h != int(bh/4) {
-			t.Errorf("in %v a plain picture is %d x %d, want half by a quarter", box, plain.w, plain.h)
+			t.Errorf(
+				"in %v a plain picture is %d x %d, want half by a quarter",
+				box,
+				plain.w,
+				plain.h,
+			)
 		}
 	}
 }
@@ -139,7 +156,13 @@ func TestImage_GivesItsSurfaceItsBox(t *testing.T) {
 	left, right := &sized{}, &sized{}
 	Columns(Share(1, Image(left)), Share(1, Image(right).Padding(5))).lay(screen)
 	if left.w != 600 || left.h != 600 || right.w != 590 || right.h != 590 {
-		t.Fatalf("surfaces sized %dx%d and %dx%d, want 600x600 and 590x590", left.w, left.h, right.w, right.h)
+		t.Fatalf(
+			"surfaces sized %dx%d and %dx%d, want 600x600 and 590x590",
+			left.w,
+			left.h,
+			right.w,
+			right.h,
+		)
 	}
 }
 
@@ -184,7 +207,11 @@ func TestImage_FillingTheScreenDrawsStraightOntoIt(t *testing.T) {
 		})
 	}
 	if !whole.onto || half.onto {
-		t.Fatalf("drawn straight: the whole screen's %v, the half's %v; want the whole alone", whole.onto, half.onto)
+		t.Fatalf(
+			"drawn straight: the whole screen's %v, the half's %v; want the whole alone",
+			whole.onto,
+			half.onto,
+		)
 	}
 }
 

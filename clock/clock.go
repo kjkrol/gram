@@ -292,7 +292,8 @@ func (s *system) Init(si *goke.SysInit) {
 	}
 	for s.query.All(); s.query.Next(); {
 		cursor := s.query.Cursor()
-		s.c.state, s.c.entity = s.state.Slice(cursor)[0], cursor.IDs[0] // a loaded game brought its clock
+		// a loaded game brought its clock
+		s.c.state, s.c.entity = s.state.Slice(cursor)[0], cursor.IDs[0]
 		return
 	}
 	f := si.NewFactory(&s.spawn)

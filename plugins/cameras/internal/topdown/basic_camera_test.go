@@ -43,7 +43,10 @@ func TestBasicCamera_Pan_IsInScreenPixels(t *testing.T) {
 	}
 	c.Pan(-100000, 0)
 	if x := c.Bounds().TopLeft.X; x != 0 {
-		t.Errorf("a Pan past the left edge left the window at %v, want it held at 0 like Translate", x)
+		t.Errorf(
+			"a Pan past the left edge left the window at %v, want it held at 0 like Translate",
+			x,
+		)
 	}
 }
 
@@ -152,7 +155,8 @@ func TestBasicCamera_ZoomOut_CappedToWorldFit(t *testing.T) {
 	if c.Zoom() < 1 {
 		t.Errorf("Zoom() = %v, want >= 1 (viewport already equals world size)", c.Zoom())
 	}
-	if b := c.Bounds(); b.TopLeft.X != 0 || b.TopLeft.Y != 0 || b.BottomRight.X != 1000 || b.BottomRight.Y != 1000 {
+	if b := c.Bounds(); b.TopLeft.X != 0 || b.TopLeft.Y != 0 || b.BottomRight.X != 1000 ||
+		b.BottomRight.Y != 1000 {
 		t.Errorf("Bounds() = %+v, want exactly (0,0)-(1000,1000) (capped at world fit)", b)
 	}
 }
@@ -169,10 +173,18 @@ func TestBasicCamera_ZoomIn_AnchorStaysUnderCursor(t *testing.T) {
 	afterX, afterY := c.ToScreen(anchorX, anchorY)
 	const tol = 1.5
 	if diff := afterX - beforeX; diff < -tol || diff > tol {
-		t.Errorf("ToScreen(anchor).X after ZoomIn = %v, want ~%v (anchor should stay under the cursor)", afterX, beforeX)
+		t.Errorf(
+			"ToScreen(anchor).X after ZoomIn = %v, want ~%v (anchor should stay under the cursor)",
+			afterX,
+			beforeX,
+		)
 	}
 	if diff := afterY - beforeY; diff < -tol || diff > tol {
-		t.Errorf("ToScreen(anchor).Y after ZoomIn = %v, want ~%v (anchor should stay under the cursor)", afterY, beforeY)
+		t.Errorf(
+			"ToScreen(anchor).Y after ZoomIn = %v, want ~%v (anchor should stay under the cursor)",
+			afterY,
+			beforeY,
+		)
 	}
 }
 
@@ -196,7 +208,10 @@ func TestBasicCamera_ZoomOut_CappedByConfiguredMinZoom(t *testing.T) {
 	c.ZoomOut(100, 50, 50)
 
 	if c.Zoom() != 0.5 {
-		t.Errorf("Zoom() = %v, want 0.5 (capped by SetMinZoom, stricter than the world-fit floor)", c.Zoom())
+		t.Errorf(
+			"Zoom() = %v, want 0.5 (capped by SetMinZoom, stricter than the world-fit floor)",
+			c.Zoom(),
+		)
 	}
 }
 
@@ -207,7 +222,8 @@ func TestNewFromSpaceWithConfig_StartsOverTheMiddleAtItsZoom(t *testing.T) {
 		t.Errorf("Zoom() = %v, want the 1.5 it starts at", c.Zoom())
 	}
 	b := c.Bounds()
-	if mx, my := (b.TopLeft.X+b.BottomRight.X)/2, (b.TopLeft.Y+b.BottomRight.Y)/2; mx != 500 || my != 500 {
+	if mx, my := (b.TopLeft.X+b.BottomRight.X)/2, (b.TopLeft.Y+b.BottomRight.Y)/2; mx != 500 ||
+		my != 500 {
 		t.Errorf("the window's middle is (%v, %v), want the world's (500, 500)", mx, my)
 	}
 	if w := b.BottomRight.X - b.TopLeft.X; w != 200 {
@@ -240,17 +256,41 @@ func TestWholeCamera_KeepsTheWholeWorldCentred(t *testing.T) {
 		x0, y0 := c.ToScreen(0, 0)
 		x1, y1 := c.ToScreen(400, 200)
 		if x0 < -1e-3 || y0 < -1e-3 || x1 > size[0]+1e-3 || y1 > size[1]+1e-3 {
-			t.Errorf("in %v the world lies (%v, %v)-(%v, %v), want all of it on the screen", size, x0, y0, x1, y1)
+			t.Errorf(
+				"in %v the world lies (%v, %v)-(%v, %v), want all of it on the screen",
+				size,
+				x0,
+				y0,
+				x1,
+				y1,
+			)
 		}
 		if gx, gy := size[0]-x1-x0, size[1]-y1-y0; f32.Abs(float32(gx)) > 1e-3 ||
 			f32.Abs(float32(gy)) > 1e-3 {
-			t.Errorf("in %v the world lies (%v, %v)-(%v, %v), want it centred", size, x0, y0, x1, y1)
+			t.Errorf(
+				"in %v the world lies (%v, %v)-(%v, %v), want it centred",
+				size,
+				x0,
+				y0,
+				x1,
+				y1,
+			)
 		}
 		if (x1-x0)/400 != (y1-y0)/200 {
-			t.Errorf("in %v a unit is %v across and %v down, want the world's proportions kept", size, (x1-x0)/400, (y1-y0)/200)
+			t.Errorf(
+				"in %v a unit is %v across and %v down, want the world's proportions kept",
+				size,
+				(x1-x0)/400,
+				(y1-y0)/200,
+			)
 		}
 		if x1-x0 < size[0]-1e-3 && y1-y0 < size[1]-1e-3 {
-			t.Errorf("in %v the world is %v x %v, want it as large as the screen takes it", size, x1-x0, y1-y0)
+			t.Errorf(
+				"in %v the world is %v x %v, want it as large as the screen takes it",
+				size,
+				x1-x0,
+				y1-y0,
+			)
 		}
 	}
 	before, zoom := c.Bounds(), c.Zoom()
@@ -258,7 +298,13 @@ func TestWholeCamera_KeepsTheWholeWorldCentred(t *testing.T) {
 	c.ZoomIn(2, 200, 100)
 	c.CenterOn(0, 0, 0)
 	if c.Bounds() != before || c.Zoom() != zoom {
-		t.Errorf("panned and zoomed: %v at %v, want it kept at %v at %v", c.Bounds(), c.Zoom(), before, zoom)
+		t.Errorf(
+			"panned and zoomed: %v at %v, want it kept at %v at %v",
+			c.Bounds(),
+			c.Zoom(),
+			before,
+			zoom,
+		)
 	}
 	c.MoveTo(10, 10)
 	c.Restore()
@@ -326,10 +372,18 @@ func TestBasicCamera_ToScreen_ToroidalWrapsNearCurrentView(t *testing.T) {
 	wrappedX, wrappedY := c.ToScreen(50, 50)
 
 	if wrappedX <= nearX {
-		t.Errorf("ToScreen(50,_).X = %v, want > ToScreen(950,_).X = %v (continues past the seam)", wrappedX, nearX)
+		t.Errorf(
+			"ToScreen(50,_).X = %v, want > ToScreen(950,_).X = %v (continues past the seam)",
+			wrappedX,
+			nearX,
+		)
 	}
 	if wrappedY <= nearY {
-		t.Errorf("ToScreen(_,50).Y = %v, want > ToScreen(_,950).Y = %v (continues past the seam)", wrappedY, nearY)
+		t.Errorf(
+			"ToScreen(_,50).Y = %v, want > ToScreen(_,950).Y = %v (continues past the seam)",
+			wrappedY,
+			nearY,
+		)
 	}
 }
 
@@ -339,7 +393,9 @@ func TestBasicCamera_Visible_ToroidalWrap(t *testing.T) {
 	c.MoveTo(900, 900)
 
 	if !c.Visible(testViewport(30, 30, 30, 30)) {
-		t.Error("Visible((30,30)-(60,60)) = false, want true (within the wrapped-into-view portion)")
+		t.Error(
+			"Visible((30,30)-(60,60)) = false, want true (within the wrapped-into-view portion)",
+		)
 	}
 }
 
@@ -349,7 +405,9 @@ func TestBasicCamera_Visible_PartialViewportDoesNotWrapAtWorldSize(t *testing.T)
 	c.Translate(400, 0)
 
 	if !c.Visible(testViewport(395, 10, 10, 10)) {
-		t.Error("Visible((395,10)-(405,20)) = false, want true (merely straddles the view's near edge)")
+		t.Error(
+			"Visible((395,10)-(405,20)) = false, want true (merely straddles the view's near edge)",
+		)
 	}
 }
 
@@ -361,10 +419,17 @@ func TestToScreenQuads_PartialViewportClipsInsteadOfWrapping(t *testing.T) {
 	quads := c.ToScreenQuads(395, 10, 405, 20, nil)
 
 	if len(quads) != 1 {
-		t.Fatalf("len(quads) = %d, want 1 (no wrap split — this isn't near the world's own edge)", len(quads))
+		t.Fatalf(
+			"len(quads) = %d, want 1 (no wrap split — this isn't near the world's own edge)",
+			len(quads),
+		)
 	}
 	if q := quads[0]; q.X0 != -5 || q.X1 != 5 {
-		t.Errorf("quads[0] = %+v, want X0=-5, X1=5 (clipped off the left edge, not teleported to the far side)", q)
+		t.Errorf(
+			"quads[0] = %+v, want X0=-5, X1=5 (clipped off the left edge, not teleported to the "+
+				"far side)",
+			q,
+		)
 	}
 }
 
@@ -397,7 +462,10 @@ func TestBasicCamera_ZoomOut_ToroidalCappedToWorldFit(t *testing.T) {
 	c.ZoomOut(10, 500, 500)
 
 	if c.Zoom() < 1 {
-		t.Errorf("Zoom() = %v, want >= 1 (viewport already equals world size, one lap max)", c.Zoom())
+		t.Errorf(
+			"Zoom() = %v, want >= 1 (viewport already equals world size, one lap max)",
+			c.Zoom(),
+		)
 	}
 }
 
@@ -481,7 +549,11 @@ func TestNewFromSpace_WithViewportOverride(t *testing.T) {
 	c := NewFromSpace(800, 600, 0, override)
 
 	if got := c.Bounds(); got != override {
-		t.Errorf("Bounds() = %+v, want overridden viewport %+v (not the size-derived default)", got, override)
+		t.Errorf(
+			"Bounds() = %+v, want overridden viewport %+v (not the size-derived default)",
+			got,
+			override,
+		)
 	}
 }
 
@@ -493,7 +565,10 @@ func TestNewFromSpace_ToroidalWrapsOnTranslate(t *testing.T) {
 
 	got := c.Bounds()
 	if got.TopLeft.X != 12 {
-		t.Errorf("after wrap-around Translate, Bounds().TopLeft.X = %v, want 12 (wrapped, not clamped)", got.TopLeft.X)
+		t.Errorf(
+			"after wrap-around Translate, Bounds().TopLeft.X = %v, want 12 (wrapped, not clamped)",
+			got.TopLeft.X,
+		)
 	}
 }
 
@@ -595,7 +670,10 @@ func TestCamera_WrapsOnlyAlongAWrappingAxis(t *testing.T) {
 
 	c.Translate(-50, -50)
 	if got := c.Bounds().TopLeft; got.X != 950 || got.Y != 0 {
-		t.Errorf("window at %v after moving up and left, want it wrapped to x=950 and held at y=0", got)
+		t.Errorf(
+			"window at %v after moving up and left, want it wrapped to x=950 and held at y=0",
+			got,
+		)
 	}
 
 	c.Translate(0, 5000)

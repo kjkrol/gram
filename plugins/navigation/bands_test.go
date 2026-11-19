@@ -235,8 +235,15 @@ func TestMember_KnowsTheLevelItsSectorIsTickedAt(t *testing.T) {
 
 	nw.nav.handKeeping.Keep = keep
 	for _, id := range []uid.UID64{near, far} {
-		nw.nav.handKeeping.MayStep(id, world.Position{}, g.At(2, 1), g.At(3, 1), cell.OnGround, cell.Land,
-			geom.NewVec(1, 0))
+		nw.nav.handKeeping.MayStep(
+			id,
+			world.Position{},
+			g.At(2, 1),
+			g.At(3, 1),
+			cell.OnGround,
+			cell.Land,
+			geom.NewVec(1, 0),
+		)
 	}
 	check("the hand")
 }

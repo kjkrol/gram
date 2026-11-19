@@ -21,16 +21,22 @@ type moments struct {
 }
 
 func (m *moments) system() goke.System {
-	return goke.SystemFn{OnInit: func(*goke.SysInit) { m.host.Bind() }, OnUpdate: func(cb *goke.CmdBuf, d time.Duration) {
-		now := m.clock.Read().Time() + d
-		if !m.begun {
-			m.last, m.begun = m.clock.Read().Time(), true
-		}
-		if !m.host.Empty() {
-			m.host.Run(m.tick.Of(d), clock.Moment{Last: m.last, Now: now, Clock: m.clock.Read().Entity()})
-		}
-		m.last = now
-	}}
+	return goke.SystemFn{
+		OnInit: func(*goke.SysInit) { m.host.Bind() },
+		OnUpdate: func(cb *goke.CmdBuf, d time.Duration) {
+			now := m.clock.Read().Time() + d
+			if !m.begun {
+				m.last, m.begun = m.clock.Read().Time(), true
+			}
+			if !m.host.Empty() {
+				m.host.Run(
+					m.tick.Of(d),
+					clock.Moment{Last: m.last, Now: now, Clock: m.clock.Read().Entity()},
+				)
+			}
+			m.last = now
+		},
+	}
 }
 
 // Unfold is the moment a stretch of an aggregate comes down finer than Strategic, once as it comes:

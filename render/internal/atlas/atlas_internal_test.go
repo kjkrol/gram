@@ -97,7 +97,10 @@ func TestAtlas_Close_WrapsIntoRowsRatherThanOutgrowATexture(t *testing.T) {
 		t.Errorf("the sheet is %d wide, want at most %d", bounds.Dx(), maxAtlasWidth)
 	}
 	if bounds.Dy() < 2*size {
-		t.Errorf("the sheet is %d tall, want its sprites wrapped into more than one row", bounds.Dy())
+		t.Errorf(
+			"the sheet is %d tall, want its sprites wrapped into more than one row",
+			bounds.Dy(),
+		)
 	}
 	for l := range SpriteID(count) {
 		for r := l + 1; r < count; r++ {
@@ -115,12 +118,23 @@ func TestAtlas_RefusesWhatCannotWork(t *testing.T) {
 		want string
 	}{
 		"the sheet before Close": {func(a *Atlas) { a.Atlas() }, "before Close"},
-		"a UV before Close":      {func(a *Atlas) { a.Add(SpriteID(0), 4, nothing); a.UV(0) }, "before Close"},
-		"adding after Close":     {func(a *Atlas) { a.Close(); a.Add(SpriteID(0), 4, nothing) }, "after Close"},
-		"a slot twice":           {func(a *Atlas) { a.Add(SpriteID(3), 4, nothing); a.Add(SpriteID(3), 4, nothing) }, "sprite 3"},
-		"a sprite nobody gave":   {func(a *Atlas) { a.Add(SpriteID(2), 4, nothing); a.Close(); a.UV(1) }, "sprite 1"},
-		"a sprite past the last": {func(a *Atlas) { a.Add(SpriteID(2), 4, nothing); a.Close(); a.UV(9) }, "sprite 9"},
-		"a sprite of no size":    {func(a *Atlas) { a.Add(SpriteID(0), 0, nothing) }, "size 0"},
+		"a UV before " +
+			"Close": {func(a *Atlas) { a.Add(SpriteID(0), 4, nothing); a.UV(0) }, "before Close"},
+		"adding after " +
+			"Close": {func(a *Atlas) { a.Close(); a.Add(SpriteID(0), 4, nothing) }, "after Close"},
+		"a slot " +
+			"twice": {func(a *Atlas) {
+			a.Add(SpriteID(3), 4, nothing)
+			a.Add(SpriteID(3), 4,
+				nothing)
+		}, "sprite 3"},
+		"a sprite nobody " +
+			"gave": {func(a *Atlas) { a.Add(SpriteID(2), 4, nothing); a.Close(); a.UV(1) },
+			"sprite 1"},
+		"a sprite past the " +
+			"last": {func(a *Atlas) { a.Add(SpriteID(2), 4, nothing); a.Close(); a.UV(9) },
+			"sprite 9"},
+		"a sprite of no size": {func(a *Atlas) { a.Add(SpriteID(0), 0, nothing) }, "size 0"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			msg := panicOf(t, func() { tc.do(NewAtlas()) })
@@ -153,7 +167,8 @@ func TestAtlas_KeepsAWhitePatchClearOfTheSprites(t *testing.T) {
 			t.Errorf("the white patch round (%v, %v) overlaps sprite %d", u, v, id)
 		}
 	}
-	if w, h := atlas.Atlas().Bounds().Dx(), atlas.Atlas().Bounds().Dy(); u+1.5 > float32(w) || v+1.5 > float32(h) {
+	if w, h := atlas.Atlas().Bounds().Dx(), atlas.Atlas().Bounds().Dy(); u+1.5 > float32(w) ||
+		v+1.5 > float32(h) {
 		t.Errorf("the white patch round (%v, %v) runs off the %dx%d sheet", u, v, w, h)
 	}
 }

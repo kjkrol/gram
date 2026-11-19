@@ -23,7 +23,13 @@ func expectPanic(t *testing.T, want string, run func()) {
 }
 
 func TestSimpleMap_IsFlatAndPricesNothingBeyondTheKinds(t *testing.T) {
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 20}, Heights: true})
+	w := world.NewPlugin(
+		world.Config{
+			Space:    world.SpaceCfg{Width: 128, Height: 128},
+			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 20},
+			Heights:  true,
+		},
+	)
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	m := brd.Read(0).Board().Map()

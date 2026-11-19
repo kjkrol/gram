@@ -34,7 +34,10 @@ func TestEdges_ACornerIsOneEdgeWithinCornerReachOfTheNext(t *testing.T) {
 	}
 	ctx.Cursor = geom.NewVec(15, 100)
 	if e := ctx.Edges(); !e.Left || e.Top {
-		t.Errorf("at (15, 100) the edges are %+v, want the left strip alone, the top not within it", e)
+		t.Errorf(
+			"at (15, 100) the edges are %+v, want the left strip alone, the top not within it",
+			e,
+		)
 	}
 	ctx.Cursor = geom.NewVec(60, 60)
 	if e := ctx.Edges(); e.Left || e.Top || !e.Any() {

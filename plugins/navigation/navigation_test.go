@@ -113,7 +113,10 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 	}
 	firstStep := mt.Path.Steps[0]
 	if firstStep == pushed || firstStep == target {
-		t.Fatalf("first path step %v should be an intermediate cell — grid too small for this test", firstStep)
+		t.Fatalf(
+			"first path step %v should be an intermediate cell — grid too small for this test",
+			firstStep,
+		)
 	}
 
 	pusher.armed = true
@@ -121,13 +124,20 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 
 	c, mt = readCellAndMoveOrder(t, q, &at, &orderComp)
 	if c.Cell != pushed {
-		t.Errorf("At.Cell = %v, want %v (deviation should resync bookkeeping to the actual cell)", c.Cell, pushed)
+		t.Errorf(
+			"At.Cell = %v, want %v (deviation should resync bookkeeping to the actual cell)",
+			c.Cell,
+			pushed,
+		)
 	}
 	if mt.Path.Length == 0 {
 		t.Fatal("expected the path to have been recomputed after the deviation")
 	}
 	if mt.Path.Steps[mt.Path.Index] == firstStep {
-		t.Error("recomputed path should route onward from the pushed-to cell, not resume the stale pre-deviation path")
+		t.Error(
+			"recomputed path should route onward from the pushed-to cell, not resume the stale " +
+				"pre-deviation path",
+		)
 	}
 }
 
@@ -277,10 +287,20 @@ func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *te
 
 	c, mt := readCellAndMoveOrder(t, q, &at, &orderComp)
 	if c.Cell != previous {
-		t.Fatalf("At.Cell = %v, want %v (bookkeeping should ignore a transient flanker read, not just tolerate it)", c.Cell, previous)
+		t.Fatalf(
+			"At.Cell = %v, want %v (bookkeeping should ignore a transient flanker read, not just "+
+				"tolerate it)",
+			c.Cell,
+			previous,
+		)
 	}
 	if mt.Path.Length != 1 || mt.Path.Steps[0] != expected {
-		t.Errorf("Path = %+v, want unchanged (Length=1, Steps[0]=%v) — a transient flanker cell shouldn't invalidate the path", mt.Path, expected)
+		t.Errorf(
+			"Path = %+v, want unchanged (Length=1, Steps[0]=%v) — a transient flanker cell "+
+				"shouldn't invalidate the path",
+			mt.Path,
+			expected,
+		)
 	}
 }
 
@@ -336,7 +356,10 @@ func TestNavigationSystem_Update_ArrivalStopsEntity(t *testing.T) {
 		for i := range cur.IDs {
 			found = true
 			if velocities[i].Vel.Value != 0 {
-				t.Errorf("Velocity.Value = %v, want 0 after arriving at target", velocities[i].Vel.Value)
+				t.Errorf(
+					"Velocity.Value = %v, want 0 after arriving at target",
+					velocities[i].Vel.Value,
+				)
 			}
 		}
 	}
@@ -402,7 +425,14 @@ func TestNavigationSystem_Update_ArrivalSnapsToCellCenter(t *testing.T) {
 			gotX := float32(p.TopLeft.X) + float32(p.Size.X)/2
 			gotY := float32(p.TopLeft.Y) + float32(p.Size.Y)/2
 			if gotX != want.X || gotY != want.Y {
-				t.Errorf("center = (%v, %v), want (%v, %v) — should snap exactly to the cell center on arrival", gotX, gotY, want.X, want.Y)
+				t.Errorf(
+					"center = (%v, %v), want (%v, %v) — should snap exactly to the cell center "+
+						"on arrival",
+					gotX,
+					gotY,
+					want.X,
+					want.Y,
+				)
 			}
 		}
 	}
@@ -419,7 +449,8 @@ func TestNavigationSystem_Update_ArrivalGlidesSmoothlyToCellCenter(t *testing.T)
 	var pos goke.Comp[world.Base]
 	var q *goke.Query
 	nw := newNavWorld(t, 5, 1, 10, []navUnit{{
-		box: offCenter, at: target, profile: &steering.Steering{MaxSpeed: 20}, order: &MoveOrder{Target: target},
+		box: offCenter, at: target, profile: &steering.Steering{MaxSpeed: 20},
+		order: &MoveOrder{Target: target},
 	}}, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&pos).Build() }})
 	ecs := nw.ecs
 
@@ -431,7 +462,15 @@ func TestNavigationSystem_Update_ArrivalGlidesSmoothlyToCellCenter(t *testing.T)
 			positions := pos.Slice(cur)
 			for i := range cur.IDs {
 				p := positions[i].Pos
-				return float32(p.TopLeft.X) + float32(p.Size.X)/2, float32(p.TopLeft.Y) + float32(p.Size.Y)/2
+				return float32(
+						p.TopLeft.X,
+					) + float32(
+						p.Size.X,
+					)/2, float32(
+						p.TopLeft.Y,
+					) + float32(
+						p.Size.Y,
+					)/2
 			}
 		}
 		t.Fatal("expected to find the seeded entity")
@@ -450,7 +489,10 @@ func TestNavigationSystem_Update_ArrivalGlidesSmoothlyToCellCenter(t *testing.T)
 	}
 
 	if maxStep > 3 {
-		t.Errorf("largest single-tick step = %.2f, want <= 3 (arrival must glide smoothly, not jump)", maxStep)
+		t.Errorf(
+			"largest single-tick step = %.2f, want <= 3 (arrival must glide smoothly, not jump)",
+			maxStep,
+		)
 	}
 
 	want := grid.CellCenter(target)
@@ -475,8 +517,16 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 	var orderComp goke.Comp[MoveOrder]
 	var q *goke.Query
 	nw := newNavWorld(t, gridWidth, gridHeight, cellSize, []navUnit{{
-		box: cellBox(grid, start, entitySize), at: start, profile: &steering.Steering{MaxSpeed: speed}, order: &MoveOrder{Target: target},
-	}}, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&at, &pos, &orderComp).Build() }})
+		box: cellBox(
+			grid,
+			start,
+			entitySize,
+		), at: start, profile: &steering.Steering{MaxSpeed: speed},
+		order: &MoveOrder{Target: target},
+	}}, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		q = si.NewQueryBuilder(&at, &pos,
+			&orderComp).Build()
+	}})
 	terrain, ecs := nw.board, nw.ecs
 	for y := uint32(2); y < gridHeight; y++ {
 		c := grid.At(wallCol, y)
@@ -500,17 +550,34 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 			orders := orderComp.Slice(cur)
 			for i := range cur.IDs {
 				if !terrain.Kind(cells[i].Cell).Admits(cell.Land) {
-					t.Fatalf("tick %d: entity's logical Cell is inside impassable terrain: %v", tick, cells[i].Cell)
+					t.Fatalf(
+						"tick %d: entity's logical Cell is inside impassable terrain: %v",
+						tick,
+						cells[i].Cell,
+					)
 				}
 				path := orders[i].Path
 				steps := append([]cell.ID(nil), path.Steps[:path.Length]...)
 				if !equalSteps(steps, lastSteps) {
 					replans++
 					if havePrev {
-						t.Logf("tick %d: INVALIDATED — actual(new cell)=%v, prevCell=%v, prevExpected=%v, pos=%v",
-							tick, cells[i].Cell, prevCellID, prevExpected, positions[i].Pos.TopLeft)
+						t.Logf(
+							"tick %d: INVALIDATED — actual(new cell)=%v, prevCell=%v, "+
+								"prevExpected=%v, pos=%v",
+							tick,
+							cells[i].Cell,
+							prevCellID,
+							prevExpected,
+							positions[i].Pos.TopLeft,
+						)
 					}
-					t.Logf("tick %d: path changed (len %d -> %d) steps=%v", tick, len(lastSteps), len(steps), steps)
+					t.Logf(
+						"tick %d: path changed (len %d -> %d) steps=%v",
+						tick,
+						len(lastSteps),
+						len(steps),
+						steps,
+					)
 					lastSteps = steps
 				}
 				prevCellID = cells[i].Cell
@@ -523,7 +590,11 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 	}
 	t.Logf("total path changes observed: %d", replans)
 	if replans != 1 {
-		t.Errorf("total path changes = %d, want 1 (only the initial FindPath — no spurious mid-route invalidation)", replans)
+		t.Errorf(
+			"total path changes = %d, want 1 (only the initial FindPath — no spurious mid-route "+
+				"invalidation)",
+			replans,
+		)
 	}
 }
 
@@ -543,8 +614,17 @@ func TestShortestAxisDelta(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := spacing.ShortestAxisDelta(c.have, c.want, c.size, c.toroidal); got != c.wantDelta {
-				t.Errorf("shortestAxisDelta(%v, %v, %v, %v) = %v, want %v", c.have, c.want, c.size, c.toroidal, got, c.wantDelta)
+			if got := spacing.ShortestAxisDelta(c.have, c.want, c.size,
+				c.toroidal); got != c.wantDelta {
+				t.Errorf(
+					"shortestAxisDelta(%v, %v, %v, %v) = %v, want %v",
+					c.have,
+					c.want,
+					c.size,
+					c.toroidal,
+					got,
+					c.wantDelta,
+				)
 			}
 		})
 	}
@@ -562,7 +642,12 @@ func equalSteps(a, b []cell.ID) bool {
 	return true
 }
 
-func readCellAndMoveOrder(t *testing.T, q *goke.Query, cell *goke.Comp[unit.At], order *goke.Comp[MoveOrder]) (unit.At, MoveOrder) {
+func readCellAndMoveOrder(
+	t *testing.T,
+	q *goke.Query,
+	cell *goke.Comp[unit.At],
+	order *goke.Comp[MoveOrder],
+) (unit.At, MoveOrder) {
 	t.Helper()
 	q.All()
 	for q.Next() {

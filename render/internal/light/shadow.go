@@ -20,6 +20,9 @@ const (
 type Shadowing struct {
 	Cast Casting
 	Take Taking
+	// Shelter is the shelter it stands under, its place in Lights.Shelters and one more; zero,
+	// it stands in the open.
+	Shelter uint16
 }
 
 // ShadowPolicy is how a thing casts its live shadow at distance world units from the eye (0

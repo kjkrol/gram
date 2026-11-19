@@ -24,7 +24,10 @@ import (
 
 type recruit struct{ start cell.ID }
 
-func unitsWorld(t *testing.T, define func(units *board.Units[recruit]) kind.Of[recruit]) (*goke.ECS, *world.Plugin, grid.Grid) {
+func unitsWorld(
+	t *testing.T,
+	define func(units *board.Units[recruit]) kind.Of[recruit],
+) (*goke.ECS, *world.Plugin, grid.Grid) {
 	t.Helper()
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	w := world.NewPlugin(world.Config{
@@ -37,7 +40,11 @@ func unitsWorld(t *testing.T, define func(units *board.Units[recruit]) kind.Of[r
 	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w).
 		WithMotion(m, cell.DefaultHiking).WithCollision(c)
 	brd.Write().Board().SetAll(cell.Kind{Pace: 1, Allows: cell.Land | cell.Water})
-	units := board.NewUnits[recruit](brd, board.Shape{Size: 20}, func(r recruit) geom.Vec { return grid.CellCenter(r.start) })
+	units := board.NewUnits[recruit](
+		brd,
+		board.Shape{Size: 20},
+		func(r recruit) geom.Vec { return grid.CellCenter(r.start) },
+	)
 	k := define(units)
 
 	ctx := boardtest.NewInstallCtx()
@@ -86,13 +93,26 @@ func TestUnits_DeriveThePositionAndTheCellFromOnePoint(t *testing.T) {
 			found++
 			want := grid.At(2, 1)
 			if at.Slice(cur)[i].Cell != want {
-				t.Errorf("cell = %v, want the cell under the position, %v", at.Slice(cur)[i].Cell, want)
+				t.Errorf(
+					"cell = %v, want the cell under the position, %v",
+					at.Slice(cur)[i].Cell,
+					want,
+				)
 			}
 			if c := base.Slice(cur)[i].Pos.Center(); c != grid.CellCenter(want) {
-				t.Errorf("position centre = %v, want the cell's centre %v", c, grid.CellCenter(want))
+				t.Errorf(
+					"position centre = %v, want the cell's centre %v",
+					c,
+					grid.CellCenter(want),
+				)
 			}
-			if mover.Slice(cur)[i].Domain != cell.Water || layers.Slice(cur)[i] != world.Layers(cell.Water) {
-				t.Errorf("mover %v, layers %08b, want both from Water", mover.Slice(cur)[i], layers.Slice(cur)[i])
+			if mover.Slice(cur)[i].Domain != cell.Water ||
+				layers.Slice(cur)[i] != world.Layers(cell.Water) {
+				t.Errorf(
+					"mover %v, layers %08b, want both from Water",
+					mover.Slice(cur)[i],
+					layers.Slice(cur)[i],
+				)
 			}
 			if steer.Slice(cur)[i].MaxSpeed != 10 {
 				t.Errorf("steering %+v, want the profile given", steer.Slice(cur)[i])
@@ -100,7 +120,10 @@ func TestUnits_DeriveThePositionAndTheCellFromOnePoint(t *testing.T) {
 		}
 	}
 	if found != 1 {
-		t.Errorf("found %d units carrying every derived component and the collision defaults, want 1", found)
+		t.Errorf(
+			"found %d units carrying every derived component and the collision defaults, want 1",
+			found,
+		)
 	}
 }
 
@@ -118,7 +141,11 @@ func TestUnits_AUnitOffTheBoardPanicsWhenSpawned(t *testing.T) {
 	})
 	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w).
 		WithMotion(motion.NewPlugin(w), cell.DefaultHiking)
-	units := board.NewUnits[recruit](brd, board.Shape{Size: 20}, func(recruit) geom.Vec { return geom.NewVec(-50, -50) })
+	units := board.NewUnits[recruit](
+		brd,
+		board.Shape{Size: 20},
+		func(recruit) geom.Vec { return geom.NewVec(-50, -50) },
+	)
 	units.Define("stray", unit.Mover{Domain: cell.Land}, steering.Steering{})
 	k := units.Named("stray")
 	ctx := boardtest.NewInstallCtx()
@@ -133,7 +160,9 @@ func TestUnits_AUnitOffTheBoardPanicsWhenSpawned(t *testing.T) {
 		t.Fatal(err)
 	}
 	systems := ctx.Systems()
-	ctx.ECS().Setup(systems...) // Setup runs the queued spawn, where the At is read off the position
+	ctx.ECS().
+		Setup(systems...)
+		// Setup runs the queued spawn, where the At is read off the position
 	t.Error("a unit off the board spawned")
 }
 

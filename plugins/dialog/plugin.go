@@ -76,7 +76,10 @@ func (p *Plugin) Serializable() plugin.Serializable { return nil }
 func (p *Plugin) DefineEffects() {
 	effects := p.w.Write().Effects()
 	effects.Define(TalkingEf, effect.Spec{effect.Described("Talking with somebody.")})
-	effects.Define(TalkedEf, effect.Spec{effect.Described("Has just talked with somebody."), effect.Lasts(p.cfg.Rest)})
+	effects.Define(
+		TalkedEf,
+		effect.Spec{effect.Described("Has just talked with somebody."), effect.Lasts(p.cfg.Rest)},
+	)
 	p.talking, p.talked = effects.Named(TalkingEf), effects.Named(TalkedEf)
 }
 

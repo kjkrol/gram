@@ -88,8 +88,10 @@ func TestEngine_TicksTheNextFrameWhileAFrameIsDrawn(t *testing.T) {
 			"the others' on the barrier", sc.seen, want)
 	}
 	if sc.ticks != 4 {
-		t.Errorf("%d ticks once joined, want 4: the fourth frame's ticked while the third was drawn",
-			sc.ticks)
+		t.Errorf(
+			"%d ticks once joined, want 4: the fourth frame's ticked while the third was drawn",
+			sc.ticks,
+		)
 	}
 }
 

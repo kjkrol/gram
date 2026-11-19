@@ -50,7 +50,8 @@ func TestPlugin_HasTheStandardLinesAndTakesMore(t *testing.T) {
 	}
 	p.Write().SetMode(telemetry.Extended)
 	got := text(p)
-	for _, want := range []string{"FPS: ", "TPS: ", "Frame:\n  tick ", "\n  drawing ", "Entities: 0",
+	for _, want := range []string{"FPS: ", "TPS: ", "Frame:\n  tick ", "\n  drawing ",
+		"Entities: 0",
 		"Game time: "} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the panel says %q, want %q among its lines", got, want)
@@ -131,7 +132,10 @@ func TestPlugin_TheModeIsSavedWithTheGame(t *testing.T) {
 	*into[0].(*[]byte) = append([]byte(nil), *from[0].(*[]byte)...)
 	loaded.Restore()
 	if loaded.Read(0).Mode() != telemetry.Extended || !loaded.Res.Settings.Extended {
-		t.Errorf("loaded, the panel's mode is %v, want the extended one saved", loaded.Read(0).Mode())
+		t.Errorf(
+			"loaded, the panel's mode is %v, want the extended one saved",
+			loaded.Read(0).Mode(),
+		)
 	}
 }
 

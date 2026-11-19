@@ -25,7 +25,11 @@ func (p pinhole) Vanish(dx, dy, dz float32) (float32, float32, bool) {
 
 func looking(way [3]float32) pinhole {
 	right := unit([3]float32{way[1], -way[0], 0})
-	up := [3]float32{right[1]*way[2] - right[2]*way[1], right[2]*way[0] - right[0]*way[2], right[0]*way[1] - right[1]*way[0]}
+	up := [3]float32{
+		right[1]*way[2] - right[2]*way[1],
+		right[2]*way[0] - right[0]*way[2],
+		right[0]*way[1] - right[1]*way[0],
+	}
 	return pinhole{ahead: way, right: right, up: up}
 }
 
@@ -72,7 +76,12 @@ func TestStarField_ColoursAndBrightness(t *testing.T) {
 		t.Errorf("a blue star is %v, a red one %v", blue, red)
 	}
 	if starLight(-1.46) <= starLight(2) || starLight(6) >= starLight(2) || starLight(2) != 1 {
-		t.Errorf("Sirius shows %v, magnitude 2 %v, magnitude 6 %v", starLight(-1.46), starLight(2), starLight(6))
+		t.Errorf(
+			"Sirius shows %v, magnitude 2 %v, magnitude 6 %v",
+			starLight(-1.46),
+			starLight(2),
+			starLight(6),
+		)
 	}
 }
 

@@ -19,10 +19,12 @@ import (
 
 type plainScene struct{ name string }
 
-func (s plainScene) Name() string                                                    { return s.name }
-func (plainScene) Drawers() []render.Renderer                                        { return nil }
-func (plainScene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
-func (plainScene) Focusable() bool                                                   { return true }
+func (s plainScene) Name() string             { return s.name }
+func (plainScene) Drawers() []render.Renderer { return nil }
+
+func (plainScene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {
+}
+func (plainScene) Focusable() bool { return true }
 
 type scenicPlugin struct{ stubPlugin }
 
@@ -30,7 +32,9 @@ func (scenicPlugin) Scenes() []game.Scene { return []game.Scene{plainScene{"plug
 
 func TestStage_HasTheScenesOfItsPlugins(t *testing.T) {
 	st := stage.New("meadow").
-		Plugins(func(made *plugin.Made) { made.Add(&scenicPlugin{stubPlugin{name: "test.scenic"}}) }).
+		Plugins(func(made *plugin.Made) {
+			made.Add(&scenicPlugin{stubPlugin{name: "test.scenic"}})
+		}).
 		Scenes(func() []game.Scene { return []game.Scene{plainScene{"main"}} }).
 		Update(func(goke.RunCtx, time.Duration) {})
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
@@ -104,7 +108,8 @@ func TestStage_WithPlayersHasTheirControlsAndSettings(t *testing.T) {
 	for _, sc := range st.Stack().All() {
 		names = append(names, sc.Name())
 	}
-	if !slices.Contains(names, players.ControlsName) || !slices.Contains(names, players.SettingsName) {
+	if !slices.Contains(names, players.ControlsName) ||
+		!slices.Contains(names, players.SettingsName) {
 		t.Errorf("the stack holds %v, want the players' controls and settings among them", names)
 	}
 }

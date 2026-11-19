@@ -40,10 +40,16 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 		control.Build(control.KeyPress{Key: control.KeyMinus, Mods: control.Mods{Shift: true}},
 			"Lower the ground",
 			func(c control.Context) (Lower, bool) { return Lower{At: at(c)}, true }),
-		control.Build(control.Drag{Button: control.MouseButtonLeft, Mods: control.Mods{}.Holding(control.KeyL)}, "Level the ground",
+		control.Build(
+			control.Drag{
+				Button: control.MouseButtonLeft,
+				Mods:   control.Mods{}.Holding(control.KeyL),
+			},
+			"Level the ground",
 			func(c control.Context) (Level, bool) {
 				return Level{From: c.World(c.Start), To: c.World(c.Cursor)}, true
-			}),
+			},
+		),
 	}
 }
 

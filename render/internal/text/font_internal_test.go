@@ -14,7 +14,14 @@ func TestFont_MeasureGrowsWithTheTextAndItsLines(t *testing.T) {
 	w2, _ := f.Measure("Cześć, wędrowcze!")
 	_, h3 := f.Measure("Cześć\nwędrowcze")
 	if w1 <= 0 || w2 <= w1 || h3 != 2*h1 || h1 != f.LineHeight() {
-		t.Fatalf("widths %v, %v; heights %v, %v (line %v); want growing, two lines twice one", w1, w2, h1, h3, f.LineHeight())
+		t.Fatalf(
+			"widths %v, %v; heights %v, %v (line %v); want growing, two lines twice one",
+			w1,
+			w2,
+			h1,
+			h3,
+			f.LineHeight(),
+		)
 	}
 }
 
@@ -61,6 +68,10 @@ func TestFont_DrawsInsideTheBoxItMeasures(t *testing.T) {
 		}
 	}
 	if inside == 0 || outside != 0 {
-		t.Fatalf("%d pixels drawn inside the measured box, %d outside; want some inside, none outside", inside, outside)
+		t.Fatalf(
+			"%d pixels drawn inside the measured box, %d outside; want some inside, none outside",
+			inside,
+			outside,
+		)
 	}
 }

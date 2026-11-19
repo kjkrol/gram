@@ -41,12 +41,17 @@ func (c *installer) Setup(providers ...goke.SetupProvider) {
 		c.pending = append(c.pending, p.SetupSystems)
 	}
 }
-func (c *installer) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
-func (c *installer) ECS() *goke.ECS                                  { return c.ecs }
-func (c *installer) Hosts(...host.Host)                              {}
-func (c *installer) Draws(...render.Source)                          {}
-func (c *installer) Looks(func())                                    {}
-func (*installer) Pool() *parallel.Pool                              { return nil }
+
+func (c *installer) RegSys(
+	factory func() goke.System,
+) goke.Runnable {
+	return c.ecs.RegSys(factory())
+}
+func (c *installer) ECS() *goke.ECS         { return c.ecs }
+func (c *installer) Hosts(...host.Host)     {}
+func (c *installer) Draws(...render.Source) {}
+func (c *installer) Looks(func())           {}
+func (*installer) Pool() *parallel.Pool     { return nil }
 
 const hosts = `
 greet:
@@ -111,7 +116,8 @@ func defineIn(cfg world.Config, file string) (*world.Plugin, *dialog.Plugin, err
 	d.Changes().Define("warm", dialog.Alter(func(l *liking, _ uid.UID64) { l.N += 40 }))
 	d.Changes().Define("offend", dialog.Alter(func(l *liking, _ uid.UID64) { l.N -= 80 }))
 	d.Changes().Define("flour", dialog.AlterListener(func(s *sacks, _ uid.UID64) { s.N++ }))
-	d.Conditions().Define("friend", dialog.When(func(l *liking, _ uid.UID64) bool { return l.N >= 30 }))
+	d.Conditions().
+		Define("friend", dialog.When(func(l *liking, _ uid.UID64) bool { return l.N >= 30 }))
 	return w, d, d.Load(fstest.MapFS{"hosts.yaml": {Data: []byte(file)}}, "hosts.yaml")
 }
 
@@ -161,7 +167,13 @@ func newRigIn(t *testing.T, cfg world.Config, seen sector.Observers) *rig {
 		t.Fatal(err)
 	}
 	r := &rig{t: t, w: w, d: d, ecs: ctx.ecs,
-		talking: w.Write().Effects().Named(dialog.TalkingEf), talked: w.Write().Effects().Named(dialog.TalkedEf), blush: w.Write().Effects().Named("blush")}
+		talking: w.Write().
+			Effects().
+			Named(dialog.TalkingEf),
+		talked: w.Write().
+			Effects().
+			Named(dialog.TalkedEf),
+		blush: w.Write().Effects().Named("blush")}
 	var base goke.Comp[world.Base]
 	var q *goke.Query
 	var systems []goke.System
@@ -237,7 +249,11 @@ func TestConversation_BeginsIsAnsweredAndChangesTheGame(t *testing.T) {
 	r.begin(r.host, r.guest)
 	if got := r.line(r.host); got != "Hello, traveller!" || !r.w.Read(0).Effects().Has(r.host,
 		r.talking) {
-		t.Fatalf("the host says %q, talking %v; want the greeting", got, r.w.Read(0).Effects().Has(r.host, r.talking))
+		t.Fatalf(
+			"the host says %q, talking %v; want the greeting",
+			got,
+			r.w.Read(0).Effects().Has(r.host, r.talking),
+		)
 	}
 	if got := strings.Join(r.offered(r.host), "|"); got != "Hello to you too!|Out of my way." {
 		t.Fatalf("offered %q, want the answers that need no friend", got)
@@ -250,8 +266,14 @@ func TestConversation_BeginsIsAnsweredAndChangesTheGame(t *testing.T) {
 		t.Fatalf("the host's liking is %d, want 40: warm changed the speaker", l.N)
 	}
 	r.choose(1, r.host, 0) // Bye
-	if r.line(r.host) != "" || r.w.Read(0).Effects().Has(r.host, r.talking) || !r.w.Read(0).Effects().Has(r.host, r.talked) {
-		t.Fatalf("after Bye: says %q, talking %v, talked %v; want it over and talked", r.line(r.host), r.w.Read(0).Effects().Has(r.host, r.talking), r.w.Read(0).Effects().Has(r.host, r.talked))
+	if r.line(r.host) != "" || r.w.Read(0).Effects().Has(r.host, r.talking) ||
+		!r.w.Read(0).Effects().Has(r.host, r.talked) {
+		t.Fatalf(
+			"after Bye: says %q, talking %v, talked %v; want it over and talked",
+			r.line(r.host),
+			r.w.Read(0).Effects().Has(r.host, r.talking),
+			r.w.Read(0).Effects().Has(r.host, r.talked),
+		)
 	}
 	if _, s := r.held(r.guest); s.N != 1 {
 		t.Errorf("the guest holds %d sacks, want 1: flour changed the listener", s.N)
@@ -260,8 +282,12 @@ func TestConversation_BeginsIsAnsweredAndChangesTheGame(t *testing.T) {
 		t.Error("Bye's command for ui.It did not reach the host")
 	}
 	r.begin(r.host, r.guest)
-	if got := strings.Join(r.offered(r.host), "|"); got != "Hello to you too!|You again, friend!|Out of my way." {
-		t.Errorf("meeting again offered %q, want a friend's answer too: the game's condition holds", got)
+	if got := strings.Join(r.offered(r.host), "|"); got != "Hello to you too!|You again, "+
+		"friend!|Out of my way." {
+		t.Errorf(
+			"meeting again offered %q, want a friend's answer too: the game's condition holds",
+			got,
+		)
 	}
 }
 
@@ -280,7 +306,11 @@ func TestConversation_TakingTalkingOffEndsItWithoutTalked(t *testing.T) {
 	r.w.Write().Carrier().Put(command.Nobody, ceremony.Take(r.talking).On(ceremony.ID(r.host)))
 	r.tick(2)
 	if r.line(r.host) != "" || r.w.Read(0).Effects().Has(r.host, r.talked) {
-		t.Errorf("with talking taken off: says %q, talked %v; want it over, not talked", r.line(r.host), r.w.Read(0).Effects().Has(r.host, r.talked))
+		t.Errorf(
+			"with talking taken off: says %q, talked %v; want it over, not talked",
+			r.line(r.host),
+			r.w.Read(0).Effects().Has(r.host, r.talked),
+		)
 	}
 }
 
@@ -310,10 +340,18 @@ func TestFeel_MakesTheGamesChangeTowardsWhomItIsAbout(t *testing.T) {
 
 func TestLoad_RefusesWhatItCannotRead(t *testing.T) {
 	for name, tc := range map[string]struct{ file, want string }{
-		"a misspelt field":     {"a:\n  speaker: X\n  choices:\n    - text: \"hi\"\n      nxt: end\n", "line 5"},
-		"an unknown command":   {"a:\n  choices:\n    - text: \"hi\"\n      next: end\n      do: [shout]\n", `"shout"`},
-		"an unknown change":    {"a:\n  choices:\n    - text: \"hi\"\n      next: end\n      then: [hug]\n", `"hug"`},
-		"an unknown if":        {"a:\n  choices:\n    - text: \"hi\"\n      if: angry\n      next: end\n", `"angry"`},
+		"a misspelt " +
+			"field": {"a:\n  speaker: X\n  choices:\n    - text: \"hi\"\n      nxt: end\n",
+			"line 5"},
+		"an unknown " +
+			"command": {"a:\n  choices:\n    - text: \"hi\"\n      next: end\n      do: [shout]\n",
+			`"shout"`},
+		"an unknown " +
+			"change": {"a:\n  choices:\n    - text: \"hi\"\n      next: end\n      then: [hug]\n",
+			`"hug"`},
+		"an unknown " +
+			"if": {"a:\n  choices:\n    - text: \"hi\"\n      if: angry\n      next: end\n",
+			`"angry"`},
 		"an answer to nowhere": {"a:\n  choices:\n    - text: \"hi\"\n", "leads nowhere"},
 	} {
 		t.Run(name, func(t *testing.T) {

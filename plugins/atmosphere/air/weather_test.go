@@ -236,7 +236,12 @@ func TestOvercast_GreysTheSkyTheMoreItIsCovered(t *testing.T) {
 	}
 	half, full := air.Overcast(blue, 0.5), air.Overcast(blue, 1)
 	if !(full[2]-full[0] < half[2]-half[0] && half[2]-half[0] < blue[2]-blue[0]) {
-		t.Errorf("the sky goes %v, %v, %v as clouds cover it; want it greyer each time", blue, half, full)
+		t.Errorf(
+			"the sky goes %v, %v, %v as clouds cover it; want it greyer each time",
+			blue,
+			half,
+			full,
+		)
 	}
 }
 
@@ -275,7 +280,13 @@ func TestHaze_GrowsWithDistance(t *testing.T) {
 	near, far := w.Haze(eyed{}, 10, 0, 10), w.Haze(eyed{}, 300, 0, 10)
 	if near <= 0 || near >= far || far >= 1 ||
 		f32.Abs(float32(w.Haze(eyed{}, 100, 0, 10))-(1-f32.Exp(-1))) > 1e-6 {
-		t.Errorf("the haze 10, 100 and 300 off is %v, %v and %v; want growing, 1 − 1/e at the visibility", near, w.Haze(eyed{}, 100, 0, 10), far)
+		t.Errorf(
+			"the haze 10, 100 and 300 off is %v, %v and %v; want growing, 1 − 1/e at the "+
+				"visibility",
+			near,
+			w.Haze(eyed{}, 100, 0, 10),
+			far,
+		)
 	}
 	if h := w.Haze(cameratest.NewFromSpace(64, 64, 0), 1000, 0, 0); h != 0 {
 		t.Errorf("through a camera without an eye the haze is %v, want 0", h)
@@ -291,7 +302,11 @@ func TestVisibility_SeesAsFarAsTheScaleAndTheWeatherSay(t *testing.T) {
 	}
 	pour := air.Weather{Sight: sight, Rain: 1, Clouds: 1, Temperature: 10}
 	if rain := pour.Visibility(0, 0); rain >= clear/5 {
-		t.Errorf("in a downpour one sees %v world units, want well under a fifth of %v", rain, clear)
+		t.Errorf(
+			"in a downpour one sees %v world units, want well under a fifth of %v",
+			rain,
+			clear,
+		)
 	}
 	if air.Sight(world.Scale{}) != 0 || (air.Weather{}).Visibility(0, 0) != 0 {
 		t.Error("without a scale the air is not clear without end")
@@ -299,19 +314,30 @@ func TestVisibility_SeesAsFarAsTheScaleAndTheWeatherSay(t *testing.T) {
 }
 
 func TestWeather_HandsTheFrameTheAirAndTheSkysColours(t *testing.T) {
-	sun := light.Distant{Dir: [3]float32{0, 0, 1}, Strength: 0.7, AmbientColor: render.Light{0.5, 0.7, 1}}
+	sun := light.Distant{
+		Dir:          [3]float32{0, 0, 1},
+		Strength:     0.7,
+		AmbientColor: render.Light{0.5, 0.7, 1},
+	}
 	w := air.Weather{Wind: [2]float32{3, 4}, Drift: [2]float32{10, 20}, Clouds: 0.6}
 	c := render.NewComposer(source(func(f *render.Frame) { w.Frame(f, sun, 0, 0) }))
 	c.DrawWorld(nil, cameratest.NewFromSpace(64, 64, 0))
 	got := c.Uniforms()
 	if got["Wind"][1] != 4 || got["Drift"][0] != 10 || got["Cover"][0] != 0.6 {
-		t.Errorf("the shader is handed wind %v, drift %v, cover %v; want the weather's", got["Wind"], got["Drift"], got["Cover"])
+		t.Errorf(
+			"the shader is handed wind %v, drift %v, cover %v; want the weather's",
+			got["Wind"],
+			got["Drift"],
+			got["Cover"],
+		)
 	}
-	if fog, want := got["Fog"], air.Overcast(sun.AmbientColor, 0.6); fog[0] != want[0] || fog[2] != want[2] {
+	if fog, want := got["Fog"], air.Overcast(sun.AmbientColor, 0.6); fog[0] != want[0] ||
+		fog[2] != want[2] {
 		t.Errorf("the fog is %v, want the sky under the clouds %v", fog, want)
 	}
 	overhead, fog := got["SkyOverhead"], got["Fog"]
-	if want := air.Overhead(sun.AmbientColor, 0.6); overhead[0] != want[0] || overhead[2] != want[2] {
+	if want := air.Overhead(sun.AmbientColor, 0.6); overhead[0] != want[0] ||
+		overhead[2] != want[2] {
 		t.Errorf("the sky overhead is %v, want %v", overhead, want)
 	}
 	if !(overhead[0] < fog[0] && overhead[1] < fog[1]) {

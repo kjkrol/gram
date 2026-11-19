@@ -41,8 +41,13 @@ func (c *installCtx) Setup(providers ...goke.SetupProvider) {
 		c.pending = append(c.pending, p.SetupSystems)
 	}
 }
-func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
-func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
+
+func (c *installCtx) RegSys(
+	factory func() goke.System,
+) goke.Runnable {
+	return c.ecs.RegSys(factory())
+}
+func (c *installCtx) ECS() *goke.ECS { return c.ecs }
 
 type spawn struct {
 	x, y    float32
@@ -80,12 +85,21 @@ func scene(t *testing.T, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []visi
 	return sceneIn(t, nil, spawns...)
 }
 
-func sceneIn(t *testing.T, r *relief, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []vision.SightOutline) {
+func sceneIn(
+	t *testing.T,
+	r *relief,
+	spawns ...spawn,
+) ([]uid.UID64, []vision.Sighted, []vision.SightOutline) {
 	t.Helper()
 	return sceneWith(t, r, 0, spawns...)
 }
 
-func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []vision.SightOutline) {
+func sceneWith(
+	t *testing.T,
+	r *relief,
+	workers int,
+	spawns ...spawn,
+) ([]uid.UID64, []vision.Sighted, []vision.SightOutline) {
 	t.Helper()
 
 	w := world.NewPlugin(world.Config{
@@ -183,7 +197,10 @@ func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID
 func kindName(i int) string { return string(rune('a' + i)) }
 
 func eastward(half, radius float32) *look {
-	return &look{Sight: vision.Sight{Facing: geom.NewVec(1.0, 0.0), Radius: radius}, Eye: world.Eye{Angle: 2 * half}}
+	return &look{
+		Sight: vision.Sight{Facing: geom.NewVec(1.0, 0.0), Radius: radius},
+		Eye:   world.Eye{Angle: 2 * half},
+	}
 }
 
 func TestScan_ReportsWhatIsInTheConeNearestFirst(t *testing.T) {
@@ -218,7 +235,13 @@ func TestScan_ASightAheadLooksTheWayItMoves(t *testing.T) {
 			spawn{x: 500, y: 1000}, // north of it, 500 off
 		)
 		if seen[0].Count != 1 || f32.Abs(float32(seen[0].Dists[0]-c.want)) > 15 {
-			t.Errorf("heading %v: saw %d, the nearest %v off; want one, %v off", c.heading, seen[0].Count, seen[0].Dists[0], c.want)
+			t.Errorf(
+				"heading %v: saw %d, the nearest %v off; want one, %v off",
+				c.heading,
+				seen[0].Count,
+				seen[0].Dists[0],
+				c.want,
+			)
 		}
 	}
 }
@@ -229,7 +252,12 @@ func TestScan_GivesASightedWhereThereIsNone(t *testing.T) {
 		spawn{x: 700, y: 500},
 	)
 	if len(ids) != 1 || seen[0].Count != 0 {
-		t.Errorf("after the first step: %d observers with a Sighted, the first seeing %v; want one given, seeing nothing yet", len(ids), seen)
+		t.Errorf(
+			"after the first step: %d observers with a Sighted, the first seeing %v; want one "+
+				"given, seeing nothing yet",
+			len(ids),
+			seen,
+		)
 	}
 }
 
@@ -308,7 +336,11 @@ func TestScan_OutlineNeverOverrunsItsBuffer(t *testing.T) {
 	)
 
 	if int(outlines[0].Count) > vision.MaxSamples {
-		t.Errorf("outline holds %d samples, want at most MaxSamples (%d)", outlines[0].Count, vision.MaxSamples)
+		t.Errorf(
+			"outline holds %d samples, want at most MaxSamples (%d)",
+			outlines[0].Count,
+			vision.MaxSamples,
+		)
 	}
 }
 
@@ -317,10 +349,19 @@ func TestMaxSamples_IsTheSmallestThatHoldsTheTolerance(t *testing.T) {
 	arc := vision.MaxSightRadius * 2 * half
 
 	if drift := arc / float32(vision.MaxSamples-1); drift > vision.EdgeTolerance {
-		t.Errorf("a full-size cone drifts %.3f units at full range, over EdgeTolerance (%d)", drift, vision.EdgeTolerance)
+		t.Errorf(
+			"a full-size cone drifts %.3f units at full range, over EdgeTolerance (%d)",
+			drift,
+			vision.EdgeTolerance,
+		)
 	}
 	if drift := arc / float32(vision.MaxSamples-2); drift <= vision.EdgeTolerance {
-		t.Errorf("one sample fewer still drifts only %.3f — MaxSamples (%d) is bigger than it needs to be", drift, vision.MaxSamples)
+		t.Errorf(
+			"one sample fewer still drifts only %.3f — MaxSamples (%d) is bigger than it needs "+
+				"to be",
+			drift,
+			vision.MaxSamples,
+		)
 	}
 }
 

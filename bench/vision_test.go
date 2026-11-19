@@ -40,7 +40,9 @@ func benchVision(b *testing.B, n int, outlines bool, workers int) *goke.ECS {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(d.x, d.y), 10, 10)}
 		}),
 		comp.Const(world.Velocity{}),
-		comp.Const(vision.Sight{Facing: geom.NewVec(1.0, 0.0), Radius: 200}), comp.Const(vision.Sighted{}),
+		comp.Const(
+			vision.Sight{Facing: geom.NewVec(1.0, 0.0), Radius: 200},
+		), comp.Const(vision.Sighted{}),
 		comp.Const(world.Eye{Angle: math.Pi / 3}),
 	}
 	if outlines {
@@ -51,7 +53,10 @@ func benchVision(b *testing.B, n int, outlines bool, workers int) *goke.ECS {
 	side := int(f32.Ceil(f32.Sqrt(float32(n))))
 	entries := make([]kind.Entry, 0, n)
 	for i := range n {
-		entries = append(entries, watchers.Entry(watcher{float32(100 + (i%side)*120), float32(100 + (i/side)*120)}))
+		entries = append(
+			entries,
+			watchers.Entry(watcher{float32(100 + (i%side)*120), float32(100 + (i/side)*120)}),
+		)
 	}
 	w.Write().Seed(entries...)
 	return ctx.start(b, func(rc goke.RunCtx, d time.Duration) {

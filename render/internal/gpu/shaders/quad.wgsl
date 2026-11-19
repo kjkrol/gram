@@ -28,7 +28,8 @@ fn vs_main(v: VertexIn) -> VertexOut {
     o.src = v.src;
     o.color = v.color;
     if v.color.a <= 1.5 {
-        o.color = vec4<f32>(v.color.rgb * D.tint.rgb, v.color.a); // a plain colour, not an overlay's data
+        // a plain colour, not an overlay's data
+        o.color = vec4<f32>(v.color.rgb * D.tint.rgb, v.color.a);
     }
     o.custom = v.custom;
     return o;

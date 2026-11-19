@@ -63,7 +63,8 @@ fn hexEdge(p: vec2<f32>, unit: f32) -> vec4<f32> {
     let x = p.x - s;
     let y = p.y - s;
     let cell = axialRound(vec2<f32>((sqrt(3.0) / 3.0 * x - y / 3.0) / s, (2.0 / 3.0 * y) / s));
-    let centre = vec2<f32>(s * (sqrt(3.0) * cell.x + sqrt(3.0) / 2.0 * cell.y) + s, s * 1.5 * cell.y + s);
+    let centre = vec2<f32>(s * (sqrt(3.0) * cell.x + sqrt(3.0) / 2.0 * cell.y) + s,
+        s * 1.5 * cell.y + s);
     let v = p - centre;
     // the edges face these ways, each towards a neighbour: (1, 0), (0, 1), (-1, 1) in axial steps
     let k = vec3<f32>(v.x, 0.5 * v.x + sqrt(3.0) / 2.0 * v.y, -0.5 * v.x + sqrt(3.0) / 2.0 * v.y);

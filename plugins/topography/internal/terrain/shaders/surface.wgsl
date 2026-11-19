@@ -20,7 +20,8 @@ fn shoreAt(p: vec2<f32>) -> vec4<f32> {
     return vec4<f32>(s.x, s.y, s.z, 1.0 - s.z / U.ShoreReach);
 }
 
-// wetAt reports whether water may lie at p: its cell's flag, from the lattice's bottom-left quadrant.
+// wetAt reports whether water may lie at p: its cell's flag, from the lattice's bottom-left
+// quadrant.
 fn wetAt(p: vec2<f32>) -> bool {
     let i = clamp(floor(p / U.Cell), vec2<f32>(0.0), U.Corners - 2.0);
     return imageSrc0At(imageSrc0Origin() + vec2<f32>(0.0, U.Corners.y) + i + 0.5).r > 0.5;

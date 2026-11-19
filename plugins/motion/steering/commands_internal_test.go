@@ -31,7 +31,10 @@ func commanded(t *testing.T, give func(s *System, steered, other uid.UID64)) geo
 		f.Create(1)
 		for f.Next() {
 			steered = f.Cursor.IDs[0]
-			base.Slice(&f.Cursor)[0] = entity.Base{Pos: at(10, 10), Vel: entity.Velocity{Dir: geom.NewVec(1, 0)}}
+			base.Slice(&f.Cursor)[0] = entity.Base{
+				Pos: at(10, 10),
+				Vel: entity.Velocity{Dir: geom.NewVec(1, 0)},
+			}
 		}
 		g := si.NewFactory(&base)
 		g.Create(1)
@@ -68,11 +71,17 @@ func TestCommands_HeadTheEntity(t *testing.T) {
 		give func(steered, other uid.UID64) command.Command
 		want geom.Vec
 	}{
-		"away":   {func(_, o uid.UID64) command.Command { return Away{From: o} }, geom.NewVec(-1, 0)},
-		"toward": {func(_, o uid.UID64) command.Command { return Toward{To: o} }, geom.NewVec(1, 0)},
-		"turn":   {func(uid.UID64, uid.UID64) command.Command { return Turn{Angle: math.Pi / 2} }, geom.NewVec(0, 1)},
+		"away": {func(_, o uid.UID64) command.Command { return Away{From: o} }, geom.NewVec(-1,
+			0)},
+		"toward": {func(_, o uid.UID64) command.Command { return Toward{To: o} }, geom.NewVec(1,
+			0)},
+		"turn": {func(uid.UID64, uid.UID64) command.Command { return Turn{Angle: math.Pi / 2} },
+			geom.NewVec(0, 1)},
 	} {
-		got := commanded(t, func(s *System, steered, other uid.UID64) { put(s, steered, tc.give(steered, other)) })
+		got := commanded(
+			t,
+			func(s *System, steered, other uid.UID64) { put(s, steered, tc.give(steered, other)) },
+		)
 		if !near(got, tc.want) {
 			t.Errorf("%s: goes %v, want %v", name, got, tc.want)
 		}

@@ -91,7 +91,9 @@ func TestViewCamera_LookFromGoesIntoPerspectiveWhereReached(t *testing.T) {
 		t.Errorf("the eye is at %v, want (100, 100, 50)", e)
 	}
 	unreached := testViews(false)
-	if unreached.LookFrom(100, 100, 50) || unreached.LookAt(1, 2, 3) || unreached.enterInside([3]float32{1, 1, 1}, 0, 0) || unreached.inPersp {
+	if unreached.LookFrom(100, 100, 50) || unreached.LookAt(1, 2, 3) ||
+		unreached.enterInside([3]float32{1, 1, 1}, 0, 0) ||
+		unreached.inPersp {
 		t.Error("a camera not reaching the perspective moved its eye")
 	}
 }
@@ -176,8 +178,12 @@ func TestViewCamera_InsideAUnitTheScreenIsAsWideAsItsEyeSees(t *testing.T) {
 	if f := c.persp.focal(); !near(f, 200) {
 		t.Errorf("seeing 90° across a 400-wide screen the focal length is %v, want 200", f)
 	}
-	if x, _ := c.Unproject(0, 150, 7); !near(x, 320-200) && !near(x, 320+200) && x > 120 && x < 520 {
-		t.Errorf("the screen's edge looks at x %v, want 200 off along the ground from the eye at 320", x)
+	if x, _ := c.Unproject(0, 150, 7); !near(x, 320-200) && !near(x, 320+200) && x > 120 &&
+		x < 520 {
+		t.Errorf(
+			"the screen's edge looks at x %v, want 200 off along the ground from the eye at 320",
+			x,
+		)
 	}
 	c.leaveInside()
 	if f := c.persp.focal(); !near(f, own) {
@@ -185,7 +191,11 @@ func TestViewCamera_InsideAUnitTheScreenIsAsWideAsItsEyeSees(t *testing.T) {
 	}
 	c.enterInside([3]float32{320, 320, 7}, 0, 0)
 	if f := c.persp.focal(); !near(f, own) {
-		t.Errorf("inside a unit whose eye says nothing the focal length is %v, want the camera's own %v", f, own)
+		t.Errorf(
+			"inside a unit whose eye says nothing the focal length is %v, want the camera's own %v",
+			f,
+			own,
+		)
 	}
 }
 

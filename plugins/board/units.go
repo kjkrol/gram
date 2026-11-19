@@ -71,7 +71,12 @@ func (p *Plugin) WithFootprint(cells int) *Plugin {
 
 // Define registers one kind of unit: how it moves, its steering profile and whatever else the
 // game gives its entities. A unit standing off the board panics when spawned.
-func (u *Units[P]) Define(name string, mover unit.Mover, steering steering.Steering, extra ...comp.Comp) {
+func (u *Units[P]) Define(
+	name string,
+	mover unit.Mover,
+	steering steering.Steering,
+	extra ...comp.Comp,
+) {
 	k := UnitKind{Name: name, Mover: mover, Shape: u.shape}
 	brd := &u.brd.board.read
 	own := []comp.Comp{

@@ -167,11 +167,11 @@ func (r *Read) Counts() bool {
 	return r.p.Res.Config.Counts
 }
 
-// GivingWay reports whether the world's looks have one kind give way and one uncovered
-// (Slot.GivesWay, Slot.Uncovered).
+// GivingWay reports whether the world's looks have one kind uncovered and something gives way to
+// it: a kind of theirs or a plugin's source (Slot.Uncovered, Slot.GivesWay, Write.GivesWay).
 func (r *Read) GivingWay() bool {
 	wa, _ := r.p.renderer.atlas.(*Atlas)
-	return wa != nil && len(wa.givesWay) > 0 && len(wa.uncovered) > 0
+	return wa != nil && len(wa.uncovered) > 0 && (len(wa.givesWay) > 0 || r.p.renderer.othersGive)
 }
 
 // GivesWay reports whether what gives way does so before cam: loose over the world or centred
@@ -180,6 +180,18 @@ func (r *Read) GivesWay(cam camera.Camera) bool {
 	loose, riding := r.givesWay()
 	f := figures{covers: !loose, givesRiding: riding}
 	return f.givesWay(cam)
+}
+
+// Uncovered reports whether the sprite id is drawn uncovered: its kind's look declares it so
+// (Slot.Uncovered).
+func (r *Read) Uncovered(id render.SpriteID) bool { return r.p.renderer.bared[id] }
+
+// GivesWayDrawn is GivesWay as the frame drawn has it, for a source composing it.
+func (r *Read) GivesWayDrawn(cam camera.Camera) bool {
+	if figs := r.p.renderer.figures.Front(); figs != nil {
+		return figs.givesWay(cam)
+	}
+	return r.GivesWay(cam)
 }
 
 func (r *Read) givesWay() (loose, riding bool) {
@@ -397,6 +409,11 @@ func (w *Write) NewView(cam camera.Camera) *view.View {
 
 // SetLook has the world's entities drawn, picked and outlined by look, a view plugin's.
 func (w *Write) SetLook(look Look) { w.p.look = look }
+
+// GivesWay has the world lay what its looks declare uncovered for a plugin's source giving way to
+// it (render.Target.Uncovered), as for a kind of its own that does (Slot.GivesWay), and before
+// the cameras its settings say (Read.GivesWay).
+func (w *Write) GivesWay() { w.p.renderer.othersGive = true }
 
 // SetGround has the ground's height under a world point read off ground (Read.GroundAt), the
 // plugin's laying the ground in relief.

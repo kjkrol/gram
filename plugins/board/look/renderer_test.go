@@ -116,10 +116,18 @@ func TestRenderer_LaysAFlatBoardOnTheGPUAndEachCellAsItChanges(t *testing.T) {
 	cam.MoveTo(190, 20)
 	at = shot(cam, 200, 150, r)
 	if c := at(150, 130); c != blue {
-		t.Errorf("past the seam, over the second column's water, the screen is %v, want %v", c, blue)
+		t.Errorf(
+			"past the seam, over the second column's water, the screen is %v, want %v",
+			c,
+			blue,
+		)
 	}
 	if c := at(150, 30); c != green {
-		t.Errorf("past the seam, over the second column's grass, the screen is %v, want %v", c, green)
+		t.Errorf(
+			"past the seam, over the second column's grass, the screen is %v, want %v",
+			c,
+			green,
+		)
 	}
 }
 

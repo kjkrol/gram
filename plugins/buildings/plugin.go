@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/interiors"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -39,9 +40,11 @@ type Plugin struct {
 	board       *board.Plugin
 	sky         Sky
 	ground      Ground
+	rooms       *interiors.Plugin
 	types       Types
 	module      *module
 	solids      *solids
+	near        *near
 	write       Write
 
 	raises command.Queue[Raise]
@@ -75,8 +78,18 @@ func NewPlugin(w *world.Plugin, brd *board.Plugin) *Plugin {
 	p.kept = plugin.Keep(&p.Res)
 	p.types.p, p.write.p = p, p
 	p.solids = &solids{p: p}
+	p.near = &near{s: p.solids}
 	p.Self = world.NewSelf(w, p)
+	// what of a building lies over something uncovered gives way to it
+	w.Write().GivesWay()
 	w.Figures(own{})
+	return p
+}
+
+// WithRooms has the buildings' rooms lit and bared as rooms says who stands in them: whatever lies
+// over a room an uncovered entity stands in gives way to it whole.
+func (p *Plugin) WithRooms(rooms *interiors.Plugin) *Plugin {
+	p.rooms = rooms
 	return p
 }
 
@@ -96,7 +109,7 @@ func (p *Plugin) Name() string { return "gram.buildings" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{p: p}
 	ctx.UseModule(p.module)
-	ctx.Draws(p.solids)
+	ctx.Draws(p.solids, p.near)
 	return nil
 }
 

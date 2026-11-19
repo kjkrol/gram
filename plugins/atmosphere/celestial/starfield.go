@@ -61,7 +61,17 @@ func (f *StarField) Place(cam camera.Camera, w, h float32, heavens Heavens, star
 			continue
 		}
 		c := starColour(st.BV)
-		f.inst = append(f.inst, x, y, starSpread*float32(math.Sqrt(float64(max(light, 1)))), min(light, 1), c[0], c[1], c[2], 0)
+		f.inst = append(
+			f.inst,
+			x,
+			y,
+			starSpread*float32(math.Sqrt(float64(max(light, 1)))),
+			min(light, 1),
+			c[0],
+			c[1],
+			c[2],
+			0,
+		)
 	}
 	return len(f.inst) / 8
 }
@@ -86,7 +96,12 @@ func starLight(mag float32) float32 { return float32(math.Pow(10, -0.16*float64(
 
 // by B−V every 0.4 from −0.4
 var starColours = []render.Light{
-	{0.61, 0.69, 1}, {0.79, 0.85, 1}, {1, 0.97, 0.93}, {1, 0.89, 0.76}, {1, 0.82, 0.63}, {1, 0.72, 0.47}, {1, 0.64, 0.35},
+	{
+		0.61,
+		0.69,
+		1,
+	}, {0.79, 0.85, 1}, {1, 0.97, 0.93}, {1, 0.89, 0.76}, {1, 0.82, 0.63}, {1, 0.72, 0.47}, {1,
+		0.64, 0.35},
 }
 
 func starColour(bv float32) render.Light {

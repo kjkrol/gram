@@ -240,7 +240,16 @@ func (f *Frame) addOwn(at At, atlas AtlasSource, s shape, count int, own bool) {
 }
 
 func vertex(x, y, sx, sy float32, c [4]float32) Vertex {
-	return Vertex{DstX: x, DstY: y, SrcX: sx, SrcY: sy, ColorR: c[0], ColorG: c[1], ColorB: c[2], ColorA: c[3]}
+	return Vertex{
+		DstX:   x,
+		DstY:   y,
+		SrcX:   sx,
+		SrcY:   sy,
+		ColorR: c[0],
+		ColorG: c[1],
+		ColorB: c[2],
+		ColorA: c[3],
+	}
 }
 
 // a colour as gram takes it, straight alpha, premultiplied for the GPU
@@ -276,9 +285,25 @@ func (f *Frame) Sprite(at At, atlas AtlasSource, id SpriteID, dst Corners, shade
 	f.lastFirst, f.lastRect, f.lastAt = len(f.verts), false, at
 	f.lastAtlas = atlas
 	u0, v0, u1, v1 := inset(atlas.UV(id))
-	f.verts = append(f.verts,
-		vertex(dst[0][0], dst[0][1], u0, v0, lit(shade[0])), vertex(dst[1][0], dst[1][1], u1, v0, lit(shade[1])),
-		vertex(dst[2][0], dst[2][1], u0, v1, lit(shade[2])), vertex(dst[3][0], dst[3][1], u1, v1, lit(shade[3])))
+	f.verts = append(
+		f.verts,
+		vertex(
+			dst[0][0],
+			dst[0][1],
+			u0,
+			v0,
+			lit(shade[0]),
+		),
+		vertex(dst[1][0], dst[1][1], u1, v0, lit(shade[1])),
+		vertex(
+			dst[2][0],
+			dst[2][1],
+			u0,
+			v1,
+			lit(shade[2]),
+		),
+		vertex(dst[3][0], dst[3][1], u1, v1, lit(shade[3])),
+	)
 	f.add(at, atlas, quad, 4)
 }
 
@@ -291,7 +316,8 @@ func (f *Frame) Glaze(
 	v := f.verts[len(f.verts)-4:]
 	for i := range v {
 		o := min(max(opacity[i], 0), 1)
-		v[i].ColorR, v[i].ColorG, v[i].ColorB, v[i].ColorA = v[i].ColorR*o, v[i].ColorG*o, v[i].ColorB*o, o
+		v[i].ColorR, v[i].ColorG, v[i].ColorB, v[i].ColorA = v[i].ColorR*o, v[i].ColorG*o,
+			v[i].ColorB*o, o
 	}
 }
 
@@ -301,9 +327,25 @@ func (f *Frame) SpritePart(at At, atlas AtlasSource, src [4]float32, dst Corners
 	f.lastFirst, f.lastRect, f.lastAt = len(f.verts), false, at
 	f.lastAtlas = atlas
 	u0, v0, u1, v1 := src[0], src[1], src[2], src[3]
-	f.verts = append(f.verts,
-		vertex(dst[0][0], dst[0][1], u0, v0, lit(shade[0])), vertex(dst[1][0], dst[1][1], u1, v0, lit(shade[1])),
-		vertex(dst[2][0], dst[2][1], u0, v1, lit(shade[2])), vertex(dst[3][0], dst[3][1], u1, v1, lit(shade[3])))
+	f.verts = append(
+		f.verts,
+		vertex(
+			dst[0][0],
+			dst[0][1],
+			u0,
+			v0,
+			lit(shade[0]),
+		),
+		vertex(dst[1][0], dst[1][1], u1, v0, lit(shade[1])),
+		vertex(
+			dst[2][0],
+			dst[2][1],
+			u0,
+			v1,
+			lit(shade[2]),
+		),
+		vertex(dst[3][0], dst[3][1], u1, v1, lit(shade[3])),
+	)
 	f.add(at, atlas, quad, 4)
 }
 
@@ -338,12 +380,42 @@ func (f *Frame) SpriteRectUV(
 ) {
 	f.lastFirst, f.lastRect, f.lastAt = len(f.verts), true, at
 	f.lastAtlas = atlas
-	f.quads = spritePieces(f.cam, atlas, id, x0, y0, x1, y1, u0, v0, u1, v1, f.quads[:0], func(q camera.Quad, a0, b0, a1, b1 float32) {
-		f.verts = append(f.verts,
-			vertex(q.X0, q.Y0, a0, b0, lit(shade.at(q.T0X, q.T0Y))), vertex(q.X1, q.Y0, a1, b0, lit(shade.at(q.T1X, q.T0Y))),
-			vertex(q.X0, q.Y1, a0, b1, lit(shade.at(q.T0X, q.T1Y))), vertex(q.X1, q.Y1, a1, b1, lit(shade.at(q.T1X, q.T1Y))))
-		f.add(at, atlas, quad, 4)
-	})
+	f.quads = spritePieces(
+		f.cam,
+		atlas,
+		id,
+		x0,
+		y0,
+		x1,
+		y1,
+		u0,
+		v0,
+		u1,
+		v1,
+		f.quads[:0],
+		func(q camera.Quad, a0, b0, a1, b1 float32) {
+			f.verts = append(
+				f.verts,
+				vertex(
+					q.X0,
+					q.Y0,
+					a0,
+					b0,
+					lit(shade.at(q.T0X, q.T0Y)),
+				),
+				vertex(q.X1, q.Y0, a1, b0, lit(shade.at(q.T1X, q.T0Y))),
+				vertex(
+					q.X0,
+					q.Y1,
+					a0,
+					b1,
+					lit(shade.at(q.T0X, q.T1Y)),
+				),
+				vertex(q.X1, q.Y1, a1, b1, lit(shade.at(q.T1X, q.T1Y))),
+			)
+			f.add(at, atlas, quad, 4)
+		},
+	)
 }
 
 // World is where each corner of a piece lies in the world, in the order of its Corners on screen.
@@ -370,20 +442,53 @@ func (f *Frame) Overlay(o *Overlay) {
 	}
 	wu, wv := f.lastAtlas.White()
 	w := o.World
-	xs, ys := [4]float32{w[0][0], w[1][0], w[2][0], w[3][0]}, [4]float32{w[0][1], w[1][1], w[2][1], w[3][1]}
+	xs, ys := [4]float32{
+		w[0][0],
+		w[1][0],
+		w[2][0],
+		w[3][0],
+	}, [4]float32{
+		w[0][1],
+		w[1][1],
+		w[2][1],
+		w[3][1],
+	}
 	mark := [4]float32{}
 	for k := range mark {
 		mark[k] = overlayMark + 2*float32(o.Material) + min(max(o.Fraction[k], 0), 1)
 	}
 	custom := func(i int, u, v float32) float32 {
-		return blend([4]float32{o.Custom[0][i], o.Custom[1][i], o.Custom[2][i], o.Custom[3][i]}, u, v)
+		return blend(
+			[4]float32{o.Custom[0][i], o.Custom[1][i], o.Custom[2][i], o.Custom[3][i]},
+			u,
+			v,
+		)
 	}
 	piece := func(first int, u0, v0, u1, v1 float32) {
 		for k, uv := range [4][2]float32{{u0, v0}, {u1, v0}, {u0, v1}, {u1, v1}} {
 			u, v := uv[0], uv[1]
-			vx := Vertex{DstX: f.verts[first+k].DstX, DstY: f.verts[first+k].DstY, SrcX: wu, SrcY: wv,
-				ColorR: blend(o.Red, u, v), ColorG: blend(xs, u, v), ColorB: blend(ys, u, v), ColorA: blend(mark, u, v),
-				Custom0: custom(0, u, v), Custom1: custom(1, u, v), Custom2: custom(2, u, v), Custom3: custom(3, u, v)}
+			vx := Vertex{
+				DstX: f.verts[first+k].DstX,
+				DstY: f.verts[first+k].DstY,
+				SrcX: wu,
+				SrcY: wv,
+				ColorR: blend(
+					o.Red,
+					u,
+					v,
+				),
+				ColorG: blend(xs, u, v),
+				ColorB: blend(ys, u, v),
+				ColorA: blend(mark, u, v),
+				Custom0: custom(
+					0,
+					u,
+					v,
+				),
+				Custom1: custom(1, u, v),
+				Custom2: custom(2, u, v),
+				Custom3: custom(3, u, v),
+			}
 			if s := f.verts[first+k]; o.Blended && s.Custom3 > blendMark/2 {
 				vx.Custom2, vx.Custom3 = s.ColorA, s.Custom3
 			}
@@ -395,8 +500,20 @@ func (f *Frame) Overlay(o *Overlay) {
 		for k := range 4 {
 			s := f.verts[f.lastFirst+k]
 			c := o.Custom[k]
-			vx := Vertex{DstX: s.DstX, DstY: s.DstY, SrcX: wu, SrcY: wv, ColorR: o.Red[k], ColorG: w[k][0], ColorB: w[k][1],
-				ColorA: mark[k], Custom0: c[0], Custom1: c[1], Custom2: c[2], Custom3: c[3]}
+			vx := Vertex{
+				DstX:    s.DstX,
+				DstY:    s.DstY,
+				SrcX:    wu,
+				SrcY:    wv,
+				ColorR:  o.Red[k],
+				ColorG:  w[k][0],
+				ColorB:  w[k][1],
+				ColorA:  mark[k],
+				Custom0: c[0],
+				Custom1: c[1],
+				Custom2: c[2],
+				Custom3: c[3],
+			}
 			if o.Blended && s.Custom3 > blendMark/2 {
 				vx.Custom2, vx.Custom3 = s.ColorA, s.Custom3
 			}
@@ -411,7 +528,9 @@ func (f *Frame) Overlay(o *Overlay) {
 }
 
 func whole(quads []camera.Quad) bool {
-	return len(quads) == 0 || len(quads) == 1 && quads[0].T0X == 0 && quads[0].T0Y == 0 && quads[0].T1X == 1 && quads[0].T1Y == 1
+	return len(quads) == 0 ||
+		len(quads) == 1 && quads[0].T0X == 0 && quads[0].T0Y == 0 && quads[0].T1X == 1 &&
+			quads[0].T1Y == 1
 }
 
 // an overlay's alpha: overlayMark + twice its material + its fraction, over any colour's 1
@@ -471,7 +590,9 @@ func (f *Frame) line(x0, y0, x1, y1, width float32, c color.RGBA) bool {
 	full := width + 1 // half a pixel of fade either side
 	px, py := -dy/n*full/2, dx/n*full/2
 	col := premultiplied(c)
-	for i, p := range [4][2]float32{{x0 + px, y0 + py}, {x1 + px, y1 + py}, {x0 - px, y0 - py}, {x1 - px, y1 - py}} {
+	for i, p := range [4][2]float32{{x0 + px, y0 + py}, {x1 + px, y1 + py}, {x0 - px, y0 - py},
+		{x1 -
+			px, y1 - py}} {
 		v := vertex(p[0], p[1], 0, 0, col)
 		if i < 2 {
 			v.Custom0, v.Custom1 = 1, 1+full
@@ -548,8 +669,16 @@ func (f *Frame) Material(at At, dst Corners, o *Overlay) {
 	w := o.World
 	for k, p := range dst {
 		c := o.Custom[k]
-		f.verts = append(f.verts, Vertex{DstX: p[0], DstY: p[1], ColorR: o.Red[k], ColorG: w[k][0], ColorB: w[k][1],
-			ColorA: overlayMark + 2*float32(o.Material) + min(max(o.Fraction[k], 0), 1), Custom0: c[0], Custom1: c[1], Custom2: c[2], Custom3: c[3]})
+		f.verts = append(
+			f.verts,
+			Vertex{DstX: p[0], DstY: p[1], ColorR: o.Red[k], ColorG: w[k][0], ColorB: w[k][1],
+				ColorA: overlayMark + 2*float32(
+					o.Material,
+				) + min(
+					max(o.Fraction[k], 0),
+					1,
+				), Custom0: c[0], Custom1: c[1], Custom2: c[2], Custom3: c[3]},
+		)
 	}
 	f.add(at, nil, quad, 4)
 }
@@ -568,7 +697,8 @@ func (f *Frame) Soft(at At, dst Corners, c color.RGBA, fade Fade) {
 	customs := gfx.FadeCustoms(dst, fade)
 	for i, p := range dst {
 		v := vertex(p[0], p[1], 0, 0, col)
-		v.Custom0, v.Custom1, v.Custom2, v.Custom3 = customs[i][0], customs[i][1], customs[i][2], customs[i][3]
+		v.Custom0, v.Custom1, v.Custom2, v.Custom3 = customs[i][0], customs[i][1], customs[i][2],
+			customs[i][3]
 		f.verts = append(f.verts, v)
 	}
 	f.add(at, nil, quad, 4)

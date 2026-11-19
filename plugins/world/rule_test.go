@@ -72,7 +72,12 @@ func (g *triggerStage) Init(ctx game.Initializer) error {
 		comp.Load(func(s spot) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(s.x, 100), 10, 10)}
 		}),
-		comp.Load(func(s spot) world.Velocity { return world.Velocity{Dir: geom.NewVec(1, 0), Value: s.vx} }),
+		comp.Load(
+			func(s spot) world.Velocity {
+				return world.Velocity{Dir: geom.NewVec(1, 0),
+					Value: s.vx}
+			},
+		),
 		comp.Const(collision.Collider{}),
 		comp.Const(tally{}),
 		comp.Load(func(s spot) tag.Tags[cond.Roles] {
@@ -94,7 +99,9 @@ type triggerProbe struct{ g *triggerStage }
 
 func (p triggerProbe) SetupSystems() []goke.System {
 	return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		p.g.query = si.NewQueryBuilder(&p.g.base).Optional(&p.g.states, &p.g.tallies, &p.g.marks).Build()
+		p.g.query = si.NewQueryBuilder(&p.g.base).
+			Optional(&p.g.states, &p.g.tallies, &p.g.marks).
+			Build()
 	}}}
 }
 
@@ -117,7 +124,10 @@ func (g *triggerStage) Stack() game.Scenes {
 	return g.stack
 }
 
-func (g *triggerStage) each(e effect.Effect, fn func(id uid.UID64, x float32, bullet bool, under bool)) {
+func (g *triggerStage) each(
+	e effect.Effect,
+	fn func(id uid.UID64, x float32, bullet bool, under bool),
+) {
 	for g.query.All(); g.query.Next(); {
 		cur := g.query.Cursor()
 		states, marks := g.states.Slice(cur), g.marks.Slice(cur)
@@ -195,7 +205,9 @@ func TestRule_AnEffectIsItsMemory(t *testing.T) {
 	g.hook = func(g *triggerStage) error {
 		g.world.Write().Effects().Define("mark", effect.Spec{effect.Lasts(400 * time.Millisecond)})
 		mark = g.world.Write().Effects().Named("mark")
-		g.world.Write().Effects().Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})
+		g.world.Write().
+			Effects().
+			Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})
 		tallying = g.world.Write().Effects().Named("tally")
 		return g.obey(act.Branch[motion.Moving]{
 			Name: "once a while",
@@ -205,7 +217,10 @@ func TestRule_AnEffectIsItsMemory(t *testing.T) {
 	}
 	runTriggers(t, g, time.Second)
 	if count := g.tallied(); count < 2 || count > 4 {
-		t.Errorf("in a second the guarded body ran %d times, want about once in 400 ms: 2 to 4", count)
+		t.Errorf(
+			"in a second the guarded body ran %d times, want about once in 400 ms: 2 to 4",
+			count,
+		)
 	}
 }
 
@@ -257,7 +272,13 @@ func TestRule_AnEffectsMarkerFiltersInAnotherPlugin(t *testing.T) {
 		runTriggers(t, g, 700*time.Millisecond)
 		g.each(burning, func(_ uid.UID64, _ float32, bullet bool, under bool) {
 			if under != ignite {
-				t.Errorf("ignited %v: the bullet %v is burning %v; want %v", ignite, bullet, under, ignite)
+				t.Errorf(
+					"ignited %v: the bullet %v is burning %v; want %v",
+					ignite,
+					bullet,
+					under,
+					ignite,
+				)
 			}
 		})
 	}

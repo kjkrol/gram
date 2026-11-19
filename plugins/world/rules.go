@@ -18,7 +18,10 @@ type Rule interface {
 
 // Over draws with on top of every entity carrying T, where each of when holds.
 func Over[T any](with render.Appearance, when ...func(T) bool) Rule {
-	return &dressing[T]{when: when, dress: func(l *[]render.Appearance, _ T) { *l = append(*l, with) }}
+	return &dressing[T]{
+		when:  when,
+		dress: func(l *[]render.Appearance, _ T) { *l = append(*l, with) },
+	}
 }
 
 // As draws every entity carrying T as with, in place of its own sprite, where each of when holds.
@@ -39,7 +42,10 @@ func Swap[T any](twins map[render.SpriteID]render.SpriteID, when ...func(T) bool
 // With reworks the sprite of every entity carrying T through fn, which sees the T it carries,
 // where each of when holds.
 func With[T any](fn func(render.Appearance, T) render.Appearance, when ...func(T) bool) Rule {
-	return &dressing[T]{when: when, dress: func(l *[]render.Appearance, t T) { (*l)[0] = fn((*l)[0], t) }}
+	return &dressing[T]{
+		when:  when,
+		dress: func(l *[]render.Appearance, t T) { (*l)[0] = fn((*l)[0], t) },
+	}
 }
 
 // Show draws every entity carrying T where each of when holds. Once a Show rule is given, a
@@ -136,8 +142,8 @@ func (r *Rules) Bind(qb *goke.QueryBuilder) {
 // ruled reports whether any rule is given: without one every entity is drawn as it is.
 func (r *Rules) ruled() bool { return len(r.rules) > 0 }
 
-// Run settles the chunk under cur: layers[i] begins as its i-th entity's render.Appearance and ends as
-// what it is drawn with, shown[i] whether it is drawn; either may be nil.
+// Run settles the chunk under cur: layers[i] begins as its i-th entity's render.Appearance and ends
+// as what it is drawn with, shown[i] whether it is drawn; either may be nil.
 func (r *Rules) Run(cur *goke.Cursor, layers [][]render.Appearance, shown []bool) {
 	for i := range shown {
 		shown[i] = !r.shows

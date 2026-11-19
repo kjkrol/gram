@@ -24,8 +24,9 @@ const (
 	uniformBlock = 4096
 )
 
-// FrameImages is how many images a frame hands every program (group 3, Draw.Frame).
-const FrameImages = 8
+// FrameImages is how many images a frame hands every program (group 3, Draw.Frame): with a
+// draw's own four and its depth, 14 of the 16 a stage samples on a device's default limits.
+const FrameImages = 9
 
 type device struct {
 	mu       sync.Mutex
@@ -140,7 +141,9 @@ func Headless(software bool) error {
 	return nil
 }
 
-var errNoDevice = errors.New("gpu: drawn before the window's GPU is up: draw from a frame, not from a stage's Init")
+var errNoDevice = errors.New(
+	"gpu: drawn before the window's GPU is up: draw from a frame, not from a stage's Init",
+)
 
 // a draw before the window's device is an error, not a reason to make one without a window
 var windowed bool
@@ -165,24 +168,42 @@ func (d *device) setup() error {
 	d.align = uint64(max(d.dev.Limits().MinUniformBufferOffsetAlignment, 256))
 	vf := wgpu.ShaderStageVertex | wgpu.ShaderStageFragment
 	var err error
-	if d.layout0, err = d.dev.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{Label: "gpu draw", Entries: []gputypes.BindGroupLayoutEntry{
-		{Binding: 0, Visibility: vf, Buffer: &gputypes.BufferBindingLayout{Type: gputypes.BufferBindingTypeUniform, HasDynamicOffset: true, MinBindingSize: drawSize}},
-		{Binding: 1, Visibility: vf, Buffer: &gputypes.BufferBindingLayout{Type: gputypes.BufferBindingTypeUniform, HasDynamicOffset: true, MinBindingSize: uniformBlock}},
+	if d.layout0, err = d.dev.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{Label: "gpu " +
+		"draw", Entries: []gputypes.BindGroupLayoutEntry{
+		{Binding: 0, Visibility: vf,
+			Buffer: &gputypes.BufferBindingLayout{Type: gputypes.BufferBindingTypeUniform,
+				HasDynamicOffset: true, MinBindingSize: drawSize}},
+		{Binding: 1, Visibility: vf,
+			Buffer: &gputypes.BufferBindingLayout{Type: gputypes.BufferBindingTypeUniform,
+				HasDynamicOffset: true, MinBindingSize: uniformBlock}},
 	}}); err != nil {
 		return err
 	}
 	tex := func(b uint32) gputypes.BindGroupLayoutEntry {
-		return gputypes.BindGroupLayoutEntry{Binding: b, Visibility: vf, Texture: &gputypes.TextureBindingLayout{SampleType: gputypes.TextureSampleTypeFloat, ViewDimension: gputypes.TextureViewDimension2D}}
+		return gputypes.BindGroupLayoutEntry{
+			Binding:    b,
+			Visibility: vf,
+			Texture: &gputypes.TextureBindingLayout{
+				SampleType:    gputypes.TextureSampleTypeFloat,
+				ViewDimension: gputypes.TextureViewDimension2D,
+			},
+		}
 	}
-	if d.layout1, err = d.dev.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{Label: "gpu images", Entries: []gputypes.BindGroupLayoutEntry{
+	if d.layout1, err = d.dev.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{Label: "gpu " +
+		"images", Entries: []gputypes.BindGroupLayoutEntry{
 		tex(0), tex(1), tex(2), tex(3),
-		{Binding: 4, Visibility: vf, Sampler: &gputypes.SamplerBindingLayout{Type: gputypes.SamplerBindingTypeFiltering}},
-		{Binding: 5, Visibility: vf, Sampler: &gputypes.SamplerBindingLayout{Type: gputypes.SamplerBindingTypeFiltering}},
+		{Binding: 4, Visibility: vf,
+			Sampler: &gputypes.SamplerBindingLayout{Type: gputypes.SamplerBindingTypeFiltering}},
+		{Binding: 5, Visibility: vf,
+			Sampler: &gputypes.SamplerBindingLayout{Type: gputypes.SamplerBindingTypeFiltering}},
 	}}); err != nil {
 		return err
 	}
-	if d.layout2, err = d.dev.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{Label: "gpu depth", Entries: []gputypes.BindGroupLayoutEntry{
-		{Binding: 0, Visibility: vf, Texture: &gputypes.TextureBindingLayout{SampleType: gputypes.TextureSampleTypeDepth, ViewDimension: gputypes.TextureViewDimension2D}},
+	if d.layout2, err = d.dev.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{Label: "gpu " +
+		"depth", Entries: []gputypes.BindGroupLayoutEntry{
+		{Binding: 0, Visibility: vf,
+			Texture: &gputypes.TextureBindingLayout{SampleType: gputypes.TextureSampleTypeDepth,
+				ViewDimension: gputypes.TextureViewDimension2D}},
 	}}); err != nil {
 		return err
 	}
@@ -208,10 +229,16 @@ func (d *device) setup() error {
 	}
 	d.noDepth = &Depth{w: 1, h: 1, readable: true}
 	clamp := gputypes.AddressModeClampToEdge
-	if d.nearest, err = d.dev.CreateSampler(&wgpu.SamplerDescriptor{Label: "nearest", AddressModeU: clamp, AddressModeV: clamp, AddressModeW: clamp, MagFilter: gputypes.FilterModeNearest, MinFilter: gputypes.FilterModeNearest, LodMaxClamp: 32}); err != nil {
+	if d.nearest, err = d.dev.CreateSampler(&wgpu.SamplerDescriptor{Label: "nearest",
+		AddressModeU: clamp, AddressModeV: clamp, AddressModeW: clamp,
+		MagFilter: gputypes.FilterModeNearest, MinFilter: gputypes.FilterModeNearest,
+		LodMaxClamp: 32}); err != nil {
 		return err
 	}
-	if d.linear, err = d.dev.CreateSampler(&wgpu.SamplerDescriptor{Label: "linear", AddressModeU: clamp, AddressModeV: clamp, AddressModeW: clamp, MagFilter: gputypes.FilterModeLinear, MinFilter: gputypes.FilterModeLinear, LodMaxClamp: 32}); err != nil {
+	if d.linear, err = d.dev.CreateSampler(&wgpu.SamplerDescriptor{Label: "linear",
+		AddressModeU: clamp, AddressModeV: clamp, AddressModeW: clamp,
+		MagFilter: gputypes.FilterModeLinear, MinFilter: gputypes.FilterModeLinear,
+		LodMaxClamp: 32}); err != nil {
 		return err
 	}
 	repeat := gputypes.AddressModeRepeat
@@ -256,7 +283,8 @@ func (d *device) trySubmit() error {
 	enc := d.enc
 	d.enc = nil
 	d.passes = 0
-	d.verts, d.indices, d.draws, d.uniforms = d.verts[:0], d.indices[:0], d.draws[:0], d.uniforms[:0]
+	d.verts, d.indices, d.draws, d.uniforms = d.verts[:0], d.indices[:0], d.draws[:0],
+		d.uniforms[:0]
 	cmds, err := enc.Finish()
 	if err != nil {
 		return fmt.Errorf("gpu: finishing the commands: %w", err)
@@ -378,7 +406,13 @@ func (d *device) ensure(nv, ni int) {
 		if *b != nil {
 			d.retire((*b).Release) // the submissions before may still read it
 		}
-		nb, err := d.dev.CreateBuffer(&wgpu.BufferDescriptor{Label: label, Size: size, Usage: usage | wgpu.BufferUsageCopyDst})
+		nb, err := d.dev.CreateBuffer(
+			&wgpu.BufferDescriptor{
+				Label: label,
+				Size:  size,
+				Usage: usage | wgpu.BufferUsageCopyDst,
+			},
+		)
 		if err != nil {
 			panic(fmt.Errorf("gpu: a %s buffer of %d bytes: %w", label, size, err))
 		}
@@ -391,10 +425,16 @@ func (d *device) ensure(nv, ni int) {
 	regrouped := grow(&d.dbuf, needD, wgpu.BufferUsageUniform, "draws")
 	regrouped = grow(&d.ubuf, needU, wgpu.BufferUsageUniform, "uniforms") || regrouped
 	if regrouped || d.group0 == nil {
-		g, err := d.dev.CreateBindGroup(&wgpu.BindGroupDescriptor{Label: "gpu draw", Layout: d.layout0, Entries: []wgpu.BindGroupEntry{
-			{Binding: 0, Buffer: d.dbuf, Size: drawSize},
-			{Binding: 1, Buffer: d.ubuf, Size: uniformBlock},
-		}})
+		g, err := d.dev.CreateBindGroup(
+			&wgpu.BindGroupDescriptor{
+				Label:  "gpu draw",
+				Layout: d.layout0,
+				Entries: []wgpu.BindGroupEntry{
+					{Binding: 0, Buffer: d.dbuf, Size: drawSize},
+					{Binding: 1, Buffer: d.ubuf, Size: uniformBlock},
+				},
+			},
+		)
 		if err != nil {
 			panic(fmt.Errorf("gpu: the draw group: %w", err))
 		}
@@ -422,10 +462,19 @@ func (d *device) images(imgs [4]*Texture) *wgpu.BindGroup {
 	}
 	entries := make([]wgpu.BindGroupEntry, 0, 6)
 	for i, t := range imgs {
-		entries = append(entries, wgpu.BindGroupEntry{Binding: uint32(i), TextureView: t.gpuView(d)})
+		entries = append(
+			entries,
+			wgpu.BindGroupEntry{Binding: uint32(i), TextureView: t.gpuView(d)},
+		)
 	}
-	entries = append(entries, wgpu.BindGroupEntry{Binding: 4, Sampler: d.nearest}, wgpu.BindGroupEntry{Binding: 5, Sampler: d.linear})
-	g, err := d.dev.CreateBindGroup(&wgpu.BindGroupDescriptor{Label: "gpu images", Layout: d.layout1, Entries: entries})
+	entries = append(
+		entries,
+		wgpu.BindGroupEntry{Binding: 4, Sampler: d.nearest},
+		wgpu.BindGroupEntry{Binding: 5, Sampler: d.linear},
+	)
+	g, err := d.dev.CreateBindGroup(
+		&wgpu.BindGroupDescriptor{Label: "gpu images", Layout: d.layout1, Entries: entries},
+	)
 	if err != nil {
 		panic(fmt.Errorf("gpu: an images group: %w", err))
 	}

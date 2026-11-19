@@ -65,7 +65,11 @@ func TestKeys_TheCursorInACornerBuildsADiagonalPanFromTheEdge(t *testing.T) {
 	cmd, ok := keys[0].Build(ctx)
 	pan, isPan := cmd.(cameras.Pan)
 	if !ok || !isPan || pan.Dx <= 0 || pan.Dy >= 0 {
-		t.Errorf("in the top-right corner the edge builds %+v (%v), want a Pan right and up", cmd, ok)
+		t.Errorf(
+			"in the top-right corner the edge builds %+v (%v), want a Pan right and up",
+			cmd,
+			ok,
+		)
 	}
 	ctx.Cursor = geom.NewVec(985, 400)
 	cmd, _ = keys[0].Build(ctx)
@@ -162,8 +166,12 @@ func TestKeys_AtAResolutionTheScrollAndTheLookAreTheSameOnTheScreen(t *testing.T
 		}
 		cmd, ok := b.Build(control.Context{Resolution: 0.5, Delta: geom.NewVec(3, 4)})
 		if look, isLook := cmd.(cameras.Look); !ok || !isLook || look.Dx != 6 || look.Dy != 8 {
-			t.Errorf("a move of (3, 4) camera pixels at 0.5 builds %+v (%v), want a Look by (6, 8): "+
-				"the shown ones", cmd, ok)
+			t.Errorf(
+				"a move of (3, 4) camera pixels at 0.5 builds %+v (%v), want a Look by (6, 8): "+
+					"the shown ones",
+				cmd,
+				ok,
+			)
 		}
 		return
 	}

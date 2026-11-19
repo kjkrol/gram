@@ -24,12 +24,16 @@ type placeRig struct {
 func newPlaceRig() *placeRig {
 	r := &placeRig{grid: grid.DefaultGrids{}.Square(7, 5, 32), terrain: cell.NewTerrainMap()}
 	r.terrain.SetAll(cell.Kind{Pace: 1, Allows: cell.Land})
-	r.keep = NewBodyKeeping(NewFinder(r.grid, r.terrain, nil, OpenOccupancy{}), nil, func() ground.Heights {
-		if r.heights == nil {
-			return nil
-		}
-		return groundFunc(r.heights)
-	})
+	r.keep = NewBodyKeeping(
+		NewFinder(r.grid, r.terrain, nil, OpenOccupancy{}),
+		nil,
+		func() ground.Heights {
+			if r.heights == nil {
+				return nil
+			}
+			return groundFunc(r.heights)
+		},
+	)
 	r.keep.Begin(func(b []bodies.Body) []bodies.Body { return b })
 	return r
 }
@@ -46,8 +50,20 @@ func (r *placeRig) units(n int, side float32) []bodies.Member {
 	var out []bodies.Member
 	for i := range n {
 		c := r.grid.CellCenter(r.at(0, uint32(i%5)))
-		pos := world.Position{AABB: plane.NewAABB(geom.NewVec(c.X-side/2+float32(i%3), c.Y-side/2), side, side)}
-		out = append(out, bodies.Member{ID: uid.UID64(i + 1), Cell: r.at(0, uint32(i%5)), From: r.at(0, uint32(i%5)), Domain: cell.Land, Pos: pos, Z: world.Z{Height: 6}})
+		pos := world.Position{
+			AABB: plane.NewAABB(geom.NewVec(c.X-side/2+float32(i%3), c.Y-side/2), side, side),
+		}
+		out = append(
+			out,
+			bodies.Member{
+				ID:     uid.UID64(i + 1),
+				Cell:   r.at(0, uint32(i%5)),
+				From:   r.at(0, uint32(i%5)),
+				Domain: cell.Land,
+				Pos:    pos,
+				Z:      world.Z{Height: 6},
+			},
+		)
 	}
 	return out
 }
@@ -87,7 +103,11 @@ func TestPlace_TheGroupFillsTheTargetRoundThePointThenTheCheapestNeighbour(t *te
 		}
 	}
 	if inTarget != 9 || west != 3 {
-		t.Errorf("%d stand on the target and %d on the cheap cell west, want 9 and the 3 left over", inTarget, west)
+		t.Errorf(
+			"%d stand on the target and %d on the cheap cell west, want 9 and the 3 left over",
+			inTarget,
+			west,
+		)
 	}
 	onPoint := 0
 	for _, p := range got {
@@ -101,7 +121,9 @@ func TestPlace_TheGroupFillsTheTargetRoundThePointThenTheCheapestNeighbour(t *te
 	checkApart(t, got, 6)
 }
 
-func TestPlace_UnitsNearlyACellLargeSpreadOverTheNeighboursAndTwoShareACellAtItsEdges(t *testing.T) {
+func TestPlace_UnitsNearlyACellLargeSpreadOverTheNeighboursAndTwoShareACellAtItsEdges(
+	t *testing.T,
+) {
 	r := newPlaceRig()
 	target := r.at(3, 2)
 	centre := r.grid.CellCenter(target)
@@ -122,7 +144,10 @@ func TestPlace_UnitsNearlyACellLargeSpreadOverTheNeighboursAndTwoShareACellAtIts
 		order.EitherLevel)
 	for _, p := range two {
 		if p.cell != target {
-			t.Fatalf("spots %v, want both on the target: a 12 box each side of the cell, over its edges", two)
+			t.Fatalf(
+				"spots %v, want both on the target: a 12 box each side of the cell, over its edges",
+				two,
+			)
 		}
 	}
 	checkApart(t, two, 12)
@@ -135,7 +160,10 @@ func TestPlace_NoSpotOverGroundTheUnitCannotTakeOrOnAStep(t *testing.T) {
 	r.terrain.Set(r.at(3, 1), cell.Kind{Pace: 1, Allows: cell.Land, Height: 10}) // a rock north
 	centre := r.grid.CellCenter(target)
 	r.heights = func(geom.Vec) float32 { return 0 }
-	corner := geom.NewVec(centre.X+14, centre.Y-14) // the north-east corner, by the water and the rock
+	corner := geom.NewVec(
+		centre.X+14,
+		centre.Y-14,
+	) // the north-east corner, by the water and the rock
 	got, _ := r.keep.place(r.units(6, 8), corner, target, order.EitherLevel)
 	for _, p := range got {
 		if !p.ok {
@@ -166,16 +194,30 @@ func TestPlace_KnowsOnlyWhoeverItStruck(t *testing.T) {
 	r.keep.Begin(func(b []bodies.Body) []bodies.Body { return append(b, standing) })
 	spots, _ := r.keep.place(r.units(1, 10), centre, target, order.EitherLevel)
 	if spots[0].spot != centre {
-		t.Errorf("the unit stands at %v, want the point %v: nobody told it of the one standing there", spots[0].spot, centre)
+		t.Errorf(
+			"the unit stands at %v, want the point %v: nobody told it of the one standing there",
+			spots[0].spot,
+			centre,
+		)
 	}
 	flyer := bodies.Body{ID: 101, At: geom.NewVec(centre.X-20, centre.Y), Half: h, Domain: cell.Air}
 	spots, _ = r.keep.placeClearOf(r.units(1, 10), centre, target, order.EitherLevel,
 		[]bodies.Body{standing, flyer})
 	got := spots[0]
 	if !got.ok || got.spot == centre {
-		t.Fatalf("placed again clear of the one struck the unit stands at %v %v, want off the point", got.spot, got.ok)
+		t.Fatalf(
+			"placed again clear of the one struck the unit stands at %v %v, want off the point",
+			got.spot,
+			got.ok,
+		)
 	}
-	if got.spot != geom.NewVec(centre.X-20, centre.Y) && got.spot != geom.NewVec(centre.X+20, centre.Y) && got.spot != geom.NewVec(centre.X, centre.Y-20) && got.spot != geom.NewVec(centre.X, centre.Y+20) {
-		t.Errorf("the unit stands at %v, want the next lattice point round the point, the flyer's too", got.spot)
+	if got.spot != geom.NewVec(centre.X-20, centre.Y) &&
+		got.spot != geom.NewVec(centre.X+20, centre.Y) &&
+		got.spot != geom.NewVec(centre.X, centre.Y-20) &&
+		got.spot != geom.NewVec(centre.X, centre.Y+20) {
+		t.Errorf(
+			"the unit stands at %v, want the next lattice point round the point, the flyer's too",
+			got.spot,
+		)
 	}
 }

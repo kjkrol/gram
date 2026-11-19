@@ -25,7 +25,8 @@ func TestLog_WritesALineOnceForEachWhoFell(t *testing.T) {
 		walker{box: cellBox(grid, at(0), 4), domain: cell.Land},
 		walker{box: cellBox(grid, at(1), 4), domain: cell.Land},
 	)
-	if lines := strings.Count(out.String(), "\n"); lines != 1 || !strings.Contains(out.String(), "fell into the hole at cell 0") {
+	if lines := strings.Count(out.String(), "\n"); lines != 1 ||
+		!strings.Contains(out.String(), "fell into the hole at cell 0") {
 		t.Errorf("wrote %q, want one line of a unit falling into the hole", out.String())
 	}
 }

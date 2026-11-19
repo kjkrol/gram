@@ -55,12 +55,18 @@ func (s *System) obey() {
 	clear(s.obeyed)
 	s.told.aways.Drain(func(i command.Issued[Away]) {
 		if from, ok := s.centre(i.Command.From); ok && i.ByEntity {
-			s.head(i.Entity, func(at, _ geom.Vec) geom.Vec { return geom.NewVec(at.X-from.X, at.Y-from.Y) })
+			s.head(
+				i.Entity,
+				func(at, _ geom.Vec) geom.Vec { return geom.NewVec(at.X-from.X, at.Y-from.Y) },
+			)
 		}
 	})
 	s.told.towards.Drain(func(i command.Issued[Toward]) {
 		if to, ok := s.centre(i.Command.To); ok && i.ByEntity {
-			s.head(i.Entity, func(at, _ geom.Vec) geom.Vec { return geom.NewVec(to.X-at.X, to.Y-at.Y) })
+			s.head(
+				i.Entity,
+				func(at, _ geom.Vec) geom.Vec { return geom.NewVec(to.X-at.X, to.Y-at.Y) },
+			)
 		}
 	})
 	s.told.turns.Drain(func(i command.Issued[Turn]) {

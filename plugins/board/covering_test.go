@@ -19,27 +19,36 @@ func TestCovering_AnEffectOnACellShowsOnTheBoardAndToTheRules(t *testing.T) {
 	here := g.At(1, 1)
 	var iced effect.Effect
 	var slot [2]int
-	bw := boardtest.NewWorldWith(t, g, 4*boardtest.CellSize, 4*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []act.Rule {
-		brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("water"), Pace: 1, Allows: cell.Land})
-		w.Write().Effects().Define("iced", effect.Spec{})
-		iced = w.Write().Effects().Named("iced")
-		slot[0], slot[1] = int(brd.Covering(iced)), int(brd.Covering(iced))
-		return []act.Rule{
-			act.Branch[unit.Standing]{
-				Name: "freeze",
-				When: cond.Self.If(cond.Always),
-				Then: act.Branch[any]{
-					When: cond.At(board.Around(0)).If(cond.Not(iced)),
-					Then: act.At(board.Around(0)).Put(iced),
+	bw := boardtest.NewWorldWith(
+		t,
+		g,
+		4*boardtest.CellSize,
+		4*boardtest.CellSize,
+		func(w *world.Plugin, brd *board.Plugin) []act.Rule {
+			brd.Write().
+				Board().
+				SetAll(cell.Kind{Name: cell.Named("water"), Pace: 1, Allows: cell.Land})
+			w.Write().Effects().Define("iced", effect.Spec{})
+			iced = w.Write().Effects().Named("iced")
+			slot[0], slot[1] = int(brd.Covering(iced)), int(brd.Covering(iced))
+			return []act.Rule{
+				act.Branch[unit.Standing]{
+					Name: "freeze",
+					When: cond.Self.If(cond.Always),
+					Then: act.Branch[any]{
+						When: cond.At(board.Around(0)).If(cond.Not(iced)),
+						Then: act.At(board.Around(0)).Put(iced),
+					},
 				},
-			},
-			act.Branch[unit.Standing]{
-				Name: "leave the ice",
-				When: cond.Self.If(unit.StandingOn(iced)),
-				Then: act.Self.Do(world.Despawn{}),
-			},
-		}
-	}, []boardtest.Mover{{Here: here}})
+				act.Branch[unit.Standing]{
+					Name: "leave the ice",
+					When: cond.Self.If(unit.StandingOn(iced)),
+					Then: act.Self.Do(world.Despawn{}),
+				},
+			}
+		},
+		[]boardtest.Mover{{Here: here}},
+	)
 	if slot[0] != slot[1] {
 		t.Errorf("the cover's slot is %d, then %d; want the same", slot[0], slot[1])
 	}

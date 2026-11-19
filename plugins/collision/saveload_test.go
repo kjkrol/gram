@@ -73,7 +73,15 @@ func TestSaveLoadCycle(t *testing.T) {
 				comp.Const(collision.Collider{}),
 			})
 			of := kind.Named[body](wp.Kinds(), fmt.Sprintf("k%d", i))
-			entries = append(entries, of.Entry(body{pos: placement.Place(i, count), vel: world.Velocity{Dir: geom.NewVec(1, 0), Value: float32(10 * (i + 1))}}))
+			entries = append(
+				entries,
+				of.Entry(
+					body{
+						pos: placement.Place(i, count),
+						vel: world.Velocity{Dir: geom.NewVec(1, 0), Value: float32(10 * (i + 1))},
+					},
+				),
+			)
 		}
 		return entries
 	}
@@ -120,7 +128,12 @@ func TestSaveLoadCycle(t *testing.T) {
 	ecs.SetPlan(cm.RunPlan)
 	ecs.Tick(time.Millisecond)
 	if got := countCollidable(wp.Write().Space()); got != count {
-		t.Errorf("%d of %d spawned entities can collide after a tick — the broad phase did not tell the index", got, count)
+		t.Errorf(
+			"%d of %d spawned entities can collide after a tick — the broad phase did not tell "+
+				"the index",
+			got,
+			count,
+		)
 	}
 
 	ecs.Pause()
@@ -169,7 +182,8 @@ func TestSaveLoadCycle(t *testing.T) {
 				if !ok {
 					t.Errorf("entity %d: not among originally spawned IDs", id)
 				} else if appearances[i].SpriteID != wantSprite {
-					t.Errorf("entity %d: SpriteID = %d, want %d", id, appearances[i].SpriteID, wantSprite)
+					t.Errorf("entity %d: SpriteID = %d, want %d", id, appearances[i].SpriteID,
+						wantSprite)
 				}
 				loadedCount++
 			}
@@ -184,6 +198,11 @@ func TestSaveLoadCycle(t *testing.T) {
 	ecs2.SetPlan(cm2.RunPlan)
 	ecs2.Tick(time.Millisecond)
 	if got := countCollidable(plugin2.Write().Space()); got != count {
-		t.Errorf("%d of %d loaded entities can collide after a tick — PostLoad left them marked as already indexed", got, count)
+		t.Errorf(
+			"%d of %d loaded entities can collide after a tick — PostLoad left them marked as "+
+				"already indexed",
+			got,
+			count,
+		)
 	}
 }

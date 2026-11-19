@@ -18,8 +18,18 @@ func FadeCustoms(dst Corners, fade Fade) [4][4]float32 {
 	across := func(a, b [2]float32) float32 {
 		return float32(math.Hypot(float64(b[0]-a[0]), float64(b[1]-a[1])))
 	}
-	width := [4]float32{across(dst[0], dst[1]), across(dst[0], dst[1]), across(dst[2], dst[3]), across(dst[2], dst[3])}
-	height := [4]float32{across(dst[0], dst[2]), across(dst[1], dst[3]), across(dst[0], dst[2]), across(dst[1], dst[3])}
+	width := [4]float32{
+		across(dst[0], dst[1]),
+		across(dst[0], dst[1]),
+		across(dst[2], dst[3]),
+		across(dst[2], dst[3]),
+	}
+	height := [4]float32{
+		across(dst[0], dst[2]),
+		across(dst[1], dst[3]),
+		across(dst[0], dst[2]),
+		across(dst[1], dst[3]),
+	}
 	side := func(w, dist float32, near bool) float32 {
 		switch {
 		case w <= 0:
@@ -32,7 +42,12 @@ func FadeCustoms(dst Corners, fade Fade) [4][4]float32 {
 	var out [4][4]float32
 	for i := range dst {
 		left, top := i%2 == 0, i < 2
-		out[i] = [4]float32{side(fade.Left, width[i], left), side(fade.Right, width[i], !left), side(fade.Top, height[i], top), side(fade.Bottom, height[i], !top)}
+		out[i] = [4]float32{
+			side(fade.Left, width[i], left),
+			side(fade.Right, width[i], !left),
+			side(fade.Top, height[i], top),
+			side(fade.Bottom, height[i], !top),
+		}
 	}
 	return out
 }

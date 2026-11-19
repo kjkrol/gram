@@ -47,7 +47,15 @@ func (s *driveSystem) Init(si *goke.SysInit) {
 func (s *driveSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	for s.query.Paced(d); s.query.Next(); {
 		cur := s.query.Cursor()
-		bases, steers, courses, drivens := s.base.Slice(cur), s.steer.Slice(cur), s.course.Slice(cur), s.driven.Slice(cur)
+		bases, steers, courses, drivens := s.base.Slice(
+			cur,
+		), s.steer.Slice(
+			cur,
+		), s.course.Slice(
+			cur,
+		), s.driven.Slice(
+			cur,
+		)
 		if courses == nil || drivens == nil {
 			continue
 		}
@@ -55,14 +63,18 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			s.places.Slice(cur)
 		zs, falls := s.z.Slice(cur), s.drift.Present(cur)
 		for i, id := range cur.IDs {
-			in, st, base := drivens[i], steering.Helm{Steering: &steers[i], Course: &courses[i]}, &bases[i]
+			in, st, base := drivens[i], steering.Helm{
+				Steering: &steers[i],
+				Course:   &courses[i],
+			}, &bases[i]
 			domain := unit.DomainAt(movers, i)
 			ordered := s.keeping != nil && s.keeping.Ordered(id)
 			// held still by a wall (collision's Slow), the course's speed is no momentum
 			if !in.Steers() && base.Vel.Value == 0 && base.Vel.Side == 0 {
 				st.Speed = 0
 			}
-			if states != nil && states[i].Has(Driving) && !in.Steers() && (ordered || st.Speed == 0) {
+			if states != nil && states[i].Has(Driving) && !in.Steers() &&
+				(ordered || st.Speed == 0) {
 				states[i] = states[i].Without(Driving)
 				st.RequestSide(0)
 				st.RequestSpeed(0)
@@ -135,7 +147,8 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			turning := facing && st.Speed > 0 &&
 				heading.X*base.Vel.Dir.X+heading.Y*base.Vel.Dir.Y < turnBrake
 			// a tap on a standing unit only turns it
-			tapping := s.tap > 0 && facing && st.Speed == 0 && base.Vel.Value == 0 && in.Held <= s.tap
+			tapping := s.tap > 0 && facing && st.Speed == 0 && base.Vel.Value == 0 &&
+				in.Held <= s.tap
 			ahead, forward := w.at, false
 			if in.Ahead > 0 && !(turning || tapping) {
 				ahead, forward = s.open(w, heading)

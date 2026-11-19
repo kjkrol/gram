@@ -42,11 +42,17 @@ func polygonMeetsBox(poly []geom.Vec, box geom.AABB) bool {
 	eps := f32.Eps(max(f32.Abs(box.TopLeft.X), f32.Abs(box.TopLeft.Y),
 		f32.Abs(box.BottomRight.X), f32.Abs(box.BottomRight.Y)))
 	for _, p := range poly {
-		if p.X >= box.TopLeft.X-eps && p.X <= box.BottomRight.X+eps && p.Y >= box.TopLeft.Y-eps && p.Y <= box.BottomRight.Y+eps {
+		if p.X >= box.TopLeft.X-eps && p.X <= box.BottomRight.X+eps && p.Y >= box.TopLeft.Y-eps &&
+			p.Y <= box.BottomRight.Y+eps {
 			return true
 		}
 	}
-	corners := [4]geom.Vec{box.TopLeft, geom.NewVec(box.BottomRight.X, box.TopLeft.Y), box.BottomRight, geom.NewVec(box.TopLeft.X, box.BottomRight.Y)}
+	corners := [4]geom.Vec{
+		box.TopLeft,
+		geom.NewVec(box.BottomRight.X, box.TopLeft.Y),
+		box.BottomRight,
+		geom.NewVec(box.TopLeft.X, box.BottomRight.Y),
+	}
 	for _, c := range corners {
 		if pointInConvex(poly, c) {
 			return true

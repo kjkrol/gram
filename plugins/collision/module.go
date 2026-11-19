@@ -34,7 +34,12 @@ type module struct {
 	built   bool
 }
 
-func newModule(space *aabbworld.Space, ecs *goke.ECS, pairs *host.PairRules[Meeting], entities *host.Rules[Struck]) *module {
+func newModule(
+	space *aabbworld.Space,
+	ecs *goke.ECS,
+	pairs *host.PairRules[Meeting],
+	entities *host.Rules[Struck],
+) *module {
 	m := &module{space: space, ecs: ecs, pairs: pairs, entities: entities}
 	m.step = m.simulate
 	return m

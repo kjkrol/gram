@@ -33,7 +33,11 @@ func TestRoster_SpecBringsTheDefaultsAndTheGamesOwn(t *testing.T) {
 	spec := r.Spec(soldier, comp.Load(func(r row) armour { return armour{Plate: r.hp} }))
 
 	if len(spec) != 2 {
-		t.Fatalf("spec has %d components, want the default stat and the game's armour: %v", len(spec), types(spec))
+		t.Fatalf(
+			"spec has %d components, want the default stat and the game's armour: %v",
+			len(spec),
+			types(spec),
+		)
 	}
 	if got := spec[0].(comp.Template[stat]).Resolve(nil); got.HP != 3 {
 		t.Errorf("the default resolved to %+v, want HP 3", got)

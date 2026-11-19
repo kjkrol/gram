@@ -90,12 +90,26 @@ func (w *Weathering) Running() bool { return !w.still }
 // New is the weathering of cfg on brd under the weather weather gives, its effects defined in
 // fx at once. The kinds cfg names are looked up as the weather first touches the board; an
 // unknown name panics then.
-func New(brd *board.Plugin, weather func() air.Weather, fx *cgoke.Effects, cal *calendar.Calendar, cfg Config) (*Weathering, error) {
+func New(
+	brd *board.Plugin,
+	weather func() air.Weather,
+	fx *cgoke.Effects,
+	cal *calendar.Calendar,
+	cfg Config,
+) (*Weathering, error) {
 	cfg = cfg.withDefaults()
 	space := brd.Read(0).World().Res.Config.Space
-	ww := &Weathering{cfg: cfg, board: brd, air: weather, effects: fx, calendar: cal, dice: cfg.Seed,
-		water: cell.Named(cfg.Water), swaying: map[cell.Name]bool{},
-		land: air.NewLand(float32(space.Width), float32(space.Height))}
+	ww := &Weathering{
+		cfg:      cfg,
+		board:    brd,
+		air:      weather,
+		effects:  fx,
+		calendar: cal,
+		dice:     cfg.Seed,
+		water:    cell.Named(cfg.Water),
+		swaying:  map[cell.Name]bool{},
+		land:     air.NewLand(float32(space.Width), float32(space.Height)),
+	}
 	for _, name := range cfg.Sway {
 		ww.swaying[cell.Named(name)] = true
 	}
@@ -114,7 +128,10 @@ func New(brd *board.Plugin, weather func() air.Weather, fx *cgoke.Effects, cal *
 		}
 	})})
 	ww.ice = fx.Named("ice")
-	fx.Define("sway", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind.Sway = ww.cfg.Swaying })})
+	fx.Define(
+		"sway",
+		effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind.Sway = ww.cfg.Swaying })},
+	)
 	ww.sway = fx.Named("sway")
 	return ww, nil
 }
@@ -206,7 +223,12 @@ func (w *Weathering) pick() cell.ID {
 	return w.cells[min(int(w.roll()*float32(len(w.cells))), len(w.cells)-1)]
 }
 
-func (w *Weathering) scatter(cb *goke.CmdBuf, share float32, fx effect.Effect, may func(c cell.ID) bool) {
+func (w *Weathering) scatter(
+	cb *goke.CmdBuf,
+	share float32,
+	fx effect.Effect,
+	may func(c cell.ID) bool,
+) {
 	for range int(share*float32(w.board.Read(0).Board().CellCount()) + w.roll()) {
 		c := w.pick()
 		if id, ok := w.board.Read(0).Board().CellEntity(c); ok && may(c) {

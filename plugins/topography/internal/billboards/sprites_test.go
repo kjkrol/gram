@@ -77,7 +77,8 @@ func newHill(t *testing.T) aHill {
 	picker := cam.(interface {
 		Pick(sx, sy float32) (float32, float32, float32, bool)
 	})
-	var seen [][2]geom.Vec // the hill's slope and the level ground behind it, under one screen point
+	// the hill's slope and the level ground behind it, under one screen point
+	var seen [][2]geom.Vec
 	vw, vh := cam.Viewport()
 	for sy := float32(0); sy < vh; sy++ {
 		hx, hy, _, ok := picker.Pick(vw/2, sy)
@@ -86,7 +87,13 @@ func newHill(t *testing.T) aHill {
 		}
 		ux, uy := cam.Unproject(vw/2, sy, 0)
 		if dx, dy := ux-hx, uy-hy; dx*dx+dy*dy > 60*60 {
-			seen = append(seen, [2]geom.Vec{geom.NewVec(float32(hx), float32(hy)), geom.NewVec(float32(ux), float32(uy))})
+			seen = append(
+				seen,
+				[2]geom.Vec{
+					geom.NewVec(float32(hx), float32(hy)),
+					geom.NewVec(float32(ux), float32(uy)),
+				},
+			)
 		}
 	}
 	if len(seen) == 0 {
@@ -95,7 +102,14 @@ func newHill(t *testing.T) aHill {
 	screen := render.NewImage(int(vw), int(vh))
 	depth := render.NewDepth()
 	pix := make([]byte, 4*int(vw)*int(vh))
-	u := render.UniformsOf(map[string]any{"LightWay": []float32{0.4, 0.3, 0.8}, "LightStrength": []float32{1}, "LightColor": []float32{1, 1, 1}, "Ambience": []float32{0.3, 0.3, 0.3}})
+	u := render.UniformsOf(
+		map[string]any{
+			"LightWay":      []float32{0.4, 0.3, 0.8},
+			"LightStrength": []float32{1},
+			"LightColor":    []float32{1, 1, 1},
+			"Ambience":      []float32{0.3, 0.3, 0.3},
+		},
+	)
 	look := w.Read(0).Look().(world.DirectLook)
 	h := aHill{relief: p.Write().Relief(), look: look, cam: cam}
 	h.slope, h.behind = seen[len(seen)/2][0], seen[len(seen)/2][1]

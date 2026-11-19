@@ -32,7 +32,11 @@ func release(at geom.Vec) *control.InputEvents {
 
 func TestCheckbox_AClickGivesTheOtherState(t *testing.T) {
 	on := true
-	box := Checkbox("shadows", func() bool { return on }, func(v bool) command.Command { return set{on: v} })
+	box := Checkbox(
+		"shadows",
+		func() bool { return on },
+		func(v bool) command.Command { return set{on: v} },
+	)
 	s, issued := catching(built(NewScene("main", TopLeft(box))))
 	w, h := box.needs()
 	lw, _ := box.children[0].needs()
@@ -47,20 +51,33 @@ func TestCheckbox_AClickGivesTheOtherState(t *testing.T) {
 
 func TestSlider_DraggedGivesEachNewNumberAndTheWheelSteps(t *testing.T) {
 	v := 0.0
-	sl := Slider(0, 10, 1, func() float64 { return v }, func(n float64) command.Command { return set{v: n} })
+	sl := Slider(
+		0,
+		10,
+		1,
+		func() float64 { return v },
+		func(n float64) command.Command { return set{v: n} },
+	)
 	s, issued := catching(built(NewScene("main", TopLeft(sl).Size(sliderLength, sliderHeight))))
 	// the knob runs from a radius in to a radius before the end: 160-18 pixels for 10 steps
 	s.HandleEvents(click(geom.NewVec(9, 9)), nil, nil)
 	if len(*issued) != 0 || s.held != sl {
-		t.Fatalf("pressed at the start: issued %v, held %v; want nothing, the slider held", *issued, s.held)
+		t.Fatalf(
+			"pressed at the start: issued %v, held %v; want nothing, the slider held",
+			*issued,
+			s.held,
+		)
 	}
 	s.HandleEvents(&control.InputEvents{MousePos: geom.NewVec(9+142*0.5, 9)}, nil, nil)
 	s.HandleEvents(&control.InputEvents{MousePos: geom.NewVec(9+142*0.5+3, 9)}, nil, nil)
 	s.HandleEvents(release(geom.NewVec(9+142, 300)), nil, nil)
 	if want := []command.Command{set{v: 5}, set{v: 10}}; len(*issued) != 2 ||
 		(*issued)[0] != want[0] || (*issued)[1] != want[1] || s.held != nil {
-		t.Fatalf("dragged to the middle and let go at the end: issued %v, want %v, the slider let go",
-			*issued, want)
+		t.Fatalf(
+			"dragged to the middle and let go at the end: issued %v, want %v, the slider let go",
+			*issued,
+			want,
+		)
 	}
 	v = 10
 	*issued = nil
@@ -81,7 +98,11 @@ func TestDropdown_OpensItsOptionsOverAllAndTheOneClickedIsChosen(t *testing.T) {
 		TopLeft(dd).Size(100, 30)))))
 	s.HandleEvents(click(geom.NewVec(50, 15)), nil, nil)
 	if s.overlay == nil || len(*issued) != 0 {
-		t.Fatalf("clicked: open %v, issued %v; want the options open and nothing issued", s.overlay != nil, *issued)
+		t.Fatalf(
+			"clicked: open %v, issued %v; want the options open and nothing issued",
+			s.overlay != nil,
+			*issued,
+		)
 	}
 	s.Lay(screen)
 	ob := s.overlay.Box()
@@ -92,12 +113,22 @@ func TestDropdown_OpensItsOptionsOverAllAndTheOneClickedIsChosen(t *testing.T) {
 	at := third.Box().TopLeft.Add(geom.NewVec(5, 5))
 	s.HandleEvents(click(at), nil, nil)
 	if len(*issued) != 1 || (*issued)[0] != (set{i: 2}) || s.overlay != nil {
-		t.Fatalf("clicked the third option: issued %v, open %v; want solids chosen and the options closed", *issued, s.overlay != nil)
+		t.Fatalf(
+			"clicked the third option: issued %v, open %v; want solids chosen and the options "+
+				"closed",
+			*issued,
+			s.overlay != nil,
+		)
 	}
 	s.HandleEvents(click(geom.NewVec(50, 15)), nil, nil)
 	s.HandleEvents(click(geom.NewVec(250, 250)), nil, nil)
 	if s.overlay != nil || len(*issued) != 1 {
-		t.Fatalf("clicked outside the options: open %v, issued %v; want them closed, nothing under reached", s.overlay != nil, *issued)
+		t.Fatalf(
+			"clicked outside the options: open %v, issued %v; want them closed, nothing under "+
+				"reached",
+			s.overlay != nil,
+			*issued,
+		)
 	}
 }
 
@@ -108,7 +139,10 @@ func TestWidgets_DrawTheirMarksInTheAccent(t *testing.T) {
 	th.Border = color.RGBA{R: 255, A: 255}
 	box := Checkbox("x", func() bool { return true }, nil)
 	sl := Slider(0, 1, 0, func() float64 { return 1 }, nil)
-	s := NewScene("main", Layers(TopLeft(box).Size(100, 20), BottomLeft(sl).Size(100, 20))).Theme(th)
+	s := NewScene(
+		"main",
+		Layers(TopLeft(box).Size(100, 20), BottomLeft(sl).Size(100, 20)),
+	).Theme(th)
 	s.Drawers()
 	dst := render.NewImage(100, 60)
 	dst.Clear()

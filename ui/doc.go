@@ -25,17 +25,16 @@
 // # Elements
 //
 // [Panel] is a background and a border round an element; [Label] a line of text ([Heading],
-// [Subheading] and [Title] its weights); [Image] a
-// render.Surface filling its box, whose source may draw on the glass over it (a render.Feed
-// with a render.Glass source), last of all, over whatever lies over the picture; [Window] a panel with a title over its elements, which
-// [Element.Modal] makes hold the input while shown; [Element.Passing] lets the pointer through an
-// element and all in it to what lies under, a button or a control inside aside; [Blank] a gap;
-// [Drawer] a screen renderer;
-// [Scroll] an element taller than its box, scrolled by its bar or the wheel. Any
-// element takes [Element.Fill], [Element.Border] and [Element.Padding]. [LabelOf], [ButtonOf] and
+// [Subheading] and [Title] its weights); [Image] a render.Surface filling its box, whose source may
+// draw on the glass over it (a render.Feed with a render.Glass source), last of all, over whatever
+// lies over the picture; [Window] a panel with a title over its elements, which [Element.Modal]
+// makes hold the input while shown; [Element.Passing] lets the pointer through an element and all
+// in it to what lies under, a button or a control inside aside; [Blank] a gap; [Drawer] a screen
+// renderer; [Scroll] an element taller than its box, scrolled by its bar or the wheel. Any element
+// takes [Element.Fill], [Element.Border] and [Element.Padding]. [LabelOf], [ButtonOf] and
 // [WindowOf] ([HeadingOf] too) read their words off a [Text] every frame, for the entity a pinned
-// element is shown for; [Of] is a Text read off a component of that entity, [While] one saying
-// its words while a function says so. A Text saying nothing leaves its element out.
+// element is shown for; [Of] is a Text read off a component of that entity, [While] one saying its
+// words while a function says so. A Text saying nothing leaves its element out.
 //
 // # Controls
 //

@@ -55,7 +55,8 @@ type arena struct {
 func main() {
 	props := game.Props{
 		Title: "gram board custom map",
-		Description: "A board drawn and priced by a map of the game's own (board.Plugin.WithMap): " +
+		Description: "A board drawn and priced by a map of the game's own " +
+			"(board.Plugin.WithMap): " +
 			"hills rising out of the grass, shaded by how high they lie; the walkers go round " +
 			"the steep and slow down climbing.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,

@@ -22,7 +22,14 @@ func TestGridPlacement_Place_SquareCount(t *testing.T) {
 	for _, c := range cases {
 		pos := p.Place(c.index, 4)
 		if pos.TopLeft.X != c.wantX || pos.TopLeft.Y != c.wantY {
-			t.Errorf("Place(%v, 4) = (%v,%v), want (%v,%v)", c.index, pos.TopLeft.X, pos.TopLeft.Y, c.wantX, c.wantY)
+			t.Errorf(
+				"Place(%v, 4) = (%v,%v), want (%v,%v)",
+				c.index,
+				pos.TopLeft.X,
+				pos.TopLeft.Y,
+				c.wantX,
+				c.wantY,
+			)
 		}
 	}
 }
@@ -41,7 +48,14 @@ func TestGridPlacement_Place_NonSquareCount(t *testing.T) {
 	for _, c := range cases {
 		pos := p.Place(c.index, 5)
 		if pos.TopLeft.X != c.wantX || pos.TopLeft.Y != c.wantY {
-			t.Errorf("Place(%v, 5) = (%v,%v), want (%v,%v)", c.index, pos.TopLeft.X, pos.TopLeft.Y, c.wantX, c.wantY)
+			t.Errorf(
+				"Place(%v, 5) = (%v,%v), want (%v,%v)",
+				c.index,
+				pos.TopLeft.X,
+				pos.TopLeft.Y,
+				c.wantX,
+				c.wantY,
+			)
 		}
 	}
 }
@@ -50,6 +64,11 @@ func TestGridPlacement_Place_SingleEntity_Centers(t *testing.T) {
 	p := world.NewGridPlacement(100, 100, 10)
 	pos := p.Place(0, 1)
 	if pos.TopLeft.X != 45 || pos.TopLeft.Y != 45 {
-		t.Errorf("Place(0, 1) = (%v,%v), want (45,45) (single cell spanning the whole grid, entity centered)", pos.TopLeft.X, pos.TopLeft.Y)
+		t.Errorf(
+			"Place(0, 1) = (%v,%v), want (45,45) (single cell spanning the whole grid, entity "+
+				"centered)",
+			pos.TopLeft.X,
+			pos.TopLeft.Y,
+		)
 	}
 }

@@ -66,7 +66,12 @@ type SelectionSystem struct {
 
 // NewSelectionSystem builds a SelectionSystem draining selects over space, picking through each
 // command's camera what look draws there.
-func NewSelectionSystem(selects *command.Queue[Select], space *aabbworld.Space, tags Tags, look func() world.Look) *SelectionSystem {
+func NewSelectionSystem(
+	selects *command.Queue[Select],
+	space *aabbworld.Space,
+	tags Tags,
+	look func() world.Look,
+) *SelectionSystem {
 	return &SelectionSystem{selects: selects, space: space, tags: tags, look: look}
 }
 
@@ -123,18 +128,35 @@ func (s *SelectionSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 		s.applySelection(hit, cmd.Additive, i.Issuer)
 	})
 	if s.effectCmds != nil {
-		s.effectCmds.Drain(func(i command.Issued[effectCommand]) { s.carry(cb, i.Issuer, i.Command) })
+		s.effectCmds.Drain(
+			func(i command.Issued[effectCommand]) { s.carry(cb, i.Issuer, i.Command) },
+		)
 	}
 	if s.hovers != nil {
 		s.hover()
 	}
 	if s.allows != nil {
-		s.allows.Drain(func(i command.Issued[Allow]) { s.permit(cb, i.Issuer, i.Entity, i.ByEntity, true, i.Command.Selected) })
-		s.forbids.Drain(func(i command.Issued[Forbid]) { s.permit(cb, i.Issuer, i.Entity, i.ByEntity, false, false) })
+		s.allows.Drain(
+			func(i command.Issued[Allow]) {
+				s.permit(cb, i.Issuer, i.Entity, i.ByEntity, true,
+					i.Command.Selected)
+			},
+		)
+		s.forbids.Drain(
+			func(i command.Issued[Forbid]) {
+				s.permit(cb, i.Issuer, i.Entity, i.ByEntity, false,
+					false)
+			},
+		)
 	}
 }
 
-func (s *SelectionSystem) permit(cb *goke.CmdBuf, by command.Issuer, id uid.UID64, byEntity, on, selected bool) {
+func (s *SelectionSystem) permit(
+	cb *goke.CmdBuf,
+	by command.Issuer,
+	id uid.UID64,
+	byEntity, on, selected bool,
+) {
 	set := func(m *tag.Tags[Family]) {
 		if on {
 			*m = m.With(s.tags.Selectable)
@@ -233,25 +255,34 @@ func (s *SelectionSystem) hover() {
 func (s *SelectionSystem) pick(at geom.Vec, screen geom.AABB, cam camera.Camera) (uid.UID64, bool) {
 	var best uid.UID64
 	found, nearest := false, float32(0)
-	s.space.Query(grow(geom.NewAABBAt(at, 1, 1), pickReach), aabbworld.AnyCapability, func(id uid.UID64) {
-		if !s.drawnIn(id, screen, cam) {
-			return
-		}
-		centre := s.lookupBase.At(s.lookup.Cursor()).Pos.Center()
-		dx, dy := centre.X-at.X, centre.Y-at.Y
-		if d := dx*dx + dy*dy; !found || d < nearest {
-			best, found, nearest = id, true, d
-		}
-	})
+	s.space.Query(
+		grow(geom.NewAABBAt(at, 1, 1), pickReach),
+		aabbworld.AnyCapability,
+		func(id uid.UID64) {
+			if !s.drawnIn(id, screen, cam) {
+				return
+			}
+			centre := s.lookupBase.At(s.lookup.Cursor()).Pos.Center()
+			dx, dy := centre.X-at.X, centre.Y-at.Y
+			if d := dx*dx + dy*dy; !found || d < nearest {
+				best, found, nearest = id, true, d
+			}
+		},
+	)
 	return best, found
 }
 
-func (s *SelectionSystem) eachSelected(by command.Issuer, only tag.Tags[cond.Roles], fn func(uid.UID64)) {
+func (s *SelectionSystem) eachSelected(
+	by command.Issuer,
+	only tag.Tags[cond.Roles],
+	fn func(uid.UID64),
+) {
 	for s.query.Paced(0); s.query.Next(); {
 		cursor := s.query.Cursor()
 		marks, owners, roles := s.marks.Slice(cursor), s.owners.Slice(cursor), s.roles.Slice(cursor)
 		for i, id := range cursor.IDs {
-			if marks[i].Has(s.tags.Selectable) && marks[i].Has(s.tags.Selected) && owner.Obeys(ownersAt(owners, i), by) &&
+			if marks[i].Has(s.tags.Selectable) && marks[i].Has(s.tags.Selected) &&
+				owner.Obeys(ownersAt(owners, i), by) &&
 				(only == 0 || (roles != nil && roles[i]&only != 0)) {
 				fn(id)
 			}
@@ -357,7 +388,11 @@ func grow(box geom.AABB, reach float32) geom.AABB {
 	}
 }
 
-func (s *SelectionSystem) applySelection(hit map[uid.UID64]struct{}, additive bool, by command.Issuer) {
+func (s *SelectionSystem) applySelection(
+	hit map[uid.UID64]struct{},
+	additive bool,
+	by command.Issuer,
+) {
 	for s.query.Paced(0); s.query.Next(); {
 		cursor := s.query.Cursor()
 		marks, owners := s.marks.Slice(cursor), s.owners.Slice(cursor)

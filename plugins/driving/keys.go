@@ -44,7 +44,13 @@ type Compass struct {
 // the arrows a tank's behind it.
 func DefaultKeys() []Keys {
 	return []Keys{
-		Shooter{Ahead: control.KeyW, Back: control.KeyS, Left: control.KeyA, Right: control.KeyD, In: camera.Inside},
+		Shooter{
+			Ahead: control.KeyW,
+			Back:  control.KeyS,
+			Left:  control.KeyA,
+			Right: control.KeyD,
+			In:    camera.Inside,
+		},
 		Compass{
 			Up:    control.KeyW,
 			Down:  control.KeyS,
@@ -71,12 +77,26 @@ func (k Tank) Bindings() []control.Binding {
 		}
 	}
 	// the held key's context has the modifiers as they are
-	held(k.Ahead, control.Build(control.KeyHeld{Key: k.Ahead}, "Walk on; with Shift, sprint", func(c control.Context) (Ahead, bool) {
-		return Ahead{Camera: c.Camera, Sprint: c.Mods.Shift}, true
-	}))
-	held(k.Back, control.Build(control.KeyHeld{Key: k.Back}, "Brake, then back away", func(c control.Context) (Back, bool) {
-		return Back{Camera: c.Camera}, true
-	}))
+	held(
+		k.Ahead,
+		control.Build(
+			control.KeyHeld{Key: k.Ahead},
+			"Walk on; with Shift, sprint",
+			func(c control.Context) (Ahead, bool) {
+				return Ahead{Camera: c.Camera, Sprint: c.Mods.Shift}, true
+			},
+		),
+	)
+	held(
+		k.Back,
+		control.Build(
+			control.KeyHeld{Key: k.Back},
+			"Brake, then back away",
+			func(c control.Context) (Back, bool) {
+				return Back{Camera: c.Camera}, true
+			},
+		),
+	)
 	held(k.Left, control.Build(control.KeyHeld{Key: k.Left}, "Turn left", turn(-1)))
 	held(k.Right, control.Build(control.KeyHeld{Key: k.Right}, "Turn right", turn(1)))
 	return out
@@ -91,12 +111,26 @@ func (k Shooter) Bindings() []control.Binding {
 			out = append(out, b.In(k.In).InChords())
 		}
 	}
-	held(k.Ahead, control.Build(control.KeyHeld{Key: k.Ahead}, "Walk on; with Shift, sprint", func(c control.Context) (Ahead, bool) {
-		return Ahead{Camera: c.Camera, Sprint: c.Mods.Shift}, true
-	}))
-	held(k.Back, control.Build(control.KeyHeld{Key: k.Back}, "Brake, then back away", func(c control.Context) (Back, bool) {
-		return Back{Camera: c.Camera}, true
-	}))
+	held(
+		k.Ahead,
+		control.Build(
+			control.KeyHeld{Key: k.Ahead},
+			"Walk on; with Shift, sprint",
+			func(c control.Context) (Ahead, bool) {
+				return Ahead{Camera: c.Camera, Sprint: c.Mods.Shift}, true
+			},
+		),
+	)
+	held(
+		k.Back,
+		control.Build(
+			control.KeyHeld{Key: k.Back},
+			"Brake, then back away",
+			func(c control.Context) (Back, bool) {
+				return Back{Camera: c.Camera}, true
+			},
+		),
+	)
 	held(k.Left, control.Build(control.KeyHeld{Key: k.Left}, "Strafe left", strafe(-1)))
 	held(k.Right, control.Build(control.KeyHeld{Key: k.Right}, "Strafe right", strafe(1)))
 	return out
@@ -108,9 +142,15 @@ func (k Compass) Bindings() []control.Binding {
 	held := func(key control.Key, label string, dx, dy float32) {
 		if key != control.KeyUnknown {
 			way := geom.NewVec(dx, dy)
-			out = append(out, control.Build(control.KeyHeld{Key: key}, label, func(c control.Context) (Toward, bool) {
-				return Toward{Camera: c.Camera, Way: way, Sprint: c.Mods.Shift}, true
-			}).In(k.In).InChords())
+			out = append(
+				out,
+				control.Build(control.KeyHeld{Key: key}, label, func(c control.Context) (Toward,
+					bool) {
+					return Toward{Camera: c.Camera, Way: way, Sprint: c.Mods.Shift}, true
+				}).
+					In(k.In).
+					InChords(),
+			)
 		}
 	}
 	held(k.Up, "Walk up the screen; with Shift, sprint", 0, -1)
@@ -125,7 +165,10 @@ func turn(way int8) func(control.Context) (Turn, bool) {
 }
 
 func strafe(way int8) func(control.Context) (Strafe, bool) {
-	return func(c control.Context) (Strafe, bool) { return Strafe{Camera: c.Camera, Way: way}, true }
+	return func(c control.Context) (Strafe, bool) {
+		return Strafe{Camera: c.Camera, Way: way},
+			true
+	}
 }
 
 // JumpKey is key pressed, whatever else is held, into a Jump of the camera the player looks

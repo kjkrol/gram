@@ -350,7 +350,9 @@ func landing() act.Rule {
 		When: cond.Self.If(cond.Always),
 		Then: act.OneOf(
 			act.Branch[gravity.Landing]{
-				When: cond.Self.If(cond.NewWord("hard", func(l gravity.Landing) bool { return l.Speed > hard })),
+				When: cond.Self.If(
+					cond.NewWord("hard", func(l gravity.Landing) bool { return l.Speed > hard }),
+				),
 				Then: act.Self.Do(landed{Hard: true}),
 			},
 			act.Self.Do(landed{}),

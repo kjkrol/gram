@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -69,6 +70,11 @@ type Spec struct {
 	Parts []Part
 	// Roles are the roles a building of the kind plays beside BuildingRole.
 	Roles []string
+	// Door is how wide and tall a building's door is where its line of the map gives it one;
+	// zero, none does.
+	Door cell.Gap
+	// Floor colours its room's floor; zero, boards.
+	Floor color.RGBA
 }
 
 // Row is a building of a level's file: where its middle stands and its length and width, world
@@ -78,6 +84,9 @@ type Row struct {
 	Size   [2]float32 `yaml:"size"`
 	Turn   float32    `yaml:"turn"`
 	Floors int        `yaml:"floors"`
+	// Door is where on its wall the building's door opens, world units: it stands square on whole
+	// cells, a room over them, entered there; zero, it has none.
+	Door [2]float32 `yaml:"door"`
 }
 
 // Types is the register of the kinds of buildings, defined on the Stage's kinds.
@@ -120,6 +129,9 @@ func (t *Types) Define(name string, spec Spec) {
 		}),
 		comp.Const(world.Unseen{}),
 		ceremony.Plays(plays...)))
+	if spec.Door.Width > 0 {
+		t.rooms(name, spec)
+	}
 	if t.specs == nil {
 		t.specs = map[string]Spec{}
 	}

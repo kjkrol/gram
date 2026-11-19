@@ -38,14 +38,26 @@ func TestCameras_CenterOnPutsThePointInTheMiddleOfTheScreen(t *testing.T) {
 			cam.CenterOn(330, 310, 12)
 			w, h := cam.Viewport()
 			if sx, sy := cam.Project(330, 310, 12); !near(sx, w/2) || !near(sy, h/2) {
-				t.Errorf("%s at zoom %v: the point is drawn at (%v, %v), want the middle (%v, %v)", name, cam.Zoom(), sx, sy, w/2, h/2)
+				t.Errorf(
+					"%s at zoom %v: the point is drawn at (%v, %v), want the middle (%v, %v)",
+					name,
+					cam.Zoom(),
+					sx,
+					sy,
+					w/2,
+					h/2,
+				)
 			}
 		}
 	}
 	cam := sized(640, 400, 300)
 	cam.CenterOn(0, 0, 0)
 	if b := cam.Bounds(); b.TopLeft.X != 0 || b.TopLeft.Y != 0 {
-		t.Errorf("centred on the corner the window starts at %v, want it held inside the world at (0, 0)", b.TopLeft)
+		t.Errorf(
+			"centred on the corner the window starts at %v, want it held inside the world at (0, "+
+				"0)",
+			b.TopLeft,
+		)
 	}
 }
 
@@ -65,12 +77,19 @@ func TestCameras_SetViewportKeepsTheMiddleAndCoversTheScreenWithTheWorld(t *test
 	small := sized(640, 640, 640)
 	small.SetViewport(1280, 960)
 	if z := small.Zoom(); !near(z, 2) {
-		t.Errorf("a 640-unit world in a 1280-pixel window is at zoom %v, want 2: scaled up to cover it", z)
+		t.Errorf(
+			"a 640-unit world in a 1280-pixel window is at zoom %v, want 2: scaled up to cover it",
+			z,
+		)
 	}
 	large := sized(4000, 400, 300)
 	large.SetViewport(1200, 900)
 	if b := large.Bounds(); large.Zoom() != 1 || b.BottomRight.X-b.TopLeft.X != 1200 {
-		t.Errorf("a large world in a larger window: zoom %v, bounds %v; want zoom 1 showing 1200 units", large.Zoom(), b)
+		t.Errorf(
+			"a large world in a larger window: zoom %v, bounds %v; want zoom 1 showing 1200 units",
+			large.Zoom(),
+			b,
+		)
 	}
 }
 
@@ -81,7 +100,13 @@ func TestTopDownCamera_ProjectIsToScreen(t *testing.T) {
 	}
 	sx, sy := cam.ToScreen(150, 80)
 	if px, py := cam.Project(150, 80, 40); px != sx || py != sy {
-		t.Errorf("Project = (%v, %v), want ToScreen's (%v, %v): height is not drawn", px, py, sx, sy)
+		t.Errorf(
+			"Project = (%v, %v), want ToScreen's (%v, %v): height is not drawn",
+			px,
+			py,
+			sx,
+			sy,
+		)
 	}
 	if cam.Depth(0, 10, 0) >= cam.Depth(0, 20, 0) {
 		t.Error("a point further up the screen is not drawn first")

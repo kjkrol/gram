@@ -115,7 +115,11 @@ func (s *carrierStage) count() int {
 type carrierProbe struct{ s *carrierStage }
 
 func (p carrierProbe) SetupSystems() []goke.System {
-	return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) { p.s.units = si.NewQueryBuilder(&p.s.base).Build() }}}
+	return []goke.System{
+		goke.SystemFn{
+			OnInit: func(si *goke.SysInit) { p.s.units = si.NewQueryBuilder(&p.s.base).Build() },
+		},
+	}
 }
 
 type carrierGame struct{ stage *carrierStage }
@@ -144,7 +148,11 @@ func TestCarrier_ACommandGivenAfterItsHandlersPassWaitsForTheNext(t *testing.T) 
 	s := &carrierStage{boxes: true}
 	run(t, s, 30, func() {})
 	if n := s.count(); n != 0 {
-		t.Errorf("%d units at the end, want none: the struck boxes and the leaver gave themselves a Despawn", n)
+		t.Errorf(
+			"%d units at the end, want none: the struck boxes and the leaver gave themselves a "+
+				"Despawn",
+			n,
+		)
 	}
 }
 
@@ -152,7 +160,10 @@ func TestCarrier_ATreesCommandsGoWithinTheirFrame(t *testing.T) {
 	s := &carrierStage{}
 	run(t, s, 30, func() {
 		if !s.world.Write().Carrier().Empty() {
-			t.Fatalf("a command waits past the frame at %v of game time", s.world.Read(0).Clock().Time())
+			t.Fatalf(
+				"a command waits past the frame at %v of game time",
+				s.world.Read(0).Clock().Time(),
+			)
 		}
 	})
 	if n := s.count(); n != 0 {

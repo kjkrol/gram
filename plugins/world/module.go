@@ -145,7 +145,9 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	w.indexer = &indexer{w: w}
 	ecs.RegSys(goke.SystemFn{OnInit: w.indexer.init})
 	w.clock.OnSync(w.indexer.settle)
-	w.viewRunnable = ecs.RegSys(view.NewSystem(w.space, &w.views, w.config.Space.Width, w.config.Space.Height))
+	w.viewRunnable = ecs.RegSys(
+		view.NewSystem(w.space, &w.views, w.config.Space.Width, w.config.Space.Height),
+	)
 	w.sectorsRunnable = ecs.RegSys(w.sectors)
 	w.clockRunnable = ecs.RegSys(w.clock.System())
 	w.plansRunnable = ecs.RegSys(w.plansSys)
@@ -295,8 +297,15 @@ func (w *module) populateEntries(k ikinds.Kind, rows []any, entries []kind.Entry
 
 func (w *module) reserve(count int) {
 	if w.spawnedCount+count > w.config.Entities.MaxCount {
-		panic(fmt.Sprintf("world: spawning %d more would exceed Config.Entities.MaxCount %d (already spawned %d)",
-			count, w.config.Entities.MaxCount, w.spawnedCount))
+		panic(
+			fmt.Sprintf(
+				"world: spawning %d more would exceed Config.Entities.MaxCount %d (already "+
+					"spawned %d)",
+				count,
+				w.config.Entities.MaxCount,
+				w.spawnedCount,
+			),
+		)
 	}
 	w.spawnedCount += count
 }

@@ -10,7 +10,8 @@ import (
 )
 
 func TestLink_FindsTheWayToEachNeighbourAndTowardFindsItBack(t *testing.T) {
-	for _, g := range []grid.Grid{grid.DefaultGrids{}.Square(4, 4, 10), grid.DefaultGrids{}.Hex(4, 4, 10)} {
+	for _, g := range []grid.Grid{grid.DefaultGrids{}.Square(4, 4, 10), grid.DefaultGrids{}.Hex(4,
+		4, 10)} {
 		c := g.At(1, 1)
 		for _, n := range g.Neighbors(c) {
 			l, ok := grid.Link(g, c, n)

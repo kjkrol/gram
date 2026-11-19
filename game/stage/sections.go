@@ -15,7 +15,25 @@ import (
 // out, and Update ends the chain with the game.Stage.
 func New(name string) Start {
 	d := &def{name: name}
-	return Start{AfterWorld{AfterPlugins{AfterFigures{AfterPlayers{AfterEffects{AfterRules{AfterCommands{AfterKinds{AfterControls{AfterSpawn{AfterScenes{AfterShows{d}}}}}}}}}}}}}
+	return Start{
+		AfterWorld{
+			AfterPlugins{
+				AfterFigures{
+					AfterPlayers{
+						AfterEffects{
+							AfterRules{
+								AfterCommands{
+									AfterKinds{
+										AfterControls{AfterSpawn{AfterScenes{AfterShows{d}}}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 }
 
 // Start is a Stage of which nothing is defined yet. Each type on is the Stage after a section:

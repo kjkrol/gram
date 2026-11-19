@@ -84,7 +84,13 @@ func TestPathCells_AtTarget_DoesNotDuplicateIt(t *testing.T) {
 func assertCells(t *testing.T, got, want []cell.ID) {
 	t.Helper()
 	if len(got) != len(want) {
-		t.Fatalf("pathCells returned %d cells, want %d: got=%v want=%v", len(got), len(want), got, want)
+		t.Fatalf(
+			"pathCells returned %d cells, want %d: got=%v want=%v",
+			len(got),
+			len(want),
+			got,
+			want,
+		)
 	}
 	for i := range got {
 		if got[i] != want[i] {

@@ -14,17 +14,40 @@ import (
 //go:embed shaders/*.wgsl
 var shaders embed.FS
 
-var sighted = render.NewShaderWith("vision sight", render.Files(shaders, "shaders/ground.wgsl", "shaders/sighted.wgsl"), []render.Uniform{
-	{Name: "GroundStep", Size: 1}, {Name: "GroundCount", Size: 2}, {Name: "GroundWrap", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1},
-	{Name: "SightBend", Size: 1}, {Name: "March", Size: 1}, {Name: "Spokes", Size: 1}, {Name: "Rings", Size: 1},
-})
+var sighted = render.NewShaderWith(
+	"vision sight",
+	render.Files(shaders, "shaders/ground.wgsl", "shaders/sighted.wgsl"),
+	[]render.Uniform{
+		{
+			Name: "GroundStep",
+			Size: 1,
+		}, {Name: "GroundCount", Size: 2}, {Name: "GroundWrap", Size: 2}, {Name: "Low", Size: 1},
+		{Name: "Span", Size: 1},
+		{
+			Name: "SightBend",
+			Size: 1,
+		}, {Name: "March", Size: 1}, {Name: "Spokes", Size: 1}, {Name: "Rings", Size: 1},
+	},
+)
 
-var viewing = render.NewMeshShaderWith("vision views", render.Files(shaders, "shaders/ground.wgsl", "shaders/views.wgsl"), []render.Uniform{
-	{Name: "Unproject", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1}, {Name: "Perspective", Size: 1},
-	{Name: "ViewSize", Size: 2}, {Name: "ViewAt", Size: 2}, {Name: "PixelSpan", Size: 2}, {Name: "FlatGround", Size: 1},
-	{Name: "GroundStep", Size: 1}, {Name: "GroundCount", Size: 2}, {Name: "GroundWrap", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1},
+var viewing = render.NewMeshShaderWith("vision views", render.Files(shaders, "shaders/ground.wgsl",
+	"shaders/views.wgsl"), []render.Uniform{
+	{
+		Name: "Unproject",
+		Size: 16,
+	}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1}, {Name: "Perspective", Size: 1},
+	{
+		Name: "ViewSize",
+		Size: 2,
+	}, {Name: "ViewAt", Size: 2}, {Name: "PixelSpan", Size: 2}, {Name: "FlatGround", Size: 1},
+	{
+		Name: "GroundStep",
+		Size: 1,
+	}, {Name: "GroundCount", Size: 2}, {Name: "GroundWrap", Size: 2}, {Name: "Low", Size: 1},
+	{Name: "Span", Size: 1},
 	{Name: "Spokes", Size: 1}, {Name: "Rings", Size: 1}, {Name: "ShadowColor", Size: 4},
-}).Instanced(5)
+}).
+	Instanced(5)
 
 const (
 	// texels across and out an observer's sight is baked in
@@ -140,7 +163,8 @@ func (v *views) begin() { v.observers, v.baked = v.observers[:0], false }
 
 func (v *views) look(cam camera.Camera, o observer) {
 	r := o.Reach
-	if len(v.observers) >= maxViews || !cam.Visible(geom.NewAABBAt(geom.NewVec(o.X-r, o.Y-r), 2*r, 2*r)) {
+	if len(v.observers) >= maxViews ||
+		!cam.Visible(geom.NewAABBAt(geom.NewVec(o.X-r, o.Y-r), 2*r, 2*r)) {
 		return
 	}
 	v.observers = append(v.observers, o)
@@ -202,8 +226,29 @@ func (v *views) draw(
 			if r[0] >= r[2] || r[1] >= r[3] {
 				continue
 			}
-			v.instances = append(v.instances, o.X, o.Y, o.Eye, o.Reach, o.Facing, o.Half, float32(k), 0, r[0], r[1], r[2], r[3],
-				o.Color[0], o.Color[1], o.Color[2], o.Color[3], o.Tilt, o.VHalf, 0, 0)
+			v.instances = append(
+				v.instances,
+				o.X,
+				o.Y,
+				o.Eye,
+				o.Reach,
+				o.Facing,
+				o.Half,
+				float32(k),
+				0,
+				r[0],
+				r[1],
+				r[2],
+				r[3],
+				o.Color[0],
+				o.Color[1],
+				o.Color[2],
+				o.Color[3],
+				o.Tilt,
+				o.VHalf,
+				0,
+				0,
+			)
 		}
 	}
 	if len(v.instances) == 0 {
@@ -279,8 +324,10 @@ func (v *views) bake(bend float32) {
 		base := uint16(len(v.verts))
 		for _, c := range [4][2]float32{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
 			v.verts = append(v.verts, render.Vertex{
-				DstX: c[0] * spokes, DstY: float32(k*rings) + c[1]*rings, SrcX: c[0] * spokes, SrcY: c[1] * rings,
-				ColorR: o.Facing, ColorG: o.Half, Custom0: o.X, Custom1: o.Y, Custom2: o.Eye, Custom3: o.Reach,
+				DstX: c[0] * spokes, DstY: float32(k*rings) + c[1]*rings, SrcX: c[0] * spokes,
+				SrcY:   c[1] * rings,
+				ColorR: o.Facing, ColorG: o.Half, Custom0: o.X, Custom1: o.Y, Custom2: o.Eye,
+				Custom3: o.Reach,
 			})
 		}
 		v.indices = append(v.indices, base, base+1, base+2, base+1, base+2, base+3)
@@ -323,7 +370,10 @@ func (v *views) copy(ground ground.Heights, cover *coverCopy, w, h, step float32
 		cover.step == step {
 		covers, at[1] = cover.texels, cover.at[1]
 	}
-	if v.ground != nil && nx == v.nx && ny == v.ny && step == v.step && wrap == v.wrap && at[0] != 0 && at[1] != 0 && at == v.groundAt {
+	if v.ground != nil && nx == v.nx && ny == v.ny && step == v.step && wrap == v.wrap &&
+		at[0] != 0 &&
+		at[1] != 0 &&
+		at == v.groundAt {
 		return
 	}
 	v.groundAt, v.nx, v.ny, v.step, v.wrap = at, nx, ny, step, wrap

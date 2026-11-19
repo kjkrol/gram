@@ -43,7 +43,10 @@ func TestStage_KeepsTheGamesResourcesWithTheSave(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 	if loaded.Gold != 335.5 || days.Days != 12 {
-		t.Errorf("loaded %v gold and %d days, want the 335.5 and 12 saved: two resources kept apart",
-			loaded.Gold, days.Days)
+		t.Errorf(
+			"loaded %v gold and %d days, want the 335.5 and 12 saved: two resources kept apart",
+			loaded.Gold,
+			days.Days,
+		)
 	}
 }

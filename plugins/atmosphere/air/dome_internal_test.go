@@ -279,8 +279,12 @@ func TestDome_ACopyHoldsItAsCopiedEachCatchingUp(t *testing.T) {
 	carry(rainyMass)
 	d.CopyInto(&b)
 	if !readsAs(&b, d) || readsAs(&a, d) {
-		t.Errorf("carried on, the next copy reads as the dome %v, the one before still as it stood "+
-			"%v; want both", readsAs(&b, d), !readsAs(&a, d))
+		t.Errorf(
+			"carried on, the next copy reads as the dome %v, the one before still as it stood "+
+				"%v; want both",
+			readsAs(&b, d),
+			!readsAs(&a, d),
+		)
 	}
 	// the copy before missed a step: copied again it catches up
 	d.Settle(bornOf(Mass{Cover: 0.1, Billow: 1}, 9), func(float32, float32) float32 { return 0.6 },
@@ -292,7 +296,11 @@ func TestDome_ACopyHoldsItAsCopiedEachCatchingUp(t *testing.T) {
 	for k := range a.levels {
 		for i, p := range a.levels[k].patches {
 			if p == d.levels[k].patches[i] {
-				t.Fatalf("the copy holds the dome's patch %d of level %d, want one of its own", i, k)
+				t.Fatalf(
+					"the copy holds the dome's patch %d of level %d, want one of its own",
+					i,
+					k,
+				)
 			}
 		}
 	}

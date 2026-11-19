@@ -2,10 +2,11 @@ package world
 
 import (
 	"fmt"
-	cgoke "github.com/kjkrol/ceremony/goke"
 	"image/color"
 	"reflect"
 	"time"
+
+	cgoke "github.com/kjkrol/ceremony/goke"
 
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/effect"
@@ -94,8 +95,12 @@ func NewPlugin(cfg Config) *Plugin {
 	p.reads = parallel.Reads[*Read]{&p.read}
 	// the clock's entity is the world's own
 	p.Self = newSelf(p, p.Name(), comp.Const(m.clock.Read().State()))
-	p.renderer = newRenderer(nil, func() map[camera.Camera]*view.View { return p.views }, &m.drawing,
-		p.read.Look)
+	p.renderer = newRenderer(
+		nil,
+		func() map[camera.Camera]*view.View { return p.views },
+		&m.drawing,
+		p.read.Look,
+	)
 	p.sectors = newSectorsView(p)
 	p.renderer.clock = m.clock.Read().Shown
 	p.renderer.space = cfg.Space
@@ -152,7 +157,8 @@ func (p *Plugin) newEffects() {
 // newPlans makes the commands about effects and the plans, which play the roles they say
 func (p *Plugin) newPlans() {
 	m := p.module
-	m.effectCmds.effects, m.effectCmds.world, m.effectCmds.commands = m.effects, m.clock.Read().Entity,
+	m.effectCmds.effects, m.effectCmds.world, m.effectCmds.commands = m.effects,
+		m.clock.Read().Entity,
 		&m.commands
 	m.plans = plan.NewPlans(m.clock.Read().Time, p.Res.Config.Seed, m.effects, &m.commands)
 	m.plansSys = cgoke.NewPlans(m.plans, p.Pace(lod.Slowing(2, 4, 8)))

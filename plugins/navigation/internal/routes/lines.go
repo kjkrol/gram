@@ -14,9 +14,11 @@ import (
 var shaders embed.FS
 
 // a stretch an instance
-var lining = render.NewMeshShaderWith("navigation routes", render.Files(shaders, "shaders/route.wgsl"), []render.Uniform{
+var lining = render.NewMeshShaderWith("navigation routes", render.Files(shaders,
+	"shaders/route.wgsl"), []render.Uniform{
 	{Name: "Unproject", Size: 16}, {Name: "ViewSize", Size: 2}, {Name: "ViewAt", Size: 2},
-}).Instanced(4)
+}).
+	Instanced(4)
 
 // Lines are stretches of route gathered as the frame is composed and drawn on the GPU as a mark,
 // over the ground the frame drew and whatever stands on it.

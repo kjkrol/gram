@@ -53,8 +53,14 @@ func (dressed) Top(cell.ID) (corners [4]float32, level float32) { return corners
 // weather is a source holding the frame's time and wind still
 type weather struct{ wind [2]float32 }
 
-func (weather) Clock() (time.Duration, bool)               { return 1300 * time.Millisecond, true }
-func (w weather) Compose(f *render.Frame, _ camera.Camera) { f.Uniform("Wind", w.wind[0], w.wind[1]) }
+func (weather) Clock() (time.Duration, bool) { return 1300 * time.Millisecond, true }
+
+func (w weather) Compose(
+	f *render.Frame,
+	_ camera.Camera,
+) {
+	f.Uniform("Wind", w.wind[0], w.wind[1])
+}
 
 var (
 	green = color.RGBA{R: 60, G: 160, B: 60, A: 255}

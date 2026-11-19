@@ -10,7 +10,8 @@ import (
 
 func TestPhases_FrameRunsFromTheFirstToTheLastAlongTheCourse(t *testing.T) {
 	p := render.Phased(4, func(int) render.SpriteDrawer { return render.Solid(color.RGBA{}) })
-	for progress, want := range map[float32]int{0: 0, 0.24: 0, 0.26: 1, 0.5: 2, 0.99: 3, 1: 3, 2: 3} {
+	for progress, want := range map[float32]int{0: 0, 0.24: 0, 0.26: 1, 0.5: 2, 0.99: 3, 1: 3,
+		2: 3} {
 		if got := p.Frame(progress); got != want {
 			t.Errorf("at %v: frame %d, want %d", progress, got, want)
 		}

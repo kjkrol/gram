@@ -23,5 +23,14 @@ type Running struct {
 
 // AllRunning is Running with all of it going on, the default.
 func AllRunning() Running {
-	return Running{Day: true, Weather: true, Wind: true, Clouds: true, Falls: true, Weathering: true, Stars: true, Moon: true}
+	return Running{
+		Day:        true,
+		Weather:    true,
+		Wind:       true,
+		Clouds:     true,
+		Falls:      true,
+		Weathering: true,
+		Stars:      true,
+		Moon:       true,
+	}
 }

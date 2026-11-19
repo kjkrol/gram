@@ -35,7 +35,10 @@ func goRound() act.Rule {
 		Then: act.OneOf(
 			act.Branch[order.Touch]{When: cond.Self.If(order.GoalTaken()),
 				Then: act.Self.Do(order.Settle{})},
-			act.Branch[order.Touch]{When: cond.Self.If(order.WaitsFirst()), Then: act.Self.Do(order.Hold{})},
+			act.Branch[order.Touch]{
+				When: cond.Self.If(order.WaitsFirst()),
+				Then: act.Self.Do(order.Hold{}),
+			},
 			act.Branch[order.Touch]{When: cond.Self.If(order.NoWayRound()),
 				Then: act.Self.Do(order.StepAside{})},
 			act.Branch[order.Touch]{When: cond.Self.If(order.ClearsTheWay()),
@@ -43,7 +46,10 @@ func goRound() act.Rule {
 			act.Branch[order.Touch]{
 				When: cond.Self.If(order.WalksMyWay()).And(cond.Self.If(order.Groupmate())),
 				Then: act.Self.Do(order.Trail{})},
-			act.Branch[order.Touch]{When: cond.Self.If(order.Blocks()), Then: act.Self.Do(order.Detour{})},
+			act.Branch[order.Touch]{
+				When: cond.Self.If(order.Blocks()),
+				Then: act.Self.Do(order.Detour{}),
+			},
 		),
 	}
 }

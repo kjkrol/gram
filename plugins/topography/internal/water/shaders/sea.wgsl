@@ -30,14 +30,17 @@ fn SeaGlintAt(p: vec2<f32>, shine: f32, lit: f32, shore: vec4<f32>, pixel: f32, 
     let m = normalize(vec3<f32>(n.xy / max(n.z, 1e-3) * mirrorWave, 1.0));
     let r = reflect(-toward, m);
     let sky = skyAt(r.z);
-    let mirror = shine * (mirrorHead + (1.0 - mirrorHead) * pow(1.0 - max(dot(m, toward), 0.0), 5.0));
+    let mirror = shine * (mirrorHead + (1.0 - mirrorHead) * pow(1.0 - max(dot(m, toward), 0.0),
+        5.0));
     // the sun thrown back: a broad sheen and the glints on the steepest ripples
     let h = normalize(sun + toward);
     let nh = max(dot(n, h), 0.0);
-    let glint = U.LightStrength * lit * shine * (sheen * pow(nh, sheenSharpness) + seaGlint * pow(nh, seaGlintSharpness));
+    let glint = U.LightStrength * lit * shine * (sheen * pow(nh,
+        sheenSharpness) + seaGlint * pow(nh, seaGlintSharpness));
     let light = U.Ambience + U.LightColor * (U.LightStrength * lit * max(sun.z, 0.0));
     let foam = w.foam;
-    let rgb = sky * mirror * (1.0 - foam) + light * foam + U.LightColor * glint + light * catch * (1.0 - foam);
+    let rgb = sky * mirror * (1.0 - foam) + light * foam + U.LightColor * glint + light * catch *
+        (1.0 - foam);
     return vec4<f32>(rgb, 1.0 - clamp(shade, 0.0, 1.0) * (1.0 - mirror) * (1.0 - foam));
 }
 
@@ -80,10 +83,12 @@ fn sea(p: vec2<f32>, shore: vec4<f32>, pixel: f32, gust: f32) -> Sea {
         // the crests follow the shore: their phase is the distance to it, falling as they come in,
         // shifted slowly along the coast so they do not reach it everywhere at once
         let d = shore.xy / towards;
-        let drift = 2.0 * pi * (sin(p.x / 173.0 + p.y / 241.0) + 0.5 * sin(p.y / 97.0 - p.x / 131.0));
+        let drift = 2.0 * pi * (sin(p.x / 173.0 + p.y / 241.0) + 0.5 * sin(p.y / 97.0 - p.x /
+            131.0));
         let phase = 2.0 * pi / swellLength * (shore.z + swellSpeed * t) + drift;
         var swell = d * (rough * swellSlope * cos(phase) * seenAt(swellLength, pixel));
-        swell += d * (rough * swellSlope * 0.5 * cos(2.2 * phase + 1.0) * seenAt(swellLength / 2.2, pixel));
+        swell += d * (rough * swellSlope * 0.5 * cos(2.2 * phase + 1.0) * seenAt(swellLength / 2.2,
+            pixel));
         let near = smoothstep(0.0, 1.0, clamp(shore.w, 0.0, 1.0));
         slope = mix(slope, swell + slope * 0.3, near);
         // a crest breaks the last surfWidth before the shore, torn into patches
@@ -104,7 +109,8 @@ fn sea(p: vec2<f32>, shore: vec4<f32>, pixel: f32, gust: f32) -> Sea {
 // it so the crests run long — each size of them another noise, apart by at: never the same twice,
 // as regular waves would be; none where a pixel spans too much of them. Carried, not turned with
 // the wind: turned, every wander of it would swing the whole sea about the world's corner.
-fn chop(q: vec2<f32>, span: f32, speed: f32, turn: f32, at: vec2<f32>, t: f32, pixel: f32) -> vec2<f32> {
+fn chop(q: vec2<f32>, span: f32, speed: f32, turn: f32, at: vec2<f32>, t: f32,
+    pixel: f32) -> vec2<f32> {
     let c = cos(turn);
     let s = sin(turn);
     let m = q - U.Blown * (speed / seaWind) - vec2<f32>(speed * seaIdle * t, 0.0);
