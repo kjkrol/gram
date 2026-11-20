@@ -222,6 +222,8 @@ func (s *builtSystem) refuse(id uid.UID64, b cell.Built) {
 			f.Door.Width, f.Door.Height))
 	case f.Load < 0:
 		panic(fmt.Sprintf("board: entity %d's floor bears %v kg", id, f.Load))
+	case f.Walls < 0:
+		panic(fmt.Sprintf("board: entity %d's floor has walls %v thick", id, f.Walls))
 	case gap.Width < 0 || gap.Height < 0:
 		panic(fmt.Sprintf("board: entity %d's wall has a gap %v wide and %v tall", id,
 			gap.Width, gap.Height))
@@ -321,6 +323,7 @@ func join(a, b *cell.Floor) {
 	}
 	a.Graded = a.Graded || b.Graded
 	a.Thickness, a.Clear = max(a.Thickness, b.Thickness), max(a.Clear, b.Clear)
+	a.Walls = max(a.Walls, b.Walls)
 	a.Pace = max(a.Pace, b.Pace)
 	a.Links |= b.Links
 	a.Standing = a.Standing || b.Standing

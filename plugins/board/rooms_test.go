@@ -1,11 +1,13 @@
 package board_test
 
 import (
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/aabbworld/collide"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/f32"
@@ -39,6 +41,12 @@ type roomRow struct {
 
 func housed(t *testing.T, door cell.Gap, ground cell.Kind) house {
 	t.Helper()
+	return housedWalled(t, door, ground, 0)
+}
+
+// housedWalled is housed, its walls walls thick
+func housedWalled(t *testing.T, door cell.Gap, ground cell.Kind, walls float32) house {
+	t.Helper()
 	g := grid.DefaultGrids{}.Square(6, 6, 32)
 	wd := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 192, Height: 192},
@@ -65,6 +73,7 @@ func housed(t *testing.T, door cell.Gap, ground cell.Kind) house {
 			Links:    r.Links,
 			Storey:   1,
 			Clear:    houseClear,
+			Walls:    walls,
 			Standing: true,
 			Door:     door,
 		}
@@ -199,13 +208,14 @@ func TestRoom_WalledRoundItsCellsButForItsDoor(t *testing.T) {
 		at   geom.Vec
 		want bool
 	}{
-		{"the first cell's northern edge", geom.NewVec(72, 64), true},
-		{"its western edge", geom.NewVec(64, 80), true},
-		{"its southern edge beside the door", geom.NewVec(70, 97), true},
-		{"the door", geom.NewVec(80, 97), false},
+		{"the first cell's northern edge", geom.NewVec(72, 65), true},
+		{"its western edge", geom.NewVec(65, 80), true},
+		{"its southern edge beside the door", geom.NewVec(70, 95), true},
+		{"outside its southern edge", geom.NewVec(70, 97), false},
+		{"the door", geom.NewVec(80, 95), false},
 		{"the edge between its two cells", geom.NewVec(96, 80), false},
-		{"the other cell's eastern edge", geom.NewVec(128, 80), true},
-		{"the other cell's southern edge", geom.NewVec(112, 97), true},
+		{"the other cell's eastern edge", geom.NewVec(127, 80), true},
+		{"the other cell's southern edge", geom.NewVec(112, 95), true},
 	} {
 		if got := wallOver(walls, c.at); got != c.want {
 			t.Errorf("%s at %v walled %v, want %v", c.name, c.at, got, c.want)
@@ -213,6 +223,123 @@ func TestRoom_WalledRoundItsCellsButForItsDoor(t *testing.T) {
 	}
 	if over := roomWalls(h, collision.Band{Bottom: 30, Top: 36, Step: 2}); len(over) > 0 {
 		t.Errorf("a body over the roof meets %d of the room's walls, want none", len(over))
+	}
+}
+
+func TestRoom_StandingItsWallsStandInsideItsCellsAsThickAsItsFloorSaysItsDoorAsWide(t *testing.T) {
+	h := housedWalled(t, frontDoor, grassKind, 3)
+	walls := roomWalls(h, collision.Band{Bottom: h.floor, Top: h.floor + 6, Step: 2})
+	for _, c := range []struct {
+		name string
+		at   geom.Vec
+		want bool
+	}{
+		{"its western wall by its inner face", geom.NewVec(66.9, 80), true},
+		{"the room past that face", geom.NewVec(67.1, 80), false},
+		{"outside its western edge", geom.NewVec(63.9, 80), false},
+	} {
+		if got := wallOver(walls, c.at); got != c.want {
+			t.Errorf("%s at %v walled %v, want %v", c.name, c.at, got, c.want)
+		}
+	}
+	// the door's jambs end its width apart round its middle, 80, free for a body clipping one
+	var jambs []float32
+	for _, w := range walls {
+		if w.Half != 1.5 {
+			t.Errorf("a wall %v thick, want the floor's 3", 2*w.Half)
+		}
+		if w.Open&collide.EndA != 0 {
+			jambs = append(jambs, w.A.X)
+		}
+		if w.Open&collide.EndB != 0 {
+			jambs = append(jambs, w.B.X)
+		}
+	}
+	if slices.Sort(jambs); !slices.Equal(jambs, []float32{78, 82}) {
+		t.Errorf("the walls' free ends at %v, want the door's jambs at 78 and 82", jambs)
+	}
+}
+
+// walkedInto is a flat board of 6 x 6 cells of 32 under a house of one cell, (2, 2), its walls
+// walls thick, its door as door says in the middle of its southern edge, and a unit of mover, 20
+// tall, keeping on its way
+func walkedInto(t *testing.T, g grid.Grid, walls float32, door cell.Gap,
+	mover boardtest.Mover) *boardtest.World {
+	t.Helper()
+	var links cell.Links
+	if south, _ := grid.Direction(g, 0, 1); door.Width > 0 {
+		links = 1 << south
+	}
+	mover.Z = world.Z{Height: 20}
+	return boardtest.NewWorldIn(t, g, 192, 192,
+		func(cfg *world.Config) { cfg.Entities.MaxSize = 32 },
+		func(w *world.Plugin, p *board.Plugin) []act.Rule {
+			p.Write().Board().SetAll(grassKind)
+			rooms := board.NewEntities(p, board.Shape{Size: 32},
+				func(r roomRow) cell.ID { return r.At })
+			rooms.Define("room", comp.Const(cell.Floor{
+				Allows:   cell.Land,
+				Pace:     1,
+				Graded:   true,
+				Links:    links,
+				Storey:   1,
+				Clear:    houseClear,
+				Walls:    walls,
+				Standing: true,
+				Door:     door,
+			}))
+			w.Write().Seed(rooms.Named("room").Entry(roomRow{At: g.At(2, 2)}))
+			return nil
+		}, []boardtest.Mover{mover})
+}
+
+// walker is the box of walkedInto's unit, its kind defined after the room's
+func walker(bw *boardtest.World) geom.AABB {
+	boxes := bw.Snapshot()
+	return boxes[len(boxes)-1]
+}
+
+func TestRoom_AUnitStopsAtAStandingRoomsWallsFacesFromOutsideAndInsideWithoutBouncing(
+	t *testing.T) {
+	g := grid.DefaultGrids{}.Square(6, 6, boardtest.CellSize)
+	for _, c := range []struct {
+		name  string
+		from  cell.ID
+		stops float32 // where the unit's eastern side comes to rest, the wall's face
+	}{
+		{"from outside", g.At(0, 2), 64},
+		{"from inside", g.At(2, 2), 96 - 3},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			bw := walkedInto(t, g, 3, cell.Gap{},
+				boardtest.Mover{Here: c.from, Heading: geom.NewVec(1, 0)})
+			most := f32.Inf(-1)
+			for tick := range 90 {
+				bw.Tick()
+				side := walker(bw).BottomRight.X
+				if side < most-0.01 {
+					t.Fatalf("tick %d: the unit thrown back to %v from %v", tick, side, most)
+				}
+				most = max(most, side)
+			}
+			if f32.Abs(most-c.stops) > 0.01 {
+				t.Errorf("the unit's side came to %v, want it at the wall's face, %v", most,
+					c.stops)
+			}
+		})
+	}
+}
+
+func TestRoom_AUnitWalksInByItsDoorToTheFarWall(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(6, 6, boardtest.CellSize)
+	// the door 26 wide round 80, the unit 22 wide a step off its middle
+	bw := walkedInto(t, g, 3, cell.Gap{Width: 26, Height: 18},
+		boardtest.Mover{Here: g.At(2, 3), Heading: geom.NewVec(0, -1), Offset: 1.5})
+	for range 120 {
+		bw.Tick()
+	}
+	if top := walker(bw).TopLeft.Y; f32.Abs(top-(64+3)) > 0.01 {
+		t.Errorf("the unit's front at %v, want it in at the northern wall's face, 67", top)
 	}
 }
 

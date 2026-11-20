@@ -23,6 +23,9 @@ type Floor struct {
 	// out. A room is walled round its cell but where its Links lead: on along its storey, or out
 	// by its Door.
 	Clear float32
+	// Walls is how thick a Standing room's walls stand inside its cells' edges; zero, a
+	// sixteenth of a cell. A dug room's stand outside them, in the rock.
+	Walls float32
 	// Door is the opening of a room in the middle of each edge its Links lead out by to no floor
 	// of its storey: a zero Width is shut.
 	Door   Gap

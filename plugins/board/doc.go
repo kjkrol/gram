@@ -51,7 +51,8 @@
 // cell.Levels of them, a Floor naming its Storey; a Floor Standing, with its room Clear, is a
 // storey at any height, a house's room built on the ground, the cell's ground shut and its
 // foundation solid under it. A room of whole cells is walled round them but where its Links lead,
-// on into its storey or out by its Door ([BoardRead.Rooms], [BoardRead.Dug],
+// on into its storey or out by its Door, a Standing one inside its cells' edges as thick as its
+// Floor's Walls ([BoardRead.Rooms], [BoardRead.Dug],
 // [BoardRead.Housed]) ([BoardRead.KindAt], [BoardRead.KindFor],
 // [BoardRead.CellFor], [BoardRead.LevelFor]); one with a Width and Links is a
 // band ([BoardRead.DecksOver], [BoardRead.Reaches]), its railings never stepped across

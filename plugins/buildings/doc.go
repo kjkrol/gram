@@ -23,15 +23,15 @@
 //
 // A building whose line gives a door, of a kind whose Spec gives one its width and height, stands
 // square to the board's square grid on whole cells, a room over them on [RoomStorey], entered by
-// the door in the middle of the wall its line points at, its walls as thick as the Spec says and
-// a window of its storey too near the door left out. The room's floor lies as high as the
-// ground in the middle of the door, level across its cells: dug into the ground uphill, the
-// ground cut where it rises into it, on a plinth downhill; the storeys are counted from it. Its
-// handle is a room of the interiors plugin (interiors.Room) under a light.Shelter: the sun gets
-// in by the windows of its storey where the ground outside lies under their sills and by its
-// door, its lamp burning from dusk; [Plugin.WithRooms] takes the keeper of the rooms, so a room
-// an uncovered entity stands in opens before the cameras the [Settings] say and its lamp burns as
-// its shelter says.
+// the door in the middle of the wall its line points at, its walls as thick as the Spec says,
+// stopping a body at their faces, and a window of its storey too near the door left out. The room's
+// floor lies as high as the ground in the middle of the door, level across its cells: dug into the
+// ground uphill, the ground cut where it rises into it, on a plinth downhill; the storeys are
+// counted from it. Its handle is a room of the interiors plugin (interiors.Room) under a
+// light.Shelter: the sun gets in by the windows of its storey where the ground outside lies under
+// their sills and by its door, its lamp burning from dusk; [Plugin.WithRooms] takes the keeper of
+// the rooms, so a room an uncovered entity stands in opens before the cameras the [Settings] say
+// and its lamp burns as its shelter says.
 //
 // # Holding the cameras
 //
