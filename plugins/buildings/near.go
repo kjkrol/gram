@@ -15,20 +15,27 @@ var (
 // near draws the buildings of the sectors seen finer than the strategic scale among the
 // figures, whole, their rooms inside: what of them lies over something uncovered gives way to
 // it before the cameras the world's settings say, and a room an uncovered entity stands in is
-// uncovered whole (its floor into the pass Uncovered)
+// uncovered whole (its floor into the pass Uncovered) before those the buildings' settings say
 type near struct {
 	s *solids
 
 	// what cam composed last sees: the sectors with their parts and their rooms' insides, the
-	// rooms bared, by their place among the stock's, and whether what gives way does so before
-	// it; the ranges drawn of the parts, the insides and the bared
+	// rooms bared and those an uncovered entity stands in shut before it, by their place among
+	// the stock's, and whether what gives way does so before it; the ranges drawn of the parts,
+	// the insides and the bared
 	sectors []seen
 	bared   []int
+	shut    []int
 	gives   bool
 	ranges  []render.InstanceRange
 	insides []render.InstanceRange
 	floors  []render.InstanceRange
-	d       drawer
+	// the parts and the insides of the houses open, the parts of those shut, and the ranges drawn
+	// without them
+	open, openIn, whole []render.InstanceRange
+	holes               []render.InstanceRange
+	cutParts, cutIn     []render.InstanceRange
+	d                   drawer
 }
 
 // Overlies: drawn among the figures over the ground's layers (render.Overlying).
@@ -37,7 +44,7 @@ func (n *near) Overlies() {}
 // Compose gathers the sectors cam sees finer than the strategic scale with their parts and their
 // rooms.
 func (n *near) Compose(f *render.Frame, cam camera.Camera) {
-	n.sectors, n.bared = n.sectors[:0], n.bared[:0]
+	n.sectors, n.bared, n.shut = n.sectors[:0], n.bared[:0], n.shut[:0]
 	s := n.s
 	st := s.shown
 	if st == nil || len(st.fine) == 0 {
@@ -61,11 +68,15 @@ func (n *near) Compose(f *render.Frame, cam camera.Camera) {
 		return
 	}
 	n.gives = s.p.worldPlugin.Read(0).GivesWayDrawn(cam)
-	if n.gives {
-		for _, k := range s.frames[s.frame].bared {
-			if n.sees(st.rooms[k].sector) {
-				n.bared = append(n.bared, k)
-			}
+	fr := &s.frames[s.frame]
+	open := opens(fr.settings, camera.HowOf(cam))
+	for _, k := range fr.bared {
+		switch {
+		case !n.sees(st.rooms[k].sector):
+		case open:
+			n.bared = append(n.bared, k)
+		default:
+			n.shut = append(n.shut, k)
 		}
 	}
 	f.DrawCutout()
@@ -85,7 +96,8 @@ func (n *near) sees(sector int) bool {
 }
 
 // Draw draws the parts and the rooms gathered among the figures in the cutout pass, giving way
-// to what is uncovered, and the rooms bared into the pass of the uncovered.
+// to what is uncovered, a house open round its room its walls cut low by it and no roof, and the
+// rooms bared into the pass of the uncovered.
 func (n *near) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if t.Screen == nil || t.Depth == nil || len(n.sectors) == 0 {
 		return
@@ -107,25 +119,92 @@ func (n *near) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	default:
 		return
 	}
+	st := s.shown
 	n.ranges = shownOf(n.ranges[:0], n.sectors, cam, &tr, w, h, false)
-	if len(n.ranges) > 0 {
-		if n.gives && t.Uncovered != nil {
+	n.open, n.openIn, n.whole = n.open[:0], n.openIn[:0], n.whole[:0]
+	for _, k := range n.bared {
+		if room := &st.rooms[k]; inSpans(n.ranges, room.parts) {
+			n.open = append(n.open, room.parts)
+			n.openIn = append(n.openIn, render.InstanceRange{First: room.at, Count: 1})
+		}
+	}
+	for _, k := range n.shut {
+		if room := &st.rooms[k]; inSpans(n.ranges, room.parts) {
+			n.whole = append(n.whole, room.parts)
+		}
+	}
+	n.holes = append(append(n.holes[:0], n.open...), n.whole...)
+	n.cutParts = cut(n.cutParts, n.ranges, n.holes)
+	if len(n.cutParts) > 0 {
+		if (n.gives || len(n.bared) > 0) && t.Uncovered != nil {
 			x0, y0, x1, y1 := within(t, w, h)
 			n.d.set("SolidUncovering", 1)
 			n.d.set("SolidUncoveredIn", x0, y0, x1, y1)
 			n.d.opts.ReadDepth = t.Uncovered
 		}
-		n.d.opts.Kept, n.d.opts.Instances = s.shown.kept, nil
-		n.d.opts.Vertices, n.d.opts.Spans = solidVertices, n.ranges
+		n.d.opts.Kept, n.d.opts.Instances = st.kept, nil
+		n.d.opts.Vertices, n.d.opts.Spans = solidVertices, n.cutParts
 		t.Screen.DrawMesh(nil, solidShader, &n.d.opts)
 		n.d.opts.ReadDepth = nil
+		n.d.set("SolidUncovering", 0)
+	}
+	if len(n.whole) > 0 {
+		// a house shut round an uncovered entity in its room stands whole, giving way to none
+		n.d.opts.Kept, n.d.opts.Instances = st.kept, nil
+		n.d.opts.Vertices, n.d.opts.Spans = solidVertices, n.whole
+		t.Screen.DrawMesh(nil, solidShader, &n.d.opts)
 	}
 	n.insides = shownOf(n.insides[:0], n.sectors, cam, &tr, w, h, true)
-	if len(n.insides) > 0 {
-		n.d.opts.Kept, n.d.opts.Instances = s.shown.inside, nil
-		n.d.opts.Vertices, n.d.opts.Spans = innerVertices, n.insides
+	n.cutIn = cut(n.cutIn, n.insides, n.openIn)
+	if len(n.cutIn) > 0 {
+		n.d.opts.Kept, n.d.opts.Instances = st.inside, nil
+		n.d.opts.Vertices, n.d.opts.Spans = innerVertices(st.bays), n.cutIn
 		t.Screen.DrawMesh(nil, innerShader, &n.d.opts)
 	}
+	if len(n.open) == 0 {
+		return
+	}
+	// the houses open: their walls by the eye cut low, the far ones to their rooms' tops
+	n.d.set("SolidOpen", 1, openWalls, 0, 0)
+	n.d.opts.Kept, n.d.opts.Instances = st.kept, nil
+	n.d.opts.Vertices, n.d.opts.Spans = solidVertices, n.open
+	t.Screen.DrawMesh(nil, solidShader, &n.d.opts)
+	n.d.opts.Kept = st.inside
+	n.d.opts.Vertices, n.d.opts.Spans = innerVertices(st.bays), n.openIn
+	t.Screen.DrawMesh(nil, innerShader, &n.d.opts)
+	n.d.set("SolidOpen", 0, openWalls, 0, 0)
+}
+
+// inSpans reports whether r lies whole within one of spans
+func inSpans(spans []render.InstanceRange, r render.InstanceRange) bool {
+	for _, s := range spans {
+		if r.First >= s.First && r.First+r.Count <= s.First+s.Count {
+			return true
+		}
+	}
+	return false
+}
+
+// cut appends to dst the instances of spans but those holes take
+func cut(dst, spans, holes []render.InstanceRange) []render.InstanceRange {
+	dst = dst[:0]
+	for _, s := range spans {
+		at, end := s.First, s.First+s.Count
+		for at < end {
+			// the hole reaching past at that begins first
+			hole := render.InstanceRange{First: end}
+			for _, h := range holes {
+				if h.First+h.Count > at && h.First < hole.First {
+					hole = h
+				}
+			}
+			if hole.First > at {
+				dst = append(dst, render.InstanceRange{First: at, Count: min(hole.First, end) - at})
+			}
+			at = max(at, hole.First+hole.Count)
+		}
+	}
+	return dst
 }
 
 // drawBared draws the floors of the rooms bared into the target's depth, the uncovered's, and
@@ -140,7 +219,7 @@ func (n *near) drawBared(t render.Target, tr *camera.Transform, w, h float32) {
 		n.floors = render.JoinSpan(n.floors, render.InstanceRange{First: st.rooms[k].at, Count: 1})
 	}
 	n.d.opts.Kept, n.d.opts.Instances = st.inside, nil
-	n.d.opts.Vertices, n.d.opts.Spans = innerVertices, n.floors
+	n.d.opts.Vertices, n.d.opts.Spans = baredVertices, n.floors
 	t.Screen.DrawMesh(nil, baredShader, &n.d.opts)
 	in := t.UncoveredIn
 	if in == nil {

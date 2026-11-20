@@ -238,11 +238,9 @@ What is left to do. Take an item out when it lands.
   lowest ground under it, so on a steep cell it stands on a tall plinth; buildings shade the
   ground and not each other; none is drawn on a map without heights; a unit's live shadow falls
   on no building drawn near (it lies on the ground's depth).
-- **Rooms, what is left** (2026-11-19) — a house's room is its ground floor: no storeys over it
-  and no stairs; a house with a door stands square to a square grid on whole cells (none on a
-  hex board, none turned); the cameras' cage takes in no building's solid, so a camera riding a
-  unit (V) is not held in a house's room and its arm passes through walls (Madeira's houses
-  alike); the rain and the snow fall into a room and sight passes its walls; a lamp of the
+- **Rooms, what is left** (2026-11-19) — a house's room is its ground floor: no storeys over it and
+  no stairs; a house with a door stands square to a square grid on whole cells (none on a hex board,
+  none turned); the rain and the snow fall into a room and sight passes its walls; a lamp of the
   interiors lights whoever stands in its room alone, never the ground or what stands beside it
   outside.
 - **Roads in the isometric view** — dark and thin, covered by the routes: their colour and width.
@@ -265,10 +263,8 @@ What is left to do. Take an item out when it lands.
   turns one at `via`); the sheets photograph the ground over a mouth uncut, and its frame is in no
   sheet; its lamps are the shader's own, no `light.Source`; on a hex board no mouth is cut and no
   chamber walled (`topography.mouths`, `tubes.room` read a square grid); `cell.Built` grew by two
-  floors a cell (to measure against a component apart for the storeys past the first); the camera
-  behind a unit hangs over a low roof where the arm does not fit (it is to drop under it: the map of
-  10 m); the mouths were looked at from outside on shots of every one, the ride through (V) by the
-  user alone.
+  floors a cell (to measure against a component apart for the storeys past the first); the mouths
+  were looked at from outside on shots of every one, the ride through (V) by the user alone.
 - **Winter without the slowdown** — snow and ice on Madeira (`weathering`) slow the game down
   badly; a lead: `weathering` asks `air.FallsAt` of every cell once a second of game time, and
   since the clouds came in two layers it works out both layers' noise on the CPU.

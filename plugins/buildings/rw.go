@@ -51,6 +51,14 @@ func (w *Write) stand(name string, row Row, ground func(geom.Vec) float32) error
 	b := spec.of(row)
 	k := p.worldPlugin.Read(0).SectorOf(b.mid.X, b.mid.Y)
 	p.Res.Stood[k] = append(p.Res.Stood[k], Stood{Kind: name, Row: row})
-	p.solids.stale = true
+	p.solids.stale, p.cage.stale = true, true
 	return nil
 }
+
+// OpenRooms has a house a unit stands in open round its room before a camera of the tactical
+// view, loose or centred on a unit, or stand whole there (Settings.Shut).
+func (w *Write) OpenRooms(on bool) { w.p.Res.Settings.Shut = !on }
+
+// OpenRoomsBehind has a house a unit stands in open round its room before a camera behind a unit,
+// or stand whole there (Settings.ShutBehind).
+func (w *Write) OpenRoomsBehind(on bool) { w.p.Res.Settings.ShutBehind = !on }

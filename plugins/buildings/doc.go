@@ -9,6 +9,10 @@
 // [Hip] or [Pyramid]. Sizes are world units: a game gives them in metres through its
 // world.Scale.
 //
+// The walls are rendered in lime. A kind's buildings are washed in its [Wash]es by their shares,
+// each picked by where it stands, and a kind of [Spec.Stone] has its plinths under the storeys,
+// its corners and the frames of its doors and windows dressed in that stone.
+//
 // # A level's buildings
 //
 // A line of a level's file `{kind: house, mid: [x, y], size: [length, width], turn: degrees,
@@ -19,13 +23,26 @@
 //
 // A building whose line gives a door, of a kind whose Spec gives one its width and height, stands
 // square to the board's square grid on whole cells, a room over them on [RoomStorey], entered by
-// the door in the middle of the wall its line points at. The room's floor lies as high as the
+// the door in the middle of the wall its line points at, its walls as thick as the Spec says and
+// a window of its storey too near the door left out. The room's floor lies as high as the
 // ground in the middle of the door, level across its cells: dug into the ground uphill, the
 // ground cut where it rises into it, on a plinth downhill; the storeys are counted from it. Its
 // handle is a room of the interiors plugin (interiors.Room) under a light.Shelter: the sun gets
 // in by the windows of its storey where the ground outside lies under their sills and by its
 // door, its lamp burning from dusk; [Plugin.WithRooms] takes the keeper of the rooms, so a room
-// an uncovered entity stands in is drawn bared and its lamp as its shelter says.
+// an uncovered entity stands in opens before the cameras the [Settings] say and its lamp burns as
+// its shelter says.
+//
+// # Holding the cameras
+//
+// [Plugin.Read] is what stands for the cameras (cameras.Config.Walls): a building's parts hold a
+// camera's eye and stop its cursor, a house's room letting them in within its walls, under its
+// ceiling and by its door, its windows glass. A house an uncovered entity stands in opens round its
+// room before a camera of the tactical view ([OpenRooms]) and one behind a unit
+// ([OpenRoomsBehind]) where the settings say, never before one inside a unit: cut away there, the
+// walls it shows the camera low where they stood, the others as high as the room, no roof, it lets
+// the cursor and the eye in; shut, it stands whole. An eye in a room sees it from inside, its walls
+// and its ceiling, the world outside by its windows and its door.
 //
 // # Drawn at every level, an entity where its sector unfolds
 //
@@ -48,4 +65,6 @@
 //
 //   - [Raise]: the command a settlement gives itself under a world.Unfold to have the buildings
 //     of the stretch unfolding spawned as its parts.
+//   - [OpenRooms], [OpenRoomsBehind]: a player's settings, whether a house a unit stands in opens
+//     round its room before a camera of the tactical view and before one behind a unit.
 package buildings

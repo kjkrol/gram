@@ -4,8 +4,8 @@
 // pyramid's. Drawn through U.SolidViewProj as the ground's mesh is (camera.Transform, sunk by
 // U.SolidBend·d² off U.SolidEye), in the frame's light, the relief's shade and the air's haze. A
 // building with a room has its door and the windows of its room's storey open, where the ground
-// outside lies under their sills; near, what lies over something uncovered gives way
-// (U.SolidUncovering).
+// outside lies under their sills, and its body is left out where the eye stands in its room;
+// near, what lies over something uncovered gives way (U.SolidUncovering).
 
 struct Solid {
     @builtin(position) clip: vec4<f32>,
@@ -21,6 +21,8 @@ struct Solid {
     @location(6) lit: vec4<f32>,
     // a building with a room: its door's middle, half its width and its height; 0 wide, none
     @location(7) @interpolate(flat) door: vec4<f32>,
+    // the stone its plinth, its corners and its openings' frames are dressed in, 1 where it is
+    @location(8) @interpolate(flat) stone: vec4<f32>,
 }
 
 const wallVertices = 12u;
@@ -35,6 +37,7 @@ fn vs_main(
     @location(3) d: vec4<f32>, // its walls' colour, its seed
     @location(4) e: vec4<f32>, // its roof's colour, the ground its storeys are counted from
     @location(5) f: vec4<f32>, // its door, as Solid.door
+    @location(6) g: vec4<f32>, // its stone, as Solid.stone
 ) -> Solid {
     var across = array<f32, 6>(0.0, 1.0, 0.0, 1.0, 1.0, 0.0);
     var up = array<f32, 6>(0.0, 0.0, 1.0, 0.0, 1.0, 1.0);
@@ -54,7 +57,23 @@ fn vs_main(
     if far {
         top += 0.5 * rise;
     }
-    if vid < wallVertices {
+    // open round its room (U.SolidOpen) a house's body is its four walls, those showing the eye
+    // their outer faces cut low, the other two as high as the room, and no roof
+    let open = U.SolidOpen.x > 0.5;
+    var stands = !open || (f.z > 0.0 && vid < 2u * wallVertices);
+    if open && vid < 2u * wallVertices {
+        let w = wallOf(vid / 6u, along, half);
+        let u = across[vid % 6u] * 2.0 - 1.0;
+        let v = up[vid % 6u];
+        var wallTop = e.w + c.z;
+        if shows(w, a.xy, a.z, top) {
+            wallTop = min(e.w + c.z * U.SolidOpen.y, wallTop);
+        }
+        p = vec3<f32>(a.xy + w.out * w.deep + w.run * u * w.wide, mix(a.z, wallTop, v));
+        n = vec3<f32>(w.out, 0.0);
+        wide = w.wide;
+        at = vec2<f32>(u * w.wide, p.z - e.w);
+    } else if vid < wallVertices {
         // the walls seen: one of its long sides, then one of its ends
         let u = across[vid % 6u] * 2.0 - 1.0;
         let v = up[vid % 6u];
@@ -116,11 +135,20 @@ fn vs_main(
             kind = 1.0;
         }
         at = vec2<f32>(0.0, z - e.w);
+        if corner == 0u {
+            at.x = half.y;
+        } else if corner == 1u {
+            at.x = -half.y;
+        }
         wide = half.y;
     }
     var s: Solid;
     let from = p.xy - U.SolidEye.xy;
     s.clip = U.SolidViewProj * vec4<f32>(p.xy, p.z - U.SolidBend * dot(from, from), 1.0);
+    // a house's body seen from its room: its walls lie on the room's, the rest over its ceiling
+    if !stands || (f.z > 0.0 && eyeIn(a.xy, half, along, e.w, e.w + c.z)) {
+        s.clip = vec4<f32>(2.0, 2.0, 2.0, 1.0); // off the picture
+    }
     s.world = p;
     s.normal = n;
     s.at = at;
@@ -139,6 +167,7 @@ fn vs_main(
     }
     s.lit = vec4<f32>(lamps, reached);
     s.door = f;
+    s.stone = g;
     return s;
 }
 
@@ -159,7 +188,7 @@ fn opened(p: vec3<f32>, way: vec2<f32>, door: vec4<f32>, floor: f32, pane: vec3<
     if door.z <= 0.0 {
         return false;
     }
-    if doorOf(p, way, door, floor) {
+    if doorOf(p, way, door, floor, 0.0) {
         return true;
     }
     return pane.z > 0.5 && pane.y < 0.5 &&
@@ -168,6 +197,8 @@ fn opened(p: vec3<f32>, way: vec2<f32>, door: vec4<f32>, floor: f32, pane: vec3<
 
 @fragment
 fn fs_main(s: Solid) -> @location(0) vec4<f32> {
+    // how many storeys a pixel spans over the face, taken before anything is left out
+    let span = length(fwidth(s.at)) / max(s.face.y, 1e-3);
     if givenWay(s.clip.xy, s.clip.z) {
         discard;
     }
@@ -176,14 +207,7 @@ fn fs_main(s: Solid) -> @location(0) vec4<f32> {
     if sun.z > 0.0 {
         day = 1.0;
     }
-    // a building in three is washed warmer than its kind, one in three rosier
     var rgb = s.walls.rgb;
-    let wash = chance(vec3<f32>(s.walls.w, 1.0, 2.0));
-    if wash < 0.33 {
-        rgb *= vec3<f32>(1.0, 0.95, 0.84);
-    } else if wash < 0.5 {
-        rgb *= vec3<f32>(1.0, 0.9, 0.88);
-    }
     var glow = vec3<f32>(0.0);
     let storey = s.face.y;
     let bay = s.face.z;
@@ -195,9 +219,25 @@ fn fs_main(s: Solid) -> @location(0) vec4<f32> {
         }
     } else {
         let floor = s.world.z - s.at.y;
-        let pane = paneOf(s.at.x, s.at.y, s.face.w, bay, storey, s.tiles.w);
+        let way = s.normal.xy;
+        let door = doorIn(s.door, s.world.xy, s.at.x, way, vec2<f32>(way.y, -way.x), 0.0);
+        let pane = paneOf(s.at.x, s.at.y, s.face.w, bay, storey, s.tiles.w, door);
         if opened(s.world, s.normal.xy, s.door, floor, pane, storey) {
             discard;
+        }
+        // in storeys, one building and one wall apart from the next
+        let q = s.at / storey;
+        let apart = vec2<f32>(s.walls.w * 37.0 + dot(way, vec2<f32>(5.0, 11.0)), 0.0);
+        rgb = plaster(rgb, q + apart, span);
+        if s.stone.w > 0.5 {
+            if q.y < 0.0 {
+                rgb = ashlar(s.stone.rgb, q + apart, span);
+            } else if quoined(s.at.x, s.at.y, s.face.w, storey, s.tiles.w) ||
+                framed(s.at.x, s.at.y, s.face.w, bay, storey, s.tiles.w, door, s.door.w) {
+                // dressed in courses as tall as the corners' stones, faded where a pixel spans them
+                let dressed = ashlar(s.stone.rgb, q * 1.09 + apart, span);
+                rgb = mix(rgb, dressed, detailOf(0.2, span));
+            }
         }
         if pane.z > 0.5 {
             rgb = vec3<f32>(0.16, 0.2, 0.25);

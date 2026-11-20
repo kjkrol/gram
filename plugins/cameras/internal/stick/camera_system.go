@@ -55,8 +55,8 @@ type Arms interface {
 type Keeper struct {
 	orders      Orders
 	arms        Arms
-	free        func(x, y, z float32) bool // nil, everywhere
-	perspective bool                       // Ride reaches Behind and Inside
+	walls       *Walls // nil, nothing holds the eye
+	perspective bool   // Ride reaches Behind and Inside
 	cams        *[]*viewCamera
 
 	ents      Entities
@@ -71,8 +71,11 @@ type following struct {
 	aim    geom.Vec
 	aiming bool
 
-	// behind: how far the arm reaches, shortened by what stands between
-	reach float32
+	// behind: how far the arm reaches, shortened by what stands between, and the pitch it is held
+	// at, dropped under a low roof
+	reach   float32
+	pitch   float32
+	dropped bool
 	// behind: how long since the mouse turned the camera round the entity, the easing back
 	// behind it waiting orbitHold
 	orbited time.Duration
@@ -345,6 +348,7 @@ func (s *Keeper) keep(f *following, d time.Duration) bool {
 		}
 		a := s.arms.Arm()
 		aim := [3]float32{cx, cy, t.Alt + a.Aim*max(t.Level-t.Alt, 0)}
+		aim[2] = s.under(aim, t.Alt, f.cam.persp.cell)
 		s.hold(f, aim, a, d)
 		return true
 	}
@@ -375,12 +379,19 @@ func (s *Keeper) keep(f *following, d time.Duration) bool {
 	return true
 }
 
-// the eye on the arm a behind the point at, tilted as the arm says: shortened at once to what
+// the eye on the arm a behind the point at: tilted as the arm says, or flatter where a low roof
+// leaves it short (dropped at once, eased back as the way clears), shortened at once to what
 // stands between, eased back out as the way clears
 func (s *Keeper) hold(f *following, at [3]float32, a Arm, d time.Duration) {
 	p := f.cam.persp
-	p.pitch = a.Pitch
-	reach := s.reach(at, p.out(), a.Distance*p.cell, p.cell)
+	length := a.Distance * p.cell
+	pitch := s.drop(at, p.heading, a.Pitch, length, p.cell)
+	if f.dropped && pitch > f.pitch {
+		pitch = f.pitch + (pitch-f.pitch)*eased(d)
+	}
+	f.pitch, f.dropped = pitch, pitch < a.Pitch
+	p.pitch = pitch
+	reach := s.reach(at, p.out(), length, p.cell)
 	if f.reach > 0 && reach > f.reach {
 		reach = f.reach + (reach-f.reach)*eased(d)
 	}
@@ -388,22 +399,74 @@ func (s *Keeper) hold(f *following, at [3]float32, a Arm, d time.Duration) {
 	p.hold(at, reach)
 }
 
-// how far along way from t the arm reaches, up to length: a quarter of a cell short of the first
-// thing solid
+// how many pitches between the arm's and the level an arm short under a low roof tries, and the
+// share of the farthest reach the steepest of them must make
+const (
+	drops     = 8
+	dropReach = 0.9
+)
+
+// drop is the pitch the arm along heading from at is held at: pitch where it reaches its length
+// or no roof stands over at as high as it rises, else the steepest between pitch and the level
+// reaching within dropReach of the farthest any of them does; a wall alone it does not drop by,
+// nor slip in at a door under it
+func (s *Keeper) drop(at [3]float32, heading, pitch, length, cell float32) float32 {
+	if s.walls == nil {
+		return pitch
+	}
+	if s.reach(at, outOf(heading, pitch), length, cell) >= length {
+		return pitch
+	}
+	if rise := length * f32.Sin(pitch); s.reach(at, [3]float32{0, 0, 1}, rise, cell) >= rise {
+		return pitch
+	}
+	var reaches [drops + 1]float32
+	farthest := float32(0)
+	for k := range drops + 1 {
+		r := s.reach(at, outOf(heading, pitch*float32(drops-k)/drops), length, cell)
+		reaches[k], farthest = r, max(farthest, r)
+	}
+	for k, r := range reaches {
+		if r >= dropReach*farthest {
+			return pitch * float32(drops-k) / drops
+		}
+	}
+	return pitch
+}
+
+// how far short of the first thing solid the eye stands, in cells
+const armMargin = 1.0 / 16
+
+// how far along way, of length 1, from t the arm reaches, up to length: armMargin short of the
+// first thing the walls make solid behind an entity, found as finely as they say
 func (s *Keeper) reach(t, way [3]float32, length, cell float32) float32 {
-	if s.free == nil {
+	if s.walls == nil {
 		return length
 	}
-	step := cell / 4
-	for along := step; ; along += step {
-		at := vec.Add(t, vec.Scale(way, min(along, length)))
-		if !s.free(at[0], at[1], at[2]) {
-			return max(min(along, length)-step, step)
-		}
-		if along >= length {
-			return length
-		}
+	line := sight{o: t, d: way}
+	x, y, z, hit := line.pick(s.walls.solid(camera.Behind), s.walls.Fine, length, cell/4,
+		f32.Inf(1))
+	if !hit {
+		return length
 	}
+	at := vec.Norm(vec.Sub([3]float32{x, y, z}, t))
+	return max(at-armMargin*cell, at/2)
+}
+
+// under is the height at the arm is aimed at over the feet of the entity at alt: aim[2], or
+// armMargin under the first thing solid over the feet where it stands lower
+func (s *Keeper) under(aim [3]float32, alt, cell float32) float32 {
+	if s.walls == nil || aim[2] <= alt {
+		return aim[2]
+	}
+	from := [3]float32{aim[0], aim[1], alt}
+	line := sight{o: from, d: [3]float32{0, 0, 1}}
+	_, _, z, hit := line.pick(s.walls.solid(camera.Behind), s.walls.Fine, aim[2]-alt, cell/4,
+		f32.Inf(1))
+	if !hit || z <= alt {
+		return aim[2]
+	}
+	return max(z-armMargin*cell, (alt+z)/2)
 }
 
 func (s *Keeper) enter(cam *viewCamera, id uid.UID64) bool {
@@ -428,12 +491,16 @@ func (s *Keeper) eyeOf(id uid.UID64) (eye [3]float32, across float32, dir geom.V
 	return [3]float32{t.X, t.Y, t.Level}, t.Across, t.Dir, true
 }
 
-// never in what is solid there, nor within a hair of it
+// never in what the walls make solid inside an entity, nor within a hair of it
 func (s *Keeper) riding(x, y, top, cell float32) float32 {
-	if s.free == nil || s.free(x, y, top) {
+	if s.walls == nil {
 		return top
 	}
-	return rise(s.free, x, y, top, cell) + cell/256
+	free := func(x, y, z float32) bool { return s.walls.Free(camera.Inside, x, y, z) }
+	if free(x, y, top) {
+		return top
+	}
+	return rise(free, x, y, top, cell) + cell/256
 }
 
 // the heading from which the way (dx, dy) runs up the screen

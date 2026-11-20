@@ -1,5 +1,7 @@
 package stick
 
+import contract "github.com/kjkrol/gram/camera"
+
 // Cage is where the cameras may be, as the cameras plugin's Cage says: Free whether nothing
 // solid fills a point, Span the lowest and highest heights the solid reaches.
 type Cage interface {
@@ -12,10 +14,51 @@ type Grained interface {
 	Grain(x, y float32) (step, thin float32)
 }
 
-// Over is cfg seeing cage: the ground the top of what is solid under a point, the extent the
-// cage's Span, a pick stopping where the cage is not free, as finely as it says. A nil cage
-// leaves level ground at sea level.
-func Over(cfg Config, cage Cage) (Config, func(x, y float32) float32, func() (low, high float32)) {
+// Opens is a Cage letting a camera into some of its solids, as the cameras plugin's Opens says.
+type Opens interface {
+	FreeTo(how contract.How, x, y, z float32) bool
+}
+
+// Walls is what holds a camera's eye and stops its cursor: Free whether nothing solid fills a
+// point as a camera fastened how sees it, Fine how finely to step near what is thin (nil: half a
+// cell everywhere), Span the lowest and highest heights the solid reaches.
+type Walls struct {
+	Free func(how contract.How, x, y, z float32) bool
+	Fine func(x, y float32) (step, thin float32)
+	Span func() (low, high float32)
+}
+
+// wallsOf is cage as Walls
+func wallsOf(cage Cage) *Walls {
+	w := &Walls{Span: cage.Span}
+	if g, ok := cage.(Grained); ok {
+		w.Fine = g.Grain
+	}
+	if o, ok := cage.(Opens); ok {
+		w.Free = o.FreeTo
+	} else {
+		w.Free = func(_ contract.How, x, y, z float32) bool { return cage.Free(x, y, z) }
+	}
+	return w
+}
+
+// solid is w's Free as a pick takes it, for a camera fastened how
+func (w *Walls) solid(how contract.How) func(x, y, z float32) (float32, bool) {
+	return func(x, y, z float32) (float32, bool) { return z, !w.Free(how, x, y, z) }
+}
+
+// Over is cfg seeing cage, its eye held and its cursor stopped by walls too: the ground the top
+// of what cage makes solid under a point, the extent the cage's Span, the stick's foot standing on
+// it, a pick and the eye stopping where walls are not free (cage alone where walls is nil), as
+// finely as each says. A nil cage leaves level ground at sea level.
+func Over(cfg Config, cage, walls Cage) (Config, func(x, y float32) float32,
+	func() (low, high float32)) {
+	if walls == nil {
+		walls = cage
+	}
+	if walls != nil {
+		cfg.Walls = wallsOf(walls)
+	}
 	if cage == nil {
 		return cfg, nil, nil
 	}

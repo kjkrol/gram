@@ -73,8 +73,17 @@ type Spec struct {
 	// Door is how wide and tall a building's door is where its line of the map gives it one;
 	// zero, none does.
 	Door cell.Gap
+	// Wall is how thick the walls of a house with a room are, world units; zero, a twelfth of a
+	// storey.
+	Wall float32
 	// Floor colours its room's floor; zero, boards.
 	Floor color.RGBA
+	// Washes are the colours the kind's buildings are washed in, each for its share of them,
+	// picked by where a building stands; none, Walls.
+	Washes []Wash
+	// Stone dresses the kind's plinths under their storeys, their corners and the frames of
+	// their doors and windows; zero, none is.
+	Stone color.RGBA
 }
 
 // Row is a building of a level's file: where its middle stands and its length and width, world
@@ -94,6 +103,8 @@ type Types struct {
 	p     *Plugin
 	specs map[string]Spec
 	names []string
+	// whether a kind has a room
+	rooms bool
 }
 
 // Define registers the kind of building named name, as spec says: a part of its settlement
@@ -130,7 +141,8 @@ func (t *Types) Define(name string, spec Spec) {
 		comp.Const(world.Unseen{}),
 		ceremony.Plays(plays...)))
 	if spec.Door.Width > 0 {
-		t.rooms(name, spec)
+		t.roomsOf(name, spec)
+		t.rooms = true
 	}
 	if t.specs == nil {
 		t.specs = map[string]Spec{}
@@ -173,6 +185,63 @@ func (s Spec) of(r Row) standing {
 	}
 	b.walls = float32(floors) * s.Storey
 	return b
+}
+
+// Wash is a colour a kind's buildings are washed in and the share of them washed in it.
+type Wash struct {
+	Colour color.RGBA
+	Share  float32
+}
+
+// washOf is the colour the walls of the building b of the kind are washed in: one of its Washes
+// by their shares, picked by where b stands, or its Walls, a building in three warmer than its
+// kind and one in six rosier
+func (s Spec) washOf(b standing) color.RGBA {
+	var all float32
+	for _, w := range s.Washes {
+		all += max(w.Share, 0)
+	}
+	if all <= 0 {
+		switch t := chance(geom.NewVec(b.mid.Y, b.mid.X)); {
+		case t < 0.33:
+			return tinted(s.Walls, 1, 0.95, 0.84)
+		case t < 0.5:
+			return tinted(s.Walls, 1, 0.9, 0.88)
+		}
+		return s.Walls
+	}
+	pick := chance(b.mid) * all
+	for _, w := range s.Washes {
+		if pick < max(w.Share, 0) {
+			return w.Colour
+		}
+		pick -= max(w.Share, 0)
+	}
+	return s.Washes[len(s.Washes)-1].Colour
+}
+
+// tinted is the opaque colour c, its channels scaled by r, g and b
+func tinted(c color.RGBA, r, g, b float32) color.RGBA {
+	return color.RGBA{R: uint8(float32(c.R) * r), G: uint8(float32(c.G) * g),
+		B: uint8(float32(c.B) * b), A: c.A}
+}
+
+// chance is a number in [0, 1) of the place p, the same each time p is asked
+func chance(p geom.Vec) float32 {
+	h := uint64(int64(math.Round(float64(p.X)*8)))*0x9e3779b97f4a7c15 ^
+		uint64(int64(math.Round(float64(p.Y)*8)))*0xc2b2ae3d27d4eb4f
+	h ^= h >> 29
+	h *= 0xbf58476d1ce4e5b9
+	h ^= h >> 32
+	return float32(h>>40) / (1 << 24)
+}
+
+// wall is how thick the walls of a house of the kind with a room are
+func (s Spec) wall() float32 {
+	if s.Wall > 0 {
+		return s.Wall
+	}
+	return s.Storey / 12
 }
 
 // reach is half the sides of the box round the building as it is turned

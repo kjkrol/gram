@@ -1,5 +1,48 @@
 # Changelog
 
+## Unreleased
+
+**Added**
+- `cameras.Config.Walls`: what stands on the ground holding a camera's eye and stopping its
+  cursor while the stick's foot passes it (the buildings); `cameras.Cages`, one cage of several;
+  `cameras.Opens`, a cage letting a camera into what it opens before it as it is fastened.
+- `buildings.Read`, the buildings as the cameras' walls: their parts hold the eye and stop the
+  cursor, a house's room lets them in within its walls, under its ceiling and by its door.
+- `buildings.OpenRooms` and `OpenRoomsBehind` (`Settings.Shut`, `ShutBehind`, switches under
+  Game): whether a house a unit stands in opens round its room before the tactical view and behind
+  a unit, letting the cursor and the eye in; never before a camera inside a unit.
+- `buildings.Spec.Wall`: how thick the walls of a house with a room are, a twelfth of a storey
+  unless the kind says; its door and windows open through them, their reveals and its threshold
+  drawn.
+- `buildings.Spec.Washes` (`buildings.Wash`): the colours a kind's buildings are washed in, each
+  for its share of them, picked by where a building stands.
+- `buildings.Spec.Stone`: the stone a kind's plinths under their storeys, their corners and the
+  frames of their doors and windows are dressed in, courses on a plinth however tall the slope
+  makes it.
+- The buildings' walls are rendered in lime: blotches, a grain faded far off, damp over the foot.
+- An eye in a house's room sees it from inside: its four walls and its ceiling, the world by its
+  windows and its door.
+- The buildings demo has the perspective and V: behind the hero and in him, into a house.
+
+**Fixed**
+- The arm behind a unit finds the first solid thing exactly and stands short of it, where it
+  stepped a quarter of a cell and stood a step out at least: under the low roof of Madeira's
+  tunnels the eye stood in the rock.
+- `plugins/buildings`: a window nearer a house's door than half the pier between windows is left
+  out, where one could stand a hair's breadth from the door.
+
+**Changed**
+- Behind a unit the arm leans flatter under a low roof over it (a tunnel, a room), eased back as
+  the way clears; a wall under the open sky only shortens it.
+- A house a unit stands in opens by the buildings' own switches, no longer by the world's
+  `GiveWay` and `GiveWayRiding`: before the tactical view and behind a unit from the start (behind
+  a unit it stood whole), never before a camera inside one. Open, it is cut away: the walls it
+  shows the camera stand low where they stood, open at its door, the others as high as the
+  room, no roof, the sections in the walls' colour, where its walls and roof gave way over the
+  room whole; shut, it stands whole, giving way to none.
+- Where a game hands the cameras its buildings, a click on a house aims at the house, where it
+  aimed at the ground behind it.
+
 ## v0.23.0 — 2026-11-19
 
 **Added**

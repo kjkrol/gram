@@ -1,6 +1,7 @@
 package stick
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -31,9 +32,14 @@ func (g *ridge) at(x float32) float32 {
 	return corner(c*32)*(1-f) + corner((c+1)*32)*f
 }
 
+// held is walls free where free says, whatever the camera
+func held(free func(x, y, z float32) bool) *Walls {
+	return &Walls{Free: func(_ contract.How, x, y, z float32) bool { return free(x, y, z) }}
+}
+
 func (r *followRig) ridged(x0, x1 float32) *ridge {
 	g := &ridge{x0: x0, x1: x1}
-	r.sys.free = func(x, _, z float32) bool { return z >= g.at(x) }
+	r.sys.walls = held(func(x, _, z float32) bool { return z >= g.at(x) })
 	r.cam.persp.ground = func(x, _ float32) float32 { return g.at(x) }
 	r.cam.persp.extent = func() (float32, float32) {
 		if g.flat {
@@ -64,7 +70,8 @@ func TestFollow_InPerspectiveBehindTheArmShortensBeforeARidgeAndComesBack(t *tes
 	}
 	e := r.cam.persp.eye()
 	for k := float32(0); k <= 1; k += 0.05 {
-		if at := vec.Add(unit, vec.Scale(vec.Sub(e, unit), k)); !r.sys.free(at[0], at[1], at[2]) {
+		at := vec.Add(unit, vec.Scale(vec.Sub(e, unit), k))
+		if !r.sys.walls.Free(contract.Behind, at[0], at[1], at[2]) {
 			t.Errorf("the ridge stands between the walker and the eye at %v", at)
 			break
 		}
@@ -366,7 +373,7 @@ func TestInside_TheEyeRidesOverWhatStandsOnTheCell(t *testing.T) {
 	r := newFollowRig(t)
 	r.ridged(1000, 1001)
 	// a kind 20 tall on every cell
-	r.sys.free = func(_, _, z float32) bool { return z >= 20 }
+	r.sys.walls = held(func(_, _, z float32) bool { return z >= 20 })
 	r.walk(300, 300, 1, 0)
 	r.inside()
 	if e := r.cam.persp.eye(); e[2] < 20 || e[2] > 21 {
@@ -375,7 +382,7 @@ func TestInside_TheEyeRidesOverWhatStandsOnTheCell(t *testing.T) {
 			e[2],
 		)
 	}
-	r.sys.free = func(_, _, z float32) bool { return z >= 0 }
+	r.sys.walls = held(func(_, _, z float32) bool { return z >= 0 })
 	r.tick(time.Second / 60)
 	if e := r.cam.persp.eye(); !near(e[2], 7) {
 		t.Errorf("on level cells the eye stands %v up, want on the walker's top, 7", e[2])
@@ -449,9 +456,9 @@ func TestFollow_InPerspectiveLettingGoGivesTheStickBack(t *testing.T) {
 
 // a tunnel 30 wide and 12 high running east under ground 200 high, its floor at 0
 func (r *followRig) tunnelled() {
-	r.sys.free = func(_, y, z float32) bool {
+	r.sys.walls = held(func(_, y, z float32) bool {
 		return z >= 200 || z >= 0 && z < 12 && f32.Abs(y-305) < 15
-	}
+	})
 	r.cam.persp.ground = func(_, _ float32) float32 { return 200 }
 	r.cam.persp.extent = func() (float32, float32) { return 0, 200 }
 }
@@ -468,7 +475,8 @@ func TestRide_UnderTheGroundTheEyeStaysInTheTunnelBehindAndInside(t *testing.T) 
 		r.tick(time.Second / 60)
 	}
 	eye := r.cam.persp.eye()
-	if !r.sys.free(eye[0], eye[1], eye[2]) || eye[2] >= 12 || eye[0] >= 305 {
+	if !r.sys.walls.Free(contract.Behind, eye[0], eye[1], eye[2]) || eye[2] >= 12 ||
+		eye[0] >= 305 {
 		t.Errorf("behind the walker in the tunnel the eye stands at %v; want behind it, under "+
 			"the roof at 12", eye)
 	}
@@ -476,5 +484,111 @@ func TestRide_UnderTheGroundTheEyeStaysInTheTunnelBehindAndInside(t *testing.T) 
 	if eye := r.cam.persp.eye(); !near(eye[2], 5) || !near(eye[0], 305) || !near(eye[1], 305) {
 		t.Errorf("inside the walker in the tunnel the eye stands at %v, want the walker's at "+
 			"(305, 305, 5)", eye)
+	}
+}
+
+func TestReach_EndsAMarginShortOfTheFirstSolidThing(t *testing.T) {
+	s := &Keeper{walls: held(func(x, _, _ float32) bool { return x > 280 })}
+	from, west := [3]float32{300, 300, 10}, [3]float32{-1, 0, 0}
+	if got, want := s.reach(from, west, 100, 32), float32(20-32*armMargin); !near(got, want) {
+		t.Errorf("the arm reaches %v towards a wall 20 off, want %v", got, want)
+	}
+	s.walls = held(func(_, _, _ float32) bool { return true })
+	if got := s.reach(from, west, 100, 32); got != 100 {
+		t.Errorf("the arm reaches %v with nothing in the way, want all of it, 100", got)
+	}
+}
+
+// a wall a unit thick across x 280, a door 6 wide and 12 high in it round y 300, the walls
+// grained near it
+func doored() *Walls {
+	return &Walls{
+		Free: func(_ contract.How, x, y, z float32) bool {
+			return x < 279.5 || x > 280.5 || f32.Abs(y-300) < 3 && z < 12
+		},
+		Fine: func(x, _ float32) (float32, float32) {
+			if x > 270 && x < 290 {
+				return 0.5, 1
+			}
+			return 0, 0
+		},
+	}
+}
+
+func TestReach_StopsAtAThinWallWhereTheWallsAreGrainedAndGoesOutByItsDoor(t *testing.T) {
+	s := &Keeper{walls: doored()}
+	west := [3]float32{-1, 0, 0}
+	if got, want := s.reach([3]float32{300, 310, 5}, west, 100, 32),
+		float32(19.5-32*armMargin); !near(got, want) {
+		t.Errorf("the arm reaches %v towards a thin wall, want %v short of it", got, want)
+	}
+	if got := s.reach([3]float32{300, 300, 5}, west, 100, 32); got != 100 {
+		t.Errorf("the arm reaches %v through the door, want all of it, 100", got)
+	}
+	s.walls.Fine = nil
+	if got := s.reach([3]float32{300, 310, 5}, west, 100, 32); got != 100 {
+		t.Errorf("stepping a quarter of a cell the arm reaches %v: the wall is not thin enough "+
+			"to test the grain", got)
+	}
+}
+
+func TestHold_UnderALowRoofTheArmDropsUnderItAndComesBackAsTheWayClears(t *testing.T) {
+	r := newFollowRig(t)
+	r.cam.next()
+	// a tunnel of Madeira's: 10.56 high and 19.2 wide, the walker 8.64 tall, a cell 32, the arm
+	// aimed at its top on three cells at 20 degrees
+	pitch := float32(20 * math.Pi / 180)
+	r.arms.arm = Arm{Pitch: pitch, Distance: 3, Aim: 1}
+	r.walk(300, 300, 1, 0)
+	w := r.ents[r.walkers[0]]
+	w.z, w.eye = world.Z{Altitude: 0, Height: 8.64}, world.Eye{Height: 8.64}
+	roofed := true
+	r.sys.walls = held(func(_, y, z float32) bool {
+		return z >= 0 && (!roofed || z < 10.56 && f32.Abs(y-305) < 9.6)
+	})
+	r.behind()
+	r.tick(time.Second / 60)
+	eye := r.cam.persp.eye()
+	if !r.sys.walls.Free(contract.Behind, eye[0], eye[1], eye[2]) || eye[2] >= 10.56 ||
+		eye[0] > 305-64 {
+		t.Errorf("behind the walker under the roof the eye stands at %v; want it under the "+
+			"roof at 10.56, two cells behind or more", eye)
+	}
+	dropped := r.cam.Pitch()
+	if dropped >= pitch/2 {
+		t.Errorf("under the roof the camera looks down at %v, want it dropped from %v towards "+
+			"the level", dropped, pitch)
+	}
+	roofed = false
+	r.tick(time.Second / 60)
+	if got := r.cam.Pitch(); got <= dropped || got >= pitch-1e-3 {
+		t.Errorf("the roof gone, a tick on the pitch is %v, want easing from %v back to %v", got,
+			dropped, pitch)
+	}
+	r.tick(3 * time.Second)
+	if got := r.cam.Pitch(); !near(got, pitch) {
+		t.Errorf("the roof gone, three seconds on the pitch is %v, want the arm's %v", got, pitch)
+	}
+}
+
+func TestHold_BeforeAWallUnderTheSkyTheArmShortensAndSlipsInAtNoDoor(t *testing.T) {
+	r := newFollowRig(t)
+	r.cam.next()
+	pitch := float32(25 * math.Pi / 180)
+	r.arms.arm = Arm{Pitch: pitch, Distance: 2, Aim: 1}
+	// facing east, its back to a wall from x 270 to 280 west of it, 30 high, a door 12 high in
+	// it straight behind the walker, the sky open over all
+	r.walk(300, 300, 1, 0)
+	w := r.ents[r.walkers[0]]
+	w.z, w.eye = world.Z{Altitude: 0, Height: 8}, world.Eye{Height: 8}
+	r.sys.walls = held(func(x, y, z float32) bool {
+		return z >= 0 && (x < 270 || x > 280 || z >= 30 || f32.Abs(y-305) < 4 && z < 12)
+	})
+	r.behind()
+	r.tick(time.Second / 60)
+	eye := r.cam.persp.eye()
+	if !near(r.cam.Pitch(), pitch) || eye[0] < 280 {
+		t.Errorf("behind the walker before a wall the eye stands at %v looking down %v; want "+
+			"it this side of the wall at the arm's pitch %v", eye, r.cam.Pitch(), pitch)
 	}
 }

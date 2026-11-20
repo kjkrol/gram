@@ -45,15 +45,29 @@ type Plugin struct {
 	module      *module
 	solids      *solids
 	near        *near
+	read        Read
 	write       Write
+	cage        cage
 
-	raises command.Queue[Raise]
-	kept   *plugin.Kept[Resources]
+	raises       command.Queue[Raise]
+	opened       command.Queue[OpenRooms]
+	openedBehind command.Queue[OpenRoomsBehind]
+	kept         *plugin.Kept[Resources]
 }
 
 // Resources is the state of buildings, saved with the game whole: the buildings standing, by
-// the sector their middles lie in.
-type Resources struct{ Stood map[int][]Stood }
+// the sector their middles lie in, and the settings.
+type Resources struct {
+	Stood    map[int][]Stood
+	Settings Settings
+}
+
+// Settings are the buildings' settings: whether a house a unit stands in stays whole before a
+// camera of the tactical view (Shut) and before one behind a unit (ShutBehind), rather than open
+// round its room, letting the cursor and the eye in; before one inside a unit it always does.
+type Settings struct {
+	Shut, ShutBehind bool
+}
 
 // Stood is a building standing: its kind and its line.
 type Stood struct {
@@ -76,7 +90,8 @@ func NewPlugin(w *world.Plugin, brd *board.Plugin) *Plugin {
 	}
 	p := &Plugin{worldPlugin: w, board: brd, Res: Resources{Stood: map[int][]Stood{}}}
 	p.kept = plugin.Keep(&p.Res)
-	p.types.p, p.write.p = p, p
+	p.types.p, p.read.p, p.write.p = p, p, p
+	p.cage.stale = true
 	p.solids = &solids{p: p}
 	p.near = &near{s: p.solids}
 	p.Self = world.NewSelf(w, p)
@@ -128,7 +143,7 @@ func (p *Plugin) Restore() {
 	if p.Res.Stood == nil {
 		p.Res.Stood = map[int][]Stood{}
 	}
-	p.solids.stale = true
+	p.solids.stale, p.cage.stale = true, true
 }
 
 func (p *Plugin) DefaultBindings() []control.Binding { return nil }

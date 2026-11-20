@@ -62,7 +62,14 @@ Each script's header says its arguments and variables.
 
 ## Checking a change
 
-1. **The demos that use what changed, and only those** (`CLAUDE.md` says how to list them).
+1. **Only the demos that import what changed, never any other** (the user's word, 2026-11-20).
+   `grep -rl '"github.com/kjkrol/gram/plugins/<pkg>"' examples` lists them, with
+   gram-madeira-square's `relief` and `flat` where they import it. A demo that does not import
+   the changed package cannot show anything of the change: it is not built, run, shot or
+   measured, and no sweep of every demo is run for a plugin's change. Every demo is the field
+   only for a change to `render`, the engine or the world. A plan or a brief saying "every
+   demo" for a plugin's change is wrong: this rule wins. The tests likewise: the changed
+   package's while working.
 2. **A baseline**: a copy of the tree from before the change in the scratchpad (`cp -r`, never
    `git stash` or a checkout of the user's tree), run with `PROBE_TREE`, alternately with the
    tree, twice.

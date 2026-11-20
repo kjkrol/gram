@@ -25,15 +25,15 @@ type Orders interface {
 
 // Control carries out the views' commands on the cameras its Maker made, through its Keeper.
 type Control struct {
-	free        func(x, y, z float32) bool
+	walls       *Walls
 	perspective bool
 	cams        []*viewCamera
 }
 
-// NewControl is the control of the cameras in a space where free says nothing solid fills a
-// point (nil: everywhere), reaching the perspective where perspective says.
-func NewControl(free func(x, y, z float32) bool, perspective bool) *Control {
-	return &Control{free: free, perspective: perspective}
+// NewControl is the control of the cameras in a space whose walls hold the eye (nil: nothing
+// does), reaching the perspective where perspective says.
+func NewControl(walls *Walls, perspective bool) *Control {
+	return &Control{walls: walls, perspective: perspective}
 }
 
 // Maker is Maker, every camera it makes kept fastened by the control's Keeper.
@@ -58,7 +58,7 @@ func (ctl *Control) Keeper(orders Orders, arms Arms) *Keeper {
 	return &Keeper{
 		orders:      orders,
 		arms:        arms,
-		free:        ctl.free,
+		walls:       ctl.walls,
 		perspective: ctl.perspective,
 		cams:        &ctl.cams,
 	}
