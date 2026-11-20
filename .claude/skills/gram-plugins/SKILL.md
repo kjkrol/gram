@@ -1194,7 +1194,13 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
   must agree**: `paneOf` (the faces and the sun through them), the reveals and `openings` (the
   shelter's light); a window of the door's storey nearer the door than half the pier between
   panes is left out of all three (`byDoor`). `wallOf`'s run is the way `facing` takes a wall:
-  `shows` of a wall with the run reversed answers for the wall across it.
+  `shows` of a wall with the run reversed answers for the wall across it. They stop a body where
+  they are drawn: the room's floor carries their thickness (`roomFloor`, `cell.Floor.Walls`) and
+  the board's `field.rooms` stands a Standing room's walls inside its cells, its door's jambs
+  free ends (a body brushing one slides past, one sideways in the doorway is not thrown across
+  the wall). **A wall is handed by the cell it lies in** (`Field.Walls` walks the cells under the
+  box): standing outside its cell, a wall met a body from outside only once the body was in it,
+  then threw it back by its depth, again and again (2026-11-20: 0.5 m off every house's wall).
 - **The buildings hold the cameras** (`Read`, `cage.go`): the parts as `lay` lays them, a room
   hollow within its walls' thickness, its door open through it, its windows glass; indexed by
   the board's cells and

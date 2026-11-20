@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.24.1 — 2026-11-20
+
+**Added**
+- `cell.Floor.Walls`: how thick a standing room's walls are, standing inside its cells' edges;
+  the buildings give a house's room their `Spec.Wall`.
+
+**Fixed**
+- A body walking into a house's wall is stopped at its face: from outside it walked into the
+  wall and was thrown back half a metre again and again, from inside it stood in the wall as
+  deep as the wall was thick.
+- A house's door lets a body through as wide as it is drawn, where it let one half a metre
+  wider; a body brushing a jamb slides past it.
+
 ## v0.24.0 — 2026-11-20
 
 **Added**

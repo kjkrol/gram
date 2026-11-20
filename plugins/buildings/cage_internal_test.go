@@ -166,4 +166,10 @@ func TestSpec_AHousesWallsAreATwelfthOfAStoreyThickUnlessItSays(t *testing.T) {
 	if got := (Spec{Storey: 12, Wall: 2.5}).wall(); got != 2.5 {
 		t.Errorf("walls the kind says are 2.5 thick are %v", got)
 	}
+	for _, s := range []Spec{{Storey: 12}, {Storey: 12, Wall: 2.5}} {
+		if got := s.roomFloor(roomRow{}, cell.Gap{Width: 4}).Walls; got != s.wall() {
+			t.Errorf("a room's floor of %+v has walls %v thick on the board, want %v", s, got,
+				s.wall())
+		}
+	}
 }

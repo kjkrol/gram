@@ -63,6 +63,7 @@ type Mover struct {
 	Offset  float32 // shifts the box right, to straddle two cells
 	Brakes  bool    // standing, it brakes to rest as a unit does
 	Size    uint32  // the side of its box; 0: UnitSize
+	Z       world.Z // its heights; zero, none: it meets every height
 }
 
 func (m Mover) side() uint32 {
@@ -203,6 +204,9 @@ func NewWorldIn(t *testing.T, g grid.Grid, width, height uint32, config func(*wo
 			)
 		case u.Brakes:
 			spec = append(spec, comp.Const(steering.Steering{MaxSpeed: 64, Accel: 128, Brake: 256}))
+		}
+		if u.Z != (world.Z{}) {
+			spec = append(spec, comp.Const(u.Z))
 		}
 		if u.Sight != nil {
 			spec = append(spec, comp.Const(*u.Sight), comp.Const(vision.Sighted{}),

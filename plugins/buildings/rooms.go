@@ -53,19 +53,7 @@ func (t *Types) roomsOf(name string, spec Spec) {
 	pieces := board.NewEntities(brd, board.Shape{Size: span, Height: spec.Storey},
 		func(r roomRow) cell.ID { return r.At })
 	pieces.Define(roomName(name),
-		comp.Load(func(r roomRow) cell.Floor {
-			return cell.Floor{
-				Allows:   cell.Land,
-				Height:   r.Height,
-				Pace:     1,
-				Graded:   true,
-				Links:    r.Links,
-				Storey:   RoomStorey,
-				Clear:    spec.Storey,
-				Standing: true,
-				Door:     door,
-			}
-		}),
+		comp.Load(func(r roomRow) cell.Floor { return spec.roomFloor(r, door) }),
 		comp.Const(light.Shadow{Cast: light.NoShadow}),
 		// the building cuts sight, its room nothing more
 		comp.Const(vision.Transparency{Value: 1}),
@@ -87,6 +75,23 @@ func (t *Types) roomsOf(name string, spec Spec) {
 		comp.Const(world.Fixed{}),
 		comp.Const(world.Whole{}),
 	})
+}
+
+// roomFloor is the floor of the piece r of the room of a building of the kind s, its door door:
+// its walls as thick as the kind's, so they stop a body where they are drawn
+func (s Spec) roomFloor(r roomRow, door cell.Gap) cell.Floor {
+	return cell.Floor{
+		Allows:   cell.Land,
+		Height:   r.Height,
+		Pace:     1,
+		Graded:   true,
+		Links:    r.Links,
+		Storey:   RoomStorey,
+		Clear:    s.Storey,
+		Walls:    s.wall(),
+		Standing: true,
+		Door:     door,
+	}
 }
 
 // house is the room of the building b of the kind name, its line row, on the board: its cells,

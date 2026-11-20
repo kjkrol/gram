@@ -450,23 +450,33 @@ func within(p, u, v geom.Vec, half float32) (lo, hi float32) {
 	return lo, hi
 }
 
-// rooms visits the walls of the rooms of whole cells on c, its middle at m, for a body in one's
-// room: along every edge but where its links lead on into its storey, a band of its storey coming
-// in through it leaving its width of door, its own open door its width where it leads out
+// rooms visits the walls of the rooms of whole cells on c, its middle at m, for a body at the
+// height of one's room: along every edge but where its links lead on into its storey, a band of
+// its storey coming in through it leaving its width of door, its own open door its width where
+// it leads out
 func (f *Field) rooms(c cell.ID, m geom.Vec, band collision.Band,
 	visit func(collide.FieldWall) bool) bool {
 	b := f.cells.Built(c)
+	rail := terrain.RailHalf(f.grid.CellSpan())
 	for k := range uint8(cell.Storeys) {
 		fl := *b.Storey(k)
 		if !fl.Room() || fl.Width > 0 || !f.roomOf(c, fl).Meets(band) {
 			continue
 		}
-		half := terrain.RailHalf(f.grid.CellSpan())
+		// a standing room's walls are built inside its cells, where its house draws them, so a
+		// box meets one only over the cell that hands it; a dug room's are the rock outside
+		half, off := rail, rail
+		if fl.Standing {
+			if fl.Walls > 0 {
+				half = fl.Walls / 2
+			}
+			off = -half
+		}
 		for i := range f.grid.Directions() {
 			if f.grid.Corner(i) {
 				continue
 			}
-			door := float32(0)
+			door, jambs := float32(0), false
 			if n, ok := f.grid.Toward(c, i); ok {
 				nb := f.cells.Built(n)
 				nf := *nb.Storey(k)
@@ -474,9 +484,11 @@ func (f *Field) rooms(c cell.ID, m geom.Vec, band collision.Band,
 				case nf.Room() && nf.Width == 0 && fl.Links.Has(i):
 					continue
 				case nf.Room() && nf.Width > 0 && nf.Links.Has(f.grid.Opposite(i)):
-					door = nf.Width/2 + half
+					door = nf.Width/2 + rail
+				case nf.Allows == 0 && fl.Links.Has(i) && fl.Door.Width > 0 && fl.Standing:
+					door, jambs = fl.Door.Width/2, true
 				case nf.Allows == 0 && fl.Links.Has(i) && fl.Door.Width > 0:
-					door = fl.Door.Width/2 + half
+					door = fl.Door.Width/2 + rail
 				}
 			}
 			s := f.grid.Step(i)
@@ -486,12 +498,12 @@ func (f *Field) rooms(c cell.ID, m geom.Vec, band collision.Band,
 			if f.square == nil {
 				long = l / (2 * sqrt3)
 			}
-			at := geom.NewVec(m.X+u.X*(l/2+half), m.Y+u.Y*(l/2+half))
+			at := geom.NewVec(m.X+u.X*(l/2+off), m.Y+u.Y*(l/2+off))
 			spans := [2][2]float32{{-long, long}, {1, 0}}
 			if door > 0 {
 				spans = [2][2]float32{{-long, -door}, {door, long}}
 			}
-			for _, sp := range spans {
+			for j, sp := range spans {
 				if sp[1]-sp[0] <= f32.Eps(l) {
 					continue
 				}
@@ -500,6 +512,10 @@ func (f *Field) rooms(c cell.ID, m geom.Vec, band collision.Band,
 					B:    geom.NewVec(at.X-u.Y*sp[1], at.Y+u.X*sp[1]),
 					Half: half,
 					Cell: uint64(c),
+				}
+				// a body clipping a jamb slides on past its end into the door
+				if jambs {
+					w.Open = [2]collide.Ends{collide.EndB, collide.EndA}[j]
 				}
 				if !visit(w) {
 					return false
