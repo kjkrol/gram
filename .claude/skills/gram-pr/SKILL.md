@@ -28,8 +28,9 @@ PR's title and body: the repository's squash merge takes a single commit's title
 
 ## The squash
 
-The verification sequence has run green and the demos the change touches have run before. Then,
-with the message in `squash.md` (the title, a blank line, the body):
+The verification sequence has run green and the demos that import the changed packages, those
+alone, have run before (`gram-probe`, "Checking a change": no other demo is run). Then, with the
+message in `squash.md` (the title, a blank line, the body):
 
 ```bash
 git fetch -q origin main

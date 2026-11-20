@@ -47,6 +47,9 @@ type perspCamera struct {
 
 	fine  func(x, y float32) (step, thin float32)
 	solid func(x, y, z float32) (float32, bool)
+	// what holds the eye and stops the cursor, as the camera is fastened (how); nil, the ground
+	walls *Walls
+	how   func() contract.How
 
 	// the ground point in the middle of the screen; far along the way looked, at the sky
 	at         [3]float32
@@ -146,6 +149,7 @@ func (c *perspCamera) copyInto(dst *perspCamera) {
 	low, high := c.layer()
 	dst.still, dst.low, dst.high = true, low, high-c.headroom
 	dst.extent, dst.ground, dst.fine, dst.solid, dst.cropped = nil, nil, nil, nil, nil
+	dst.walls, dst.how = nil, nil
 }
 
 func (c *perspCamera) Ray(sx, sy float32) (float32, float32, float32, bool) {
@@ -169,9 +173,12 @@ func (c *perspCamera) target() [3]float32 { return c.at }
 func (c *perspCamera) eye() [3]float32 { return c.proj.eye }
 
 // the way from the foot up the stick to the eye
-func (c *perspCamera) out() [3]float32 {
-	s, k := f32.Sincos(c.heading + math.Pi/4)
-	sp, cp := f32.Sincos(c.pitch)
+func (c *perspCamera) out() [3]float32 { return outOf(c.heading, c.pitch) }
+
+// outOf is the way from a stick's foot out to its eye, turned heading and leaning pitch
+func outOf(heading, pitch float32) [3]float32 {
+	s, k := f32.Sincos(heading + math.Pi/4)
+	sp, cp := f32.Sincos(pitch)
 	return [3]float32{cp * s, cp * k, sp}
 }
 
@@ -226,10 +233,13 @@ func (c *perspCamera) look() {
 // how far over e the eye has to go to be clear of what is solid there, and a quarter of a cell
 // over it
 func (c *perspCamera) need(e [3]float32) float32 {
-	if c.solid == nil && c.ground == nil {
+	if c.solid == nil && c.ground == nil && c.walls == nil {
 		return 0
 	}
 	solid := solidOf(c.solid, c.ground)
+	if c.walls != nil {
+		solid = c.walls.solid(howOf(c.how))
+	}
 	free := func(x, y, z float32) bool {
 		_, in := solid(x, y, z)
 		return !in
@@ -261,7 +271,8 @@ func (c *perspCamera) settle(d time.Duration) {
 }
 
 func (c *perspCamera) middle() ([3]float32, bool) {
-	x, y, _, hit := c.Pick(c.centre())
+	cx, cy := c.centre()
+	x, y, _, hit := c.pick(cx, cy, nil)
 	if !hit {
 		return vec.Add(c.proj.eye, vec.Scale(c.proj.forward, c.far())), true
 	}
@@ -279,7 +290,8 @@ func (c *perspCamera) plant() {
 	if c.inside || c.held || c.lift > 0 || o[2] < 1e-3 {
 		return
 	}
-	_, _, z, hit := c.Pick(c.centre())
+	cx, cy := c.centre()
+	_, _, z, hit := c.pick(cx, cy, nil)
 	if !hit {
 		return
 	}
@@ -297,15 +309,30 @@ func (c *perspCamera) confine() {
 	c.foot[1] = min(max(c.foot[1], 0), c.world.Y)
 }
 
+// Pick is the first point the line of sight through (sx, sy) meets of what stops the cursor.
 func (c *perspCamera) Pick(sx, sy float32) (float32, float32, float32, bool) {
-	if c.ground == nil {
+	return c.pick(sx, sy, c.walls)
+}
+
+// pick is the first point the line of sight through (sx, sy) meets of what walls makes solid,
+// the ground's where walls is nil
+func (c *perspCamera) pick(sx, sy float32, walls *Walls) (float32, float32, float32, bool) {
+	if c.ground == nil && walls == nil {
 		x, y, ok := c.cast(sx, sy, 0)
 		return x, y, 0, ok
 	}
 	_, high := c.layer()
+	solid, fine := solidOf(c.solid, c.ground), c.fine
+	if walls != nil {
+		solid, fine = walls.solid(howOf(c.how)), walls.Fine
+		if walls.Span != nil {
+			_, h := walls.Span()
+			high = max(high, h+c.headroom)
+		}
+	}
 	cx, cy := c.centre()
 	s := sight{o: c.proj.eye, d: c.proj.ray(sx-cx, sy-cy), bend: c.bend}
-	return s.pick(solidOf(c.solid, c.ground), c.fine, c.far(), c.cell/2, high)
+	return s.pick(solid, fine, c.far(), c.cell/2, high)
 }
 
 // heading stays as given for an eye straight over the target

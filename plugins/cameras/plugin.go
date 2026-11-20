@@ -45,6 +45,9 @@ type Config struct {
 	HeightUnit float32
 	// where the cameras may be; nil, anywhere over level ground at sea level
 	Cage Cage
+	// what holds a camera's eye and stops its cursor beside the Cage, the stick's foot passing it
+	// (the buildings' solids); nil, nothing
+	Walls Cage
 	// how every picture but a minimap's is drawn from the start (Settings.Tactical, Riding): a
 	// camera's free, over or behind an entity by Tactical, one's inside an entity by Riding, the
 	// resolution following the FrameBudget where the Strategy says, the time a frame may take
@@ -64,7 +67,9 @@ type Config struct {
 }
 
 // plain is the camera from above that neither turns nor tilts nor sees anything in relief
-func (c Config) plain() bool { return c.Cage == nil && !c.Turn && !c.Tilt && !c.Perspective }
+func (c Config) plain() bool {
+	return c.Cage == nil && c.Walls == nil && !c.Turn && !c.Tilt && !c.Perspective
+}
 
 // Start is how a camera begins: FromAbove or Isometrically.
 type Start uint8
@@ -182,12 +187,12 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 			Perspective: cfg.Perspective,
 			FieldOfView: cfg.FieldOfView,
 		}
-		p.viewCfg, p.ground, p.extent = stick.Over(views, cfg.Cage)
-		var free func(x, y, z float32) bool
-		if cfg.Cage != nil {
-			free = cfg.Cage.Free
+		var walls Cage
+		if cfg.Walls != nil {
+			walls = Cages(cfg.Cage, cfg.Walls)
 		}
-		p.views = stick.NewControl(free, cfg.Perspective)
+		p.viewCfg, p.ground, p.extent = stick.Over(views, cfg.Cage, walls)
+		p.views = stick.NewControl(p.viewCfg.Walls, cfg.Perspective)
 	}
 	return p
 }

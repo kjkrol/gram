@@ -21,7 +21,10 @@ var (
 	yardColor   = color.RGBA{R: 132, G: 124, B: 104, A: 255}
 	heroColor   = color.RGBA{R: 230, G: 80, B: 80, A: 255}
 	limeColor   = color.RGBA{R: 236, G: 230, B: 214, A: 255}
+	creamColor  = color.RGBA{R: 240, G: 230, B: 196, A: 255}
+	pinkColor   = color.RGBA{R: 232, G: 190, B: 176, A: 255}
 	ochreColor  = color.RGBA{R: 232, G: 204, B: 148, A: 255}
+	stoneColor  = color.RGBA{R: 88, G: 85, B: 81, A: 255}
 	brickColor  = color.RGBA{R: 176, G: 104, B: 84, A: 255}
 	tileColor   = color.RGBA{R: 178, G: 84, B: 58, A: 255}
 	slateColor  = color.RGBA{R: 96, G: 100, B: 112, A: 255}

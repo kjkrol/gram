@@ -234,10 +234,14 @@ func TestResources_TheBuildingsStandingComeBackWithALoad(t *testing.T) {
 		buildings.Row{Mid: [2]float32{1500, 800}, Size: [2]float32{30, 30}},
 	)
 	stood := g.p.Res.Stood
+	g.p.Write().OpenRoomsBehind(false)
 	g.p.Serializable().Persisted()
 	g.p.Res = buildings.Resources{}
 	g.p.Restore()
 	if !reflect.DeepEqual(g.p.Res.Stood, stood) || len(stood) == 0 {
 		t.Errorf("loaded %v, saved %v", g.p.Res.Stood, stood)
+	}
+	if want := (buildings.Settings{ShutBehind: true}); g.p.Res.Settings != want {
+		t.Errorf("the settings loaded %+v, saved %+v", g.p.Res.Settings, want)
 	}
 }

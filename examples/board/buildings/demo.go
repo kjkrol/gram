@@ -8,6 +8,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
@@ -83,9 +84,11 @@ func main() {
 			"zoom, the cursor in a corner turns), and in by a house's door onto its level " +
 			"floor, dug into the slope uphill: the house gives way over the room it stands " +
 			"in, the sun falls in by the windows and the door, and the room's lamp burns " +
-			"from dusk. Near, the buildings stand whole, their windows lit as the sun goes " +
-			"down and their shadows swinging round; zoomed out to the whole village they are " +
-			"bodies alone, and no longer entities.",
+			"from dusk. V rides the hero, behind him and in him: the camera stays out of the " +
+			"walls, and in a house it sees the room from inside or, behind him, through the " +
+			"house opened round him. Near, the buildings stand whole, their windows lit as " +
+			"the sun goes down and their shadows swinging round; zoomed out to the whole " +
+			"village they are bodies alone, and no longer entities.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -133,13 +136,17 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.selection = selection.NewPlugin(a.world)
 	a.driving = driving.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board)
 	a.cameras = cameras.NewPlugin(a.world, cameras.Config{
-		Turn:       true,
-		Cell:       CellSize,
-		HeightUnit: 1,
-		Cage:       a.topography.Read(0),
+		Turn:        true,
+		Tilt:        true,
+		Perspective: true,
+		Cell:        CellSize,
+		HeightUnit:  1,
+		Cage:        a.topography.Read(0),
+		Walls:       a.buildings.Read(0),
+		Arm:         cameras.Arm{Pitch: 25, Distance: 1.5, Aim: 0.8, Tilts: true, Zooms: true},
 	})
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.topography,
-		a.selection, a.driving, a.light)
+		a.buildings, a.selection, a.driving, a.light)
 	a.board.Write().ShowGrid(false)
 }
 
@@ -147,12 +154,19 @@ func (a *arena) definePlayer() error {
 	a.player = a.players.Local("player")
 	walk := driving.Compass{
 		Up: control.KeyW, Down: control.KeyS, Left: control.KeyA, Right: control.KeyD,
+		In: camera.Outside,
 	}
+	// the views' keys, V riding the hero among them, the keys walking him in place of those
+	// scrolling the camera
 	view := cameras.Keys{
 		Wheel:       true,
 		ZoomIn:      control.KeyEqual,
 		ZoomOut:     control.KeyMinus,
 		CornersTurn: true,
+	}
+	inside := driving.Shooter{
+		Ahead: control.KeyW, Back: control.KeyS, Left: control.KeyA, Right: control.KeyD,
+		In: camera.Inside,
 	}
 	return a.player.Bind(slices.Concat(
 		a.players.DefaultBindings(),
@@ -162,8 +176,9 @@ func (a *arena) definePlayer() error {
 		a.topography.DefaultBindings(),
 		a.selection.DefaultBindings(),
 		a.light.DefaultBindings(),
-		view.Bindings(),
+		a.cameras.Bindings(view),
 		walk.Bindings(),
+		inside.Bindings(),
 	)...)
 }
 

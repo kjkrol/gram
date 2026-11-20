@@ -23,6 +23,8 @@ type Config struct {
 	Fine func(x, y float32) (step, thin float32)
 	// nil, under the ground alone
 	Solid func(x, y, z float32) (top float32, in bool)
+	// what holds the eye and stops the cursor; nil, the ground as Solid says
+	Walls *Walls
 }
 
 // Start is how a camera begins: FromAbove straight down, a screen unit a world unit, or
@@ -57,6 +59,7 @@ func Maker(
 			cfg.Perspective, ground, extent, bend)
 		cam.ortho.fine, cam.persp.fine = cfg.Fine, cfg.Fine
 		cam.ortho.solid, cam.persp.solid = cfg.Solid, cfg.Solid
+		cam.ortho.walls, cam.persp.walls = cfg.Walls, cfg.Walls
 		return cam
 	}
 }

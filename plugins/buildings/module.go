@@ -3,6 +3,7 @@ package buildings
 import (
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
 )
@@ -25,8 +26,14 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 	m.built = true
 }
 
+// RunPlan carries out the players' settings at once and raises the buildings in the simulation.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	clock.Simulate(m.p.worldPlugin.Write().Clock(), ctx, d, m.step)
+	p := m.p
+	p.opened.Drain(func(i command.Issued[OpenRooms]) { p.write.OpenRooms(i.Command.On) })
+	p.openedBehind.Drain(func(i command.Issued[OpenRoomsBehind]) {
+		p.write.OpenRoomsBehind(i.Command.On)
+	})
+	clock.Simulate(p.worldPlugin.Write().Clock(), ctx, d, m.step)
 }
 
 func (m *module) simulate(ctx goke.RunCtx, step time.Duration) { ctx.Run(m.raised, step) }

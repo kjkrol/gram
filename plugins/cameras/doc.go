@@ -42,32 +42,35 @@
 // # Cage
 //
 // A [Cage] is where the cameras may be: a game hands the one of its map (the topography is one)
-// or its own. A line of sight stops where it is not Free, so a camera picks the point under the
-// cursor on the top of what is solid there; a [Grained] cage steps finer near what is thin.
+// or its own, and in Config.Walls what stands on it holding a camera's eye and stopping its cursor
+// while the stick's foot passes it (the buildings; [Cages] makes one cage of several). A line of
+// sight stops where it is not Free, so a camera picks the point under the cursor on the top of
+// what is solid there; a [Grained] cage steps finer near what is thin, and an [Opens] one lets a
+// camera into what it opens before it as the camera is fastened (a house a unit stands in).
 //
 // # Views
 //
 // In relief a camera hangs on a stick whose foot is the point in the middle of the screen: a pan
 // slides the foot over the world at its height, [Turn] turns the stick about the upright through
-// it, [Tilt] leans it from straight down to Config.MinPitch over the ground. Isometrically (the
-// 2:1 view of Transport Tycoon, heights lifting what stands) is the stick turned an eighth and
-// leaning at asin(TileH/TileW). The view is orthographic, Zoom screen pixels a world unit, or,
-// where the Config reaches it, in perspective; [View] switches between the two keeping the foot,
-// the turn, the pitch and the scale. Orthographically the whole screen stays over the world at
-// sea level: a pan stops at the edge, and zooming out stops where the screen just fits the world.
-// In perspective the eye stands at the stick's end, the wheel drawing it and the foot towards the
-// cursor; where the cage puts something solid at the eye, it is lifted straight up and let down
-// as the way clears. Behind an entity the eye is held in the perspective, whatever view the
-// camera stood in, on the arm the settings say ([Arm], Config.Arm: its length in cells, its tilt
-// in degrees, under Config.MinPitch too, and the share of the entity's height it is aimed up
-// at), shortened where the cage puts something solid between, nothing zooming it but the arm's
-// own setting and [View] switching nothing; the view it came from, with its scale and its stick,
-// comes back on letting go, and a camera whose Config reaches no perspective is fastened behind
-// nothing. The mouse turns the camera round the entity and, where the arm lets (Arm.Tilts),
-// tilts it; the camera eases back behind the entity only as it goes on and a second after the
-// mouse. On a world with a scale the ground far off sinks under the eye's level.
-// Riding in an entity the eye is the entity's world.Eye, going with it and looking the way it
-// faces. A camera in relief saved before the stick begins afresh, the log naming it.
+// it, [Tilt] leans it from straight down to Config.MinPitch over the ground. Isometrically (the 2:1
+// view of Transport Tycoon, heights lifting what stands) is the stick turned an eighth and leaning
+// at asin(TileH/TileW). The view is orthographic, Zoom screen pixels a world unit, or, where the
+// Config reaches it, in perspective; [View] switches between the two keeping the foot, the turn,
+// the pitch and the scale. Orthographically the whole screen stays over the world at sea level: a
+// pan stops at the edge, and zooming out stops where the screen just fits the world. In perspective
+// the eye stands at the stick's end, the wheel drawing it and the foot towards the cursor; where
+// the cage puts something solid at the eye, it is lifted straight up and let down as the way
+// clears. Behind an entity the eye is held in the perspective, whatever view the camera stood in,
+// on the arm the settings say ([Arm], Config.Arm: its length in cells, its tilt in degrees, under
+// Config.MinPitch too, and the share of the entity's height it is aimed up at), shortened where the
+// cage puts something solid between and leaning flatter under a low roof over the entity, nothing
+// zooming it but the arm's own setting and [View] switching nothing; the view it came from, with
+// its scale and its stick, comes back on letting go, and a camera whose Config reaches no
+// perspective is fastened behind nothing. The mouse turns the camera round the entity and, where
+// the arm lets (Arm.Tilts), tilts it; the camera eases back behind the entity only as it goes on
+// and a second after the mouse. On a world with a scale the ground far off sinks under the eye's
+// level. Riding in an entity the eye is the entity's world.Eye, going with it and looking the way
+// it faces. A camera in relief saved before the stick begins afresh, the log naming it.
 //
 // # Commands
 //

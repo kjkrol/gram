@@ -65,7 +65,7 @@ make demo-rules-guard                                           # guards on a pl
 make demo-board-atlas                                           # a small flat board from the game's own atlas, the water a material
 make demo-board-mine                                            # a mine in a hillock: a timbered shaft from its mouth at the hill's foot down into a cave under the plain; a miner on WSAD, V rides him through it
 make demo-board-roads                                           # two villages either side of a river: roads laid with Shift+R, planned, priced and built; an old tunnel under the hill, Shift+T digs another; I brings the winter
-make demo-board-buildings                                       # a village street on a slope: buildings as solids of a map's lines, whole and lit at dusk near, bodies alone far off; a hero on WSAD walks in by a door, the house giving way over its room, the sun falling in by the windows
+make demo-board-buildings                                       # a village street on a slope: buildings as solids of a map's lines, whole and lit at dusk near, bodies alone far off; a hero on WSAD walks in by a door, the house giving way over its room, the sun falling in by the windows; V rides him into a house
 make demo-board-forest-army                                     # a forest and two armies folded far off and unfolded near: trees, soldiers, a battle either way
 make demo-navigation-square                                     # units sent round a wall, over a river by a bridge a wagon is too wide for; walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-hex                                        # the same on a hex board
@@ -205,7 +205,7 @@ Decisions the user has made; they are not up for revisiting in passing.
   hour, the picture's resolution and the detail and its following the frame budget, the ground's
   haze, the shadows' detail and the lamps' shadows, the sectors and their levels, how far the
   bodies stand whole and its following the frame budget, before which cameras what gives way
-  does, the minimap
+  does and a house a unit stands in opens, the minimap
   shown and turning are set on F10 alone; the command stays, for a game to bind a key of its own.
   The tempo and the telemetry panel keep theirs.
   A key held, down or let go leaves the chords with Shift, Ctrl or Alt to these shortcuts unless
@@ -417,8 +417,14 @@ Decisions the user has made; they are not up for revisiting in passing.
   before a camera loose over the world or centred on a unit from the start, before one riding
   a unit (FPP, TPP) not, each a checkbox on a boolean of the world's settings
   (`world.GiveWay`, `world.GiveWayRiding`). A plugin's solid gives way the same, drawn among the
-  figures (`world.Write.GivesWay`: the buildings near, a house's room an uncovered unit stands in
-  bared whole).
+  figures (`world.Write.GivesWay`: the buildings near). A house an uncovered unit stands in opens
+  round its room by the buildings' own checkboxes (the user's word, 2026-11-19): before the
+  tactical view and behind a unit (`buildings.OpenRooms`, `OpenRoomsBehind`; Madeira's tactical
+  shut at the start), never inside one, which sees the room from inside; an open house lets the
+  cursor and the camera's eye in, a shut one stops both (`cameras.Config.Walls`). Open, it is
+  cut away as The Sims 1 cut a house (the user's word, 2026-11-20): the walls it shows the
+  camera stand low where they stood, the others as high as the room, no roof, its walls as
+  thick as its kind says (`buildings.Spec.Wall`).
 - **What is drawn over what is Z's alone**, never a layer, the order of adding or the order a
   plugin registers in: every piece of the world lies at a height (`render.At`; what lies on a
   surface at a small lift over it — a cell held, a bridge in hand, a field's piece at

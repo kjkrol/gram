@@ -38,6 +38,9 @@ type orthoCamera struct {
 	fine func(x, y float32) (step, thin float32)
 	// nil, under ground alone
 	solid func(x, y, z float32) (float32, bool)
+	// what stops the cursor, as the camera is fastened (how); nil, the ground
+	walls *Walls
+	how   func() contract.How
 	// the frame while a part of it is drawn, to come back to
 	cropped *orthoFrame
 	// a copy's extent, as it stood when the copy was taken
@@ -147,7 +150,7 @@ func (c *orthoCamera) lean() {
 func (c *orthoCamera) plant() {
 	if c.ground != nil {
 		w, h := c.Viewport()
-		if _, _, z, hit := c.Pick(w/2, h/2); hit {
+		if _, _, z, hit := c.pick(w/2, h/2, nil); hit {
 			p := c.proj
 			k := (float64(z) - c.foot[2]) / float64(p.sp)
 			c.foot[0] += k * float64(p.sin*p.lift)
@@ -240,16 +243,39 @@ func (c *orthoCamera) screen(x, y, z float64) (float64, float64) {
 	return sx * float64(c.scale), sy * float64(c.scale)
 }
 
+// Pick is the first point the line of sight through (sx, sy) meets of what stops the cursor.
 func (c *orthoCamera) Pick(sx, sy float32) (float32, float32, float32, bool) {
-	if c.ground == nil {
+	return c.pick(sx, sy, c.walls)
+}
+
+// pick is the first point the line of sight through (sx, sy) meets of what walls makes solid,
+// the ground's where walls is nil
+func (c *orthoCamera) pick(sx, sy float32, walls *Walls) (float32, float32, float32, bool) {
+	if c.ground == nil && walls == nil {
 		x, y := c.Unproject(sx, sy, 0)
 		return x, y, 0, true
 	}
 	low, high := c.layer()
+	solid, fine := solidOf(c.solid, c.ground), c.fine
+	if walls != nil {
+		solid, fine = walls.solid(howOf(c.how)), walls.Fine
+		if walls.Span != nil {
+			l, h := walls.Span()
+			low, high = min(low, l), max(high, h+c.Headroom)
+		}
+	}
 	x0, y0 := c.Unproject(sx, sy, high)
 	x1, y1 := c.Unproject(sx, sy, high-1)
 	s := sight{o: [3]float32{x0, y0, high}, d: [3]float32{x1 - x0, y1 - y0, -1}}
-	return s.pick(solidOf(c.solid, c.ground), c.fine, high-low+1, c.Cell/2, high)
+	return s.pick(solid, fine, high-low+1, c.Cell/2, high)
+}
+
+// howOf is how the camera is fastened, as how says; loose where nothing says
+func howOf(how func() contract.How) contract.How {
+	if how == nil {
+		return contract.Loose
+	}
+	return how()
 }
 
 func solidOf(solid func(x, y, z float32) (float32, bool),
@@ -312,6 +338,7 @@ func (c *orthoCamera) copyInto(dst *orthoCamera) {
 	low, high := c.layer()
 	dst.still, dst.low, dst.high = true, low, high-c.Headroom
 	dst.extent, dst.ground, dst.fine, dst.solid, dst.cropped = nil, nil, nil, nil, nil
+	dst.walls, dst.how = nil, nil
 }
 
 func (c *orthoCamera) Visible(box contract.AABB) bool {

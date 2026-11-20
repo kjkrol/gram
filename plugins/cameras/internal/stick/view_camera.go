@@ -219,6 +219,8 @@ func newCamera(
 	persp.bend = bend
 	persp.look()
 	c := &viewCamera{ortho: ortho, persp: persp, reaches: reaches, sight: 1}
+	how := func() contract.How { return c.fastening.How }
+	ortho.how, persp.how = how, how
 	c.cur = c.ortho
 	if cfg.MinZoom > 0 {
 		c.SetMinZoom(cfg.MinZoom)

@@ -883,6 +883,16 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
 - A camera's `Sight()` is a multiple of the world's (`world.Config.LOD.Sight`), 1 as made,
   saved as the multiple; `world.Read.Sight(cam)` the distance; a world sight of 0 has no end.
 - `cameras/cameratest` imports neither render nor the world, so their own tests use it too.
+- **The eye and the cursor stop at the walls, the stick's foot rides the ground**
+  (`Config.Walls`, 2026-11-19, the user's word): the Cage is the ground's (the foot: `middle`,
+  `plant`, `topOf`), the Walls (the buildings) composed with it for the cursor (`Pick`), the free
+  eye's lift (`need`), the arm and the riding eye, asked by the camera's how (`Opens.FreeTo`: a
+  house open before it); the foot on the roofs jumped as a view crossed a town.
+- **The arm marches as the cursor does** (`sight.pick`: the grain, bisection, `armMargin` short of
+  the first solid; it stepped a quarter of a cell and stood a step out at least, in the rock under
+  Madeira's tunnels) **and drops under a low roof** (`Keeper.drop`), only where a roof stands
+  over the aim as high as the arm rises: a wall under the sky shortens it, it never slips in at a
+  door. Dropped at once, eased back.
 
 ## driving
 
@@ -1148,9 +1158,18 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
   pieces carry `world.Unseen`, the plugin drawing the room with its building.
 - **Near, the solids are drawn among the figures** (`near.go`, an `Overlying` source, so they
   give way: `world.Write.GivesWay`, asked `Read.GivesWayDrawn(cam)`); far, at the strategic
-  scale, with the ground as before. A room an uncovered entity stands in (the interiors'
-  `Read`) is drawn bared: its floor, its far walls with their openings and the inside, the
-  near walls and the roof given way over it whole. A unit's live shadow lies on the ground's
+  scale, with the ground as before. A house open before the camera (an uncovered entity in its
+  room, the settings saying so) is cut away as The Sims 1 cut a house (the user's word,
+  2026-11-20): drawn apart (`cut` takes its parts and its inside out of the sectors' ranges,
+  `SolidOpen` on), the walls showing the eye their outer faces a low wall where they stood
+  (`openWalls`), the others as high as the room, no roof, no other part; `interior.wgsl` draws
+  the walls' tops (split at a door in a wall cut low), the ends of those standing over the low
+  ones and a door's threshold, the sections in the walls' outer colour lit as the outside. Its
+  floor and far walls still
+  go into the uncovered depth (`bared.wgsl`), so what stands before it gives way. One shut with
+  an uncovered entity in its room is drawn apart too, giving way to none (the switches govern the
+  house with a unit inside, the world's `GiveWay` what stands before a unit). A unit's live
+  shadow lies on the ground's
   depth alone, so it falls on no near building. The rooms' insides are kept on the GPU with the
   stock, a buffer of their own (the user's word, 2026-11-19: nothing sent a frame that has not
   changed): a frame finds the bared rooms by their places, a range of one each, and a lamp
@@ -1158,6 +1177,34 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
 - In the board's field a standing room's cells skip their solid kind and stand a foundation
   under the floor (`footed`), and its door's gap is half a wall's thickness wider either side:
   a walker stopped at the cell's edge and in the doorway before.
+- **The walls' look** (the user's word, 2026-11-20: Madeira's houses, lime white the most,
+  pastels, basalt cantaria): `plaster` over every wall, `ashlar` for the plinth under the
+  storeys' ground, `quoined` and `framed` for the dressed stone (`Spec.Stone`), all sized by the
+  storey (`storeyMetres`), their detail faded by the pixel's span taken before the first
+  `discard` (`fwidth` must not run in non-uniform flow). **A shader laying out windows lays them
+  in the units `paneOf` does**: the frames counted in storeys took 3 bays where the panes had 4
+  (48/18 over 12/18 floored). A building's colour is picked in Go (`washOf`: the kind's
+  `Washes` by their shares, or `Walls` tinted a third warmer and a sixth rosier) and written to
+  both its parts and its room, so the cut sections of an open house match its walls.
+- **A house's walls are thick** (the user's word, 2026-11-20): `Spec.wall()` (a twelfth of a
+  storey unless the kind says, thinner than half a walker, so a riding eye never stands in it) in
+  the room's instance; `solid.wgsl` draws the outer faces, `interior.wgsl` the inner a thickness
+  in and the reveals of the door and of the windows through it (four faces a bay, the most bays
+  a wall of a room has, `innerVertices`). **Which windows a wall has is said in three places that
+  must agree**: `paneOf` (the faces and the sun through them), the reveals and `openings` (the
+  shelter's light); a window of the door's storey nearer the door than half the pier between
+  panes is left out of all three (`byDoor`). `wallOf`'s run is the way `facing` takes a wall:
+  `shows` of a wall with the run reversed answers for the wall across it.
+- **The buildings hold the cameras** (`Read`, `cage.go`): the parts as `lay` lays them, a room
+  hollow within its walls' thickness, its door open through it, its windows glass; indexed by
+  the board's cells and
+  laid at `Publish` with the drawn parts (laid at the first query, it took the ground before the
+  board had one: every building at 0). A house an uncovered unit stands in opens before the
+  cameras `Res.Settings` say (`Shut`, `ShutBehind`; never inside a unit; 2026-11-19, the user's
+  word: Madeira's tactical shut at the start, TPP open): cut away there (`opens` over the frame's
+  settings), free to the cursor and the eye; a unit behind a building stays the world's switch. An
+  eye in a room: `interior.wgsl` draws its four walls and its ceiling, `solid.wgsl` leaves the
+  body out (`eyeIn`).
 
 ## roads, with site
 

@@ -41,9 +41,9 @@ type houseRow struct {
 func roomName(name string) string  { return name + ".room" }
 func houseName(name string) string { return name + ".house" }
 
-// rooms defines the kinds of the room of a building of the kind name with a door: its pieces,
+// roomsOf defines the kinds of the room of a building of the kind name with a door: its pieces,
 // a floor a cell as high as a storey, and their handle
-func (t *Types) rooms(name string, spec Spec) {
+func (t *Types) roomsOf(name string, spec Spec) {
 	w, brd := t.p.worldPlugin, t.p.board
 	span := brd.Read(0).Board().Grid.CellSpan()
 	door := spec.Door
@@ -182,6 +182,7 @@ func openings(spec Spec, b standing, h house, ground func(geom.Vec) float32) lig
 	side := geom.NewVec(-b.dir.Y, b.dir.X)
 	hx, hy := b.size.X/2, b.size.Y/2
 	sill, head := paneFrom*spec.Storey, paneTo*spec.Storey
+	door := h.opening(spec)
 	if spec.Bay > 0 && !spec.Parts[0].Blind {
 		for _, w := range [4]struct {
 			mid, run, out geom.Vec
@@ -197,16 +198,16 @@ func openings(spec Spec, b standing, h house, ground func(geom.Vec) float32) lig
 			for k := float32(0); k < bays; k++ {
 				at := -w.wide + (k+0.5)*step
 				mid := off(w.mid, w.run, w.out, at, 0)
-				if ground(off(mid, w.run, w.out, 0, 0.5)) >= h.floor+sill {
+				half := paneWide * step / 2
+				if ground(off(mid, w.run, w.out, 0, 0.5)) >= h.floor+sill ||
+					byDoor(door, w.mid, w.run, w.out, at, half, step) {
 					continue
 				}
-				half := paneWide * step / 2
 				room.Opens(light.Opening{A: off(mid, w.run, w.out, -half, 0),
 					B: off(mid, w.run, w.out, half, 0), Bottom: sill, Top: head})
 			}
 		}
 	}
-	door := h.opening(spec)
 	run := geom.NewVec(-(door[1] - b.mid.Y), door[0]-b.mid.X)
 	if f32.Abs(run.X) > f32.Abs(run.Y) {
 		run = geom.NewVec(f32.Copysign(1, run.X), 0)
@@ -217,6 +218,17 @@ func openings(spec Spec, b standing, h house, ground func(geom.Vec) float32) lig
 	room.Opens(light.Opening{A: at.Sub(scaled(run, door[2])), B: at.Add(scaled(run, door[2])),
 		Top: door[3]})
 	return room
+}
+
+// byDoor reports whether the pane at along the wall of middle mid, running run and facing out,
+// half wide either side in a bay step long, comes nearer the door than half the pier the panes
+// keep apart, as the shaders leave such a window out (byDoor)
+func byDoor(door [4]float32, mid, run, out geom.Vec, at, half, step float32) bool {
+	q := geom.NewVec(door[0]-mid.X, door[1]-mid.Y)
+	if door[2] <= 0 || f32.Abs(q.X*out.X+q.Y*out.Y) > 0.5 {
+		return false
+	}
+	return f32.Abs(at-(q.X*run.X+q.Y*run.Y))-half-door[2] < (1-paneWide)*step/2
 }
 
 func scaled(v geom.Vec, k float32) geom.Vec { return geom.NewVec(v.X*k, v.Y*k) }

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	contract "github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/f32"
 )
 
@@ -148,5 +149,39 @@ func TestPerspCamera_InsideAUnitPickReachesUpASlopeAndMissesTheSky(t *testing.T)
 	c.Turn(math.Pi) // the slope behind: level ground ahead, and the eye looking over it at the sky
 	if x, y, _, ok := c.Pick(200, 20); ok {
 		t.Errorf("a screen point in the sky picked (%v, %v)", x, y)
+	}
+}
+
+func TestIsoCamera_TheCursorStopsAtTheWallsAndTheFootStaysOnTheGround(t *testing.T) {
+	c := testIso(func(_, _ float32) float32 { return 0 }, 0)
+	// a house across x + y from 600 to 640, 100 high, open before a loose camera where it says
+	open := false
+	house := func(x, y, z float32) bool {
+		s := x + y
+		return z >= 0 && (s < 600 || s > 640 || z >= 100)
+	}
+	c.walls = &Walls{
+		Free: func(how contract.How, x, y, z float32) bool {
+			return house(x, y, z) || open && how == contract.Loose && z >= 0
+		},
+		Span: func() (float32, float32) { return 0, 100 },
+	}
+	c.CenterOn(280, 280, 0)
+	sx, sy := c.Project(280, 280, 0) // the ground behind the house, as seen from where x and y grow
+	if x, y, z, ok := c.Pick(sx, sy); !ok || x+y < 600-1e-2 || x+y > 640+1e-2 || z <= 0 {
+		t.Errorf("the cursor over the ground behind the house picked (%v, %v, %v) %v, want the "+
+			"house", x, y, z, ok)
+	}
+	c.Turn(0.1)
+	if c.foot[2] != 0 {
+		t.Errorf("turned, the stick's foot stands at %v, want on the ground behind the house",
+			c.foot)
+	}
+	open = true
+	sx, sy = c.Project(280, 280, 0)
+	if x, y, z, ok := c.Pick(sx, sy); !ok || f32.Abs(x-280) > 1e-2 || f32.Abs(y-280) > 1e-2 ||
+		f32.Abs(z) > 1e-2 {
+		t.Errorf("the house open, the cursor picked (%v, %v, %v) %v, want the ground behind it",
+			x, y, z, ok)
 	}
 }
