@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.24.0 — 2026-11-20
 
 **Added**
 - `cameras.Config.Walls`: what stands on the ground holding a camera's eye and stopping its
