@@ -23,10 +23,12 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> Laid {
     }
     let light = U.TileTint * lightAt(takenAt(p), p);
     var laid = vec4<f32>(0.0);
-    for (var k = 0; k < 9; k++) {
-        let n = near(here, k);
+    // the hem's cells under the board's own, each in the order the cells are laid
+    // (a square board has none: its own alone)
+    for (var k = select(9, 0, hex); k < 18; k++) {
+        let n = near(here, k % 9);
         if n.z > 0.5 {
-            laid = over(tileAt(n.xy, p, light), laid);
+            laid = over(tileAt(n.xy, p, light, k >= 9), laid);
         }
     }
     if laid.a <= 0.0 {
@@ -36,11 +38,18 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> Laid {
 }
 
 // tileAt is what the tile of the cell c lays at p, the material over it and the covers on it over
-// that, the tile and the covers in light: the tile nothing where its box, leant with the wind,
+// that, the tile and the covers in light, c a cell of the board (own) or of its hem, drawn as the
+// board's cell beside it: the tile nothing where its box, leant with the wind,
 // does not reach, where its material draws it or where it lies at L6; leant and under its
 // material through L3, the covers at L2 and finer alone.
-fn tileAt(c: vec2<f32>, p: vec2<f32>, light: vec3<f32>) -> vec4<f32> {
-    let b = folded(c);
+fn tileAt(c: vec2<f32>, p: vec2<f32>, light: vec3<f32>, own: bool) -> vec4<f32> {
+    var b = folded(c);
+    if (b.z > 0.5) != own {
+        return vec4<f32>(0.0);
+    }
+    if !own {
+        b = hemmed(c, p);
+    }
     if b.z < 0.5 {
         return vec4<f32>(0.0);
     }

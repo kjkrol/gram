@@ -300,6 +300,14 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
   map through `WithMap` (the topography is one, the board's windy map another). Its methods stay
   where no plugin calls one; never treat them as dead code: a point with no example gets one
   under `examples/` (`examples/board/custom-map`, `ExamplePlugin_WithMap`).
+- **A level's geography may be a map in files** (`geography:` in the level, `geography.go`,
+  2026-11-21): a second source beside the level's own relief and ways, never their
+  replacement; the legend's drawing and the entities stay the level's. It turns the map into
+  the structures the level's own entries become (`roadPath`, a river's cells and nodes, the
+  kinds under the drawing) and runs the one code after: the same network, the same "a road
+  over a river", the same `graded`. The map is in metres, the board in units: every place and
+  width goes through the world's scale. `board.Level` stays the one level
+  out of a file; `mapfile.File` is what it takes its ground from.
 - What draws reads the cells as published (`Read.Drawn`, `Read.DrawnHeights`), a cell copied
   where its version differs.
 - `grid.Grid` knows its own directions; nobody else writes a table, a bit or a vector of them.
@@ -386,7 +394,26 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
   line); one broken later is not built, said in the log.
 - Occupancy: every unit holds the cell it stands on, on its level (a walker on a deck and one
   under it share a cell); one mid-step holds both cells and is left to navigation.
-- Maps: a hex row is indented; `relief` is `cells` or `corners`, in metres through `world.Scale`;
+- **A hex board keeps to a rectangle** (the user's word, 2026-11-21: the parallelogram was a
+  bug): every other row half a cell east. A cell's id stays axial and so does all geometry
+  (`CellCenter`, `CellAt`, `Step`, `Offset`); only which cells exist and their numbering
+  changed: column `q + ⌊r/2⌋`, `Coords`/`At` a column and a row, `Ordinal` row by row. So
+  `Offset(i)` is no difference of `Coords` on a hex board: find a neighbour with `Toward`,
+  never by adding to `Coords`; a line of cells down a column zigzags, a straight one runs
+  along a direction. Whatever keeps a table a cell (the tiles', the painter's and the grid's
+  shaders, the relief's corners, the hexes' shader) finds a cell's slot by its column and row
+  and its place by its axial pair: `tableOf` and `axialOf` in the shaders. Wrapping along y
+  needs an even number of rows.
+- **A hex board's hem** (the user's word, 2026-11-21: the rectangle is filled): the cells
+  beside the board, cut to the rectangle it keeps to (`relief.HexRim`), are drawn and have
+  ground but are no cells: nothing stands, walks or is selected there. One rule in three
+  places, changed together: the tiles' shaders draw a hem cell as the board's nearest
+  (`hemmed`, under the board's own cells), the relief gives it ground from the corners it
+  shares with the board, the rest at their mean (`Relief.Hem`, `hemFacet`; the walk along a
+  ray stops at the rim's top and bottom, which cut triangles), and the hexes' renderer lays
+  it as an instance like a cell's, its corners clamped to the rim in the shader (`U.Rim`),
+  walls down the edges that lie on the rim. A wrapping board has no hem.
+- Maps: every other row of a hex drawing is indented; `relief` is `cells` or `corners`, in metres through `world.Scale`;
   a river flows down in the order its points are given; with a relief every cell of a `Graded`
   road lies level or on an even ramp by its corners on either grid (`ground.RoadFits`; on a hex
   relief by cells the cell where level ground turns into a ramp bends, so a climbing road leads
@@ -435,10 +462,12 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
   `GroundSpan` is theirs.
 - The relief: the cells' corners, which the neighbouring cells share, on both grids (the user,
   2026-10-31: a hex is six equilateral triangles from its middle, at the mean of its corners);
-  on a hex grid each cell owns its top and top-right corners (`relief.HexCorners`). `GroundAt`,
+  on a hex grid each cell owns its top and top-right corners (`relief.HexCorners`), in a
+  table a column of cells wider either side of the board and a row longer, some of whose
+  slots are no cell's (`Relief.cornered`; a copy of the relief carries the marks). `GroundAt`,
   `Along` and the hexes' shader share one triangular lattice (`onLattice`): change one, change
   all. The corners' facing lives in an image in the relief's order, the middle's worked out in
-  the shader. A hex save of a level a cell loads, every corner at the mean of its cells. It lives
+  the shader. It lives
   on the plugin's own entity. `world.Z`, the relief and `Heights` are the world's heights, not
   the view: sight reads them in a top-down game too. The altitude pass has a third query
   (`d/prelude`, 2026-11-06: `Fixed` and `PartOf`, no `cell.On`, no `unit.Mover`) setting a
@@ -1211,6 +1240,51 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
   settings), free to the cursor and the eye; a unit behind a building stays the world's switch. An
   eye in a room: `interior.wgsl` draws its four walls and its ceiling, `solid.wgsl` leaves the
   body out (`eyeIn`).
+
+## mosaic
+
+The ground as a mosaic of cells round points (`github.com/kjkrol/mosaic`, joined by `go.work`):
+stage 2A of gram's third grid (2026-11-21), the ground and its drawing alone. No board stands on
+it, no cell is an entity, nothing walks it yet: those are the stages after (the grid's contract,
+the board on the mosaic, roads and navigation).
+
+- Made with the world alone, `NewPlugin(w, Map, Config)`; a world with heights. It sets the
+  world's ground (`Write.SetGround`) and is a `cameras.Cage`.
+- **The library speaks metres, gram levels**: `Config.Tolerances` is the one place a level
+  becomes a tolerance. A sector is shown at its ticked level's, so one diagram serves every
+  camera; the ladder is the world's, untouched.
+- **A road is laid twice on one path**: in full (lanes, a pavement over a kerb, a verge, a row
+  of the ground's own closing it) for the tolerances up to `fullUpTo`, and as a ribbon from
+  `plainly`; a junction the same. Rows either side of a line lie as far from it, so a
+  pavement's row lies half a lane from the kerb whatever its width.
+- The work is the publisher's, within `Config.Cells` and `Config.Sectors` a frame: a sector
+  whose level changed is shown anew, the cells that changes are worked out, and the sectors the
+  plane says were redrawn get their triangles laid anew. **A batch is swapped whole**
+  (`Config.Shown` sectors shown, every sector that redraws laid, then all drawn at once): laid
+  one by one, neighbours were of two states of the plane and the ground showed holes while the
+  levels changed (2026-11-21).
+- **A sector is culled by what its triangles cover** (`laid.box`), never by its rectangle: a
+  coarse cell reaches well past its sector, and every laid sector is tried, seen by the view or
+  not.
+- **A level is files** (the user's word, 2026-11-21), read by `board/mapfile` (the user's
+  choice of place: the mosaic is the board's third grid, so a map's format is the board's; no
+  package of its own in gram's root). `Load` and `Cut` are thin entries over it with the
+  mosaic's own limits (one section, a junction's straight angle, the manifest's `mosaic:`
+  part). The mosaic's points are worked out from the level, never stored in it. The tests
+  load their map from `board/mapfile/testdata/level`, never a `Map` built in Go (the user's
+  word).
+- A triangle is an instance of six vec4 (its corners with its colour's channels, the ways up
+  off the ground), a sector a `render.Instances` of its own: `render` has no vertex buffers.
+- **A level in tiles** (`Cut`, the layout in the README): two tiers, `0` and the overview `3`
+  (eight times the side, every eighth pixel, what `Cutting.Overview` says is seen from far
+  off). A feature whole in every tile it touches within the margin, read once by its id; an
+  area wider than a tile clipped; a tile absent the sea. `Load` reads a level in tiles whole
+  (`mapfile.File.Whole`): the plane is still built at the start. A tile's read failing later
+  panics, so `Whole` is called first.
+- Not there yet: the ground's baked shade and height image (`render.GroundHeights`) for other
+  plugins' shaders, the air's haze, settings, a saved state, the ground built tile by tile.
+- A pixel may show through where many slivers meet at a corner's middle: the cells' corners are
+  kept to a millimetre.
 
 ## roads, with site
 

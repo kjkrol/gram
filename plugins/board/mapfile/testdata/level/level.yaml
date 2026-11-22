@@ -1,0 +1,17 @@
+# hills 384 m a side: a crossing in the middle, a road leaving it askew
+size: [384, 384]
+seed: 3
+heights:
+  file: heights.png
+  pixel: 4
+  lowest: -30
+  step: 0.001
+features: features.geojson
+corner: 8
+roads:
+  residential:
+    lanes: 2
+    lane: 3.5
+    walk: 2.5
+    kerb: 0.15
+    verge: 1.5

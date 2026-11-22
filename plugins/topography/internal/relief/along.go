@@ -95,9 +95,19 @@ func (r *Relief) hexAlong(origin, dir geom.Vec, length float32, visit func(d, al
 	_, nextI, deltaI := lattice(fi, bi)
 	_, nextJ, deltaJ := lattice(fj, bj)
 	_, nextS, deltaS := lattice(fi+fj, bi+bj)
+	// the rim cuts the hem's triangles along its top and bottom, lines of no triangle's
+	cut := [2]float64{math.Inf(1), math.Inf(1)}
+	if dir.Y != 0 {
+		rim := HexRim(int(r.sq.Cols), int(r.sq.Rows), r.sq.Cell)
+		for k, y := range [2]float32{rim.TopLeft.Y, rim.BottomRight.Y} {
+			if at := float64(y-origin.Y) / float64(dir.Y); at > 0 {
+				cut[k] = at
+			}
+		}
+	}
 	last, walked := 0.0, false // the ground where the stretch before ended
 	for t := 0.0; t < end; {
-		next := min(nextI, nextJ, nextS, end)
+		next := min(nextI, nextJ, nextS, cut[0], cut[1], end)
 		switch next {
 		case nextI:
 			nextI += deltaI
@@ -105,6 +115,10 @@ func (r *Relief) hexAlong(origin, dir geom.Vec, length float32, visit func(d, al
 			nextJ += deltaJ
 		case nextS:
 			nextS += deltaS
+		case cut[0]:
+			cut[0] = math.Inf(1)
+		case cut[1]:
+			cut[1] = math.Inf(1)
 		}
 		if next <= t {
 			continue // a corner, the lines through it crossed at once

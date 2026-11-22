@@ -1,0 +1,20 @@
+# a metre a unit; the features' places are metres east and north of the south-west corner
+size: [1536, 1536]
+seed: 7
+heights:
+  file: heights.png
+  # metres a pixel, the height of the value 0 and the metres a step of the value
+  pixel: 2
+  lowest: -60
+  step: 0.002
+features: features.geojson
+# the radius the kerbs round a junction's corners at
+corner: 8
+# how a road of each highway lies across
+roads:
+  residential:
+    lanes: 2
+    lane: 3.5
+    walk: 2.5
+    kerb: 0.15
+    verge: 1.5

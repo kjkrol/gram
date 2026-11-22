@@ -12,11 +12,12 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
     let here = cellAt(p);
     var laid = vec4<f32>(0.0);
     if U.TileHex > 0.5 {
-        for (var k = 0; k < 7; k++) {
-            laid = over(materialAt(near(here, k).xy, p), laid);
+        // the hem's cells under the board's own
+        for (var k = 0; k < 14; k++) {
+            laid = over(materialAt(near(here, k % 7).xy, p, k >= 7), laid);
         }
     } else {
-        laid = materialAt(here, p);
+        laid = materialAt(here, p, true);
     }
     if laid.a <= 0.0 {
         discard;
@@ -26,8 +27,14 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
 
 // materialAt is the material of the cell c over its box at p, nothing where c is drawn by its
 // sprite, its box does not reach or it lies at L6.
-fn materialAt(c: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
-    let b = folded(c);
+fn materialAt(c: vec2<f32>, p: vec2<f32>, own: bool) -> vec4<f32> {
+    var b = folded(c);
+    if (b.z > 0.5) != own {
+        return vec4<f32>(0.0);
+    }
+    if !own {
+        b = hemmed(c, p);
+    }
     let level = levelOf(b.xy);
     if b.z < 0.5 || (byteOf(b.xy, 0.0, 0.0, 3) & flagShaded) == 0u || level >= 6u {
         return vec4<f32>(0.0);

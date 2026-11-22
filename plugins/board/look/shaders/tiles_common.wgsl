@@ -3,8 +3,8 @@
 // covers on it, how it sways, its material and its flags; the sprites are the sheet's (image 0),
 // found through their rectangles (image 1, two pixels a sprite, 256 a row: left and top, then
 // right and bottom, a coordinate in two bytes). A square board's cells are U.TileBox across; a hex
-// board's (U.TileHex) are pointy-top, U.TileSide from centre to corner, their axial q and r its
-// columns and rows. Along an axis U.TileWrap says wraps the cells run on. Where U.TileSeen, the
+// board's (U.TileHex) are pointy-top, U.TileSide from centre to corner, every other row half a
+// cell east: a cell is told by its axial q and r, its block found by its column and row. Along an axis U.TileWrap says wraps the cells run on. Where U.TileSeen, the
 // world's sectors are seen at their levels (image 3, a pixel a sector, red its lod.Level;
 // U.TileSectors.xy of them across and down, U.TileSectors.zw large): at L2 and finer a cell's tile,
 // its covers and its way, at L3 its tile and its way, at L4 and L5 its tile in one colour alone
@@ -88,9 +88,26 @@ fn centreOf(c: vec2<f32>) -> vec2<f32> {
     return (c + 0.5) * U.TileBox;
 }
 
+// tableOf is the column and row of the cell c: a hex board's axial cell's, a row's cells
+// beginning half the row's number west of q 0; a square board's cell is its own.
+fn tableOf(c: vec2<f32>) -> vec2<f32> {
+    if U.TileHex > 0.5 {
+        return vec2<f32>(c.x + floor(c.y / 2.0), c.y);
+    }
+    return c;
+}
+
+// axialOf is the cell in the column and row t, a hex board's as its axial q and r.
+fn axialOf(t: vec2<f32>) -> vec2<f32> {
+    if U.TileHex > 0.5 {
+        return vec2<f32>(t.x - floor(t.y / 2.0), t.y);
+    }
+    return t;
+}
+
 // folded is the board's own cell c stands for, along an axis that wraps; z 0 off the board.
 fn folded(c: vec2<f32>) -> vec3<f32> {
-    var f = c;
+    var f = tableOf(c);
     if U.TileWrap.x > 0.5 {
         f.x = modulo(f.x, U.TileCells.x);
     }
@@ -98,12 +115,34 @@ fn folded(c: vec2<f32>) -> vec3<f32> {
         f.y = modulo(f.y, U.TileCells.y);
     }
     let on = f.x >= 0.0 && f.y >= 0.0 && f.x < U.TileCells.x && f.y < U.TileCells.y;
-    return vec3<f32>(f, select(0.0, 1.0, on));
+    return vec3<f32>(axialOf(f), select(0.0, 1.0, on));
+}
+
+// hemmed is the board's cell the cell c beside a hex board is drawn as at p, where it fills the
+// rectangle the board keeps to, every other row beginning or ending half a cell in and the first
+// and last rows' points apart: the cell of the board nearest it; z 0 where it fills nothing, on
+// a square board or one that wraps.
+fn hemmed(c: vec2<f32>, p: vec2<f32>) -> vec3<f32> {
+    if U.TileHex < 0.5 || U.TileWrap.x > 0.5 || U.TileWrap.y > 0.5 {
+        return vec3<f32>(0.0);
+    }
+    let s = U.TileSide;
+    let left = s - 0.8660254 * s;
+    var wide = 1.7320508 * s * U.TileCells.x;
+    if U.TileCells.y > 1.5 {
+        wide += 0.8660254 * s;
+    }
+    let tall = s * (1.5 * (U.TileCells.y - 1.0) + 2.0);
+    if p.x < left || p.x > left + wide || p.y < 0.0 || p.y > tall {
+        return vec3<f32>(0.0);
+    }
+    let t = clamp(tableOf(c), vec2<f32>(0.0), U.TileCells - 1.0);
+    return vec3<f32>(axialOf(t), 1.0);
 }
 
 // texelOf is the pixel (dx, dy) of the board's cell b's block.
 fn texelOf(b: vec2<f32>, dx: f32, dy: f32) -> vec4<f32> {
-    return imageSrc2At(imageSrc2Origin() + b * 2.0 + vec2<f32>(dx, dy) + 0.5);
+    return imageSrc2At(imageSrc2Origin() + tableOf(b) * 2.0 + vec2<f32>(dx, dy) + 0.5);
 }
 
 // byteIn is the byte k, 0 to 3, of the pixel t.

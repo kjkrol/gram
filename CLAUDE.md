@@ -57,6 +57,7 @@ make demo-look-animation                                        # a gallery of a
 make demo-look-material                                         # a ward's material pulsing, embers drawn out of their state circling it; G calms, F douses
 make demo-look-sky                                              # a sky of the game's own over a valley: its vault, a big orange moon by day, made-up stars
 make demo-look-light                                            # a flat board under a sun of the game's own circling in a day: a tower's shadow baked, walkers' patches, the hero's silhouette (WSAD), a lantern lighting the night, lava taking no shade
+make demo-look-ground                                           # hills and roads on a ground laid as a mosaic: ribbons as on a map far off, lanes, kerbs and pavements drawn in, finer sector by sector
 make demo-rules-effect                                          # an ice witch: frost and frozen as effects; J hastens the selected
 make demo-rules-mechanisms                                      # a lever, a plate and a switch driving trapdoors and a gate; one hero on WSAD, the lever pulled by touch (Space)
 make demo-rules-dialog                                          # conversations from YAML: the miller and the smith
@@ -473,8 +474,11 @@ Built-in plugins (`gram-plugins`): `world` (the foundation: space, entities, the
 clock), `motion` (steering, movement and the leavers past an open edge, made first and run right
 after the world; whatever steers or pushes takes it), `light` (a distant light and the lamps, the
 shadows baked and cast; made before the board and the topography, which draw by it), `board` (grid
-and terrain, cells as entities, what stands on the board, bridges, maps as files; maps of the Earth
-are made by `gramap`, in `gram-madeira-square`), `topography` (a map in relief, the cameras' cage),
+and terrain, cells as entities, what stands on the board, bridges, maps as files, among them the
+geography in metres of `board/mapfile`: heights as an image, lines and areas as GeoJSON, whole
+or in tiles; maps of the Earth are made by `gramap`, a tool of its own,
+github.com/kjkrol/gramap, locally `/home/karol/CODE/gramap`), `topography` (a map in relief, the
+cameras' cage),
 `atmosphere` (the time of day, the climate, the weather), `collision`, `navigation`, `selection`,
 `dialog`, `players` (with `players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`,
 `underground` (tunnels and chambers dug under the ground by `underground/site`'s rules, walked and
@@ -483,7 +487,9 @@ who stands in each, told to the rules as one comes in and goes out, lit there by
 `forest` (forests planted over the board's cells: kinds of trees, stands by the ground's height),
 `buildings` (the buildings of a level's file or of a game's own standing as solids, drawn by the
 plugin at every level, entities where their settlement's sector unfolds; one with a door stands a
-room on its whole cells), `roads` (roads laid with a tool: planned, priced, judged by the game's
+room on its whole cells), `mosaic` (a ground laid as a mosaic of cells round points, github.com/kjkrol/mosaic: hills as fine
+as their shape asks and roads whose lines the cells' edges lie on, drawn sector by sector at the
+tolerance its level has; no board stands on it yet), `roads` (roads laid with a tool: planned, priced, judged by the game's
 rules and built, by `roads/site`'s rules, which a map maker plans its roads by too, as `gramap`
 does), `bullet`,
 `minimap` (small pictures round the players' cameras), `telemetry` (the panel in the corner, a scene

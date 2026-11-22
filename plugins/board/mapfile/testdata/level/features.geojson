@@ -1,0 +1,10 @@
+{
+"type": "FeatureCollection",
+"features": [
+{"type": "Feature", "id": "main-street", "properties": {"highway": "residential", "name": "Main Street"}, "geometry": {"type": "LineString", "coordinates": [[22, 192], [192, 192], [362, 192]]}},
+{"type": "Feature", "id": "north-road-1", "properties": {"highway": "residential", "name": "North Road"}, "geometry": {"type": "LineString", "coordinates": [[192, 362], [192, 280]]}},
+{"type": "Feature", "id": "north-road-2", "properties": {"highway": "residential", "name": "North Road"}, "geometry": {"type": "LineString", "coordinates": [[192, 280], [192, 192]]}},
+{"type": "Feature", "id": "mill-lane", "properties": {"highway": "residential", "name": "Mill Lane"}, "geometry": {"type": "LineString", "coordinates": [[192, 192], [277, 44.776]]}},
+{"type": "Feature", "id": "pond", "properties": {"natural": "water"}, "geometry": {"type": "Polygon", "coordinates": [[[60, 60], [90, 60], [90, 85], [60, 85], [60, 60]]]}}
+]
+}

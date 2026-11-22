@@ -111,8 +111,8 @@ board:
 	}
 }
 
-func TestLay_AHexRowIsAnR(t *testing.T) {
-	g := grid.DefaultGrids{}.Hex(3, 2, 10)
+func TestLay_AHexDrawingsRowsAlternate(t *testing.T) {
+	g := grid.DefaultGrids{}.Hex(3, 4, 10)
 	p := newLevelBoard(t, g, 0)
 	if _, err := lay(t, p, `
 board:
@@ -120,19 +120,34 @@ board:
   cells: |
     . ~ .
      ~ . .
+    . . ~
+     . ~ .
 `); err != nil {
 		t.Fatal(err)
 	}
 	if err := p.Populate(); err != nil {
 		t.Fatal(err)
 	}
+	brd := p.Read(0).Board()
 	for _, c := range []struct {
-		q, r uint32
-		want string
-	}{{1, 0, "water"}, {0, 1, "water"}, {0, 0, "grass"}, {1, 1, "grass"}} {
-		if got := p.Read(0).Board().Kind(g.At(c.q, c.r)).Name.String(); got != c.want {
-			t.Errorf("(q %d, r %d) is %q, want %q", c.q, c.r, got, c.want)
+		col, row uint32
+		want     string
+	}{{1, 0, "water"}, {0, 1, "water"}, {0, 0, "grass"}, {1, 1, "grass"}, {2, 2, "water"},
+		{1, 3, "water"}, {0, 2, "grass"}} {
+		if got := brd.Kind(g.At(c.col, c.row)).Name.String(); got != c.want {
+			t.Errorf("the column %d of the row %d is %q, want %q", c.col, c.row, got, c.want)
 		}
+	}
+	// as drawn: the water of the rows 0 and 1 touch, and those of the rows 2 and 3, each the
+	// other's neighbour to the south-west; a row's first cell lies under the first of two over
+	for _, pair := range [][2][2]uint32{{{1, 0}, {0, 1}}, {{2, 2}, {1, 3}}} {
+		a, b := g.At(pair[0][0], pair[0][1]), g.At(pair[1][0], pair[1][1])
+		if _, ok := grid.Link(g, a, b); !ok {
+			t.Errorf("%v and %v are drawn touching, no neighbours on the board", pair[0], pair[1])
+		}
+	}
+	if a, b := g.CellCenter(g.At(0, 0)), g.CellCenter(g.At(0, 2)); a.X != b.X {
+		t.Errorf("the rows 0 and 2 begin at %g and %g, want one under the other", a.X, b.X)
 	}
 }
 
@@ -426,9 +441,10 @@ func TestLay_AHexRoadLiesAsTransportTycoonLaysIt(t *testing.T) {
 			want:  "level.yaml:5: the road at [1, 0] lies on ground",
 		},
 		"an even ramp, led onto at both ends": {
-			cols:  5,
-			rows:  3,
-			cells: "0 1 2 3 4\n    0.5 1.5 2.5 3.5 4.5\n    1 2 3 4 5",
+			cols: 5,
+			rows: 3,
+			// every other row half a cell east
+			cells: "0 1 2 3 4\n    0.5 1.5 2.5 3.5 4.5\n    0 1 2 3 4",
 			paths: "[[{onto: [0, 1]}, {onto: [4, 1]}]]",
 		},
 		"beside a hill": {

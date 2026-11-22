@@ -34,13 +34,15 @@ type Heights struct {
 // neighbouring cells share: a square grid's lattice, a hex grid's corners with every cell's
 // middle at their mean. Not safe for concurrent use.
 type Relief struct {
-	grid      grid.Grid
-	board     *board.BoardRead // nil where the grid is no board's
-	sq        grid.Shape
-	square    bool
-	cols      int // corners along x on a square grid
-	rows      int // corners along y
-	values    []float32
+	grid   grid.Grid
+	board  *board.BoardRead // nil where the grid is no board's
+	sq     grid.Shape
+	square bool
+	cols   int // corners along x on a square grid
+	rows   int // corners along y
+	values []float32
+	// cornered marks the heights of a hex grid that are a cell's corner; the rest are no one's
+	cornered  []bool
 	version   uint64
 	touched   func(c cell.ID)
 	low, high float32
@@ -72,7 +74,16 @@ func New(g grid.Grid, touched func(c cell.ID)) *Relief {
 		}
 		r.values = make([]float32, r.cols*r.rows)
 	} else {
-		r.values = make([]float32, HexCount(int(r.sq.Cols), int(r.sq.Rows)))
+		cols, rows := int(r.sq.Cols), int(r.sq.Rows)
+		r.values = make([]float32, HexCount(cols, rows))
+		r.cornered = make([]bool, len(r.values))
+		for row := range rows {
+			for col := range cols {
+				for _, i := range HexCorners(cols, col, row) {
+					r.cornered[i] = true
+				}
+			}
+		}
 	}
 	return r
 }
@@ -90,7 +101,8 @@ func (r *Relief) Lattice() (cols, rows int, cell float32, heights []float32, ok 
 // memory: a relief to read alone, changed by nothing.
 func (r *Relief) CopyInto(dst *Relief) {
 	if dst.grid == nil {
-		*dst = Relief{grid: r.grid, sq: r.sq, square: r.square, cols: r.cols, rows: r.rows}
+		*dst = Relief{grid: r.grid, sq: r.sq, square: r.square, cols: r.cols, rows: r.rows,
+			cornered: r.cornered}
 	}
 	if dst.version == r.version && len(dst.values) == len(r.values) {
 		return
@@ -131,15 +143,13 @@ func (r *Relief) fill(h *Heights) {
 	clear(h.Values[n:])
 }
 
-// only when together the runs cover the grid exactly: its corners, or on a hex grid its cells,
-// a level a cell as a hex relief was saved before it held the corners
+// only when together the runs cover the grid's heights exactly
 func (r *Relief) adopt(runs []Heights) bool {
 	n := 0
 	for _, h := range runs {
 		n += int(h.Count)
 	}
-	cells := !r.square && n == r.grid.CellCount()
-	if n != len(r.values) && !cells {
+	if n != len(r.values) {
 		return false
 	}
 	for _, h := range runs {
@@ -147,31 +157,11 @@ func (r *Relief) adopt(runs []Heights) bool {
 			return false
 		}
 	}
-	values := r.values
-	if cells {
-		values = make([]float32, n)
-	}
 	for _, h := range runs {
-		copy(values[h.First:], h.Values[:h.Count])
-	}
-	if cells {
-		r.levelled(values)
+		copy(r.values[h.First:], h.Values[:h.Count])
 	}
 	r.changed()
 	return true
-}
-
-// every corner at the mean of the levels of the cells meeting at it, the levels by the cells'
-// ordinals; in float64, as ground.MeanOfCells means them
-func (r *Relief) levelled(levels []float32) {
-	for i := range r.values {
-		sum, n := 0.0, 0.0
-		r.touching(r.hexVertex(i), func(c cell.ID) {
-			o, _ := r.grid.Ordinal(c)
-			sum, n = sum+float64(levels[o]), n+1
-		})
-		r.values[i] = float32(sum / n)
-	}
 }
 
 // a corner of the lattice on a square grid, on a hex one a corner on the lattice of its
@@ -205,7 +195,8 @@ func (r *Relief) corners(c cell.ID) (vs [6]vertex, n int, ok bool) {
 		return vs, 0, false
 	}
 	if !r.square {
-		mi, mj := 2*int(x)+int(y), int(y)-int(x)
+		q := int(x) - int(y)/2
+		mi, mj := 2*q+int(y), int(y)-q
 		for k, d := range hexCorner {
 			vs[k] = vertex{mi + d[0], mj + d[1]}
 		}
@@ -383,8 +374,8 @@ func (r *Relief) Top(c cell.ID, height float32) (corners [4]float32, level float
 func (r *Relief) touching(v vertex, fn func(c cell.ID)) {
 	if !r.square {
 		for _, d := range hexSpokes[class(v.x, v.y)-1] {
-			if q, row, ok := r.middle(v.x+d[0], v.y+d[1]); ok {
-				fn(r.grid.At(uint32(q), uint32(row)))
+			if col, row, ok := r.middle(v.x+d[0], v.y+d[1]); ok {
+				fn(r.grid.At(uint32(col), uint32(row)))
 			}
 		}
 		return

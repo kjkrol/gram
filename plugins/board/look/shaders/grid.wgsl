@@ -110,7 +110,7 @@ fn drawn(c: vec2<f32>) -> bool {
     if U.GridSeen < 0.5 {
         return true;
     }
-    var f = c;
+    var f = tableOf(c);
     if U.GridWrap.x > 0.5 {
         f.x = modulo(f.x, U.GridCells.x);
     }
@@ -120,7 +120,8 @@ fn drawn(c: vec2<f32>) -> bool {
     var mid = (f + 0.5) * U.GridCell;
     if U.GridHex > 0.5 {
         let s = U.GridCell;
-        mid = vec2<f32>(s * (sqrt(3.0) * f.x + sqrt(3.0) / 2.0 * f.y) + s, s * 1.5 * f.y + s);
+        let q = f.x - floor(f.y / 2.0);
+        mid = vec2<f32>(s * (sqrt(3.0) * q + sqrt(3.0) / 2.0 * f.y) + s, s * 1.5 * f.y + s);
     }
     let s = clamp(floor(mid / U.GridSectors.zw), vec2<f32>(0.0), U.GridSectors.xy - 1.0);
     return u32(imageSrc0At(imageSrc0Origin() + s + 0.5).r * 255.0 + 0.5) <= 2u;
@@ -129,7 +130,17 @@ fn drawn(c: vec2<f32>) -> bool {
 // onBoard reports whether the cell at column or axial cell c is the board's: any along an axis
 // that wraps.
 fn onBoard(c: vec2<f32>) -> bool {
-    let inX = U.GridWrap.x > 0.5 || (c.x >= 0.0 && c.x < U.GridCells.x);
-    let inY = U.GridWrap.y > 0.5 || (c.y >= 0.0 && c.y < U.GridCells.y);
+    let t = tableOf(c);
+    let inX = U.GridWrap.x > 0.5 || (t.x >= 0.0 && t.x < U.GridCells.x);
+    let inY = U.GridWrap.y > 0.5 || (t.y >= 0.0 && t.y < U.GridCells.y);
     return inX && inY;
+}
+
+// tableOf is the column and row of the cell c: a hex board's axial cell's, every other row
+// half a cell east; a square board's cell is its own.
+fn tableOf(c: vec2<f32>) -> vec2<f32> {
+    if U.GridHex > 0.5 {
+        return vec2<f32>(c.x + floor(c.y / 2.0), c.y);
+    }
+    return c;
 }

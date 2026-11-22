@@ -163,7 +163,7 @@ func groundReport(p *topography.Plugin) string {
 
 func TestReporter_SaysHowManySectorsTheFrameDrawnDrewAtEachLevel(t *testing.T) {
 	gputest.Need(t)
-	// the square board covers every sector, the hex one, a rhombus, those its cells' middles lie
+	// the square board covers every sector, the hex one those its cells' middles lie
 	// in, a column's at its level
 	for _, tc := range []struct {
 		name string
@@ -171,7 +171,7 @@ func TestReporter_SaysHowManySectorsTheFrameDrawnDrewAtEachLevel(t *testing.T) {
 		want string
 	}{
 		{"square", grid.DefaultGrids{}.Square(16, 16, 32), "L0 0\nL1 0\nL2 4\nL3 4\nL4 4\nL5 4"},
-		{"hex", grid.DefaultGrids{}.Hex(12, 14, 16), ""},
+		{"hex", grid.DefaultGrids{}.Hex(18, 14, 16), ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			want := tc.want
@@ -194,7 +194,7 @@ func TestReporter_SaysHowManySectorsTheFrameDrawnDrewAtEachLevel(t *testing.T) {
 
 func TestHexes_DrawTheSectorsAtL5AsASheetOfTheTopsFromAbove(t *testing.T) {
 	gputest.Need(t)
-	g := grid.DefaultGrids{}.Hex(12, 14, 16)
+	g := grid.DefaultGrids{}.Hex(18, 14, 16)
 	p, pix := drawnAtLevels(t, g, board.Line{})
 	in := sectorsIn(g)
 	top, perUnit := p.Write().Miniature()
@@ -242,7 +242,7 @@ func nearColour(a, b color.RGBA, by int) bool {
 func TestHexes_DrawTheGridAtL2Alone(t *testing.T) {
 	gputest.Need(t)
 	magenta := color.RGBA{R: 255, B: 255, A: 255}
-	_, pix := drawnAtLevels(t, grid.DefaultGrids{}.Hex(12, 14, 16),
+	_, pix := drawnAtLevels(t, grid.DefaultGrids{}.Hex(18, 14, 16),
 		board.Line{Color: magenta, Width: 3})
 	// by column, clear of the cells of the column before reaching over its edge, a hex's half
 	var lined [4]int

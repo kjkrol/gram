@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+**Added**
+- `mosaic`: a ground laid as a mosaic of cells round points (github.com/kjkrol/mosaic): hills
+  as fine as their shape asks and roads whose lines the cells' edges lie on, drawn sector by
+  sector at the tolerance its level has (`Config.Tolerances`); `examples/look/ground`.
+- `board/mapfile`: a map kept in files, in metres: a manifest, the ground's heights as a 16-bit
+  image and what lies on it as GeoJSON with OpenStreetMap's tag names (`README.md` there is the
+  format). `mapfile.Cut` writes one as tiles of two tiers, the map as it is and an overview,
+  which `mapfile.Load` reads alike.
+- A level's `geography:` lays a square or hex board by such a map: its heights as the relief,
+  its lines tagged highway and waterway as roads and rivers, its areas as kinds of cells.
+
+**Changed**
+- **A hex board keeps to a rectangle.** Every other row lies half a cell east of the one over
+  it, where each row lay half a cell east of the last and the board was a parallelogram.
+  `Coords` and `At` are a cell's column and row; a level's `[x, y]` and its drawing's rows mean
+  them, so a hex level is drawn with every other row indented, and a line down a column no
+  longer leans. The cells beside the board fill the rectangle where a row begins or ends half
+  a cell in and between the first and last rows' points (its hem): drawn as the board's cell
+  beside them, their ground from the corners they share with it, no cells of the board's. A
+  cell's id stays axial, and `Offset(i)` a direction's axial step: on a hex
+  board it is no difference of `Coords`. A game sizes its world √3·size·(columns + ½) by
+  size·(1.5·(rows − 1) + 2).
+- A hex grid wraps along y only with an even number of rows.
+
+**Removed**
+- A save of a game on a hex board made before this does not load: its cells and its relief are
+  laid out otherwise. A hex relief saved a level a cell, as before the corners were kept, is no
+  longer read.
+- The navigation's cache of hierarchies from before this is built anew.
+
 ## v0.24.1 — 2026-11-20
 
 **Added**

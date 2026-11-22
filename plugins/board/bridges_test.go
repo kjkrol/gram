@@ -221,43 +221,62 @@ func TestDecks_ABandLiesAlongItself(t *testing.T) {
 	}
 }
 
+// hexBand is three cells of a hex board in a line to the south-east, and the cell east of the
+// middle one, off the line's side
+func hexBand(t *testing.T, g grid.Grid) (over [3]cell.ID, side cell.ID) {
+	t.Helper()
+	se, _ := grid.Direction(g, 0, 1)
+	east, _ := grid.Direction(g, 1, 0)
+	over[0] = g.At(1, 1)
+	ok1, ok2, ok3 := false, false, false
+	over[1], ok1 = g.Toward(over[0], se)
+	over[2], ok2 = g.Toward(over[1], se)
+	side, ok3 = g.Toward(over[1], east)
+	if !ok1 || !ok2 || !ok3 {
+		t.Fatal("the board ends before the band does")
+	}
+	return over, side
+}
+
 func TestDecks_ABandOnAHexRunsFromEdgeToEdge(t *testing.T) {
 	g := grid.DefaultGrids{}.Hex(5, 5, 10)
+	over, side := hexBand(t, g)
 	d := newDecked(t, g, 130, 90, board.Bridges{},
-		band(g, [2]int{0, 1}, 6, 0, g.At(2, 1), g.At(2, 2), g.At(2, 3))...)
+		band(g, [2]int{0, 1}, 6, 0, over[0], over[1], over[2])...)
 	d.tick()
 	brd := d.p.Read(0).Board()
 	se, _ := grid.Direction(g, 0, 1)
 	s := g.Step(se)
 	l := f32.Hypot(s.X, s.Y)
-	m := g.CellCenter(g.At(2, 2))
+	m := g.CellCenter(over[1])
 	beside := geom.NewVec(m.X-s.Y/l*5, m.Y+s.X/l*5)
-	if got := d.over(m); !slices.Equal(got, []cell.ID{g.At(2, 2)}) {
+	if got := d.over(m); !slices.Equal(got, []cell.ID{over[1]}) {
 		t.Errorf("its middle: decks of %v, want its own", got)
 	}
 	if got := d.over(beside); got != nil {
 		t.Errorf("beside it: decks of %v, want none", got)
 	}
-	if !brd.Reaches(g.At(2, 2), g.At(2, 3)) || brd.Reaches(g.At(2, 2), g.At(3, 2)) {
+	if !brd.Reaches(over[1], over[2]) || brd.Reaches(over[1], side) {
 		t.Error("the band reaches the wrong neighbours")
 	}
-	if brd.Fenced(g.At(2, 2), g.At(2, 3), cell.Land, cell.OnGround) {
+	if brd.Fenced(over[1], over[2], cell.Land, cell.OnGround) {
 		t.Error("a step along the band is fenced")
 	}
-	if !brd.Fenced(g.At(2, 2), g.At(3, 2), cell.Land, cell.OnGround) {
+	if !brd.Fenced(over[1], side, cell.Land, cell.OnGround) {
 		t.Error("a step off the band's side is not fenced")
 	}
 }
 
 func TestRailings_OnAHexRunAlongTheBand(t *testing.T) {
 	g := grid.DefaultGrids{}.Hex(5, 5, 10)
+	over, _ := hexBand(t, g)
 	d := newDecked(t, g, 130, 90, board.Bridges{},
-		band(g, [2]int{0, 1}, 6, 0, g.At(2, 1), g.At(2, 2), g.At(2, 3))...)
+		band(g, [2]int{0, 1}, 6, 0, over[0], over[1], over[2])...)
 	d.tick()
 	se, _ := grid.Direction(g, 0, 1)
 	s := g.Step(se)
 	l := f32.Hypot(s.X, s.Y)
-	m := g.CellCenter(g.At(2, 2))
+	m := g.CellCenter(over[1])
 	var walls []collide.FieldWall
 	d.p.Read(0).Cover().(collision.Field).Walls(world.Layers(cell.Land), collision.Everywhere,
 		geom.NewAABB(geom.NewVec(m.X-2, m.Y-2), geom.NewVec(m.X+2, m.Y+2)),
