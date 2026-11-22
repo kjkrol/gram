@@ -11,14 +11,18 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/mapfile"
+	"github.com/kjkrol/gram/plugins/world"
 )
 
 // heightsOf is an image of cols by rows pixels, each the height in metres at its place, in
@@ -148,7 +152,8 @@ func TestLay_AHexReliefFromAnImageIsItsCellsMiddles(t *testing.T) {
 			for _, p := range append(g.CellOutline(c, nil), g.CellCenter(c)) {
 				a, b := told.Heights()(p), drawn.Heights()(p)
 				if d := a - b; d < -2e-3 || d > 2e-3 {
-					t.Errorf("the hex (%d, %d) at %v: %g by cells, %g from the image", x, y, p, a, b)
+					t.Errorf("the hex (%d, %d) at %v: %g by cells, %g from the image", x, y, p,
+						a, b)
 				}
 			}
 		}
@@ -185,8 +190,10 @@ ways:
 		manifest := "size: [114, 95]\nfeatures: features.geojson\n" +
 			"roads: {residential: {lanes: 1, lane: 4}}\n"
 		files := landFiles(landRoads, manifest, nil,
-			through(g, "main", `"highway":"residential"`, high, 1, [2]uint32{0, 1}, [2]uint32{5, 1}),
-			through(g, "side", `"highway":"residential"`, high, 1, [2]uint32{1, 1}, [2]uint32{1, 5}),
+			through(g, "main", `"highway":"residential"`, high, 1, [2]uint32{0, 1},
+				[2]uint32{5, 1}),
+			through(g, "side", `"highway":"residential"`, high, 1, [2]uint32{1, 1},
+				[2]uint32{1, 5}),
 			through(g, "water", `"waterway":"river"`, high, 1, [2]uint32{3, 2}, [2]uint32{5, 5}),
 			through(g, "beck", `"waterway":"stream"`, high, 1, [2]uint32{3, 4}, [2]uint32{4, 4}),
 			lineOf("fence", `"barrier":"fence"`, [2]float32{0, 0}, [2]float32{50, 50}),
@@ -400,6 +407,175 @@ func TestLay_AWrongGeographySaysWhere(t *testing.T) {
 			"level.yaml")
 		if err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("%s: %v, want %q", name, err, c.want)
+		}
+	}
+}
+
+type spanRow struct {
+	From cell.ID `yaml:"from"`
+	To   cell.ID `yaml:"to"`
+}
+
+type boreRow struct {
+	From cell.ID   `yaml:"from"`
+	To   cell.ID   `yaml:"to"`
+	Via  []cell.ID `yaml:"via"`
+}
+
+type fordRow struct {
+	At  cell.ID `yaml:"at"`
+	Way [2]int  `yaml:"way"`
+}
+
+func newCrossingBoard(t *testing.T, g grid.Grid) *Plugin {
+	t.Helper()
+	p := newLevelBoard(t, g, 0)
+	kinds := p.worldPlugin.Kinds()
+	spec := kind.Spec{comp.Const(world.Position{}), comp.Const(world.Velocity{})}
+	kind.Define[spanRow](kinds, "bridge", spec)
+	kind.Define[boreRow](kinds, "tunnel", spec)
+	kind.Define[fordRow](kinds, "ford", spec)
+	return p
+}
+
+// rowsOf is the level's rows of bridges, tunnels and fords, each as it reads, in order
+func rowsOf(t *testing.T, l *Level) []string {
+	t.Helper()
+	var rows []string
+	note := func(kind string, row any) { rows = append(rows, fmt.Sprintf("%s %+v", kind, row)) }
+	for _, err := range []error{
+		Each(l, func(k string, r spanRow, _ string) error { note(k, r); return nil }),
+		Each(l, func(k string, r boreRow, _ string) error { note(k, r); return nil }),
+		Each(l, func(k string, r fordRow, _ string) error { note(k, r); return nil }),
+	} {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	slices.Sort(rows)
+	return rows
+}
+
+const landCrossings = `
+geography:
+  file: land/level.yaml
+  roads: {residential: road}
+  rivers: {river: {kind: river, width: 6}}
+  bridges: {residential: bridge}
+  tunnels: {residential: tunnel}
+  fords: ford
+`
+
+func TestLay_ALinesBridgeTunnelAndFordAreTheRowsAndTheLeadsOfAFile(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(12, 8, 10)
+	told, err := lay(t, newCrossingBoard(t, g), `
+board:
+  entities:
+    - {kind: bridge, from: [2, 1], to: [4, 1]}
+    - {kind: ford, at: [3, 3], way: [1, 0]}
+    - {kind: tunnel, from: [6, 1], to: [10, 3], via: [[8, 1], [8, 3]]}
+    - {kind: ford, at: [3, 5], way: [-1, 0]}
+ways:
+  roads:
+    road:
+      width: 4
+      paths:
+        - [[0, 1], {onto: [3, 1]}]
+        - [{onto: [3, 1]}, [6, 1], {onto: [7, 1]}]
+        - [{onto: [9, 3]}, [10, 3], [11, 3]]
+        - [[0, 3], {onto: [3, 3]}]
+        - [{onto: [3, 3]}, [5, 3]]
+  rivers:
+    - [{at: [3, 0], kind: river, width: 6}, [3, 7]]
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const high = 80
+	on := func(id, tags string, cells ...[2]uint32) string {
+		return through(g, id, `"highway":"residential"`+tags, high, 1, cells...)
+	}
+	manifest := "size: [120, 80]\nfeatures: features.geojson\n" +
+		"roads: {residential: {lanes: 1, lane: 4}}\n"
+	mid := g.CellCenter(g.At(3, 5))
+	files := landFiles(landCrossings, manifest, nil,
+		on("west", "", [2]uint32{0, 1}, [2]uint32{2, 1}),
+		on("over", `,"bridge":"yes"`, [2]uint32{2, 1}, [2]uint32{4, 1}),
+		on("on", "", [2]uint32{4, 1}, [2]uint32{6, 1}),
+		on("under", `,"tunnel":"yes"`, [2]uint32{6, 1}, [2]uint32{8, 1}, [2]uint32{8, 3},
+			[2]uint32{10, 3}),
+		on("east", "", [2]uint32{10, 3}, [2]uint32{11, 3}),
+		on("lane", "", [2]uint32{0, 3}, [2]uint32{2, 3}),
+		on("wade", `,"ford":"yes"`, [2]uint32{2, 3}, [2]uint32{4, 3}),
+		on("lane on", "", [2]uint32{4, 3}, [2]uint32{5, 3}),
+		through(g, "water", `"waterway":"river"`, high, 1, [2]uint32{3, 0}, [2]uint32{3, 7}),
+		`{"type":"Feature","id":"shallows","properties":{"ford":"yes"},"geometry":{"type":`+
+			fmt.Sprintf(`"Point","coordinates":[%g,%g]}}`, mid.X, high-mid.Y),
+		`{"type":"Feature","id":"wade again","properties":{"ford":"yes"},"geometry":{"type":`+
+			fmt.Sprintf(`"Point","coordinates":[%g,%g]}}`, mid.X, high-mid.Y+20),
+	)
+	drawn, err := newCrossingBoard(t, g).Lay(files, "level.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(told.laid.Ways, drawn.laid.Ways) {
+		t.Errorf("the ways from lines are\n%+v\nfrom paths\n%+v", drawn.laid.Ways,
+			told.laid.Ways)
+	}
+	want, got := rowsOf(t, told), rowsOf(t, drawn)
+	if len(want) != 4 || !slices.Equal(want, got) {
+		t.Errorf("the rows from lines are\n%v\nfrom the file\n%v", got, want)
+	}
+}
+
+func TestLay_ACrossingTheGeographyCannotLaySaysWhy(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(12, 8, 10)
+	const high = 80
+	manifest := "size: [120, 80]\nfeatures: features.geojson\n" +
+		"roads: {residential: {lanes: 1, lane: 4}}\n"
+	road := func(tags string, cells ...[2]uint32) string {
+		return through(g, "way", `"highway":"residential"`+tags, high, 1, cells...)
+	}
+	river := through(g, "water", `"waterway":"river"`, high, 1, [2]uint32{3, 0}, [2]uint32{3, 7})
+	point := func(x, y uint32) string {
+		mid := g.CellCenter(g.At(x, y))
+		return `{"type":"Feature","id":"way","properties":{"ford":"yes"},"geometry":{"type":` +
+			fmt.Sprintf(`"Point","coordinates":[%g,%g]}}`, mid.X, high-mid.Y)
+	}
+	for name, c := range map[string]struct {
+		level, feature, want string
+	}{
+		"no table": {
+			strings.Replace(landCrossings, "  bridges: {residential: bridge}\n", "", 1),
+			road(`,"bridge":"yes"`, [2]uint32{2, 1}, [2]uint32{4, 1}),
+			"the feature way: the level's geography lays no bridge for highway=residential",
+		},
+		"too short": {
+			landCrossings,
+			road(`,"bridge":"yes"`, [2]uint32{2, 1}, [2]uint32{3, 1}),
+			"the feature way: a bridge runs from the cell before it to the cell after",
+		},
+		"off the board": {
+			landCrossings,
+			lineOf("way", `"highway":"residential","tunnel":"yes"`, [2]float32{-30, 65},
+				[2]float32{45, 65}),
+			"the feature way: a tunnel runs from the cell before it to the cell after",
+		},
+		"no river": {
+			landCrossings,
+			point(8, 5),
+			"the feature way: the ford lies on no river",
+		},
+		"no kind": {
+			strings.Replace(landCrossings, "fords: ford", "fords: wade", 1),
+			point(3, 5),
+			`the geography lays a ford as "wade", no kind of entity`,
+		},
+	} {
+		_, err := newCrossingBoard(t, g).Lay(landFiles(c.level, manifest, nil, c.feature, river),
+			"level.yaml")
+		if err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: the level is refused with %v, want %q", name, err, c.want)
 		}
 	}
 }
