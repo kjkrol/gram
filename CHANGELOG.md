@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.25.0 — 2026-11-22
 
 **Added**
 - `mosaic`: a ground laid as a mosaic of cells round points (github.com/kjkrol/mosaic): hills
