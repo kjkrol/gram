@@ -132,9 +132,10 @@
 // The map's heights are the relief, in place of the level's own: at the cells' corners under
 // a square board. A line tagged highway or waterway runs as the kind its table names over the
 // cells its points lie in, joined as a path's are, a road as wide as the table or the map's
-// own roads say; a line no table names is an error. An area lays the cells whose middles it
-// holds as its tag's kind, under the level's drawing. The level's own ways lie beside the
-// map's.
+// own roads say, a river as wide as its line's width tag, metres, one for the line or one a
+// point between semicolons, or as the table; a line no table names is an error. An area lays
+// the cells whose middles it holds as its tag's kind, under the level's drawing. The level's
+// own ways lie beside the map's.
 //
 // A highway's line tagged bridge, tunnel or ford (any value but no) runs from the cell before
 // what it crosses to the cell after, three cells at least: no road is laid between its ends,

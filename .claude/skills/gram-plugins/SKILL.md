@@ -308,6 +308,9 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
   over a river", the same `graded`. The map is in metres, the board in units: every place and
   width goes through the world's scale. `board.Level` stays the one level
   out of a file; `mapfile.File` is what it takes its ground from.
+  A river's width (2026-11-22) is its line's `width` tag, metres, a point's spread over the
+  cells as a path's marks are (`stretch.across`); the table's `width` is the level's, in the
+  world's units, as a path's own.
   A line's bridge, tunnel or ford (2026-11-22) becomes the row a file would write
   (`leveler.make`: YAML parsed into a node, waiting with its feature's name for the errors) and
   two paths of two cells leading onto it, so `bridges`, `underground` and a game's fords read
