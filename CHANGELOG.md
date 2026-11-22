@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.27.0 — 2026-11-22
 
 **Added**
 - A river of a level's `geography:` is as wide as its line's `width` tag says, metres: one
