@@ -6,6 +6,7 @@ import (
 	"maps"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -112,41 +113,104 @@ func (l *leveler) land(g *geography) func(p geom.Vec) float32 {
 	return ground.MeanOfCells(brd, func(c cell.ID) float32 { return at(brd.CellCenter(c)) })
 }
 
-// cells is a line of the map as the cells it runs over, stretch by stretch that lies on the
-// board: its points' cells joined as a level's path joins its own
-func (l *leveler) cells(g *geography, line []geom.Vec) [][]cell.ID {
+// stretch is a part of a map's line lying on the board as the cells it runs over: points are
+// the line's points it has, at the place of each one's cell among cells
+type stretch struct {
+	cells  []cell.ID
+	points []int
+	at     []int
+}
+
+// stretches is a line of the map stretch by stretch that lies on the board: its points' cells
+// joined as a level's path joins its own
+func (l *leveler) stretches(g *geography, line []geom.Vec) []stretch {
 	brd := &l.p.board.read
-	var all [][]cell.ID
-	var run []cell.ID
+	var all []stretch
+	var run stretch
 	end := func() {
-		if len(run) > 1 {
+		if len(run.cells) > 1 {
 			all = append(all, run)
 		}
-		run = nil
+		run = stretch{}
 	}
-	for _, v := range line {
+	begin := func(i int, c cell.ID) {
+		run = stretch{cells: []cell.ID{c}, points: []int{i}, at: []int{0}}
+	}
+	for i, v := range line {
 		c, ok := brd.CellAt(g.at(v))
 		if !ok {
 			end()
 			continue
 		}
-		if len(run) == 0 {
-			run = append(run, c)
+		if len(run.cells) == 0 {
+			begin(i, c)
 			continue
 		}
-		if c == run[len(run)-1] {
+		last := run.cells[len(run.cells)-1]
+		if c == last {
 			continue
 		}
-		step, ok := l.route(run[len(run)-1], c)
+		step, ok := l.route(last, c)
 		if !ok || len(step) < 2 {
 			end()
-			run = append(run, c)
+			begin(i, c)
 			continue
 		}
-		run = append(run, step[1:]...)
+		run.cells = append(run.cells, step[1:]...)
+		run.points = append(run.points, i)
+		run.at = append(run.at, len(run.cells)-1)
 	}
 	end()
 	return all
+}
+
+func (l *leveler) cells(g *geography, line []geom.Vec) [][]cell.ID {
+	var all [][]cell.ID
+	for _, s := range l.stretches(g, line) {
+		all = append(all, s.cells)
+	}
+	return all
+}
+
+// widths is a line's width tag, metres: nothing, one for the whole line, or one a point
+// between semicolons
+func widths(f mapfile.Feature) ([]float32, error) {
+	tag, ok := f.Tags["width"]
+	if !ok {
+		return nil, nil
+	}
+	parts := strings.Split(tag, ";")
+	if len(parts) != 1 && len(parts) != len(f.Path) {
+		return nil, fmt.Errorf("%d widths for its %d points: want one, or one a point",
+			len(parts), len(f.Path))
+	}
+	wide := make([]float32, len(parts))
+	for i, p := range parts {
+		w, err := strconv.ParseFloat(strings.TrimSpace(p), 32)
+		if err != nil || w <= 0 {
+			return nil, fmt.Errorf("the width %q is no number over zero", p)
+		}
+		wide[i] = float32(w)
+	}
+	return wide, nil
+}
+
+// across is how wide a line is at each cell of s but the last: as wide as at the point
+// there, evenly from point to point between
+func (s stretch) across(wide []float32) []float32 {
+	out := make([]float32, len(s.cells)-1)
+	k := 0
+	for i := range out {
+		for k+1 < len(s.at) && s.at[k+1] <= i {
+			k++
+		}
+		out[i] = wide[s.points[k]]
+		if k+1 < len(s.at) {
+			share := float32(i-s.at[k]) / float32(s.at[k+1]-s.at[k])
+			out[i] += (wide[s.points[k+1]] - out[i]) * share
+		}
+	}
+	return out
 }
 
 func named(f mapfile.Feature) string {
@@ -379,15 +443,30 @@ func (l *leveler) waters(g *geography, run func(cells []cell.ID, nodes []network
 		if err != nil {
 			return err
 		}
-		if width <= 0 {
-			return l.errorf(&n, "the %s needs a width: {kind: %s, width: 6}", kind, kind)
+		wide, err := widths(f)
+		if err != nil {
+			return fmt.Errorf("board: %s: %s: %w", g.name, named(f), err)
 		}
-		for _, cells := range l.cells(g, f.Path) {
-			nodes := make([]network.Node, len(cells)-1)
+		if wide == nil && width <= 0 {
+			return l.errorf(&n, "the %s needs a width, here or as the line's width: "+
+				"{kind: %s, width: 6}", kind, kind)
+		}
+		for _, s := range l.stretches(g, f.Path) {
+			nodes := make([]network.Node, len(s.cells)-1)
 			for i := range nodes {
 				nodes[i] = network.Node{Kind: kind, Width: width}
 			}
-			run(cells, nodes)
+			if len(wide) == 1 {
+				for i := range nodes {
+					nodes[i].Width = wide[0] * g.units
+				}
+			}
+			if len(wide) > 1 {
+				for i, w := range s.across(wide) {
+					nodes[i].Width = w * g.units
+				}
+			}
+			run(s.cells, nodes)
 		}
 	}
 	return nil

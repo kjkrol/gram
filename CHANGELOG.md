@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+**Added**
+- A river of a level's `geography:` is as wide as its line's `width` tag says, metres: one
+  number for the line, or one a point between semicolons, even from point to point. The
+  table's width is what a line without the tag takes, and no longer required.
+
 ## v0.26.0 — 2026-11-22
 
 **Added**

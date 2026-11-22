@@ -77,7 +77,7 @@ geometry is refused. What a feature becomes is its reader's:
 |---|---|---|---|
 | `highway=<kind>` | `LineString` | the mosaic | a road's middle line, laid across as `roads.<kind>` says |
 | `highway=<kind>` | `LineString` | a square or hex board | a road of the kind the level's table names, over the cells the line's points lie in |
-| `waterway=<kind>` | `LineString` | a square or hex board | a river, its last point where the water goes |
+| `waterway=<kind>` | `LineString` | a square or hex board | a river, its last point where the water goes; `width`, metres, is how wide it runs: one number for the line, or one a point between semicolons (`"4;4.5;6"`), even from point to point; without it as wide as the level's table says |
 | `highway` with `bridge`, `tunnel` or `ford` | `LineString` | a square or hex board | a bridge, a tunnel or fords of the kind the level's table names, from the cell before what it crosses to the cell after; the roads lead onto it |
 | `ford=yes` | `Point` | a square or hex board | a ford of the river it lies on |
 | any tag the level's table names | `Polygon` | a square or hex board | the kind of the cells whose middles it holds |

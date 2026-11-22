@@ -579,3 +579,64 @@ func TestLay_ACrossingTheGeographyCannotLaySaysWhy(t *testing.T) {
 		}
 	}
 }
+
+func TestLay_ARiversWidthIsItsLinesOwnPointByPoint(t *testing.T) {
+	for name, g := range map[string]grid.Grid{
+		"square": grid.DefaultGrids{}.Square(6, 8, 10),
+		"hex":    grid.DefaultGrids{}.Hex(6, 8, 10),
+	} {
+		// 2 m a unit: the widths told in units are the line's in metres halved
+		told, err := lay(t, newLevelBoard(t, g, 2), `
+ways:
+  rivers:
+    - [{at: [3, 0], kind: river, width: 2}, {at: [3, 4], width: 6}, {at: [3, 7], width: 3}]
+    - [{at: [0, 2], kind: brook, width: 4}, [2, 2]]
+`)
+		if err != nil {
+			t.Fatal(name, err)
+		}
+		const high = 260
+		files := landFiles(`
+geography:
+  file: land/level.yaml
+  rivers: {river: river, stream: {kind: brook, width: 9}}
+`, "size: [260, 260]\nfeatures: features.geojson\n", nil,
+			through(g, "water", `"waterway":"river","width":"4; 12;6"`, high, 0.5,
+				[2]uint32{3, 0}, [2]uint32{3, 4}, [2]uint32{3, 7}),
+			through(g, "beck", `"waterway":"stream","width":8`, high, 0.5,
+				[2]uint32{0, 2}, [2]uint32{2, 2}),
+		)
+		drawn, err := newLevelBoard(t, g, 2).Lay(files, "level.yaml")
+		if err != nil {
+			t.Fatal(name, err)
+		}
+		if len(told.laid.Ways) == 0 || !reflect.DeepEqual(told.laid.Ways, drawn.laid.Ways) {
+			t.Errorf("%s: the rivers from lines are\n%+v\nfrom paths\n%+v", name,
+				drawn.laid.Ways, told.laid.Ways)
+		}
+	}
+}
+
+func TestLay_ARiverWithoutAWidthOrWithAWrongOneSaysWhy(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(6, 6, 10)
+	for _, c := range []struct {
+		tags, says string
+	}{
+		{`"waterway":"river"`, "needs a width"},
+		{`"waterway":"river","width":"4;5"`, "2 widths for its 3 points"},
+		{`"waterway":"river","width":"4;wide;5"`, `the feature water: the width "wide"`},
+		{`"waterway":"river","width":0`, "no number over zero"},
+	} {
+		files := landFiles(`
+geography:
+  file: land/level.yaml
+  rivers: {river: river}
+`, "size: [60, 60]\nfeatures: features.geojson\n", nil,
+			through(g, "water", c.tags, 60, 1, [2]uint32{3, 0}, [2]uint32{3, 3},
+				[2]uint32{3, 5}))
+		_, err := newLevelBoard(t, g, 0).Lay(files, "level.yaml")
+		if err == nil || !strings.Contains(err.Error(), c.says) {
+			t.Errorf("%s: the error is %v, want one saying %q", c.tags, err, c.says)
+		}
+	}
+}
