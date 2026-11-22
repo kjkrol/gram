@@ -38,9 +38,8 @@ const (
 )
 
 var (
-	ScreenWidth = int(
-		math.Ceil(HexSize*(math.Sqrt(3)*(GridWidth-1)+math.Sqrt(3)/2*(GridHeight-1)) + 2*HexSize),
-	)
+	// every other row lies half a hex east
+	ScreenWidth  = int(math.Ceil(HexSize*math.Sqrt(3)*(GridWidth-0.5) + 2*HexSize))
 	ScreenHeight = int(math.Ceil(HexSize * (1.5*(GridHeight-1) + 2)))
 )
 

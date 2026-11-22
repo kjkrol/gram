@@ -12,7 +12,7 @@ const flagMixes: u32 = 8u;
 
 // folded is the board's own cell c stands for, along an axis that wraps; z 0 off the board.
 fn folded(c: vec2<f32>) -> vec3<f32> {
-    var f = c;
+    var f = tableOf(c);
     if U.PaintWrap.x > 0.5 {
         f.x = f.x - U.PaintCells.x * floor(f.x / U.PaintCells.x);
     }
@@ -20,12 +20,30 @@ fn folded(c: vec2<f32>) -> vec3<f32> {
         f.y = f.y - U.PaintCells.y * floor(f.y / U.PaintCells.y);
     }
     let on = f.x >= 0.0 && f.y >= 0.0 && f.x < U.PaintCells.x && f.y < U.PaintCells.y;
-    return vec3<f32>(f, select(0.0, 1.0, on));
+    return vec3<f32>(axialOf(f), select(0.0, 1.0, on));
+}
+
+// tableOf is the column and row of the cell c: a hex board's axial cell's, every other row
+// half a cell east; a square board's cell is its own.
+fn tableOf(c: vec2<f32>) -> vec2<f32> {
+    if U.PaintHex > 0.5 {
+        return vec2<f32>(c.x + floor(c.y / 2.0), c.y);
+    }
+    return c;
+}
+
+// axialOf is the cell in the column and row t, a hex board's as its axial q and r.
+fn axialOf(t: vec2<f32>) -> vec2<f32> {
+    if U.PaintHex > 0.5 {
+        return vec2<f32>(t.x - floor(t.y / 2.0), t.y);
+    }
+    return t;
 }
 
 // texelOf is the pixel (dx, dy) of the board's cell b's block.
 fn texelOf(b: vec2<f32>, dx: f32, dy: f32) -> vec4<f32> {
-    return imageSrc2At(imageSrc2Origin() + b * vec2<f32>(4.0, 2.0) + vec2<f32>(dx, dy) + 0.5);
+    let t = tableOf(b);
+    return imageSrc2At(imageSrc2Origin() + t * vec2<f32>(4.0, 2.0) + vec2<f32>(dx, dy) + 0.5);
 }
 
 // byteIn is the byte k, 0 to 3, of the pixel t.

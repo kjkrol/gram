@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -38,9 +37,20 @@ func TestHex_EveryCornerOnceTheCellsMeetingAtItSharingIt(t *testing.T) {
 				at[i] = outline[k]
 			}
 		})
-		if len(at) != len(r.values) {
-			t.Errorf("%v: %d corners of the cells, %d heights: want one a corner", size, len(at),
-				len(r.values))
+		cornered := 0
+		for i, is := range r.cornered {
+			if _, ok := at[i]; ok != is {
+				t.Errorf("%v: the height %d is a corner's: %v, marked so: %v", size, i, ok, is)
+			}
+			if is {
+				cornered++
+			}
+		}
+		// a corner a cell's top and one its top-right, and those of the board's rim
+		w, h := int(size[0]), int(size[1])
+		if want := 2*w*h + 2*w + 2*h; len(at) != want || cornered != want {
+			t.Errorf("%v: %d corners of the cells, %d heights marked: want %d, one a corner", size,
+				len(at), cornered, want)
 		}
 	}
 }
@@ -83,6 +93,9 @@ func TestHex_AMapsCellsMeetInTheirCorners(t *testing.T) {
 	}
 	r.SetHeights(ground.MeanOfCells(g, levels))
 	for i := range r.values {
+		if !r.cornered[i] {
+			continue
+		}
 		sum, n := 0.0, 0.0
 		r.touching(r.hexVertex(i), func(c cell.ID) { sum, n = sum+float64(levels(c)), n+1 })
 		if want := float32(sum / n); r.values[i] != want {
@@ -362,7 +375,7 @@ func TestHex_KeepRoadsHoldsARoadUpAnEvenRamp(t *testing.T) {
 	}
 }
 
-func TestHex_ARunGoesThroughASaveAndASaveByCellComesBackByCorner(t *testing.T) {
+func TestHex_ARunGoesThroughASave(t *testing.T) {
 	g := grid.DefaultGrids{}.Hex(30, 24, 16)
 	r := onBoard(g)
 	rnd := rand.New(rand.NewPCG(7, 9))
@@ -376,71 +389,9 @@ func TestHex_ARunGoesThroughASaveAndASaveByCellComesBackByCorner(t *testing.T) {
 	if !back.adopt(runs) || !slices.Equal(back.values, r.values) {
 		t.Fatal("the corners did not come back from their runs as they went")
 	}
-
-	levels := make([]float32, g.CellCount())
-	for i := range levels {
-		levels[i] = float32(rnd.IntN(30))
-	}
-	old := make([]Heights, (len(levels)+HeightsRun-1)/HeightsRun)
-	for i := range old {
-		old[i].First = uint32(i * HeightsRun)
-		old[i].Count = uint32(copy(old[i].Values[:], levels[i*HeightsRun:]))
-	}
-	loaded := onBoard(g)
-	if !loaded.adopt(old) {
-		t.Fatal("a hex relief saved by cell did not load")
-	}
-	seeded := onBoard(g)
-	seeded.SetHeights(ground.MeanOfCells(g, func(c cell.ID) float32 {
-		o, _ := g.Ordinal(c)
-		return levels[o]
-	}))
-	if !slices.Equal(loaded.values, seeded.values) {
-		t.Error("a save by cell came back otherwise than its levels seeded by cell")
-	}
-}
-
-func TestHeightsSystem_LaysASaveByCellAnewByCorner(t *testing.T) {
-	g := grid.DefaultGrids{}.Hex(40, 30, 16)
-	levels := make([]float32, g.CellCount())
-	for i := range levels {
-		levels[i] = float32(i % 17)
-	}
-	ecs := goke.New()
-	var comp goke.Comp[Heights]
-	ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&comp)
-		f.Create((len(levels) + HeightsRun - 1) / HeightsRun)
-		run := 0
-		for f.Next() {
-			for i := range f.Cursor.IDs {
-				h := &comp.Slice(&f.Cursor)[i]
-				h.First = uint32(run * HeightsRun)
-				h.Count = uint32(copy(h.Values[:], levels[run*HeightsRun:]))
-				run++
-			}
-		}
-	}})
-	r := onBoard(g)
-	ecs.RegSys(r.HeightsSystem())
-	var q *goke.Query
-	ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		q = si.NewQueryBuilder(&comp).Build()
-	}})
-	got := make([]float32, len(r.values))
-	runs, n := 0, 0
-	for q.All(); q.Next(); {
-		for _, h := range comp.Slice(q.Cursor()) {
-			copy(got[h.First:], h.Values[:h.Count])
-			runs, n = runs+1, n+int(h.Count)
-		}
-	}
-	if runs != r.Runs() || n != len(r.values) || !slices.Equal(got, r.values) {
-		t.Errorf("%d runs of %d heights, want the relief's %d of its %d corners", runs, n,
-			r.Runs(), len(r.values))
-	}
-	if r.values[0] == 0 && r.values[len(r.values)/2] == 0 {
-		t.Error("the save by cell left the corners level at 0")
+	// a save of another count of heights, as one by cell was once, is no relief's
+	if onBoard(g).adopt(runs[:len(runs)-1]) {
+		t.Error("a save short of a run was taken for the relief's")
 	}
 }
 
@@ -588,5 +539,79 @@ func TestHex_AGradedCellsCornersStayAndTheGroundRoundFollowsWithinMaxStep(t *tes
 	}
 	if moved == 0 {
 		t.Error("the ground round the graded cell stayed level")
+	}
+}
+
+func TestHex_ACopysGroundIsTheReliefs(t *testing.T) {
+	g := grid.DefaultGrids{}.Hex(6, 5, 16)
+	r := onBoard(g)
+	r.SetHeights(func(p geom.Vec) float32 { return p.X/8 + p.Y/4 })
+	var copied Relief
+	r.CopyInto(&copied)
+	g.EachCell(func(c cell.ID) {
+		for _, p := range append(g.CellOutline(c, nil), g.CellCenter(c)) {
+			if a, b := r.GroundAt(p), copied.GroundAt(p); a != b {
+				t.Fatalf("the ground at %v is %v, its copy's %v", p, a, b)
+			}
+		}
+	})
+}
+
+func TestHex_TheHemFillsTheBoardsRectangle(t *testing.T) {
+	for _, size := range [][2]uint32{{6, 5}, {5, 4}, {3, 1}} {
+		g := grid.DefaultGrids{}.Hex(size[0], size[1], 16)
+		r := onBoard(g)
+		slope := func(p geom.Vec) float32 { return 3 + p.X/8 + p.Y/4 }
+		r.SetHeights(slope)
+		rim := HexRim(int(size[0]), int(size[1]), 16)
+		// the rectangle is the cells' own bounds
+		lo, hi := geom.NewVec(1e9, 1e9), geom.NewVec(-1e9, -1e9)
+		g.EachCell(func(c cell.ID) {
+			for _, p := range g.CellOutline(c, nil) {
+				lo = geom.NewVec(min(lo.X, p.X), min(lo.Y, p.Y))
+				hi = geom.NewVec(max(hi.X, p.X), max(hi.Y, p.Y))
+			}
+		})
+		if !near(lo, rim.TopLeft) || !near(hi, rim.BottomRight) {
+			t.Fatalf("%v: the rim is %v, the cells lie from %v to %v", size, rim, lo, hi)
+		}
+		// everywhere in it there is ground, the slope's wherever a cell or its hem's own corners
+		// span it: an even slope is the same from corner to corner
+		off, hemmed := 0, 0
+		for x := rim.TopLeft.X + 0.5; x < rim.BottomRight.X; x += 1.7 {
+			for y := rim.TopLeft.Y + 0.5; y < rim.BottomRight.Y; y += 1.3 {
+				p := geom.NewVec(x, y)
+				got := r.GroundAt(p)
+				if got == 0 {
+					off++
+					continue
+				}
+				if _, on := g.CellAt(p); on {
+					if f32.Abs(got-slope(p)) > 1e-2 {
+						t.Fatalf("%v: a cell's ground at %v is %v, the slope's %v", size, p, got, slope(p))
+					}
+					continue
+				}
+				hemmed++
+				// between a hem's corners the ground lies between their heights
+				if got < slope(rim.TopLeft)-1 || got > slope(rim.BottomRight)+1 {
+					t.Fatalf("%v: the hem's ground at %v is %v, off the slope", size, p, got)
+				}
+			}
+		}
+		if off > 0 || hemmed == 0 {
+			t.Errorf("%v: %d places of the rim without ground, %d on its hem", size, off, hemmed)
+		}
+		// and none past it
+		for _, p := range []geom.Vec{
+			geom.NewVec(rim.TopLeft.X-1, 30),
+			geom.NewVec(rim.BottomRight.X+1, 30),
+			geom.NewVec(40, rim.BottomRight.Y+1),
+			geom.NewVec(40, -1),
+		} {
+			if got := r.GroundAt(p); got != 0 {
+				t.Errorf("%v: past the rim at %v the ground is %v, want none", size, p, got)
+			}
+		}
 	}
 }

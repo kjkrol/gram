@@ -9,8 +9,9 @@
 // What a game uses is this package and its public subpackages: cell (one cell: its id and kind,
 // its ground and way, what stands on it, the moment cell.Now, its occupancy), unit (an entity on
 // the board: unit.At, unit.Mover, unit.Standing), grid (the topology), look (how the board is
-// drawn), ground (what its ground is to the other plugins) and network, water (ways across the
-// board). The machinery is in plugins/board/internal.
+// drawn), ground (what its ground is to the other plugins), network, water (ways across the
+// board) and mapfile (a map kept in files, in metres: the geography a level may lay itself
+// by). The machinery is in plugins/board/internal.
 //
 // # Board, Layout and kinds
 //
@@ -74,7 +75,10 @@
 //
 // # Level
 //
-// A game's map is a YAML file; kinds stay in the game's code, the file names them.
+// A game's map is a YAML file; kinds stay in the game's code, the file names them. A cell is
+// named [x, y], its column and row; a hex board's rows alternate, every other one half a cell
+// east, so its drawing indents them and the board keeps to a rectangle, the cells beside it
+// drawn where they fill it, as the board's nearest.
 //
 //	board:
 //	  default: grass
@@ -112,6 +116,21 @@
 // corners on either grid. A hex relief given by cells bends the cell where level ground turns
 // into a ramp, a corner being the mean of three cells, so a road climbing there leads onto a
 // bridge or a ford at its ends.
+//
+// A level may take its geography from a map kept in files beside it (mapfile, its README.md
+// the format: heights as an image, lines and areas as GeoJSON, in metres), on either grid:
+//
+//	geography:
+//	  file: land/level.yaml
+//	  roads: {residential: road, track: {kind: path, width: 2}}
+//	  rivers: {stream: {kind: brook, width: 3}}
+//	  areas: {natural=water: lake, landuse: field}
+//
+// The map's heights are the relief, in place of the level's own. A line tagged highway or
+// waterway runs as the kind its table names over the cells its points lie in, joined as a
+// path's are, a road as wide as the table or the map's own roads say; a line no table names
+// is an error. An area lays the cells whose middles it holds as its tag's kind, under the
+// level's drawing. The level's own ways lie beside the map's: a bridge's {onto} stays there.
 //
 // # Commands
 //

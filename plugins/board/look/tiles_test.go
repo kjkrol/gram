@@ -2,6 +2,7 @@ package look_test
 
 import (
 	"embed"
+	"github.com/kjkrol/aabbworld/geom"
 	"image/color"
 	"testing"
 	"time"
@@ -654,5 +655,63 @@ func TestTiles_LayTheWholeBoardFromAboveAsACameraShowsIt(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// every other row of a hex board begins or ends half a cell in, and its first and last rows end
+// in points: the cells beside it fill the rectangle it keeps to, drawn as the board's nearest
+func TestTiles_AHexBoardsHemFillsItsRectangle(t *testing.T) {
+	gputest.Need(t)
+	g := grid.DefaultGrids{}.Hex(6, 4, 16)
+	brd, brdW := board.NewBoard(g)
+	colours := []color.RGBA{green, {R: 40, G: 80, B: 200, A: 255}, {R: 200, G: 180, B: 90, A: 255}}
+	atlas := render.NewAtlas()
+	for i, c := range colours {
+		atlas.Add(render.SpriteID(i+1), 28, render.Solid(c))
+	}
+	atlas.Close()
+	for row := range uint32(4) {
+		for col := range uint32(6) {
+			brdW.Set(g.At(col, row), cell.Kind{SpriteID: render.SpriteID(row%3 + 1), Pace: 1,
+				Allows: cell.Land})
+		}
+	}
+	space := world.SpaceCfg{Width: 400, Height: 300}
+	r := look.NewRenderer(brd, atlas, dressed{look.Flat, draw.NewBands(brd)}, space)
+	cam := cameratest.NewFromSpace(space.Width, space.Height, 0)
+	cam.SetViewport(320, 240)
+	at := shot(cam, 320, 240, r)
+	// the rectangle: six cells of √3·16 and half a cell more, from the cells' left edge
+	const left, wide, tall = 16 - 13.8564, 6.5 * 27.7128, 16 * (1.5*3 + 2)
+	empty := at(318, 238)
+	hem, past := 0, 0
+	for sy := float32(1); sy < 240; sy += 2 {
+		for sx := float32(1); sx < 320; sx += 2 {
+			x, y := cam.FromScreen(sx+0.5, sy+0.5)
+			got := at(sx, sy)
+			switch {
+			case x < left-1.5 || x > left+wide+1.5 || y < -1.5 || y > tall+1.5:
+				if got != empty {
+					t.Fatalf("past the rectangle at (%v, %v) the pixel is %v, want nothing", x, y, got)
+				}
+				past++
+			case x > left+1.5 && x < left+wide-1.5 && y > 1.5 && y < tall-1.5:
+				if _, on := brd.CellAt(geom.NewVec(float32(x), float32(y))); on {
+					continue
+				}
+				// the half cell left of the row 1 is the row 1's colour
+				if x < 8 && y > 36 && y < 44 && !near(got, colours[1], 3) {
+					t.Fatalf("the hem by the row 1 at (%v, %v) is %v, want the row's %v", x, y, got,
+						colours[1])
+				}
+				if got == empty {
+					t.Fatalf("the hem at (%v, %v) is not drawn", x, y)
+				}
+				hem++
+			}
+		}
+	}
+	if hem < 100 || past < 1000 {
+		t.Errorf("%d pixels of the hem and %d past the rectangle checked", hem, past)
 	}
 }

@@ -16,7 +16,8 @@ type Grid interface {
 	Directions() int
 	// Opposite is the direction back from the neighbour in direction i.
 	Opposite(i int) int
-	// Offset is direction i in At's coordinates.
+	// Offset is direction i as a pair the same wherever it starts: a square grid's step in
+	// At's coordinates, a hex one's along its axes (grid.Direction finds i by it).
 	Offset(i int) (da, db int)
 	// Step is the way from a cell's middle to its neighbour's in direction i, in world units.
 	Step(i int) geom.Vec
@@ -26,7 +27,7 @@ type Grid interface {
 	Flanks(i int) (a, b int, ok bool)
 	CellCenter(c cell.ID) geom.Vec
 	CellAt(pos geom.Vec) (cell.ID, bool)
-	// At is the cell at grid coordinates (col,row or axial q,r), wrapped where the grid
+	// At is the cell at grid coordinates (a column and a row), wrapped where the grid
 	// wraps; one off a closed axis panics by its coordinates.
 	At(a, b uint32) cell.ID
 	// NeighborCost is the geometric step cost from a to its neighbor b.
@@ -49,7 +50,7 @@ type Grid interface {
 	EachCell(fn func(c cell.ID))
 	// Ordinal is c's index in a table with one slot per cell, below CellCount; false for no cell.
 	Ordinal(c cell.ID) (int, bool)
-	// Coords inverts At: c's grid coordinates (col, row or axial q, r).
+	// Coords inverts At: c's grid coordinates (a column and a row).
 	Coords(c cell.ID) (a, b uint32, ok bool)
 	// CellCount is how many cells the grid has.
 	CellCount() int

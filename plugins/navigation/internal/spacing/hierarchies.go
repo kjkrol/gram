@@ -38,7 +38,7 @@ const dumpEvery = 5 * time.Second
 // count of the clusters of level 1, then by cluster the fingerprint of its cells as the file's
 // hierarchy was built over them, then hpastar's stream; the magic's last letter moves with the
 // nodes' keys, cell.Levels a cell since 2
-var cacheMagic = [4]byte{'G', 'R', 'M', '2'}
+var cacheMagic = [4]byte{'G', 'R', 'M', '3'}
 
 // the work an Update spends building a hierarchy, in hpastar's steps: a step of a cluster of level
 // 1 costs about 33 ns, its board's steps read over relief, and about 11 ns above

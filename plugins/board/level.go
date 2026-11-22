@@ -93,16 +93,24 @@ func (p *Plugin) Lay(fsys fs.FS, path string) (*Level, error) {
 	}
 	l := &leveler{p: p, path: path, shape: shape, names: map[string]int{}}
 	level := &Level{l: l}
+	geo, err := l.geography(fsys, file.Geography)
+	if err != nil {
+		return nil, err
+	}
 	var layout Layout
-	if file.Board != nil {
-		if layout, err = l.terrain(file.Board); err != nil {
+	if file.Board != nil || geo != nil {
+		under, err := l.areas(geo)
+		if err != nil {
+			return nil, err
+		}
+		if layout, err = l.terrain(file.Board, under); err != nil {
 			return nil, err
 		}
 	}
-	if level.heights, err = l.relief(&file.Relief); err != nil {
+	if level.heights, err = l.relief(&file.Relief, geo); err != nil {
 		return nil, err
 	}
-	if err := l.ways(&file.Ways, &layout, level.heights); err != nil {
+	if err := l.ways(&file.Ways, geo, &layout, level.heights); err != nil {
 		return nil, err
 	}
 	var standing []yaml.Node
@@ -116,7 +124,8 @@ func (p *Plugin) Lay(fsys fs.FS, path string) (*Level, error) {
 		}
 		level.waiting = append(level.waiting, w)
 	}
-	if file.Board != nil || file.Ways.given() {
+	given := len(file.Ways.Roads) > 0 || len(file.Ways.Rivers) > 0
+	if file.Board != nil || given || len(layout.Cells) > 0 || len(layout.Ways) > 0 {
 		p.write.Seed(layout)
 	}
 	level.laid = layout
@@ -207,10 +216,11 @@ func (level *Level) unspawned() error {
 }
 
 type levelFile struct {
-	Board  *levelBoard `yaml:"board"`
-	Relief levelRelief `yaml:"relief"`
-	Ways   levelWays   `yaml:"ways"`
-	Units  []yaml.Node `yaml:"units"`
+	Board     *levelBoard     `yaml:"board"`
+	Geography *levelGeography `yaml:"geography"`
+	Relief    levelRelief     `yaml:"relief"`
+	Ways      levelWays       `yaml:"ways"`
+	Units     []yaml.Node     `yaml:"units"`
 }
 
 type levelBoard struct {
@@ -230,8 +240,6 @@ type levelWays struct {
 	Rivers []yaml.Node          `yaml:"rivers"`
 }
 
-func (w *levelWays) given() bool { return len(w.Roads) > 0 || len(w.Rivers) > 0 }
-
 type leveler struct {
 	p     *Plugin
 	path  string
@@ -243,8 +251,17 @@ func (l *leveler) errorf(n *yaml.Node, format string, args ...any) error {
 	return fmt.Errorf("board: %s:%d: %s", l.path, n.Line, fmt.Sprintf(format, args...))
 }
 
-func (l *leveler) terrain(b *levelBoard) (Layout, error) {
-	layout := Layout{Default: b.Default}
+// terrain is the board's drawing over the kinds its geography's areas lay under it
+func (l *leveler) terrain(b *levelBoard, under map[cell.ID]string) (layout Layout, _ error) {
+	if b == nil {
+		b = &levelBoard{}
+	}
+	layout = Layout{Default: b.Default}
+	defer func() {
+		for _, c := range slices.Sorted(maps.Keys(under)) {
+			layout.Cells = append(layout.Cells, cell.Entry{Cell: c, Kind: under[c]})
+		}
+	}()
 	if b.Default != "" {
 		if _, ok := l.p.kinds.Get(b.Default); !ok {
 			err := fmt.Errorf("board: %s: the default %q is no kind of cell", l.path, b.Default)
@@ -292,6 +309,7 @@ func (l *leveler) terrain(b *levelBoard) (Layout, error) {
 			if x >= int(l.shape.Cols) {
 				return layout, l.errorf(at, "the row is longer than the board's %d", l.shape.Cols)
 			}
+			delete(under, brd.At(uint32(x), uint32(y)))
 			if e.Kind == b.Default && e.Name == "" && e.Group == "" && e.Roles == 0 {
 				x++
 				continue
@@ -381,22 +399,33 @@ func (l *leveler) keys(n *yaml.Node, allowed ...string) (map[string]*yaml.Node, 
 	return out, nil
 }
 
-func (l *leveler) ways(w *levelWays, layout *Layout, heights func(geom.Vec) float32) error {
+func (l *leveler) ways(
+	w *levelWays, geo *geography, layout *Layout, heights func(geom.Vec) float32,
+) error {
 	brd := &l.p.board.read
 	roads, rivers := network.New(brd), network.New(brd)
-	laidBy := map[cell.ID]*yaml.Node{}
+	laidBy := map[cell.ID]*roadPath{}
+	var laid []laidRoad
 	for _, name := range slices.Sorted(maps.Keys(w.Roads)) {
 		n := w.Roads[name]
 		width, paths, err := l.road(&n, name)
 		if err != nil {
 			return err
 		}
-		node := network.Node{Kind: name, Width: width}
-		for _, path := range paths {
+		laid = append(laid, laidRoad{name, width, paths})
+	}
+	drawn, err := l.lines(geo)
+	if err != nil {
+		return err
+	}
+	for _, r := range append(laid, drawn...) {
+		node := network.Node{Kind: r.kind, Width: r.width}
+		for k := range r.paths {
+			path := &r.paths[k]
 			for i, c := range path.cells {
 				if _, ok := roads.Node(c); !ok && !path.onto(i) {
 					roads.Set(c, node)
-					laidBy[c] = path.node
+					laidBy[c] = path
 				}
 				if i == 0 {
 					continue
@@ -413,17 +442,23 @@ func (l *leveler) ways(w *levelWays, layout *Layout, heights func(geom.Vec) floa
 		}
 	}
 	var runs [][]cell.ID
-	for i := range w.Rivers {
-		cells, nodes, err := l.river(&w.Rivers[i])
-		if err != nil {
-			return err
-		}
+	run := func(cells []cell.ID, nodes []network.Node) {
 		for k, node := range nodes {
 			if _, ok := rivers.Node(cells[k]); !ok {
 				rivers.Set(cells[k], node)
 			}
 		}
 		runs = append(runs, cells)
+	}
+	for i := range w.Rivers {
+		cells, nodes, err := l.river(&w.Rivers[i])
+		if err != nil {
+			return err
+		}
+		run(cells, nodes)
+	}
+	if err := l.waters(geo, run); err != nil {
+		return err
 	}
 	for _, cells := range runs { // every river laid first, so a tributary flows into its cells
 		for k := 1; k < len(cells); k++ {
@@ -433,8 +468,8 @@ func (l *leveler) ways(w *levelWays, layout *Layout, heights func(geom.Vec) floa
 	for _, way := range roads.Ways() {
 		if _, both := rivers.Node(way.Cell); both {
 			x, y, _ := brd.Coords(way.Cell)
-			return l.errorf(laidBy[way.Cell], "the %s runs over a river at [%d, %d]: lead it onto "+
-				"the bridge or the ford there, {onto: [%d, %d]}", way.Kind, x, y, x, y)
+			return l.errorIn(laidBy[way.Cell], "the %s runs over a river at [%d, %d]: lead it "+
+				"onto the bridge or the ford there, {onto: [%d, %d]}", way.Kind, x, y, x, y)
 		}
 		layout.Ways = append(layout.Ways, way)
 	}
@@ -448,7 +483,7 @@ func (l *leveler) ways(w *levelWays, layout *Layout, heights func(geom.Vec) floa
 }
 
 // a graded road lies as Transport Tycoon lays it
-func (l *leveler) graded(roads *network.Network, laidBy map[cell.ID]*yaml.Node,
+func (l *leveler) graded(roads *network.Network, laidBy map[cell.ID]*roadPath,
 	heights func(geom.Vec) float32) error {
 	brd := &l.p.board.read
 	for _, c := range roads.Cells() {
@@ -463,7 +498,7 @@ func (l *leveler) graded(roads *network.Network, laidBy map[cell.ID]*yaml.Node,
 			corners[k] = heights(p)
 		}
 		if !ground.RoadFits(brd, c, corners[:len(outline)], roads.Links(c)) {
-			return l.errorf(laidBy[c], "the %s at [%d, %d] lies on ground no road may: level, or "+
+			return l.errorIn(laidBy[c], "the %s at [%d, %d] lies on ground no road may: level, or "+
 				"an even ramp it runs straight up", node.Kind, x, y)
 		}
 	}
@@ -473,8 +508,24 @@ func (l *leveler) graded(roads *network.Network, laidBy map[cell.ID]*yaml.Node,
 type roadPath struct {
 	cells []cell.ID
 	node  *yaml.Node
+	// from names the geography's feature a path is, where it is no node of the level's
+	from  string
 	first bool // leads onto its first cell without running over it
 	last  bool
+}
+
+// laidRoad is the paths of one kind of road, as wide
+type laidRoad struct {
+	kind  string
+	width float32
+	paths []roadPath
+}
+
+func (l *leveler) errorIn(r *roadPath, format string, args ...any) error {
+	if r.node != nil {
+		return l.errorf(r.node, format, args...)
+	}
+	return fmt.Errorf("board: %s: %s", r.from, fmt.Sprintf(format, args...))
 }
 
 func (r roadPath) onto(i int) bool { return i == 0 && r.first || i == len(r.cells)-1 && r.last }
@@ -659,8 +710,15 @@ func (l *leveler) cell(n *yaml.Node) (cell.ID, error) {
 	return (&l.p.board.read).At(uint32(xy[0]), uint32(xy[1])), nil
 }
 
-func (l *leveler) relief(r *levelRelief) (func(p geom.Vec) float32, error) {
+func (l *leveler) relief(r *levelRelief, geo *geography) (func(p geom.Vec) float32, error) {
 	cells, corners := r.Cells.Kind != 0, r.Corners.Kind != 0
+	if geo != nil && geo.file.Grounded() {
+		if cells || corners {
+			return nil, fmt.Errorf("board: %s: the relief is the geography's heights or the "+
+				"level's own, not both", l.path)
+		}
+		return l.land(geo), nil
+	}
 	if !cells && !corners {
 		return nil, nil
 	}

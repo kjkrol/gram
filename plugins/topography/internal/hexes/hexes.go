@@ -38,7 +38,7 @@ var fans = render.NewMeshShaderWith("hexes", render.Files(shaders, "shaders/hexe
 		{Name: "HazeUp", Size: 1}, {Name: "HazeWay", Size: 3},
 		{Name: "Sight", Size: 4},
 		{Name: "Base", Size: 1}, {Name: "Facing", Size: 2},
-		{Name: "SheetPx", Size: 1},
+		{Name: "SheetPx", Size: 1}, {Name: "Rim", Size: 4},
 	}).Instanced(3)
 
 // a sector seen as a sheet: a quad over its box at the mean height of its cells' corners,
@@ -185,6 +185,7 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	h.set("Sight", fog[:]...)
 	h.set("Base", h.base)
 	h.set("Facing", float32(h.cols), float32(h.facing.Bounds().Dx()))
+	h.setRim()
 	h.opts.Depth, h.opts.Images = t.Depth, [4]*render.Image{h.top, h.facing, nil, nil}
 	albedo, _, albedoL5, _, perUnit := h.world.Read(0).Sheet()
 	h.each(seen, func(cells []float32, vertices int, level lod.Level) {
@@ -321,46 +322,113 @@ func (h *Ground) drawTop(u render.Uniforms) {
 	h.stale = false
 }
 
-// the cells' instances, sector after sector where the world has them
+// the rectangle the board keeps to, which cuts the cells of its hem
+func (h *Ground) setRim() {
+	rim := relief.HexRim(h.cols, h.rows, h.size)
+	h.set("Rim", rim.TopLeft.X, rim.TopLeft.Y, rim.BottomRight.X, rim.BottomRight.Y)
+}
+
+// an instance: where it is drawn from, the sector it is drawn with and its floats
+type laid struct {
+	at     geom.Vec
+	floats [cellFloats]float32
+}
+
+// the cells' instances and those of the hem, the parts of the cells beside the board that fill
+// its rectangle, sector after sector where the world has them
 func (h *Ground) lay() {
 	h.cells = h.cells[:0]
 	ground := h.ground()
 	low, _ := ground.Extent()
 	h.base = min(low, 0)
-	across := h.edges()
-	add := func(c cell.ID) {
-		centre := h.grid.CellCenter(c)
-		corners, level, _ := ground.Hex(c)
-		rim := 0
-		for k, i := range across {
-			if _, ok := h.grid.Toward(c, i); !ok {
-				rim |= 1 << k
+	rim := relief.HexRim(h.cols, h.rows, h.size)
+	eps := 1e-3 * h.size
+	// a cell in a column of a row, on the board or beside it, as the rectangle cuts it
+	cut := func(col, row int, corners [6]float32, level float32, takes render.Taking) (laid, bool) {
+		q := col - row>>1
+		mid := geom.NewVec(h.size*(f32.Sqrt(3)*float32(q)+f32.Sqrt(3)/2*float32(row))+h.size,
+			h.size*1.5*float32(row)+h.size)
+		var at [6]geom.Vec
+		var sum geom.Vec
+		for k, w := range ways {
+			p := geom.NewVec(mid.X+h.size*float32(w[0]), mid.Y+h.size*float32(w[1]))
+			at[k] = geom.NewVec(min(max(p.X, rim.TopLeft.X), rim.BottomRight.X),
+				min(max(p.Y, rim.TopLeft.Y), rim.BottomRight.Y))
+			sum = geom.NewVec(sum.X+at[k].X/6, sum.Y+at[k].Y/6)
+		}
+		// an edge on the rectangle's own is the board's edge: a wall down it
+		rimmed, area := 0, float32(0)
+		for k := range at {
+			a, b := at[k], at[(k+1)%6]
+			area += a.X*b.Y - b.X*a.Y
+			if f32.Abs(a.X-b.X)+f32.Abs(a.Y-b.Y) < eps {
+				continue
+			}
+			for _, side := range [4][3]float32{
+				{a.X, b.X, rim.TopLeft.X},
+				{a.X, b.X, rim.BottomRight.X},
+				{a.Y, b.Y, rim.TopLeft.Y},
+				{a.Y, b.Y, rim.BottomRight.Y},
+			} {
+				if f32.Abs(side[0]-side[2]) < eps && f32.Abs(side[1]-side[2]) < eps {
+					rimmed |= 1 << k
+				}
 			}
 		}
-		o, _ := h.grid.Ordinal(c)
-		h.cells = append(h.cells, centre.X, centre.Y, level,
-			float32(takesOf(h.cellsOf.Kind(c).Takes)))
-		h.cells = append(h.cells, corners[:]...)
-		h.cells = append(h.cells, float32(rim), float32(o))
+		if f32.Abs(area) < eps*h.size {
+			return laid{}, false
+		}
+		c := geom.NewVec(min(max(mid.X, rim.TopLeft.X), rim.BottomRight.X),
+			min(max(mid.Y, rim.TopLeft.Y), rim.BottomRight.Y))
+		l := laid{at: sum}
+		l.floats = [cellFloats]float32{c.X, c.Y, level, float32(takes),
+			corners[0], corners[1], corners[2], corners[3], corners[4], corners[5],
+			float32(rimmed), float32((row+1)*(h.cols+2) + col + 1)}
+		return l, true
+	}
+	var all []laid
+	h.grid.EachCell(func(c cell.ID) {
+		col, row, _ := h.grid.Coords(c)
+		corners, level, _ := ground.Hex(c)
+		if l, ok := cut(int(col), int(row), corners, level, takesOf(h.cellsOf.Kind(c).Takes)); ok {
+			all = append(all, l)
+		}
+	})
+	for row := -1; row <= h.rows; row++ {
+		for col := -1; col <= h.cols; col++ {
+			if row >= 0 && row < h.rows && col >= 0 && col < h.cols {
+				continue
+			}
+			corners, level, ok := ground.Hem(col, row)
+			if !ok {
+				continue
+			}
+			// it takes the light as the board's cell beside it does
+			beside := h.grid.At(uint32(min(max(col, 0), h.cols-1)), uint32(min(max(row, 0), h.rows-1)))
+			if l, ok := cut(col, row, corners, level, takesOf(h.cellsOf.Kind(beside).Takes)); ok {
+				all = append(all, l)
+			}
+		}
 	}
 	if h.sectors == nil {
-		h.grid.EachCell(add)
+		for _, l := range all {
+			h.cells = append(h.cells, l.floats[:]...)
+		}
 		return
 	}
-	by := make([][]cell.ID, h.sectors.Len())
-	h.grid.EachCell(func(c cell.ID) {
-		centre := h.grid.CellCenter(c)
-		i := h.sectors.Of(centre.X, centre.Y)
-		by[i] = append(by[i], c)
-	})
+	by := make([][]int, h.sectors.Len())
+	for k, l := range all {
+		i := h.sectors.Of(l.at.X, l.at.Y)
+		by[i] = append(by[i], k)
+	}
 	h.runs = append(h.runs[:0], make([]run, len(by))...)
 	h.heights = append(h.heights[:0], make([]float32, len(by))...)
-	for i, cs := range by {
-		h.runs[i] = run{len(h.cells) / cellFloats, len(cs)}
-		for _, c := range cs {
-			add(c)
+	for i, ks := range by {
+		h.runs[i] = run{len(h.cells) / cellFloats, len(ks)}
+		for _, k := range ks {
+			h.cells = append(h.cells, all[k].floats[:]...)
 			// a cell's level is the mean of its six corners
-			h.heights[i] += h.cells[len(h.cells)-cellFloats+2] / float32(len(cs))
+			h.heights[i] += all[k].floats[2] / float32(len(ks))
 		}
 	}
 }
@@ -421,21 +489,6 @@ func (h *Ground) face() {
 
 // a unit's component as a byte, (v+1)/2
 func unit(v float64) byte { return byte((v+1)/2*255 + 0.5) }
-
-// edge k joins corners k and k+1, as the shader reads the cells across them
-func (h *Ground) edges() [6]int {
-	var out [6]int
-	c := h.grid.At(0, 0)
-	for i := range h.grid.Directions() {
-		a, b := grid.Rim(h.grid, c, i)
-		if b == (a+1)%6 {
-			out[a] = i
-		} else {
-			out[b] = i
-		}
-	}
-	return out
-}
 
 // gridOf is the board's grid's line through cam, premultiplied, and its width; 0 wide where the
 // grid is hidden or its cells too small to show it

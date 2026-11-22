@@ -275,6 +275,19 @@ What is left to do. Take an item out when it lands.
   low at night and at dawn.
 - **The weather over a unit, for rules** — the board's cells hear the air over them
   (`weathering.Overhead`); a rule about the rain over a unit (taking shelter) needs it too.
+- **The mosaic, what is left** — the ground laid as a mosaic (`plugins/mosaic`) is drawn and
+  nothing more: its baked shade, its height image for the other plugins' shaders and the air's
+  haze; settings (the cells' lines, the sectors' levels); the ground built tile by tile as the
+  camera moves over a level in tiles (`mosaic.Cut` cuts one, read whole as the game starts yet),
+  what is derived from a tile kept beside it, and `gramap` writing levels so, a square or hex
+  board's geography too (`board/mapfile`, read by a level's `geography:`), from a repository of
+  its own; the level's other features on the mosaic (areas, buildings, what stands), roads of
+  several sections and junctions open wider than a straight angle; smooth shading across cells;
+  the close scale's own detail. Then the third grid itself: the grid's contract without shared
+  directions (`grid.Grid`: a cell's i-th neighbour, wider `Links`), the board on the mosaic (cells
+  entities from the standard scale, born and gone while the game runs, the tables by ordinal on a
+  pool's indices, a save refused across geometry versions), and roads laid and removed with the
+  tool, HPA* without a rectangle, clearance in place of footprints.
 
 ## Open questions
 

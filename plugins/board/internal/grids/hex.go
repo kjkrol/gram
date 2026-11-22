@@ -9,8 +9,9 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
-// Hex is a grid over pointy-top hexagonal cells addressed by axial
-// coordinates, bounded to a Width x Height parallelogram.
+// Hex is a grid over pointy-top hexagonal cells, Width of them in each of Height rows, every
+// other row half a cell east of the one over it, so the board keeps to a rectangle. A cell's id
+// is its axial coordinates, its Coords its column and row.
 type Hex struct {
 	Width, Height uint32
 	Size          float32
@@ -30,10 +31,18 @@ func unpackAxial(c cell.ID) (q, r int32) {
 	return int32(uint32(c >> 32)), int32(uint32(c))
 }
 
+// colOf is the column of the axial (q, r): a row's cells begin half a row's count west of q 0
+func colOf(q, r int32) int32 { return q + r>>1 }
+
+func axialOf(col, row int32) (q, r int32) { return col - row>>1, row }
+
+// foldAxial is the axial (q, r) as the cell of the board it is, across a seam where the grid
+// wraps: folded by its column and row
 func (g *Hex) foldAxial(q, r int32) (int32, int32, bool) {
-	fq, okQ := foldAxis(int64(q), int64(g.Width), g.WrapX)
-	fr, okR := foldAxis(int64(r), int64(g.Height), g.WrapY)
-	return int32(fq), int32(fr), okQ && okR
+	col, okC := foldAxis(int64(colOf(q, r)), int64(g.Width), g.WrapX)
+	row, okR := foldAxis(int64(r), int64(g.Height), g.WrapY)
+	fq, fr := axialOf(int32(col), int32(row))
+	return fq, fr, okC && okR
 }
 
 // axial q, r: east, north-east, north-west, west, south-west, south-east; y runs down the screen
@@ -150,35 +159,47 @@ func (g *Hex) CellBoxes(c cell.ID, dst []geom.AABB) []geom.AABB {
 }
 
 func (g *Hex) EachCell(fn func(c cell.ID)) {
-	for r := int32(0); r < int32(g.Height); r++ {
-		for q := int32(0); q < int32(g.Width); q++ {
-			fn(packAxial(q, r))
+	for row := int32(0); row < int32(g.Height); row++ {
+		for col := int32(0); col < int32(g.Width); col++ {
+			fn(packAxial(axialOf(col, row)))
 		}
 	}
 }
 
-// SetWrap sets the axes the grid wraps along.
-func (g *Hex) SetWrap(x, y bool) { g.WrapX, g.WrapY = x, y }
+// SetWrap sets the axes the grid wraps along; rows alternate, so one of an odd Height wraps
+// along x alone.
+func (g *Hex) SetWrap(x, y bool) {
+	if y && g.Height%2 != 0 {
+		panic(fmt.Sprintf("board: a hex grid of %d rows cannot wrap along y: its rows alternate, "+
+			"so the last would meet the first out of step", g.Height))
+	}
+	g.WrapX, g.WrapY = x, y
+}
 
 func (g *Hex) Ordinal(c cell.ID) (int, bool) {
 	q, r := unpackAxial(c)
-	if q < 0 || r < 0 || q >= int32(g.Width) || r >= int32(g.Height) {
+	col := colOf(q, r)
+	if col < 0 || r < 0 || col >= int32(g.Width) || r >= int32(g.Height) {
 		return 0, false
 	}
-	return int(r)*int(g.Width) + int(q), true
+	return int(r)*int(g.Width) + int(col), true
 }
 
 func (g *Hex) CellCount() int { return int(g.Width) * int(g.Height) }
 
+// Coords is c's column and row.
 func (g *Hex) Coords(c cell.ID) (uint32, uint32, bool) {
 	q, r := unpackAxial(c)
-	return uint32(q), uint32(r), q >= 0 && r >= 0 && q < int32(g.Width) && r < int32(g.Height)
+	col := colOf(q, r)
+	return uint32(col), uint32(r), col >= 0 && r >= 0 && col < int32(g.Width) && r < int32(g.Height)
 }
 
-func (g *Hex) At(q, r uint32) cell.ID {
-	fq, fr, ok := g.foldAxial(int32(q), int32(r))
+// At is the cell in a column of a row.
+func (g *Hex) At(col, row uint32) cell.ID {
+	q, r := axialOf(int32(col), int32(row))
+	fq, fr, ok := g.foldAxial(q, r)
 	if !ok {
-		panic(fmt.Sprintf("board: no cell at (%d, %d)", q, r))
+		panic(fmt.Sprintf("board: no cell at (%d, %d)", col, row))
 	}
 	return packAxial(fq, fr)
 }
@@ -211,7 +232,8 @@ func (g *Hex) Distance(a, b cell.ID) float64 {
 	best := math.Inf(1)
 	for _, mq := range [3]int32{-width, 0, width} {
 		for _, mr := range [3]int32{-height, 0, height} {
-			if d := hexCubeDistance(dq+mq, dr+mr); d < best {
+			// a board's height down is as many rows and half as many q back
+			if d := hexCubeDistance(dq+mq-mr/2, dr+mr); d < best {
 				best = d
 			}
 		}

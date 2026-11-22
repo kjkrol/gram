@@ -21,7 +21,8 @@ const bandVertices: u32 = 48u;
 fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>) -> Band {
     var out: Band;
     out.clip = away;
-    let b = at.xy;
+    // an instance is a cell's column and row
+    let b = axialOf(at.xy);
     if levelOf(b) > 3u {
         return out;
     }

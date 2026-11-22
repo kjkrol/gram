@@ -1,6 +1,7 @@
 package hexes
 
 import (
+	"github.com/kjkrol/gram/internal/f32"
 	"image/color"
 	"math"
 	"slices"
@@ -66,8 +67,24 @@ func TestGround_LaysEveryCellToItsCornersWhateverItsKindsHeight(t *testing.T) {
 	gridded := func() (bool, look.RenderState) { return false, *b.Res.Render }
 	h := New(w, b, b.Read(0).Drawn(), nil, func() *relief.Relief { return r }, gridded, nil, nil)
 	h.lay()
-	if len(h.cells) != cellFloats*brd.CellCount() {
-		t.Fatalf("%d floats laid, want %d a cell", len(h.cells), cellFloats)
+	// the cells, then the hem that fills the board's rectangle: half a cell where each of the
+	// four rows begins or ends half a cell in, and five points along the top and the bottom
+	const hem = 4 + 5 + 5
+	if len(h.cells) != cellFloats*(brd.CellCount()+hem) {
+		t.Fatalf("%d floats laid, want %d a cell of the board's %d and the hem's %d",
+			len(h.cells), cellFloats, brd.CellCount(), hem)
+	}
+	rim := relief.HexRim(4, 4, 20)
+	for i := brd.CellCount(); i < len(h.cells)/cellFloats; i++ {
+		laid := h.cells[cellFloats*i : cellFloats*(i+1)]
+		at := geom.NewVec(laid[0], laid[1])
+		if _, on := brd.CellAt(at); on && at.X > rim.TopLeft.X && at.X < rim.BottomRight.X &&
+			at.Y > rim.TopLeft.Y && at.Y < rim.BottomRight.Y {
+			t.Errorf("a cell of the hem is laid from %v, within the board", at)
+		}
+		if laid[10] == 0 {
+			t.Errorf("the cell of the hem at %v has no wall, want one down the rectangle's edge", at)
+		}
 	}
 	brd.EachCell(func(c cell.ID) {
 		o, _ := brd.Ordinal(c)
@@ -81,19 +98,34 @@ func TestGround_LaysEveryCellToItsCornersWhateverItsKindsHeight(t *testing.T) {
 		if !slices.Equal(laid[4:10], corners[:]) {
 			t.Errorf("%v's corners laid at %v, want the relief's %v", c, laid[4:10], corners)
 		}
-		// edge k from corner k to k+1, the cell across it centred at the edge's middle twice over
-		outline, rim := brd.CellOutline(c, nil), 0
+		// edge k from corner k to k+1: a wall down it where it lies on the rectangle's edge, the
+		// hem's cells filling the rest of the board's own
+		outline, edged := brd.CellOutline(c, nil), 0
+		on := func(v, side float32) bool { return f32.Abs(v-side) < 1e-2 }
 		for k, p := range outline {
 			q := outline[(k+1)%6]
-			if _, ok := brd.CellAt(geom.NewVec(p.X+q.X-centre.X, p.Y+q.Y-centre.Y)); !ok {
-				rim |= 1 << k
+			if on(p.X, rim.TopLeft.X) && on(q.X, rim.TopLeft.X) ||
+				on(p.X, rim.BottomRight.X) && on(q.X, rim.BottomRight.X) {
+				edged |= 1 << k
 			}
 		}
-		if laid[10] != float32(rim) || laid[11] != float32(o) {
-			t.Errorf("%v laid with the board's edge along %b, ordinal %v; want %b, %v", c,
-				int(laid[10]), laid[11], rim, o)
+		col, row, _ := brd.Coords(c)
+		place := float32((row+1)*6 + col + 1)
+		if laid[10] != float32(edged) || laid[11] != place {
+			t.Errorf("%v laid with the rectangle's edge along %b, its place %v; want %b, %v", c,
+				int(laid[10]), laid[11], edged, place)
 		}
 	})
+	// the rows 0 and 2 begin at the rectangle's left edge, the rows 1 and 3 end at its right
+	walled := 0
+	for i := range brd.CellCount() {
+		if h.cells[cellFloats*i+10] != 0 {
+			walled++
+		}
+	}
+	if walled != 4 {
+		t.Errorf("%d cells of the board with a wall, want the four on the rectangle's edge", walled)
+	}
 	o, _ := brd.Ordinal(tall)
 	if top := h.cells[cellFloats*o+2]; top != 3 {
 		t.Errorf("the tall kind's cell stands to %v, want its ground's 3: a kind's Height is not "+
@@ -120,7 +152,19 @@ func TestGround_FacesEveryCornerTheWayTheGroundSlopesRoundIt(t *testing.T) {
 	}
 	l := math.Sqrt(0.01 + 0.04 + 1)
 	want := [3]byte{unit(-0.1 / l), unit(-0.2 / l), unit(1 / l)}
-	for i := range n {
+	// the heights that are a cell's corner; the relief keeps some of no cell's beside them
+	g := b.Read(0).Board()
+	corners := map[int]bool{}
+	g.EachCell(func(c cell.ID) {
+		col, row, _ := g.Coords(c)
+		for _, i := range relief.HexCorners(5, int(col), int(row)) {
+			corners[i] = true
+		}
+	})
+	if len(corners) != 2*5*4+2*5+2*4 {
+		t.Fatalf("%d corners, want one a corner of the board's cells", len(corners))
+	}
+	for i := range corners {
 		if got := [3]byte(h.pix[4*i : 4*i+3]); got != want {
 			t.Fatalf("corner %d faces %v, want the plane's %v", i, got, want)
 		}
@@ -251,6 +295,7 @@ func TestGround_LaysTheSheetOfWhatStandsOverTheTopsAtL4(t *testing.T) {
 		h.set("TopPx", 2)
 		h.set("Base", h.base)
 		h.set("Facing", float32(h.cols), float32(h.facing.Bounds().Dx()))
+		h.setRim()
 		h.laySheet(img, 1.0/8)
 		screen := render.NewImage(64, 64)
 		depth := render.NewDepth()

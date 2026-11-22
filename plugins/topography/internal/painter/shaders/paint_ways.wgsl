@@ -446,7 +446,8 @@ fn pieceOf(c: vec2<f32>, b: vec2<f32>, w: Way, p: i32) -> Piece {
 fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>) -> Lane {
     var out: Lane;
     out.clip = vec4<f32>(2.0, 2.0, 0.0, 1.0); // nowhere, unless a piece is laid
-    let c = at.xy;
+    // an instance is a cell's column and row
+    let c = axialOf(at.xy);
     let b = folded(c);
     let w = wayOf(b.xy);
     var p = pieceOf(c, b.xy, w, i32(vid / 6u));

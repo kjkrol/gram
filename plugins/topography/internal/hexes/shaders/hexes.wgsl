@@ -1,7 +1,9 @@
 // The ground of a hex board in relief (topography's hexes): every cell an instance — its centre
 // (x, y), level (z) and the shade it takes (w, render.Taking); the heights of its six corners,
 // clockwise from the top; the edges it has on the board's edge (bits, edge k from corner k to
-// k+1) and its ordinal — of pointy-top cells U.HexSize from centre to corner, U.Facing.x a row.
+// k+1) and where it lies, (row + 1)·(U.Facing.x + 2) + column + 1 — of pointy-top cells U.HexSize
+// from centre to corner, U.Facing.x a row; a cell of the hem, beside the board, is cut to the
+// board's rectangle U.Rim, its corners past it drawn on its edge.
 // Its top is six triangles from its centre at its level to its corners at theirs, then a wall
 // down to U.Base from each edge on the board's edge. Drawn through U.ViewProj (camera.Transform)
 // sunk U.Bend·d² under U.Eye's level; coloured from the board from above, the first image,
@@ -26,31 +28,46 @@ struct Face {
 const faceIn: f32 = 0.15;
 const topIn: f32 = 0.1;
 
-// corner is where the corner i of the cell of ordinal o lies, clockwise from the top: on the
-// lattice of the cells' triangles (topography's relief), the point (i, j) at
-// (S + i·S·√3/2, S + i·S/2 + j·S) and the cell (q, r)'s centre at (2q + r, r - q), so the cells
-// meeting at a corner lay it alike to the bit.
+// placed is the column and row of the cell an instance says it is.
+fn placed(o: u32) -> vec2<i32> {
+    let wide = u32(U.Facing.x) + 2u;
+    return vec2<i32>(i32(o % wide) - 1, i32(o / wide) - 1);
+}
+
+// corner is where the corner i of the cell o lies, clockwise from the top: on the lattice of the
+// cells' triangles (topography's relief), the point (i, j) at (S + i·S·√3/2, S + i·S/2 + j·S)
+// and the cell (q, r)'s centre at (2q + r, r - q), so the cells meeting at a corner lay it alike
+// to the bit; within the board's rectangle.
 fn corner(o: u32, i: u32) -> vec2<f32> {
-    let cols = u32(U.Facing.x);
-    let q = i32(o % cols);
-    let r = i32(o / cols);
+    let at = placed(o);
+    let r = at.y;
+    // a row's cells begin half the row's number west of q 0
+    let q = at.x - (r - (r & 1)) / 2;
     var di = array<i32, 6>(0, 1, 1, 0, -1, -1);
     var dj = array<i32, 6>(-1, -1, 0, 1, 1, 0);
     let li = f32(2 * q + r + di[i % 6u]);
     let lj = f32(r - q + dj[i % 6u]);
     let s = U.HexSize;
-    return vec2<f32>(s + li * s * 0.8660254, s + li * s * 0.5 + lj * s);
+    let p = vec2<f32>(s + li * s * 0.8660254, s + li * s * 0.5 + lj * s);
+    return clamp(p, U.Rim.xy, U.Rim.zw);
 }
 
-// facing is the way the ground faces at the corner i of the cell of ordinal o, from the second
-// image: a texel a corner in the relief's order (relief.HexCorners), U.Facing.y a row, (n+1)/2.
+// facing is the way the ground faces at the corner i of the cell o, from the second image: a
+// texel a corner in the relief's order (relief.HexCorners), U.Facing.y a row, (n+1)/2; up at a
+// corner the relief keeps none for.
 fn facing(o: u32, i: u32) -> vec3<f32> {
-    let cols = u32(U.Facing.x);
-    let top = 2u * ((o / cols) * (cols + 1u) + o % cols) + 1u;
-    let row = 2u * (cols + 1u);
-    var at = array<u32, 6>(top, top + 1u, top + row, top + row - 1u, top + row - 2u, top - 1u);
-    let k = at[i % 6u];
-    let wide = u32(U.Facing.y);
+    let cols = i32(U.Facing.x);
+    let at = placed(o);
+    let top = 2 * (at.y * (cols + 2) + at.x + 1);
+    // the cell under it and east, every other row half a cell east of the one over it
+    let east = 2 * ((at.y + 1) * (cols + 2) + at.x + (at.y & 1) + 1);
+    let west = east - 2;
+    var slots = array<i32, 6>(top, top + 1, east, west + 1, west, top - 1);
+    let k = slots[i % 6u];
+    if k < 0 {
+        return vec3<f32>(0.0, 0.0, 1.0);
+    }
+    let wide = i32(U.Facing.y);
     let texel = vec2<f32>(f32(k % wide), f32(k / wide));
     return imageSrc1At(imageSrc1Origin() + texel + 0.5).rgb * 2.0 - 1.0;
 }
@@ -101,8 +118,13 @@ fn vs_main(
             p.z = U.Base;
         }
         f.sample = mix(p.xy, c, faceIn);
+        // out across the edge as it is drawn: a hem's cut edges face out of the rectangle
+        let e = corner(o, (s + 1u) % 6u) - corner(o, s);
         let a = -1.0471976 + f32(s) * 1.0471976;
         f.normal = vec3<f32>(cos(a), sin(a), 0.0);
+        if dot(e, e) > 0.0 {
+            f.normal = vec3<f32>(normalize(vec2<f32>(e.y, -e.x)), 0.0);
+        }
         f.edge = -1.0;
     }
     let off = p.xy - U.Eye.xy;

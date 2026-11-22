@@ -28,12 +28,23 @@ func square(w, h uint32) grid.Grid { return grid.DefaultGrids{}.Square(w, h, 10)
 func hex(w, h uint32) grid.Grid { return grid.DefaultGrids{}.Hex(w, h, 10) }
 
 func TestRoute_RunsStraightOverLevelGround(t *testing.T) {
-	slants := map[string][]int{"square": {1, 1, 1, 1, 6}, "hex": {3, 0, 0, 1, 7}}
 	for _, b := range boards {
 		g := b.grid(10, 7)
 		f := newFakeGround(g)
-		s := slants[b.name]
-		lines := [][]cell.ID{run(g, 1, 3, 1, 0, 8), run(g, s[0], s[1], s[2], s[3], s[4])}
+		// a slant: a square board's diagonal, a hex one's line to the south-east
+		slant := run(g, 1, 1, 1, 1, 6)
+		if b.name == "hex" {
+			se, _ := grid.Direction(g, 0, 1)
+			slant = []cell.ID{g.At(3, 0)}
+			for len(slant) < 7 {
+				next, ok := g.Toward(slant[len(slant)-1], se)
+				if !ok {
+					t.Fatal("the hex board ends before the slant does")
+				}
+				slant = append(slant, next)
+			}
+		}
+		lines := [][]cell.ID{run(g, 1, 3, 1, 0, 8), slant}
 		for _, want := range lines {
 			from, to := want[0], want[len(want)-1]
 			for _, graded := range []bool{true, false} {

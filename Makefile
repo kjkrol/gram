@@ -11,7 +11,7 @@ DIRTY       := $(shell git diff --quiet || echo "-dirty")
 RESULT_FILE := bench_results/bench_$(COMMIT_DATE)_$(COMMIT_HASH)$(DIRTY).txt
 BENCH_COUNT ?= 5
 
-.PHONY: all demo-start-minimal demo-start-scenes demo-start-split-screen demo-look-animation demo-look-material demo-look-sky demo-look-light demo-rules-dialog demo-rules-effect demo-rules-guard demo-rules-mechanisms demo-rules-vision demo-board-atlas demo-board-custom-map demo-board-mine demo-board-roads demo-board-buildings demo-board-forest-army demo-navigation-hex demo-navigation-spawn demo-navigation-square demo-motion-bullet demo-motion-collision demo-motion-expanse demo-motion-platformer deps tidy build test bench bench-save clean
+.PHONY: all demo-start-minimal demo-start-scenes demo-start-split-screen demo-look-animation demo-look-material demo-look-sky demo-look-light demo-look-ground demo-rules-dialog demo-rules-effect demo-rules-guard demo-rules-mechanisms demo-rules-vision demo-board-atlas demo-board-custom-map demo-board-mine demo-board-roads demo-board-buildings demo-board-forest-army demo-navigation-hex demo-navigation-spawn demo-navigation-square demo-motion-bullet demo-motion-collision demo-motion-expanse demo-motion-platformer deps tidy build test bench bench-save clean
 
 all: demo-motion-collision
 
@@ -34,6 +34,8 @@ demo-look-sky: deps
 	$(GO) run ./examples/look/sky
 demo-look-light: deps
 	$(GO) run ./examples/look/light
+demo-look-ground: deps
+	$(GO) run ./examples/look/ground
 
 # rules
 demo-rules-dialog: deps
