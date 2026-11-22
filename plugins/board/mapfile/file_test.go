@@ -106,7 +106,8 @@ func TestAFeaturesPlacesAreTurnedToTheWorlds(t *testing.T) {
 	if bench.Tags["amenity"] != "bench" || bench.Tags["seats"] != "3" {
 		t.Errorf("the bench's tags are %v", bench.Tags)
 	}
-	if line.Shape != mapfile.Line || len(line.Path) != 2 || !near(line.Path[1], geom.NewVec(30, 90)) {
+	if line.Shape != mapfile.Line || len(line.Path) != 2 ||
+		!near(line.Path[1], geom.NewVec(30, 90)) {
 		t.Errorf("the line is %+v, want its doubled point once", line)
 	}
 	if pond.Shape != mapfile.Area || len(pond.Path) != 3 || len(pond.Holes) != 1 ||
@@ -248,6 +249,33 @@ func TestTheLevelInFilesIsTheGroundItDescribes(t *testing.T) {
 	for k, w := range meetings[0].Ways {
 		if !near(w, want[k]) {
 			t.Errorf("way %d is %v, want %v", k, w, want[k])
+		}
+	}
+}
+
+func TestAHeightOnAPixelIsThePixelsOwn(t *testing.T) {
+	const cols, pixel, lowest, step = 64, 0.3, -100, 0.05
+	img := image.NewGray16(image.Rect(0, 0, cols, 2))
+	for i := range cols {
+		img.SetGray16(i, 0, color.Gray16{Y: uint16(i * 977 % 4001)})
+		img.SetGray16(i, 1, color.Gray16{Y: uint16(i * 613 % 4001)})
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+	l, err := mapfile.Load(fstest.MapFS{
+		"level.yaml": {Data: []byte("size: [18.9, 0.3]\n" +
+			"heights: {file: heights.png, pixel: 0.3, lowest: -100, step: 0.05}\n")},
+		"heights.png": {Data: buf.Bytes()},
+	}, "level.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range cols {
+		want := float32(lowest) + float32(i*977%4001)*step
+		if got := l.HeightAt(float32(i)*pixel, 0); got != want {
+			t.Fatalf("the height on the pixel %d is %v, want its own %v", i, got, want)
 		}
 	}
 }

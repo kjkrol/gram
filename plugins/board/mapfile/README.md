@@ -59,8 +59,8 @@ mosaic:
 
 A PNG of 16-bit grey. A pixel is a **corner**, not a square: the pixel `(i, j)` is the height
 at `i × pixel` metres east and `j × pixel` metres south of the north-west corner, so an image
-covering `size` has `size / pixel + 1` pixels a side. Its height is `lowest + value × step`;
-between the pixels the ground is even (bilinear).
+covering `size` has `size / pixel + 1` pixels a side. Its height is `lowest + value × step`,
+exactly that on a pixel; between the pixels the ground is even (bilinear).
 
 Refused: an image of another depth or colour, `pixel` or `step` unset, an image not reaching
 `size`.
@@ -78,6 +78,8 @@ geometry is refused. What a feature becomes is its reader's:
 | `highway=<kind>` | `LineString` | the mosaic | a road's middle line, laid across as `roads.<kind>` says |
 | `highway=<kind>` | `LineString` | a square or hex board | a road of the kind the level's table names, over the cells the line's points lie in |
 | `waterway=<kind>` | `LineString` | a square or hex board | a river, its last point where the water goes |
+| `highway` with `bridge`, `tunnel` or `ford` | `LineString` | a square or hex board | a bridge, a tunnel or fords of the kind the level's table names, from the cell before what it crosses to the cell after; the roads lead onto it |
+| `ford=yes` | `Point` | a square or hex board | a ford of the river it lies on |
 | any tag the level's table names | `Polygon` | a square or hex board | the kind of the cells whose middles it holds |
 
 The mosaic refuses a `highway` the manifest names no road for, never skips it: a road missing

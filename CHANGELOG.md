@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+**Added**
+- A level's `geography:` lays a highway's line tagged `bridge`, `tunnel` or `ford` as the
+  entity its tables `bridges`, `tunnels` and `fords` name, the roads led onto it, and a point
+  tagged `ford` as a ford of its river: a map in files crosses its rivers and hills as a
+  level's own rows and `{onto}` do.
+
+**Fixed**
+- A height asked of a map's image on a pixel is the pixel's own, and a square board takes the
+  map's heights at its cells' corners: ground level in the image is level on the board.
+
 ## v0.25.0 — 2026-11-22
 
 **Added**

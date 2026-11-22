@@ -125,12 +125,25 @@
 //	  roads: {residential: road, track: {kind: path, width: 2}}
 //	  rivers: {stream: {kind: brook, width: 3}}
 //	  areas: {natural=water: lake, landuse: field}
+//	  bridges: {residential: bridge}
+//	  tunnels: {residential: tunnel}
+//	  fords: ford
 //
-// The map's heights are the relief, in place of the level's own. A line tagged highway or
-// waterway runs as the kind its table names over the cells its points lie in, joined as a
-// path's are, a road as wide as the table or the map's own roads say; a line no table names
-// is an error. An area lays the cells whose middles it holds as its tag's kind, under the
-// level's drawing. The level's own ways lie beside the map's: a bridge's {onto} stays there.
+// The map's heights are the relief, in place of the level's own: at the cells' corners under
+// a square board. A line tagged highway or waterway runs as the kind its table names over the
+// cells its points lie in, joined as a path's are, a road as wide as the table or the map's
+// own roads say; a line no table names is an error. An area lays the cells whose middles it
+// holds as its tag's kind, under the level's drawing. The level's own ways lie beside the
+// map's.
+//
+// A highway's line tagged bridge, tunnel or ford (any value but no) runs from the cell before
+// what it crosses to the cell after, three cells at least: no road is laid between its ends,
+// the roads lead onto it there as a path's {onto} does, and it is a row of the level's
+// entities of the kind its table names, as a file writes one: {kind, from, to} a bridge,
+// {kind, from, to, via} a tunnel, its via the cells it turns at, {kind, at, way} a ford for
+// each cell between, way the road's. A point tagged ford on a river is such a row too, its way
+// across the water's. The rows are spawned as the file's own are (bridges' and
+// underground's Spawn, a game's board.Spawn).
 //
 // # Commands
 //

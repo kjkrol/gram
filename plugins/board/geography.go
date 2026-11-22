@@ -9,7 +9,9 @@ import (
 	"strings"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/f32"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/mapfile"
 	"github.com/kjkrol/gram/plugins/board/network"
@@ -21,6 +23,11 @@ type levelGeography struct {
 	Roads  map[string]yaml.Node `yaml:"roads"`
 	Rivers map[string]yaml.Node `yaml:"rivers"`
 	Areas  map[string]string    `yaml:"areas"`
+	// the kind of entity a highway's line tagged bridge or tunnel is, by the highway, and
+	// the kind a ford is
+	Bridges map[string]string `yaml:"bridges"`
+	Tunnels map[string]string `yaml:"tunnels"`
+	Fords   string            `yaml:"fords"`
 }
 
 // geography is a map in files a level lays its ground by, and how: its metres as the
@@ -52,6 +59,20 @@ func (l *leveler) geography(fsys fs.FS, cfg *levelGeography) (*geography, error)
 	if err := g.file.Whole(); err != nil {
 		return nil, err
 	}
+	entities := map[string]string{"ford": cfg.Fords}
+	for _, k := range cfg.Bridges {
+		entities["bridge"] = k
+	}
+	for _, k := range cfg.Tunnels {
+		entities["tunnel"] = k
+	}
+	for _, how := range slices.Sorted(maps.Keys(entities)) {
+		k := entities[how]
+		if _, _, _, ok := l.p.worldPlugin.Kinds().Lookup(k); k != "" && !ok {
+			return nil, fmt.Errorf("board: %s: the geography lays a %s as %q, no kind of "+
+				"entity", l.path, how, k)
+		}
+	}
 	brd := &l.p.board.read
 	cols, rows := l.shape.Cols, l.shape.Rows
 	var wide, tall float32
@@ -71,14 +92,21 @@ func (l *leveler) geography(fsys fs.FS, cfg *levelGeography) (*geography, error)
 // at is a place of the map, metres, as the world's
 func (g *geography) at(v geom.Vec) geom.Vec { return geom.NewVec(v.X*g.units, v.Y*g.units) }
 
-// land is the map's heights as the level's relief: as they are under a square board, a
-// cell's the height at its middle under a hex one
+// land is the map's heights as the level's relief: at its cells' corners under a square
+// board, a cell's the height at its middle under a hex one
 func (l *leveler) land(g *geography) func(p geom.Vec) float32 {
 	at := func(p geom.Vec) float32 {
 		return g.file.HeightAt(p.X/g.units, p.Y/g.units) * g.units
 	}
 	if !l.shape.Hex {
-		return at
+		// at the corner nearest, as a relief in numbers answers: a height asked for between
+		// two corners is one of theirs, the same whoever asks
+		size, cols, rows := l.shape.Cell, float32(l.shape.Cols), float32(l.shape.Rows)
+		return func(p geom.Vec) float32 {
+			x := min(max(f32.Round(p.X/size), 0), cols)
+			y := min(max(f32.Round(p.Y/size), 0), rows)
+			return at(geom.NewVec(x*size, y*size))
+		}
 	}
 	brd := &l.p.board.read
 	return ground.MeanOfCells(brd, func(c cell.ID) float32 { return at(brd.CellCenter(c)) })
@@ -179,8 +207,44 @@ func (l *leveler) lines(g *geography) ([]laidRoad, error) {
 			r = &laidRoad{kind: kind, width: width}
 			byKind[kind] = r
 		}
-		for _, cells := range l.cells(g, f.Path) {
-			r.paths = append(r.paths, roadPath{cells: cells, from: g.name + ": " + named(f)})
+		from := g.name + ": " + named(f)
+		runs := l.cells(g, f.Path)
+		how, entity, err := g.crossing(f, highway)
+		if err != nil {
+			return nil, err
+		}
+		if how == "" {
+			for _, cells := range runs {
+				r.paths = append(r.paths, roadPath{cells: cells, from: from})
+			}
+			continue
+		}
+		if len(runs) != 1 || len(runs[0]) < 3 {
+			return nil, fmt.Errorf("board: %s: a %s runs from the cell before it to the cell "+
+				"after, whole on the board: three cells at least", from, how)
+		}
+		cells := runs[0]
+		last := len(cells) - 1
+		r.paths = append(r.paths,
+			roadPath{cells: cells[:2], from: from, last: true},
+			roadPath{cells: cells[last-1:], from: from, first: true})
+		switch how {
+		case "ford":
+			for k := 1; k < last; k++ {
+				l.ford(entity, from, cells[k], cells[k-1])
+			}
+		case "tunnel":
+			var via []string
+			for k := 1; k < last; k++ {
+				if l.wayOf(cells[k-1], cells[k]) != l.wayOf(cells[k], cells[k+1]) {
+					via = append(via, l.xy(cells[k]))
+				}
+			}
+			l.make(from, "{kind: %q, from: %s, to: %s, via: [%s]}", entity, l.xy(cells[0]),
+				l.xy(cells[last]), strings.Join(via, ", "))
+		default:
+			l.make(from, "{kind: %q, from: %s, to: %s}", entity, l.xy(cells[0]),
+				l.xy(cells[last]))
 		}
 	}
 	var out []laidRoad
@@ -188,6 +252,111 @@ func (l *leveler) lines(g *geography) ([]laidRoad, error) {
 		out = append(out, *byKind[kind])
 	}
 	return out, nil
+}
+
+// crossing is how a highway's line crosses what it runs over, a bridge, a tunnel or a ford
+// by its tags, and the kind of entity the geography's tables lay it as; "" on the ground
+func (g *geography) crossing(f mapfile.Feature, highway string) (how, entity string, err error) {
+	for _, how := range []string{"bridge", "tunnel", "ford"} {
+		if v := f.Tags[how]; v == "" || v == "no" {
+			continue
+		}
+		entity := g.cfg.Fords
+		switch how {
+		case "bridge":
+			entity = g.cfg.Bridges[highway]
+		case "tunnel":
+			entity = g.cfg.Tunnels[highway]
+		}
+		if entity == "" {
+			return "", "", fmt.Errorf("board: %s: %s: the level's geography lays no %s for "+
+				"highway=%s", g.name, named(f), how, highway)
+		}
+		return how, entity, nil
+	}
+	return "", "", nil
+}
+
+// made is a row of the level's entities a feature of its geography gives, and the feature
+type made struct {
+	node *yaml.Node
+	from string
+}
+
+// make notes the row a feature gives, written as a level's file writes one
+func (l *leveler) make(from, format string, args ...any) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(fmt.Appendf(nil, format, args...), &doc); err != nil {
+		panic(err)
+	}
+	l.made = append(l.made, made{node: doc.Content[0], from: from})
+}
+
+func (l *leveler) xy(c cell.ID) string {
+	x, y, _ := (&l.p.board.read).Coords(c)
+	return fmt.Sprintf("[%d, %d]", x, y)
+}
+
+// wayOf is the direction from a cell to the one beside it
+func (l *leveler) wayOf(from, to cell.ID) int {
+	brd := &l.p.board.read
+	for i := range brd.Directions() {
+		if c, ok := brd.Toward(from, i); ok && c == to {
+			return i
+		}
+	}
+	return 0
+}
+
+// ford notes a ford at a cell, the way across it the way there from the cell before; a cell
+// forded already has its ford
+func (l *leveler) ford(entity, from string, at, before cell.ID) {
+	if l.forded[at] {
+		return
+	}
+	l.forded[at] = true
+	da, db := (&l.p.board.read).Offset(l.wayOf(before, at))
+	l.make(from, "{kind: %q, at: %s, way: [%d, %d]}", entity, l.xy(at), da, db)
+}
+
+// fords is the map's points tagged ford as fords of the rivers they lie on, across the
+// water's way; one a road's line fords already is that ford
+func (l *leveler) fords(g *geography, runs [][]cell.ID) error {
+	if g == nil {
+		return nil
+	}
+	brd := &l.p.board.read
+	for _, f := range g.file.Features {
+		if v := f.Tags["ford"]; f.Shape != mapfile.Point || v == "" || v == "no" {
+			continue
+		}
+		from := g.name + ": " + named(f)
+		if g.cfg.Fords == "" {
+			return fmt.Errorf("board: %s: the level's geography lays no ford", from)
+		}
+		at, ok := brd.CellAt(g.at(f.Path[0]))
+		if !ok {
+			continue
+		}
+		if l.forded[at] {
+			continue
+		}
+		down := -1
+		for _, cells := range runs {
+			if k := slices.Index(cells, at); k >= 0 && k < len(cells)-1 {
+				down = l.wayOf(at, cells[k+1])
+				break
+			}
+		}
+		if down < 0 {
+			return fmt.Errorf("board: %s: the ford lies on no river", from)
+		}
+		along := brd.Step(down)
+		da, db := brd.Offset(grid.Nearest(l.p.board.Grid, geom.NewVec(-along.Y, along.X)))
+		l.forded[at] = true
+		l.make(from, "{kind: %q, at: %s, way: [%d, %d]}", g.cfg.Fords, l.xy(at), da, db)
+	}
+	return nil
 }
 
 // waters is the map's lines tagged waterway as rivers, each handed to run: the last cell

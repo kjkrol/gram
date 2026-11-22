@@ -5,6 +5,8 @@ import (
 	"image"
 	"image/png"
 	"io/fs"
+
+	"github.com/kjkrol/gram/internal/f32"
 )
 
 // Heights is a ground's heights a corner a pixel: Columns by Rows of them, Pixel metres
@@ -58,11 +60,21 @@ func (h *Heights) covers(width, height float32) bool {
 // Value is the value kept at a pixel.
 func (h *Heights) Value(i, j int) uint16 { return h.values[j*h.Columns+i] }
 
+// onPixel is how near a pixel, in pixels, a place is on it
+const onPixel = 1e-4
+
 // At is the height at a place of the world: a pixel's at a pixel, even between them, the
 // edge's past it.
 func (h *Heights) At(x, y float32) float32 {
 	x = min(max(x/h.Pixel, 0), float32(h.Columns-1))
 	y = min(max(y/h.Pixel, 0), float32(h.Rows-1))
+	// on a pixel the height is the pixel's own, whatever the division left of the place
+	if r := f32.Round(x); f32.Abs(x-r) < onPixel {
+		x = r
+	}
+	if r := f32.Round(y); f32.Abs(y-r) < onPixel {
+		y = r
+	}
 	i, j := min(int(x), h.Columns-2), min(int(y), h.Rows-2)
 	tx, ty := x-float32(i), y-float32(j)
 	at := func(i, j int) float32 { return h.Lowest + float32(h.values[j*h.Columns+i])*h.Step }

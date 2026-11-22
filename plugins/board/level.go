@@ -39,7 +39,9 @@ type Level struct {
 }
 
 type waiting struct {
-	node    *yaml.Node
+	node *yaml.Node
+	// from names the geography's feature a row is of, where the level's file writes none
+	from    string
 	kind    *yaml.Node
 	row     reflect.Type
 	spawned bool
@@ -91,7 +93,13 @@ func (p *Plugin) Lay(fsys fs.FS, path string) (*Level, error) {
 	if !ok {
 		return nil, fmt.Errorf("board: %s: a level lays a board of grid.DefaultGrids only", path)
 	}
-	l := &leveler{p: p, path: path, shape: shape, names: map[string]int{}}
+	l := &leveler{
+		p:      p,
+		path:   path,
+		shape:  shape,
+		names:  map[string]int{},
+		forded: map[cell.ID]bool{},
+	}
 	level := &Level{l: l}
 	geo, err := l.geography(fsys, file.Geography)
 	if err != nil {
@@ -122,6 +130,14 @@ func (p *Plugin) Lay(fsys fs.FS, path string) (*Level, error) {
 		if err != nil {
 			return nil, err
 		}
+		level.waiting = append(level.waiting, w)
+	}
+	for _, m := range l.made {
+		w, err := l.waiting(m.node)
+		if err != nil {
+			return nil, fmt.Errorf("board: %s: %w", m.from, err)
+		}
+		w.from = m.from
 		level.waiting = append(level.waiting, w)
 	}
 	given := len(file.Ways.Roads) > 0 || len(file.Ways.Rivers) > 0
@@ -166,6 +182,9 @@ func Spawn[R any](level *Level, sides Sides) error {
 				l.p.where = map[cell.ID]string{}
 			}
 			l.p.where[at(r)] = fmt.Sprintf("%s:%d", l.path, w.node.Line)
+			if w.from != "" {
+				l.p.where[at(r)] = w.from
+			}
 		}
 		entries = append(entries, e)
 		taken = append(taken, w)
@@ -196,6 +215,9 @@ func Each[R any](level *Level, f func(kind string, row R, at string) error) erro
 			return err
 		}
 		at := fmt.Sprintf("%s:%d", l.path, w.node.Line)
+		if w.from != "" {
+			at = w.from
+		}
 		if err := f(w.kind.Value, r.(R), at); err != nil {
 			return fmt.Errorf("%s: %w", at, err)
 		}
@@ -208,6 +230,10 @@ func (level *Level) unspawned() error {
 	for _, w := range level.waiting {
 		if !w.spawned {
 			name := w.row.Name()
+			if w.from != "" {
+				return fmt.Errorf("board: %s: nobody spawns the rows of %q: board.Spawn[%s]",
+					w.from, w.kind.Value, name)
+			}
 			return level.l.errorf(w.kind, "nobody spawns the rows of %q: board.Spawn[%s]",
 				w.kind.Value, name)
 		}
@@ -245,6 +271,9 @@ type leveler struct {
 	path  string
 	shape grid.Shape
 	names map[string]int // by the line giving each
+	// the rows the geography's features give, and the cells they ford
+	made   []made
+	forded map[cell.ID]bool
 }
 
 func (l *leveler) errorf(n *yaml.Node, format string, args ...any) error {
@@ -458,6 +487,9 @@ func (l *leveler) ways(
 		run(cells, nodes)
 	}
 	if err := l.waters(geo, run); err != nil {
+		return err
+	}
+	if err := l.fords(geo, runs); err != nil {
 		return err
 	}
 	for _, cells := range runs { // every river laid first, so a tributary flows into its cells

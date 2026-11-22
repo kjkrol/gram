@@ -308,6 +308,12 @@ Madeira at 100 m a cell, gram's own examples till v0.22.0.
   over a river", the same `graded`. The map is in metres, the board in units: every place and
   width goes through the world's scale. `board.Level` stays the one level
   out of a file; `mapfile.File` is what it takes its ground from.
+  A line's bridge, tunnel or ford (2026-11-22) becomes the row a file would write
+  (`leveler.make`: YAML parsed into a node, waiting with its feature's name for the errors) and
+  two paths of two cells leading onto it, so `bridges`, `underground` and a game's fords read
+  it unchanged; the board still knows no bridge. A square board asks the map's heights at its
+  corners alone, as a relief in numbers answers: bilinear between them, a cell graded level
+  was level to a float's last bit only by luck, and a deck at its head's level sank under it.
 - What draws reads the cells as published (`Read.Drawn`, `Read.DrawnHeights`), a cell copied
   where its version differs.
 - `grid.Grid` knows its own directions; nobody else writes a table, a bit or a vector of them.
